@@ -1,0 +1,114 @@
+---
+title: Microsoft Excel
+description: Daten lesen, schreiben und aktualisieren
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="microsoft_excel"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Microsoft Teams](https://www.microsoft.com/en-us/microsoft-365/excel) ist eine leistungsstarke Tabellenkalkulationsanwendung, die Datenverwaltung, -analyse und -visualisierung ermöglicht. Durch die Microsoft Excel-Integration in Sim können Sie programmgesteuert Tabellenkalkulationsdaten lesen, schreiben und bearbeiten, um Ihre Workflow-Automatisierungsanforderungen zu unterstützen.
+
+Mit der Microsoft Excel-Integration können Sie:
+
+- **Tabellenkalkulationsdaten lesen**: Zugriff auf Daten aus bestimmten Bereichen, Blättern und Zellen
+- **Daten schreiben und aktualisieren**: Neue Daten hinzufügen oder bestehende Tabelleninhalte ändern
+- **Tabellen verwalten**: Tabellarische Datenstrukturen erstellen und bearbeiten
+- **Mehrere Blätter verwalten**: Mit mehreren Arbeitsblättern in einer Arbeitsmappe arbeiten
+- **Daten verarbeiten**: Tabellenkalkulationsdaten importieren, exportieren und transformieren
+
+In Sim bietet die Microsoft Excel-Integration nahtlosen Zugriff auf Tabellenkalkulationsfunktionen durch OAuth-Authentifizierung. Sie können Daten aus bestimmten Bereichen lesen, neue Informationen schreiben, bestehende Zellen aktualisieren und verschiedene Datenformate verarbeiten. Die Integration unterstützt sowohl Lese- als auch Schreibvorgänge mit flexiblen Ein- und Ausgabeoptionen. Dies ermöglicht es Ihnen, Workflows zu erstellen, die Tabellenkalkulationsdaten effektiv verwalten können, sei es beim Extrahieren von Informationen zur Analyse, beim automatischen Aktualisieren von Datensätzen oder bei der Aufrechterhaltung der Datenkonsistenz über Ihre Anwendungen hinweg.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integrieren Sie Microsoft Excel in den Workflow. Kann lesen, schreiben, aktualisieren, zu Tabellen hinzufügen und neue Arbeitsblätter erstellen.
+
+## Tools
+
+### `microsoft_excel_read`
+
+Daten aus einer Microsoft Excel-Tabelle lesen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Ja | Die ID der zu lesenden Tabelle |
+| `range` | string | Nein | Der zu lesende Zellbereich. Akzeptiert "Tabellenname!A1:B2" für explizite Bereiche oder nur "Tabellenname" um den verwendeten Bereich dieses Tabellenblatts zu lesen. Falls nicht angegeben, wird der verwendete Bereich des ersten Tabellenblatts gelesen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `data` | object | Bereichsdaten aus der Tabelle |
+
+### `microsoft_excel_write`
+
+Daten in eine Microsoft Excel-Tabelle schreiben
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Ja | Die ID der Tabelle, in die geschrieben werden soll |
+| `range` | string | Nein | Der Zellbereich, in den geschrieben werden soll |
+| `values` | array | Ja | Die Daten, die in die Tabelle geschrieben werden sollen |
+| `valueInputOption` | string | Nein | Das Format der zu schreibenden Daten |
+| `includeValuesInResponse` | boolean | Nein | Ob die geschriebenen Werte in der Antwort enthalten sein sollen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `updatedRange` | string | Der Bereich, der aktualisiert wurde |
+| `updatedRows` | number | Anzahl der aktualisierten Zeilen |
+| `updatedColumns` | number | Anzahl der aktualisierten Spalten |
+| `updatedCells` | number | Anzahl der aktualisierten Zellen |
+| `metadata` | object | Tabellen-Metadaten |
+
+### `microsoft_excel_table_add`
+
+Neue Zeilen zu einer Microsoft Excel-Tabelle hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Ja | Die ID der Tabellenkalkulation, die die Tabelle enthält |
+| `tableName` | string | Ja | Der Name der Tabelle, zu der Zeilen hinzugefügt werden sollen |
+| `values` | array | Ja | Die Daten, die zur Tabelle hinzugefügt werden sollen \(Array von Arrays oder Array von Objekten\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `index` | number | Index der ersten Zeile, die hinzugefügt wurde |
+| `values` | array | Array von Zeilen, die zur Tabelle hinzugefügt wurden |
+| `metadata` | object | Metadaten der Tabellenkalkulation |
+
+### `microsoft_excel_worksheet_add`
+
+Ein neues Arbeitsblatt (Tabellenblatt) in einer Microsoft Excel-Arbeitsmappe erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Ja | Die ID der Excel-Arbeitsmappe, zu der das Arbeitsblatt hinzugefügt werden soll |
+| `worksheetName` | string | Ja | Der Name des neuen Arbeitsblatts. Muss innerhalb der Arbeitsmappe eindeutig sein und darf 31 Zeichen nicht überschreiten |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `worksheet` | object | Details des neu erstellten Arbeitsblatts |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `microsoft_excel`

@@ -1,0 +1,58 @@
+---
+title: Hugging Face
+description: 使用 Hugging Face 推理 API
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="huggingface"
+  color="#0B0F19"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[HuggingFace](https://huggingface.co/) 是一个领先的 AI 平台，提供数千种预训练的机器学习模型和强大的推理能力。通过其广泛的模型库和强大的 API，HuggingFace 为研究和生产级 AI 应用提供了全面的工具。
+使用 HuggingFace，您可以：
+
+访问预训练模型：利用用于文本生成、翻译、图像处理等的模型
+生成 AI 补全：通过推理 API 使用最先进的语言模型创建内容
+自然语言处理：使用专门的 NLP 模型处理和分析文本
+大规模部署：托管和服务于生产应用的模型
+自定义模型：针对特定用例微调现有模型
+
+在 Sim 中，HuggingFace 集成使您的代理能够通过编程方式使用 HuggingFace 推理 API 生成补全。这支持强大的自动化场景，例如内容生成、文本分析、代码补全和创意写作。您的代理可以通过自然语言提示生成补全，访问针对不同任务的专用模型，并将 AI 生成的内容集成到工作流中。此集成弥合了您的 AI 工作流与机器学习能力之间的差距，使您能够通过全球最全面的 ML 平台之一实现无缝的 AI 驱动自动化。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Hugging Face 集成到工作流程中。可以使用 Hugging Face 推理 API 生成补全内容。需要 API 密钥。
+
+## 工具
+
+### `huggingface_chat`
+
+使用 Hugging Face 推理 API 生成补全
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `systemPrompt` | string | 否 | 指导模型行为的系统提示 |
+| `content` | string | 是 | 发送给模型的用户消息内容 |
+| `provider` | string | 是 | 用于 API 请求的提供商 \(例如，novita、cerebras 等\) |
+| `model` | string | 是 | 用于聊天补全的模型 \(例如，deepseek/deepseek-v3-0324\) |
+| `maxTokens` | number | 否 | 生成的最大 token 数量 |
+| `temperature` | number | 否 | 采样温度 \(0-2\)。较高的值使输出更随机 |
+| `apiKey` | string | 是 | Hugging Face API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 聊天补全结果 |
+
+## 注意事项
+
+- 分类：`tools`
+- 类型：`huggingface`

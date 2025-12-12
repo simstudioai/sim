@@ -1,0 +1,154 @@
+---
+title: Agent
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Der Agent-Block verbindet deinen Workflow mit Large Language Models (LLMs). Er verarbeitet natürlichsprachliche Eingaben, ruft externe Tools auf und generiert strukturierte oder unstrukturierte Ausgaben.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/agent.png"
+    alt="Agent-Block-Konfiguration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div> 
+
+## Konfigurationsoptionen
+
+### System-Prompt
+
+Der System-Prompt legt die Betriebsparameter und Verhaltenseinschränkungen des Agenten fest. Diese Konfiguration definiert die Rolle des Agenten, die Antwortmethodik und die Verarbeitungsgrenzen für alle eingehenden Anfragen.
+
+```markdown
+You are a helpful assistant that specializes in financial analysis.
+Always provide clear explanations and cite sources when possible.
+When responding to questions about investments, include risk disclaimers.
+```
+
+### Benutzer-Prompt
+
+Der Benutzer-Prompt stellt die primären Eingabedaten für die Inferenzverarbeitung dar. Dieser Parameter akzeptiert natürlichsprachlichen Text oder strukturierte Daten, die der Agent analysieren und auf die er reagieren wird. Zu den Eingabequellen gehören:
+
+- **Statische Konfiguration**: Direkte Texteingabe, die in der Block-Konfiguration angegeben ist
+- **Dynamische Eingabe**: Daten, die von vorgelagerten Blöcken über Verbindungsschnittstellen übergeben werden
+- **Laufzeitgenerierung**: Programmatisch generierte Inhalte während der Workflow-Ausführung
+
+### Modellauswahl
+
+Der Agent-Block unterstützt mehrere LLM-Anbieter über eine einheitliche Inferenzschnittstelle. Verfügbare Modelle umfassen:
+
+- **OpenAI**: GPT-5.1, GPT-5, GPT-4o, o1, o3, o4-mini, gpt-4.1
+- **Anthropic**: Claude 4.5 Sonnet, Claude Opus 4.1
+- **Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
+- **Andere Anbieter**: Groq, Cerebras, xAI, Azure OpenAI, OpenRouter
+- **Lokale Modelle**: Ollama oder VLLM-kompatible Modelle
+
+### Temperatur
+
+Steuert die Zufälligkeit und Kreativität der Antworten:
+
+- **Niedrig (0-0,3)**: Deterministisch und fokussiert. Am besten für faktische Aufgaben und Genauigkeit.
+- **Mittel (0,3-0,7)**: Ausgewogene Kreativität und Fokus. Gut für allgemeine Verwendung.
+- **Hoch (0,7-2,0)**: Kreativ und abwechslungsreich. Ideal für Brainstorming und Content-Generierung.
+
+### API-Schlüssel
+
+Ihr API-Schlüssel für den ausgewählten LLM-Anbieter. Dieser wird sicher gespeichert und für die Authentifizierung verwendet.
+
+### Tools
+
+Erweitern Sie die Fähigkeiten des Agenten mit externen Integrationen. Wählen Sie aus über 60 vorgefertigten Tools oder definieren Sie benutzerdefinierte Funktionen.
+
+**Verfügbare Kategorien:**
+- **Kommunikation**: Gmail, Slack, Telegram, WhatsApp, Microsoft Teams
+- **Datenquellen**: Notion, Google Sheets, Airtable, Supabase, Pinecone
+- **Webdienste**: Firecrawl, Google Search, Exa AI, Browser-Automatisierung
+- **Entwicklung**: GitHub, Jira, Linear
+- **KI-Dienste**: OpenAI, Perplexity, Hugging Face, ElevenLabs
+
+**Ausführungsmodi:**
+- **Auto**: Modell entscheidet kontextbasiert, wann Tools verwendet werden
+- **Erforderlich**: Tool muss bei jeder Anfrage aufgerufen werden
+- **Keine**: Tool verfügbar, aber dem Modell nicht vorgeschlagen
+
+### Antwortformat
+
+Der Parameter für das Antwortformat erzwingt die Generierung strukturierter Ausgaben durch JSON-Schema-Validierung. Dies gewährleistet konsistente, maschinenlesbare Antworten, die vordefinierten Datenstrukturen entsprechen:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "sentiment": {
+      "type": "string",
+      "enum": ["positive", "neutral", "negative"]
+    },
+    "summary": {
+      "type": "string",
+      "description": "Brief summary of the content"
+    }
+  },
+  "required": ["sentiment", "summary"]
+}
+```
+
+Diese Konfiguration beschränkt die Ausgabe des Modells auf die Einhaltung des angegebenen Schemas, verhindert Freitextantworten und stellt die Generierung strukturierter Daten sicher.
+
+### Zugriff auf Ergebnisse
+
+Nach Abschluss eines Agenten können Sie auf seine Ausgaben zugreifen:
+
+- **response**: Der Antworttext oder die strukturierten Daten des Agenten
+- **usage**: Token-Nutzungsstatistiken (Prompt, Completion, Gesamt)
+- **toolExecutions**: Details zu allen Tools, die der Agent während der Ausführung verwendet hat
+- **estimatedCost**: Geschätzte Kosten des API-Aufrufs (falls verfügbar)
+
+## Erweiterte Funktionen
+
+### Memory + Agent: Gesprächsverlauf
+
+Verwenden Sie einen memory Block mit einer konsistenten memoryId (zum Beispiel, conversationHistory), um Nachrichten zwischen Durchläufen zu speichern und diesen Verlauf in den Prompt des Agenten einzubeziehen.
+
+- Fügen Sie die Nachricht des Benutzers vor dem Agenten hinzu
+- Lesen Sie den Gesprächsverlauf für den Kontext
+- Hängen Sie die Antwort des Agenten nach dessen Ausführung an
+
+Siehe den [`Memory`](/tools/memory) Blockverweis für Details.
+
+## Ausgaben
+
+- **`<agent.content>`**: Antworttext des Agenten
+- **`<agent.tokens>`**: Token-Nutzungsstatistiken
+- **`<agent.tool_calls>`**: Details zur Tool-Ausführung
+- **`<agent.cost>`**: Geschätzte Kosten des API-Aufrufs
+
+## Beispielanwendungsfälle
+
+**Automatisierung des Kundenservice** - Bearbeitung von Anfragen mit Datenbank- und Tool-Zugriff
+
+```
+API (Ticket) → Agent (Postgres, KB, Linear) → Gmail (Reply) → Memory (Save)
+```
+
+**Multi-Modell-Inhaltsanalyse** - Analyse von Inhalten mit verschiedenen KI-Modellen
+
+```
+Function (Process) → Agent (GPT-4o Technical) → Agent (Claude Sentiment) → Function (Report)
+```
+
+**Tool-gestützter Rechercheassistent** - Recherche mit Websuche und Dokumentenzugriff
+
+```
+Input → Agent (Google Search, Notion) → Function (Compile Report)
+```
+
+## Bewährte Praktiken
+
+- **Sei spezifisch in System-Prompts**: Definiere die Rolle, den Ton und die Einschränkungen des Agenten klar. Je spezifischer deine Anweisungen sind, desto besser kann der Agent seinen vorgesehenen Zweck erfüllen.
+- **Wähle die richtige Temperatureinstellung**: Verwende niedrigere Temperatureinstellungen (0-0,3), wenn Genauigkeit wichtig ist, oder erhöhe die Temperatur (0,7-2,0) für kreativere oder vielfältigere Antworten
+- **Nutze Tools effektiv**: Integriere Tools, die den Zweck des Agenten ergänzen und seine Fähigkeiten erweitern. Sei selektiv bei der Auswahl der Tools, um den Agenten nicht zu überfordern. Für Aufgaben mit wenig Überschneidung verwende einen anderen Agent-Block für die besten Ergebnisse.

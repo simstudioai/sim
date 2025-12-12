@@ -1,12 +1,29 @@
 import type { Edge } from 'reactflow'
 import { createLogger } from '@/lib/logs/console/logger'
+import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { getTool } from '@/tools/utils'
 
 const logger = createLogger('Serializer')
+
+/**
+ * Structured validation error for pre-execution workflow validation
+ */
+export class WorkflowValidationError extends Error {
+  constructor(
+    message: string,
+    public blockId?: string,
+    public blockType?: string,
+    public blockName?: string
+  ) {
+    super(message)
+    this.name = 'WorkflowValidationError'
+  }
+}
 
 /**
  * Helper function to check if a subblock should be included in serialization based on current mode
@@ -21,29 +38,127 @@ function shouldIncludeField(subBlockConfig: SubBlockConfig, isAdvancedMode: bool
   return true
 }
 
+/**
+ * Helper function to migrate agent block params from old format to messages array
+ * Transforms systemPrompt/userPrompt into messages array format
+ * Only migrates if old format exists and new format doesn't (idempotent)
+ */
+function migrateAgentParamsToMessages(
+  params: Record<string, any>,
+  subBlocks: Record<string, any>,
+  blockId: string
+): void {
+  // Only migrate if old format exists and new format doesn't
+  if ((params.systemPrompt || params.userPrompt) && !params.messages) {
+    logger.info('Migrating agent block from legacy format to messages array', {
+      blockId,
+      hasSystemPrompt: !!params.systemPrompt,
+      hasUserPrompt: !!params.userPrompt,
+    })
+
+    const messages: any[] = []
+
+    // Add system message first (industry standard)
+    if (params.systemPrompt) {
+      messages.push({
+        role: 'system',
+        content: params.systemPrompt,
+      })
+    }
+
+    // Add user message
+    if (params.userPrompt) {
+      let userContent = params.userPrompt
+
+      // Handle object format (e.g., { input: "..." })
+      if (typeof userContent === 'object' && userContent !== null) {
+        if ('input' in userContent) {
+          userContent = userContent.input
+        } else {
+          // If it's an object but doesn't have 'input', stringify it
+          userContent = JSON.stringify(userContent)
+        }
+      }
+
+      messages.push({
+        role: 'user',
+        content: String(userContent),
+      })
+    }
+
+    // Set the migrated messages in subBlocks
+    subBlocks.messages = {
+      id: 'messages',
+      type: 'messages-input',
+      value: messages,
+    }
+  }
+}
+
 export class Serializer {
   serializeWorkflow(
     blocks: Record<string, BlockState>,
     edges: Edge[],
-    loops: Record<string, Loop>,
+    loops?: Record<string, Loop>,
     parallels?: Record<string, Parallel>,
     validateRequired = false
   ): SerializedWorkflow {
+    const canonicalLoops = generateLoopBlocks(blocks)
+    const canonicalParallels = generateParallelBlocks(blocks)
+    const safeLoops = Object.keys(canonicalLoops).length > 0 ? canonicalLoops : loops || {}
+    const safeParallels =
+      Object.keys(canonicalParallels).length > 0 ? canonicalParallels : parallels || {}
+    const accessibleBlocksMap = this.computeAccessibleBlockIds(
+      blocks,
+      edges,
+      safeLoops,
+      safeParallels
+    )
+
+    if (validateRequired) {
+      this.validateSubflowsBeforeExecution(blocks, safeLoops, safeParallels)
+    }
+
     return {
       version: '1.0',
-      blocks: Object.values(blocks).map((block) => this.serializeBlock(block, validateRequired)),
+      blocks: Object.values(blocks).map((block) =>
+        this.serializeBlock(block, {
+          validateRequired,
+          allBlocks: blocks,
+          accessibleBlocksMap,
+        })
+      ),
       connections: edges.map((edge) => ({
         source: edge.source,
         target: edge.target,
         sourceHandle: edge.sourceHandle || undefined,
         targetHandle: edge.targetHandle || undefined,
       })),
-      loops,
-      parallels,
+      loops: safeLoops,
+      parallels: safeParallels,
     }
   }
 
-  private serializeBlock(block: BlockState, validateRequired = false): SerializedBlock {
+  /**
+   * Validate loop and parallel subflows for required inputs when running in "each/collection" modes
+   */
+  private validateSubflowsBeforeExecution(
+    blocks: Record<string, BlockState>,
+    loops: Record<string, Loop>,
+    parallels: Record<string, Parallel>
+  ): void {
+    // Note: Empty collections in forEach loops and parallel collection mode are handled gracefully
+    // at runtime - the loop/parallel will simply be skipped. No build-time validation needed.
+  }
+
+  private serializeBlock(
+    block: BlockState,
+    options: {
+      validateRequired: boolean
+      allBlocks: Record<string, BlockState>
+      accessibleBlocksMap: Map<string, Set<string>>
+    }
+  ): SerializedBlock {
     // Special handling for subflow blocks (loops, parallels, etc.)
     if (block.type === 'loop' || block.type === 'parallel') {
       return {
@@ -79,12 +194,15 @@ export class Serializer {
       if (block.triggerMode === true || isTriggerCategory) {
         params.triggerMode = true
       }
+      if (block.advancedMode === true) {
+        params.advancedMode = true
+      }
     } catch (_) {
       // no-op: conservative, avoid blocking serialization if blockConfig is unexpected
     }
 
     // Validate required fields that only users can provide (before execution starts)
-    if (validateRequired) {
+    if (options.validateRequired) {
       this.validateRequiredFieldsBeforeExecution(block, blockConfig, params)
     }
 
@@ -223,6 +341,7 @@ export class Serializer {
     const params: Record<string, any> = {}
     const isAdvancedMode = block.advancedMode ?? false
     const isStarterBlock = block.type === 'starter'
+    const isAgentBlock = block.type === 'agent'
 
     // First collect all current values from subBlocks, filtering by mode
     Object.entries(block.subBlocks).forEach(([id, subBlock]) => {
@@ -236,9 +355,15 @@ export class Serializer {
         Array.isArray(subBlock.value) &&
         subBlock.value.length > 0
 
+      // Include legacy agent block fields (systemPrompt, userPrompt, memories) even if not in current config
+      // This ensures backward compatibility with old workflows that were exported before the messages array migration
+      const isLegacyAgentField =
+        isAgentBlock && ['systemPrompt', 'userPrompt', 'memories'].includes(id)
+
       if (
-        subBlockConfig &&
-        (shouldIncludeField(subBlockConfig, isAdvancedMode) || hasStarterInputFormatValues)
+        (subBlockConfig &&
+          (shouldIncludeField(subBlockConfig, isAdvancedMode) || hasStarterInputFormatValues)) ||
+        isLegacyAgentField
       ) {
         params[id] = subBlock.value
       }
@@ -248,13 +373,52 @@ export class Serializer {
     blockConfig.subBlocks.forEach((subBlockConfig) => {
       const id = subBlockConfig.id
       if (
-        params[id] === null &&
+        (params[id] === null || params[id] === undefined) &&
         subBlockConfig.value &&
         shouldIncludeField(subBlockConfig, isAdvancedMode)
       ) {
-        // If the value is null and there's a default value function, use it
+        // If the value is absent and there's a default value function, use it
         params[id] = subBlockConfig.value(params)
       }
+    })
+
+    // Finally, consolidate canonical parameters (e.g., selector and manual ID into a single param)
+    const canonicalGroups: Record<string, { basic?: string; advanced: string[] }> = {}
+    blockConfig.subBlocks.forEach((sb) => {
+      if (!sb.canonicalParamId) return
+      const key = sb.canonicalParamId
+      if (!canonicalGroups[key]) canonicalGroups[key] = { basic: undefined, advanced: [] }
+      if (sb.mode === 'advanced') canonicalGroups[key].advanced.push(sb.id)
+      else canonicalGroups[key].basic = sb.id
+    })
+
+    Object.entries(canonicalGroups).forEach(([canonicalKey, group]) => {
+      const basicId = group.basic
+      const advancedIds = group.advanced
+      const basicVal = basicId ? params[basicId] : undefined
+      const advancedVal = advancedIds
+        .map((id) => params[id])
+        .find(
+          (v) => v !== undefined && v !== null && (typeof v !== 'string' || v.trim().length > 0)
+        )
+
+      let chosen: any
+      if (advancedVal !== undefined && basicVal !== undefined) {
+        chosen = isAdvancedMode ? advancedVal : basicVal
+      } else if (advancedVal !== undefined) {
+        chosen = advancedVal
+      } else if (basicVal !== undefined) {
+        chosen = isAdvancedMode ? undefined : basicVal
+      } else {
+        chosen = undefined
+      }
+
+      const sourceIds = [basicId, ...advancedIds].filter(Boolean) as string[]
+      sourceIds.forEach((id) => {
+        if (id !== canonicalKey) delete params[id]
+      })
+      if (chosen !== undefined) params[canonicalKey] = chosen
+      else delete params[canonicalKey]
     })
 
     return params
@@ -265,12 +429,12 @@ export class Serializer {
     blockConfig: any,
     params: Record<string, any>
   ) {
-    // Validate user-only required fields before execution starts
-    // This catches missing API keys, credentials, and other user-provided values early
-    // Fields that are user-or-llm will be validated later after parameter merging
-
-    // Skip validation if the block is in trigger mode
-    if (block.triggerMode || blockConfig.category === 'triggers') {
+    // Skip validation if the block is used as a trigger
+    if (
+      block.triggerMode === true ||
+      blockConfig.category === 'triggers' ||
+      params.triggerMode === true
+    ) {
       logger.info('Skipping validation for block in trigger mode', {
         blockId: block.id,
         blockType: block.type,
@@ -306,13 +470,83 @@ export class Serializer {
     // Check required user-only parameters for the current tool
     const missingFields: string[] = []
 
+    // Helper function to evaluate conditions
+    const evalCond = (
+      condition:
+        | {
+            field: string
+            value: any
+            not?: boolean
+            and?: { field: string; value: any; not?: boolean }
+          }
+        | (() => {
+            field: string
+            value: any
+            not?: boolean
+            and?: { field: string; value: any; not?: boolean }
+          })
+        | undefined,
+      values: Record<string, any>
+    ): boolean => {
+      if (!condition) return true
+      const actual = typeof condition === 'function' ? condition() : condition
+      const fieldValue = values[actual.field]
+
+      const valueMatch = Array.isArray(actual.value)
+        ? fieldValue != null &&
+          (actual.not ? !actual.value.includes(fieldValue) : actual.value.includes(fieldValue))
+        : actual.not
+          ? fieldValue !== actual.value
+          : fieldValue === actual.value
+
+      const andMatch = !actual.and
+        ? true
+        : (() => {
+            const andFieldValue = values[actual.and!.field]
+            return Array.isArray(actual.and!.value)
+              ? andFieldValue != null &&
+                  (actual.and!.not
+                    ? !actual.and!.value.includes(andFieldValue)
+                    : actual.and!.value.includes(andFieldValue))
+              : actual.and!.not
+                ? andFieldValue !== actual.and!.value
+                : andFieldValue === actual.and!.value
+          })()
+
+      return valueMatch && andMatch
+    }
+
     // Iterate through the tool's parameters, not the block's subBlocks
     Object.entries(currentTool.params || {}).forEach(([paramId, paramConfig]) => {
       if (paramConfig.required && paramConfig.visibility === 'user-only') {
+        const subBlockConfig = blockConfig.subBlocks?.find((sb: any) => sb.id === paramId)
+
+        let shouldValidateParam = true
+
+        if (subBlockConfig) {
+          const isAdvancedMode = block.advancedMode ?? false
+          const includedByMode = shouldIncludeField(subBlockConfig, isAdvancedMode)
+
+          // Check visibility condition
+          const includedByCondition = evalCond(subBlockConfig.condition, params)
+
+          // Check if field is required based on its required condition (if it's a condition object)
+          const isRequired = (() => {
+            if (!subBlockConfig.required) return false
+            if (typeof subBlockConfig.required === 'boolean') return subBlockConfig.required
+            // If required is a condition object, evaluate it
+            return evalCond(subBlockConfig.required, params)
+          })()
+
+          shouldValidateParam = includedByMode && includedByCondition && isRequired
+        }
+
+        if (!shouldValidateParam) {
+          return
+        }
+
         const fieldValue = params[paramId]
         if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
-          // Find the corresponding subBlock to get the display title
-          const subBlockConfig = blockConfig.subBlocks?.find((sb: any) => sb.id === paramId)
           const displayName = subBlockConfig?.title || paramId
           missingFields.push(displayName)
         }
@@ -323,6 +557,48 @@ export class Serializer {
       const blockName = block.name || blockConfig.name || 'Block'
       throw new Error(`${blockName} is missing required fields: ${missingFields.join(', ')}`)
     }
+  }
+
+  private computeAccessibleBlockIds(
+    blocks: Record<string, BlockState>,
+    edges: Edge[],
+    loops: Record<string, Loop>,
+    parallels: Record<string, Parallel>
+  ): Map<string, Set<string>> {
+    const accessibleMap = new Map<string, Set<string>>()
+    const simplifiedEdges = edges.map((edge) => ({ source: edge.source, target: edge.target }))
+
+    const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
+
+    Object.keys(blocks).forEach((blockId) => {
+      const ancestorIds = BlockPathCalculator.findAllPathNodes(simplifiedEdges, blockId)
+      const accessibleIds = new Set<string>(ancestorIds)
+      accessibleIds.add(blockId)
+
+      // Only add starter block if it's actually upstream (already in ancestorIds)
+      // Don't add it just because it exists on the canvas
+      if (starterBlock && ancestorIds.includes(starterBlock.id)) {
+        accessibleIds.add(starterBlock.id)
+      }
+
+      Object.values(loops).forEach((loop) => {
+        if (!loop?.nodes) return
+        if (loop.nodes.includes(blockId)) {
+          loop.nodes.forEach((nodeId) => accessibleIds.add(nodeId))
+        }
+      })
+
+      Object.values(parallels).forEach((parallel) => {
+        if (!parallel?.nodes) return
+        if (parallel.nodes.includes(blockId)) {
+          parallel.nodes.forEach((nodeId) => accessibleIds.add(nodeId))
+        }
+      })
+
+      accessibleMap.set(blockId, accessibleIds)
+    })
+
+    return accessibleMap
   }
 
   deserializeWorkflow(workflow: SerializedWorkflow): {
@@ -386,6 +662,11 @@ export class Serializer {
       }
     })
 
+    // Migration logic for agent blocks: Transform old systemPrompt/userPrompt to messages array
+    if (blockType === 'agent') {
+      migrateAgentParamsToMessages(serializedBlock.config.params, subBlocks, serializedBlock.id)
+    }
+
     return {
       id: serializedBlock.id,
       type: blockType,
@@ -394,10 +675,10 @@ export class Serializer {
       subBlocks,
       outputs: serializedBlock.outputs,
       enabled: true,
-      // Restore trigger mode from serialized params; treat trigger category as triggers as well
       triggerMode:
         serializedBlock.config?.params?.triggerMode === true ||
         serializedBlock.metadata?.category === 'triggers',
+      advancedMode: serializedBlock.config?.params?.advancedMode === true,
     }
   }
 }

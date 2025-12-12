@@ -1,0 +1,352 @@
+---
+title: Polymarket
+description: Accédez aux données des marchés prédictifs de Polymarket
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="polymarket"
+  color="#4C82FB"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Polymarket](https://polymarket.com) est une plateforme décentralisée de marchés prédictifs où les utilisateurs peuvent négocier sur l'issue d'événements futurs en utilisant la technologie blockchain. Polymarket fournit une API complète, permettant aux développeurs et aux agents d'accéder aux données de marché en direct, aux listes d'événements, aux informations de prix et aux statistiques du carnet d'ordres pour alimenter des flux de travail basés sur les données et des automatisations d'IA.
+
+Avec l'API de Polymarket et l'intégration Sim, vous pouvez permettre aux agents de récupérer programmatiquement des informations sur les marchés prédictifs, d'explorer les marchés ouverts et les événements associés, d'analyser les données historiques de prix, et d'accéder aux carnets d'ordres et aux points médians du marché. Cela crée de nouvelles possibilités pour la recherche, l'analyse automatisée et le développement d'agents intelligents qui réagissent aux probabilités d'événements en temps réel dérivées des prix du marché.
+
+Les fonctionnalités clés de l'intégration Polymarket comprennent :
+
+- **Liste et filtrage des marchés :** listez tous les marchés prédictifs actuels ou historiques, filtrez par tag, triez et naviguez à travers les résultats.
+- **Détail du marché :** récupérez les détails d'un marché spécifique par ID ou slug, y compris ses résultats et son statut.
+- **Listes d'événements :** accédez aux listes d'événements Polymarket et aux informations détaillées sur les événements.
+- **Carnet d'ordres et données de prix :** analysez le carnet d'ordres, obtenez les derniers prix du marché, consultez le point médian ou obtenez des informations historiques sur les prix pour n'importe quel marché.
+- **Prêt pour l'automatisation :** créez des agents ou des outils qui réagissent de manière programmatique aux développements du marché, aux changements de cotes ou aux résultats d'événements spécifiques.
+
+En utilisant ces points de terminaison API documentés, vous pouvez intégrer de manière transparente les riches données des marchés prédictifs on-chain de Polymarket dans vos propres flux de travail d'IA, tableaux de bord, outils de recherche et automatisations de trading.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez les marchés prédictifs de Polymarket dans le flux de travail. Peut obtenir les marchés, le marché, les événements, l'événement, les tags, les séries, le carnet d'ordres, le prix, le point médian, l'historique des prix, le dernier prix de transaction, l'écart, la taille du tick, les positions, les transactions et effectuer des recherches.
+
+## Outils
+
+### `polymarket_get_markets`
+
+Récupérer une liste des marchés prédictifs de Polymarket avec filtrage optionnel
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `closed` | string | Non | Filtrer par statut fermé \(true/false\). Utilisez false pour les marchés actifs uniquement. |
+| `order` | string | Non | Champ de tri \(par exemple, volumeNum, liquidityNum, startDate, endDate, createdAt\) |
+| `ascending` | string | Non | Direction de tri \(true pour ascendant, false pour descendant\) |
+| `tagId` | string | Non | Filtrer par ID de tag |
+| `limit` | string | Non | Nombre de résultats par page \(recommandé : 25-50\) |
+| `offset` | string | Non | Décalage de pagination \(ignorer ce nombre de résultats\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Statut de réussite de l'opération |
+| `output` | objet | Données des marchés et métadonnées |
+
+### `polymarket_get_market`
+
+Récupérer les détails d'un marché prédictif spécifique par ID ou slug
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `marketId` | chaîne | Non | L'ID du marché. Obligatoire si le slug n'est pas fourni. |
+| `slug` | chaîne | Non | Le slug du marché \(ex. "will-trump-win"\). Obligatoire si marketId n'est pas fourni. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données de marché et métadonnées |
+
+### `polymarket_get_events`
+
+Récupérer une liste d'événements de Polymarket avec filtrage optionnel
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `closed` | string | Non | Filtrer par statut fermé \(true/false\). Utilisez false pour les événements actifs uniquement. |
+| `order` | string | Non | Champ de tri \(par exemple, volume, liquidity, startDate, endDate, createdAt\) |
+| `ascending` | string | Non | Direction de tri \(true pour ascendant, false pour descendant\) |
+| `tagId` | string | Non | Filtrer par ID de tag |
+| `limit` | string | Non | Nombre de résultats par page \(recommandé : 25-50\) |
+| `offset` | string | Non | Décalage de pagination \(ignorer ce nombre de résultats\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données d'événements et métadonnées |
+
+### `polymarket_get_event`
+
+Récupérer les détails d'un événement spécifique par ID ou slug
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventId` | string | Non | L'ID de l'événement. Obligatoire si le slug n'est pas fourni. |
+| `slug` | string | Non | Le slug de l'événement \(ex. : "2024-presidential-election"\). Obligatoire si eventId n'est pas fourni. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données et métadonnées de l'événement |
+
+### `polymarket_get_tags`
+
+Récupérer les tags disponibles pour filtrer les marchés sur Polymarket
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | Non | Nombre de résultats par page \(recommandé : 25-50\) |
+| `offset` | string | Non | Décalage de pagination \(ignorer ce nombre de résultats\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données et métadonnées des tags |
+
+### `polymarket_search`
+
+Rechercher des marchés, des événements et des profils sur Polymarket
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Oui | Terme de recherche |
+| `limit` | string | Non | Nombre de résultats par page \(recommandé : 25-50\) |
+| `offset` | string | Non | Décalage de pagination \(ignorer ce nombre de résultats\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Résultats de recherche et métadonnées |
+
+### `polymarket_get_series`
+
+Récupérer des séries (groupes de marchés liés) depuis Polymarket
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | Non | Nombre de résultats par page \(recommandé : 25-50\) |
+| `offset` | string | Non | Décalage de pagination \(ignorer ce nombre de résultats\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données et métadonnées de la série |
+
+### `polymarket_get_series_by_id`
+
+Récupérer une série spécifique (groupe de marché associé) par ID depuis Polymarket
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `seriesId` | string | Oui | L'ID de la série |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données et métadonnées de la série |
+
+### `polymarket_get_orderbook`
+
+Récupérer le résumé du carnet d'ordres pour un jeton spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `tokenId` | string | Oui | L'ID du jeton CLOB (provenant des clobTokenIds du marché) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données et métadonnées du carnet d'ordres |
+
+### `polymarket_get_price`
+
+Récupérer le prix du marché pour un jeton et un côté spécifiques
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `tokenId` | string | Oui | L'ID du jeton CLOB (provenant des clobTokenIds du marché) |
+| `side` | string | Oui | Côté de l'ordre : achat ou vente |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données de prix et métadonnées |
+
+### `polymarket_get_midpoint`
+
+Récupérer le prix médian pour un jeton spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `tokenId` | string | Oui | L'ID du jeton CLOB (depuis market clobTokenIds) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données de prix médian et métadonnées |
+
+### `polymarket_get_price_history`
+
+Récupérer les données historiques de prix pour un jeton de marché spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `tokenId` | string | Oui | L'ID du jeton CLOB (depuis market clobTokenIds) |
+| `interval` | string | Non | Durée se terminant au moment actuel (1m, 1h, 6h, 1d, 1w, max). Mutuellement exclusif avec startTs/endTs. |
+| `fidelity` | number | Non | Résolution des données en minutes (par ex., 60 pour horaire) |
+| `startTs` | number | Non | Horodatage de début (secondes Unix UTC) |
+| `endTs` | number | Non | Horodatage de fin (secondes Unix UTC) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données d'historique de prix et métadonnées |
+
+### `polymarket_get_last_trade_price`
+
+Récupérer le dernier prix de transaction pour un jeton spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `tokenId` | string | Oui | L'ID du jeton CLOB (depuis market clobTokenIds) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Dernier prix de transaction et métadonnées |
+
+### `polymarket_get_spread`
+
+Récupérer l'écart entre l'offre et la demande pour un jeton spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `tokenId` | string | Oui | L'ID du jeton CLOB (depuis market clobTokenIds) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données d'écart et métadonnées |
+
+### `polymarket_get_tick_size`
+
+Récupérer la taille minimale du tick pour un jeton spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `tokenId` | string | Oui | L'ID du jeton CLOB (depuis market clobTokenIds) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Taille du tick et métadonnées |
+
+### `polymarket_get_positions`
+
+Récupérer les positions de l'utilisateur depuis Polymarket
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `user` | string | Oui | Adresse du portefeuille de l'utilisateur |
+| `market` | string | Non | ID de marché optionnel pour filtrer les positions |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données des positions et métadonnées |
+
+### `polymarket_get_trades`
+
+Récupérer l'historique des transactions depuis Polymarket
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `user` | string | Non | Adresse du portefeuille de l'utilisateur pour filtrer les transactions |
+| `market` | string | Non | ID de marché pour filtrer les transactions |
+| `limit` | string | Non | Nombre de résultats par page \(recommandé : 25-50\) |
+| `offset` | string | Non | Décalage de pagination \(ignorer ce nombre de résultats\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Données des transactions et métadonnées |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `polymarket`

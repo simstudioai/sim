@@ -1,13 +1,14 @@
 import { GoogleDriveIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { GoogleDriveResponse } from '@/tools/google_drive/types'
 
 export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
   type: 'google_drive',
   name: 'Google Drive',
   description: 'Create, upload, and list files',
-  longDescription:
-    'Integrate Google Drive functionality to manage files and folders. Upload new files, get content from existing files, create new folders, and list contents of folders using OAuth authentication. Supports file operations with custom MIME types and folder organization.',
+  authMode: AuthMode.OAuth,
+  longDescription: 'Integrate Google Drive into the workflow. Can create, upload, and list files.',
   docsLink: 'https://docs.sim.ai/tools/google_drive',
   category: 'tools',
   bgColor: '#E0E0E0',
@@ -18,10 +19,11 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Create Folder', id: 'create_folder' },
+        { label: 'Create File', id: 'create_file' },
         { label: 'Upload File', id: 'upload' },
+        { label: 'Download File', id: 'download' },
         { label: 'List Files', id: 'list' },
       ],
       value: () => 'create_folder',
@@ -31,75 +33,101 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       id: 'credential',
       title: 'Google Drive Account',
       type: 'oauth-input',
-      layout: 'full',
       required: true,
-      provider: 'google-drive',
       serviceId: 'google-drive',
-      requiredScopes: ['https://www.googleapis.com/auth/drive.file'],
+      requiredScopes: [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive',
+      ],
       placeholder: 'Select Google Drive account',
     },
-    // Upload Fields
+    // Create/Upload File Fields
     {
       id: 'fileName',
       title: 'File Name',
       type: 'short-input',
-      layout: 'full',
-      placeholder: 'Name of the file',
-      condition: { field: 'operation', value: 'upload' },
+      placeholder: 'Name of the file (e.g., document.txt)',
+      condition: { field: 'operation', value: ['create_file', 'upload'] },
       required: true,
+    },
+    // File upload (basic mode) - binary files
+    {
+      id: 'fileUpload',
+      title: 'Upload File',
+      type: 'file-upload',
+      canonicalParamId: 'file',
+      placeholder: 'Upload a file to Google Drive',
+      condition: { field: 'operation', value: 'upload' },
+      mode: 'basic',
+      multiple: false,
+      required: false,
+    },
+    // Variable reference (advanced mode) - for referencing files from previous blocks
+    {
+      id: 'file',
+      title: 'File Reference',
+      type: 'short-input',
+      canonicalParamId: 'file',
+      placeholder: 'Reference file from previous block (e.g., {{block_name.file}})',
+      condition: { field: 'operation', value: 'upload' },
+      mode: 'advanced',
+      required: false,
     },
     {
       id: 'content',
-      title: 'Content',
+      title: 'Text Content',
       type: 'long-input',
-      layout: 'full',
-      placeholder: 'Content to upload to the file',
-      condition: { field: 'operation', value: 'upload' },
+      placeholder: 'Text content for the file',
+      condition: { field: 'operation', value: 'create_file' },
       required: true,
     },
     {
       id: 'mimeType',
       title: 'MIME Type',
       type: 'dropdown',
-      layout: 'full',
       options: [
+        { label: 'Plain Text (text/plain)', id: 'text/plain' },
         { label: 'Google Doc', id: 'application/vnd.google-apps.document' },
         { label: 'Google Sheet', id: 'application/vnd.google-apps.spreadsheet' },
         { label: 'Google Slides', id: 'application/vnd.google-apps.presentation' },
+        { label: 'HTML (text/html)', id: 'text/html' },
+        { label: 'CSV (text/csv)', id: 'text/csv' },
         { label: 'PDF (application/pdf)', id: 'application/pdf' },
       ],
-      placeholder: 'Select a file type',
-      condition: { field: 'operation', value: 'upload' },
+      placeholder: 'Select file type',
+      condition: { field: 'operation', value: 'create_file' },
+      required: false,
     },
     {
       id: 'folderSelector',
       title: 'Select Parent Folder',
       type: 'file-selector',
-      layout: 'full',
-      provider: 'google-drive',
+      canonicalParamId: 'folderId',
       serviceId: 'google-drive',
-      requiredScopes: ['https://www.googleapis.com/auth/drive.file'],
+      requiredScopes: [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive',
+      ],
       mimeType: 'application/vnd.google-apps.folder',
       placeholder: 'Select a parent folder',
       mode: 'basic',
       dependsOn: ['credential'],
-      condition: { field: 'operation', value: 'upload' },
+      condition: { field: 'operation', value: ['create_file', 'upload'] },
     },
     {
       id: 'manualFolderId',
       title: 'Parent Folder ID',
       type: 'short-input',
-      layout: 'full',
+      canonicalParamId: 'folderId',
       placeholder: 'Enter parent folder ID (leave empty for root folder)',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'upload' },
+      condition: { field: 'operation', value: ['create_file', 'upload'] },
     },
     // Get Content Fields
     // {
     //   id: 'fileId',
     //   title: 'Select File',
     //   type: 'file-selector',
-    //   layout: 'full',
     //   provider: 'google-drive',
     //   serviceId: 'google-drive',
     //   requiredScopes: [],
@@ -111,7 +139,6 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
     //   id: 'fileId',
     //   title: 'Or Enter File ID Manually',
     //   type: 'short-input',
-    //   layout: 'full',
     //   placeholder: 'ID of the file to get content from',
     //   condition: {
     //     field: 'operation',
@@ -127,7 +154,6 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
     //   id: 'mimeType',
     //   title: 'Export Format',
     //   type: 'dropdown',
-    //   layout: 'full',
     //   options: [
     //     { label: 'Plain Text', id: 'text/plain' },
     //     { label: 'HTML', id: 'text/html' },
@@ -140,7 +166,6 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       id: 'fileName',
       title: 'Folder Name',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Name for the new folder',
       condition: { field: 'operation', value: 'create_folder' },
       required: true,
@@ -149,10 +174,12 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       id: 'folderSelector',
       title: 'Select Parent Folder',
       type: 'file-selector',
-      layout: 'full',
-      provider: 'google-drive',
+      canonicalParamId: 'folderId',
       serviceId: 'google-drive',
-      requiredScopes: ['https://www.googleapis.com/auth/drive.file'],
+      requiredScopes: [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive',
+      ],
       mimeType: 'application/vnd.google-apps.folder',
       placeholder: 'Select a parent folder',
       mode: 'basic',
@@ -164,7 +191,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       id: 'manualFolderId',
       title: 'Parent Folder ID',
       type: 'short-input',
-      layout: 'full',
+      canonicalParamId: 'folderId',
       placeholder: 'Enter parent folder ID (leave empty for root folder)',
       mode: 'advanced',
       condition: { field: 'operation', value: 'create_folder' },
@@ -174,10 +201,12 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       id: 'folderSelector',
       title: 'Select Folder',
       type: 'file-selector',
-      layout: 'full',
-      provider: 'google-drive',
+      canonicalParamId: 'folderId',
       serviceId: 'google-drive',
-      requiredScopes: ['https://www.googleapis.com/auth/drive.file'],
+      requiredScopes: [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive',
+      ],
       mimeType: 'application/vnd.google-apps.folder',
       placeholder: 'Select a folder to list files from',
       mode: 'basic',
@@ -189,7 +218,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       id: 'manualFolderId',
       title: 'Folder ID',
       type: 'short-input',
-      layout: 'full',
+      canonicalParamId: 'folderId',
       placeholder: 'Enter folder ID (leave empty for root folder)',
       mode: 'advanced',
       condition: { field: 'operation', value: 'list' },
@@ -198,7 +227,6 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       id: 'query',
       title: 'Search Query',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Search for specific files (e.g., name contains "report")',
       condition: { field: 'operation', value: 'list' },
     },
@@ -206,20 +234,87 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       id: 'pageSize',
       title: 'Results Per Page',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Number of results (default: 100, max: 1000)',
       condition: { field: 'operation', value: 'list' },
     },
+    // Download File Fields - File Selector (basic mode)
+    {
+      id: 'fileSelector',
+      title: 'Select File',
+      type: 'file-selector',
+      canonicalParamId: 'fileId',
+      serviceId: 'google-drive',
+      requiredScopes: [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive',
+      ],
+      placeholder: 'Select a file to download',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'download' },
+    },
+    // Manual File ID input (advanced mode)
+    {
+      id: 'manualFileId',
+      title: 'File ID',
+      type: 'short-input',
+      canonicalParamId: 'fileId',
+      placeholder: 'Enter file ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'download' },
+      required: true,
+    },
+    // Export format for Google Workspace files (download operation)
+    {
+      id: 'mimeType',
+      title: 'Export Format',
+      type: 'dropdown',
+      options: [
+        { label: 'Plain Text (text/plain)', id: 'text/plain' },
+        { label: 'HTML (text/html)', id: 'text/html' },
+        { label: 'PDF (application/pdf)', id: 'application/pdf' },
+        {
+          label: 'DOCX (MS Word)',
+          id: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        },
+        {
+          label: 'XLSX (MS Excel)',
+          id: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+        {
+          label: 'PPTX (MS PowerPoint)',
+          id: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        },
+        { label: 'CSV (text/csv)', id: 'text/csv' },
+      ],
+      placeholder: 'Optional: Choose export format for Google Docs/Sheets/Slides',
+      condition: { field: 'operation', value: 'download' },
+    },
+    {
+      id: 'fileName',
+      title: 'File Name Override',
+      type: 'short-input',
+      placeholder: 'Optional: Override the filename',
+      condition: { field: 'operation', value: 'download' },
+    },
   ],
   tools: {
-    access: ['google_drive_upload', 'google_drive_create_folder', 'google_drive_list'],
+    access: [
+      'google_drive_upload',
+      'google_drive_create_folder',
+      'google_drive_download',
+      'google_drive_list',
+    ],
     config: {
       tool: (params) => {
         switch (params.operation) {
+          case 'create_file':
           case 'upload':
             return 'google_drive_upload'
           case 'create_folder':
             return 'google_drive_create_folder'
+          case 'download':
+            return 'google_drive_download'
           case 'list':
             return 'google_drive_list'
           default:
@@ -227,14 +322,26 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         }
       },
       params: (params) => {
-        const { credential, folderSelector, manualFolderId, mimeType, ...rest } = params
+        const {
+          credential,
+          folderSelector,
+          manualFolderId,
+          fileSelector,
+          manualFileId,
+          mimeType,
+          ...rest
+        } = params
 
         // Use folderSelector if provided, otherwise use manualFolderId
         const effectiveFolderId = (folderSelector || manualFolderId || '').trim()
 
+        // Use fileSelector if provided, otherwise use manualFileId
+        const effectiveFileId = (fileSelector || manualFileId || '').trim()
+
         return {
-          accessToken: credential,
-          folderId: effectiveFolderId,
+          credential,
+          folderId: effectiveFolderId || undefined,
+          fileId: effectiveFileId || undefined,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
           mimeType: mimeType,
           ...rest,
@@ -247,8 +354,12 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
     credential: { type: 'string', description: 'Google Drive access token' },
     // Upload and Create Folder operation inputs
     fileName: { type: 'string', description: 'File or folder name' },
-    content: { type: 'string', description: 'File content' },
-    mimeType: { type: 'string', description: 'File MIME type' },
+    file: { type: 'json', description: 'File to upload (UserFile object)' },
+    content: { type: 'string', description: 'Text content to upload' },
+    mimeType: { type: 'string', description: 'File MIME type or export format' },
+    // Download operation inputs
+    fileSelector: { type: 'string', description: 'Selected file to download' },
+    manualFileId: { type: 'string', description: 'Manual file identifier' },
     // List operation inputs
     folderSelector: { type: 'string', description: 'Selected folder' },
     manualFolderId: { type: 'string', description: 'Manual folder identifier' },

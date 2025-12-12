@@ -1,0 +1,56 @@
+---
+title: ElevenLabs
+description: Convertir TTS avec ElevenLabs
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="elevenlabs"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ElevenLabs](https://elevenlabs.io/) est une plateforme de synthèse vocale à la pointe de la technologie qui crée des voix IA incroyablement naturelles et expressives. Elle offre certaines des voix synthétiques les plus réalistes et émotionnellement nuancées disponibles aujourd'hui, ce qui la rend idéale pour créer du contenu audio réaliste.
+
+Avec ElevenLabs, vous pouvez :
+
+- **Générer une parole naturelle** : créer un audio presque indiscernable de la parole humaine
+- **Choisir parmi diverses options de voix** : accéder à une bibliothèque de voix préconçues avec différents accents, tons et caractéristiques
+- **Cloner des voix** : créer des voix personnalisées basées sur des échantillons audio (avec les autorisations appropriées)
+- **Contrôler les paramètres de parole** : ajuster la stabilité, la clarté et le ton émotionnel pour affiner le résultat
+- **Ajouter des émotions réalistes** : incorporer des émotions naturelles comme la joie, la tristesse ou l'excitation
+
+Dans Sim, l'intégration d'ElevenLabs permet à vos agents de convertir du texte en parole réaliste, améliorant l'interactivité et l'engagement de vos applications. C'est particulièrement précieux pour créer des assistants vocaux, générer du contenu audio, développer des applications accessibles ou construire des interfaces conversationnelles qui semblent plus humaines. L'intégration vous permet d'incorporer facilement les capacités avancées de synthèse vocale d'ElevenLabs dans vos flux de travail d'agents, comblant ainsi le fossé entre l'IA textuelle et la communication humaine naturelle.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrer ElevenLabs dans le flux de travail. Peut convertir le texte en parole. Nécessite une clé API.
+
+## Outils
+
+### `elevenlabs_tts`
+
+Convertir TTS en utilisant les voix d'ElevenLabs
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | Oui | Le texte à convertir en parole |
+| `voiceId` | string | Oui | L'ID de la voix à utiliser |
+| `modelId` | string | Non | L'ID du modèle à utiliser \(par défaut eleven_monolingual_v1\) |
+| `apiKey` | string | Oui | Votre clé API ElevenLabs |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | L'URL de l'audio généré |
+| `audioFile` | file | Le fichier audio généré |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `elevenlabs`

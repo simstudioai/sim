@@ -8,7 +8,11 @@ import type {
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
-import { prepareToolsWithUsageControl, trackForcedToolUsage } from '@/providers/utils'
+import {
+  prepareToolExecution,
+  prepareToolsWithUsageControl,
+  trackForcedToolUsage,
+} from '@/providers/utils'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('XAIProvider')
@@ -325,25 +329,7 @@ export const xAIProvider: ProviderConfig = {
 
               const toolCallStartTime = Date.now()
 
-              // Only merge actual tool parameters for logging
-              const toolParams = {
-                ...tool.params,
-                ...toolArgs,
-              }
-
-              // Add system parameters for execution
-              const executionParams = {
-                ...toolParams,
-                ...(request.workflowId
-                  ? {
-                      _context: {
-                        workflowId: request.workflowId,
-                        ...(request.chatId ? { chatId: request.chatId } : {}),
-                      },
-                    }
-                  : {}),
-                ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
-              }
+              const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
 
               const result = await executeTool(toolName, executionParams, true)
               const toolCallEndTime = Date.now()
@@ -515,8 +501,8 @@ export const xAIProvider: ProviderConfig = {
         })
       }
 
-      // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
-      if (request.stream && iterationCount > 0) {
+      // After all tool processing complete, if streaming was requested, use streaming for the final response
+      if (request.stream) {
         // For final streaming response, choose between tools (auto) or response_format (never both)
         let finalStreamingPayload: any
 

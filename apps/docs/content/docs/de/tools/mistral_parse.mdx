@@ -1,0 +1,61 @@
+---
+title: Mistral Parser
+description: Text aus PDF-Dokumenten extrahieren
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mistral_parse"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Das Mistral Parse-Tool bietet eine leistungsstarke Möglichkeit, Inhalte aus PDF-Dokumenten mit der [Mistral OCR API](https://mistral.ai/) zu extrahieren und zu verarbeiten. Dieses Tool nutzt fortschrittliche optische Zeichenerkennung, um Text und Struktur aus PDF-Dateien präzise zu extrahieren und macht es einfach, Dokumentendaten in Ihre Agent-Workflows zu integrieren.
+
+Mit dem Mistral Parse-Tool können Sie:
+
+- **Text aus PDFs extrahieren**: PDF-Inhalte präzise in Text-, Markdown- oder JSON-Formate konvertieren
+- **PDFs von URLs verarbeiten**: Inhalte direkt aus online gehosteten PDFs extrahieren, indem Sie deren URLs angeben
+- **Dokumentstruktur beibehalten**: Formatierung, Tabellen und Layout aus den Original-PDFs bewahren
+- **Bilder extrahieren**: Optional eingebettete Bilder aus den PDFs einbeziehen
+- **Bestimmte Seiten auswählen**: Nur die Seiten verarbeiten, die Sie aus mehrseitigen Dokumenten benötigen
+
+Das Mistral Parse-Tool ist besonders nützlich für Szenarien, in denen Ihre Agenten mit PDF-Inhalten arbeiten müssen, wie zum Beispiel bei der Analyse von Berichten, der Extraktion von Daten aus Formularen oder der Verarbeitung von Text aus gescannten Dokumenten. Es vereinfacht den Prozess, PDF-Inhalte für Ihre Agenten verfügbar zu machen und ermöglicht ihnen, mit Informationen aus PDFs genauso einfach zu arbeiten wie mit direkter Texteingabe.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integrieren Sie Mistral Parse in den Workflow. Kann Text aus hochgeladenen PDF-Dokumenten oder von einer URL extrahieren. Erfordert API-Schlüssel.
+
+## Tools
+
+### `mistral_parser`
+
+PDF-Dokumente mit der Mistral OCR API analysieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `filePath` | string | Ja | URL zu einem zu verarbeitenden PDF-Dokument |
+| `fileUpload` | object | Nein | Datei-Upload-Daten von der Datei-Upload-Komponente |
+| `resultType` | string | Nein | Art des geparsten Ergebnisses \(markdown, text oder json\). Standardmäßig markdown. |
+| `includeImageBase64` | boolean | Nein | Base64-kodierte Bilder in die Antwort einschließen |
+| `pages` | array | Nein | Bestimmte zu verarbeitende Seiten \(Array von Seitenzahlen, beginnend bei 0\) |
+| `imageLimit` | number | Nein | Maximale Anzahl der aus dem PDF zu extrahierenden Bilder |
+| `imageMinSize` | number | Nein | Minimale Höhe und Breite der aus dem PDF zu extrahierenden Bilder |
+| `apiKey` | string | Ja | Mistral API-Schlüssel \(MISTRAL_API_KEY\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob das PDF erfolgreich geparst wurde |
+| `content` | string | Extrahierter Inhalt im angeforderten Format \(markdown, text oder JSON\) |
+| `metadata` | object | Verarbeitungsmetadaten einschließlich jobId, fileType, pageCount und Nutzungsinformationen |
+
+## Notizen
+
+- Kategorie: `tools`
+- Typ: `mistral_parse`

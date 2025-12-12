@@ -1,13 +1,19 @@
 import { MicrosoftOneDriveIcon } from '@/components/icons'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { OneDriveResponse } from '@/tools/onedrive/types'
+import { normalizeExcelValuesForToolParams } from '@/tools/onedrive/utils'
+
+const logger = createLogger('OneDriveBlock')
 
 export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
   type: 'onedrive',
   name: 'OneDrive',
-  description: 'Create, upload, and list files',
+  description: 'Create, upload, download, list, and delete files',
+  authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate OneDrive functionality to manage files and folders. Upload new files, create new folders, and list contents of folders using OAuth authentication. Supports file operations with custom MIME types and folder organization.',
+    'Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list files, and delete files or folders.',
   docsLink: 'https://docs.sim.ai/tools/onedrive',
   category: 'tools',
   bgColor: '#E0E0E0',
@@ -18,11 +24,13 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Create Folder', id: 'create_folder' },
+        { label: 'Create File', id: 'create_file' },
         { label: 'Upload File', id: 'upload' },
+        { label: 'Download File', id: 'download' },
         { label: 'List Files', id: 'list' },
+        { label: 'Delete File', id: 'delete' },
       ],
     },
     // One Drive Credentials
@@ -30,8 +38,6 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       id: 'credential',
       title: 'Microsoft Account',
       type: 'oauth-input',
-      layout: 'full',
-      provider: 'onedrive',
       serviceId: 'onedrive',
       requiredScopes: [
         'openid',
@@ -43,30 +49,100 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       ],
       placeholder: 'Select Microsoft account',
     },
-    // Upload Fields
+    // Create File Fields
     {
       id: 'fileName',
       title: 'File Name',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Name of the file',
+      condition: { field: 'operation', value: ['create_file', 'upload'] },
+      required: true,
+    },
+    // File Type selector for create_file operation
+    {
+      id: 'mimeType',
+      title: 'File Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Text File (.txt)', id: 'text/plain' },
+        {
+          label: 'Excel File (.xlsx)',
+          id: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+      ],
+      placeholder: 'Select file type',
+      condition: { field: 'operation', value: 'create_file' },
+      required: true,
+    },
+    // Excel values input when creating an .xlsx file
+    {
+      id: 'values',
+      title: 'Values',
+      type: 'code',
+      language: 'json',
+      generationType: 'json-object',
+      placeholder: 'Enter a JSON array of rows (e.g., [["A1","B1"],["A2","B2"]])',
+      condition: {
+        field: 'operation',
+        value: 'create_file',
+        and: {
+          field: 'mimeType',
+          value: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+      },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of arrays that can be written directly into an Excel worksheet.',
+        placeholder: 'Describe the table you want to generate...',
+        generationType: 'json-object',
+      },
+      required: false,
+    },
+    // File upload (basic mode)
+    {
+      id: 'file',
+      title: 'File',
+      type: 'file-upload',
+      canonicalParamId: 'file',
+      placeholder: 'Upload a file',
       condition: { field: 'operation', value: 'upload' },
+      mode: 'basic',
+      multiple: false,
+      required: false,
+    },
+    // Variable reference (advanced mode)
+    {
+      id: 'fileReference',
+      title: 'File',
+      type: 'short-input',
+      canonicalParamId: 'file',
+      placeholder: 'Reference file from previous block (e.g., {{block_1.file}})',
+      condition: { field: 'operation', value: 'upload' },
+      mode: 'advanced',
+      required: false,
     },
     {
       id: 'content',
-      title: 'Content',
+      title: 'Text Content',
       type: 'long-input',
-      layout: 'full',
-      placeholder: 'Content to upload to the file',
-      condition: { field: 'operation', value: 'upload' },
+      placeholder: 'Text content for the file',
+      condition: {
+        field: 'operation',
+        value: 'create_file',
+        and: {
+          field: 'mimeType',
+          value: 'text/plain',
+        },
+      },
+      required: true,
     },
 
     {
       id: 'folderSelector',
       title: 'Select Parent Folder',
       type: 'file-selector',
-      layout: 'full',
-      provider: 'microsoft',
+      canonicalParamId: 'folderId',
       serviceId: 'onedrive',
       requiredScopes: [
         'openid',
@@ -80,23 +156,22 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       placeholder: 'Select a parent folder',
       dependsOn: ['credential'],
       mode: 'basic',
-      condition: { field: 'operation', value: 'upload' },
+      condition: { field: 'operation', value: ['create_file', 'upload'] },
     },
     {
       id: 'manualFolderId',
       title: 'Parent Folder ID',
       type: 'short-input',
-      layout: 'full',
+      canonicalParamId: 'folderId',
       placeholder: 'Enter parent folder ID (leave empty for root folder)',
       dependsOn: ['credential'],
       mode: 'advanced',
-      condition: { field: 'operation', value: 'upload' },
+      condition: { field: 'operation', value: ['create_file', 'upload'] },
     },
     {
       id: 'folderName',
       title: 'Folder Name',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Name for the new folder',
       condition: { field: 'operation', value: 'create_folder' },
     },
@@ -104,8 +179,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       id: 'folderSelector',
       title: 'Select Parent Folder',
       type: 'file-selector',
-      layout: 'full',
-      provider: 'microsoft',
+      canonicalParamId: 'folderId',
       serviceId: 'onedrive',
       requiredScopes: [
         'openid',
@@ -126,7 +200,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       id: 'manualFolderId',
       title: 'Parent Folder ID',
       type: 'short-input',
-      layout: 'full',
+      canonicalParamId: 'folderId',
       placeholder: 'Enter parent folder ID (leave empty for root folder)',
       dependsOn: ['credential'],
       mode: 'advanced',
@@ -137,8 +211,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       id: 'folderSelector',
       title: 'Select Folder',
       type: 'file-selector',
-      layout: 'full',
-      provider: 'microsoft',
+      canonicalParamId: 'folderId',
       serviceId: 'onedrive',
       requiredScopes: [
         'openid',
@@ -159,7 +232,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       id: 'manualFolderId',
       title: 'Folder ID',
       type: 'short-input',
-      layout: 'full',
+      canonicalParamId: 'folderId',
       placeholder: 'Enter folder ID (leave empty for root folder)',
       dependsOn: ['credential'],
       mode: 'advanced',
@@ -169,7 +242,6 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       id: 'query',
       title: 'Search Query',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Search for specific files (e.g., name contains "report")',
       condition: { field: 'operation', value: 'list' },
     },
@@ -177,38 +249,125 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       id: 'pageSize',
       title: 'Results Per Page',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Number of results (default: 100, max: 1000)',
       condition: { field: 'operation', value: 'list' },
     },
+    // Download File Fields - File Selector (basic mode)
+    {
+      id: 'fileSelector',
+      title: 'Select File',
+      type: 'file-selector',
+      canonicalParamId: 'fileId',
+      serviceId: 'onedrive',
+      requiredScopes: [
+        'openid',
+        'profile',
+        'email',
+        'Files.Read',
+        'Files.ReadWrite',
+        'offline_access',
+      ],
+      mimeType: 'file', // Exclude folders, show only files
+      placeholder: 'Select a file to download',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'download' },
+    },
+    // Manual File ID input (advanced mode)
+    {
+      id: 'manualFileId',
+      title: 'File ID',
+      type: 'short-input',
+      canonicalParamId: 'fileId',
+      placeholder: 'Enter file ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'download' },
+      required: true,
+    },
+    {
+      id: 'downloadFileName',
+      title: 'File Name Override',
+      type: 'short-input',
+      placeholder: 'Optional: Override the filename',
+      condition: { field: 'operation', value: 'download' },
+    },
+    // Delete File Fields - File Selector (basic mode)
+    {
+      id: 'fileSelector',
+      title: 'Select File to Delete',
+      type: 'file-selector',
+      canonicalParamId: 'fileId',
+      serviceId: 'onedrive',
+      requiredScopes: [
+        'openid',
+        'profile',
+        'email',
+        'Files.Read',
+        'Files.ReadWrite',
+        'offline_access',
+      ],
+      mimeType: 'file', // Exclude folders, show only files
+      placeholder: 'Select a file to delete',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'delete' },
+      required: true,
+    },
+    // Manual File ID input (advanced mode)
+    {
+      id: 'manualFileId',
+      title: 'File ID',
+      type: 'short-input',
+      canonicalParamId: 'fileId',
+      placeholder: 'Enter file or folder ID to delete',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'delete' },
+      required: true,
+    },
   ],
   tools: {
-    access: ['onedrive_upload', 'onedrive_create_folder', 'onedrive_list'],
+    access: [
+      'onedrive_upload',
+      'onedrive_create_folder',
+      'onedrive_download',
+      'onedrive_list',
+      'onedrive_delete',
+    ],
     config: {
       tool: (params) => {
         switch (params.operation) {
+          case 'create_file':
           case 'upload':
             return 'onedrive_upload'
           case 'create_folder':
             return 'onedrive_create_folder'
+          case 'download':
+            return 'onedrive_download'
           case 'list':
             return 'onedrive_list'
+          case 'delete':
+            return 'onedrive_delete'
           default:
             throw new Error(`Invalid OneDrive operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        const { credential, folderSelector, manualFolderId, mimeType, ...rest } = params
+        const { credential, folderId, fileId, mimeType, values, downloadFileName, ...rest } = params
 
-        // Use folderSelector if provided, otherwise use manualFolderId
-        const effectiveFolderId = (folderSelector || manualFolderId || '').trim()
+        let normalizedValues: ReturnType<typeof normalizeExcelValuesForToolParams>
+        if (values !== undefined) {
+          normalizedValues = normalizeExcelValuesForToolParams(values)
+        }
 
         return {
-          accessToken: credential,
-          folderId: effectiveFolderId,
+          credential,
+          ...rest,
+          values: normalizedValues,
+          folderId: folderId || undefined,
+          fileId: fileId || undefined,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
           mimeType: mimeType,
-          ...rest,
+          ...(downloadFileName && { fileName: downloadFileName }),
         }
       },
     },
@@ -218,16 +377,21 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     credential: { type: 'string', description: 'Microsoft account credential' },
     // Upload and Create Folder operation inputs
     fileName: { type: 'string', description: 'File name' },
-    content: { type: 'string', description: 'File content' },
-    // Get Content operation inputs
-    // fileId: { type: 'string', required: false },
-    // List operation inputs
-    folderSelector: { type: 'string', description: 'Folder selector' },
-    manualFolderId: { type: 'string', description: 'Manual folder ID' },
+    file: { type: 'json', description: 'File to upload (UserFile object)' },
+    fileReference: { type: 'json', description: 'File reference from previous block' },
+    content: { type: 'string', description: 'Text content to upload' },
+    mimeType: { type: 'string', description: 'MIME type of file to create' },
+    values: { type: 'json', description: 'Cell values for new Excel as JSON' },
+    fileId: { type: 'string', description: 'File ID to download' },
+    downloadFileName: { type: 'string', description: 'File name override for download' },
+    folderId: { type: 'string', description: 'Folder ID' },
     query: { type: 'string', description: 'Search query' },
     pageSize: { type: 'number', description: 'Results per page' },
   },
   outputs: {
+    success: { type: 'boolean', description: 'Whether the operation was successful' },
+    deleted: { type: 'boolean', description: 'Whether the file was deleted' },
+    fileId: { type: 'string', description: 'The ID of the deleted file' },
     file: {
       type: 'json',
       description: 'The OneDrive file object, including details such as id, name, size, and more.',

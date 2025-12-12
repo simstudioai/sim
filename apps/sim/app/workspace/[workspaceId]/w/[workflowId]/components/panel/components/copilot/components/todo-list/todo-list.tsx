@@ -1,23 +1,45 @@
 'use client'
 
 import { memo, useEffect, useState } from 'react'
-import { Check, ChevronDown, ChevronRight, ListTodo, Loader2, X } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Check, ChevronDown, ChevronRight, Loader2, X } from 'lucide-react'
+import { Button } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 
+/**
+ * Represents a single todo item
+ */
 export interface TodoItem {
+  /** Unique identifier for the todo */
   id: string
+  /** Todo content/description */
   content: string
+  /** Whether the todo is completed */
   completed?: boolean
+  /** Whether the todo is currently being executed */
   executing?: boolean
 }
 
+/**
+ * Props for the TodoList component
+ */
 interface TodoListProps {
+  /** Array of todo items to display */
   todos: TodoItem[]
+  /** Callback when close button is clicked */
   onClose?: () => void
+  /** Whether the list should be collapsed */
   collapsed?: boolean
+  /** Additional CSS classes */
   className?: string
 }
 
+/**
+ * Todo list component for displaying agent plan tasks
+ * Shows progress bar and allows collapsing/expanding
+ *
+ * @param props - Component props
+ * @returns Todo list UI with progress indicator
+ */
 export const TodoList = memo(function TodoList({
   todos,
   onClose,
@@ -26,7 +48,9 @@ export const TodoList = memo(function TodoList({
 }: TodoListProps) {
   const [isCollapsed, setIsCollapsed] = useState(collapsed)
 
-  // Sync collapsed prop with internal state
+  /**
+   * Sync collapsed prop with internal state
+   */
   useEffect(() => {
     setIsCollapsed(collapsed)
   }, [collapsed])
@@ -42,83 +66,84 @@ export const TodoList = memo(function TodoList({
   return (
     <div
       className={cn(
-        'border-gray-200 border-t bg-white dark:border-gray-700 dark:bg-gray-900',
+        'w-full rounded-t-[4px] rounded-b-none border-[var(--surface-11)] border-x border-t bg-[var(--surface-6)] dark:bg-[var(--surface-9)]',
         className
       )}
     >
-      {/* Header */}
-      <div className='flex items-center justify-between border-gray-100 border-b px-3 py-2 dark:border-gray-800'>
-        <div className='flex items-center gap-2'>
-          <button
+      {/* Header - always visible */}
+      <div className='flex items-center justify-between px-[5.5px] py-[5px]'>
+        <div className='flex items-center gap-[8px]'>
+          <Button
+            variant='ghost'
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className='rounded p-0.5 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800'
+            className='!h-[14px] !w-[14px] !p-0'
           >
             {isCollapsed ? (
-              <ChevronRight className='h-4 w-4 text-gray-500' />
+              <ChevronRight className='h-[14px] w-[14px]' />
             ) : (
-              <ChevronDown className='h-4 w-4 text-gray-500' />
+              <ChevronDown className='h-[14px] w-[14px]' />
             )}
-          </button>
-          <ListTodo className='h-4 w-4 text-gray-500' />
-          <span className='font-medium text-gray-700 text-xs dark:text-gray-300'>Todo List</span>
-          <span className='text-gray-500 text-xs dark:text-gray-400'>
+          </Button>
+          <span className='font-medium text-[var(--text-primary)] text-xs'>Todo:</span>
+          <span className='font-medium text-[var(--text-primary)] text-xs'>
             {completedCount}/{totalCount}
           </span>
         </div>
 
-        <div className='flex items-center gap-2'>
+        <div className='flex flex-1 items-center gap-[8px] pl-[10px]'>
           {/* Progress bar */}
-          <div className='h-1.5 w-24 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700'>
+          <div className='h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--surface-11)]'>
             <div
-              className='h-full bg-blue-500 transition-all duration-300 ease-out'
+              className='h-full bg-[var(--brand-400)] transition-all duration-300 ease-out'
               style={{ width: `${progress}%` }}
             />
           </div>
 
           {onClose && (
-            <button
+            <Button
+              variant='ghost'
               onClick={onClose}
-              className='rounded p-1 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800'
+              className='!h-[14px] !w-[14px] !p-0'
               aria-label='Close todo list'
             >
-              <X className='h-3.5 w-3.5 text-gray-400' />
-            </button>
+              <X className='h-[14px] w-[14px]' />
+            </Button>
           )}
         </div>
       </div>
 
-      {/* Todo items */}
+      {/* Todo items - only show when not collapsed */}
       {!isCollapsed && (
         <div className='max-h-48 overflow-y-auto'>
           {todos.map((todo, index) => (
             <div
               key={todo.id}
               className={cn(
-                'flex items-start gap-2 px-3 py-1.5 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50',
-                index !== todos.length - 1 && 'border-gray-50 border-b dark:border-gray-800'
+                'flex items-start gap-2 px-3 py-1.5 transition-colors hover:bg-[var(--surface-9)]/50 dark:hover:bg-[var(--surface-11)]/50',
+                index !== todos.length - 1 && 'border-[var(--surface-11)] border-b'
               )}
             >
-              <div
-                className={cn(
-                  'mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-all',
-                  todo.executing
-                    ? 'border-blue-400 dark:border-blue-500'
-                    : todo.completed
-                      ? 'border-blue-500 bg-blue-500'
-                      : 'border-gray-300 dark:border-gray-600'
-                )}
-              >
-                {todo.executing ? (
-                  <Loader2 className='h-3 w-3 animate-spin text-blue-500' />
-                ) : todo.completed ? (
-                  <Check className='h-3 w-3 text-white' strokeWidth={3} />
-                ) : null}
-              </div>
+              {todo.executing ? (
+                <div className='mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center'>
+                  <Loader2 className='h-3 w-3 animate-spin text-[var(--text-primary)]' />
+                </div>
+              ) : (
+                <div
+                  className={cn(
+                    'mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-all',
+                    todo.completed
+                      ? 'border-[var(--brand-400)] bg-[var(--brand-400)]'
+                      : 'border-[#707070]'
+                  )}
+                >
+                  {todo.completed ? <Check className='h-3 w-3 text-white' strokeWidth={3} /> : null}
+                </div>
+              )}
 
               <span
                 className={cn(
-                  'flex-1 text-xs leading-relaxed',
-                  todo.completed ? 'text-gray-400 line-through' : 'text-gray-700 dark:text-gray-300'
+                  'flex-1 font-base text-[12px] leading-relaxed',
+                  todo.completed ? 'text-[var(--text-muted)] line-through' : 'text-[var(--white)]'
                 )}
               >
                 {todo.content}

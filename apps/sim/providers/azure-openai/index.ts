@@ -1,5 +1,5 @@
 import { AzureOpenAI } from 'openai'
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
@@ -9,7 +9,11 @@ import type {
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
-import { prepareToolsWithUsageControl, trackForcedToolUsage } from '@/providers/utils'
+import {
+  prepareToolExecution,
+  prepareToolsWithUsageControl,
+  trackForcedToolUsage,
+} from '@/providers/utils'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('AzureOpenAIProvider')
@@ -383,25 +387,7 @@ export const azureOpenAIProvider: ProviderConfig = {
             // Execute the tool
             const toolCallStartTime = Date.now()
 
-            // Only merge actual tool parameters for logging
-            const toolParams = {
-              ...tool.params,
-              ...toolArgs,
-            }
-
-            // Add system parameters for execution
-            const executionParams = {
-              ...toolParams,
-              ...(request.workflowId
-                ? {
-                    _context: {
-                      workflowId: request.workflowId,
-                      ...(request.chatId ? { chatId: request.chatId } : {}),
-                    },
-                  }
-                : {}),
-              ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
-            }
+            const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
 
             const result = await executeTool(toolName, executionParams, true)
             const toolCallEndTime = Date.now()
@@ -537,9 +523,9 @@ export const azureOpenAIProvider: ProviderConfig = {
         iterationCount++
       }
 
-      // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
-      if (request.stream && iterationCount > 0) {
-        logger.info('Using streaming for final response after tool calls')
+      // After all tool processing complete, if streaming was requested, use streaming for the final response
+      if (request.stream) {
+        logger.info('Using streaming for final response after tool processing')
 
         // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
         // This prevents Azure OpenAI API from trying to force tool usage again in the final streaming response

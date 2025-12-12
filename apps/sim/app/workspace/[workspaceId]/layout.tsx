@@ -1,15 +1,29 @@
-import Providers from '@/app/workspace/[workspaceId]/providers/providers'
-import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+'use client'
+
+import { Tooltip } from '@/components/emcn'
+import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { ProviderModelsLoader } from '@/app/workspace/[workspaceId]/providers/provider-models-loader'
+import { SettingsLoader } from '@/app/workspace/[workspaceId]/providers/settings-loader'
+import { WorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { SidebarNew } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar-new'
 
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Providers>
-      <div className='flex min-h-screen w-full'>
-        <div className='z-20'>
-          <Sidebar />
-        </div>
-        <div className='flex flex-1 flex-col'>{children}</div>
-      </div>
-    </Providers>
+    <>
+      <SettingsLoader />
+      <ProviderModelsLoader />
+      <GlobalCommandsProvider>
+        <Tooltip.Provider delayDuration={600} skipDelayDuration={0}>
+          <div className='flex min-h-screen w-full'>
+            <WorkspacePermissionsProvider>
+              <div className='shrink-0' suppressHydrationWarning>
+                <SidebarNew />
+              </div>
+              {children}
+            </WorkspacePermissionsProvider>
+          </div>
+        </Tooltip.Provider>
+      </GlobalCommandsProvider>
+    </>
   )
 }

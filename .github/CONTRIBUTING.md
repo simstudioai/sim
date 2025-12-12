@@ -321,8 +321,7 @@ In addition, you will need to update the registries:
        {
          id: 'operation',
          title: 'Operation',
-         type: 'dropdown',
-         layout: 'full',
+         type: 'dropdown'
          required: true,
          options: [
            { label: 'Generate Embeddings', id: 'generate' },
@@ -333,8 +332,7 @@ In addition, you will need to update the registries:
        {
          id: 'apiKey',
          title: 'API Key',
-         type: 'short-input',
-         layout: 'full',
+         type: 'short-input'
          placeholder: 'Your Pinecone API key',
          password: true,
          required: true,
@@ -376,7 +374,7 @@ In addition, you will need to update the registries:
    Add your block to the blocks registry (`/apps/sim/blocks/registry.ts`):
 
    ```typescript:/apps/sim/blocks/registry.ts
-   import { PineconeBlock } from './blocks/pinecone'
+   import { PineconeBlock } from '@/blocks/blocks/pinecone'
 
    // Registry of all available blocks
    export const registry: Record<string, BlockConfig> = {

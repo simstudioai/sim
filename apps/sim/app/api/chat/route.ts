@@ -1,25 +1,26 @@
+import { db } from '@sim/db'
+import { chat } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { env } from '@/lib/env'
-import { isDev } from '@/lib/environment'
+import { isDev } from '@/lib/core/config/environment'
+import { encryptSecret } from '@/lib/core/security/encryption'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
-import { encryptSecret } from '@/lib/utils'
+import { deployWorkflow } from '@/lib/workflows/persistence/utils'
 import { checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { db } from '@/db'
-import { chat } from '@/db/schema'
 
 const logger = createLogger('ChatAPI')
 
 const chatSchema = z.object({
   workflowId: z.string().min(1, 'Workflow ID is required'),
-  subdomain: z
+  identifier: z
     .string()
-    .min(1, 'Subdomain is required')
-    .regex(/^[a-z0-9-]+$/, 'Subdomain can only contain lowercase letters, numbers, and hyphens'),
+    .min(1, 'Identifier is required')
+    .regex(/^[a-z0-9-]+$/, 'Identifier can only contain lowercase letters, numbers, and hyphens'),
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
   customizations: z.object({
@@ -27,7 +28,7 @@ const chatSchema = z.object({
     welcomeMessage: z.string(),
     imageUrl: z.string().optional(),
   }),
-  authType: z.enum(['public', 'password', 'email']).default('public'),
+  authType: z.enum(['public', 'password', 'email', 'sso']).default('public'),
   password: z.string().optional(),
   allowedEmails: z.array(z.string()).optional().default([]),
   outputConfigs: z
@@ -67,7 +68,6 @@ export async function POST(request: NextRequest) {
       return createErrorResponse('Unauthorized', 401)
     }
 
-    // Parse and validate request body
     const body = await request.json()
 
     try {
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
       // Extract validated data
       const {
         workflowId,
-        subdomain,
+        identifier,
         title,
         description = '',
         customizations,
@@ -98,15 +98,22 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Check if subdomain is available
-      const existingSubdomain = await db
+      if (authType === 'sso' && (!Array.isArray(allowedEmails) || allowedEmails.length === 0)) {
+        return createErrorResponse(
+          'At least one email or domain is required when using SSO access control',
+          400
+        )
+      }
+
+      // Check if identifier is available
+      const existingIdentifier = await db
         .select()
         .from(chat)
-        .where(eq(chat.subdomain, subdomain))
+        .where(eq(chat.identifier, identifier))
         .limit(1)
 
-      if (existingSubdomain.length > 0) {
-        return createErrorResponse('Subdomain already in use', 400)
+      if (existingIdentifier.length > 0) {
+        return createErrorResponse('Identifier already in use', 400)
       }
 
       // Check if user has permission to create chat for this workflow
@@ -119,10 +126,19 @@ export async function POST(request: NextRequest) {
         return createErrorResponse('Workflow not found or access denied', 404)
       }
 
-      // Verify the workflow is deployed (required for chat deployment)
-      if (!workflowRecord.isDeployed) {
-        return createErrorResponse('Workflow must be deployed before creating a chat', 400)
+      // Always deploy/redeploy the workflow to ensure latest version
+      const result = await deployWorkflow({
+        workflowId,
+        deployedBy: session.user.id,
+      })
+
+      if (!result.success) {
+        return createErrorResponse(result.error || 'Failed to deploy workflow', 500)
       }
+
+      logger.info(
+        `${workflowRecord.isDeployed ? 'Redeployed' : 'Auto-deployed'} workflow ${workflowId} for chat (v${result.version})`
+      )
 
       // Encrypt password if provided
       let encryptedPassword = null
@@ -137,7 +153,7 @@ export async function POST(request: NextRequest) {
       // Log the values we're inserting
       logger.info('Creating chat deployment with values:', {
         workflowId,
-        subdomain,
+        identifier,
         title,
         authType,
         hasPassword: !!encryptedPassword,
@@ -156,22 +172,22 @@ export async function POST(request: NextRequest) {
         id,
         workflowId,
         userId: session.user.id,
-        subdomain,
+        identifier,
         title,
         description: description || '',
         customizations: mergedCustomizations,
         isActive: true,
         authType,
         password: encryptedPassword,
-        allowedEmails: authType === 'email' ? allowedEmails : [],
+        allowedEmails: authType === 'email' || authType === 'sso' ? allowedEmails : [],
         outputConfigs,
         createdAt: new Date(),
         updatedAt: new Date(),
       })
 
       // Return successful response with chat URL
-      // Generate chat URL based on the configured base URL
-      const baseUrl = env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      // Generate chat URL using path-based routing instead of subdomains
+      const baseUrl = getBaseUrl()
 
       let chatUrl: string
       try {
@@ -180,7 +196,7 @@ export async function POST(request: NextRequest) {
         if (host.startsWith('www.')) {
           host = host.substring(4)
         }
-        chatUrl = `${url.protocol}//${subdomain}.${host}`
+        chatUrl = `${url.protocol}//${host}/chat/${identifier}`
       } catch (error) {
         logger.warn('Failed to parse baseUrl, falling back to defaults:', {
           baseUrl,
@@ -188,9 +204,9 @@ export async function POST(request: NextRequest) {
         })
         // Fallback based on environment
         if (isDev) {
-          chatUrl = `http://${subdomain}.localhost:3000`
+          chatUrl = `http://localhost:3000/chat/${identifier}`
         } else {
-          chatUrl = `https://${subdomain}.sim.ai`
+          chatUrl = `https://sim.ai/chat/${identifier}`
         }
       }
 

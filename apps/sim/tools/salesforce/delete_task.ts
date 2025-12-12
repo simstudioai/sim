@@ -1,0 +1,88 @@
+import type { ToolConfig } from '@/tools/types'
+import { getInstanceUrl } from './utils'
+
+export interface SalesforceDeleteTaskParams {
+  accessToken: string
+  idToken?: string
+  instanceUrl?: string
+  taskId: string
+}
+
+export interface SalesforceDeleteTaskResponse {
+  success: boolean
+  output: {
+    id: string
+    deleted: boolean
+    metadata: {
+      operation: 'delete_task'
+    }
+  }
+}
+
+export const salesforceDeleteTaskTool: ToolConfig<
+  SalesforceDeleteTaskParams,
+  SalesforceDeleteTaskResponse
+> = {
+  id: 'salesforce_delete_task',
+  name: 'Delete Task from Salesforce',
+  description: 'Delete a task',
+  version: '1.0.0',
+
+  oauth: {
+    required: true,
+    provider: 'salesforce',
+  },
+
+  params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+    },
+    idToken: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+    },
+    instanceUrl: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+    },
+    taskId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Task ID (required)',
+    },
+  },
+
+  request: {
+    url: (params) =>
+      `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Task/${params.taskId}`,
+    method: 'DELETE',
+    headers: (params) => ({
+      Authorization: `Bearer ${params.accessToken}`,
+    }),
+  },
+
+  transformResponse: async (response, params?) => {
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data[0]?.message || data.message || 'Failed to delete task')
+    }
+    return {
+      success: true,
+      output: {
+        id: params?.taskId || '',
+        deleted: true,
+        metadata: { operation: 'delete_task' },
+      },
+    }
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Success' },
+    output: { type: 'object', description: 'Deleted task' },
+  },
+}

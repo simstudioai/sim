@@ -13,13 +13,6 @@
           "source.fixAll.biome": "explicit",
           "source.organizeImports.biome": "explicit"
         },
-        "terminal.integrated.defaultProfile.linux": "bash",
-        "terminal.integrated.profiles.linux": {
-          "bash": {
-            "path": "/bin/bash",
-            "args": ["--login"]
-          }
-        },
         "terminal.integrated.shellIntegration.enabled": true
       },
       "extensions": [
@@ -36,18 +29,9 @@
     }
   },
 
-  "forwardPorts": [3000, 5432],
+  "forwardPorts": [3000, 3002, 5432],
 
   "postCreateCommand": "bash -c 'bash .devcontainer/post-create.sh || true'",
 
-  "postStartCommand": "bash -c 'if [ ! -f ~/.bashrc ] || ! grep -q \"sim-start\" ~/.bashrc; then cp .devcontainer/.bashrc ~/.bashrc; fi'",
-
-  "remoteUser": "bun",
-
-  "features": {
-    "ghcr.io/devcontainers/features/git:1": {},
-    "ghcr.io/prulloac/devcontainer-features/bun:1": {
-      "version": "latest"
-    }
-  }
+  "remoteUser": "bun"
 }

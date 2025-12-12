@@ -16,7 +16,7 @@ from simstudio import SimStudioClient
 
 # Initialize the client
 client = SimStudioClient(
-    api_key=os.getenv("SIMSTUDIO_API_KEY", "your-api-key-here"),
+    api_key=os.getenv("SIM_API_KEY", "your-api-key-here"),
     base_url="https://sim.ai"  # optional, defaults to https://sim.ai
 )
 
@@ -57,7 +57,7 @@ result = client.execute_workflow(
 
 **Parameters:**
 - `workflow_id` (str): The ID of the workflow to execute
-- `input_data` (dict, optional): Input data to pass to the workflow
+- `input_data` (dict, optional): Input data to pass to the workflow. File objects are automatically converted to base64.
 - `timeout` (float): Timeout in seconds (default: 30.0)
 
 **Returns:** `WorkflowExecutionResult`
@@ -158,7 +158,6 @@ class WorkflowExecutionResult:
 class WorkflowStatus:
     is_deployed: bool
     deployed_at: Optional[str] = None
-    is_published: bool = False
     needs_redeployment: bool = False
 ```
 
@@ -180,7 +179,7 @@ class SimStudioError(Exception):
 import os
 from simstudio import SimStudioClient
 
-client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
 
 def run_workflow():
     try:
@@ -216,7 +215,7 @@ run_workflow()
 from simstudio import SimStudioClient, SimStudioError
 import os
 
-client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
 
 def execute_with_error_handling():
     try:
@@ -246,7 +245,7 @@ from simstudio import SimStudioClient
 import os
 
 # Using context manager to automatically close the session
-with SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY")) as client:
+with SimStudioClient(api_key=os.getenv("SIM_API_KEY")) as client:
     result = client.execute_workflow("workflow-id")
     print("Result:", result)
 # Session is automatically closed here
@@ -260,9 +259,60 @@ from simstudio import SimStudioClient
 
 # Using environment variables
 client = SimStudioClient(
-    api_key=os.getenv("SIMSTUDIO_API_KEY"),
-    base_url=os.getenv("SIMSTUDIO_BASE_URL", "https://sim.ai")
+    api_key=os.getenv("SIM_API_KEY"),
+    base_url=os.getenv("SIM_BASE_URL", "https://sim.ai")
 )
+```
+
+### File Upload
+
+File objects are automatically detected and converted to base64 format. Include them in your input under the field name matching your workflow's API trigger input format:
+
+The SDK converts file objects to this format:
+```python
+{
+  'type': 'file',
+  'data': 'data:mime/type;base64,base64data',
+  'name': 'filename',
+  'mime': 'mime/type'
+}
+```
+
+Alternatively, you can manually provide files using the URL format:
+```python
+{
+  'type': 'url',
+  'data': 'https://example.com/file.pdf',
+  'name': 'file.pdf',
+  'mime': 'application/pdf'
+}
+```
+
+```python
+from simstudio import SimStudioClient
+import os
+
+client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
+
+# Upload a single file - include it under the field name from your API trigger
+with open('document.pdf', 'rb') as f:
+    result = client.execute_workflow(
+        'workflow-id',
+        input_data={
+            'documents': [f],  # Must match your workflow's "files" field name
+            'instructions': 'Analyze this document'
+        }
+    )
+
+# Upload multiple files
+with open('doc1.pdf', 'rb') as f1, open('doc2.pdf', 'rb') as f2:
+    result = client.execute_workflow(
+        'workflow-id',
+        input_data={
+            'attachments': [f1, f2],  # Must match your workflow's "files" field name
+            'query': 'Compare these documents'
+        }
+    )
 ```
 
 ### Batch Workflow Execution
@@ -271,19 +321,19 @@ client = SimStudioClient(
 from simstudio import SimStudioClient
 import os
 
-client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
 
 def execute_workflows_batch(workflow_data_pairs):
     """Execute multiple workflows with different input data."""
     results = []
-    
+
     for workflow_id, input_data in workflow_data_pairs:
         try:
             # Validate workflow before execution
             if not client.validate_workflow(workflow_id):
                 print(f"Skipping {workflow_id}: not deployed")
                 continue
-                
+
             result = client.execute_workflow(workflow_id, input_data)
             results.append({
                 "workflow_id": workflow_id,
@@ -291,14 +341,14 @@ def execute_workflows_batch(workflow_data_pairs):
                 "output": result.output,
                 "error": result.error
             })
-            
+
         except Exception as error:
             results.append({
                 "workflow_id": workflow_id,
                 "success": False,
                 "error": str(error)
             })
-    
+
     return results
 
 # Example usage

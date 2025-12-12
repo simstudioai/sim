@@ -1,0 +1,49 @@
+---
+title: RSS 订阅源
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+RSS 订阅源模块监控 RSS 和 Atom 订阅源——当有新内容发布时，您的工作流会自动触发。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/rss.png"
+    alt="RSS 订阅源模块"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## 配置
+
+1. **添加 RSS 订阅源模块** - 拖动 RSS 订阅源模块以开始您的工作流
+2. **输入订阅源 URL** - 粘贴任意 RSS 或 Atom 订阅源的 URL
+3. **部署** - 部署您的工作流以激活轮询
+
+部署后，订阅源每分钟检查一次是否有新内容。
+
+## 输出字段
+
+| 字段 | 类型 | 描述 |
+|-------|------|-------------|
+| `title` | string | 内容标题 |
+| `link` | string | 内容链接 |
+| `pubDate` | string | 发布日期 |
+| `item` | object | 包含所有字段的原始内容 |
+| `feed` | object | 原始订阅源元数据 |
+
+可以直接访问映射字段 (`<rss.title>`)，或者使用原始对象访问任意字段 (`<rss.item.author>`, `<rss.feed.language>`)。
+
+## 使用场景
+
+- **内容监控** - 跟踪博客、新闻网站或竞争对手的更新
+- **播客自动化** - 当新剧集发布时触发工作流
+- **版本跟踪** - 监控 GitHub 发布、更新日志或产品更新
+- **社交聚合** - 收集支持 RSS 订阅源的平台内容
+
+<Callout>
+RSS 触发器仅对您保存触发器后发布的内容生效。现有的订阅源内容不会被处理。
+</Callout>

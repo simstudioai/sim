@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import type { FilterState, LogLevel, TimeRange, TriggerType } from '@/stores/logs/filters/types'
 
-// Helper functions for URL synchronization
 const getSearchParams = () => {
   if (typeof window === 'undefined') return new URLSearchParams()
   return new URLSearchParams(window.location.search)
@@ -15,16 +14,32 @@ const updateURL = (params: URLSearchParams) => {
   window.history.replaceState({}, '', url)
 }
 
+const DEFAULT_TIME_RANGE: TimeRange = 'All time'
+
 const parseTimeRangeFromURL = (value: string | null): TimeRange => {
   switch (value) {
+    case 'all-time':
+      return 'All time'
     case 'past-30-minutes':
       return 'Past 30 minutes'
     case 'past-hour':
       return 'Past hour'
+    case 'past-6-hours':
+      return 'Past 6 hours'
+    case 'past-12-hours':
+      return 'Past 12 hours'
     case 'past-24-hours':
       return 'Past 24 hours'
+    case 'past-3-days':
+      return 'Past 3 days'
+    case 'past-7-days':
+      return 'Past 7 days'
+    case 'past-14-days':
+      return 'Past 14 days'
+    case 'past-30-days':
+      return 'Past 30 days'
     default:
-      return 'All time'
+      return DEFAULT_TIME_RANGE
   }
 }
 
@@ -51,44 +66,42 @@ const timeRangeToURL = (timeRange: TimeRange): string => {
       return 'past-30-minutes'
     case 'Past hour':
       return 'past-hour'
+    case 'Past 6 hours':
+      return 'past-6-hours'
+    case 'Past 12 hours':
+      return 'past-12-hours'
     case 'Past 24 hours':
       return 'past-24-hours'
+    case 'Past 3 days':
+      return 'past-3-days'
+    case 'Past 7 days':
+      return 'past-7-days'
+    case 'Past 14 days':
+      return 'past-14-days'
+    case 'Past 30 days':
+      return 'past-30-days'
     default:
       return 'all-time'
   }
 }
 
 export const useFilterStore = create<FilterState>((set, get) => ({
-  logs: [],
   workspaceId: '',
-  timeRange: 'All time',
+  viewMode: 'logs',
+  timeRange: DEFAULT_TIME_RANGE,
   level: 'all',
   workflowIds: [],
   folderIds: [],
   searchQuery: '',
   triggers: [],
-  loading: true,
-  error: null,
-  page: 1,
-  hasMore: true,
-  isFetchingMore: false,
   _isInitializing: false, // Internal flag to prevent URL sync during initialization
-
-  setLogs: (logs, append = false) => {
-    if (append) {
-      const currentLogs = [...get().logs]
-      const newLogs = [...currentLogs, ...logs]
-      set({ logs: newLogs })
-    } else {
-      set({ logs, loading: false })
-    }
-  },
 
   setWorkspaceId: (workspaceId) => set({ workspaceId }),
 
+  setViewMode: (viewMode) => set({ viewMode }),
+
   setTimeRange: (timeRange) => {
     set({ timeRange })
-    get().resetPagination()
     if (!get()._isInitializing) {
       get().syncWithURL()
     }
@@ -96,7 +109,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setLevel: (level) => {
     set({ level })
-    get().resetPagination()
     if (!get()._isInitializing) {
       get().syncWithURL()
     }
@@ -104,7 +116,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setWorkflowIds: (workflowIds) => {
     set({ workflowIds })
-    get().resetPagination()
     if (!get()._isInitializing) {
       get().syncWithURL()
     }
@@ -121,7 +132,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     }
 
     set({ workflowIds: currentWorkflowIds })
-    get().resetPagination()
     if (!get()._isInitializing) {
       get().syncWithURL()
     }
@@ -129,7 +139,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setFolderIds: (folderIds) => {
     set({ folderIds })
-    get().resetPagination()
     if (!get()._isInitializing) {
       get().syncWithURL()
     }
@@ -146,7 +155,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     }
 
     set({ folderIds: currentFolderIds })
-    get().resetPagination()
     if (!get()._isInitializing) {
       get().syncWithURL()
     }
@@ -154,7 +162,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setSearchQuery: (searchQuery) => {
     set({ searchQuery })
-    get().resetPagination()
     if (!get()._isInitializing) {
       get().syncWithURL()
     }
@@ -162,7 +169,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setTriggers: (triggers: TriggerType[]) => {
     set({ triggers })
-    get().resetPagination()
     if (!get()._isInitializing) {
       get().syncWithURL()
     }
@@ -179,27 +185,12 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     }
 
     set({ triggers: currentTriggers })
-    get().resetPagination()
     if (!get()._isInitializing) {
       get().syncWithURL()
     }
   },
 
-  setLoading: (loading) => set({ loading }),
-
-  setError: (error) => set({ error }),
-
-  setPage: (page) => set({ page }),
-
-  setHasMore: (hasMore) => set({ hasMore }),
-
-  setIsFetchingMore: (isFetchingMore) => set({ isFetchingMore }),
-
-  resetPagination: () => set({ page: 1, hasMore: true }),
-
-  // URL synchronization methods
   initializeFromURL: () => {
-    // Set initialization flag to prevent URL sync during init
     set({ _isInitializing: true })
 
     const params = getSearchParams()
@@ -218,19 +209,15 @@ export const useFilterStore = create<FilterState>((set, get) => ({
       folderIds,
       triggers,
       searchQuery,
-      _isInitializing: false, // Clear the flag after initialization
+      _isInitializing: false,
     })
-
-    // Ensure URL reflects the initialized state
-    get().syncWithURL()
   },
 
   syncWithURL: () => {
     const { timeRange, level, workflowIds, folderIds, triggers, searchQuery } = get()
     const params = new URLSearchParams()
 
-    // Only add non-default values to keep URL clean
-    if (timeRange !== 'All time') {
+    if (timeRange !== DEFAULT_TIME_RANGE) {
       params.set('timeRange', timeRangeToURL(timeRange))
     }
 
@@ -255,64 +242,5 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     }
 
     updateURL(params)
-  },
-
-  // Build query parameters for server-side filtering
-  buildQueryParams: (page: number, limit: number) => {
-    const { workspaceId, timeRange, level, workflowIds, folderIds, searchQuery, triggers } = get()
-    const params = new URLSearchParams()
-    params.set('limit', limit.toString())
-    params.set('offset', ((page - 1) * limit).toString())
-
-    params.set('workspaceId', workspaceId)
-
-    // Add level filter
-    if (level !== 'all') {
-      params.set('level', level)
-    }
-
-    // Add trigger filter
-    if (triggers.length > 0) {
-      params.set('triggers', triggers.join(','))
-    }
-
-    // Add workflow filter
-    if (workflowIds.length > 0) {
-      params.set('workflowIds', workflowIds.join(','))
-    }
-
-    // Add folder filter
-    if (folderIds.length > 0) {
-      params.set('folderIds', folderIds.join(','))
-    }
-
-    // Add time range filter
-    if (timeRange !== 'All time') {
-      const now = new Date()
-      let startDate: Date
-
-      switch (timeRange) {
-        case 'Past 30 minutes':
-          startDate = new Date(now.getTime() - 30 * 60 * 1000)
-          break
-        case 'Past hour':
-          startDate = new Date(now.getTime() - 60 * 60 * 1000)
-          break
-        case 'Past 24 hours':
-          startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-          break
-        default:
-          startDate = new Date(0)
-      }
-
-      params.set('startDate', startDate.toISOString())
-    }
-
-    // Add search filter
-    if (searchQuery.trim()) {
-      params.set('search', searchQuery.trim())
-    }
-
-    return params.toString()
   },
 }))

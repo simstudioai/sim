@@ -1,0 +1,145 @@
+---
+title: API
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Der API-Block verbindet Ihren Workflow mit externen Diensten durch HTTP-Anfragen. Unterstützt GET, POST, PUT, DELETE und PATCH Methoden für die Interaktion mit REST-APIs.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/api.png"
+    alt="API-Block"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Konfigurationsoptionen
+
+### URL
+
+Die Endpunkt-URL für die API-Anfrage. Diese kann sein:
+
+- Eine statische URL, die direkt im Block eingegeben wird
+- Eine dynamische URL, die mit der Ausgabe eines anderen Blocks verbunden ist
+- Eine URL mit Pfadparametern
+
+### Methode
+
+Wählen Sie die HTTP-Methode für Ihre Anfrage:
+
+- **GET**: Daten vom Server abrufen
+- **POST**: Daten an den Server senden, um eine Ressource zu erstellen
+- **PUT**: Eine bestehende Ressource auf dem Server aktualisieren
+- **DELETE**: Eine Ressource vom Server entfernen
+- **PATCH**: Eine bestehende Ressource teilweise aktualisieren
+
+### Abfrageparameter
+
+Definieren Sie Schlüssel-Wert-Paare, die als Abfrageparameter an die URL angehängt werden. Zum Beispiel:
+
+```
+Key: apiKey
+Value: your_api_key_here
+
+Key: limit
+Value: 10
+```
+
+Diese würden der URL als `?apiKey=your_api_key_here&limit=10` hinzugefügt.
+
+### Header
+
+Konfigurieren Sie HTTP-Header für Ihre Anfrage. Häufige Header sind:
+
+```
+Key: Content-Type
+Value: application/json
+
+Key: Authorization
+Value: Bearer your_token_here
+```
+
+### Anfragekörper
+
+Für Methoden, die einen Anfragekörper unterstützen (POST, PUT, PATCH), können Sie die zu sendenden Daten definieren. Der Körper kann sein:
+
+- JSON-Daten, die direkt im Block eingegeben werden
+- Daten, die mit der Ausgabe eines anderen Blocks verbunden sind
+- Dynamisch während der Workflow-Ausführung generiert
+
+### Zugriff auf Ergebnisse
+
+Nach Abschluss einer API-Anfrage können Sie auf folgende Ausgaben zugreifen:
+
+- **`<api.data>`**: Die Antwortdaten vom API
+- **`<api.status>`**: HTTP-Statuscode (200, 404, 500, usw.)
+- **`<api.headers>`**: Antwort-Header vom Server
+- **`<api.error>`**: Fehlerdetails, falls die Anfrage fehlgeschlagen ist
+
+## Erweiterte Funktionen
+
+### Dynamische URL-Konstruktion
+
+Erstellen Sie URLs dynamisch mit Variablen aus vorherigen Blöcken:
+
+```javascript
+// In a Function block before the API
+const userId = <start.userId>;
+const apiUrl = `https://api.example.com/users/${userId}/profile`;
+```
+
+### Anfrage-Wiederholungen
+
+Der API-Block verarbeitet automatisch:
+- Netzwerk-Timeouts mit exponentiellem Backoff
+- Antworten bei Ratenbegrenzung (429-Statuscodes)
+- Serverfehler (5xx-Statuscodes) mit Wiederholungslogik
+- Verbindungsfehler mit Wiederverbindungsversuchen
+
+### Antwortvalidierung
+
+Validieren Sie API-Antworten vor der Verarbeitung:
+
+```javascript
+// In a Function block after the API
+if (<api.status> === 200) {
+  const data = <api.data>;
+  // Process successful response
+} else {
+  // Handle error response
+  console.error(`API Error: ${<api.status>}`);
+}
+```
+
+## Ausgaben
+
+- **`<api.data>`**: Antwortdaten vom API
+- **`<api.status>`**: HTTP-Statuscode
+- **`<api.headers>`**: Antwort-Header
+- **`<api.error>`**: Fehlerdetails bei fehlgeschlagener Anfrage
+
+## Anwendungsbeispiele
+
+**Benutzerprofildaten abrufen** - Benutzerinformationen von externem Dienst abrufen
+
+```
+Function (Build ID) → API (GET /users/{id}) → Function (Format) → Response
+```
+
+**Zahlungsabwicklung** - Zahlung über die Stripe-API verarbeiten
+
+```
+Function (Validate) → API (Stripe) → Condition (Success) → Supabase (Update)
+```
+
+## Bewährte Praktiken
+
+- **Umgebungsvariablen für sensible Daten verwenden**: Keine API-Schlüssel oder Anmeldedaten im Code festlegen
+- **Fehler elegant behandeln**: Fehlerbehandlungslogik für fehlgeschlagene Anfragen einbinden
+- **Antworten validieren**: Statuscode und Antwortformate vor der Datenverarbeitung prüfen
+- **Ratenbegrenzungen respektieren**: Achten Sie auf API-Ratenbegrenzungen und implementieren Sie angemessene Drosselung

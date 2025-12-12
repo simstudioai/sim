@@ -1,0 +1,85 @@
+---
+title: Perplexity
+description: 使用 Perplexity AI 进行聊天和搜索
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="perplexity"
+  color="#20808D"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Perplexity AI](https://www.perplexity.ai) 是一个由 AI 驱动的搜索引擎和答案引擎，它结合了大型语言模型的能力与实时网络搜索，提供准确、最新的信息以及复杂问题的全面答案。
+
+使用 Perplexity AI，您可以：
+
+- **获取准确答案**：通过可靠来源的引用，获得全面的问题解答
+- **访问实时信息**：通过 Perplexity 的网络搜索功能获取最新信息
+- **深入探索主题**：通过后续问题和相关信息更深入地研究主题
+- **验证信息**：通过提供的来源和参考检查答案的可信度
+- **生成内容**：基于当前信息创建摘要、分析和创意内容
+- **高效研究**：通过对复杂查询的全面解答简化研究过程
+- **互动式对话**：通过自然对话优化问题并探索主题
+
+在 Sim 中，Perplexity 集成使您的代理能够以编程方式利用这些强大的 AI 功能作为其工作流程的一部分。这允许创建结合自然语言理解、实时信息检索和内容生成的复杂自动化场景。您的代理可以制定查询，接收带有引用的全面答案，并将这些信息整合到其决策过程或输出中。此集成弥合了工作流程自动化与获取当前可靠信息之间的差距，使您的代理能够做出更明智的决策并提供更准确的响应。通过将 Sim 与 Perplexity 连接，您可以创建能够跟上最新信息、提供经过充分研究的答案并为用户提供更有价值见解的代理——这一切都无需手动研究或信息收集。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Perplexity 集成到工作流程中。可以使用 Perplexity AI 聊天模型生成补全，或通过高级过滤执行网页搜索。
+
+## 工具
+
+### `perplexity_chat`
+
+使用 Perplexity AI 聊天模型生成补全内容
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `systemPrompt` | string | 否 | 指导模型行为的系统提示 |
+| `content` | string | 是 | 发送给模型的用户消息内容 |
+| `model` | string | 是 | 用于聊天补全的模型（例如：sonar，mistral） |
+| `max_tokens` | number | 否 | 要生成的最大 token 数量 |
+| `temperature` | number | 否 | 介于 0 和 1 之间的采样温度 |
+| `apiKey` | string | 是 | Perplexity API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 聊天补全结果 |
+
+### `perplexity_search`
+
+从 Perplexity 获取排名搜索结果
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | 是 | 搜索查询或查询数组（多查询搜索最多 5 个） |
+| `max_results` | number | 否 | 返回的最大搜索结果数量（1-20，默认值：10） |
+| `search_domain_filter` | array | 否 | 限制搜索结果的域名/URL 列表（最多 20 个） |
+| `max_tokens_per_page` | number | 否 | 从每个网页检索的最大令牌数（默认值：1024） |
+| `country` | string | 否 | 用于过滤搜索结果的国家代码（例如：US、GB、DE） |
+| `search_recency_filter` | string | 否 | 按最近时间过滤结果：小时、天、周、月或年 |
+| `search_after_date` | string | 否 | 仅包含此日期之后发布的内容（格式：MM/DD/YYYY） |
+| `search_before_date` | string | 否 | 仅包含此日期之前发布的内容（格式：MM/DD/YYYY） |
+| `apiKey` | string | 是 | Perplexity API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 搜索结果 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`perplexity`

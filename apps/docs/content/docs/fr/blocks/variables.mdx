@@ -1,0 +1,86 @@
+---
+title: Variables
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+Le bloc Variables met à jour les variables du workflow pendant l'exécution. Les variables doivent d'abord être initialisées dans la section Variables de votre workflow, puis vous pouvez utiliser ce bloc pour mettre à jour leurs valeurs pendant l'exécution de votre workflow.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/variables.png"
+    alt="Bloc de variables"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout>
+  Accédez aux variables n'importe où dans votre workflow en utilisant la syntaxe `<variable.variableName>`.
+</Callout>
+
+## Comment utiliser les variables
+
+### 1. Initialiser dans les variables du workflow
+
+D'abord, créez vos variables dans la section Variables du workflow (accessible depuis les paramètres du workflow) :
+
+```
+customerEmail = ""
+retryCount = 0
+currentStatus = "pending"
+```
+
+### 2. Mettre à jour avec le bloc Variables
+
+Utilisez le bloc Variables pour mettre à jour ces valeurs pendant l'exécution :
+
+```
+customerEmail = <api.email>
+retryCount = <variable.retryCount> + 1
+currentStatus = "processing"
+```
+
+### 3. Accéder n'importe où
+
+Référencez les variables dans n'importe quel bloc :
+
+```
+Agent prompt: "Send email to <variable.customerEmail>"
+Condition: <variable.retryCount> < 5
+API body: {"status": "<variable.currentStatus>"}
+```
+
+## Exemples de cas d'utilisation
+
+**Compteur de boucle et état** - Suivre la progression à travers les itérations
+
+```
+Loop → Agent (Process) → Variables (itemsProcessed + 1) → Variables (Store lastResult)
+```
+
+**Logique de nouvelle tentative** - Suivre les tentatives d'API
+
+```
+API (Try) → Variables (retryCount + 1) → Condition (retryCount < 3)
+```
+
+**Configuration dynamique** - Stocker le contexte utilisateur pour le workflow
+
+```
+API (Fetch Profile) → Variables (userId, userTier) → Agent (Personalize)
+```
+
+## Sorties
+
+- **`<variables.assignments>`** : objet JSON avec toutes les affectations de variables de ce bloc
+
+## Bonnes pratiques
+
+- **Initialiser dans les paramètres du workflow** : toujours créer des variables dans la section Variables du workflow avant de les utiliser
+- **Mettre à jour dynamiquement** : utiliser les blocs Variables pour mettre à jour les valeurs basées sur les sorties de blocs ou les calculs
+- **Utiliser dans les boucles** : parfait pour suivre l'état à travers les itérations
+- **Nommer de façon descriptive** : utiliser des noms clairs comme `currentIndex`, `totalProcessed`, ou `lastError`

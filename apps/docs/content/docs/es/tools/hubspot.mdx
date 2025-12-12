@@ -1,0 +1,274 @@
+---
+title: HubSpot
+description: Interactúa con HubSpot CRM o activa flujos de trabajo desde eventos de HubSpot
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="hubspot"
+  color="#FF7A59"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[HubSpot](https://www.hubspot.com) es una plataforma CRM completa que proporciona un conjunto completo de herramientas de marketing, ventas y servicio al cliente para ayudar a las empresas a crecer mejor. Con sus potentes capacidades de automatización y su extensa API, HubSpot se ha convertido en una de las principales plataformas CRM del mundo, sirviendo a empresas de todos los tamaños en diferentes industrias.
+
+HubSpot CRM ofrece una solución completa para gestionar las relaciones con los clientes, desde el contacto inicial hasta el éxito del cliente a largo plazo. La plataforma combina gestión de contactos, seguimiento de oportunidades, automatización de marketing y herramientas de servicio al cliente en un sistema unificado que ayuda a los equipos a mantenerse alineados y enfocados en el éxito del cliente.
+
+Las características principales de HubSpot CRM incluyen:
+
+- Gestión de contactos y empresas: Base de datos completa para almacenar y organizar información de clientes y prospectos
+- Pipeline de oportunidades: Pipeline visual de ventas para seguir oportunidades a través de etapas personalizables
+- Eventos de marketing: Seguimiento y gestión de campañas y eventos de marketing con atribución detallada
+- Gestión de tickets: Sistema de tickets de soporte al cliente para seguir y resolver problemas de los clientes
+- Presupuestos y artículos: Creación y gestión de presupuestos de ventas con artículos detallados
+- Gestión de usuarios y equipos: Organización de equipos, asignación de propiedad y seguimiento de la actividad de los usuarios en toda la plataforma
+
+En Sim, la integración con HubSpot permite que tus agentes de IA interactúen sin problemas con los datos de tu CRM y automaticen procesos empresariales clave. Esto crea poderosas oportunidades para la calificación inteligente de leads, el enriquecimiento automatizado de contactos, la gestión de acuerdos, la automatización del soporte al cliente y la sincronización de datos en toda tu infraestructura tecnológica. La integración permite a los agentes crear, recuperar, actualizar y buscar en todos los objetos principales de HubSpot, habilitando flujos de trabajo sofisticados que pueden responder a eventos del CRM, mantener la calidad de los datos y asegurar que tu equipo tenga la información más actualizada de los clientes. Al conectar Sim con HubSpot, puedes crear agentes de IA que califiquen automáticamente los leads, dirijan tickets de soporte, actualicen etapas de acuerdos basados en interacciones con clientes, generen presupuestos y mantengan los datos de tu CRM sincronizados con otros sistemas empresariales, aumentando en última instancia la productividad del equipo y mejorando las experiencias de los clientes.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra HubSpot en tu flujo de trabajo. Gestiona contactos, empresas, acuerdos, tickets y otros objetos CRM con potentes capacidades de automatización. Puede utilizarse en modo disparador para iniciar flujos de trabajo cuando los contactos son creados, eliminados o actualizados.
+
+## Herramientas
+
+### `hubspot_get_users`
+
+Recuperar todos los usuarios de la cuenta de HubSpot
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | No | Número de resultados a devolver \(predeterminado: 100\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de usuarios |
+
+### `hubspot_list_contacts`
+
+Recuperar todos los contactos de la cuenta de HubSpot con soporte de paginación
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `limit` | string | No | Número máximo de resultados por página \(máximo 100, predeterminado 100\) |
+| `after` | string | No | Cursor de paginación para la siguiente página de resultados |
+| `properties` | string | No | Lista separada por comas de propiedades a devolver \(p. ej., "email,firstname,lastname"\) |
+| `associations` | string | No | Lista separada por comas de tipos de objetos para los que recuperar IDs asociados |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de contactos |
+
+### `hubspot_get_contact`
+
+Recuperar un solo contacto por ID o email desde HubSpot
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `contactId` | string | Sí | El ID o email del contacto a recuperar |
+| `idProperty` | string | No | Propiedad a usar como identificador único \(p. ej., "email"\). Si no se especifica, usa el ID del registro |
+| `properties` | string | No | Lista separada por comas de propiedades a devolver |
+| `associations` | string | No | Lista separada por comas de tipos de objetos para los que recuperar IDs asociados |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del contacto |
+
+### `hubspot_create_contact`
+
+Crear un nuevo contacto en HubSpot. Requiere al menos uno de: email, firstname o lastname
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `properties` | objeto | Sí | Propiedades del contacto como objeto JSON. Debe incluir al menos uno de: email, firstname o lastname |
+| `associations` | array | No | Array de asociaciones para crear con el contacto \(p. ej., empresas, acuerdos\). Cada objeto debe tener "to" \(con "id"\) y "types" \(con "associationCategory" y "associationTypeId"\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | objeto | Datos del contacto creado |
+
+### `hubspot_update_contact`
+
+Actualizar un contacto existente en HubSpot por ID o email
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Sí | El ID o email del contacto a actualizar |
+| `idProperty` | string | No | Propiedad a usar como identificador único \(p. ej., "email"\). Si no se especifica, usa el ID del registro |
+| `properties` | objeto | Sí | Propiedades del contacto a actualizar como objeto JSON |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | objeto | Datos del contacto actualizado |
+
+### `hubspot_search_contacts`
+
+Buscar contactos en HubSpot usando filtros, ordenación y consultas
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `filterGroups` | array | No | Array de grupos de filtros. Cada grupo contiene filtros con propertyName, operator y value |
+| `sorts` | array | No | Array de objetos de ordenación con propertyName y direction ("ASCENDING" o "DESCENDING") |
+| `query` | string | No | Cadena de consulta de búsqueda |
+| `properties` | array | No | Array de nombres de propiedades a devolver |
+| `limit` | number | No | Número máximo de resultados a devolver (máx. 100) |
+| `after` | string | No | Cursor de paginación para la siguiente página |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultados de la búsqueda |
+
+### `hubspot_list_companies`
+
+Recuperar todas las empresas de la cuenta de HubSpot con soporte de paginación
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `limit` | string | No | Número máximo de resultados por página (máx. 100, predeterminado 100) |
+| `after` | string | No | Cursor de paginación para la siguiente página de resultados |
+| `properties` | string | No | Lista separada por comas de propiedades a devolver |
+| `associations` | string | No | Lista separada por comas de tipos de objetos para recuperar IDs asociados |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de las empresas |
+
+### `hubspot_get_company`
+
+Recuperar una sola empresa por ID o dominio desde HubSpot
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Sí | El ID o dominio de la empresa a recuperar |
+| `idProperty` | string | No | Propiedad a usar como identificador único \(p. ej., "domain"\). Si no se especifica, usa el ID del registro |
+| `properties` | string | No | Lista separada por comas de propiedades a devolver |
+| `associations` | string | No | Lista separada por comas de tipos de objetos para recuperar los IDs asociados |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la empresa |
+
+### `hubspot_create_company`
+
+Crear una nueva empresa en HubSpot
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `properties` | object | Sí | Propiedades de la empresa como objeto JSON \(p. ej., nombre, dominio, ciudad, industria\) |
+| `associations` | array | No | Array de asociaciones a crear con la empresa |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la empresa creada |
+
+### `hubspot_update_company`
+
+Actualizar una empresa existente en HubSpot por ID o dominio
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Sí | El ID o dominio de la empresa a actualizar |
+| `idProperty` | string | No | Propiedad a usar como identificador único \(p. ej., "domain"\). Si no se especifica, usa el ID del registro |
+| `properties` | object | Sí | Propiedades de la empresa a actualizar como objeto JSON |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos actualizados de la empresa |
+
+### `hubspot_search_companies`
+
+Buscar empresas en HubSpot usando filtros, ordenación y consultas
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `filterGroups` | array | No | Array de grupos de filtros. Cada grupo contiene filtros con propertyName, operator y value |
+| `sorts` | array | No | Array de objetos de ordenación con propertyName y direction ("ASCENDING" o "DESCENDING") |
+| `query` | string | No | Cadena de consulta de búsqueda |
+| `properties` | array | No | Array de nombres de propiedades a devolver |
+| `limit` | number | No | Número máximo de resultados a devolver (máx. 100) |
+| `after` | string | No | Cursor de paginación para la siguiente página |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultados de la búsqueda |
+
+### `hubspot_list_deals`
+
+Recuperar todos los acuerdos de la cuenta de HubSpot con soporte de paginación
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | No | Número máximo de resultados por página (máx. 100, predeterminado 100) |
+| `after` | string | No | Cursor de paginación para la siguiente página de resultados |
+| `properties` | string | No | Lista separada por comas de propiedades a devolver |
+| `associations` | string | No | Lista separada por comas de tipos de objetos para recuperar IDs asociados |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de ofertas |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `hubspot`

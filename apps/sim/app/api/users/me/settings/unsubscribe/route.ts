@@ -1,14 +1,15 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import type { EmailType } from '@/lib/email/mailer'
+import { generateRequestId } from '@/lib/core/utils/request'
+import { createLogger } from '@/lib/logs/console/logger'
+import type { EmailType } from '@/lib/messaging/email/mailer'
 import {
   getEmailPreferences,
   isTransactionalEmail,
   unsubscribeFromAll,
   updateEmailPreferences,
   verifyUnsubscribeToken,
-} from '@/lib/email/unsubscribe'
-import { createLogger } from '@/lib/logs/console/logger'
+} from '@/lib/messaging/email/unsubscribe'
 
 const logger = createLogger('UnsubscribeAPI')
 
@@ -19,7 +20,7 @@ const unsubscribeSchema = z.object({
 })
 
 export async function GET(req: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const { searchParams } = new URL(req.url)
@@ -63,7 +64,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const body = await req.json()

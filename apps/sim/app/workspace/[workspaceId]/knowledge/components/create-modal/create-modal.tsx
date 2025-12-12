@@ -2,33 +2,28 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertCircle, X } from 'lucide-react'
+import { AlertCircle, Check, Loader2, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { Button, Input, Label, Textarea } from '@/components/emcn'
+import {
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+} from '@/components/emcn/components/modal/modal'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+import { Progress } from '@/components/ui/progress'
 import { createLogger } from '@/lib/logs/console/logger'
+import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
+import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
 
 const logger = createLogger('CreateModal')
-
-const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
-const ACCEPTED_FILE_TYPES = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/plain',
-  'text/csv',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-]
 
 interface FileWithPreview extends File {
   preview: string
@@ -88,13 +83,20 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const dropZoneRef = useRef<HTMLDivElement>(null)
 
-  const { uploadFiles } = useKnowledgeUpload({
+  const { uploadFiles, isUploading, uploadProgress, uploadError, clearError } = useKnowledgeUpload({
+    workspaceId,
     onUploadComplete: (uploadedFiles) => {
       logger.info(`Successfully uploaded ${uploadedFiles.length} files`)
     },
   })
 
-  // Cleanup file preview URLs when component unmounts to prevent memory leaks
+  const handleClose = (open: boolean) => {
+    if (!open) {
+      clearError()
+    }
+    onOpenChange(open)
+  }
+
   useEffect(() => {
     return () => {
       files.forEach((file) => {
@@ -123,19 +125,15 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
     mode: 'onSubmit',
   })
 
-  // Watch the name field to enable/disable the submit button
   const nameValue = watch('name')
 
-  // Reset state when modal opens/closes
   useEffect(() => {
     if (open) {
-      // Reset states when modal opens
       setSubmitStatus(null)
       setFileError(null)
       setFiles([])
       setIsDragging(false)
       setDragCounter(0)
-      // Reset form to default values
       reset({
         name: '',
         description: '',
@@ -156,23 +154,13 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
       let hasError = false
 
       for (const file of Array.from(fileList)) {
-        // Check file size
-        if (file.size > MAX_FILE_SIZE) {
-          setFileError(`File ${file.name} is too large. Maximum size is 100MB per file.`)
+        const validationError = validateKnowledgeBaseFile(file)
+        if (validationError) {
+          setFileError(validationError)
           hasError = true
           continue
         }
 
-        // Check file type
-        if (!ACCEPTED_FILE_TYPES.includes(file.type)) {
-          setFileError(
-            `File ${file.name} has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, or XLSX.`
-          )
-          hasError = true
-          continue
-        }
-
-        // Create file with preview (using file icon since these aren't images)
         const fileWithPreview = Object.assign(file, {
           preview: URL.createObjectURL(file),
         }) as FileWithPreview
@@ -187,7 +175,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
       logger.error('Error processing files:', error)
       setFileError('An error occurred while processing files. Please try again.')
     } finally {
-      // Reset the input
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
@@ -200,7 +187,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
     }
   }
 
-  // Handle drag events
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -228,7 +214,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    // Add visual feedback for valid drop zone
     e.dataTransfer.dropEffect = 'copy'
   }
 
@@ -245,7 +230,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
 
   const removeFile = (index: number) => {
     setFiles((prev) => {
-      // Revoke the URL to avoid memory leaks
       URL.revokeObjectURL(prev[index].preview)
       return prev.filter((_, i) => i !== index)
     })
@@ -256,20 +240,11 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
     return <IconComponent className='h-10 w-8' />
   }
 
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
-  }
-
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true)
     setSubmitStatus(null)
 
     try {
-      // First create the knowledge base
       const knowledgeBasePayload = {
         name: data.name,
         description: data.description || undefined,
@@ -303,6 +278,12 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
       const newKnowledgeBase = result.data
 
       if (files.length > 0) {
+        newKnowledgeBase.docCount = files.length
+
+        if (onKnowledgeBaseCreated) {
+          onKnowledgeBaseCreated(newKnowledgeBase)
+        }
+
         const uploadedFiles = await uploadFiles(files, newKnowledgeBase.id, {
           chunkSize: data.maxChunkSize,
           minCharactersPerChunk: data.minChunkSize,
@@ -310,23 +291,18 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
           recipe: 'default',
         })
 
-        // Update the knowledge base object with the correct document count
-        newKnowledgeBase.docCount = uploadedFiles.length
-
+        logger.info(`Successfully uploaded ${uploadedFiles.length} files`)
         logger.info(`Started processing ${uploadedFiles.length} documents in the background`)
+      } else {
+        if (onKnowledgeBaseCreated) {
+          onKnowledgeBaseCreated(newKnowledgeBase)
+        }
       }
 
-      // Clean up file previews
       files.forEach((file) => URL.revokeObjectURL(file.preview))
       setFiles([])
 
-      // Call the callback if provided
-      if (onKnowledgeBaseCreated) {
-        onKnowledgeBaseCreated(newKnowledgeBase)
-      }
-
-      // Close modal immediately - no need for success message
-      onOpenChange(false)
+      handleClose(false)
     } catch (error) {
       logger.error('Error creating knowledge base:', error)
       setSubmitStatus({
@@ -339,280 +315,336 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className='flex h-[74vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'
-        hideCloseButton
-      >
-        <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
-          <div className='flex items-center justify-between'>
-            <DialogTitle className='font-medium text-lg'>Create Knowledge Base</DialogTitle>
-            <Button
-              variant='ghost'
-              size='icon'
-              className='h-8 w-8 p-0'
-              onClick={() => onOpenChange(false)}
-            >
-              <X className='h-4 w-4' />
-              <span className='sr-only'>Close</span>
-            </Button>
-          </div>
-        </DialogHeader>
+    <Modal open={open} onOpenChange={handleClose}>
+      <ModalContent className='h-[78vh] max-h-[95vh] sm:max-w-[750px]'>
+        <ModalHeader>Create Knowledge Base</ModalHeader>
 
-        <div className='flex flex-1 flex-col overflow-hidden'>
-          <form onSubmit={handleSubmit(onSubmit)} className='flex h-full flex-col'>
-            {/* Scrollable Content */}
-            <div
-              ref={scrollContainerRef}
-              className='scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'
-            >
-              <div className='flex min-h-full flex-col py-4'>
-                {submitStatus && submitStatus.type === 'error' && (
-                  <Alert variant='destructive' className='mb-6'>
-                    <AlertCircle className='h-4 w-4' />
-                    <AlertTitle>Error</AlertTitle>
-                    <AlertDescription>{submitStatus.message}</AlertDescription>
-                  </Alert>
+        <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
+          <ModalBody>
+            <div ref={scrollContainerRef} className='space-y-[12px]'>
+              {/* Show upload error first, then submit error only if no upload error */}
+              {uploadError && (
+                <Alert variant='destructive'>
+                  <AlertCircle className='h-4 w-4' />
+                  <AlertTitle>Upload Error</AlertTitle>
+                  <AlertDescription>{uploadError.message}</AlertDescription>
+                </Alert>
+              )}
+
+              {submitStatus && submitStatus.type === 'error' && !uploadError && (
+                <Alert variant='destructive'>
+                  <AlertCircle className='h-4 w-4' />
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>{submitStatus.message}</AlertDescription>
+                </Alert>
+              )}
+
+              {/* Form Fields Section */}
+              <div className='space-y-[8px]'>
+                <Label
+                  htmlFor='name'
+                  className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
+                >
+                  Name *
+                </Label>
+                <Input
+                  id='name'
+                  placeholder='Enter knowledge base name'
+                  {...register('name')}
+                  className={errors.name ? 'border-[var(--text-error)]' : ''}
+                />
+                {errors.name && (
+                  <p className='mt-1 text-[var(--text-error)] text-sm'>{errors.name.message}</p>
                 )}
+              </div>
 
-                {/* Form Fields Section - Fixed at top */}
-                <div className='flex-shrink-0 space-y-4'>
-                  <div className='space-y-2'>
-                    <Label htmlFor='name'>Name *</Label>
+              <div className='space-y-[8px]'>
+                <Label
+                  htmlFor='description'
+                  className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
+                >
+                  Description
+                </Label>
+                <Textarea
+                  id='description'
+                  placeholder='Describe what this knowledge base contains (optional)'
+                  rows={3}
+                  {...register('description')}
+                  className={errors.description ? 'border-[var(--text-error)]' : ''}
+                />
+                {errors.description && (
+                  <p className='mt-1 text-[var(--text-error)] text-sm'>
+                    {errors.description.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Chunk Configuration Section */}
+              <div className='space-y-[12px] rounded-lg border p-5'>
+                <h3 className='font-medium text-[var(--text-primary)] text-sm'>
+                  Chunking Configuration
+                </h3>
+
+                {/* Min and Max Chunk Size Row */}
+                <div className='grid grid-cols-2 gap-4'>
+                  <div className='space-y-[8px]'>
+                    <Label
+                      htmlFor='minChunkSize'
+                      className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
+                    >
+                      Min Chunk Size
+                    </Label>
                     <Input
-                      id='name'
-                      placeholder='Enter knowledge base name'
-                      {...register('name')}
-                      className={errors.name ? 'border-red-500' : ''}
+                      id='minChunkSize'
+                      type='number'
+                      placeholder='1'
+                      {...register('minChunkSize', { valueAsNumber: true })}
+                      className={errors.minChunkSize ? 'border-[var(--text-error)]' : ''}
+                      autoComplete='off'
+                      data-form-type='other'
+                      name='min-chunk-size'
                     />
-                    {errors.name && (
-                      <p className='mt-1 text-red-500 text-sm'>{errors.name.message}</p>
+                    {errors.minChunkSize && (
+                      <p className='mt-1 text-[var(--text-error)] text-xs'>
+                        {errors.minChunkSize.message}
+                      </p>
                     )}
                   </div>
 
-                  <div className='space-y-2'>
-                    <Label htmlFor='description'>Description</Label>
-                    <Textarea
-                      id='description'
-                      placeholder='Describe what this knowledge base contains (optional)'
-                      rows={3}
-                      {...register('description')}
-                      className={errors.description ? 'border-red-500' : ''}
+                  <div className='space-y-[8px]'>
+                    <Label
+                      htmlFor='maxChunkSize'
+                      className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
+                    >
+                      Max Chunk Size
+                    </Label>
+                    <Input
+                      id='maxChunkSize'
+                      type='number'
+                      placeholder='1024'
+                      {...register('maxChunkSize', { valueAsNumber: true })}
+                      className={errors.maxChunkSize ? 'border-[var(--text-error)]' : ''}
+                      autoComplete='off'
+                      data-form-type='other'
+                      name='max-chunk-size'
                     />
-                    {errors.description && (
-                      <p className='mt-1 text-red-500 text-sm'>{errors.description.message}</p>
+                    {errors.maxChunkSize && (
+                      <p className='mt-1 text-[var(--text-error)] text-xs'>
+                        {errors.maxChunkSize.message}
+                      </p>
                     )}
-                  </div>
-
-                  {/* Chunk Configuration Section */}
-                  <div className='space-y-4 rounded-lg border p-4'>
-                    <h3 className='font-medium text-foreground text-sm'>Chunking Configuration</h3>
-
-                    {/* Min and Max Chunk Size Row */}
-                    <div className='grid grid-cols-2 gap-4'>
-                      <div className='space-y-2'>
-                        <Label htmlFor='minChunkSize'>Min Chunk Size</Label>
-                        <Input
-                          id='minChunkSize'
-                          type='number'
-                          placeholder='1'
-                          {...register('minChunkSize', { valueAsNumber: true })}
-                          className={errors.minChunkSize ? 'border-red-500' : ''}
-                          autoComplete='off'
-                          data-form-type='other'
-                          name='min-chunk-size'
-                        />
-                        {errors.minChunkSize && (
-                          <p className='mt-1 text-red-500 text-xs'>{errors.minChunkSize.message}</p>
-                        )}
-                      </div>
-
-                      <div className='space-y-2'>
-                        <Label htmlFor='maxChunkSize'>Max Chunk Size</Label>
-                        <Input
-                          id='maxChunkSize'
-                          type='number'
-                          placeholder='1024'
-                          {...register('maxChunkSize', { valueAsNumber: true })}
-                          className={errors.maxChunkSize ? 'border-red-500' : ''}
-                          autoComplete='off'
-                          data-form-type='other'
-                          name='max-chunk-size'
-                        />
-                        {errors.maxChunkSize && (
-                          <p className='mt-1 text-red-500 text-xs'>{errors.maxChunkSize.message}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Overlap Size */}
-                    <div className='space-y-2'>
-                      <Label htmlFor='overlapSize'>Overlap Size</Label>
-                      <Input
-                        id='overlapSize'
-                        type='number'
-                        placeholder='200'
-                        {...register('overlapSize', { valueAsNumber: true })}
-                        className={errors.overlapSize ? 'border-red-500' : ''}
-                        autoComplete='off'
-                        data-form-type='other'
-                        name='overlap-size'
-                      />
-                      {errors.overlapSize && (
-                        <p className='mt-1 text-red-500 text-xs'>{errors.overlapSize.message}</p>
-                      )}
-                    </div>
-
-                    <p className='text-muted-foreground text-xs'>
-                      Configure how documents are split into chunks for processing. Smaller chunks
-                      provide more precise retrieval but may lose context.
-                    </p>
                   </div>
                 </div>
 
-                {/* File Upload Section - Expands to fill remaining space */}
-                <div className='mt-6 flex flex-1 flex-col'>
-                  <Label className='mb-2'>Upload Documents</Label>
-                  <div className='flex flex-1 flex-col'>
-                    {files.length === 0 ? (
-                      <div
-                        ref={dropZoneRef}
-                        onDragEnter={handleDragEnter}
-                        onDragOver={handleDragOver}
-                        onDragLeave={handleDragLeave}
-                        onDrop={handleDrop}
-                        onClick={() => fileInputRef.current?.click()}
-                        className={`relative flex flex-1 cursor-pointer items-center justify-center rounded-lg border-[1.5px] border-dashed py-8 text-center transition-all duration-200 ${
-                          isDragging
-                            ? 'border-purple-300 bg-purple-50 shadow-sm'
-                            : 'border-muted-foreground/25 hover:border-muted-foreground/40 hover:bg-muted/10'
-                        }`}
-                      >
-                        <input
-                          ref={fileInputRef}
-                          type='file'
-                          accept={ACCEPTED_FILE_TYPES.join(',')}
-                          onChange={handleFileChange}
-                          className='hidden'
-                          multiple
-                        />
-                        <div className='flex flex-col items-center gap-3'>
-                          <div className='space-y-1'>
-                            <p
-                              className={`font-medium text-sm transition-colors duration-200 ${
-                                isDragging ? 'text-purple-700' : ''
-                              }`}
-                            >
-                              {isDragging
-                                ? 'Drop files here!'
-                                : 'Drop files here or click to browse'}
-                            </p>
-                            <p className='text-muted-foreground text-xs'>
-                              Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX (max 100MB each)
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className='flex flex-1 flex-col space-y-2'>
-                        {/* Compact drop area at top of file list */}
-                        <div
-                          ref={dropZoneRef}
-                          onDragEnter={handleDragEnter}
-                          onDragOver={handleDragOver}
-                          onDragLeave={handleDragLeave}
-                          onDrop={handleDrop}
-                          onClick={() => fileInputRef.current?.click()}
-                          className={`cursor-pointer rounded-md border border-dashed p-3 text-center transition-all duration-200 ${
-                            isDragging
-                              ? 'border-purple-300 bg-purple-50'
-                              : 'border-muted-foreground/25 hover:border-muted-foreground/40 hover:bg-muted/10'
+                {/* Overlap Size */}
+                <div className='space-y-[8px]'>
+                  <Label
+                    htmlFor='overlapSize'
+                    className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
+                  >
+                    Overlap Size
+                  </Label>
+                  <Input
+                    id='overlapSize'
+                    type='number'
+                    placeholder='200'
+                    {...register('overlapSize', { valueAsNumber: true })}
+                    className={errors.overlapSize ? 'border-[var(--text-error)]' : ''}
+                    autoComplete='off'
+                    data-form-type='other'
+                    name='overlap-size'
+                  />
+                  {errors.overlapSize && (
+                    <p className='mt-1 text-[var(--text-error)] text-xs'>
+                      {errors.overlapSize.message}
+                    </p>
+                  )}
+                </div>
+
+                <p className='text-[var(--text-tertiary)] text-xs'>
+                  Configure how documents are split into chunks for processing. Smaller chunks
+                  provide more precise retrieval but may lose context.
+                </p>
+              </div>
+
+              {/* File Upload Section */}
+              <div className='space-y-[12px]'>
+                <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+                  Upload Documents
+                </Label>
+                {files.length === 0 ? (
+                  <div
+                    ref={dropZoneRef}
+                    onDragEnter={handleDragEnter}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`relative flex cursor-pointer items-center justify-center rounded-lg border-[1.5px] border-dashed py-8 text-center transition-all duration-200 ${
+                      isDragging
+                        ? 'border-[var(--brand-primary-hex)] bg-[var(--brand-primary-hex)]/5'
+                        : 'border-[var(--c-575757)] hover:border-[var(--text-secondary)]'
+                    }`}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type='file'
+                      accept={ACCEPT_ATTRIBUTE}
+                      onChange={handleFileChange}
+                      className='hidden'
+                      multiple
+                    />
+                    <div className='flex flex-col items-center gap-3'>
+                      <div className='space-y-1'>
+                        <p
+                          className={`font-medium text-[var(--text-primary)] text-sm transition-colors duration-200 ${
+                            isDragging ? 'text-[var(--brand-primary-hex)]' : ''
                           }`}
                         >
-                          <input
-                            ref={fileInputRef}
-                            type='file'
-                            accept={ACCEPTED_FILE_TYPES.join(',')}
-                            onChange={handleFileChange}
-                            className='hidden'
-                            multiple
-                          />
-                          <div className='flex items-center justify-center gap-2'>
-                            <div>
-                              <p
-                                className={`font-medium text-sm transition-colors duration-200 ${
-                                  isDragging ? 'text-purple-700' : ''
-                                }`}
-                              >
-                                {isDragging
-                                  ? 'Drop more files here!'
-                                  : 'Drop more files or click to browse'}
-                              </p>
-                              <p className='text-muted-foreground text-xs'>
-                                PDF, DOC, DOCX, TXT, CSV, XLS, XLSX (max 100MB each)
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* File list */}
-                        <div className='space-y-2'>
-                          {files.map((file, index) => (
-                            <div
-                              key={index}
-                              className='flex items-center gap-3 rounded-md border p-3'
-                            >
-                              {getFileIcon(file.type, file.name)}
-                              <div className='min-w-0 flex-1'>
-                                <p className='truncate font-medium text-sm'>{file.name}</p>
-                                <p className='text-muted-foreground text-xs'>
-                                  {formatFileSize(file.size)}
-                                </p>
-                              </div>
-                              <Button
-                                type='button'
-                                variant='ghost'
-                                size='sm'
-                                onClick={() => removeFile(index)}
-                                className='h-8 w-8 p-0 text-muted-foreground hover:text-destructive'
-                              >
-                                <X className='h-4 w-4' />
-                              </Button>
-                            </div>
-                          ))}
+                          {isDragging ? 'Drop files here!' : 'Drop files here or click to browse'}
+                        </p>
+                        <p className='text-[var(--text-tertiary)] text-xs'>
+                          Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSON,
+                          YAML, YML (max 100MB each)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className='space-y-2'>
+                    {/* Compact drop area at top of file list */}
+                    <div
+                      ref={dropZoneRef}
+                      onDragEnter={handleDragEnter}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`cursor-pointer rounded-md border border-dashed p-3 text-center transition-all duration-200 ${
+                        isDragging
+                          ? 'border-[var(--brand-primary-hex)] bg-[var(--brand-primary-hex)]/5'
+                          : 'border-[var(--c-575757)] hover:border-[var(--text-secondary)]'
+                      }`}
+                    >
+                      <input
+                        ref={fileInputRef}
+                        type='file'
+                        accept={ACCEPT_ATTRIBUTE}
+                        onChange={handleFileChange}
+                        className='hidden'
+                        multiple
+                      />
+                      <div className='flex items-center justify-center gap-2'>
+                        <div>
+                          <p
+                            className={`font-medium text-[var(--text-primary)] text-sm transition-colors duration-200 ${
+                              isDragging ? 'text-[var(--brand-primary-hex)]' : ''
+                            }`}
+                          >
+                            {isDragging
+                              ? 'Drop more files here!'
+                              : 'Drop more files or click to browse'}
+                          </p>
+                          <p className='text-[var(--text-tertiary)] text-xs'>
+                            PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML (max 100MB
+                            each)
+                          </p>
                         </div>
                       </div>
-                    )}
-                    {fileError && (
-                      <Alert variant='destructive' className='mt-2'>
-                        <AlertCircle className='h-4 w-4' />
-                        <AlertTitle>Error</AlertTitle>
-                        <AlertDescription>{fileError}</AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
+                    </div>
 
-            {/* Footer */}
-            <div className='mt-auto border-t px-6 pt-4 pb-6'>
-              <div className='flex justify-between'>
-                <Button variant='outline' onClick={() => onOpenChange(false)} type='button'>
-                  Cancel
-                </Button>
-                <Button
-                  type='submit'
-                  disabled={isSubmitting || !nameValue?.trim()}
-                  className='bg-[var(--brand-primary-hex)] font-[480] text-primary-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:opacity-50 disabled:hover:shadow-none'
-                >
-                  {isSubmitting ? 'Creating...' : 'Create Knowledge Base'}
-                </Button>
+                    {/* File list */}
+                    <div className='space-y-2'>
+                      {files.map((file, index) => {
+                        const fileStatus = uploadProgress.fileStatuses?.[index]
+                        const isCurrentlyUploading = fileStatus?.status === 'uploading'
+                        const isCompleted = fileStatus?.status === 'completed'
+                        const isFailed = fileStatus?.status === 'failed'
+
+                        return (
+                          <div
+                            key={index}
+                            className='flex items-center gap-3 rounded-md border p-3'
+                          >
+                            {getFileIcon(file.type, file.name)}
+                            <div className='min-w-0 flex-1'>
+                              <div className='flex items-center gap-2'>
+                                {isCurrentlyUploading && (
+                                  <Loader2 className='h-4 w-4 animate-spin text-[var(--brand-primary-hex)]' />
+                                )}
+                                {isCompleted && (
+                                  <Check className='h-4 w-4 text-[var(--text-success)]' />
+                                )}
+                                {isFailed && <X className='h-4 w-4 text-[var(--text-error)]' />}
+                                <p className='truncate font-medium text-[var(--text-primary)] text-sm'>
+                                  {file.name}
+                                </p>
+                              </div>
+                              <div className='flex items-center gap-2'>
+                                <p className='text-[var(--text-tertiary)] text-xs'>
+                                  {formatFileSize(file.size)}
+                                </p>
+                                {isCurrentlyUploading && (
+                                  <div className='min-w-0 max-w-32 flex-1'>
+                                    <Progress value={fileStatus?.progress || 0} className='h-1' />
+                                  </div>
+                                )}
+                              </div>
+                              {isFailed && fileStatus?.error && (
+                                <p className='mt-1 text-[var(--text-error)] text-xs'>
+                                  {fileStatus.error}
+                                </p>
+                              )}
+                            </div>
+                            <Button
+                              type='button'
+                              variant='ghost'
+                              onClick={() => removeFile(index)}
+                              disabled={isUploading}
+                              className='h-8 w-8 p-0 text-[var(--text-tertiary)] hover:text-[var(--text-error)]'
+                            >
+                              <X className='h-4 w-4' />
+                            </Button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+                {fileError && (
+                  <Alert variant='destructive'>
+                    <AlertCircle className='h-4 w-4' />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{fileError}</AlertDescription>
+                  </Alert>
+                )}
               </div>
             </div>
-          </form>
-        </div>
-      </DialogContent>
-    </Dialog>
+          </ModalBody>
+
+          <ModalFooter>
+            <Button
+              variant='default'
+              onClick={() => handleClose(false)}
+              type='button'
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button variant='primary' type='submit' disabled={isSubmitting || !nameValue?.trim()}>
+              {isSubmitting
+                ? isUploading
+                  ? uploadProgress.stage === 'uploading'
+                    ? `Uploading ${uploadProgress.filesCompleted}/${uploadProgress.totalFiles}...`
+                    : uploadProgress.stage === 'processing'
+                      ? 'Processing...'
+                      : 'Creating...'
+                  : 'Creating...'
+                : 'Create Knowledge Base'}
+            </Button>
+          </ModalFooter>
+        </form>
+      </ModalContent>
+    </Modal>
   )
 }

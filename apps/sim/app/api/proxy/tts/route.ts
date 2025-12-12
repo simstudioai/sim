@@ -1,20 +1,51 @@
+import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
-import { uploadFile } from '@/lib/uploads/storage-client'
-import { getBaseUrl } from '@/lib/urls/utils'
+import { StorageService } from '@/lib/uploads'
 
 const logger = createLogger('ProxyTTSAPI')
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { text, voiceId, apiKey, modelId = 'eleven_monolingual_v1' } = body
-
-    if (!text || !voiceId || !apiKey) {
-      return new NextResponse('Missing required parameters', { status: 400 })
+    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    if (!authResult.success) {
+      logger.error('Authentication failed for TTS proxy:', authResult.error)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    logger.info('Proxying TTS request for voice:', voiceId)
+    const body = await request.json()
+    const {
+      text,
+      voiceId,
+      apiKey,
+      modelId = 'eleven_monolingual_v1',
+      workspaceId,
+      workflowId,
+      executionId,
+    } = body
+
+    if (!text || !voiceId || !apiKey) {
+      return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 })
+    }
+
+    const voiceIdValidation = validateAlphanumericId(voiceId, 'voiceId', 255)
+    if (!voiceIdValidation.isValid) {
+      logger.error(`Invalid voice ID: ${voiceIdValidation.error}`)
+      return NextResponse.json({ error: voiceIdValidation.error }, { status: 400 })
+    }
+
+    // Check if this is an execution context (from workflow tool execution)
+    const hasExecutionContext = workspaceId && workflowId && executionId
+    logger.info('Proxying TTS request for voice:', {
+      voiceId,
+      hasExecutionContext,
+      workspaceId,
+      workflowId,
+      executionId,
+    })
 
     const endpoint = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`
 
@@ -34,26 +65,66 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       logger.error(`Failed to generate TTS: ${response.status} ${response.statusText}`)
-      return new NextResponse(`Failed to generate TTS: ${response.status} ${response.statusText}`, {
-        status: response.status,
-      })
+      return NextResponse.json(
+        { error: `Failed to generate TTS: ${response.status} ${response.statusText}` },
+        { status: response.status }
+      )
     }
 
     const audioBlob = await response.blob()
 
     if (audioBlob.size === 0) {
       logger.error('Empty audio received from ElevenLabs')
-      return new NextResponse('Empty audio received', { status: 422 })
+      return NextResponse.json({ error: 'Empty audio received' }, { status: 422 })
     }
 
-    // Upload the audio file to storage and return multiple URL options
     const audioBuffer = Buffer.from(await audioBlob.arrayBuffer())
     const timestamp = Date.now()
-    const fileName = `elevenlabs-tts-${timestamp}.mp3`
-    const fileInfo = await uploadFile(audioBuffer, fileName, 'audio/mpeg')
 
-    // Generate the full URL for external use using the configured base URL
+    // Use execution storage for workflow tool calls, copilot for chat UI
+    if (hasExecutionContext) {
+      const { uploadExecutionFile } = await import('@/lib/uploads/contexts/execution')
+      const fileName = `tts-${timestamp}.mp3`
+
+      const userFile = await uploadExecutionFile(
+        {
+          workspaceId,
+          workflowId,
+          executionId,
+        },
+        audioBuffer,
+        fileName,
+        'audio/mpeg',
+        authResult.userId
+      )
+
+      logger.info('TTS audio stored in execution context:', {
+        executionId,
+        fileName,
+        size: userFile.size,
+      })
+
+      return NextResponse.json({
+        audioFile: userFile,
+        audioUrl: userFile.url,
+      })
+    }
+
+    // Chat UI usage - no execution context, use copilot context
+    const fileName = `tts-${timestamp}.mp3`
+    const fileInfo = await StorageService.uploadFile({
+      file: audioBuffer,
+      fileName,
+      contentType: 'audio/mpeg',
+      context: 'copilot',
+    })
+
     const audioUrl = `${getBaseUrl()}${fileInfo.path}`
+
+    logger.info('TTS audio stored in copilot context (chat UI):', {
+      fileName,
+      size: fileInfo.size,
+    })
 
     return NextResponse.json({
       audioUrl,
@@ -62,8 +133,10 @@ export async function POST(request: Request) {
   } catch (error) {
     logger.error('Error proxying TTS:', error)
 
-    return new NextResponse(
-      `Internal Server Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    return NextResponse.json(
+      {
+        error: `Internal Server Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      },
       { status: 500 }
     )
   }

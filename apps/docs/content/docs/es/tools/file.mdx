@@ -1,0 +1,54 @@
+---
+title: Archivo
+description: Leer y analizar múltiples archivos
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="file"
+  color="#40916C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+La herramienta de análisis de archivos proporciona una forma potente de extraer y procesar contenido de varios formatos de archivo, facilitando la incorporación de datos de documentos en los flujos de trabajo de tu agente. Esta herramienta es compatible con múltiples formatos de archivo y puede manejar archivos de hasta 200MB de tamaño.
+
+Con el analizador de archivos, puedes:
+
+- **Procesar múltiples formatos de archivo**: Extraer texto de PDFs, CSVs, documentos Word (DOCX), archivos de texto y más
+- **Manejar archivos grandes**: Procesar documentos de hasta 200MB de tamaño
+- **Analizar archivos desde URLs**: Extraer directamente contenido de archivos alojados en línea proporcionando sus URLs
+- **Procesar múltiples archivos a la vez**: Subir y analizar varios archivos en una sola operación
+- **Extraer datos estructurados**: Mantener el formato y la estructura de los documentos originales cuando sea posible
+
+La herramienta de análisis de archivos es particularmente útil para escenarios donde tus agentes necesitan trabajar con contenido de documentos, como analizar informes, extraer datos de hojas de cálculo o procesar texto de varias fuentes de documentos. Simplifica el proceso de hacer que el contenido de documentos esté disponible para tus agentes, permitiéndoles trabajar con información almacenada en archivos tan fácilmente como con entrada de texto directa.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integrar archivo en el flujo de trabajo. Puede cargar un archivo manualmente o insertar una URL de archivo.
+
+## Herramientas
+
+### `file_parser`
+
+Analiza uno o más archivos subidos o archivos desde URLs (texto, PDF, CSV, imágenes, etc.)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `filePath` | string | Sí | Ruta al archivo\(s\). Puede ser una única ruta, URL o un array de rutas. |
+| `fileType` | string | No | Tipo de archivo a analizar \(auto-detectado si no se especifica\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `files` | array | Array de archivos analizados |
+| `combinedContent` | string | Contenido combinado de todos los archivos analizados |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `file`

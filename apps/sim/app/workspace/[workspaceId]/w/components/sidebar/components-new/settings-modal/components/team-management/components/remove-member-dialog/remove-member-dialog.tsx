@@ -1,0 +1,82 @@
+import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
+
+interface RemoveMemberDialogProps {
+  open: boolean
+  memberName: string
+  shouldReduceSeats: boolean
+  isSelfRemoval?: boolean
+  error?: Error | null
+  onOpenChange: (open: boolean) => void
+  onShouldReduceSeatsChange: (shouldReduce: boolean) => void
+  onConfirmRemove: (shouldReduceSeats: boolean) => Promise<void>
+  onCancel: () => void
+}
+
+export function RemoveMemberDialog({
+  open,
+  memberName,
+  shouldReduceSeats,
+  error,
+  onOpenChange,
+  onShouldReduceSeatsChange,
+  onConfirmRemove,
+  onCancel,
+  isSelfRemoval = false,
+}: RemoveMemberDialogProps) {
+  return (
+    <Modal open={open} onOpenChange={onOpenChange}>
+      <ModalContent className='w-[400px]'>
+        <ModalHeader>{isSelfRemoval ? 'Leave Organization' : 'Remove Team Member'}</ModalHeader>
+        <ModalBody>
+          <p className='text-[12px] text-[var(--text-tertiary)]'>
+            {isSelfRemoval
+              ? 'Are you sure you want to leave this organization? You will lose access to all team resources.'
+              : `Are you sure you want to remove ${memberName} from the team?`}{' '}
+            <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+          </p>
+
+          {!isSelfRemoval && (
+            <div className='mt-4'>
+              <div className='flex items-center space-x-2'>
+                <input
+                  type='checkbox'
+                  id='reduce-seats'
+                  className='rounded-[4px]'
+                  checked={shouldReduceSeats}
+                  onChange={(e) => onShouldReduceSeatsChange(e.target.checked)}
+                />
+                <label htmlFor='reduce-seats' className='text-xs'>
+                  Also reduce seat count in my subscription
+                </label>
+              </div>
+              <p className='mt-1 text-[var(--text-muted)] text-xs'>
+                If selected, your team seat count will be reduced by 1, lowering your monthly
+                billing.
+              </p>
+            </div>
+          )}
+
+          {error && (
+            <div className='mt-2'>
+              <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+                {error instanceof Error && error.message ? error.message : String(error)}
+              </p>
+            </div>
+          )}
+        </ModalBody>
+        <ModalFooter>
+          <Button variant='active' onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button
+            variant='primary'
+            onClick={() => onConfirmRemove(shouldReduceSeats)}
+            className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
+          >
+            {isSelfRemoval ? 'Leave Organization' : 'Remove'}
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+  )
+}

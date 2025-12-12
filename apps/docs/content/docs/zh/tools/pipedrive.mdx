@@ -1,0 +1,416 @@
+---
+title: Pipedrive
+description: 与 Pipedrive CRM 互动
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="pipedrive"
+  color="#2E6936"
+/>
+
+【手动内容开始：简介】
+[Pipedrive](https://www.pipedrive.com) 是一个强大的以销售为中心的 CRM 平台，旨在帮助销售团队管理潜在客户、跟踪交易并优化销售流程。Pipedrive 以其简单性和高效性而设计，凭借直观的可视化销售流程管理和可操作的销售洞察，已成为全球销售专业人士和成长型企业的首选。
+
+Pipedrive 提供了一整套工具，用于管理从潜在客户获取到交易完成的整个销售过程。凭借其强大的 API 和广泛的集成能力，Pipedrive 使销售团队能够自动化重复任务，保持数据一致性，并专注于最重要的事情——完成交易。
+
+Pipedrive 的主要功能包括：
+
+- 可视化销售流程：直观的拖放界面，用于通过可自定义的销售阶段管理交易
+- 潜在客户管理：全面的潜在客户收件箱，用于捕获、筛选和转化潜在机会
+- 活动跟踪：先进的系统，用于安排和跟踪电话、会议、电子邮件和任务
+- 项目管理：内置的项目跟踪功能，用于售后客户成功和交付
+- 邮件集成：原生邮箱集成，实现 CRM 内的无缝通信跟踪
+
+在 Sim 中，Pipedrive 集成使您的 AI 代理能够无缝地与销售工作流程交互。这为自动化潜在客户资格审查、交易创建和更新、活动安排以及管道管理创造了机会，成为您 AI 驱动的销售流程的一部分。通过集成，代理可以以编程方式创建、检索、更新和管理交易、潜在客户、活动和项目，从而促进智能销售自动化，并确保关键的客户信息得到妥善跟踪和处理。通过将 Sim 与 Pipedrive 连接，您可以构建能够维护销售管道可见性、自动化日常 CRM 任务、智能地筛选潜在客户并确保不遗漏任何机会的 AI 代理，从而提高销售团队的生产力并推动持续的收入增长。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Pipedrive 集成到您的工作流程中。通过强大的 CRM 功能管理交易、联系人、销售管道、项目、活动、文件和通信。
+
+## 工具
+
+### `pipedrive_get_all_deals`
+
+使用可选过滤器从 Pipedrive 检索所有交易
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `status` | string | 否 | 仅获取具有特定状态的交易。值：open, won, lost。如果省略，则返回所有未删除的交易 |
+| `person_id` | string | 否 | 如果提供，仅返回与指定人员相关的交易 |
+| `org_id` | string | 否 | 如果提供，仅返回与指定组织相关的交易 |
+| `pipeline_id` | string | 否 | 如果提供，仅返回指定管道中的交易 |
+| `updated_since` | string | 否 | 如果设置，仅返回在此时间之后更新的交易。格式：2025-01-01T10:20:00Z |
+| `limit` | string | 否 | 返回结果的数量 \(默认：100，最大：500\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 交易数据和元数据 |
+
+### `pipedrive_get_deal`
+
+检索特定交易的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `deal_id` | string | 是 | 要检索的交易 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 交易详情 |
+
+### `pipedrive_create_deal`
+
+在 Pipedrive 中创建新交易
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | 是 | 交易标题 |
+| `value` | string | 否 | 交易金额 |
+| `currency` | string | 否 | 货币代码（例如，USD，EUR） |
+| `person_id` | string | 否 | 与此交易关联的人员 ID |
+| `org_id` | string | 否 | 与此交易关联的组织 ID |
+| `pipeline_id` | string | 否 | 此交易应放置的管道 ID |
+| `stage_id` | string | 否 | 此交易应放置的阶段 ID |
+| `status` | string | 否 | 交易状态：open, won, lost |
+| `expected_close_date` | string | 否 | 预期关闭日期，格式为 YYYY-MM-DD |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的交易详情 |
+
+### `pipedrive_update_deal`
+
+更新 Pipedrive 中的现有交易
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `deal_id` | string | 是 | 要更新的交易 ID |
+| `title` | string | 否 | 交易的新标题 |
+| `value` | string | 否 | 交易的新金额 |
+| `status` | string | 否 | 新状态：open, won, lost |
+| `stage_id` | string | 否 | 交易的新阶段 ID |
+| `expected_close_date` | string | 否 | 新的预期关闭日期，格式为 YYYY-MM-DD |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新的交易详情 |
+
+### `pipedrive_get_files`
+
+使用可选过滤器从 Pipedrive 检索文件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `deal_id` | string | 否 | 按交易 ID 过滤文件 |
+| `person_id` | string | 否 | 按人员 ID 过滤文件 |
+| `org_id` | string | 否 | 按组织 ID 过滤文件 |
+| `limit` | string | 否 | 返回结果数量 \(默认值：100，最大值：500\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 文件数据 |
+
+### `pipedrive_get_mail_messages`
+
+从 Pipedrive 邮箱中检索邮件线程
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `folder` | string | 否 | 按文件夹筛选：收件箱、草稿、已发送、归档 \(默认：收件箱\) |
+| `limit` | string | 否 | 返回结果数量 \(默认：50\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 邮件线程数据 |
+
+### `pipedrive_get_mail_thread`
+
+从特定邮件线程中检索所有消息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `thread_id` | string | 是 | 邮件线程的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 邮件线程消息数据 |
+
+### `pipedrive_get_pipelines`
+
+从 Pipedrive 中检索所有管道
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `sort_by` | string | 否 | 排序字段：id、update_time、add_time \(默认：id\) |
+| `sort_direction` | string | 否 | 排序方向：asc、desc \(默认：asc\) |
+| `limit` | string | 否 | 返回结果数量 \(默认：100，最大：500\) |
+| `cursor` | string | 否 | 用于分页，表示下一页第一个项目的标记 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 管道数据 |
+
+### `pipedrive_get_pipeline_deals`
+
+检索特定管道中的所有交易
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `pipeline_id` | string | 是 | 管道的 ID |
+| `stage_id` | string | 否 | 按管道中的特定阶段筛选 |
+| `status` | string | 否 | 按交易状态筛选：open、won、lost |
+| `limit` | string | 否 | 返回结果数量 \(默认：100，最大：500\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 管道交易数据 |
+
+### `pipedrive_get_projects`
+
+从 Pipedrive 检索所有项目或特定项目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `project_id` | string | 否 | 可选：要检索的特定项目的 ID |
+| `status` | string | 否 | 按项目状态筛选：open、completed、deleted \(仅用于列出所有项目\) |
+| `limit` | string | 否 | 返回结果数量 \(默认：100，最大：500，仅用于列出所有项目\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 项目数据或单个项目详情 |
+
+### `pipedrive_create_project`
+
+在 Pipedrive 中创建一个新项目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | 是 | 项目的标题 |
+| `description` | string | 否 | 项目的描述 |
+| `start_date` | string | 否 | 项目开始日期，格式为 YYYY-MM-DD |
+| `end_date` | string | 否 | 项目结束日期，格式为 YYYY-MM-DD |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的项目详情 |
+
+### `pipedrive_get_activities`
+
+从 Pipedrive 检索活动（任务），可选过滤器
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `deal_id` | string | 否 | 按交易 ID 过滤活动 |
+| `person_id` | string | 否 | 按人员 ID 过滤活动 |
+| `org_id` | string | 否 | 按组织 ID 过滤活动 |
+| `type` | string | 否 | 按活动类型过滤 \(通话、会议、任务、截止日期、电子邮件、午餐\) |
+| `done` | string | 否 | 按完成状态过滤：0 表示未完成，1 表示已完成 |
+| `limit` | string | 否 | 返回结果数量 \(默认：100，最大：500\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 活动数据 |
+
+### `pipedrive_create_activity`
+
+在 Pipedrive 中创建一个新活动（任务）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `subject` | string | 是 | 活动的主题/标题 |
+| `type` | string | 是 | 活动类型：通话、会议、任务、截止日期、电子邮件、午餐 |
+| `due_date` | string | 是 | YYYY-MM-DD 格式的截止日期 |
+| `due_time` | string | 否 | HH:MM 格式的截止时间 |
+| `duration` | string | 否 | HH:MM 格式的持续时间 |
+| `deal_id` | string | 否 | 要关联的交易 ID |
+| `person_id` | string | 否 | 要关联的人员 ID |
+| `org_id` | string | 否 | 要关联的组织 ID |
+| `note` | string | 否 | 活动备注 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的活动详情 |
+
+### `pipedrive_update_activity`
+
+更新 Pipedrive 中的现有活动（任务）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `activity_id` | string | 是 | 要更新的活动 ID |
+| `subject` | string | 否 | 活动的新主题/标题 |
+| `due_date` | string | 否 | 新的截止日期（YYYY-MM-DD 格式） |
+| `due_time` | string | 否 | 新的截止时间（HH:MM 格式） |
+| `duration` | string | 否 | 新的持续时间（HH:MM 格式） |
+| `done` | string | 否 | 标记为完成：0 表示未完成，1 表示已完成 |
+| `note` | string | 否 | 活动的新备注 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新的活动详情 |
+
+### `pipedrive_get_leads`
+
+从 Pipedrive 检索所有潜在客户或特定潜在客户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `lead_id` | string | 否 | 可选：要检索的特定潜在客户的 ID |
+| `archived` | string | 否 | 获取已归档的潜在客户而不是活跃的潜在客户 |
+| `owner_id` | string | 否 | 按所有者用户 ID 过滤 |
+| `person_id` | string | 否 | 按人员 ID 过滤 |
+| `organization_id` | string | 否 | 按组织 ID 过滤 |
+| `limit` | string | 否 | 返回结果数量 \(默认：100，最大：500\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 潜在客户数据或单个潜在客户详情 |
+
+### `pipedrive_create_lead`
+
+在 Pipedrive 中创建一个新的潜在客户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | 是 | 潜在客户的名称 |
+| `person_id` | string | 否 | 人员的 ID \(必需，除非提供了 organization_id\) |
+| `organization_id` | string | 否 | 组织的 ID \(必需，除非提供了 person_id\) |
+| `owner_id` | string | 否 | 将拥有该潜在客户的用户的 ID |
+| `value_amount` | string | 否 | 潜在价值金额 |
+| `value_currency` | string | 否 | 货币代码 \(例如，USD，EUR\) |
+| `expected_close_date` | string | 否 | 预期关闭日期，格式为 YYYY-MM-DD |
+| `visible_to` | string | 否 | 可见性：1 \(所有者和关注者\)，3 \(整个公司\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的潜在客户详情 |
+
+### `pipedrive_update_lead`
+
+更新 Pipedrive 中的现有潜在客户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `lead_id` | string | 是 | 要更新的潜在客户的 ID |
+| `title` | string | 否 | 潜在客户的新名称 |
+| `person_id` | string | 否 | 新的联系人 ID |
+| `organization_id` | string | 否 | 新的组织 ID |
+| `owner_id` | string | 否 | 新的所有者用户 ID |
+| `value_amount` | string | 否 | 新的价值金额 |
+| `value_currency` | string | 否 | 新的货币代码 \(例如，USD，EUR\) |
+| `expected_close_date` | string | 否 | 新的预期关闭日期，格式为 YYYY-MM-DD |
+| `is_archived` | string | 否 | 是否归档潜在客户：true 或 false |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新的潜在客户详情 |
+
+### `pipedrive_delete_lead`
+
+从 Pipedrive 中删除特定潜在客户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `lead_id` | string | 是 | 要删除的潜在客户的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 删除结果 |
+
+## 注意事项
+
+- 类别: `tools`
+- 类型: `pipedrive`

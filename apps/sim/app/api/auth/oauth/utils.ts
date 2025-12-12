@@ -1,9 +1,9 @@
+import { db } from '@sim/db'
+import { account, workflow } from '@sim/db/schema'
 import { and, desc, eq } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshOAuthToken } from '@/lib/oauth/oauth'
-import { db } from '@/db'
-import { account, workflow } from '@/db/schema'
 
 const logger = createLogger('OAuthUtilsAPI')
 
@@ -278,7 +278,22 @@ export async function refreshTokenIfNeeded(
     logger.info(`[${requestId}] Successfully refreshed access token`)
     return { accessToken: refreshedToken, refreshed: true }
   } catch (error) {
-    logger.error(`[${requestId}] Error refreshing token`, error)
+    logger.warn(
+      `[${requestId}] Refresh attempt failed, checking if another concurrent request succeeded`
+    )
+
+    const freshCredential = await getCredential(requestId, credentialId, credential.userId)
+    if (freshCredential?.accessToken) {
+      const freshExpiresAt = freshCredential.accessTokenExpiresAt
+      const stillValid = !freshExpiresAt || freshExpiresAt > new Date()
+
+      if (stillValid) {
+        logger.info(`[${requestId}] Found valid token from concurrent refresh, using it`)
+        return { accessToken: freshCredential.accessToken, refreshed: true }
+      }
+    }
+
+    logger.error(`[${requestId}] Refresh failed and no valid token found in DB`, error)
     throw error
   }
 }

@@ -141,6 +141,7 @@ describe('AgentBlock', () => {
             param1: { type: 'string' },
           },
         },
+        type: 'custom-tool',
         usageControl: 'force',
       })
     })

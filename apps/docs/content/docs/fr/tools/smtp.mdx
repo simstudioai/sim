@@ -1,0 +1,73 @@
+---
+title: SMTP
+description: Envoyez des emails via n'importe quel serveur de messagerie SMTP
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="smtp"
+  color="#2D3748"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SMTP (Simple Mail Transfer Protocol)](https://en.wikipedia.org/wiki/Simple_Mail_Transfer_Protocol) est la norme fondamentale pour la transmission d'emails sur Internet. En vous connectant à n'importe quel serveur compatible SMTP—comme Gmail, Outlook, ou l'infrastructure de messagerie de votre organisation—vous pouvez envoyer des emails de manière programmatique et automatiser vos communications sortantes.
+
+L'intégration SMTP vous permet de personnaliser entièrement l'envoi d'emails grâce à une connectivité directe au serveur, prenant en charge les cas d'utilisation d'email basiques et avancés. Avec SMTP, vous pouvez contrôler tous les aspects de la livraison des messages, de la gestion des destinataires et du formatage du contenu, ce qui le rend adapté aux notifications transactionnelles, aux envois en masse et à tout flux de travail automatisé nécessitant une livraison robuste d'emails sortants.
+
+**Les fonctionnalités clés disponibles via l'intégration SMTP incluent :**
+
+- **Livraison universelle d'emails :** Envoyez des emails en utilisant n'importe quel serveur SMTP en configurant les paramètres de connexion standard.
+- **Expéditeur et destinataires personnalisables :** Spécifiez l'adresse de l'expéditeur, le nom d'affichage, les destinataires principaux, ainsi que les champs CC et BCC.
+- **Prise en charge de contenu enrichi :** Envoyez des emails en texte brut ou au format HTML richement formaté selon vos besoins.
+- **Pièces jointes :** Incluez plusieurs fichiers en pièces jointes dans les emails sortants.
+- **Sécurité flexible :** Connectez-vous en utilisant les protocoles TLS, SSL ou standard (non chiffré) selon ce que prend en charge votre fournisseur SMTP.
+- **En-têtes avancés :** Définissez les en-têtes de réponse et d'autres options d'email avancées pour répondre aux flux de messagerie complexes et aux interactions utilisateur.
+
+En intégrant SMTP avec Sim, les agents et les flux de travail peuvent envoyer des emails de manière programmatique dans le cadre de tout processus automatisé—allant de l'envoi de notifications et de confirmations à l'automatisation des communications externes, des rapports et de la livraison de documents. Cela offre une approche hautement flexible et indépendante du fournisseur pour gérer les emails directement au sein de vos processus pilotés par l'IA.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Envoyez des emails en utilisant n'importe quel serveur SMTP (Gmail, Outlook, serveurs personnalisés, etc.). Configurez les paramètres de connexion SMTP et envoyez des emails avec un contrôle total sur le contenu, les destinataires et les pièces jointes.
+
+## Outils
+
+### `smtp_send_mail`
+
+Envoyer des emails via un serveur SMTP
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `smtpHost` | string | Oui | Nom d'hôte du serveur SMTP \(ex., smtp.gmail.com\) |
+| `smtpPort` | number | Oui | Port du serveur SMTP \(587 pour TLS, 465 pour SSL\) |
+| `smtpUsername` | string | Oui | Nom d'utilisateur pour l'authentification SMTP |
+| `smtpPassword` | string | Oui | Mot de passe pour l'authentification SMTP |
+| `smtpSecure` | string | Oui | Protocole de sécurité \(TLS, SSL ou Aucun\) |
+| `from` | string | Oui | Adresse email de l'expéditeur |
+| `to` | string | Oui | Adresse email du destinataire |
+| `subject` | string | Oui | Objet de l'email |
+| `body` | string | Oui | Contenu du corps de l'email |
+| `contentType` | string | Non | Type de contenu \(texte ou html\) |
+| `fromName` | string | Non | Nom d'affichage de l'expéditeur |
+| `cc` | string | Non | Destinataires en copie \(séparés par des virgules\) |
+| `bcc` | string | Non | Destinataires en copie cachée \(séparés par des virgules\) |
+| `replyTo` | string | Non | Adresse email de réponse |
+| `attachments` | file[] | Non | Fichiers à joindre à l'email |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indique si l'email a été envoyé avec succès |
+| `messageId` | string | ID du message du serveur SMTP |
+| `to` | string | Adresse email du destinataire |
+| `subject` | string | Objet de l'email |
+| `error` | string | Message d'erreur si l'envoi a échoué |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `smtp`

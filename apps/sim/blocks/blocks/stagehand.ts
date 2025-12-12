@@ -1,5 +1,5 @@
 import { StagehandIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface StagehandExtractResponse extends ToolResponse {
@@ -12,8 +12,9 @@ export const StagehandBlock: BlockConfig<StagehandExtractResponse> = {
   type: 'stagehand',
   name: 'Stagehand Extract',
   description: 'Extract data from websites',
+  authMode: AuthMode.ApiKey,
   longDescription:
-    'Use Stagehand to extract structured data from webpages using Browserbase and OpenAI.',
+    'Integrate Stagehand into the workflow. Can extract structured data from webpages.',
   docsLink: 'https://docs.sim.ai/tools/stagehand',
   category: 'tools',
   bgColor: '#FFC83C',
@@ -23,7 +24,6 @@ export const StagehandBlock: BlockConfig<StagehandExtractResponse> = {
       id: 'url',
       title: 'URL',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter the URL of the website to extract data from',
       required: true,
     },
@@ -31,7 +31,6 @@ export const StagehandBlock: BlockConfig<StagehandExtractResponse> = {
       id: 'instruction',
       title: 'Instructions',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter detailed instructions for what data to extract from the page...',
       required: true,
     },
@@ -39,7 +38,6 @@ export const StagehandBlock: BlockConfig<StagehandExtractResponse> = {
       id: 'apiKey',
       title: 'OpenAI API Key',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter your OpenAI API key',
       password: true,
       required: true,
@@ -48,7 +46,6 @@ export const StagehandBlock: BlockConfig<StagehandExtractResponse> = {
       id: 'schema',
       title: 'Schema',
       type: 'code',
-      layout: 'full',
       placeholder: 'Enter JSON Schema...',
       language: 'json',
       generationType: 'json-schema',

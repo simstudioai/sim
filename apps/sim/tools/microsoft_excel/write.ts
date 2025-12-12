@@ -2,6 +2,7 @@ import type {
   MicrosoftExcelToolParams,
   MicrosoftExcelWriteResponse,
 } from '@/tools/microsoft_excel/types'
+import { getSpreadsheetWebUrl } from '@/tools/microsoft_excel/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWriteResponse> = {
@@ -13,7 +14,6 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
   oauth: {
     required: true,
     provider: 'microsoft-excel',
-    additionalScopes: [],
   },
 
   params: {
@@ -131,16 +131,23 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
     },
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: MicrosoftExcelToolParams) => {
     const data = await response.json()
 
     const urlParts = response.url.split('/drive/items/')
     const spreadsheetId = urlParts[1]?.split('/')[0] || ''
 
+    // Fetch the browser-accessible web URL
+    const accessToken = params?.accessToken
+    if (!accessToken) {
+      throw new Error('Access token is required')
+    }
+    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken)
+
     const metadata = {
       spreadsheetId,
       properties: {},
-      spreadsheetUrl: `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}`,
+      spreadsheetUrl: webUrl,
     }
 
     const result = {

@@ -1,15 +1,12 @@
 'use client'
 
-import { LibraryBig, MoreHorizontal, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { LibraryBig, MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { Button, Popover, PopoverContent, PopoverItem, PopoverTrigger } from '@/components/emcn'
+import { Trash } from '@/components/emcn/icons/trash'
 import { WorkspaceSelector } from '@/app/workspace/[workspaceId]/knowledge/components'
+import { filterButtonClass } from '@/app/workspace/[workspaceId]/knowledge/components/shared'
 
 interface BreadcrumbItem {
   label: string
@@ -24,8 +21,7 @@ const HEADER_STYLES = {
   link: 'group flex items-center gap-2 font-medium text-sm transition-colors hover:text-muted-foreground',
   label: 'font-medium text-sm',
   separator: 'text-muted-foreground',
-  // Always reserve consistent space for actions area
-  actionsContainer: 'flex h-8 items-center justify-center gap-2',
+  actionsContainer: 'flex items-center gap-2',
 } as const
 
 interface KnowledgeHeaderOptions {
@@ -41,6 +37,8 @@ interface KnowledgeHeaderProps {
 }
 
 export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) {
+  const [isActionsPopoverOpen, setIsActionsPopoverOpen] = useState(false)
+
   return (
     <div className={HEADER_STYLES.container}>
       <div className={HEADER_STYLES.breadcrumbs}>
@@ -66,42 +64,46 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
         })}
       </div>
 
-      {/* Actions Area - always reserve consistent space */}
-      <div className={HEADER_STYLES.actionsContainer}>
-        {/* Workspace Selector */}
-        {options?.knowledgeBaseId && (
-          <WorkspaceSelector
-            knowledgeBaseId={options.knowledgeBaseId}
-            currentWorkspaceId={options.currentWorkspaceId || null}
-            onWorkspaceChange={options.onWorkspaceChange}
-          />
-        )}
+      {/* Actions Area */}
+      {options && (
+        <div className={HEADER_STYLES.actionsContainer}>
+          {/* Workspace Selector */}
+          {options.knowledgeBaseId && (
+            <WorkspaceSelector
+              knowledgeBaseId={options.knowledgeBaseId}
+              currentWorkspaceId={options.currentWorkspaceId || null}
+              onWorkspaceChange={options.onWorkspaceChange}
+            />
+          )}
 
-        {/* Actions Menu */}
-        {options?.onDeleteKnowledgeBase && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant='ghost'
-                size='sm'
-                className='h-8 w-8 p-0'
-                aria-label='Knowledge base actions menu'
-              >
-                <MoreHorizontal className='h-4 w-4' />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end'>
-              <DropdownMenuItem
-                onClick={options.onDeleteKnowledgeBase}
-                className='text-red-600 focus:text-red-600'
-              >
-                <Trash2 className='mr-2 h-4 w-4' />
-                Delete Knowledge Base
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
+          {/* Actions Menu */}
+          {options.onDeleteKnowledgeBase && (
+            <Popover open={isActionsPopoverOpen} onOpenChange={setIsActionsPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant='outline'
+                  className={filterButtonClass}
+                  aria-label='Knowledge base actions menu'
+                >
+                  <MoreHorizontal className='h-4 w-4' />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align='end' side='bottom' sideOffset={4}>
+                <PopoverItem
+                  onClick={() => {
+                    options.onDeleteKnowledgeBase?.()
+                    setIsActionsPopoverOpen(false)
+                  }}
+                  className='text-red-600 hover:text-red-600 focus:text-red-600'
+                >
+                  <Trash className='h-4 w-4' />
+                  <span>Delete Knowledge Base</span>
+                </PopoverItem>
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
+      )}
     </div>
   )
 }

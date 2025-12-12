@@ -3,7 +3,10 @@ import type {
   MicrosoftExcelReadResponse,
   MicrosoftExcelToolParams,
 } from '@/tools/microsoft_excel/types'
-import { trimTrailingEmptyRowsAndColumns } from '@/tools/microsoft_excel/utils'
+import {
+  getSpreadsheetWebUrl,
+  trimTrailingEmptyRowsAndColumns,
+} from '@/tools/microsoft_excel/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadResponse> = {
@@ -15,7 +18,6 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
   oauth: {
     required: true,
     provider: 'microsoft-excel',
-    additionalScopes: [],
   },
 
   params: {
@@ -35,7 +37,8 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'The range of cells to read from',
+      description:
+        'The range of cells to read from. Accepts "SheetName!A1:B2" for explicit ranges or just "SheetName" to read the used range of that sheet. If omitted, reads the used range of the first sheet.',
     },
   },
 
@@ -53,10 +56,19 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       }
 
       const rangeInput = params.range.trim()
+
+      // If the input contains no '!', treat it as a sheet name only and fetch usedRange
+      if (!rangeInput.includes('!')) {
+        const sheetOnly = encodeURIComponent(rangeInput)
+        return `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}/workbook/worksheets('${sheetOnly}')/usedRange(valuesOnly=true)`
+      }
+
       const match = rangeInput.match(/^([^!]+)!(.+)$/)
 
       if (!match) {
-        throw new Error(`Invalid range format: "${params.range}". Use the format "Sheet1!A1:B2"`)
+        throw new Error(
+          `Invalid range format: "${params.range}". Use "Sheet1!A1:B2" or just "Sheet1" to read the whole sheet`
+        )
       }
 
       const sheetName = encodeURIComponent(match[1])
@@ -104,7 +116,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       if (!rangeResp.ok) {
         // Normalize Microsoft Graph sheet/range errors to a friendly message
         throw new Error(
-          'Invalid range provided or worksheet not found. Provide a range like "Sheet1!A1:B2"'
+          'Invalid range provided or worksheet not found. Provide a range like "Sheet1!A1:B2" or just the sheet name to read the whole sheet'
         )
       }
 
@@ -116,10 +128,13 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
 
       const values = trimTrailingEmptyRowsAndColumns(rawValues)
 
+      // Fetch the browser-accessible web URL
+      const webUrl = await getSpreadsheetWebUrl(spreadsheetIdFromUrl, accessToken)
+
       const metadata = {
         spreadsheetId: spreadsheetIdFromUrl,
         properties: {},
-        spreadsheetUrl: `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetIdFromUrl}`,
+        spreadsheetUrl: webUrl,
       }
 
       const result: MicrosoftExcelReadResponse = {
@@ -145,10 +160,17 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
     const urlParts = response.url.split('/drive/items/')
     const spreadsheetId = urlParts[1]?.split('/')[0] || ''
 
+    // Fetch the browser-accessible web URL
+    const accessToken = params?.accessToken
+    if (!accessToken) {
+      throw new Error('Access token is required')
+    }
+    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken)
+
     const metadata = {
       spreadsheetId,
       properties: {},
-      spreadsheetUrl: `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}`,
+      spreadsheetUrl: webUrl,
     }
 
     const address: string = data.address || data.addressLocal || data.range || ''

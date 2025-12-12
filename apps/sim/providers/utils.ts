@@ -1,4 +1,5 @@
-import { getCostMultiplier, isHosted } from '@/lib/environment'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { isHosted } from '@/lib/core/config/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { anthropicProvider } from '@/providers/anthropic'
 import { azureOpenAIProvider } from '@/providers/azure-openai'
@@ -6,6 +7,7 @@ import { cerebrasProvider } from '@/providers/cerebras'
 import { deepseekProvider } from '@/providers/deepseek'
 import { googleProvider } from '@/providers/google'
 import { groqProvider } from '@/providers/groq'
+import { mistralProvider } from '@/providers/mistral'
 import {
   getComputerUseModels,
   getEmbeddingModelPricing,
@@ -26,10 +28,12 @@ import {
 } from '@/providers/models'
 import { ollamaProvider } from '@/providers/ollama'
 import { openaiProvider } from '@/providers/openai'
+import { openRouterProvider } from '@/providers/openrouter'
 import type { ProviderConfig, ProviderId, ProviderToolConfig } from '@/providers/types'
+import { vllmProvider } from '@/providers/vllm'
 import { xAIProvider } from '@/providers/xai'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import { useOllamaStore } from '@/stores/ollama/store'
+import { useProvidersStore } from '@/stores/providers/store'
 
 const logger = createLogger('ProviderUtils')
 
@@ -83,10 +87,25 @@ export const providers: Record<
     models: getProviderModelsFromDefinitions('groq'),
     modelPatterns: PROVIDER_DEFINITIONS.groq.modelPatterns,
   },
+  vllm: {
+    ...vllmProvider,
+    models: getProviderModelsFromDefinitions('vllm'),
+    modelPatterns: PROVIDER_DEFINITIONS.vllm.modelPatterns,
+  },
+  mistral: {
+    ...mistralProvider,
+    models: getProviderModelsFromDefinitions('mistral'),
+    modelPatterns: PROVIDER_DEFINITIONS.mistral.modelPatterns,
+  },
   'azure-openai': {
     ...azureOpenAIProvider,
     models: getProviderModelsFromDefinitions('azure-openai'),
     modelPatterns: PROVIDER_DEFINITIONS['azure-openai'].modelPatterns,
+  },
+  openrouter: {
+    ...openRouterProvider,
+    models: getProviderModelsFromDefinitions('openrouter'),
+    modelPatterns: PROVIDER_DEFINITIONS.openrouter.modelPatterns,
   },
   ollama: {
     ...ollamaProvider,
@@ -95,7 +114,6 @@ export const providers: Record<
   },
 }
 
-// Initialize all providers that have initialize method
 Object.entries(providers).forEach(([id, provider]) => {
   if (provider.initialize) {
     provider.initialize().catch((error) => {
@@ -106,15 +124,29 @@ Object.entries(providers).forEach(([id, provider]) => {
   }
 })
 
-// Function to update Ollama provider models
 export function updateOllamaProviderModels(models: string[]): void {
   updateOllamaModelsInDefinitions(models)
   providers.ollama.models = getProviderModelsFromDefinitions('ollama')
 }
 
+export function updateVLLMProviderModels(models: string[]): void {
+  const { updateVLLMModels } = require('@/providers/models')
+  updateVLLMModels(models)
+  providers.vllm.models = getProviderModelsFromDefinitions('vllm')
+}
+
+export async function updateOpenRouterProviderModels(models: string[]): Promise<void> {
+  const { updateOpenRouterModels } = await import('@/providers/models')
+  updateOpenRouterModels(models)
+  providers.openrouter.models = getProviderModelsFromDefinitions('openrouter')
+}
+
 export function getBaseModelProviders(): Record<string, ProviderId> {
-  return Object.entries(providers)
-    .filter(([providerId]) => providerId !== 'ollama')
+  const allProviders = Object.entries(providers)
+    .filter(
+      ([providerId]) =>
+        providerId !== 'ollama' && providerId !== 'vllm' && providerId !== 'openrouter'
+    )
     .reduce(
       (map, [providerId, config]) => {
         config.models.forEach((model) => {
@@ -124,6 +156,20 @@ export function getBaseModelProviders(): Record<string, ProviderId> {
       },
       {} as Record<string, ProviderId>
     )
+
+  return filterBlacklistedModelsFromProviderMap(allProviders)
+}
+
+function filterBlacklistedModelsFromProviderMap(
+  providerMap: Record<string, ProviderId>
+): Record<string, ProviderId> {
+  const filtered: Record<string, ProviderId> = {}
+  for (const [model, providerId] of Object.entries(providerMap)) {
+    if (!isModelBlacklisted(model)) {
+      filtered[model] = providerId
+    }
+  }
+  return filtered
 }
 
 export function getAllModelProviders(): Record<string, ProviderId> {
@@ -181,6 +227,44 @@ export function getProviderModels(providerId: ProviderId): string[] {
   return getProviderModelsFromDefinitions(providerId)
 }
 
+interface ModelBlacklist {
+  models: string[]
+  prefixes: string[]
+  envOverride?: string
+}
+
+const MODEL_BLACKLISTS: ModelBlacklist[] = [
+  {
+    models: ['deepseek-chat', 'deepseek-v3', 'deepseek-r1'],
+    prefixes: ['openrouter/deepseek', 'openrouter/tngtech'],
+    envOverride: 'DEEPSEEK_MODELS_ENABLED',
+  },
+]
+
+function isModelBlacklisted(model: string): boolean {
+  const lowerModel = model.toLowerCase()
+
+  for (const blacklist of MODEL_BLACKLISTS) {
+    if (blacklist.envOverride && isTruthy(getEnv(blacklist.envOverride))) {
+      continue
+    }
+
+    if (blacklist.models.includes(lowerModel)) {
+      return true
+    }
+
+    if (blacklist.prefixes.some((prefix) => lowerModel.startsWith(prefix))) {
+      return true
+    }
+  }
+
+  return false
+}
+
+export function filterBlacklistedModels(models: string[]): string[] {
+  return models.filter((model) => !isModelBlacklisted(model))
+}
+
 /**
  * Get provider icon for a given model
  */
@@ -236,8 +320,6 @@ export function generateStructuredOutputInstructions(responseFormat: any): strin
       return desc
     })
     .join('\n')
-
-  logger.info(`Generated structured output instructions for ${responseFormat.fields.length} fields`)
 
   return `
 Please provide your response in the following JSON format:
@@ -322,10 +404,6 @@ export function transformCustomTool(customTool: any): ProviderToolConfig {
 export function getCustomTools(): ProviderToolConfig[] {
   // Get custom tools from the store
   const customTools = useCustomToolsStore.getState().getAllTools()
-
-  if (customTools.length > 0) {
-    logger.info(`Found ${customTools.length} custom tools`)
-  }
 
   // Transform each custom tool into a provider tool config
   return customTools.map(transformCustomTool)
@@ -413,7 +491,7 @@ export async function transformBlockTool(
   const userProvidedParams = block.params || {}
 
   // Create LLM schema that excludes user-provided parameters
-  const llmSchema = createLLMToolSchema(toolConfig, userProvidedParams)
+  const llmSchema = await createLLMToolSchema(toolConfig, userProvidedParams)
 
   // Return formatted tool config
   return {
@@ -440,7 +518,8 @@ export function calculateCost(
   promptTokens = 0,
   completionTokens = 0,
   useCachedInput = false,
-  customMultiplier?: number
+  inputMultiplier?: number,
+  outputMultiplier?: number
 ) {
   // First check if it's an embedding model
   let pricing = getEmbeddingModelPricing(model)
@@ -475,13 +554,9 @@ export function calculateCost(
       : pricing.input / 1_000_000)
 
   const outputCost = completionTokens * (pricing.output / 1_000_000)
-  const totalCost = inputCost + outputCost
-
-  const costMultiplier = customMultiplier ?? getCostMultiplier()
-
-  const finalInputCost = inputCost * costMultiplier
-  const finalOutputCost = outputCost * costMultiplier
-  const finalTotalCost = totalCost * costMultiplier
+  const finalInputCost = inputCost * (inputMultiplier ?? 1)
+  const finalOutputCost = outputCost * (outputMultiplier ?? 1)
+  const finalTotalCost = finalInputCost + finalOutputCost
 
   return {
     input: Number.parseFloat(finalInputCost.toFixed(8)), // Use 8 decimal places for small costs
@@ -495,13 +570,11 @@ export function calculateCost(
  * Get pricing information for a specific model (including embedding models)
  */
 export function getModelPricing(modelId: string): any {
-  // First check if it's an embedding model
   const embeddingPricing = getEmbeddingModelPricing(modelId)
   if (embeddingPricing) {
     return embeddingPricing
   }
 
-  // Then check chat models
   return getModelPricingFromDefinitions(modelId)
 }
 
@@ -515,20 +588,15 @@ export function formatCost(cost: number): string {
   if (cost === undefined || cost === null) return '—'
 
   if (cost >= 1) {
-    // For costs >= $1, show two decimal places
     return `$${cost.toFixed(2)}`
   }
   if (cost >= 0.01) {
-    // For costs between 1¢ and $1, show three decimal places
     return `$${cost.toFixed(3)}`
   }
   if (cost >= 0.001) {
-    // For costs between 0.1¢ and 1¢, show four decimal places
     return `$${cost.toFixed(4)}`
   }
   if (cost > 0) {
-    // For very small costs, still show as fixed decimal instead of scientific notation
-    // Find the first non-zero digit and show a few more places
     const places = Math.max(4, Math.abs(Math.floor(Math.log10(cost))) + 3)
     return `$${cost.toFixed(places)}`
   }
@@ -544,6 +612,17 @@ export function getHostedModels(): string[] {
 }
 
 /**
+ * Determine if model usage should be billed to the user
+ *
+ * @param model The model name
+ * @returns true if the usage should be billed to the user
+ */
+export function shouldBillModelUsage(model: string): boolean {
+  const hostedModels = getHostedModels()
+  return hostedModels.some((hostedModel) => model.toLowerCase() === hostedModel.toLowerCase())
+}
+
+/**
  * Get an API key for a specific provider, handling rotation and fallbacks
  * For use server-side only
  */
@@ -552,29 +631,34 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   const hasUserKey = !!userProvidedKey
 
   // Ollama models don't require API keys - they run locally
-  const isOllamaModel = provider === 'ollama' || useOllamaStore.getState().models.includes(model)
+  const isOllamaModel =
+    provider === 'ollama' || useProvidersStore.getState().providers.ollama.models.includes(model)
   if (isOllamaModel) {
     return 'empty' // Ollama uses 'empty' as a placeholder API key
   }
 
-  // Use server key rotation for all OpenAI models and Anthropic's Claude models on the hosted platform
+  // Use server key rotation for all OpenAI models, Anthropic's Claude models, and Google's Gemini models on the hosted platform
   const isOpenAIModel = provider === 'openai'
   const isClaudeModel = provider === 'anthropic'
+  const isGeminiModel = provider === 'google'
 
-  if (isHosted && (isOpenAIModel || isClaudeModel)) {
-    try {
-      // Import the key rotation function
-      const { getRotatingApiKey } = require('@/lib/utils')
-      const serverKey = getRotatingApiKey(provider)
-      return serverKey
-    } catch (_error) {
-      // If server key fails and we have a user key, fallback to that
-      if (hasUserKey) {
-        return userProvidedKey!
+  if (isHosted && (isOpenAIModel || isClaudeModel || isGeminiModel)) {
+    // Only use server key if model is explicitly in our hosted list
+    const hostedModels = getHostedModels()
+    const isModelHosted = hostedModels.some((m) => m.toLowerCase() === model.toLowerCase())
+
+    if (isModelHosted) {
+      try {
+        const { getRotatingApiKey } = require('@/lib/core/config/api-keys')
+        const serverKey = getRotatingApiKey(isGeminiModel ? 'gemini' : provider)
+        return serverKey
+      } catch (_error) {
+        if (hasUserKey) {
+          return userProvidedKey!
+        }
+
+        throw new Error(`No API key available for ${provider} ${model}`)
       }
-
-      // Otherwise, throw an error
-      throw new Error(`No API key available for ${provider} ${model}`)
     }
   }
 
@@ -853,7 +937,8 @@ export function trackForcedToolUsage(
       } else {
         // All forced tools have been used, switch to auto mode
         if (provider === 'anthropic') {
-          nextToolChoice = null // Anthropic requires null to remove the parameter
+          // Anthropic: return null to signal the parameter should be deleted/omitted
+          nextToolChoice = null
         } else if (provider === 'google') {
           nextToolConfig = { functionCallingConfig: { mode: 'AUTO' } }
         } else {
@@ -912,15 +997,24 @@ export function supportsToolUsageControl(provider: string): boolean {
 export function prepareToolExecution(
   tool: { params?: Record<string, any> },
   llmArgs: Record<string, any>,
-  request: { workflowId?: string; chatId?: string; environmentVariables?: Record<string, any> }
+  request: {
+    workflowId?: string
+    workspaceId?: string // Add workspaceId for MCP tools
+    chatId?: string
+    userId?: string
+    environmentVariables?: Record<string, any>
+    workflowVariables?: Record<string, any>
+    blockData?: Record<string, any>
+    blockNameMapping?: Record<string, string>
+  }
 ): {
   toolParams: Record<string, any>
   executionParams: Record<string, any>
 } {
-  // Only merge actual tool parameters for logging
+  // User-provided params take precedence over LLM-generated params
   const toolParams = {
-    ...tool.params,
     ...llmArgs,
+    ...tool.params,
   }
 
   // Add system parameters for execution
@@ -930,11 +1024,16 @@ export function prepareToolExecution(
       ? {
           _context: {
             workflowId: request.workflowId,
+            ...(request.workspaceId ? { workspaceId: request.workspaceId } : {}),
             ...(request.chatId ? { chatId: request.chatId } : {}),
+            ...(request.userId ? { userId: request.userId } : {}),
           },
         }
       : {}),
     ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
+    ...(request.workflowVariables ? { workflowVariables: request.workflowVariables } : {}),
+    ...(request.blockData ? { blockData: request.blockData } : {}),
+    ...(request.blockNameMapping ? { blockNameMapping: request.blockNameMapping } : {}),
   }
 
   return { toolParams, executionParams }

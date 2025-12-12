@@ -1,0 +1,89 @@
+---
+title: ArXiv
+description: 搜索并获取 ArXiv 上的学术论文
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="arxiv"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ArXiv](https://arxiv.org/) 是一个免费的开放获取科学研究论文存储库，涵盖物理学、数学、计算机科学、定量生物学、定量金融、统计学、电气工程、系统科学和经济学等领域。ArXiv 提供了大量的预印本和已发表文章，是全球研究人员和从业者的重要资源。
+
+使用 ArXiv，您可以：
+
+- **搜索学术论文**：通过关键词、作者姓名、标题、类别等查找研究
+- **获取论文元数据**：访问摘要、作者列表、发表日期及其他书目信息
+- **下载全文 PDF**：获取大多数论文的完整文本以进行深入研究
+- **探索作者贡献**：查看特定作者的所有论文
+- **保持最新动态**：发现您领域中的最新提交和热门话题
+
+在 Sim 中，ArXiv 集成使您的代理能够以编程方式搜索、获取和分析 ArXiv 上的科学论文。这使您可以自动化文献综述、构建研究助手，或将最新的科学知识融入您的代理工作流中。将 ArXiv 用作研究、发现和知识提取的动态数据源，助力您的 Sim 项目。 
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 ArXiv 集成到工作流程中。可以搜索论文、获取论文详情以及作者的论文。不需要 OAuth 或 API 密钥。
+
+## 工具
+
+### `arxiv_search`
+
+通过关键词、作者、标题或其他字段在 ArXiv 上搜索学术论文。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `searchQuery` | string | 是 | 要执行的搜索查询 |
+| `searchField` | string | 否 | 搜索字段：all（全部），ti（标题），au（作者），abs（摘要），co（评论），jr（期刊），cat（类别），rn（报告编号） |
+| `maxResults` | number | 否 | 返回结果的最大数量（默认值：10，最大值：2000） |
+| `sortBy` | string | 否 | 排序依据：relevance（相关性），lastUpdatedDate（最后更新日期），submittedDate（提交日期）（默认值：relevance） |
+| `sortOrder` | string | 否 | 排序顺序：ascending（升序），descending（降序）（默认值：descending） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `papers` | json | 匹配搜索查询的论文数组 |
+
+### `arxiv_get_paper`
+
+通过论文 ID 获取特定 ArXiv 论文的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `paperId` | string | 是 | ArXiv 论文 ID（例如："1706.03762"） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `paper` | json | 请求的 ArXiv 论文的详细信息 |
+
+### `arxiv_get_author_papers`
+
+通过特定作者在 ArXiv 上搜索论文。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `authorName` | string | 是 | 要搜索的作者姓名 |
+| `maxResults` | number | 否 | 返回结果的最大数量（默认值：10，最大值：2000） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `authorPapers` | json | 指定作者撰写的论文数组 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`arxiv`

@@ -1,0 +1,102 @@
+---
+title: Router
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Der Router-Block verwendet KI, um Workflows basierend auf Inhaltsanalysen intelligent zu leiten. Im Gegensatz zu Bedingungsblöcken, die einfache Regeln verwenden, verstehen Router Kontext und Absicht.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/router.png"
+    alt="Router-Block mit mehreren Pfaden"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Router vs. Bedingung
+
+**Verwende Router, wenn:**
+- KI-gestützte Inhaltsanalyse benötigt wird
+- Mit unstrukturierten oder variierenden Inhalten gearbeitet wird
+- Absichtsbasierte Weiterleitung erforderlich ist (z.B. "Support-Tickets an Abteilungen weiterleiten")
+
+**Verwende Bedingung, wenn:**
+- Einfache regelbasierte Entscheidungen ausreichen
+- Mit strukturierten Daten oder numerischen Vergleichen gearbeitet wird
+- Schnelle, deterministische Weiterleitung benötigt wird
+
+## Konfigurationsoptionen
+
+### Inhalt/Prompt
+
+Der Inhalt oder Prompt, den der Router analysieren wird, um Weiterleitungsentscheidungen zu treffen. Dies kann sein:
+
+- Eine direkte Benutzeranfrage oder -eingabe
+- Ausgabe eines vorherigen Blocks
+- Eine systemgenerierte Nachricht
+
+### Zielblöcke
+
+Die möglichen Zielblöcke, aus denen der Router auswählen kann. Der Router erkennt automatisch verbundene Blöcke, aber du kannst auch:
+
+- Die Beschreibungen von Zielblöcken anpassen, um die Weiterleitungsgenauigkeit zu verbessern
+- Weiterleitungskriterien für jeden Zielblock festlegen
+- Bestimmte Blöcke von der Berücksichtigung als Weiterleitungsziele ausschließen
+
+### Modellauswahl
+
+Wähle ein KI-Modell für die Weiterleitungsentscheidung:
+
+- **OpenAI**: GPT-4o, o1, o3, o4-mini, gpt-4.1
+- **Anthropic**: Claude 3.7 Sonnet
+- **Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
+- **Andere Anbieter**: Groq, Cerebras, xAI, DeepSeek
+- **Lokale Modelle**: Ollama oder VLLM-kompatible Modelle
+
+Verwende Modelle mit starken Argumentationsfähigkeiten wie GPT-4o oder Claude 3.7 Sonnet für beste Ergebnisse.
+
+### API-Schlüssel
+
+Ihr API-Schlüssel für den ausgewählten LLM-Anbieter. Dieser wird sicher gespeichert und für die Authentifizierung verwendet.
+
+## Ausgaben
+
+- **`<router.prompt>`**: Zusammenfassung des Routing-Prompts
+- **`<router.selected_path>`**: Ausgewählter Zielblock
+- **`<router.tokens>`**: Token-Nutzungsstatistiken
+- **`<router.cost>`**: Geschätzte Routing-Kosten
+- **`<router.model>`**: Für die Entscheidungsfindung verwendetes Modell
+
+## Beispielanwendungsfälle
+
+**Kundensupport-Triage** - Tickets an spezialisierte Abteilungen weiterleiten
+
+```
+Input (Ticket) → Router → Agent (Engineering) or Agent (Finance)
+```
+
+**Inhaltsklassifizierung** - Nutzergenerierte Inhalte klassifizieren und weiterleiten
+
+```
+Input (Feedback) → Router → Workflow (Product) or Workflow (Technical)
+```
+
+**Lead-Qualifizierung** - Leads basierend auf Qualifizierungskriterien weiterleiten
+
+```
+Input (Lead) → Router → Agent (Enterprise Sales) or Workflow (Self-serve)
+```
+
+## Best Practices
+
+- **Klare Zielbeschreibungen bereitstellen**: Helfen Sie dem Router zu verstehen, wann jedes Ziel ausgewählt werden soll, mit spezifischen, detaillierten Beschreibungen
+- **Spezifische Routing-Kriterien verwenden**: Definieren Sie klare Bedingungen und Beispiele für jeden Pfad, um die Genauigkeit zu verbessern
+- **Fallback-Pfade implementieren**: Verbinden Sie ein Standardziel für Fälle, in denen kein spezifischer Pfad geeignet ist
+- **Mit verschiedenen Eingaben testen**: Stellen Sie sicher, dass der Router verschiedene Eingabetypen, Grenzfälle und unerwartete Inhalte verarbeiten kann
+- **Routing-Leistung überwachen**: Überprüfen Sie Routing-Entscheidungen regelmäßig und verfeinern Sie Kriterien basierend auf tatsächlichen Nutzungsmustern
+- **Geeignete Modelle auswählen**: Verwenden Sie Modelle mit starken Argumentationsfähigkeiten für komplexe Routing-Entscheidungen

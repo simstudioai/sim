@@ -20,12 +20,14 @@ export interface QdrantSearchParams extends QdrantBaseParams {
   vector: number[]
   limit?: number
   filter?: Record<string, any>
+  search_return_data?: string
   with_payload?: boolean
   with_vector?: boolean
 }
 
 export interface QdrantFetchParams extends QdrantBaseParams {
   ids: string[]
+  fetch_return_data?: string
   with_payload?: boolean
   with_vector?: boolean
 }

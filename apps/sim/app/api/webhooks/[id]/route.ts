@@ -1,12 +1,12 @@
+import { db } from '@sim/db'
+import { webhook, workflow } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { env } from '@/lib/env'
+import { validateInteger } from '@/lib/core/security/input-validation'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { getOAuthToken } from '@/app/api/auth/oauth/utils'
-import { db } from '@/db'
-import { webhook, workflow } from '@/db/schema'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WebhookAPI')
 
@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 
 // Get a specific webhook
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const { id } = await params
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 // Update a webhook
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const { id } = await params
@@ -96,7 +96,36 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const body = await request.json()
-    const { path, provider, providerConfig, isActive } = body
+    const { path, provider, providerConfig, isActive, failedCount } = body
+
+    if (failedCount !== undefined) {
+      const validation = validateInteger(failedCount, 'failedCount', { min: 0 })
+      if (!validation.isValid) {
+        logger.warn(`[${requestId}] ${validation.error}`)
+        return NextResponse.json({ error: validation.error }, { status: 400 })
+      }
+    }
+
+    let resolvedProviderConfig = providerConfig
+    if (providerConfig) {
+      const { resolveEnvVarsInObject } = await import('@/lib/webhooks/env-resolver')
+      const webhookDataForResolve = await db
+        .select({
+          workspaceId: workflow.workspaceId,
+        })
+        .from(webhook)
+        .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
+        .where(eq(webhook.id, id))
+        .limit(1)
+
+      if (webhookDataForResolve.length > 0) {
+        resolvedProviderConfig = await resolveEnvVarsInObject(
+          providerConfig,
+          session.user.id,
+          webhookDataForResolve[0].workspaceId || undefined
+        )
+      }
+    }
 
     // Find the webhook and check permissions
     const webhooks = await db
@@ -152,6 +181,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       hasProviderUpdate: provider !== undefined,
       hasConfigUpdate: providerConfig !== undefined,
       hasActiveUpdate: isActive !== undefined,
+      hasFailedCountUpdate: failedCount !== undefined,
     })
 
     // Update the webhook
@@ -161,8 +191,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         path: path !== undefined ? path : webhooks[0].webhook.path,
         provider: provider !== undefined ? provider : webhooks[0].webhook.provider,
         providerConfig:
-          providerConfig !== undefined ? providerConfig : webhooks[0].webhook.providerConfig,
+          providerConfig !== undefined
+            ? resolvedProviderConfig
+            : webhooks[0].webhook.providerConfig,
         isActive: isActive !== undefined ? isActive : webhooks[0].webhook.isActive,
+        failedCount: failedCount !== undefined ? failedCount : webhooks[0].webhook.failedCount,
         updatedAt: new Date(),
       })
       .where(eq(webhook.id, id))
@@ -181,7 +214,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const { id } = await params
@@ -244,222 +277,9 @@ export async function DELETE(
 
     const foundWebhook = webhookData.webhook
 
-    // If it's an Airtable webhook, delete it from Airtable first
-    if (foundWebhook.provider === 'airtable') {
-      try {
-        const { baseId, externalId } = (foundWebhook.providerConfig || {}) as {
-          baseId?: string
-          externalId?: string
-        }
+    const { cleanupExternalWebhook } = await import('@/lib/webhooks/provider-subscriptions')
+    await cleanupExternalWebhook(foundWebhook, webhookData.workflow, requestId)
 
-        if (!baseId) {
-          logger.warn(`[${requestId}] Missing baseId for Airtable webhook deletion.`, {
-            webhookId: id,
-          })
-          return NextResponse.json(
-            { error: 'Missing baseId for Airtable webhook deletion' },
-            { status: 400 }
-          )
-        }
-
-        // Get access token for the workflow owner
-        const userIdForToken = webhookData.workflow.userId
-        const accessToken = await getOAuthToken(userIdForToken, 'airtable')
-        if (!accessToken) {
-          logger.warn(
-            `[${requestId}] Could not retrieve Airtable access token for user ${userIdForToken}. Cannot delete webhook in Airtable.`,
-            { webhookId: id }
-          )
-          return NextResponse.json(
-            { error: 'Airtable access token not found for webhook deletion' },
-            { status: 401 }
-          )
-        }
-
-        // Resolve externalId if missing by listing webhooks and matching our notificationUrl
-        let resolvedExternalId: string | undefined = externalId
-
-        if (!resolvedExternalId) {
-          try {
-            const requestOrigin = new URL(request.url).origin
-            const effectiveOrigin = requestOrigin.includes('localhost')
-              ? env.NEXT_PUBLIC_APP_URL || requestOrigin
-              : requestOrigin
-            const expectedNotificationUrl = `${effectiveOrigin}/api/webhooks/trigger/${foundWebhook.path}`
-
-            const listUrl = `https://api.airtable.com/v0/bases/${baseId}/webhooks`
-            const listResp = await fetch(listUrl, {
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-              },
-            })
-            const listBody = await listResp.json().catch(() => null)
-
-            if (listResp.ok && listBody && Array.isArray(listBody.webhooks)) {
-              const match = listBody.webhooks.find((w: any) => {
-                const url: string | undefined = w?.notificationUrl
-                if (!url) return false
-                // Prefer exact match; fallback to suffix match to handle origin/host remaps
-                return (
-                  url === expectedNotificationUrl ||
-                  url.endsWith(`/api/webhooks/trigger/${foundWebhook.path}`)
-                )
-              })
-              if (match?.id) {
-                resolvedExternalId = match.id as string
-                // Persist resolved externalId for future operations
-                try {
-                  await db
-                    .update(webhook)
-                    .set({
-                      providerConfig: {
-                        ...(foundWebhook.providerConfig || {}),
-                        externalId: resolvedExternalId,
-                      },
-                      updatedAt: new Date(),
-                    })
-                    .where(eq(webhook.id, id))
-                } catch {
-                  // non-fatal persistence error
-                }
-                logger.info(`[${requestId}] Resolved Airtable externalId by listing webhooks`, {
-                  baseId,
-                  externalId: resolvedExternalId,
-                })
-              } else {
-                logger.warn(`[${requestId}] Could not resolve Airtable externalId from list`, {
-                  baseId,
-                  expectedNotificationUrl,
-                })
-              }
-            } else {
-              logger.warn(`[${requestId}] Failed to list Airtable webhooks to resolve externalId`, {
-                baseId,
-                status: listResp.status,
-                body: listBody,
-              })
-            }
-          } catch (e: any) {
-            logger.warn(`[${requestId}] Error attempting to resolve Airtable externalId`, {
-              error: e?.message,
-            })
-          }
-        }
-
-        // If still not resolvable, skip remote deletion but proceed with local delete
-        if (!resolvedExternalId) {
-          logger.info(
-            `[${requestId}] Airtable externalId not found; skipping remote deletion and proceeding to remove local record`,
-            { baseId }
-          )
-        }
-
-        if (resolvedExternalId) {
-          const airtableDeleteUrl = `https://api.airtable.com/v0/bases/${baseId}/webhooks/${resolvedExternalId}`
-          const airtableResponse = await fetch(airtableDeleteUrl, {
-            method: 'DELETE',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          })
-
-          // Attempt to parse error body for better diagnostics
-          if (!airtableResponse.ok) {
-            let responseBody: any = null
-            try {
-              responseBody = await airtableResponse.json()
-            } catch {
-              // ignore parse errors
-            }
-
-            logger.error(
-              `[${requestId}] Failed to delete Airtable webhook in Airtable. Status: ${airtableResponse.status}`,
-              { baseId, externalId: resolvedExternalId, response: responseBody }
-            )
-            return NextResponse.json(
-              {
-                error: 'Failed to delete webhook from Airtable',
-                details:
-                  (responseBody && (responseBody.error?.message || responseBody.error)) ||
-                  `Status ${airtableResponse.status}`,
-              },
-              { status: 500 }
-            )
-          }
-
-          logger.info(`[${requestId}] Successfully deleted Airtable webhook in Airtable`, {
-            baseId,
-            externalId: resolvedExternalId,
-          })
-        }
-      } catch (error: any) {
-        logger.error(`[${requestId}] Error deleting Airtable webhook`, {
-          webhookId: id,
-          error: error.message,
-          stack: error.stack,
-        })
-        return NextResponse.json(
-          { error: 'Failed to delete webhook from Airtable', details: error.message },
-          { status: 500 }
-        )
-      }
-    }
-
-    // If it's a Telegram webhook, delete it from Telegram first
-    if (foundWebhook.provider === 'telegram') {
-      try {
-        const { botToken } = foundWebhook.providerConfig as { botToken: string }
-
-        if (!botToken) {
-          logger.warn(`[${requestId}] Missing botToken for Telegram webhook deletion.`, {
-            webhookId: id,
-          })
-          return NextResponse.json(
-            { error: 'Missing botToken for Telegram webhook deletion' },
-            { status: 400 }
-          )
-        }
-
-        const telegramApiUrl = `https://api.telegram.org/bot${botToken}/deleteWebhook`
-        const telegramResponse = await fetch(telegramApiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        })
-
-        const responseBody = await telegramResponse.json()
-        if (!telegramResponse.ok || !responseBody.ok) {
-          const errorMessage =
-            responseBody.description ||
-            `Failed to delete Telegram webhook. Status: ${telegramResponse.status}`
-          logger.error(`[${requestId}] ${errorMessage}`, {
-            response: responseBody,
-          })
-          return NextResponse.json(
-            { error: 'Failed to delete webhook from Telegram', details: errorMessage },
-            { status: 500 }
-          )
-        }
-
-        logger.info(`[${requestId}] Successfully deleted Telegram webhook for webhook ${id}`)
-      } catch (error: any) {
-        logger.error(`[${requestId}] Error deleting Telegram webhook`, {
-          webhookId: id,
-          error: error.message,
-          stack: error.stack,
-        })
-        return NextResponse.json(
-          {
-            error: 'Failed to delete webhook from Telegram',
-            details: error.message,
-          },
-          { status: 500 }
-        )
-      }
-    }
-
-    // Delete the webhook from the database
     await db.delete(webhook).where(eq(webhook.id, id))
 
     logger.info(`[${requestId}] Successfully deleted webhook: ${id}`)

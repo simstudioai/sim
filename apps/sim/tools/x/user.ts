@@ -13,7 +13,6 @@ export const xUserTool: ToolConfig<XUserParams, XUserResponse> = {
   oauth: {
     required: true,
     provider: 'x',
-    additionalScopes: ['tweet.read', 'users.read'],
   },
 
   params: {

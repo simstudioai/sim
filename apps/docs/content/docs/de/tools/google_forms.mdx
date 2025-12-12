@@ -1,0 +1,54 @@
+---
+title: Google Forms
+description: Antworten aus einem Google-Formular lesen
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_forms"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Forms](https://forms.google.com) ist Googles Online-Umfrage- und Formular-Tool, mit dem Benutzer Formulare erstellen, Antworten sammeln und Ergebnisse analysieren können. Als Teil der Google-Produktivitätssuite macht Google Forms es einfach, Informationen, Feedback und Daten von Benutzern zu sammeln.
+
+Erfahren Sie, wie Sie das Google Forms-Tool in Sim integrieren, um Formularantworten automatisch in Ihren Workflows zu lesen und zu verarbeiten. Dieses Tutorial führt Sie durch die Verbindung mit Google Forms, das Abrufen von Antworten und die Nutzung der gesammelten Daten zur Automatisierung. Perfekt für die Synchronisierung von Umfrageergebnissen, Registrierungen oder Feedback mit Ihren Agenten in Echtzeit.
+
+Mit Google Forms können Sie:
+
+- **Umfragen und Formulare erstellen**: Entwerfen Sie benutzerdefinierte Formulare für Feedback, Registrierung, Quizze und mehr
+- **Antworten automatisch sammeln**: Erfassen Sie Daten von Benutzern in Echtzeit
+- **Ergebnisse analysieren**: Sehen Sie sich Antworten in Google Forms an oder exportieren Sie sie nach Google Sheets für weitere Analysen
+- **Einfach zusammenarbeiten**: Teilen Sie Formulare und arbeiten Sie mit anderen zusammen, um Fragen zu erstellen und zu überprüfen
+- **Mit anderen Google-Diensten integrieren**: Verbinden Sie sich mit Google Sheets, Drive und mehr
+
+In Sim ermöglicht die Google Forms-Integration Ihren Agenten den programmatischen Zugriff auf Formularantworten. Dies ermöglicht leistungsstarke Automatisierungsszenarien wie die Verarbeitung von Umfragedaten, das Auslösen von Workflows basierend auf neuen Einreichungen und die Synchronisierung von Formularergebnissen mit anderen Tools. Ihre Agenten können alle Antworten für ein Formular abrufen, eine bestimmte Antwort abrufen und die Daten nutzen, um intelligente Automatisierung zu steuern. Durch die Verbindung von Sim mit Google Forms können Sie die Datenerfassung automatisieren, die Feedback-Verarbeitung optimieren und Formularantworten in die Fähigkeiten Ihres Agenten integrieren.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integrieren Sie Google Forms in Ihren Workflow. Geben Sie eine Formular-ID an, um Antworten aufzulisten, oder geben Sie eine Antwort-ID an, um eine einzelne Antwort abzurufen. Erfordert OAuth.
+
+## Tools
+
+### `google_forms_get_responses`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| formId | string | Ja | Die ID des Google-Formulars |
+| responseId | string | Nein | Falls angegeben, wird diese spezifische Antwort zurückgegeben |
+| pageSize | number | Nein | Maximale Anzahl der zurückzugebenden Antworten (der Dienst kann weniger zurückgeben). Standardwert ist 5000 |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `data` | json | Antwort oder Liste von Antworten |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `google_forms`

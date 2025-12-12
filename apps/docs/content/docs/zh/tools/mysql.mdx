@@ -1,0 +1,160 @@
+---
+title: MySQL
+description: 连接到 MySQL 数据库
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mysql"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[MySQL](https://www.mysql.com/) 工具使您能够连接到任何 MySQL 数据库，并直接在您的代理工作流中执行各种数据库操作。通过安全的连接处理和灵活的配置，您可以轻松管理和操作您的数据。
+
+使用 MySQL 工具，您可以：
+
+- **查询数据**：使用 `mysql_query` 操作执行 SELECT 查询，从您的 MySQL 表中检索数据。
+- **插入记录**：通过指定表和要插入的数据，使用 `mysql_insert` 操作向表中添加新行。
+- **更新记录**：使用 `mysql_update` 操作修改表中的现有数据，提供表、新数据和 WHERE 条件。
+- **删除记录**：通过指定表和 WHERE 条件，使用 `mysql_delete` 操作从表中删除行。
+- **执行原始 SQL**：使用 `mysql_execute` 操作运行任何自定义 SQL 命令，以满足高级用例需求。
+
+MySQL 工具非常适合需要与结构化数据交互的场景，例如自动化报告、在系统之间同步数据或驱动数据驱动的工作流。它简化了数据库访问，使您可以通过编程方式轻松读取、写入和管理 MySQL 数据。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 MySQL 集成到工作流程中。可以查询、插入、更新、删除以及执行原始 SQL。
+
+## 工具
+
+### `mysql_query`
+
+在 MySQL 数据库上执行 SELECT 查询
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | MySQL 服务器主机名或 IP 地址 |
+| `port` | number | 是 | MySQL 服务器端口 \(默认值：3306\) |
+| `database` | string | 是 | 要连接的数据库名称 |
+| `username` | string | 是 | 数据库用户名 |
+| `password` | string | 是 | 数据库密码 |
+| `ssl` | string | 否 | SSL 连接模式 \(禁用、必需、首选\) |
+| `query` | string | 是 | 要执行的 SQL SELECT 查询 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `rows` | array | 查询返回的行数组 |
+| `rowCount` | number | 返回的行数 |
+
+### `mysql_insert`
+
+向 MySQL 数据库插入新记录
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | MySQL 服务器主机名或 IP 地址 |
+| `port` | number | 是 | MySQL 服务器端口 \(默认值：3306\) |
+| `database` | string | 是 | 要连接的数据库名称 |
+| `username` | string | 是 | 数据库用户名 |
+| `password` | string | 是 | 数据库密码 |
+| `ssl` | string | 否 | SSL 连接模式 \(禁用、必需、首选\) |
+| `table` | string | 是 | 要插入的表名 |
+| `data` | object | 是 | 以键值对形式插入的数据 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `rows` | array | 插入行的数组 |
+| `rowCount` | number | 插入的行数 |
+
+### `mysql_update`
+
+更新 MySQL 数据库中的现有记录
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | MySQL 服务器主机名或 IP 地址 |
+| `port` | number | 是 | MySQL 服务器端口 \(默认值：3306\) |
+| `database` | string | 是 | 要连接的数据库名称 |
+| `username` | string | 是 | 数据库用户名 |
+| `password` | string | 是 | 数据库密码 |
+| `ssl` | string | 否 | SSL 连接模式 \(禁用、必需、首选\) |
+| `table` | string | 是 | 要更新的表名 |
+| `data` | object | 是 | 以键值对形式更新的数据 |
+| `where` | string | 是 | WHERE 子句条件 \(不包括 WHERE 关键字\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `rows` | array | 更新行的数组 |
+| `rowCount` | number | 更新的行数 |
+
+### `mysql_delete`
+
+从 MySQL 数据库中删除记录
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | MySQL 服务器主机名或 IP 地址 |
+| `port` | number | 是 | MySQL 服务器端口 \(默认值：3306\) |
+| `database` | string | 是 | 要连接的数据库名称 |
+| `username` | string | 是 | 数据库用户名 |
+| `password` | string | 是 | 数据库密码 |
+| `ssl` | string | 否 | SSL 连接模式 \(禁用、必需、首选\) |
+| `table` | string | 是 | 要删除的表名 |
+| `where` | string | 是 | WHERE 子句条件 \(不包括 WHERE 关键字\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `rows` | array | 已删除行的数组 |
+| `rowCount` | number | 已删除行的数量 |
+
+### `mysql_execute`
+
+在 MySQL 数据库上执行原始 SQL 查询
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | MySQL 服务器主机名或 IP 地址 |
+| `port` | number | 是 | MySQL 服务器端口 \(默认值: 3306\) |
+| `database` | string | 是 | 要连接的数据库名称 |
+| `username` | string | 是 | 数据库用户名 |
+| `password` | string | 是 | 数据库密码 |
+| `ssl` | string | 否 | SSL 连接模式 \(禁用、必需、首选\) |
+| `query` | string | 是 | 要执行的原始 SQL 查询 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `rows` | array | 查询返回的行数组 |
+| `rowCount` | number | 受影响的行数 |
+
+## 注意
+
+- 类别: `tools`
+- 类型: `mysql`

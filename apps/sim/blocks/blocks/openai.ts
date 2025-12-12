@@ -1,12 +1,13 @@
 import { OpenAIIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 
 export const OpenAIBlock: BlockConfig = {
   type: 'openai',
   name: 'Embeddings',
   description: 'Generate Open AI embeddings',
-  longDescription:
-    "Convert text into numerical vector representations using OpenAI's embedding models. Transform text data into embeddings for semantic search, clustering, and other vector-based operations.",
+  authMode: AuthMode.ApiKey,
+  longDescription: 'Integrate Embeddings into the workflow. Can generate embeddings from text.',
   category: 'tools',
   docsLink: 'https://docs.sim.ai/tools/openai',
   bgColor: '#10a37f',
@@ -16,7 +17,6 @@ export const OpenAIBlock: BlockConfig = {
       id: 'input',
       title: 'Input Text',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter text to generate embeddings for',
       required: true,
     },
@@ -24,7 +24,6 @@ export const OpenAIBlock: BlockConfig = {
       id: 'model',
       title: 'Model',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'text-embedding-3-small', id: 'text-embedding-3-small' },
         { label: 'text-embedding-3-large', id: 'text-embedding-3-large' },
@@ -36,7 +35,6 @@ export const OpenAIBlock: BlockConfig = {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter your OpenAI API key',
       password: true,
       required: true,

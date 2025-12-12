@@ -1,0 +1,96 @@
+---
+title: Evaluator
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Evaluator 模块使用 AI 根据自定义指标对内容质量进行评分和评估。非常适合质量控制、A/B 测试，以及确保 AI 输出符合特定标准。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/evaluator.png"
+    alt="Evaluator 模块配置"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## 配置选项
+
+### 评估指标
+
+定义用于评估内容的自定义指标。每个指标包括：
+
+- **名称**：指标的简短标识符
+- **描述**：对指标测量内容的详细说明
+- **范围**：评分的数值范围（例如，1-5，0-10）
+
+示例指标：
+
+```
+Accuracy (1-5): How factually accurate is the content?
+Clarity (1-5): How clear and understandable is the content?
+Relevance (1-5): How relevant is the content to the original query?
+```
+
+### 内容
+
+需要评估的内容可以是：
+
+- 在模块配置中直接提供
+- 从另一个模块的输出（通常是 Agent 模块）连接
+- 在工作流执行期间动态生成
+
+### 模型选择
+
+选择一个 AI 模型来执行评估：
+
+- **OpenAI**：GPT-4o、o1、o3、o4-mini、gpt-4.1
+- **Anthropic**：Claude 3.7 Sonnet
+- **Google**：Gemini 2.5 Pro、Gemini 2.0 Flash
+- **其他提供商**：Groq、Cerebras、xAI、DeepSeek
+- **本地模型**：兼容 Ollama 或 VLLM 的模型
+
+使用具有强大推理能力的模型，例如 GPT-4o 或 Claude 3.7 Sonnet，以获得最佳效果。
+
+### API 密钥
+
+您所选 LLM 提供商的 API 密钥。此密钥会被安全存储并用于身份验证。
+
+## 示例用例
+
+**内容质量评估** - 在发布前评估内容
+
+```
+Agent (Generate) → Evaluator (Score) → Condition (Check threshold) → Publish or Revise
+```
+
+**A/B 测试内容** - 比较多个 AI 生成的响应
+
+```
+Parallel (Variations) → Evaluator (Score Each) → Function (Select Best) → Response
+```
+
+**客户支持质量控制** - 确保响应符合质量标准
+
+```
+Agent (Support Response) → Evaluator (Score) → Function (Log) → Condition (Review if Low)
+```
+
+## 输出
+
+- **`<evaluator.content>`**：评估摘要及评分
+- **`<evaluator.model>`**：用于评估的模型
+- **`<evaluator.tokens>`**：令牌使用统计
+- **`<evaluator.cost>`**：评估成本估算
+
+## 最佳实践
+
+- **使用具体的指标描述**：清晰定义每个指标的衡量内容，以获得更准确的评估
+- **选择合适的范围**：选择提供足够细粒度但不过于复杂的评分范围
+- **与 Agent 模块连接**：使用 Evaluator 模块评估 Agent 模块的输出并创建反馈循环
+- **使用一致的指标**：为了进行比较分析，在类似评估中保持指标的一致性
+- **结合多种指标**：使用多种指标以获得全面的评估

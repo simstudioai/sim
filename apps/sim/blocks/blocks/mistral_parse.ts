@@ -1,12 +1,13 @@
 import { MistralIcon } from '@/components/icons'
-import type { BlockConfig, SubBlockLayout, SubBlockType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type SubBlockType } from '@/blocks/types'
 import type { MistralParserOutput } from '@/tools/mistral/types'
 
 export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
   type: 'mistral_parse',
   name: 'Mistral Parser',
   description: 'Extract text from PDF documents',
-  longDescription: `Extract text and structure from PDF documents using Mistral's OCR API. Either enter a URL to a PDF document or upload a PDF file directly. Configure processing options and get the content in your preferred format. For URLs, they must be publicly accessible and point to a valid PDF file. Note: Google Drive, Dropbox, and other cloud storage links are not supported; use a direct download URL from a web server instead.`,
+  authMode: AuthMode.ApiKey,
+  longDescription: `Integrate Mistral Parse into the workflow. Can extract text from uploaded PDF documents, or from a URL.`,
   docsLink: 'https://docs.sim.ai/tools/mistral_parse',
   category: 'tools',
   bgColor: '#000000',
@@ -17,7 +18,6 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
       id: 'inputMethod',
       title: 'Select Input Method',
       type: 'dropdown' as SubBlockType,
-      layout: 'full' as SubBlockLayout,
       options: [
         { id: 'url', label: 'PDF Document URL' },
         { id: 'upload', label: 'Upload PDF Document' },
@@ -29,7 +29,6 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
       id: 'filePath',
       title: 'PDF Document URL',
       type: 'short-input' as SubBlockType,
-      layout: 'full' as SubBlockLayout,
       placeholder: 'Enter full URL to a PDF document (https://example.com/document.pdf)',
       condition: {
         field: 'inputMethod',
@@ -42,7 +41,6 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
       id: 'fileUpload',
       title: 'Upload PDF',
       type: 'file-upload' as SubBlockType,
-      layout: 'full' as SubBlockLayout,
       acceptedTypes: 'application/pdf',
       condition: {
         field: 'inputMethod',
@@ -55,7 +53,6 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
       id: 'resultType',
       title: 'Output Format',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { id: 'markdown', label: 'Markdown (Formatted)' },
         { id: 'text', label: 'Plain Text' },
@@ -66,7 +63,6 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
       id: 'pages',
       title: 'Specific Pages',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'e.g. 0,1,2 (leave empty for all pages)',
     },
     /* 
@@ -77,20 +73,17 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
       id: 'includeImageBase64',
       title: 'Include PDF Images',
       type: 'switch',
-      layout: 'half',
     },
     {
       id: 'imageLimit',
       title: 'Max Images',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'Maximum number of images to extract',
     },
     {
       id: 'imageMinSize',
       title: 'Min Image Size (px)',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'Min width/height in pixels',
     },
     */
@@ -98,7 +91,6 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input' as SubBlockType,
-      layout: 'full' as SubBlockLayout,
       placeholder: 'Enter your Mistral API key',
       password: true,
       required: true,

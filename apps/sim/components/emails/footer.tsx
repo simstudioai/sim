@@ -1,7 +1,7 @@
 import { Container, Img, Link, Section, Text } from '@react-email/components'
 import { getBrandConfig } from '@/lib/branding/branding'
-import { env } from '@/lib/env'
-import { getAssetUrl } from '@/lib/utils'
+import { isHosted } from '@/lib/core/config/environment'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 
 interface UnsubscribeOptions {
   unsubscribeToken?: string
@@ -13,10 +13,7 @@ interface EmailFooterProps {
   unsubscribe?: UnsubscribeOptions
 }
 
-export const EmailFooter = ({
-  baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai',
-  unsubscribe,
-}: EmailFooterProps) => {
+export const EmailFooter = ({ baseUrl = getBaseUrl(), unsubscribe }: EmailFooterProps) => {
   const brand = getBrandConfig()
 
   return (
@@ -29,13 +26,13 @@ export const EmailFooter = ({
                 <tr>
                   <td align='center' style={{ padding: '0 8px' }}>
                     <Link href='https://x.com/simdotai' rel='noopener noreferrer'>
-                      <Img src={getAssetUrl('static/x-icon.png')} width='24' height='24' alt='X' />
+                      <Img src={`${baseUrl}/static/x-icon.png`} width='24' height='24' alt='X' />
                     </Link>
                   </td>
                   <td align='center' style={{ padding: '0 8px' }}>
                     <Link href='https://discord.gg/Hr4UWYEcTT' rel='noopener noreferrer'>
                       <Img
-                        src={getAssetUrl('static/discord-icon.png')}
+                        src={`${baseUrl}/static/discord-icon.png`}
                         width='24'
                         height='24'
                         alt='Discord'
@@ -45,7 +42,7 @@ export const EmailFooter = ({
                   <td align='center' style={{ padding: '0 8px' }}>
                     <Link href='https://github.com/simstudioai/sim' rel='noopener noreferrer'>
                       <Img
-                        src={getAssetUrl('static/github-icon.png')}
+                        src={`${baseUrl}/static/github-icon.png`}
                         width='24'
                         height='24'
                         alt='GitHub'
@@ -79,6 +76,12 @@ export const EmailFooter = ({
                 >
                   {brand.supportEmail}
                 </a>
+                {isHosted && (
+                  <>
+                    <br />
+                    Sim, 80 Langton St, San Francisco, CA 94133, USA
+                  </>
+                )}
               </Text>
               <table cellPadding={0} cellSpacing={0} style={{ width: '100%', marginTop: '4px' }}>
                 <tr>

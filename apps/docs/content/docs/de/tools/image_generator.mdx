@@ -1,0 +1,62 @@
+---
+title: Bildgenerator
+description: Bilder generieren
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="image_generator"
+  color="#4D5FFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[DALL-E](https://openai.com/dall-e-3) ist OpenAIs fortschrittliches KI-System, das entwickelt wurde, um realistische Bilder und Kunst aus natürlichsprachlichen Beschreibungen zu generieren. Als hochmodernes Bildgenerierungsmodell kann DALL-E detaillierte und kreative Visualisierungen basierend auf Textaufforderungen erstellen und ermöglicht Nutzern, ihre Ideen in visuelle Inhalte umzuwandeln, ohne künstlerische Fähigkeiten zu benötigen.
+
+Mit DALL-E können Sie:
+
+- **Realistische Bilder generieren**: Fotorealistische Visualisierungen aus Textbeschreibungen erstellen
+- **Konzeptionelle Kunst gestalten**: Abstrakte Ideen in visuelle Darstellungen umwandeln
+- **Variationen produzieren**: Mehrere Interpretationen derselben Aufforderung generieren
+- **Künstlerischen Stil steuern**: Künstlerische Stile, Medien und visuelle Ästhetik spezifizieren
+- **Detaillierte Szenen erstellen**: Komplexe Szenen mit mehreren Elementen und Beziehungen beschreiben
+- **Produkte visualisieren**: Produktmodelle und Designkonzepte generieren
+- **Ideen illustrieren**: Schriftliche Konzepte in visuelle Illustrationen umwandeln
+
+In Sim ermöglicht die DALL-E-Integration Ihren Agenten, Bilder programmatisch als Teil ihrer Arbeitsabläufe zu generieren. Dies erlaubt leistungsstarke Automatisierungsszenarien wie Content-Erstellung, visuelles Design und kreative Ideenfindung. Ihre Agenten können detaillierte Prompts formulieren, entsprechende Bilder generieren und diese visuellen Elemente in ihre Ausgaben oder nachgelagerte Prozesse einbinden. Diese Integration überbrückt die Lücke zwischen natürlicher Sprachverarbeitung und visueller Content-Erstellung, sodass Ihre Agenten nicht nur durch Text, sondern auch durch überzeugende Bilder kommunizieren können. Durch die Verbindung von Sim mit DALL-E können Sie Agenten erstellen, die visuelle Inhalte auf Abruf produzieren, Konzepte illustrieren, Design-Assets generieren und Benutzererfahrungen mit reichhaltigen visuellen Elementen verbessern - alles ohne menschliches Eingreifen im kreativen Prozess.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Integrieren Sie den Bildgenerator in den Workflow. Kann Bilder mit DALL-E 3 oder GPT Image generieren. API-Schlüssel erforderlich.
+
+## Tools
+
+### `openai_image`
+
+Bilder mit OpenAI generieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `model` | string | Ja | Das zu verwendende Modell \(gpt-image-1 oder dall-e-3\) |
+| `prompt` | string | Ja | Eine Textbeschreibung des gewünschten Bildes |
+| `size` | string | Ja | Die Größe der generierten Bilder \(1024x1024, 1024x1792 oder 1792x1024\) |
+| `quality` | string | Nein | Die Qualität des Bildes \(standard oder hd\) |
+| `style` | string | Nein | Der Stil des Bildes \(vivid oder natural\) |
+| `background` | string | Nein | Die Hintergrundfarbe, nur für gpt-image-1 |
+| `n` | number | Nein | Die Anzahl der zu generierenden Bilder \(1-10\) |
+| `apiKey` | string | Ja | Ihr OpenAI API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Generierte Bilddaten |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `image_generator`

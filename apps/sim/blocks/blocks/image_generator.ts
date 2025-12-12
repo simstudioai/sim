@@ -1,13 +1,14 @@
 import { ImageIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { DalleResponse } from '@/tools/openai/types'
 
 export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
   type: 'image_generator',
   name: 'Image Generator',
   description: 'Generate images',
+  authMode: AuthMode.ApiKey,
   longDescription:
-    "Create high-quality images using OpenAI's image generation models. Configure resolution, quality, style, and other parameters to get exactly the image you need.",
+    'Integrate Image Generator into the workflow. Can generate images using DALL-E 3 or GPT Image.',
   docsLink: 'https://docs.sim.ai/tools/image_generator',
   category: 'tools',
   bgColor: '#4D5FFF',
@@ -17,7 +18,6 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       id: 'model',
       title: 'Model',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'DALL-E 3', id: 'dall-e-3' },
         { label: 'GPT Image', id: 'gpt-image-1' },
@@ -28,7 +28,6 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       id: 'prompt',
       title: 'Prompt',
       type: 'long-input',
-      layout: 'full',
       required: true,
       placeholder: 'Describe the image you want to generate...',
     },
@@ -36,7 +35,6 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       id: 'size',
       title: 'Size',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: '1024x1024', id: '1024x1024' },
         { label: '1024x1792', id: '1024x1792' },
@@ -49,7 +47,6 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       id: 'size',
       title: 'Size',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Auto', id: 'auto' },
         { label: '1024x1024', id: '1024x1024' },
@@ -63,7 +60,6 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       id: 'quality',
       title: 'Quality',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Standard', id: 'standard' },
         { label: 'HD', id: 'hd' },
@@ -75,7 +71,6 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       id: 'style',
       title: 'Style',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Vivid', id: 'vivid' },
         { label: 'Natural', id: 'natural' },
@@ -87,7 +82,6 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       id: 'background',
       title: 'Background',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Auto', id: 'auto' },
         { label: 'Transparent', id: 'transparent' },
@@ -100,7 +94,6 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
-      layout: 'full',
       required: true,
       placeholder: 'Enter your OpenAI API key',
       password: true,

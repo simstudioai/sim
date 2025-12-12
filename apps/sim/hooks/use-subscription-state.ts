@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
-import type { SubscriptionFeatures } from '@/lib/billing/types'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('useSubscriptionState')
@@ -25,7 +24,6 @@ interface SubscriptionState {
   status: string | null
   seats: number | null
   metadata: any | null
-  features: SubscriptionFeatures
   usage: UsageData
 }
 
@@ -82,12 +80,6 @@ export function useSubscriptionState() {
       metadata: data?.metadata,
     },
 
-    features: {
-      sharingEnabled: data?.features?.sharingEnabled ?? false,
-      multiplayerEnabled: data?.features?.multiplayerEnabled ?? false,
-      workspaceCollaborationEnabled: data?.features?.workspaceCollaborationEnabled ?? false,
-    },
-
     usage: {
       current: data?.usage?.current ?? 0,
       limit: data?.usage?.limit ?? DEFAULT_FREE_CREDITS,
@@ -106,10 +98,6 @@ export function useSubscriptionState() {
     isLoading,
     error,
     refetch,
-
-    hasFeature: (feature: keyof SubscriptionFeatures) => {
-      return data?.features?.[feature] ?? false
-    },
 
     isAtLeastPro: () => {
       return data?.isPro || data?.isTeam || data?.isEnterprise || false
@@ -165,7 +153,7 @@ export function useUsageLimit() {
       setIsLoading(true)
       setError(null)
 
-      const response = await fetch('/api/usage-limits?context=user')
+      const response = await fetch('/api/usage?context=user')
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
@@ -192,7 +180,7 @@ export function useUsageLimit() {
 
   const updateLimit = async (newLimit: number) => {
     try {
-      const response = await fetch('/api/usage-limits?context=user', {
+      const response = await fetch('/api/usage?context=user', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

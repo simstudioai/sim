@@ -1,0 +1,129 @@
+# Enable the copilot service
+copilot:
+  enabled: true
+  
+  # Server configuration
+  server:
+    image:
+      repository: simstudioai/copilot
+      tag: latest
+      pullPolicy: Always
+    
+    replicaCount: 2
+    
+    # Node scheduling (OPTIONAL)
+    # By default, copilot runs on the same nodes as the main Sim platform
+    nodeSelector: {}
+    # nodeSelector:
+    #   workload-type: copilot
+    
+    resources:
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+    
+    # Required secrets (set via values or provide your own secret)
+    env:
+      PORT: "8080"
+      SERVICE_NAME: "copilot"
+      ENVIRONMENT: "production"
+      AGENT_API_DB_ENCRYPTION_KEY: ""          # openssl rand -hex 32
+      INTERNAL_API_SECRET: ""                  # reuse Sim INTERNAL_API_SECRET
+      LICENSE_KEY: ""                          # Provided by Sim team
+      OPENAI_API_KEY_1: ""                     # At least one provider key required
+      ANTHROPIC_API_KEY_1: ""                  # Optional secondary provider
+      SIM_BASE_URL: "https://sim.example.com"  # Base URL for Sim deployment
+      SIM_AGENT_API_KEY: ""                    # Must match SIM-side COPILOT_API_KEY
+      REDIS_URL: "redis://default:password@redis:6379"
+      # Optional configuration
+      LOG_LEVEL: "info"
+      CORS_ALLOWED_ORIGINS: "https://sim.example.com"
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
+    
+    # Create a Secret from the values above. Set create=false to reference an existing secret instead.
+    secret:
+      create: true
+      name: ""
+      annotations: {}
+    
+    extraEnv: []
+    extraEnvFrom: []
+    
+    service:
+      type: ClusterIP
+      port: 8080
+      targetPort: 8080
+  
+  # Internal PostgreSQL database (disable to use an external database)
+  postgresql:
+    enabled: true
+    
+    image:
+      repository: postgres
+      tag: 16-alpine
+      pullPolicy: IfNotPresent
+    
+    auth:
+      username: copilot
+      password: ""  # REQUIRED - set via --set copilot.postgresql.auth.password
+      database: copilot
+    
+    nodeSelector: {}
+    # nodeSelector:
+    #   workload-type: copilot
+    
+    resources:
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+    
+    persistence:
+      enabled: true
+      size: 10Gi
+  
+  # External database configuration (only used when postgresql.enabled=false)
+  database:
+    existingSecretName: ""
+    secretKey: DATABASE_URL
+    url: ""
+  
+  # Migration job
+  migrations:
+    enabled: true
+    
+    resources:
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+
+# Optional: Configure ingress to expose copilot service
+# Uncomment if you need external access to copilot
+# ingress:
+#   enabled: true
+#   className: nginx
+#   annotations:
+#     cert-manager.io/cluster-issuer: letsencrypt-prod
+#     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+#   copilot:
+#     host: copilot.yourdomain.com
+#     paths:
+#       - path: /
+#         pathType: Prefix
+#   tls:
+#     enabled: true
+#     secretName: copilot-tls-secret
+
+# If using private Docker Hub repository
+# global:
+#   imagePullSecrets:
+#     - name: dockerhub-secret
+

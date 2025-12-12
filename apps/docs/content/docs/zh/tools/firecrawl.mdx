@@ -1,0 +1,153 @@
+---
+title: Firecrawl
+description: 抓取、搜索、爬取、映射并提取网页数据
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="firecrawl"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Firecrawl](https://firecrawl.dev/) 是一个强大的网页抓取和内容提取 API，可以无缝集成到 Sim 中，帮助开发者从任何网站提取干净、结构化的内容。通过这种集成，您可以轻松地将网页转换为 Markdown 和 HTML 等可用的数据格式，同时保留重要内容。
+
+在 Sim 中使用 Firecrawl，您可以：
+
+- **提取干净的内容**：移除广告、导航元素和其他干扰，只保留主要内容
+- **转换为结构化格式**：将网页转换为 Markdown、HTML 或 JSON
+- **捕获元数据**：提取 SEO 元数据、Open Graph 标签和其他页面信息
+- **处理依赖 JavaScript 的网站**：从依赖 JavaScript 的现代 Web 应用中处理内容
+- **过滤内容**：使用 CSS 选择器专注于页面的特定部分
+- **大规模处理**：通过可靠的 API 满足高容量抓取需求
+- **搜索网络**：执行智能网络搜索并获取结构化结果
+- **抓取整个网站**：抓取网站的多个页面并汇总其内容
+
+在 Sim 中，Firecrawl 集成使您的代理能够以编程方式访问和处理 Web 内容，作为其工作流程的一部分。支持的操作包括：
+
+- **抓取**：从单个网页提取结构化内容（Markdown、HTML、元数据）。
+- **搜索**：使用 Firecrawl 的智能搜索功能在网络上搜索信息。
+- **抓取**：抓取网站的多个页面，返回每个页面的结构化内容和元数据。
+
+这使您的代理能够从网站收集信息，提取结构化数据，并利用这些信息做出决策或生成洞察——无需处理复杂的原始 HTML 解析或浏览器自动化。只需使用您的 API 密钥配置 Firecrawl 模块，选择操作（抓取、搜索或抓取），并提供相关参数。您的代理即可立即开始以干净、结构化的格式处理 Web 内容。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Firecrawl 集成到工作流程中。使用 AI 抓取页面、搜索网络、爬取整个网站、映射 URL 结构并提取结构化数据。
+
+## 工具
+
+### `firecrawl_scrape`
+
+从网页中提取结构化内容，并支持全面的元数据。将内容转换为 Markdown 或 HTML，同时捕获 SEO 元数据、Open Graph 标签和页面信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | 是 | 要抓取内容的 URL |
+| `scrapeOptions` | json | 否 | 内容抓取选项 |
+| `apiKey` | string | 是 | Firecrawl API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `markdown` | string | Markdown 格式的页面内容 |
+| `html` | string | 页面原始 HTML 内容 |
+| `metadata` | object | 包括 SEO 和 Open Graph 信息的页面元数据 |
+
+### `firecrawl_search`
+
+使用 Firecrawl 在网络上搜索信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | 是 | 要使用的搜索查询 |
+| `apiKey` | string | 是 | Firecrawl API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `data` | array | 搜索结果数据 |
+
+### `firecrawl_crawl`
+
+抓取整个网站并从所有可访问页面提取结构化内容
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | 是 | 要爬取的网站 URL |
+| `limit` | number | 否 | 要爬取的最大页面数 \(默认值：100\) |
+| `onlyMainContent` | boolean | 否 | 仅提取页面的主要内容 |
+| `apiKey` | string | 是 | Firecrawl API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `pages` | array | 包含抓取页面内容和元数据的数组 |
+
+### `firecrawl_map`
+
+快速可靠地从任何网站获取完整的 URL 列表。适用于在不进行爬取的情况下发现网站上的所有页面。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | 是 | 要映射并发现链接的基础 URL |
+| `search` | string | 否 | 按与搜索词的相关性过滤结果 \(例如："blog"\) |
+| `sitemap` | string | 否 | 控制站点地图的使用："skip"、"include" \(默认值\) 或 "only" |
+| `includeSubdomains` | boolean | 否 | 是否包含子域名的 URL \(默认值：true\) |
+| `ignoreQueryParameters` | boolean | 否 | 排除包含查询字符串的 URL \(默认值：true\) |
+| `limit` | number | 否 | 返回的最大链接数 \(最大值：100,000，默认值：5,000\) |
+| `timeout` | number | 否 | 请求超时时间（毫秒） |
+| `location` | json | 否 | 用于代理的地理上下文 \(国家、语言\) |
+| `apiKey` | string | 是 | Firecrawl API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 映射操作是否成功 |
+| `links` | array | 从网站发现的 URL 数组 |
+
+### `firecrawl_extract`
+
+使用自然语言提示和 JSON 架构从整个网页中提取结构化数据。强大的智能数据提取功能。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `urls` | json | 是 | 要提取数据的 URL 数组 \(支持 glob 格式\) |
+| `prompt` | string | 否 | 提取过程的自然语言指导 |
+| `schema` | json | 否 | 定义要提取数据结构的 JSON 架构 |
+| `enableWebSearch` | boolean | 否 | 启用网络搜索以查找补充信息 \(默认值：false\) |
+| `ignoreSitemap` | boolean | 否 | 扫描时忽略 sitemap.xml 文件 \(默认值：false\) |
+| `includeSubdomains` | boolean | 否 | 扩展扫描到子域名 \(默认值：true\) |
+| `showSources` | boolean | 否 | 在响应中返回数据源 \(默认值：false\) |
+| `ignoreInvalidURLs` | boolean | 否 | 跳过数组中的无效 URL \(默认值：true\) |
+| `scrapeOptions` | json | 否 | 高级抓取配置选项 |
+| `apiKey` | string | 是 | Firecrawl API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 提取操作是否成功 |
+| `data` | object | 根据模式或提示提取的结构化数据 |
+| `sources` | array | 数据来源（仅在启用 showSources 时） |
+
+## 注意
+
+- 类别：`tools`
+- 类型：`firecrawl`

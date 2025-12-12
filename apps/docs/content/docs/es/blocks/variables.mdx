@@ -1,0 +1,86 @@
+---
+title: Variables
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+El bloque Variables actualiza las variables del flujo de trabajo durante la ejecución. Las variables deben inicializarse primero en la sección Variables de tu flujo de trabajo, luego puedes usar este bloque para actualizar sus valores mientras se ejecuta tu flujo de trabajo.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/variables.png"
+    alt="Bloque de variables"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout>
+  Accede a las variables en cualquier parte de tu flujo de trabajo usando la sintaxis `<variable.variableName>`.
+</Callout>
+
+## Cómo usar variables
+
+### 1. Inicializar en variables de flujo de trabajo
+
+Primero, crea tus variables en la sección Variables del flujo de trabajo (accesible desde la configuración del flujo de trabajo):
+
+```
+customerEmail = ""
+retryCount = 0
+currentStatus = "pending"
+```
+
+### 2. Actualizar con el bloque de variables
+
+Usa el bloque Variables para actualizar estos valores durante la ejecución:
+
+```
+customerEmail = <api.email>
+retryCount = <variable.retryCount> + 1
+currentStatus = "processing"
+```
+
+### 3. Acceder desde cualquier lugar
+
+Referencia variables en cualquier bloque:
+
+```
+Agent prompt: "Send email to <variable.customerEmail>"
+Condition: <variable.retryCount> < 5
+API body: {"status": "<variable.currentStatus>"}
+```
+
+## Ejemplos de casos de uso
+
+**Contador de bucle y estado** - Seguimiento del progreso a través de iteraciones
+
+```
+Loop → Agent (Process) → Variables (itemsProcessed + 1) → Variables (Store lastResult)
+```
+
+**Lógica de reintentos** - Seguimiento de intentos de API
+
+```
+API (Try) → Variables (retryCount + 1) → Condition (retryCount < 3)
+```
+
+**Configuración dinámica** - Almacenar contexto de usuario para el flujo de trabajo
+
+```
+API (Fetch Profile) → Variables (userId, userTier) → Agent (Personalize)
+```
+
+## Salidas
+
+- **`<variables.assignments>`**: Objeto JSON con todas las asignaciones de variables de este bloque
+
+## Mejores prácticas
+
+- **Inicializar en la configuración del flujo de trabajo**: Siempre crea variables en la sección Variables del flujo de trabajo antes de usarlas
+- **Actualizar dinámicamente**: Usa bloques de Variables para actualizar valores basados en salidas de bloques o cálculos
+- **Usar en bucles**: Perfecto para seguir el estado a través de iteraciones
+- **Nombrar descriptivamente**: Usa nombres claros como `currentIndex`, `totalProcessed`, o `lastError`

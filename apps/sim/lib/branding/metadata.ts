@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { getBrandConfig } from '@/lib/branding/branding'
-import { env } from '@/lib/env'
-import { getAssetUrl } from '@/lib/utils'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 
 /**
  * Generate dynamic metadata based on brand configuration
@@ -10,14 +9,15 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
   const brand = getBrandConfig()
 
   const defaultTitle = brand.name
-  const defaultDescription = `Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.`
+  const summaryFull = `Sim is an open-source AI agent workflow builder. Developers at trail-blazing startups to Fortune 500 companies deploy agentic workflows on the Sim platform. 60,000+ developers already use Sim to build and deploy AI agent workflows and connect them to 100+ apps. Sim is SOC2 and HIPAA compliant, ensuring enterprise-grade security for AI automation.`
+  const summaryShort = `Sim is an open-source AI agent workflow builder for production workflows.`
 
   return {
     title: {
       template: `%s | ${brand.name}`,
       default: defaultTitle,
     },
-    description: defaultDescription,
+    description: summaryShort,
     applicationName: brand.name,
     authors: [{ name: brand.name }],
     generator: 'Next.js',
@@ -40,9 +40,7 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
     referrer: 'origin-when-cross-origin',
     creator: brand.name,
     publisher: brand.name,
-    metadataBase: env.NEXT_PUBLIC_APP_URL
-      ? new URL(env.NEXT_PUBLIC_APP_URL)
-      : new URL('https://sim.ai'),
+    metadataBase: new URL(getBaseUrl()),
     alternates: {
       canonical: '/',
       languages: {
@@ -63,13 +61,13 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
     openGraph: {
       type: 'website',
       locale: 'en_US',
-      url: env.NEXT_PUBLIC_APP_URL || 'https://sim.ai',
+      url: getBaseUrl(),
       title: defaultTitle,
-      description: defaultDescription,
+      description: summaryFull,
       siteName: brand.name,
       images: [
         {
-          url: brand.logoUrl || getAssetUrl('social/facebook.png'),
+          url: brand.logoUrl || '/social/facebook.png',
           width: 1200,
           height: 630,
           alt: brand.name,
@@ -79,8 +77,8 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
     twitter: {
       card: 'summary_large_image',
       title: defaultTitle,
-      description: defaultDescription,
-      images: [brand.logoUrl || getAssetUrl('social/twitter.png')],
+      description: summaryFull,
+      images: [brand.logoUrl || '/social/twitter.png'],
       creator: '@simstudioai',
       site: '@simstudioai',
     },
@@ -132,10 +130,13 @@ export function generateStructuredData() {
     '@type': 'SoftwareApplication',
     name: 'Sim',
     description:
-      'Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.',
-    url: 'https://sim.ai',
+      'Sim is an open-source AI agent workflow builder. Developers at trail-blazing startups to Fortune 500 companies deploy agentic workflows on the Sim platform. 60,000+ developers already use Sim to build and deploy AI agent workflows and connect them to 100+ apps. Sim is SOC2 and HIPAA compliant, ensuring enterprise-level security.',
+    url: getBaseUrl(),
     applicationCategory: 'BusinessApplication',
     operatingSystem: 'Web Browser',
+    applicationSubCategory: 'AIWorkflowAutomation',
+    areaServed: 'Worldwide',
+    availableLanguage: ['en'],
     offers: {
       '@type': 'Offer',
       category: 'SaaS',

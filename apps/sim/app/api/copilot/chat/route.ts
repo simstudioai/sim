@@ -1,87 +1,69 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto'
+import { db } from '@sim/db'
+import { copilotChats } from '@sim/db/schema'
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { generateChatTitle } from '@/lib/copilot/chat-title'
+import { getCopilotModel } from '@/lib/copilot/config'
+import { SIM_AGENT_API_URL_DEFAULT, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
   createInternalServerErrorResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/auth'
-import { getCopilotModel } from '@/lib/copilot/config'
-import { TITLE_GENERATION_SYSTEM_PROMPT, TITLE_GENERATION_USER_PROMPT } from '@/lib/copilot/prompts'
-import { env } from '@/lib/env'
+} from '@/lib/copilot/request-helpers'
+import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
+import type { CopilotProviderConfig } from '@/lib/copilot/types'
+import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
-import { downloadFile } from '@/lib/uploads'
-import { downloadFromS3WithConfig } from '@/lib/uploads/s3/s3-client'
-import { S3_COPILOT_CONFIG, USE_S3_STORAGE } from '@/lib/uploads/setup'
-import { db } from '@/db'
-import { copilotChats } from '@/db/schema'
-import { executeProviderRequest } from '@/providers'
-import { createAnthropicFileContent, isSupportedFileType } from './file-utils'
+import { CopilotFiles } from '@/lib/uploads'
+import { createFileContent } from '@/lib/uploads/utils/file-utils'
+import { tools } from '@/tools/registry'
 
 const logger = createLogger('CopilotChatAPI')
 
-// Sim Agent API configuration
 const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
-function getRequestOrigin(_req: NextRequest): string {
-  try {
-    // Strictly use configured Better Auth URL
-    return env.BETTER_AUTH_URL || ''
-  } catch (_) {
-    return ''
-  }
-}
-
-function deriveKey(keyString: string): Buffer {
-  return createHash('sha256').update(keyString, 'utf8').digest()
-}
-
-function decryptWithKey(encryptedValue: string, keyString: string): string {
-  const [ivHex, encryptedHex, authTagHex] = encryptedValue.split(':')
-  if (!ivHex || !encryptedHex || !authTagHex) {
-    throw new Error('Invalid encrypted format')
-  }
-  const key = deriveKey(keyString)
-  const iv = Buffer.from(ivHex, 'hex')
-  const decipher = createDecipheriv('aes-256-gcm', key, iv)
-  decipher.setAuthTag(Buffer.from(authTagHex, 'hex'))
-  let decrypted = decipher.update(encryptedHex, 'hex', 'utf8')
-  decrypted += decipher.final('utf8')
-  return decrypted
-}
-
-function encryptWithKey(plaintext: string, keyString: string): string {
-  const key = deriveKey(keyString)
-  const iv = randomBytes(16)
-  const cipher = createCipheriv('aes-256-gcm', key, iv)
-  let encrypted = cipher.update(plaintext, 'utf8', 'hex')
-  encrypted += cipher.final('hex')
-  const authTag = cipher.getAuthTag().toString('hex')
-  return `${iv.toString('hex')}:${encrypted}:${authTag}`
-}
-
-// Schema for file attachments
 const FileAttachmentSchema = z.object({
   id: z.string(),
-  s3_key: z.string(),
+  key: z.string(),
   filename: z.string(),
   media_type: z.string(),
   size: z.number(),
 })
 
-// Schema for chat messages
 const ChatMessageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
   userMessageId: z.string().optional(), // ID from frontend for the user message
   chatId: z.string().optional(),
   workflowId: z.string().min(1, 'Workflow ID is required'),
-  mode: z.enum(['ask', 'agent']).optional().default('agent'),
-  depth: z.number().int().min(-2).max(3).optional().default(0),
+  model: z
+    .enum([
+      'gpt-5-fast',
+      'gpt-5',
+      'gpt-5-medium',
+      'gpt-5-high',
+      'gpt-5.1-fast',
+      'gpt-5.1',
+      'gpt-5.1-medium',
+      'gpt-5.1-high',
+      'gpt-5-codex',
+      'gpt-5.1-codex',
+      'gpt-4o',
+      'gpt-4.1',
+      'o3',
+      'claude-4-sonnet',
+      'claude-4.5-haiku',
+      'claude-4.5-sonnet',
+      'claude-4.5-opus',
+      'claude-4.1-opus',
+      'gemini-3-pro',
+    ])
+    .optional()
+    .default('claude-4.5-opus'),
+  mode: z.enum(['ask', 'agent', 'plan']).optional().default('agent'),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(true),
@@ -89,90 +71,32 @@ const ChatMessageSchema = z.object({
   fileAttachments: z.array(FileAttachmentSchema).optional(),
   provider: z.string().optional().default('openai'),
   conversationId: z.string().optional(),
-})
-
-/**
- * Generate a chat title using LLM
- */
-async function generateChatTitle(userMessage: string): Promise<string> {
-  try {
-    const { provider, model } = getCopilotModel('title')
-
-    // Get the appropriate API key for the provider
-    let apiKey: string | undefined
-    if (provider === 'anthropic') {
-      // Use rotating API key for Anthropic
-      const { getRotatingApiKey } = require('@/lib/utils')
-      try {
-        apiKey = getRotatingApiKey('anthropic')
-        logger.debug(`Using rotating API key for Anthropic title generation`)
-      } catch (e) {
-        // If rotation fails, let the provider handle it
-        logger.warn(`Failed to get rotating API key for Anthropic:`, e)
-      }
-    }
-
-    const response = await executeProviderRequest(provider, {
-      model,
-      systemPrompt: TITLE_GENERATION_SYSTEM_PROMPT,
-      context: TITLE_GENERATION_USER_PROMPT(userMessage),
-      temperature: 0.3,
-      maxTokens: 50,
-      apiKey: apiKey || '',
-      stream: false,
-    })
-
-    if (typeof response === 'object' && 'content' in response) {
-      return response.content?.trim() || 'New Chat'
-    }
-
-    return 'New Chat'
-  } catch (error) {
-    logger.error('Failed to generate chat title:', error)
-    return 'New Chat'
-  }
-}
-
-/**
- * Generate chat title asynchronously and update the database
- */
-async function generateChatTitleAsync(
-  chatId: string,
-  userMessage: string,
-  requestId: string,
-  streamController?: ReadableStreamDefaultController<Uint8Array>
-): Promise<void> {
-  try {
-    logger.info(`[${requestId}] Starting async title generation for chat ${chatId}`)
-
-    const title = await generateChatTitle(userMessage)
-
-    // Update the chat with the generated title
-    await db
-      .update(copilotChats)
-      .set({
-        title,
-        updatedAt: new Date(),
+  contexts: z
+    .array(
+      z.object({
+        kind: z.enum([
+          'past_chat',
+          'workflow',
+          'current_workflow',
+          'blocks',
+          'logs',
+          'workflow_block',
+          'knowledge',
+          'templates',
+          'docs',
+        ]),
+        label: z.string(),
+        chatId: z.string().optional(),
+        workflowId: z.string().optional(),
+        knowledgeId: z.string().optional(),
+        blockId: z.string().optional(),
+        templateId: z.string().optional(),
+        executionId: z.string().optional(),
+        // For workflow_block, provide both workflowId and blockId
       })
-      .where(eq(copilotChats.id, chatId))
-
-    // Send title_updated event to client if streaming
-    if (streamController) {
-      const encoder = new TextEncoder()
-      const titleEvent = `data: ${JSON.stringify({
-        type: 'title_updated',
-        title: title,
-      })}\n\n`
-      streamController.enqueue(encoder.encode(titleEvent))
-      logger.debug(`[${requestId}] Sent title_updated event to client: "${title}"`)
-    }
-
-    logger.info(`[${requestId}] Generated title for chat ${chatId}: "${title}"`)
-  } catch (error) {
-    logger.error(`[${requestId}] Failed to generate title for chat ${chatId}:`, error)
-    // Don't throw - this is a background operation
-  }
-}
+    )
+    .optional(),
+})
 
 /**
  * POST /api/copilot/chat
@@ -197,8 +121,8 @@ export async function POST(req: NextRequest) {
       userMessageId,
       chatId,
       workflowId,
+      model,
       mode,
-      depth,
       prefetch,
       createNewChat,
       stream,
@@ -206,44 +130,46 @@ export async function POST(req: NextRequest) {
       fileAttachments,
       provider,
       conversationId,
+      contexts,
     } = ChatMessageSchema.parse(body)
-
-    // Derive request origin for downstream service
-    const requestOrigin = getRequestOrigin(req)
-
-    if (!requestOrigin) {
-      logger.error(`[${tracker.requestId}] Missing required configuration: BETTER_AUTH_URL`)
-      return createInternalServerErrorResponse('Missing required configuration: BETTER_AUTH_URL')
-    }
-
-    // Consolidation mapping: map negative depths to base depth with prefetch=true
-    let effectiveDepth: number | undefined = typeof depth === 'number' ? depth : undefined
-    let effectivePrefetch: boolean | undefined = prefetch
-    if (typeof effectiveDepth === 'number') {
-      if (effectiveDepth === -2) {
-        effectiveDepth = 1
-        effectivePrefetch = true
-      } else if (effectiveDepth === -1) {
-        effectiveDepth = 0
-        effectivePrefetch = true
+    // Ensure we have a consistent user message ID for this request
+    const userMessageIdToUse = userMessageId || crypto.randomUUID()
+    try {
+      logger.info(`[${tracker.requestId}] Received chat POST`, {
+        hasContexts: Array.isArray(contexts),
+        contextsCount: Array.isArray(contexts) ? contexts.length : 0,
+        contextsPreview: Array.isArray(contexts)
+          ? contexts.map((c: any) => ({
+              kind: c?.kind,
+              chatId: c?.chatId,
+              workflowId: c?.workflowId,
+              executionId: (c as any)?.executionId,
+              label: c?.label,
+            }))
+          : undefined,
+      })
+    } catch {}
+    // Preprocess contexts server-side
+    let agentContexts: Array<{ type: string; content: string }> = []
+    if (Array.isArray(contexts) && contexts.length > 0) {
+      try {
+        const { processContextsServer } = await import('@/lib/copilot/process-contents')
+        const processed = await processContextsServer(contexts as any, authenticatedUserId, message)
+        agentContexts = processed
+        logger.info(`[${tracker.requestId}] Contexts processed for request`, {
+          processedCount: agentContexts.length,
+          kinds: agentContexts.map((c) => c.type),
+          lengthPreview: agentContexts.map((c) => c.content?.length ?? 0),
+        })
+        if (Array.isArray(contexts) && contexts.length > 0 && agentContexts.length === 0) {
+          logger.warn(
+            `[${tracker.requestId}] Contexts provided but none processed. Check executionId for logs contexts.`
+          )
+        }
+      } catch (e) {
+        logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
       }
     }
-
-    logger.info(`[${tracker.requestId}] Processing copilot chat request`, {
-      userId: authenticatedUserId,
-      workflowId,
-      chatId,
-      mode,
-      stream,
-      createNewChat,
-      messageLength: message.length,
-      hasImplicitFeedback: !!implicitFeedback,
-      provider: provider || 'openai',
-      hasConversationId: !!conversationId,
-      depth,
-      prefetch,
-      origin: requestOrigin,
-    })
 
     // Handle chat context
     let currentChat: any = null
@@ -285,40 +211,15 @@ export async function POST(req: NextRequest) {
     // Process file attachments if present
     const processedFileContents: any[] = []
     if (fileAttachments && fileAttachments.length > 0) {
-      logger.info(`[${tracker.requestId}] Processing ${fileAttachments.length} file attachments`)
+      const processedAttachments = await CopilotFiles.processCopilotAttachments(
+        fileAttachments,
+        tracker.requestId
+      )
 
-      for (const attachment of fileAttachments) {
-        try {
-          // Check if file type is supported
-          if (!isSupportedFileType(attachment.media_type)) {
-            logger.warn(`[${tracker.requestId}] Unsupported file type: ${attachment.media_type}`)
-            continue
-          }
-
-          // Download file from S3
-          logger.info(`[${tracker.requestId}] Downloading file: ${attachment.s3_key}`)
-          let fileBuffer: Buffer
-          if (USE_S3_STORAGE) {
-            fileBuffer = await downloadFromS3WithConfig(attachment.s3_key, S3_COPILOT_CONFIG)
-          } else {
-            // Fallback to generic downloadFile for other storage providers
-            fileBuffer = await downloadFile(attachment.s3_key)
-          }
-
-          // Convert to Anthropic format
-          const fileContent = createAnthropicFileContent(fileBuffer, attachment.media_type)
-          if (fileContent) {
-            processedFileContents.push(fileContent)
-            logger.info(
-              `[${tracker.requestId}] Processed file: ${attachment.filename} (${attachment.media_type})`
-            )
-          }
-        } catch (error) {
-          logger.error(
-            `[${tracker.requestId}] Failed to process file ${attachment.filename}:`,
-            error
-          )
-          // Continue processing other files
+      for (const { buffer, attachment } of processedAttachments) {
+        const fileContent = createFileContent(buffer, attachment.media_type)
+        if (fileContent) {
+          processedFileContents.push(fileContent)
         }
       }
     }
@@ -332,27 +233,15 @@ export async function POST(req: NextRequest) {
         // This is a message with file attachments - rebuild with content array
         const content: any[] = [{ type: 'text', text: msg.content }]
 
-        // Process file attachments for historical messages
-        for (const attachment of msg.fileAttachments) {
-          try {
-            if (isSupportedFileType(attachment.media_type)) {
-              let fileBuffer: Buffer
-              if (USE_S3_STORAGE) {
-                fileBuffer = await downloadFromS3WithConfig(attachment.s3_key, S3_COPILOT_CONFIG)
-              } else {
-                // Fallback to generic downloadFile for other storage providers
-                fileBuffer = await downloadFile(attachment.s3_key)
-              }
-              const fileContent = createAnthropicFileContent(fileBuffer, attachment.media_type)
-              if (fileContent) {
-                content.push(fileContent)
-              }
-            }
-          } catch (error) {
-            logger.error(
-              `[${tracker.requestId}] Failed to process historical file ${attachment.filename}:`,
-              error
-            )
+        const processedHistoricalAttachments = await CopilotFiles.processCopilotAttachments(
+          msg.fileAttachments,
+          tracker.requestId
+        )
+
+        for (const { buffer, attachment } of processedHistoricalAttachments) {
+          const fileContent = createFileContent(buffer, attachment.media_type)
+          if (fileContent) {
+            content.push(fileContent)
           }
         }
 
@@ -399,52 +288,185 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Determine provider and conversationId to use for this request
-    const providerToUse = provider || 'openai'
+    const defaults = getCopilotModel('chat')
+    const modelToUse = env.COPILOT_MODEL || defaults.model
+
+    let providerConfig: CopilotProviderConfig | undefined
+    const providerEnv = env.COPILOT_PROVIDER as any
+
+    if (providerEnv) {
+      if (providerEnv === 'azure-openai') {
+        providerConfig = {
+          provider: 'azure-openai',
+          model: modelToUse,
+          apiKey: env.AZURE_OPENAI_API_KEY,
+          apiVersion: 'preview',
+          endpoint: env.AZURE_OPENAI_ENDPOINT,
+        }
+      } else {
+        providerConfig = {
+          provider: providerEnv,
+          model: modelToUse,
+          apiKey: env.COPILOT_API_KEY,
+        }
+      }
+    }
+
+    // Determine conversationId to use for this request
     const effectiveConversationId =
       (currentChat?.conversationId as string | undefined) || conversationId
 
-    // If we have a conversationId, only send the most recent user message; else send full history
-    const latestUserMessage =
-      [...messages].reverse().find((m) => m?.role === 'user') || messages[messages.length - 1]
-    const messagesForAgent = effectiveConversationId ? [latestUserMessage] : messages
+    // For agent/build mode, fetch credentials and build tool definitions
+    let integrationTools: any[] = []
+    let baseTools: any[] = []
+    let credentials: {
+      oauth: Record<
+        string,
+        { accessToken: string; accountId: string; name: string; expiresAt?: string }
+      >
+      apiKeys: string[]
+      metadata?: {
+        connectedOAuth: Array<{ provider: string; name: string; scopes?: string[] }>
+        configuredApiKeys: string[]
+      }
+    } | null = null
+
+    if (mode === 'agent') {
+      // Build base tools (executed locally, not deferred)
+      // Include function_execute for code execution capability
+      baseTools = [
+        {
+          name: 'function_execute',
+          description:
+            'Execute JavaScript code to perform calculations, data transformations, API calls, or any programmatic task. Code runs in a secure sandbox with fetch() available. Write plain statements (not wrapped in functions). Example: const res = await fetch(url); const data = await res.json(); return data;',
+          input_schema: {
+            type: 'object',
+            properties: {
+              code: {
+                type: 'string',
+                description:
+                  'Raw JavaScript statements to execute. Code is auto-wrapped in async context. Use fetch() for HTTP requests. Write like: const res = await fetch(url); return await res.json();',
+              },
+            },
+            required: ['code'],
+          },
+          executeLocally: true,
+        },
+      ]
+      // Fetch user credentials (OAuth + API keys) - pass workflowId to get workspace env vars
+      try {
+        const rawCredentials = await getCredentialsServerTool.execute(
+          { workflowId },
+          { userId: authenticatedUserId }
+        )
+
+        // Transform OAuth credentials to map format: { [provider]: { accessToken, accountId, ... } }
+        const oauthMap: Record<
+          string,
+          { accessToken: string; accountId: string; name: string; expiresAt?: string }
+        > = {}
+        const connectedOAuth: Array<{ provider: string; name: string; scopes?: string[] }> = []
+        for (const cred of rawCredentials?.oauth?.connected?.credentials || []) {
+          if (cred.accessToken) {
+            oauthMap[cred.provider] = {
+              accessToken: cred.accessToken,
+              accountId: cred.id,
+              name: cred.name,
+            }
+            connectedOAuth.push({
+              provider: cred.provider,
+              name: cred.name,
+            })
+          }
+        }
+
+        credentials = {
+          oauth: oauthMap,
+          apiKeys: rawCredentials?.environment?.variableNames || [],
+          metadata: {
+            connectedOAuth,
+            configuredApiKeys: rawCredentials?.environment?.variableNames || [],
+          },
+        }
+
+        logger.info(`[${tracker.requestId}] Fetched credentials for build mode`, {
+          oauthProviders: Object.keys(oauthMap),
+          apiKeyCount: credentials.apiKeys.length,
+        })
+      } catch (error) {
+        logger.warn(`[${tracker.requestId}] Failed to fetch credentials`, {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+
+      // Build tool definitions (schemas only)
+      try {
+        const { createUserToolSchema } = await import('@/tools/params')
+
+        integrationTools = Object.entries(tools).map(([toolId, toolConfig]) => {
+          const userSchema = createUserToolSchema(toolConfig)
+          return {
+            name: toolId,
+            description: toolConfig.description || toolConfig.name || toolId,
+            input_schema: userSchema,
+            defer_loading: true, // Anthropic Advanced Tool Use
+            ...(toolConfig.oauth?.required && {
+              oauth: {
+                required: true,
+                provider: toolConfig.oauth.provider,
+              },
+            }),
+          }
+        })
+
+        logger.info(`[${tracker.requestId}] Built tool definitions for build mode`, {
+          integrationToolCount: integrationTools.length,
+        })
+      } catch (error) {
+        logger.warn(`[${tracker.requestId}] Failed to build tool definitions`, {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
 
     const requestPayload = {
-      messages: messagesForAgent,
+      message: message, // Just send the current user message text
       workflowId,
       userId: authenticatedUserId,
       stream: stream,
       streamToolCalls: true,
+      model: model,
       mode: mode,
-      provider: providerToUse,
+      messageId: userMessageIdToUse,
+      version: SIM_AGENT_VERSION,
+      ...(providerConfig ? { provider: providerConfig } : {}),
       ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
-      ...(typeof effectiveDepth === 'number' ? { depth: effectiveDepth } : {}),
-      ...(typeof effectivePrefetch === 'boolean' ? { prefetch: effectivePrefetch } : {}),
+      ...(typeof prefetch === 'boolean' ? { prefetch: prefetch } : {}),
       ...(session?.user?.name && { userName: session.user.name }),
-      ...(requestOrigin ? { origin: requestOrigin } : {}),
+      ...(agentContexts.length > 0 && { context: agentContexts }),
+      ...(actualChatId ? { chatId: actualChatId } : {}),
+      ...(processedFileContents.length > 0 && { fileAttachments: processedFileContents }),
+      // For build/agent mode, include tools and credentials
+      ...(integrationTools.length > 0 && { tools: integrationTools }),
+      ...(baseTools.length > 0 && { baseTools }),
+      ...(credentials && { credentials }),
     }
 
-    // Log the payload being sent to the streaming endpoint
     try {
-      logger.info(`[${tracker.requestId}] Sending payload to sim agent streaming endpoint`, {
-        url: `${SIM_AGENT_API_URL}/api/chat-completion-streaming`,
-        provider: providerToUse,
-        mode,
-        stream,
-        workflowId,
+      logger.info(`[${tracker.requestId}] About to call Sim Agent`, {
+        hasContext: agentContexts.length > 0,
+        contextCount: agentContexts.length,
         hasConversationId: !!effectiveConversationId,
-        depth: typeof effectiveDepth === 'number' ? effectiveDepth : undefined,
-        prefetch: typeof effectivePrefetch === 'boolean' ? effectivePrefetch : undefined,
-        messagesCount: requestPayload.messages.length,
-        ...(requestOrigin ? { origin: requestOrigin } : {}),
+        hasFileAttachments: processedFileContents.length > 0,
+        messageLength: message.length,
+        mode,
+        hasTools: integrationTools.length > 0,
+        toolCount: integrationTools.length,
+        hasBaseTools: baseTools.length > 0,
+        baseToolCount: baseTools.length,
+        hasCredentials: !!credentials,
       })
-      // Full payload as JSON string
-      logger.info(
-        `[${tracker.requestId}] Full streaming payload: ${JSON.stringify(requestPayload)}`
-      )
-    } catch (e) {
-      logger.warn(`[${tracker.requestId}] Failed to log payload preview for streaming endpoint`, e)
-    }
+    } catch {}
 
     const simAgentResponse = await fetch(`${SIM_AGENT_API_URL}/api/chat-completion-streaming`, {
       method: 'POST',
@@ -475,15 +497,18 @@ export async function POST(req: NextRequest) {
 
     // If streaming is requested, forward the stream and update chat later
     if (stream && simAgentResponse.body) {
-      logger.info(`[${tracker.requestId}] Streaming response from sim agent`)
-
       // Create user message to save
       const userMessage = {
-        id: userMessageId || crypto.randomUUID(), // Use frontend ID if provided
+        id: userMessageIdToUse, // Consistent ID used for request and persistence
         role: 'user',
         content: message,
         timestamp: new Date().toISOString(),
         ...(fileAttachments && fileAttachments.length > 0 && { fileAttachments }),
+        ...(Array.isArray(contexts) && contexts.length > 0 && { contexts }),
+        ...(Array.isArray(contexts) &&
+          contexts.length > 0 && {
+            contentBlocks: [{ type: 'contexts', contexts: contexts as any, timestamp: Date.now() }],
+          }),
       }
 
       // Create a pass-through stream that captures the response
@@ -493,7 +518,7 @@ export async function POST(req: NextRequest) {
           let assistantContent = ''
           const toolCalls: any[] = []
           let buffer = ''
-          let isFirstDone = true
+          const isFirstDone = true
           let responseIdFromStart: string | undefined
           let responseIdFromDone: string | undefined
           // Track tool call progress to identify a safe done event
@@ -515,30 +540,30 @@ export async function POST(req: NextRequest) {
 
           // Start title generation in parallel if needed
           if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
-            logger.info(`[${tracker.requestId}] Starting title generation with stream updates`, {
-              chatId: actualChatId,
-              hasTitle: !!currentChat?.title,
-              conversationLength: conversationHistory.length,
-              message: message.substring(0, 100) + (message.length > 100 ? '...' : ''),
-            })
-            generateChatTitleAsync(actualChatId, message, tracker.requestId, controller).catch(
-              (error) => {
+            generateChatTitle(message)
+              .then(async (title) => {
+                if (title) {
+                  await db
+                    .update(copilotChats)
+                    .set({
+                      title,
+                      updatedAt: new Date(),
+                    })
+                    .where(eq(copilotChats.id, actualChatId!))
+
+                  const titleEvent = `data: ${JSON.stringify({
+                    type: 'title_updated',
+                    title: title,
+                  })}\n\n`
+                  controller.enqueue(encoder.encode(titleEvent))
+                  logger.info(`[${tracker.requestId}] Generated and saved title: ${title}`)
+                }
+              })
+              .catch((error) => {
                 logger.error(`[${tracker.requestId}] Title generation failed:`, error)
-              }
-            )
+              })
           } else {
-            logger.debug(`[${tracker.requestId}] Skipping title generation`, {
-              chatId: actualChatId,
-              hasTitle: !!currentChat?.title,
-              conversationLength: conversationHistory.length,
-              reason: !actualChatId
-                ? 'no chatId'
-                : currentChat?.title
-                  ? 'already has title'
-                  : conversationHistory.length > 0
-                    ? 'not first message'
-                    : 'unknown',
-            })
+            logger.debug(`[${tracker.requestId}] Skipping title generation`)
           }
 
           // Forward the sim agent stream and capture assistant response
@@ -549,23 +574,8 @@ export async function POST(req: NextRequest) {
             while (true) {
               const { done, value } = await reader.read()
               if (done) {
-                logger.info(`[${tracker.requestId}] Stream reading completed`)
                 break
               }
-
-              // Check if client disconnected before processing chunk
-              try {
-                // Forward the chunk to client immediately
-                controller.enqueue(value)
-              } catch (error) {
-                // Client disconnected - stop reading from sim agent
-                logger.info(
-                  `[${tracker.requestId}] Client disconnected, stopping stream processing`
-                )
-                reader.cancel() // Stop reading from sim agent
-                break
-              }
-              const chunkSize = value.byteLength
 
               // Decode and parse SSE events for logging and capturing content
               const decodedChunk = decoder.decode(value, { stream: true })
@@ -601,22 +611,12 @@ export async function POST(req: NextRequest) {
                         break
 
                       case 'reasoning':
-                        // Treat like thinking: do not add to assistantContent to avoid leaking
                         logger.debug(
                           `[${tracker.requestId}] Reasoning chunk received (${(event.data || event.content || '').length} chars)`
                         )
                         break
 
                       case 'tool_call':
-                        logger.info(
-                          `[${tracker.requestId}] Tool call ${event.data?.partial ? '(partial)' : '(complete)'}:`,
-                          {
-                            id: event.data?.id,
-                            name: event.data?.name,
-                            arguments: event.data?.arguments,
-                            blockIndex: event.data?._blockIndex,
-                          }
-                        )
                         if (!event.data?.partial) {
                           toolCalls.push(event.data)
                           if (event.data?.id) {
@@ -625,30 +625,13 @@ export async function POST(req: NextRequest) {
                         }
                         break
 
-                      case 'tool_execution':
-                        logger.info(`[${tracker.requestId}] Tool execution started:`, {
-                          toolCallId: event.toolCallId,
-                          toolName: event.toolName,
-                          status: event.status,
-                        })
+                      case 'tool_generating':
                         if (event.toolCallId) {
-                          if (event.status === 'completed') {
-                            startedToolExecutionIds.add(event.toolCallId)
-                            completedToolExecutionIds.add(event.toolCallId)
-                          } else {
-                            startedToolExecutionIds.add(event.toolCallId)
-                          }
+                          startedToolExecutionIds.add(event.toolCallId)
                         }
                         break
 
                       case 'tool_result':
-                        logger.info(`[${tracker.requestId}] Tool result received:`, {
-                          toolCallId: event.toolCallId,
-                          toolName: event.toolName,
-                          success: event.success,
-                          result: `${JSON.stringify(event.result).substring(0, 200)}...`,
-                          resultSize: JSON.stringify(event.result).length,
-                        })
                         if (event.toolCallId) {
                           completedToolExecutionIds.add(event.toolCallId)
                         }
@@ -669,9 +652,6 @@ export async function POST(req: NextRequest) {
                       case 'start':
                         if (event.data?.responseId) {
                           responseIdFromStart = event.data.responseId
-                          logger.info(
-                            `[${tracker.requestId}] Received start event with responseId: ${responseIdFromStart}`
-                          )
                         }
                         break
 
@@ -679,9 +659,7 @@ export async function POST(req: NextRequest) {
                         if (event.data?.responseId) {
                           responseIdFromDone = event.data.responseId
                           lastDoneResponseId = responseIdFromDone
-                          logger.info(
-                            `[${tracker.requestId}] Received done event with responseId: ${responseIdFromDone}`
-                          )
+
                           // Mark this done as safe only if no tool call is currently in progress or pending
                           const announced = announcedToolCallIds.size
                           const completed = completedToolExecutionIds.size
@@ -689,34 +667,55 @@ export async function POST(req: NextRequest) {
                           const hasToolInProgress = announced > completed || started > completed
                           if (!hasToolInProgress) {
                             lastSafeDoneResponseId = responseIdFromDone
-                            logger.info(
-                              `[${tracker.requestId}] Marked done as SAFE (no tools in progress)`
-                            )
-                          } else {
-                            logger.info(
-                              `[${tracker.requestId}] Done received but tools are in progress (announced=${announced}, started=${started}, completed=${completed})`
-                            )
                           }
-                        }
-                        if (isFirstDone) {
-                          logger.info(
-                            `[${tracker.requestId}] Initial AI response complete, tool count: ${toolCalls.length}`
-                          )
-                          isFirstDone = false
-                        } else {
-                          logger.info(`[${tracker.requestId}] Conversation round complete`)
                         }
                         break
 
                       case 'error':
-                        logger.error(`[${tracker.requestId}] Stream error event:`, event.error)
                         break
 
                       default:
-                        logger.debug(
-                          `[${tracker.requestId}] Unknown event type: ${event.type}`,
-                          event
-                        )
+                    }
+
+                    // Emit to client: rewrite 'error' events into user-friendly assistant message
+                    if (event?.type === 'error') {
+                      try {
+                        const displayMessage: string =
+                          (event?.data && (event.data.displayMessage as string)) ||
+                          'Sorry, I encountered an error. Please try again.'
+                        const formatted = `_${displayMessage}_`
+                        // Accumulate so it persists to DB as assistant content
+                        assistantContent += formatted
+                        // Send as content chunk
+                        try {
+                          controller.enqueue(
+                            encoder.encode(
+                              `data: ${JSON.stringify({ type: 'content', data: formatted })}\n\n`
+                            )
+                          )
+                        } catch (enqueueErr) {
+                          reader.cancel()
+                          break
+                        }
+                        // Then close this response cleanly for the client
+                        try {
+                          controller.enqueue(
+                            encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
+                          )
+                        } catch (enqueueErr) {
+                          reader.cancel()
+                          break
+                        }
+                      } catch {}
+                      // Do not forward the original error event
+                    } else {
+                      // Forward original event to client
+                      try {
+                        controller.enqueue(encoder.encode(`data: ${jsonStr}\n\n`))
+                      } catch (enqueueErr) {
+                        reader.cancel()
+                        break
+                      }
                     }
                   } catch (e) {
                     // Enhanced error handling for large payloads and parsing issues
@@ -750,9 +749,36 @@ export async function POST(req: NextRequest) {
               logger.debug(`[${tracker.requestId}] Processing remaining buffer: "${buffer}"`)
               if (buffer.startsWith('data: ')) {
                 try {
-                  const event = JSON.parse(buffer.slice(6))
+                  const jsonStr = buffer.slice(6)
+                  const event = JSON.parse(jsonStr)
                   if (event.type === 'content' && event.data) {
                     assistantContent += event.data
+                  }
+                  // Forward remaining event, applying same error rewrite behavior
+                  if (event?.type === 'error') {
+                    const displayMessage: string =
+                      (event?.data && (event.data.displayMessage as string)) ||
+                      'Sorry, I encountered an error. Please try again.'
+                    const formatted = `_${displayMessage}_`
+                    assistantContent += formatted
+                    try {
+                      controller.enqueue(
+                        encoder.encode(
+                          `data: ${JSON.stringify({ type: 'content', data: formatted })}\n\n`
+                        )
+                      )
+                      controller.enqueue(
+                        encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
+                      )
+                    } catch (enqueueErr) {
+                      reader.cancel()
+                    }
+                  } else {
+                    try {
+                      controller.enqueue(encoder.encode(`data: ${jsonStr}\n\n`))
+                    } catch (enqueueErr) {
+                      reader.cancel()
+                    }
                   }
                 } catch (e) {
                   logger.warn(`[${tracker.requestId}] Failed to parse final buffer: "${buffer}"`)
@@ -814,9 +840,36 @@ export async function POST(req: NextRequest) {
             }
           } catch (error) {
             logger.error(`[${tracker.requestId}] Error processing stream:`, error)
-            controller.error(error)
+
+            // Send an error event to the client before closing so it knows what happened
+            try {
+              const errorMessage =
+                error instanceof Error && error.message === 'terminated'
+                  ? 'Connection to AI service was interrupted. Please try again.'
+                  : 'An unexpected error occurred while processing the response.'
+              const encoder = new TextEncoder()
+
+              // Send error as content so it shows in the chat
+              controller.enqueue(
+                encoder.encode(
+                  `data: ${JSON.stringify({ type: 'content', data: `\n\n_${errorMessage}_` })}\n\n`
+                )
+              )
+              // Send done event to properly close the stream on client
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`))
+            } catch (enqueueError) {
+              // Stream might already be closed, that's ok
+              logger.warn(
+                `[${tracker.requestId}] Could not send error event to client:`,
+                enqueueError
+              )
+            }
           } finally {
-            controller.close()
+            try {
+              controller.close()
+            } catch {
+              // Controller might already be closed
+            }
           }
         },
       })
@@ -869,11 +922,16 @@ export async function POST(req: NextRequest) {
     // Save messages if we have a chat
     if (currentChat && responseData.content) {
       const userMessage = {
-        id: userMessageId || crypto.randomUUID(), // Use frontend ID if provided
+        id: userMessageIdToUse, // Consistent ID used for request and persistence
         role: 'user',
         content: message,
         timestamp: new Date().toISOString(),
         ...(fileAttachments && fileAttachments.length > 0 && { fileAttachments }),
+        ...(Array.isArray(contexts) && contexts.length > 0 && { contexts }),
+        ...(Array.isArray(contexts) &&
+          contexts.length > 0 && {
+            contentBlocks: [{ type: 'contexts', contexts: contexts as any, timestamp: Date.now() }],
+          }),
       }
 
       const assistantMessage = {
@@ -888,9 +946,22 @@ export async function POST(req: NextRequest) {
       // Start title generation in parallel if this is first message (non-streaming)
       if (actualChatId && !currentChat.title && conversationHistory.length === 0) {
         logger.info(`[${tracker.requestId}] Starting title generation for non-streaming response`)
-        generateChatTitleAsync(actualChatId, message, tracker.requestId).catch((error) => {
-          logger.error(`[${tracker.requestId}] Title generation failed:`, error)
-        })
+        generateChatTitle(message)
+          .then(async (title) => {
+            if (title) {
+              await db
+                .update(copilotChats)
+                .set({
+                  title,
+                  updatedAt: new Date(),
+                })
+                .where(eq(copilotChats.id, actualChatId!))
+              logger.info(`[${tracker.requestId}] Generated and saved title: ${title}`)
+            }
+          })
+          .catch((error) => {
+            logger.error(`[${tracker.requestId}] Title generation failed:`, error)
+          })
       }
 
       // Update chat in database immediately (without blocking for title)
@@ -969,6 +1040,8 @@ export async function GET(req: NextRequest) {
         title: copilotChats.title,
         model: copilotChats.model,
         messages: copilotChats.messages,
+        planArtifact: copilotChats.planArtifact,
+        config: copilotChats.config,
         createdAt: copilotChats.createdAt,
         updatedAt: copilotChats.updatedAt,
       })
@@ -986,6 +1059,8 @@ export async function GET(req: NextRequest) {
       messages: Array.isArray(chat.messages) ? chat.messages : [],
       messageCount: Array.isArray(chat.messages) ? chat.messages.length : 0,
       previewYaml: null, // Not needed for chat list
+      planArtifact: chat.planArtifact || null,
+      config: chat.config || null,
       createdAt: chat.createdAt,
       updatedAt: chat.updatedAt,
     }))

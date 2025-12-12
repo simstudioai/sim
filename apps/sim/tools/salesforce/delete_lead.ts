@@ -1,0 +1,74 @@
+import type { ToolConfig } from '@/tools/types'
+import { getInstanceUrl } from './utils'
+
+export interface SalesforceDeleteLeadParams {
+  accessToken: string
+  idToken?: string
+  instanceUrl?: string
+  leadId: string
+}
+
+export interface SalesforceDeleteLeadResponse {
+  success: boolean
+  output: {
+    id: string
+    deleted: boolean
+    metadata: {
+      operation: 'delete_lead'
+    }
+  }
+}
+
+export const salesforceDeleteLeadTool: ToolConfig<
+  SalesforceDeleteLeadParams,
+  SalesforceDeleteLeadResponse
+> = {
+  id: 'salesforce_delete_lead',
+  name: 'Delete Lead from Salesforce',
+  description: 'Delete a lead',
+  version: '1.0.0',
+
+  oauth: {
+    required: true,
+    provider: 'salesforce',
+  },
+
+  params: {
+    accessToken: { type: 'string', required: true, visibility: 'hidden' },
+    idToken: { type: 'string', required: false, visibility: 'hidden' },
+    instanceUrl: { type: 'string', required: false, visibility: 'hidden' },
+    leadId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Lead ID (required)',
+    },
+  },
+
+  request: {
+    url: (params) =>
+      `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Lead/${params.leadId}`,
+    method: 'DELETE',
+    headers: (params) => ({ Authorization: `Bearer ${params.accessToken}` }),
+  },
+
+  transformResponse: async (response, params?) => {
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data[0]?.message || data.message || 'Failed to delete lead')
+    }
+    return {
+      success: true,
+      output: {
+        id: params?.leadId || '',
+        deleted: true,
+        metadata: { operation: 'delete_lead' },
+      },
+    }
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Success' },
+    output: { type: 'object', description: 'Deleted lead' },
+  },
+}

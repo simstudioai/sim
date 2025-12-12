@@ -1,0 +1,105 @@
+---
+title: 内存
+description: 添加内存存储
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="memory"
+  color="#F64F9E"
+/>
+
+## 使用说明
+
+将记忆集成到工作流程中。可以添加记忆、获取记忆、获取所有记忆以及删除记忆。
+
+## 工具
+
+### `memory_add`
+
+向数据库添加新的内存，或将数据追加到具有相同 ID 的现有内存中。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | 否 | 会话标识符（例如，user-123，session-abc）。如果此 block 已存在具有该 conversationId 的内存，新消息将附加到该内存中。 |
+| `id` | string | 否 | 会话标识符的旧参数。请改用 conversationId。为向后兼容而提供。 |
+| `role` | string | 是 | 代理内存的角色（user、assistant 或 system） |
+| `content` | string | 是 | 代理内存的内容 |
+| `blockId` | string | 否 | 可选的 block ID。如果未提供，将使用执行上下文中的当前 block ID，或默认为 "default"。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | 布尔值 | 是否成功添加了内存 |
+| `memories` | 数组 | 包含新添加或更新内存的内存对象数组 |
+| `error` | 字符串 | 如果操作失败，显示错误信息 |
+
+### `memory_get`
+
+通过 conversationId、blockId、blockName 或其组合检索内存。返回所有匹配的内存。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | 否 | 会话标识符（例如，user-123，session-abc）。如果单独提供，将返回此会话在所有 block 中的所有内存。 |
+| `id` | string | 否 | 会话标识符的旧参数。请改用 conversationId。为向后兼容而提供。 |
+| `blockId` | string | 否 | block 标识符。如果单独提供，将返回此 block 中所有会话的所有内存。如果与 conversationId 一起提供，将返回此 block 中该特定会话的内存。 |
+| `blockName` | string | 否 | block 名称。blockId 的替代选项。如果单独提供，将返回具有此名称的 block 的所有内存。如果与 conversationId 一起提供，将返回具有此名称的 block 中该会话的内存。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 内存是否成功检索 |
+| `memories` | array | 包含 conversationId、blockId、blockName 和 data 字段的内存对象数组 |
+| `message` | string | 成功或错误信息 |
+| `error` | string | 如果操作失败的错误信息 |
+
+### `memory_get_all`
+
+从数据库中检索所有内存
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功检索到所有内存 |
+| `memories` | array | 包含 key、conversationId、blockId、blockName 和 data 字段的所有内存对象数组 |
+| `message` | string | 成功或错误信息 |
+| `error` | string | 如果操作失败的错误信息 |
+
+### `memory_delete`
+
+通过 conversationId、blockId、blockName 或其组合删除内存。支持批量删除。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | 否 | 会话标识符 \(例如，user-123，session-abc\)。如果单独提供，将删除此会话在所有块中的所有内存。 |
+| `id` | string | 否 | 会话标识符的旧参数。请改用 conversationId。为向后兼容而提供。 |
+| `blockId` | string | 否 | 块标识符。如果单独提供，将删除此块中所有会话的所有内存。如果与 conversationId 一起提供，将删除此块中特定会话的内存。 |
+| `blockName` | string | 否 | 块名称。是 blockId 的替代项。如果单独提供，将删除具有此名称的块的所有内存。如果与 conversationId 一起提供，将删除此名称的块中该会话的内存。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 内存是否成功删除 |
+| `message` | string | 成功或错误信息 |
+| `error` | string | 如果操作失败的错误信息 |
+
+## 注意
+
+- 类别：`blocks`
+- 类型：`memory`

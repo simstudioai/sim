@@ -1,12 +1,127 @@
 import { createContext, Script } from 'vm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { env, isTruthy } from '@/lib/core/config/env'
+import { validateProxyUrl } from '@/lib/core/security/input-validation'
+import { generateRequestId } from '@/lib/core/utils/request'
+import { executeInE2B } from '@/lib/execution/e2b'
+import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
-
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = 60
+
+export const MAX_DURATION = 210
 
 const logger = createLogger('FunctionExecuteAPI')
+
+function createSecureFetch(requestId: string) {
+  const originalFetch = (globalThis as any).fetch || require('node-fetch').default
+
+  return async function secureFetch(input: any, init?: any) {
+    const url = typeof input === 'string' ? input : input?.url || input
+
+    if (!url || typeof url !== 'string') {
+      throw new Error('Invalid URL provided to fetch')
+    }
+
+    const validation = validateProxyUrl(url)
+    if (!validation.isValid) {
+      logger.warn(`[${requestId}] Blocked fetch request due to SSRF validation`, {
+        url: url.substring(0, 100),
+        error: validation.error,
+      })
+      throw new Error(`Security Error: ${validation.error}`)
+    }
+
+    return originalFetch(input, init)
+  }
+}
+
+// Constants for E2B code wrapping line counts
+const E2B_JS_WRAPPER_LINES = 3 // Lines before user code: ';(async () => {', '  try {', '    const __sim_result = await (async () => {'
+const E2B_PYTHON_WRAPPER_LINES = 1 // Lines before user code: 'def __sim_main__():'
+
+type TypeScriptModule = typeof import('typescript')
+
+let typescriptModulePromise: Promise<TypeScriptModule> | null = null
+
+async function loadTypeScriptModule(): Promise<TypeScriptModule> {
+  if (!typescriptModulePromise) {
+    typescriptModulePromise = import('typescript').then((mod) => {
+      const tsModule = (mod?.default ?? mod) as TypeScriptModule
+      return tsModule
+    })
+  }
+
+  return typescriptModulePromise
+}
+
+async function extractJavaScriptImports(
+  code: string
+): Promise<{ imports: string; remainingCode: string; importLineCount: number }> {
+  try {
+    const tsModule = await loadTypeScriptModule()
+
+    const sourceFile = tsModule.createSourceFile(
+      'user-code.js',
+      code,
+      tsModule.ScriptTarget.Latest,
+      true,
+      tsModule.ScriptKind.JS
+    )
+
+    const importSegments: Array<{ text: string; start: number; end: number }> = []
+
+    sourceFile.statements.forEach((statement) => {
+      if (
+        tsModule.isImportDeclaration(statement) ||
+        tsModule.isImportEqualsDeclaration(statement)
+      ) {
+        importSegments.push({
+          text: statement.getFullText(sourceFile).trim(),
+          start: statement.getFullStart(),
+          end: statement.getEnd(),
+        })
+      }
+    })
+
+    if (importSegments.length === 0) {
+      return { imports: '', remainingCode: code, importLineCount: 0 }
+    }
+
+    importSegments.sort((a, b) => a.start - b.start)
+
+    const imports = importSegments.map((segment) => segment.text).join('\n')
+
+    let cursor = 0
+    const parts: string[] = []
+    let importLineCount = 0
+
+    for (const segment of importSegments) {
+      if (segment.start > cursor) {
+        parts.push(code.slice(cursor, segment.start))
+      }
+
+      const removedSegment = code.slice(segment.start, segment.end)
+      importLineCount += removedSegment.split('\n').length - 1
+
+      const newlinePlaceholder = removedSegment.replace(/[^\n]/g, '')
+      parts.push(newlinePlaceholder)
+
+      cursor = segment.end
+    }
+
+    if (cursor < code.length) {
+      parts.push(code.slice(cursor))
+    }
+
+    const remainingCode = parts.join('')
+
+    return { imports, remainingCode, importLineCount: Math.max(importLineCount, 0) }
+  } catch (error) {
+    logger.error('Failed to extract JavaScript imports', { error })
+    return { imports: '', remainingCode: code, importLineCount: 0 }
+  }
+}
 
 /**
  * Enhanced error information interface
@@ -125,6 +240,103 @@ function extractEnhancedError(
 }
 
 /**
+ * Parse and format E2B error message
+ * Removes E2B-specific line references and adds correct user line numbers
+ */
+function formatE2BError(
+  errorMessage: string,
+  errorOutput: string,
+  language: CodeLanguage,
+  userCode: string,
+  prologueLineCount: number
+): { formattedError: string; cleanedOutput: string } {
+  // Calculate line offset based on language and prologue
+  const wrapperLines =
+    language === CodeLanguage.Python ? E2B_PYTHON_WRAPPER_LINES : E2B_JS_WRAPPER_LINES
+  const totalOffset = prologueLineCount + wrapperLines
+
+  let userLine: number | undefined
+  let cleanErrorType = ''
+  let cleanErrorMsg = ''
+
+  if (language === CodeLanguage.Python) {
+    // Python error format: "Cell In[X], line Y" followed by error details
+    // Extract line number from the Cell reference
+    const cellMatch = errorOutput.match(/Cell In\[\d+\], line (\d+)/)
+    if (cellMatch) {
+      const originalLine = Number.parseInt(cellMatch[1], 10)
+      userLine = originalLine - totalOffset
+    }
+
+    // Extract clean error message from the error string
+    // Remove file references like "(detected at line X) (file.py, line Y)"
+    cleanErrorMsg = errorMessage
+      .replace(/\s*\(detected at line \d+\)/g, '')
+      .replace(/\s*\([^)]+\.py, line \d+\)/g, '')
+      .trim()
+  } else if (language === CodeLanguage.JavaScript) {
+    // JavaScript error format from E2B: "SyntaxError: /path/file.ts: Message. (line:col)\n\n   9 | ..."
+    // First, extract the error type and message from the first line
+    const firstLineEnd = errorMessage.indexOf('\n')
+    const firstLine = firstLineEnd > 0 ? errorMessage.substring(0, firstLineEnd) : errorMessage
+
+    // Parse: "SyntaxError: /home/user/index.ts: Missing semicolon. (11:9)"
+    const jsErrorMatch = firstLine.match(/^(\w+Error):\s*[^:]+:\s*([^(]+)\.\s*\((\d+):(\d+)\)/)
+    if (jsErrorMatch) {
+      cleanErrorType = jsErrorMatch[1]
+      cleanErrorMsg = jsErrorMatch[2].trim()
+      const originalLine = Number.parseInt(jsErrorMatch[3], 10)
+      userLine = originalLine - totalOffset
+    } else {
+      // Fallback: look for line number in the arrow pointer line (> 11 |)
+      const arrowMatch = errorMessage.match(/^>\s*(\d+)\s*\|/m)
+      if (arrowMatch) {
+        const originalLine = Number.parseInt(arrowMatch[1], 10)
+        userLine = originalLine - totalOffset
+      }
+      // Try to extract error type and message
+      const errorMatch = firstLine.match(/^(\w+Error):\s*(.+)/)
+      if (errorMatch) {
+        cleanErrorType = errorMatch[1]
+        cleanErrorMsg = errorMatch[2]
+          .replace(/^[^:]+:\s*/, '') // Remove file path
+          .replace(/\s*\(\d+:\d+\)\s*$/, '') // Remove line:col at end
+          .trim()
+      } else {
+        cleanErrorMsg = firstLine
+      }
+    }
+  }
+
+  // Build the final clean error message
+  const finalErrorMsg =
+    cleanErrorType && cleanErrorMsg
+      ? `${cleanErrorType}: ${cleanErrorMsg}`
+      : cleanErrorMsg || errorMessage
+
+  // Format with line number if available
+  let formattedError = finalErrorMsg
+  if (userLine && userLine > 0) {
+    const codeLines = userCode.split('\n')
+    // Clamp userLine to the actual user code range
+    const actualUserLine = Math.min(userLine, codeLines.length)
+    if (actualUserLine > 0 && actualUserLine <= codeLines.length) {
+      const lineContent = codeLines[actualUserLine - 1]?.trim()
+      if (lineContent) {
+        formattedError = `Line ${actualUserLine}: \`${lineContent}\` - ${finalErrorMsg}`
+      } else {
+        formattedError = `Line ${actualUserLine} - ${finalErrorMsg}`
+      }
+    }
+  }
+
+  // For stdout, just return the clean error message without the full traceback
+  const cleanedOutput = finalErrorMsg
+
+  return { formattedError, cleanedOutput }
+}
+
+/**
  * Create a detailed error message for users
  */
 function createUserFriendlyErrorMessage(
@@ -213,24 +425,81 @@ function createUserFriendlyErrorMessage(
 }
 
 /**
- * Resolves environment variables and tags in code
- * @param code - Code with variables
- * @param params - Parameters that may contain variable values
- * @param envVars - Environment variables from the workflow
- * @returns Resolved code
+ * Resolves workflow variables with <variable.name> syntax
  */
+function resolveWorkflowVariables(
+  code: string,
+  workflowVariables: Record<string, any>,
+  contextVariables: Record<string, any>
+): string {
+  let resolvedCode = code
 
-function resolveCodeVariables(
+  const variableMatches = resolvedCode.match(/<variable\.([^>]+)>/g) || []
+  for (const match of variableMatches) {
+    const variableName = match.slice('<variable.'.length, -1).trim()
+
+    // Find the variable by name (workflowVariables is indexed by ID, values are variable objects)
+    const foundVariable = Object.entries(workflowVariables).find(
+      ([_, variable]) => (variable.name || '').replace(/\s+/g, '') === variableName
+    )
+
+    if (foundVariable) {
+      const variable = foundVariable[1]
+      // Get the typed value - handle different variable types
+      let variableValue = variable.value
+
+      if (variable.value !== undefined && variable.value !== null) {
+        try {
+          // Handle 'string' type the same as 'plain' for backward compatibility
+          const type = variable.type === 'string' ? 'plain' : variable.type
+
+          // For plain text, use exactly what's entered without modifications
+          if (type === 'plain' && typeof variableValue === 'string') {
+            // Use as-is for plain text
+          } else if (type === 'number') {
+            variableValue = Number(variableValue)
+          } else if (type === 'boolean') {
+            variableValue = variableValue === 'true' || variableValue === true
+          } else if (type === 'json') {
+            try {
+              variableValue =
+                typeof variableValue === 'string' ? JSON.parse(variableValue) : variableValue
+            } catch {
+              // Keep original value if JSON parsing fails
+            }
+          }
+        } catch (error) {
+          // Fallback to original value on error
+          variableValue = variable.value
+        }
+      }
+
+      // Create a safe variable reference
+      const safeVarName = `__variable_${variableName.replace(/[^a-zA-Z0-9_]/g, '_')}`
+      contextVariables[safeVarName] = variableValue
+
+      // Replace the variable reference with the safe variable name
+      resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
+    } else {
+      // Variable not found - replace with empty string to avoid syntax errors
+      resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), '')
+    }
+  }
+
+  return resolvedCode
+}
+
+/**
+ * Resolves environment variables with {{var_name}} syntax
+ */
+function resolveEnvironmentVariables(
   code: string,
   params: Record<string, any>,
-  envVars: Record<string, string> = {},
-  blockData: Record<string, any> = {},
-  blockNameMapping: Record<string, string> = {}
-): { resolvedCode: string; contextVariables: Record<string, any> } {
+  envVars: Record<string, string>,
+  contextVariables: Record<string, any>
+): string {
   let resolvedCode = code
-  const contextVariables: Record<string, any> = {}
 
-  // Resolve environment variables with {{var_name}} syntax
   const envVarMatches = resolvedCode.match(/\{\{([^}]+)\}\}/g) || []
   for (const match of envVarMatches) {
     const varName = match.slice(2, -2).trim()
@@ -245,7 +514,21 @@ function resolveCodeVariables(
     resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
   }
 
-  // Resolve tags with <tag_name> syntax (including nested paths like <block.response.data>)
+  return resolvedCode
+}
+
+/**
+ * Resolves tags with <tag_name> syntax (including nested paths like <block.response.data>)
+ */
+function resolveTagVariables(
+  code: string,
+  params: Record<string, any>,
+  blockData: Record<string, any>,
+  blockNameMapping: Record<string, string>,
+  contextVariables: Record<string, any>
+): string {
+  let resolvedCode = code
+
   const tagMatches = resolvedCode.match(/<([a-zA-Z_][a-zA-Z0-9_.]*[a-zA-Z0-9_])>/g) || []
 
   for (const match of tagMatches) {
@@ -300,6 +583,42 @@ function resolveCodeVariables(
     resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
   }
 
+  return resolvedCode
+}
+
+/**
+ * Resolves environment variables and tags in code
+ * @param code - Code with variables
+ * @param params - Parameters that may contain variable values
+ * @param envVars - Environment variables from the workflow
+ * @returns Resolved code
+ */
+function resolveCodeVariables(
+  code: string,
+  params: Record<string, any>,
+  envVars: Record<string, string> = {},
+  blockData: Record<string, any> = {},
+  blockNameMapping: Record<string, string> = {},
+  workflowVariables: Record<string, any> = {}
+): { resolvedCode: string; contextVariables: Record<string, any> } {
+  let resolvedCode = code
+  const contextVariables: Record<string, any> = {}
+
+  // Resolve workflow variables with <variable.name> syntax first
+  resolvedCode = resolveWorkflowVariables(resolvedCode, workflowVariables, contextVariables)
+
+  // Resolve environment variables with {{var_name}} syntax
+  resolvedCode = resolveEnvironmentVariables(resolvedCode, params, envVars, contextVariables)
+
+  // Resolve tags with <tag_name> syntax (including nested paths like <block.response.data>)
+  resolvedCode = resolveTagVariables(
+    resolvedCode,
+    params,
+    blockData,
+    blockNameMapping,
+    contextVariables
+  )
+
   return { resolvedCode, contextVariables }
 }
 
@@ -321,8 +640,20 @@ function escapeRegExp(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+/**
+ * Remove one trailing newline from stdout
+ * This handles the common case where print() or console.log() adds a trailing \n
+ * that users don't expect to see in the output
+ */
+function cleanStdout(stdout: string): string {
+  if (stdout.endsWith('\n')) {
+    return stdout.slice(0, -1)
+  }
+  return stdout
+}
+
 export async function POST(req: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const startTime = Date.now()
   let stdout = ''
   let userCodeStartLine = 3 // Default value for error reporting
@@ -331,13 +662,17 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
 
+    const { DEFAULT_EXECUTION_TIMEOUT_MS } = await import('@/lib/execution/constants')
+
     const {
       code,
       params = {},
-      timeout = 5000,
+      timeout = DEFAULT_EXECUTION_TIMEOUT_MS,
+      language = DEFAULT_CODE_LANGUAGE,
       envVars = {},
       blockData = {},
       blockNameMapping = {},
+      workflowVariables = {},
       workflowId,
       isCustomTool = false,
     } = body
@@ -360,24 +695,217 @@ export async function POST(req: NextRequest) {
       executionParams,
       envVars,
       blockData,
-      blockNameMapping
+      blockNameMapping,
+      workflowVariables
     )
     resolvedCode = codeResolution.resolvedCode
     const contextVariables = codeResolution.contextVariables
 
-    const executionMethod = 'vm' // Default execution method
+    const e2bEnabled = isTruthy(env.E2B_ENABLED)
+    const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
 
-    logger.info(`[${requestId}] Using VM for code execution`, {
-      resolvedCode,
-      hasEnvVars: Object.keys(envVars).length > 0,
-    })
+    // Extract imports once for JavaScript code (reuse later to avoid double extraction)
+    let jsImports = ''
+    let jsRemainingCode = resolvedCode
+    let hasImports = false
 
-    // Create a secure context with console logging
+    if (lang === CodeLanguage.JavaScript) {
+      const extractionResult = await extractJavaScriptImports(resolvedCode)
+      jsImports = extractionResult.imports
+      jsRemainingCode = extractionResult.remainingCode
+
+      // Check for ES6 imports or CommonJS require statements
+      // ES6 imports are extracted by the TypeScript parser
+      // Also check for require() calls which indicate external dependencies
+      const hasRequireStatements = /require\s*\(\s*['"`]/.test(resolvedCode)
+      hasImports = jsImports.trim().length > 0 || hasRequireStatements
+    }
+
+    // Python always requires E2B
+    if (lang === CodeLanguage.Python && !e2bEnabled) {
+      throw new Error(
+        'Python execution requires E2B to be enabled. Please contact your administrator to enable E2B, or use JavaScript instead.'
+      )
+    }
+
+    // JavaScript with imports requires E2B
+    if (lang === CodeLanguage.JavaScript && hasImports && !e2bEnabled) {
+      throw new Error(
+        'JavaScript code with import statements requires E2B to be enabled. Please remove the import statements, or contact your administrator to enable E2B.'
+      )
+    }
+
+    // Use E2B if:
+    // - E2B is enabled AND
+    // - Not a custom tool AND
+    // - (Python OR JavaScript with imports)
+    const useE2B =
+      e2bEnabled &&
+      !isCustomTool &&
+      (lang === CodeLanguage.Python || (lang === CodeLanguage.JavaScript && hasImports))
+
+    if (useE2B) {
+      logger.info(`[${requestId}] E2B status`, {
+        enabled: e2bEnabled,
+        hasApiKey: Boolean(process.env.E2B_API_KEY),
+        language: lang,
+      })
+      let prologue = ''
+      const epilogue = ''
+
+      if (lang === CodeLanguage.JavaScript) {
+        // Track prologue lines for error adjustment
+        let prologueLineCount = 0
+
+        // Reuse the imports we already extracted earlier
+        const imports = jsImports
+        const remainingCode = jsRemainingCode
+
+        const importSection: string = imports ? `${imports}\n` : ''
+        const importLineCount = imports ? imports.split('\n').length : 0
+
+        const codeBody = remainingCode
+        resolvedCode = importSection ? `${imports}\n\n${codeBody}` : codeBody
+
+        prologue += `const params = JSON.parse(${JSON.stringify(JSON.stringify(executionParams))});\n`
+        prologueLineCount++
+        prologue += `const environmentVariables = JSON.parse(${JSON.stringify(JSON.stringify(envVars))});\n`
+        prologueLineCount++
+        for (const [k, v] of Object.entries(contextVariables)) {
+          prologue += `const ${k} = JSON.parse(${JSON.stringify(JSON.stringify(v))});\n`
+          prologueLineCount++
+        }
+
+        const wrapped = [
+          ';(async () => {',
+          '  try {',
+          '    const __sim_result = await (async () => {',
+          `      ${codeBody.split('\n').join('\n      ')}`,
+          '    })();',
+          "    console.log('__SIM_RESULT__=' + JSON.stringify(__sim_result));",
+          '  } catch (error) {',
+          '    console.log(String((error && (error.stack || error.message)) || error));',
+          '    throw error;',
+          '  }',
+          '})();',
+        ].join('\n')
+        const codeForE2B = importSection + prologue + wrapped + epilogue
+
+        const execStart = Date.now()
+        const {
+          result: e2bResult,
+          stdout: e2bStdout,
+          sandboxId,
+          error: e2bError,
+        } = await executeInE2B({
+          code: codeForE2B,
+          language: CodeLanguage.JavaScript,
+          timeoutMs: timeout,
+        })
+        const executionTime = Date.now() - execStart
+        stdout += e2bStdout
+
+        logger.info(`[${requestId}] E2B JS sandbox`, {
+          sandboxId,
+          stdoutPreview: e2bStdout?.slice(0, 200),
+          error: e2bError,
+        })
+
+        // If there was an execution error, format it properly
+        if (e2bError) {
+          const { formattedError, cleanedOutput } = formatE2BError(
+            e2bError,
+            e2bStdout,
+            lang,
+            resolvedCode,
+            prologueLineCount + importLineCount
+          )
+          return NextResponse.json(
+            {
+              success: false,
+              error: formattedError,
+              output: { result: null, stdout: cleanedOutput, executionTime },
+            },
+            { status: 500 }
+          )
+        }
+
+        return NextResponse.json({
+          success: true,
+          output: { result: e2bResult ?? null, stdout: cleanStdout(stdout), executionTime },
+        })
+      }
+      // Track prologue lines for error adjustment
+      let prologueLineCount = 0
+      prologue += 'import json\n'
+      prologueLineCount++
+      prologue += `params = json.loads(${JSON.stringify(JSON.stringify(executionParams))})\n`
+      prologueLineCount++
+      prologue += `environmentVariables = json.loads(${JSON.stringify(JSON.stringify(envVars))})\n`
+      prologueLineCount++
+      for (const [k, v] of Object.entries(contextVariables)) {
+        prologue += `${k} = json.loads(${JSON.stringify(JSON.stringify(v))})\n`
+        prologueLineCount++
+      }
+      const wrapped = [
+        'def __sim_main__():',
+        ...resolvedCode.split('\n').map((l) => `    ${l}`),
+        '__sim_result__ = __sim_main__()',
+        "print('__SIM_RESULT__=' + json.dumps(__sim_result__))",
+      ].join('\n')
+      const codeForE2B = prologue + wrapped + epilogue
+
+      const execStart = Date.now()
+      const {
+        result: e2bResult,
+        stdout: e2bStdout,
+        sandboxId,
+        error: e2bError,
+      } = await executeInE2B({
+        code: codeForE2B,
+        language: CodeLanguage.Python,
+        timeoutMs: timeout,
+      })
+      const executionTime = Date.now() - execStart
+      stdout += e2bStdout
+
+      logger.info(`[${requestId}] E2B Py sandbox`, {
+        sandboxId,
+        stdoutPreview: e2bStdout?.slice(0, 200),
+        error: e2bError,
+      })
+
+      // If there was an execution error, format it properly
+      if (e2bError) {
+        const { formattedError, cleanedOutput } = formatE2BError(
+          e2bError,
+          e2bStdout,
+          lang,
+          resolvedCode,
+          prologueLineCount
+        )
+        return NextResponse.json(
+          {
+            success: false,
+            error: formattedError,
+            output: { result: null, stdout: cleanedOutput, executionTime },
+          },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json({
+        success: true,
+        output: { result: e2bResult ?? null, stdout: cleanStdout(stdout), executionTime },
+      })
+    }
+
+    const executionMethod = 'vm'
     const context = createContext({
       params: executionParams,
       environmentVariables: envVars,
-      ...contextVariables, // Add resolved variables directly to context
-      fetch: globalThis.fetch || require('node-fetch').default,
+      ...contextVariables,
+      fetch: createSecureFetch(requestId),
       console: {
         log: (...args: any[]) => {
           const logMessage = `${args
@@ -395,23 +923,17 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // Calculate line offset for user code to provide accurate error reporting
     const wrapperLines = ['(async () => {', '  try {']
-
-    // Add custom tool parameter declarations if needed
     if (isCustomTool) {
       wrapperLines.push('    // For custom tools, make parameters directly accessible')
       Object.keys(executionParams).forEach((key) => {
         wrapperLines.push(`    const ${key} = params.${key};`)
       })
     }
-
-    userCodeStartLine = wrapperLines.length + 1 // +1 because user code starts on next line
-
-    // Build the complete script with proper formatting for line numbers
+    userCodeStartLine = wrapperLines.length + 1
     const fullScript = [
       ...wrapperLines,
-      `    ${resolvedCode.split('\n').join('\n    ')}`, // Indent user code
+      `    ${resolvedCode.split('\n').join('\n    ')}`,
       '  } catch (error) {',
       '    console.error(error);',
       '    throw error;',
@@ -420,33 +942,26 @@ export async function POST(req: NextRequest) {
     ].join('\n')
 
     const script = new Script(fullScript, {
-      filename: 'user-function.js', // This filename will appear in stack traces
-      lineOffset: 0, // Start line numbering from 0
-      columnOffset: 0, // Start column numbering from 0
+      filename: 'user-function.js',
+      lineOffset: 0,
+      columnOffset: 0,
     })
 
     const result = await script.runInContext(context, {
       timeout,
       displayErrors: true,
-      breakOnSigint: true, // Allow breaking on SIGINT for better debugging
+      breakOnSigint: true,
     })
-    // }
 
     const executionTime = Date.now() - startTime
     logger.info(`[${requestId}] Function executed successfully using ${executionMethod}`, {
       executionTime,
     })
 
-    const response = {
+    return NextResponse.json({
       success: true,
-      output: {
-        result,
-        stdout,
-        executionTime,
-      },
-    }
-
-    return NextResponse.json(response)
+      output: { result, stdout: cleanStdout(stdout), executionTime },
+    })
   } catch (error: any) {
     const executionTime = Date.now() - startTime
     logger.error(`[${requestId}] Function execution failed`, {
@@ -478,7 +993,7 @@ export async function POST(req: NextRequest) {
       error: userFriendlyErrorMessage,
       output: {
         result: null,
-        stdout,
+        stdout: cleanStdout(stdout),
         executionTime,
       },
       // Include debug information in development or for debugging

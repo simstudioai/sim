@@ -1,0 +1,217 @@
+---
+title: Zep
+description: Langzeitgedächtnis für KI-Agenten
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="zep"
+  color="#E8E8E8"
+/>
+
+## Nutzungsanleitung
+
+Integriere Zep für Langzeitgedächtnisverwaltung. Erstelle Threads, füge Nachrichten hinzu, rufe Kontext mit KI-gestützten Zusammenfassungen und Faktenextraktion ab.
+
+## Tools
+
+### `zep_create_thread`
+
+Starte einen neuen Konversations-Thread in Zep
+
+#### Input
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | Ja | Eindeutige Kennung für den Thread |
+| `userId` | string | Ja | Benutzer-ID, die mit dem Thread verknüpft ist |
+| `apiKey` | string | Ja | Dein Zep API-Schlüssel |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `threadId` | string | Die Thread-ID |
+| `userId` | string | Die Benutzer-ID |
+| `uuid` | string | Interne UUID |
+| `createdAt` | string | Erstellungszeitstempel |
+| `projectUuid` | string | Projekt-UUID |
+
+### `zep_get_threads`
+
+Liste alle Konversations-Threads auf
+
+#### Input
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | Nein | Anzahl der Threads, die pro Seite abgerufen werden sollen |
+| `pageNumber` | number | Nein | Seitennummer für Paginierung |
+| `orderBy` | string | Nein | Feld, nach dem die Ergebnisse sortiert werden sollen \(created_at, updated_at, user_id, thread_id\) |
+| `asc` | boolean | Nein | Sortierrichtung: true für aufsteigend, false für absteigend |
+| `apiKey` | string | Ja | Dein Zep API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `threads` | array | Array von Thread-Objekten |
+| `responseCount` | number | Anzahl der Threads in dieser Antwort |
+| `totalCount` | number | Gesamtanzahl der verfügbaren Threads |
+
+### `zep_delete_thread`
+
+Einen Konversations-Thread aus Zep löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | Ja | Thread-ID zum Löschen |
+| `apiKey` | string | Ja | Ihr Zep API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Ob der Thread gelöscht wurde |
+
+### `zep_get_context`
+
+Benutzerkontext aus einem Thread mit Zusammenfassungs- oder Basismodus abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | Ja | Thread-ID, aus der der Kontext abgerufen werden soll |
+| `mode` | string | Nein | Kontextmodus: "summary" \(natürliche Sprache\) oder "basic" \(rohe Fakten\) |
+| `minRating` | number | Nein | Mindestbewertung, nach der relevante Fakten gefiltert werden |
+| `apiKey` | string | Ja | Ihr Zep API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `context` | string | Der Kontextstring \(Zusammenfassung oder Basis\) |
+| `facts` | array | Extrahierte Fakten |
+| `entities` | array | Extrahierte Entitäten |
+| `summary` | string | Konversationszusammenfassung |
+
+### `zep_get_messages`
+
+Nachrichten aus einem Thread abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | Ja | Thread-ID, aus der Nachrichten abgerufen werden sollen |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Nachrichten |
+| `cursor` | string | Nein | Cursor für Paginierung |
+| `lastn` | number | Nein | Anzahl der neuesten Nachrichten, die zurückgegeben werden sollen \(überschreibt Limit und Cursor\) |
+| `apiKey` | string | Ja | Ihr Zep API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `messages` | array | Array von Nachrichtenobjekten |
+| `rowCount` | number | Anzahl der Nachrichten in dieser Antwort |
+| `totalCount` | number | Gesamtanzahl der Nachrichten im Thread |
+
+### `zep_add_messages`
+
+Nachrichten zu einem bestehenden Thread hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | Ja | Thread-ID, zu der Nachrichten hinzugefügt werden sollen |
+| `messages` | json | Ja | Array von Nachrichtenobjekten mit Rolle und Inhalt |
+| `apiKey` | string | Ja | Ihr Zep API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `context` | string | Aktualisierter Kontext nach dem Hinzufügen von Nachrichten |
+| `messageIds` | array | Array der hinzugefügten Nachrichten-UUIDs |
+| `threadId` | string | Die Thread-ID |
+
+### `zep_add_user`
+
+Einen neuen Benutzer in Zep erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Ja | Eindeutige Kennung für den Benutzer |
+| `email` | string | Nein | E-Mail-Adresse des Benutzers |
+| `firstName` | string | Nein | Vorname des Benutzers |
+| `lastName` | string | Nein | Nachname des Benutzers |
+| `metadata` | json | Nein | Zusätzliche Metadaten als JSON-Objekt |
+| `apiKey` | string | Ja | Ihr Zep API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `userId` | string | Die Benutzer-ID |
+| `email` | string | E-Mail des Benutzers |
+| `firstName` | string | Vorname des Benutzers |
+| `lastName` | string | Nachname des Benutzers |
+| `uuid` | string | Interne UUID |
+| `createdAt` | string | Erstellungszeitstempel |
+| `metadata` | object | Benutzermetadaten |
+
+### `zep_get_user`
+
+Benutzerinformationen von Zep abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Ja | Zu abzurufende Benutzer-ID |
+| `apiKey` | string | Ja | Ihr Zep API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `userId` | string | Die Benutzer-ID |
+| `email` | string | E-Mail des Benutzers |
+| `firstName` | string | Vorname des Benutzers |
+| `lastName` | string | Nachname des Benutzers |
+| `uuid` | string | Interne UUID |
+| `createdAt` | string | Erstellungszeitstempel |
+| `updatedAt` | string | Zeitstempel der letzten Aktualisierung |
+| `metadata` | object | Benutzermetadaten |
+
+### `zep_get_user_threads`
+
+Alle Konversations-Threads für einen bestimmten Benutzer auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Ja | Benutzer-ID, für die Threads abgerufen werden sollen |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Threads |
+| `apiKey` | string | Ja | Ihr Zep API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `threads` | array | Array von Thread-Objekten für diesen Benutzer |
+| `userId` | string | Die Benutzer-ID |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `zep`

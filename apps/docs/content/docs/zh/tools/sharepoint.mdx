@@ -1,0 +1,191 @@
+---
+title: SharePoint
+description: 处理页面和列表
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sharepoint"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SharePoint](https://www.microsoft.com/en-us/microsoft-365/sharepoint/collaboration) 是 Microsoft 提供的一个协作平台，用户可以通过它构建和管理内部网站、共享文档以及组织团队资源。它为创建数字化工作空间和简化组织内的内容管理提供了强大而灵活的解决方案。
+
+使用 SharePoint，您可以：
+
+- **创建团队和沟通网站**：设置页面和门户以支持协作、公告和内容分发
+- **组织和共享内容**：存储文档、管理文件，并通过安全的共享功能启用版本控制
+- **自定义页面**：添加文本部分以根据团队需求定制每个网站
+- **提高可发现性**：使用元数据、搜索和导航工具帮助用户快速找到所需内容
+- **安全协作**：通过强大的权限设置和 Microsoft 365 集成控制访问
+
+在 Sim 中，SharePoint 集成使您的代理能够在工作流程中创建和访问 SharePoint 网站和页面。这实现了文档管理自动化、知识共享和工作空间创建，无需手动操作。代理可以根据工作流程输入动态生成新的项目页面、上传或检索文件以及组织资源。通过将 Sim 与 SharePoint 连接，您可以将结构化协作和内容管理引入自动化流程中——让您的代理能够协调团队活动、呈现关键信息，并在整个组织中维护单一的真实信息来源。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 SharePoint 集成到工作流程中。读取/创建页面、列出站点，并处理列表（读取、创建、更新项目）。需要 OAuth。
+
+## 工具
+
+### `sharepoint_create_page`
+
+在 SharePoint 站点中创建新页面
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 否 | SharePoint 站点的 ID（内部使用） |
+| `siteSelector` | string | 否 | 选择 SharePoint 站点 |
+| `pageName` | string | 是 | 要创建的页面名称 |
+| `pageTitle` | string | 否 | 页面标题（如果未提供，则默认为页面名称） |
+| `pageContent` | string | 否 | 页面内容 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `page` | object | 创建的 SharePoint 页面信息 |
+
+### `sharepoint_read_page`
+
+从 SharePoint 站点读取特定页面
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | 否 | 选择 SharePoint 站点 |
+| `siteId` | string | 否 | SharePoint 站点的 ID（内部使用） |
+| `pageId` | string | 否 | 要读取的页面 ID |
+| `pageName` | string | 否 | 要读取的页面名称（pageId 的替代选项） |
+| `maxPages` | number | 否 | 列出所有页面时返回的最大页面数（默认：10，最大值：50） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `page` | object | 有关 SharePoint 页面的信息 |
+
+### `sharepoint_list_sites`
+
+列出所有 SharePoint 网站的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | 否 | 选择 SharePoint 网站 |
+| `groupId` | string | 否 | 用于访问组团队网站的组 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `site` | object | 有关当前 SharePoint 网站的信息 |
+
+### `sharepoint_create_list`
+
+在 SharePoint 站点中创建新列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 否 | SharePoint 站点的 ID（内部使用） |
+| `siteSelector` | string | 否 | 选择 SharePoint 站点 |
+| `listDisplayName` | string | 是 | 要创建的列表的显示名称 |
+| `listDescription` | string | 否 | 列表的描述 |
+| `listTemplate` | string | 否 | 列表模板名称（例如，'genericList'） |
+| `pageContent` | string | 否 | 可选的列 JSON。可以是顶级的列定义数组，或者是包含 \{ columns: \[...\] \} 的对象。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `list` | object | 创建的 SharePoint 列表信息 |
+
+### `sharepoint_get_list`
+
+获取 SharePoint 列表的元数据（以及可选的列/项目）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | 否 | 选择 SharePoint 站点 |
+| `siteId` | string | 否 | SharePoint 站点的 ID（内部使用） |
+| `listId` | string | 否 | 要检索的列表 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `list` | object | SharePoint 列表的信息 |
+
+### `sharepoint_update_list`
+
+更新 SharePoint 列表项的属性（字段）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | 否 | 选择 SharePoint 站点 |
+| `siteId` | string | 否 | SharePoint 站点的 ID（内部使用） |
+| `listId` | string | 否 | 包含该项的列表的 ID |
+| `itemId` | string | 是 | 要更新的列表项的 ID |
+| `listItemFields` | object | 是 | 要更新到列表项的字段值 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `item` | object | 更新后的 SharePoint 列表项 |
+
+### `sharepoint_add_list_items`
+
+向 SharePoint 列表添加新项
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | 否 | 选择 SharePoint 站点 |
+| `siteId` | string | 否 | SharePoint 站点的 ID（内部使用） |
+| `listId` | string | 是 | 要添加项的列表的 ID |
+| `listItemFields` | object | 是 | 新列表项的字段值 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `item` | object | 创建的 SharePoint 列表项 |
+
+### `sharepoint_upload_file`
+
+将文件上传到 SharePoint 文档库
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 否 | SharePoint 站点的 ID |
+| `driveId` | string | 否 | 文档库（驱动器）的 ID。如果未提供，则使用默认驱动器。 |
+| `folderPath` | string | 否 | 文档库中的可选文件夹路径（例如，/Documents/Subfolder） |
+| `fileName` | string | 否 | 可选：覆盖上传文件的名称 |
+| `files` | file[] | 否 | 要上传到 SharePoint 的文件 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `uploadedFiles` | array | 上传文件对象的数组 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`sharepoint`

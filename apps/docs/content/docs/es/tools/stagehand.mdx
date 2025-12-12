@@ -1,0 +1,53 @@
+---
+title: Stagehand Extract
+description: Extrae datos de sitios web
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="stagehand"
+  color="#FFC83C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Stagehand](https://stagehand.com) es una herramienta que te permite extraer datos estructurados de páginas web utilizando Browserbase y OpenAI.
+
+Con Stagehand, puedes:
+
+- **Extraer datos estructurados**: Extraer datos estructurados de páginas web utilizando Browserbase y OpenAI
+- **Guardar datos en una base de datos**: Guardar los datos extraídos en una base de datos
+- **Automatizar flujos de trabajo**: Automatizar flujos de trabajo para extraer datos de páginas web
+
+En Sim, la integración de Stagehand permite a tus agentes extraer datos estructurados de páginas web utilizando Browserbase y OpenAI. Esto permite escenarios de automatización potentes como extracción de datos, análisis de datos e integración de datos. Tus agentes pueden extraer datos estructurados de páginas web, guardar los datos extraídos en una base de datos y automatizar flujos de trabajo para extraer datos de páginas web. Esta integración cierra la brecha entre tus flujos de trabajo de IA y tu sistema de gestión de datos, permitiendo una extracción e integración de datos sin problemas. Al conectar Sim con Stagehand, puedes automatizar procesos de extracción de datos, mantener repositorios de información actualizados, generar informes y organizar información de manera inteligente, todo a través de tus agentes inteligentes.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Stagehand en el flujo de trabajo. Puede extraer datos estructurados de páginas web. Requiere clave API.
+
+## Herramientas
+
+### `stagehand_extract`
+
+Extrae datos estructurados de una página web utilizando Stagehand
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Sí | URL de la página web de la que extraer datos |
+| `instruction` | string | Sí | Instrucciones para la extracción |
+| `apiKey` | string | Sí | Clave API de OpenAI para la extracción \(requerida por Stagehand\) |
+| `schema` | json | Sí | Esquema JSON que define la estructura de los datos a extraer |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `data` | object | Datos estructurados extraídos que coinciden con el esquema proporcionado |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `stagehand`

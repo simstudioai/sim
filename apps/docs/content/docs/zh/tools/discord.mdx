@@ -1,0 +1,737 @@
+---
+title: Discord
+description: 与 Discord 互动
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="discord"
+  color="#5865F2"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Discord](https://discord.com) 是一个功能强大的通信平台，允许您与朋友、社区和团队连接。它提供了一系列团队协作功能，包括文字频道、语音频道和视频通话。
+
+使用 Discord 账户或机器人，您可以：
+
+- **发送消息**：向特定频道发送消息
+- **获取消息**：从特定频道获取消息
+- **获取服务器**：获取特定服务器的信息
+- **获取用户**：获取特定用户的信息
+
+在 Sim 中，Discord 集成使您的代理能够访问并利用您组织的 Discord 服务器。代理可以从 Discord 频道中检索信息、搜索特定用户、获取服务器信息并发送消息。这使您的工作流程能够与 Discord 社区集成，自动化通知并创建互动体验。
+
+> **重要提示：** 要读取消息内容，您的 Discord 机器人需要在 Discord 开发者门户中启用“消息内容意图”。如果没有此权限，您仍然可以接收消息元数据，但内容字段将显示为空。
+
+Sim 中的 Discord 组件使用高效的延迟加载，仅在需要时获取数据，以最大限度地减少 API 调用并防止速率限制。令牌刷新会在后台自动进行，以保持您的连接。
+
+### 设置您的 Discord 机器人
+
+1. 前往 [Discord 开发者门户](https://discord.com/developers/applications)
+2. 创建一个新应用程序并导航到“机器人”选项卡
+3. 创建一个机器人并复制您的机器人令牌
+4. 在“特权网关意图”下，启用 **消息内容意图** 以读取消息内容
+5. 使用适当的权限将您的机器人邀请到您的服务器
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+全面的 Discord 集成：消息、线程、频道、角色、成员、邀请和 Webhooks。
+
+## 工具
+
+### `discord_send_message`
+
+向 Discord 频道发送消息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `channelId` | string | 是 | 要发送消息的 Discord 频道 ID |
+| `content` | string | 否 | 消息的文本内容 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+| `files` | file[] | 否 | 要附加到消息的文件 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | Discord 消息数据 |
+
+### `discord_get_messages`
+
+从 Discord 频道检索消息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `channelId` | string | 是 | 要检索消息的 Discord 频道 ID |
+| `limit` | number | 否 | 要检索的最大消息数 \(默认值: 10, 最大值: 100\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 消息数据的容器 |
+
+### `discord_get_server`
+
+检索 Discord 服务器（公会）的信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | Discord 服务器 \(公会\) 信息 |
+
+### `discord_get_user`
+
+检索 Discord 用户的信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的 Discord 机器人令牌 |
+| `userId` | string | 是 | Discord 用户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误信息 |
+| `data` | object | Discord 用户信息 |
+
+### `discord_edit_message`
+
+编辑 Discord 频道中的现有消息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `channelId` | string | 是 | 包含消息的 Discord 频道 ID |
+| `messageId` | string | 是 | 要编辑的消息 ID |
+| `content` | string | 否 | 消息的新文本内容 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 更新后的 Discord 消息数据 |
+
+### `discord_delete_message`
+
+删除 Discord 频道中的消息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `channelId` | string | 是 | 包含消息的 Discord 频道 ID |
+| `messageId` | string | 是 | 要删除的消息 ID |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+
+### `discord_add_reaction`
+
+为 Discord 消息添加一个反应表情
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `channelId` | string | 是 | 包含消息的 Discord 频道 ID |
+| `messageId` | string | 是 | 要添加反应的消息 ID |
+| `emoji` | string | 是 | 要添加的表情符号 \(unicode 表情符号或自定义表情符号，格式为 name:id\) |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+
+### `discord_remove_reaction`
+
+移除 Discord 消息的反应
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `channelId` | string | 是 | 包含消息的 Discord 频道 ID |
+| `messageId` | string | 是 | 包含反应的消息 ID |
+| `emoji` | string | 是 | 要移除的表情符号 \(unicode 表情符号或自定义表情符号，格式为 name:id\) |
+| `userId` | string | 否 | 要移除反应的用户 ID \(省略以移除机器人的反应\) |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+
+### `discord_pin_message`
+
+在 Discord 频道中固定一条消息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `channelId` | string | 是 | 包含消息的 Discord 频道 ID |
+| `messageId` | string | 是 | 要固定的消息 ID |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+
+### `discord_unpin_message`
+
+在 Discord 频道中取消固定一条消息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `channelId` | string | 是 | 包含消息的 Discord 频道 ID |
+| `messageId` | string | 是 | 要取消固定的消息 ID |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+
+### `discord_create_thread`
+
+在 Discord 频道中创建一个线程
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `channelId` | string | 是 | 要创建线程的 Discord 频道 ID |
+| `name` | string | 是 | 线程的名称 \(1-100 个字符\) |
+| `messageId` | string | 否 | 用于从现有消息创建线程的消息 ID |
+| `autoArchiveDuration` | number | 否 | 自动归档线程的持续时间（分钟）\(60, 1440, 4320, 10080\) |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 创建的线程数据 |
+
+### `discord_join_thread`
+
+加入 Discord 中的一个线程
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `threadId` | string | 是 | 要加入的线程 ID |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+
+### `discord_leave_thread`
+
+离开 Discord 中的一个线程
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `threadId` | string | 是 | 要离开的线程 ID |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+
+### `discord_archive_thread`
+
+在 Discord 中归档或取消归档一个线程
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `threadId` | string | 是 | 要归档/取消归档的线程 ID |
+| `archived` | boolean | 是 | 是否归档 \(true\) 或取消归档 \(false\) 线程 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 更新的线程数据 |
+
+### `discord_create_channel`
+
+在 Discord 服务器中创建一个新频道
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+| `name` | string | 是 | 频道名称 \(1-100 个字符\) |
+| `type` | number | 否 | 频道类型 \(0=文本, 2=语音, 4=分类, 5=公告, 13=舞台\) |
+| `topic` | string | 否 | 频道主题 \(0-1024 个字符\) |
+| `parentId` | string | 否 | 频道的父分类 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 创建的频道数据 |
+
+### `discord_update_channel`
+
+更新 Discord 频道
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `channelId` | string | 是 | 要更新的 Discord 频道 ID |
+| `name` | string | 否 | 频道的新名称 |
+| `topic` | string | 否 | 频道的新主题 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 更新的频道数据 |
+
+### `discord_delete_channel`
+
+删除 Discord 频道
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `channelId` | string | 是 | 要删除的 Discord 频道 ID |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+
+### `discord_get_channel`
+
+获取 Discord 频道的信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `channelId` | string | 是 | 要检索的 Discord 频道 ID |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 频道数据 |
+
+### `discord_create_role`
+
+在 Discord 服务器中创建一个新角色
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+| `name` | string | 是 | 角色的名称 |
+| `color` | number | 否 | RGB 颜色值，整数形式 \(例如：0xFF0000 表示红色\) |
+| `hoist` | boolean | 否 | 是否将角色成员与在线成员分开显示 |
+| `mentionable` | boolean | 否 | 该角色是否可以被提及 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 创建的角色数据 |
+
+### `discord_update_role`
+
+更新 Discord 服务器中的角色
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+| `roleId` | string | 是 | 要更新的角色 ID |
+| `name` | string | 否 | 角色的新名称 |
+| `color` | number | 否 | RGB 颜色值（整数） |
+| `hoist` | boolean | 否 | 是否单独显示角色成员 |
+| `mentionable` | boolean | 否 | 该角色是否可以被提及 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 更新后的角色数据 |
+
+### `discord_delete_role`
+
+从 Discord 服务器中删除角色
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+| `roleId` | string | 是 | 要删除的角色 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+
+### `discord_assign_role`
+
+在 Discord 服务器中为成员分配角色
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+| `userId` | string | 是 | 要分配角色的用户 ID |
+| `roleId` | string | 是 | 要分配的角色 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+
+### `discord_remove_role`
+
+在 Discord 服务器中移除成员的角色
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+| `userId` | string | 是 | 要移除角色的用户 ID |
+| `roleId` | string | 是 | 要移除的角色 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+
+### `discord_kick_member`
+
+将成员从 Discord 服务器中移除
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+| `userId` | string | 是 | 要移除的用户 ID |
+| `reason` | string | 否 | 移除成员的原因 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+
+### `discord_ban_member`
+
+从 Discord 服务器中封禁成员
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+| `userId` | string | 是 | 要封禁的用户 ID |
+| `reason` | string | 否 | 封禁成员的原因 |
+| `deleteMessageDays` | number | 否 | 要删除消息的天数 \(0-7\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+
+### `discord_unban_member`
+
+从 Discord 服务器中解除封禁成员
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+| `userId` | string | 是 | 要解除封禁的用户 ID |
+| `reason` | string | 否 | 解除封禁成员的原因 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+
+### `discord_get_member`
+
+获取 Discord 服务器中成员的信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+| `userId` | string | 是 | 要检索的用户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 成员数据 |
+
+### `discord_update_member`
+
+更新 Discord 服务器中的成员（例如，更改昵称）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+| `userId` | string | 是 | 要更新的用户 ID |
+| `nick` | string | 否 | 成员的新昵称 \(null 表示移除\) |
+| `mute` | boolean | 否 | 是否在语音频道中将成员静音 |
+| `deaf` | boolean | 否 | 是否在语音频道中将成员禁声 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 更新后的成员数据 |
+
+### `discord_create_invite`
+
+为 Discord 频道创建邀请链接
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `channelId` | string | 是 | 要创建邀请的 Discord 频道 ID |
+| `maxAge` | number | 否 | 邀请的持续时间（以秒为单位）\(0 = 永不过期，默认值 86400\) |
+| `maxUses` | number | 否 | 最大使用次数 \(0 = 无限，默认值 0\) |
+| `temporary` | boolean | 否 | 邀请是否授予临时会员资格 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 创建的邀请数据 |
+
+### `discord_get_invite`
+
+获取 Discord 邀请的相关信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `inviteCode` | string | 是 | 要检索的邀请代码 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 邀请数据 |
+
+### `discord_delete_invite`
+
+删除 Discord 邀请
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `inviteCode` | string | 是 | 要删除的邀请代码 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+
+### `discord_create_webhook`
+
+在 Discord 频道中创建一个 webhook
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `channelId` | string | 是 | 要在其中创建 webhook 的 Discord 频道 ID |
+| `name` | string | 是 | webhook 的名称 \(1-80 个字符\) |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 创建的 webhook 数据 |
+
+### `discord_execute_webhook`
+
+执行 Discord webhook 以发送消息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `webhookId` | string | 是 | webhook ID |
+| `webhookToken` | string | 是 | webhook 令牌 |
+| `content` | string | 是 | 要发送的消息内容 |
+| `username` | string | 否 | 覆盖 webhook 的默认用户名 |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 通过 webhook 发送的消息 |
+
+### `discord_get_webhook`
+
+获取 Discord webhook 的信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `webhookId` | string | 是 | 要检索的 webhook ID |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | Webhook 数据 |
+
+### `discord_delete_webhook`
+
+删除 Discord webhook
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 用于身份验证的机器人令牌 |
+| `webhookId` | string | 是 | 要删除的 webhook ID |
+| `serverId` | string | 是 | Discord 服务器 ID \(公会 ID\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+
+## 注意事项
+
+- 类别: `tools`
+- 类型: `discord`

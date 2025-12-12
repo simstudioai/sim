@@ -1,0 +1,65 @@
+---
+title: Twilio SMS
+description: Send SMS messages
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="twilio_sms"
+  color="#F22F46"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Twilio SMS](https://www.twilio.com/en-us/sms) is a powerful cloud communications platform that enables businesses to integrate messaging capabilities into their applications and services.
+
+Twilio SMS provides a robust API for programmatically sending and receiving text messages globally. With coverage in over 180 countries and a 99.999% uptime SLA, Twilio has established itself as an industry leader in communications technology.
+
+Key features of Twilio SMS include:
+
+- **Global Reach**: Send messages to recipients worldwide with local phone numbers in multiple countries
+- **Programmable Messaging**: Customize message delivery with webhooks, delivery receipts, and scheduling options
+- **Advanced Analytics**: Track delivery rates, engagement metrics, and optimize your messaging campaigns
+
+In Sim, the Twilio SMS integration enables your agents to leverage these powerful messaging capabilities as part of their workflows. This creates opportunities for sophisticated customer engagement scenarios like appointment reminders, verification codes, alerts, and interactive conversations. The integration bridges the gap between your AI workflows and customer communication channels, allowing your agents to deliver timely, relevant information directly to users' mobile devices. By connecting Sim with Twilio SMS, you can build intelligent agents that engage customers through their preferred communication channel, enhancing user experience while automating routine messaging tasks.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Twilio into the workflow. Can send SMS messages.
+
+
+
+## Tools
+
+### `twilio_send_sms`
+
+Send text messages to single or multiple recipients using the Twilio API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `phoneNumbers` | string | Yes | Phone numbers to send the message to, separated by newlines |
+| `message` | string | Yes | Message to send |
+| `accountSid` | string | Yes | Twilio Account SID |
+| `authToken` | string | Yes | Twilio Auth Token |
+| `fromNumber` | string | Yes | Twilio phone number to send the message from |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | SMS send success status |
+| `messageId` | string | Unique Twilio message identifier \(SID\) |
+| `status` | string | Message delivery status from Twilio |
+| `fromNumber` | string | Phone number message was sent from |
+| `toNumber` | string | Phone number message was sent to |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `twilio_sms`

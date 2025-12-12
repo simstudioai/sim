@@ -1,0 +1,69 @@
+---
+title: Übersetzen
+description: Text in jede Sprache übersetzen
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="translate"
+  color="#FF4B4B"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Übersetzen ist ein Tool, mit dem Sie Text zwischen verschiedenen Sprachen übersetzen können.
+
+Mit Übersetzen können Sie:
+
+- **Text übersetzen**: Text zwischen Sprachen übersetzen
+- **Dokumente übersetzen**: Dokumente zwischen Sprachen übersetzen
+- **Webseiten übersetzen**: Webseiten zwischen Sprachen übersetzen
+- **Bilder übersetzen**: Bilder zwischen Sprachen übersetzen
+- **Audio übersetzen**: Audiodateien zwischen Sprachen übersetzen
+- **Videos übersetzen**: Videos zwischen Sprachen übersetzen
+- **Sprache übersetzen**: Gesprochene Sprache zwischen Sprachen übersetzen
+- **Text übersetzen**: Text zwischen Sprachen übersetzen
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integrieren Sie Übersetzen in den Workflow. Kann Text in jede Sprache übersetzen.
+
+## Tools
+
+### `openai_chat`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Übersetzter Text |
+| `model` | string | Verwendetes Modell |
+| `tokens` | json | Token-Nutzung |
+
+### `anthropic_chat`
+
+### `google_chat`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Übersetzter Text |
+| `model` | string | Verwendetes Modell |
+| `tokens` | json | Token-Nutzung |
+
+## Notizen
+
+- Kategorie: `tools`
+- Typ: `translate`

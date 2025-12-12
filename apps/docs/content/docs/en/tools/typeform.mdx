@@ -1,0 +1,242 @@
+---
+title: Typeform
+description: Interact with Typeform
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="typeform"
+  color="#262627"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Typeform](https://www.typeform.com/) is a user-friendly platform for creating conversational forms, surveys, and quizzes with a focus on engaging user experience.
+
+With Typeform, you can:
+
+- **Create interactive forms**: Design beautiful, conversational forms that engage respondents with a unique one-question-at-a-time interface
+- **Customize your experience**: Use conditional logic, hidden fields, and custom themes to create personalized user journeys
+- **Integrate with other tools**: Connect with 1000+ apps through native integrations and APIs
+- **Analyze response data**: Get actionable insights through comprehensive analytics and reporting tools
+
+In Sim, the Typeform integration enables your agents to programmatically interact with your Typeform data as part of their workflows. Agents can retrieve form responses, process submission data, and incorporate user feedback directly into decision-making processes. This integration is particularly valuable for scenarios like lead qualification, customer feedback analysis, and data-driven personalization. By connecting Sim with Typeform, you can create intelligent automation workflows that transform form responses into actionable insights - analyzing sentiment, categorizing feedback, generating summaries, and even triggering follow-up actions based on specific response patterns.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Typeform into the workflow. Can retrieve responses, download files, and get form insights. Can be used in trigger mode to trigger a workflow when a form is submitted. Requires API Key.
+
+
+
+## Tools
+
+### `typeform_responses`
+
+Retrieve form responses from Typeform
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Yes | Typeform form ID |
+| `apiKey` | string | Yes | Typeform Personal Access Token |
+| `pageSize` | number | No | Number of responses to retrieve \(default: 25\) |
+| `since` | string | No | Retrieve responses submitted after this date \(ISO 8601 format\) |
+| `until` | string | No | Retrieve responses submitted before this date \(ISO 8601 format\) |
+| `completed` | string | No | Filter by completion status \(true/false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total_items` | number | Total response/form count |
+| `page_count` | number | Total page count |
+| `items` | json | Response/form items array |
+| `id` | string | Form unique identifier |
+| `title` | string | Form title |
+| `type` | string | Form type |
+| `created_at` | string | ISO timestamp of form creation |
+| `last_updated_at` | string | ISO timestamp of last update |
+| `settings` | json | Form settings object |
+| `theme` | json | Theme configuration object |
+| `workspace` | json | Workspace information |
+| `fields` | json | Form fields/questions array |
+| `thankyou_screens` | json | Thank you screens array |
+| `_links` | json | Related resource links |
+| `deleted` | boolean | Whether the form was successfully deleted |
+| `message` | string | Deletion confirmation message |
+| `fileUrl` | string | Downloaded file URL |
+| `contentType` | string | File content type |
+| `filename` | string | File name |
+
+### `typeform_files`
+
+Download files uploaded in Typeform responses
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Yes | Typeform form ID |
+| `responseId` | string | Yes | Response ID containing the files |
+| `fieldId` | string | Yes | Unique ID of the file upload field |
+| `filename` | string | Yes | Filename of the uploaded file |
+| `inline` | boolean | No | Whether to request the file with inline Content-Disposition |
+| `apiKey` | string | Yes | Typeform Personal Access Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fileUrl` | string | Direct download URL for the uploaded file |
+| `contentType` | string | MIME type of the uploaded file |
+| `filename` | string | Original filename of the uploaded file |
+
+### `typeform_insights`
+
+Retrieve insights and analytics for Typeform forms
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Yes | Typeform form ID |
+| `apiKey` | string | Yes | Typeform Personal Access Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fields` | array | Number of users who dropped off at this field |
+
+### `typeform_list_forms`
+
+Retrieve a list of all forms in your Typeform account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Typeform Personal Access Token |
+| `search` | string | No | Search query to filter forms by title |
+| `page` | number | No | Page number \(default: 1\) |
+| `pageSize` | number | No | Number of forms per page \(default: 10, max: 200\) |
+| `workspaceId` | string | No | Filter forms by workspace ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total_items` | number | Total number of forms in the account |
+| `page_count` | number | Total number of pages available |
+| `items` | array | Array of form objects |
+
+### `typeform_get_form`
+
+Retrieve complete details and structure of a specific form
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Typeform Personal Access Token |
+| `formId` | string | Yes | Form unique identifier |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Form unique identifier |
+| `title` | string | Form title |
+| `type` | string | Form type \(form, quiz, etc.\) |
+| `created_at` | string | ISO timestamp of form creation |
+| `last_updated_at` | string | ISO timestamp of last update |
+| `settings` | object | Form settings including language, progress bar, etc. |
+| `theme` | object | Theme configuration with colors, fonts, and design settings |
+| `workspace` | object | Workspace information |
+
+### `typeform_create_form`
+
+Create a new form with fields and settings
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Typeform Personal Access Token |
+| `title` | string | Yes | Form title |
+| `type` | string | No | Form type \(default: "form"\). Options: "form", "quiz" |
+| `workspaceId` | string | No | Workspace ID to create the form in |
+| `fields` | json | No | Array of field objects defining the form structure. Each field needs: type, title, and optional properties/validations |
+| `settings` | json | No | Form settings object \(language, progress_bar, etc.\) |
+| `themeId` | string | No | Theme ID to apply to the form |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Created form unique identifier |
+| `title` | string | Form title |
+| `type` | string | Form type |
+| `created_at` | string | ISO timestamp of form creation |
+| `last_updated_at` | string | ISO timestamp of last update |
+| `settings` | object | Form settings |
+| `theme` | object | Applied theme configuration |
+| `workspace` | object | Workspace information |
+| `fields` | array | Array of created form fields |
+| `_links` | object | Related resource links |
+
+### `typeform_update_form`
+
+Update an existing form using JSON Patch operations
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Typeform Personal Access Token |
+| `formId` | string | Yes | Form unique identifier to update |
+| `operations` | json | Yes | Array of JSON Patch operations \(RFC 6902\). Each operation needs: op \(add/remove/replace\), path, and value \(for add/replace\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Updated form unique identifier |
+| `title` | string | Form title |
+| `type` | string | Form type |
+| `created_at` | string | ISO timestamp of form creation |
+| `last_updated_at` | string | ISO timestamp of last update |
+| `settings` | object | Form settings |
+| `theme` | object | Theme configuration |
+| `workspace` | object | Workspace information |
+| `fields` | array | Array of form fields |
+| `thankyou_screens` | array | Array of thank you screens |
+| `_links` | object | Related resource links |
+
+### `typeform_delete_form`
+
+Permanently delete a form and all its responses
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Typeform Personal Access Token |
+| `formId` | string | Yes | Form unique identifier to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the form was successfully deleted |
+| `message` | string | Deletion confirmation message |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `typeform`

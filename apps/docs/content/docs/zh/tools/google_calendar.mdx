@@ -1,0 +1,141 @@
+---
+title: Google Calendar
+description: 管理 Google Calendar 事件
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_calendar"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Calendar](https://calendar.google.com) 是 Google 功能强大的日历和日程安排服务，提供了一个全面的平台来管理事件、会议和预约。通过与 Google 生态系统的无缝集成和广泛的用户群，Google Calendar 为个人和专业的日程安排需求提供了强大的功能。
+
+使用 Google Calendar，您可以：
+
+- **创建和管理事件**：安排会议、预约和提醒，并添加详细信息
+- **发送日历邀请**：通过电子邮件邀请自动通知和协调与会者
+- **自然语言事件创建**：使用对话式语言快速添加事件，例如“明天下午 3 点与 John 开会”
+- **查看和搜索事件**：轻松查找和访问多个日历中的已安排事件
+- **管理多个日历**：在不同的日历中组织不同类型的事件
+
+在 Sim 中，Google Calendar 集成使您的代理能够以编程方式创建、读取和管理日历事件。这为强大的自动化场景提供了可能，例如安排会议、发送日历邀请、检查可用性和管理事件详细信息。您的代理可以使用自然语言输入创建事件，向与会者发送自动日历邀请，检索事件信息以及列出即将发生的事件。此集成弥合了您的 AI 工作流与日历管理之间的差距，实现了与全球最广泛使用的日历平台之一的无缝日程安排自动化和协调。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Google 日历集成到工作流程中。可以创建、读取、更新和列出日历事件。需要 OAuth 授权。
+
+## 工具
+
+### `google_calendar_create`
+
+在 Google 日历中创建新事件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | 否 | 日历 ID \(默认为主日历\) |
+| `summary` | string | 是 | 活动标题/摘要 |
+| `description` | string | 否 | 活动描述 |
+| `location` | string | 否 | 活动地点 |
+| `startDateTime` | string | 是 | 开始日期和时间。必须包含时区偏移 \(例如：2025-06-03T10:00:00-08:00\) 或提供 timeZone 参数 |
+| `endDateTime` | string | 是 | 结束日期和时间。必须包含时区偏移 \(例如：2025-06-03T11:00:00-08:00\) 或提供 timeZone 参数 |
+| `timeZone` | string | 否 | 时区 \(例如：America/Los_Angeles\)。如果日期时间未包含偏移，则必需提供。如果未提供，默认为 America/Los_Angeles。 |
+| `attendees` | array | 否 | 参与者电子邮件地址数组 |
+| `sendUpdates` | string | 否 | 如何向参与者发送更新：all、externalOnly 或 none |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 事件创建确认消息 |
+| `metadata` | json | 创建的事件元数据，包括 ID、状态和详细信息 |
+
+### `google_calendar_list`
+
+列出 Google 日历中的事件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | 否 | 日历 ID（默认为主日历） |
+| `timeMin` | string | 否 | 事件的下限（RFC3339 时间戳，例如：2025-06-03T00:00:00Z） |
+| `timeMax` | string | 否 | 事件的上限（RFC3339 时间戳，例如：2025-06-04T00:00:00Z） |
+| `orderBy` | string | 否 | 返回事件的排序方式（startTime 或 updated） |
+| `showDeleted` | boolean | 否 | 是否包含已删除的事件 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 找到的事件数量摘要 |
+| `metadata` | json | 包含分页令牌和事件详情的事件列表 |
+
+### `google_calendar_get`
+
+从 Google 日历获取特定事件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | 否 | 日历 ID \(默认为主日历\) |
+| `eventId` | string | 是 | 要检索的事件 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 事件检索确认消息 |
+| `metadata` | json | 包括 ID、状态、时间和参与者的事件详情 |
+
+### `google_calendar_quick_add`
+
+从自然语言文本创建事件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | 否 | 日历 ID \(默认为主日历\) |
+| `text` | string | 是 | 描述事件的自然语言文本 \(例如："明天下午 3 点与 John 开会"\) |
+| `attendees` | array | 否 | 参与者电子邮件地址数组 \(也接受逗号分隔的字符串\) |
+| `sendUpdates` | string | 否 | 如何向参与者发送更新：all、externalOnly 或 none |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 自然语言事件创建确认消息 |
+| `metadata` | json | 包括解析详情的已创建事件元数据 |
+
+### `google_calendar_invite`
+
+邀请与会者加入现有的 Google 日历活动
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | 否 | 日历 ID（默认为主日历） |
+| `eventId` | string | 是 | 要邀请与会者的活动 ID |
+| `attendees` | array | 是 | 要邀请的与会者电子邮件地址数组 |
+| `sendUpdates` | string | 否 | 如何向与会者发送更新：all、externalOnly 或 none |
+| `replaceExisting` | boolean | 否 | 是替换现有与会者还是添加新与会者（默认为 false） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 与会者邀请确认消息及电子邮件发送状态 |
+| `metadata` | json | 更新的活动元数据，包括与会者列表和详细信息 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`google_calendar`

@@ -19,7 +19,6 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
   oauth: {
     required: true,
     provider: 'sharepoint',
-    additionalScopes: ['openid', 'profile', 'email', 'Sites.Read.All', 'offline_access'],
   },
 
   params: {

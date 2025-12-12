@@ -1,10 +1,10 @@
-import { createLogger } from '@/lib/logs/console/logger'
-import { BlockType } from '@/executor/consts'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
+import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
+import { BlockType } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import { collectBlockData } from '@/executor/utils/block-data'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
-
-const logger = createLogger('FunctionBlockHandler')
 
 /**
  * Handler for Function blocks that execute custom code.
@@ -15,44 +15,34 @@ export class FunctionBlockHandler implements BlockHandler {
   }
 
   async execute(
+    ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>,
-    context: ExecutionContext
+    inputs: Record<string, any>
   ): Promise<any> {
     const codeContent = Array.isArray(inputs.code)
       ? inputs.code.map((c: { content: string }) => c.content).join('\n')
       : inputs.code
 
-    // Extract block data for variable resolution
-    const blockData: Record<string, any> = {}
-    const blockNameMapping: Record<string, string> = {}
+    const { blockData, blockNameMapping } = collectBlockData(ctx)
 
-    for (const [blockId, blockState] of context.blockStates.entries()) {
-      if (blockState.output) {
-        blockData[blockId] = blockState.output
-
-        // Try to find the block name from the workflow
-        const workflowBlock = context.workflow?.blocks?.find((b) => b.id === blockId)
-        if (workflowBlock?.metadata?.name) {
-          blockNameMapping[workflowBlock.metadata.name] = blockId
-        }
-      }
-    }
-
-    // Directly use the function_execute tool which calls the API route
     const result = await executeTool(
       'function_execute',
       {
         code: codeContent,
-        timeout: inputs.timeout || 5000,
-        envVars: context.environmentVariables || {},
-        blockData: blockData, // Pass block data for variable resolution
-        blockNameMapping: blockNameMapping, // Pass block name to ID mapping
-        _context: { workflowId: context.workflowId },
+        language: inputs.language || DEFAULT_CODE_LANGUAGE,
+        timeout: inputs.timeout || DEFAULT_EXECUTION_TIMEOUT_MS,
+        envVars: ctx.environmentVariables || {},
+        workflowVariables: ctx.workflowVariables || {},
+        blockData,
+        blockNameMapping,
+        _context: {
+          workflowId: ctx.workflowId,
+          workspaceId: ctx.workspaceId,
+        },
       },
-      false, // skipProxy
-      false, // skipPostProcess
-      context // execution context for file processing
+      false,
+      false,
+      ctx
     )
 
     if (!result.success) {

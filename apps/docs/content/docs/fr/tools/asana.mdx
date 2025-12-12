@@ -1,0 +1,141 @@
+---
+title: Asana
+description: Interagir avec Asana
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="asana"
+  color="#E0E0E0"
+/>
+
+## Instructions d'utilisation
+
+Intégrez Asana dans le flux de travail. Peut lire, écrire et mettre à jour des tâches.
+
+## Outils
+
+### `asana_get_task`
+
+Récupérer une tâche unique par GID ou obtenir plusieurs tâches avec des filtres
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskGid` | string | Non | L'identifiant unique global \(GID\) de la tâche. Si non fourni, récupérera plusieurs tâches. |
+| `workspace` | string | Non | GID de l'espace de travail pour filtrer les tâches \(requis lorsque taskGid n'est pas utilisé\) |
+| `project` | string | Non | GID du projet pour filtrer les tâches |
+| `limit` | number | Non | Nombre maximum de tâches à retourner \(par défaut : 50\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Détails d'une tâche unique ou tableau de tâches, selon que taskGid a été fourni ou non |
+
+### `asana_create_task`
+
+Créer une nouvelle tâche dans Asana
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `workspace` | chaîne | Oui | GID de l'espace de travail où la tâche sera créée |
+| `name` | chaîne | Oui | Nom de la tâche |
+| `notes` | chaîne | Non | Notes ou description pour la tâche |
+| `assignee` | chaîne | Non | GID de l'utilisateur à qui assigner la tâche |
+| `due_on` | chaîne | Non | Date d'échéance au format AAAA-MM-JJ |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Statut de réussite de l'opération |
+| `output` | objet | Détails de la tâche créée avec horodatage, gid, nom, notes et lien permanent |
+
+### `asana_update_task`
+
+Mettre à jour une tâche existante dans Asana
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `taskGid` | chaîne | Oui | L'identifiant unique global (GID) de la tâche à mettre à jour |
+| `name` | chaîne | Non | Nom mis à jour pour la tâche |
+| `notes` | chaîne | Non | Notes ou description mises à jour pour la tâche |
+| `assignee` | chaîne | Non | GID de l'utilisateur assigné mis à jour |
+| `completed` | booléen | Non | Marquer la tâche comme terminée ou non terminée |
+| `due_on` | chaîne | Non | Date d'échéance mise à jour au format AAAA-MM-JJ |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Détails de la tâche mise à jour avec horodatage, gid, nom, notes et horodatage de modification |
+
+### `asana_get_projects`
+
+Récupérer tous les projets d'un espace de travail Asana
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `workspace` | string | Oui | GID de l'espace de travail pour récupérer les projets |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Liste des projets avec leur gid, nom et type de ressource |
+
+### `asana_search_tasks`
+
+Rechercher des tâches dans un espace de travail Asana
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `workspace` | string | Oui | GID de l'espace de travail pour rechercher des tâches |
+| `text` | string | Non | Texte à rechercher dans les noms de tâches |
+| `assignee` | string | Non | Filtrer les tâches par GID d'utilisateur assigné |
+| `projects` | array | Non | Tableau de GID de projets pour filtrer les tâches |
+| `completed` | boolean | Non | Filtrer par statut d'achèvement |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Liste des tâches correspondant aux critères de recherche |
+
+### `asana_add_comment`
+
+Ajouter un commentaire (story) à une tâche Asana
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `taskGid` | string | Oui | L'identifiant unique global \(GID\) de la tâche |
+| `text` | string | Oui | Le contenu textuel du commentaire |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Détails du commentaire incluant gid, texte, horodatage de création et auteur |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `asana`

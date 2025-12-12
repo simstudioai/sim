@@ -3,79 +3,85 @@
 import {
   forwardRef,
   type KeyboardEvent,
+  useCallback,
   useEffect,
   useImperativeHandle,
-  useRef,
   useState,
 } from 'react'
+import { ArrowUp, AtSign, Image, Loader2 } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { createPortal } from 'react-dom'
+import { Badge, Button } from '@/components/emcn'
+import { Textarea } from '@/components/ui'
+import { useSession } from '@/lib/auth/auth-client'
+import { cn } from '@/lib/core/utils/cn'
+import { createLogger } from '@/lib/logs/console/logger'
 import {
-  ArrowUp,
-  Brain,
-  BrainCircuit,
-  Check,
-  FileText,
-  Image,
-  Infinity as InfinityIcon,
-  Info,
-  Loader2,
-  MessageCircle,
-  Package,
-  Paperclip,
-  X,
-  Zap,
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
+  AttachedFilesDisplay,
+  ContextPills,
+  MentionMenu,
+  ModelSelector,
+  ModeSelector,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/components'
+import { NEAR_TOP_THRESHOLD } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/constants'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { useSession } from '@/lib/auth-client'
-import { cn } from '@/lib/utils'
-import { useCopilotStore } from '@/stores/copilot/store'
-import { CopilotSlider as Slider } from './copilot-slider'
+  useContextManagement,
+  useFileAttachments,
+  useMentionData,
+  useMentionInsertHandlers,
+  useMentionKeyboard,
+  useMentionMenu,
+  useMentionTokens,
+  useTextareaAutoResize,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
+import type { MessageFileAttachment } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
+import { useCopilotStore } from '@/stores/panel/copilot/store'
+import type { ChatContext } from '@/stores/panel/copilot/types'
 
-export interface MessageFileAttachment {
-  id: string
-  s3_key: string
-  filename: string
-  media_type: string
-  size: number
-}
-
-interface AttachedFile {
-  id: string
-  name: string
-  size: number
-  type: string
-  path: string
-  key?: string // Add key field to store the actual S3 key
-  uploading: boolean
-  previewUrl?: string // For local preview of images before upload
-}
+const logger = createLogger('CopilotUserInput')
 
 interface UserInputProps {
-  onSubmit: (message: string, fileAttachments?: MessageFileAttachment[]) => void
+  onSubmit: (
+    message: string,
+    fileAttachments?: MessageFileAttachment[],
+    contexts?: ChatContext[]
+  ) => void
   onAbort?: () => void
   disabled?: boolean
   isLoading?: boolean
   isAborting?: boolean
   placeholder?: string
   className?: string
-  mode?: 'ask' | 'agent'
-  onModeChange?: (mode: 'ask' | 'agent') => void
-  value?: string // Controlled value from outside
-  onChange?: (value: string) => void // Callback when value changes
+  mode?: 'ask' | 'build' | 'plan'
+  onModeChange?: (mode: 'ask' | 'build' | 'plan') => void
+  value?: string
+  onChange?: (value: string) => void
+  panelWidth?: number
+  clearOnSubmit?: boolean
+  hasPlanArtifact?: boolean
+  /** Override workflowId from store (for use outside copilot context) */
+  workflowIdOverride?: string | null
+  /** Override selectedModel from store (for use outside copilot context) */
+  selectedModelOverride?: string
+  /** Override setSelectedModel from store (for use outside copilot context) */
+  onModelChangeOverride?: (model: string) => void
+  hideModeSelector?: boolean
+  /** Disable @mention functionality */
+  disableMentions?: boolean
 }
 
 interface UserInputRef {
   focus: () => void
 }
 
+/**
+ * User input component for the copilot chat interface.
+ * Supports file attachments, @mentions, mode selection, model selection, and rich text editing.
+ * Integrates with the copilot store and provides keyboard shortcuts for enhanced UX.
+ *
+ * @param props - Component props
+ * @returns Rendered user input component
+ */
 const UserInput = forwardRef<UserInputRef, UserInputProps>(
   (
     {
@@ -84,672 +90,711 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       disabled = false,
       isLoading = false,
       isAborting = false,
-      placeholder = 'How can I help you today?',
+      placeholder,
       className,
-      mode = 'agent',
+      mode = 'build',
       onModeChange,
       value: controlledValue,
       onChange: onControlledChange,
+      panelWidth = 308,
+      clearOnSubmit = true,
+      hasPlanArtifact = false,
+      workflowIdOverride,
+      selectedModelOverride,
+      onModelChangeOverride,
+      hideModeSelector = false,
+      disableMentions = false,
     },
     ref
   ) => {
-    const [internalMessage, setInternalMessage] = useState('')
-    const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
-    // Drag and drop state
-    const [isDragging, setIsDragging] = useState(false)
-    const [dragCounter, setDragCounter] = useState(0)
-    const textareaRef = useRef<HTMLTextAreaElement>(null)
-    const fileInputRef = useRef<HTMLInputElement>(null)
-
+    // Refs and external hooks
     const { data: session } = useSession()
-    const { currentChat, workflowId } = useCopilotStore()
+    const params = useParams()
+    const workspaceId = params.workspaceId as string
+
+    const copilotStore = useCopilotStore()
+    const workflowId =
+      workflowIdOverride !== undefined ? workflowIdOverride : copilotStore.workflowId
+    const selectedModel =
+      selectedModelOverride !== undefined ? selectedModelOverride : copilotStore.selectedModel
+    const setSelectedModel = onModelChangeOverride || copilotStore.setSelectedModel
+    const contextUsage = copilotStore.contextUsage
+
+    // Internal state
+    const [internalMessage, setInternalMessage] = useState('')
+    const [isNearTop, setIsNearTop] = useState(false)
+    const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null)
+    const [inputContainerRef, setInputContainerRef] = useState<HTMLDivElement | null>(null)
+
+    // Controlled vs uncontrolled message state
+    const message = controlledValue !== undefined ? controlledValue : internalMessage
+    const setMessage =
+      controlledValue !== undefined ? onControlledChange || (() => {}) : setInternalMessage
+
+    // Effective placeholder
+    const effectivePlaceholder =
+      placeholder ||
+      (mode === 'ask'
+        ? 'Ask about your workflow'
+        : mode === 'plan'
+          ? 'Plan your workflow'
+          : 'Plan, search, build anything')
+
+    // Custom hooks - order matters for ref sharing
+    // Context management (manages selectedContexts state)
+    const contextManagement = useContextManagement({ message })
+
+    // Mention menu
+    const mentionMenu = useMentionMenu({
+      message,
+      selectedContexts: contextManagement.selectedContexts,
+      onContextSelect: contextManagement.addContext,
+      onMessageChange: setMessage,
+    })
+
+    // Mention token utilities
+    const mentionTokensWithContext = useMentionTokens({
+      message,
+      selectedContexts: contextManagement.selectedContexts,
+      mentionMenu,
+      setMessage,
+      setSelectedContexts: contextManagement.setSelectedContexts,
+    })
+
+    const { overlayRef } = useTextareaAutoResize({
+      message,
+      panelWidth,
+      selectedContexts: contextManagement.selectedContexts,
+      textareaRef: mentionMenu.textareaRef,
+      containerRef: inputContainerRef,
+    })
+
+    const mentionData = useMentionData({
+      workflowId: workflowId || null,
+      workspaceId,
+    })
+
+    const fileAttachments = useFileAttachments({
+      userId: session?.user?.id,
+      disabled,
+      isLoading,
+    })
+
+    // Insert mention handlers
+    const insertHandlers = useMentionInsertHandlers({
+      mentionMenu,
+      workflowId: workflowId || null,
+      selectedContexts: contextManagement.selectedContexts,
+      onContextAdd: contextManagement.addContext,
+    })
+
+    // Keyboard navigation hook
+    const mentionKeyboard = useMentionKeyboard({
+      mentionMenu,
+      mentionData,
+      insertHandlers,
+    })
 
     // Expose focus method to parent
     useImperativeHandle(
       ref,
       () => ({
         focus: () => {
-          textareaRef.current?.focus()
+          const textarea = mentionMenu.textareaRef.current
+          if (textarea) {
+            textarea.focus()
+            const length = textarea.value.length
+            textarea.setSelectionRange(length, length)
+            textarea.scrollTop = textarea.scrollHeight
+          }
         },
       }),
-      []
+      [mentionMenu.textareaRef]
     )
 
-    // Use controlled value if provided, otherwise use internal state
-    const message = controlledValue !== undefined ? controlledValue : internalMessage
-    const setMessage =
-      controlledValue !== undefined ? onControlledChange || (() => {}) : setInternalMessage
+    // Note: textarea auto-resize is handled by the useTextareaAutoResize hook
 
-    // Auto-resize textarea
+    // Load workflows on mount if we have a workflowId
     useEffect(() => {
-      const textarea = textareaRef.current
-      if (textarea) {
-        textarea.style.height = 'auto'
-        textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px` // Max height of 120px
+      if (workflowId) {
+        void mentionData.ensureWorkflowsLoaded()
       }
-    }, [message])
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [workflowId])
 
-    // Cleanup preview URLs on unmount
+    // Detect if input is near top of screen
     useEffect(() => {
+      const checkPosition = () => {
+        if (containerRef) {
+          const rect = containerRef.getBoundingClientRect()
+          setIsNearTop(rect.top < NEAR_TOP_THRESHOLD)
+        }
+      }
+
+      checkPosition()
+
+      const scrollContainer = containerRef?.closest('[data-radix-scroll-area-viewport]')
+      if (scrollContainer) {
+        scrollContainer.addEventListener('scroll', checkPosition, { passive: true })
+      }
+
+      window.addEventListener('scroll', checkPosition, true)
+      window.addEventListener('resize', checkPosition)
+
       return () => {
-        attachedFiles.forEach((f) => {
-          if (f.previewUrl) {
-            URL.revokeObjectURL(f.previewUrl)
-          }
-        })
-      }
-    }, [])
-
-    // Drag and drop handlers
-    const handleDragEnter = (e: React.DragEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setDragCounter((prev) => {
-        const newCount = prev + 1
-        if (newCount === 1) {
-          setIsDragging(true)
+        if (scrollContainer) {
+          scrollContainer.removeEventListener('scroll', checkPosition)
         }
-        return newCount
-      })
-    }
-
-    const handleDragLeave = (e: React.DragEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setDragCounter((prev) => {
-        const newCount = prev - 1
-        if (newCount === 0) {
-          setIsDragging(false)
-        }
-        return newCount
-      })
-    }
-
-    const handleDragOver = (e: React.DragEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      // Add visual feedback for valid drop zone
-      e.dataTransfer.dropEffect = 'copy'
-    }
-
-    const handleDrop = async (e: React.DragEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setIsDragging(false)
-      setDragCounter(0)
-
-      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        await processFiles(e.dataTransfer.files)
+        window.removeEventListener('scroll', checkPosition, true)
+        window.removeEventListener('resize', checkPosition)
       }
-    }
+    }, [containerRef])
 
-    // Process dropped or selected files
-    const processFiles = async (fileList: FileList) => {
-      const userId = session?.user?.id
+    // Also check position when mention menu opens
+    useEffect(() => {
+      if (mentionMenu.showMentionMenu && containerRef) {
+        const rect = containerRef.getBoundingClientRect()
+        setIsNearTop(rect.top < NEAR_TOP_THRESHOLD)
+      }
+    }, [mentionMenu.showMentionMenu, containerRef])
 
-      if (!userId) {
-        console.error('User ID not available for file upload')
+    // Preload mention data when query is active
+    useEffect(() => {
+      if (!mentionMenu.showMentionMenu || mentionMenu.openSubmenuFor) {
         return
       }
 
-      // Process files one by one
-      for (const file of Array.from(fileList)) {
-        // Create a preview URL for images
-        let previewUrl: string | undefined
-        if (file.type.startsWith('image/')) {
-          previewUrl = URL.createObjectURL(file)
-        }
+      const q = mentionMenu
+        .getActiveMentionQueryAtPosition(mentionMenu.getCaretPos())
+        ?.query.trim()
+        .toLowerCase()
 
-        // Create a temporary file entry with uploading state
-        const tempFile: AttachedFile = {
-          id: crypto.randomUUID(),
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          path: '',
-          uploading: true,
-          previewUrl,
-        }
+      if (q && q.length > 0) {
+        // Prefetch all lists when there's any query for instant filtering
+        void mentionData.ensurePastChatsLoaded()
+        void mentionData.ensureWorkflowsLoaded()
+        void mentionData.ensureWorkflowBlocksLoaded()
+        void mentionData.ensureKnowledgeLoaded()
+        void mentionData.ensureBlocksLoaded()
+        void mentionData.ensureTemplatesLoaded()
+        void mentionData.ensureLogsLoaded()
 
-        setAttachedFiles((prev) => [...prev, tempFile])
+        // Reset to first item when query changes
+        mentionMenu.setSubmenuActiveIndex(0)
+        requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(0))
+      }
+      // Only depend on values that trigger data loading, not the entire objects
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mentionMenu.showMentionMenu, mentionMenu.openSubmenuFor, message])
 
-        try {
-          // Request presigned URL
-          const presignedResponse = await fetch('/api/files/presigned?type=copilot', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              fileName: file.name,
-              contentType: file.type,
-              fileSize: file.size,
-              userId,
-            }),
-          })
+    // When switching into a submenu, select the first item and scroll to it
+    useEffect(() => {
+      if (mentionMenu.openSubmenuFor) {
+        mentionMenu.setSubmenuActiveIndex(0)
+        requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(0))
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mentionMenu.openSubmenuFor])
 
-          if (!presignedResponse.ok) {
-            throw new Error('Failed to get presigned URL')
-          }
+    // Handlers
+    const handleSubmit = useCallback(
+      async (overrideMessage?: string, options: { preserveInput?: boolean } = {}) => {
+        const targetMessage = overrideMessage ?? message
+        const trimmedMessage = targetMessage.trim()
+        if (!trimmedMessage || disabled || isLoading) return
 
-          const presignedData = await presignedResponse.json()
-
-          // Upload file to S3
-          console.log('Uploading to S3:', presignedData.presignedUrl)
-          const uploadResponse = await fetch(presignedData.presignedUrl, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': file.type,
-            },
-            body: file,
-          })
-
-          console.log('S3 Upload response status:', uploadResponse.status)
-
-          if (!uploadResponse.ok) {
-            const errorText = await uploadResponse.text()
-            console.error('S3 Upload failed:', errorText)
-            throw new Error(`Failed to upload file: ${uploadResponse.status} ${errorText}`)
-          }
-
-          // Update file entry with success
-          setAttachedFiles((prev) =>
-            prev.map((f) =>
-              f.id === tempFile.id
-                ? {
-                    ...f,
-                    path: presignedData.fileInfo.path,
-                    key: presignedData.fileInfo.key, // Store the actual S3 key
-                    uploading: false,
-                  }
-                : f
-            )
+        const failedUploads = fileAttachments.attachedFiles.filter((f) => !f.uploading && !f.key)
+        if (failedUploads.length > 0) {
+          logger.error(
+            `Some files failed to upload: ${failedUploads.map((f) => f.name).join(', ')}`
           )
-        } catch (error) {
-          console.error('File upload failed:', error)
-          // Remove failed upload
-          setAttachedFiles((prev) => prev.filter((f) => f.id !== tempFile.id))
         }
-      }
-    }
 
-    const handleSubmit = () => {
-      const trimmedMessage = message.trim()
-      if (!trimmedMessage || disabled || isLoading) return
+        const fileAttachmentsForApi = fileAttachments.attachedFiles
+          .filter((f) => !f.uploading && f.key)
+          .map((f) => ({
+            id: f.id,
+            key: f.key!,
+            filename: f.name,
+            media_type: f.type,
+            size: f.size,
+          }))
 
-      // Check for failed uploads and show user feedback
-      const failedUploads = attachedFiles.filter((f) => !f.uploading && !f.key)
-      if (failedUploads.length > 0) {
-        console.error(
-          'Some files failed to upload:',
-          failedUploads.map((f) => f.name)
-        )
-      }
+        onSubmit(trimmedMessage, fileAttachmentsForApi, contextManagement.selectedContexts as any)
 
-      // Convert attached files to the format expected by the API
-      const fileAttachments = attachedFiles
-        .filter((f) => !f.uploading && f.key) // Only include successfully uploaded files with keys
-        .map((f) => ({
-          id: f.id,
-          s3_key: f.key!, // Use the actual S3 key stored from the upload response
-          filename: f.name,
-          media_type: f.type,
-          size: f.size,
-        }))
+        const shouldClearInput = clearOnSubmit && !options.preserveInput && !overrideMessage
+        if (shouldClearInput) {
+          fileAttachments.attachedFiles.forEach((f) => {
+            if (f.previewUrl) {
+              URL.revokeObjectURL(f.previewUrl)
+            }
+          })
 
-      onSubmit(trimmedMessage, fileAttachments)
-
-      // Clean up preview URLs before clearing
-      attachedFiles.forEach((f) => {
-        if (f.previewUrl) {
-          URL.revokeObjectURL(f.previewUrl)
+          setMessage('')
+          fileAttachments.clearAttachedFiles()
+          contextManagement.clearContexts()
+          mentionMenu.setOpenSubmenuFor(null)
+        } else {
+          mentionMenu.setOpenSubmenuFor(null)
         }
-      })
 
-      // Clear the message and files after submit
-      if (controlledValue !== undefined) {
-        onControlledChange?.('')
-      } else {
-        setInternalMessage('')
+        mentionMenu.setShowMentionMenu(false)
+      },
+      [
+        message,
+        disabled,
+        isLoading,
+        fileAttachments,
+        onSubmit,
+        contextManagement,
+        clearOnSubmit,
+        setMessage,
+        mentionMenu,
+      ]
+    )
+
+    const handleBuildWorkflow = useCallback(() => {
+      if (!hasPlanArtifact || !onModeChange) {
+        return
       }
-      setAttachedFiles([])
-    }
-
-    const handleAbort = () => {
-      if (onAbort && isLoading) {
-        onAbort()
-      }
-    }
-
-    const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault()
-        handleSubmit()
-      }
-    }
-
-    const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const newValue = e.target.value
-      if (controlledValue !== undefined) {
-        onControlledChange?.(newValue)
-      } else {
-        setInternalMessage(newValue)
-      }
-    }
-
-    const handleFileSelect = () => {
       if (disabled || isLoading) {
         return
       }
 
-      fileInputRef.current?.click()
-    }
+      onModeChange('build')
+      void handleSubmit('build the workflow according to the design plan', { preserveInput: true })
+    }, [hasPlanArtifact, onModeChange, disabled, isLoading, handleSubmit])
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files
-      if (!files || files.length === 0) {
-        return
+    const handleAbort = useCallback(() => {
+      if (onAbort && isLoading) {
+        onAbort()
       }
+    }, [onAbort, isLoading])
 
-      await processFiles(files)
+    const handleKeyDown = useCallback(
+      (e: KeyboardEvent<HTMLTextAreaElement>) => {
+        // Escape key handling
+        if (e.key === 'Escape' && mentionMenu.showMentionMenu) {
+          e.preventDefault()
+          if (mentionMenu.openSubmenuFor) {
+            mentionMenu.setOpenSubmenuFor(null)
+            mentionMenu.setSubmenuQueryStart(null)
+          } else {
+            mentionMenu.closeMentionMenu()
+          }
+          return
+        }
 
-      // Clear the input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
+        // Arrow navigation in mention menu
+        if (mentionKeyboard.handleArrowNavigation(e)) return
+        if (mentionKeyboard.handleArrowRight(e)) return
+        if (mentionKeyboard.handleArrowLeft(e)) return
+
+        // Enter key handling
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault()
+          if (!mentionMenu.showMentionMenu) {
+            handleSubmit()
+          } else {
+            mentionKeyboard.handleEnterSelection(e)
+          }
+          return
+        }
+
+        // Handle mention token behavior (backspace, delete, arrow keys) when menu is closed
+        if (!mentionMenu.showMentionMenu) {
+          const textarea = mentionMenu.textareaRef.current
+          const selStart = textarea?.selectionStart ?? 0
+          const selEnd = textarea?.selectionEnd ?? selStart
+          const selectionLength = Math.abs(selEnd - selStart)
+
+          if (e.key === 'Backspace' || e.key === 'Delete') {
+            if (selectionLength > 0) {
+              // Multi-character selection: Clean up contexts for any overlapping mentions
+              // but let the default behavior handle the actual text deletion
+              mentionTokensWithContext.removeContextsInSelection(selStart, selEnd)
+            } else {
+              // Single character delete - check if cursor is inside/at a mention token
+              const ranges = mentionTokensWithContext.computeMentionRanges()
+              const target =
+                e.key === 'Backspace'
+                  ? ranges.find((r) => selStart > r.start && selStart <= r.end)
+                  : ranges.find((r) => selStart >= r.start && selStart < r.end)
+
+              if (target) {
+                e.preventDefault()
+                mentionTokensWithContext.deleteRange(target)
+                return
+              }
+            }
+          }
+
+          if (selectionLength === 0 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+            if (textarea) {
+              if (e.key === 'ArrowLeft') {
+                const nextPos = Math.max(0, selStart - 1)
+                const r = mentionTokensWithContext.findRangeContaining(nextPos)
+                if (r) {
+                  e.preventDefault()
+                  const target = r.start
+                  setTimeout(() => textarea.setSelectionRange(target, target), 0)
+                  return
+                }
+              } else if (e.key === 'ArrowRight') {
+                const nextPos = Math.min(message.length, selStart + 1)
+                const r = mentionTokensWithContext.findRangeContaining(nextPos)
+                if (r) {
+                  e.preventDefault()
+                  const target = r.end
+                  setTimeout(() => textarea.setSelectionRange(target, target), 0)
+                  return
+                }
+              }
+            }
+          }
+
+          // Prevent typing inside token
+          if (e.key.length === 1 || e.key === 'Space') {
+            const blocked =
+              selectionLength === 0 && !!mentionTokensWithContext.findRangeContaining(selStart)
+            if (blocked) {
+              e.preventDefault()
+              const r = mentionTokensWithContext.findRangeContaining(selStart)
+              if (r && textarea) {
+                setTimeout(() => {
+                  textarea.setSelectionRange(r.end, r.end)
+                }, 0)
+              }
+              return
+            }
+          }
+        }
+      },
+      [mentionMenu, mentionKeyboard, handleSubmit, message.length, mentionTokensWithContext]
+    )
+
+    const handleInputChange = useCallback(
+      (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const newValue = e.target.value
+        setMessage(newValue)
+
+        // Skip mention menu logic if mentions are disabled
+        if (disableMentions) return
+
+        const caret = e.target.selectionStart ?? newValue.length
+        const active = mentionMenu.getActiveMentionQueryAtPosition(caret, newValue)
+
+        if (active) {
+          mentionMenu.setShowMentionMenu(true)
+          mentionMenu.setInAggregated(false)
+          if (mentionMenu.openSubmenuFor) {
+            mentionMenu.setSubmenuActiveIndex(0)
+          } else {
+            mentionMenu.setMentionActiveIndex(0)
+            mentionMenu.setSubmenuActiveIndex(0)
+          }
+        } else {
+          mentionMenu.setShowMentionMenu(false)
+          mentionMenu.setOpenSubmenuFor(null)
+          mentionMenu.setSubmenuQueryStart(null)
+        }
+      },
+      [setMessage, mentionMenu, disableMentions]
+    )
+
+    const handleSelectAdjust = useCallback(() => {
+      const textarea = mentionMenu.textareaRef.current
+      if (!textarea) return
+      const pos = textarea.selectionStart ?? 0
+      const r = mentionTokensWithContext.findRangeContaining(pos)
+      if (r) {
+        const snapPos = pos - r.start < r.end - pos ? r.start : r.end
+        setTimeout(() => {
+          textarea.setSelectionRange(snapPos, snapPos)
+        }, 0)
       }
-    }
+    }, [mentionMenu.textareaRef, mentionTokensWithContext])
 
-    const removeFile = (fileId: string) => {
-      // Clean up preview URL if it exists
-      const file = attachedFiles.find((f) => f.id === fileId)
-      if (file?.previewUrl) {
-        URL.revokeObjectURL(file.previewUrl)
-      }
-      setAttachedFiles((prev) => prev.filter((f) => f.id !== fileId))
-    }
+    const handleOpenMentionMenuWithAt = useCallback(() => {
+      if (disabled || isLoading) return
+      const textarea = mentionMenu.textareaRef.current
+      if (!textarea) return
+      textarea.focus()
+      const pos = textarea.selectionStart ?? message.length
+      const needsSpaceBefore = pos > 0 && !/\s/.test(message.charAt(pos - 1))
 
-    const handleFileClick = (file: AttachedFile) => {
-      // If file has been uploaded and has an S3 key, open the S3 URL
-      if (file.key) {
-        const serveUrl = `/api/files/serve/s3/${encodeURIComponent(file.key)}?bucket=copilot`
-        window.open(serveUrl, '_blank')
-      } else if (file.previewUrl) {
-        // If file hasn't been uploaded yet but has a preview URL, open that
-        window.open(file.previewUrl, '_blank')
-      }
-    }
+      const insertText = needsSpaceBefore ? ' @' : '@'
+      const start = textarea.selectionStart ?? message.length
+      const end = textarea.selectionEnd ?? message.length
+      const before = message.slice(0, start)
+      const after = message.slice(end)
+      const next = `${before}${insertText}${after}`
+      setMessage(next)
 
-    const formatFileSize = (bytes: number) => {
-      if (bytes === 0) return '0 Bytes'
-      const k = 1024
-      const sizes = ['Bytes', 'KB', 'MB', 'GB']
-      const i = Math.floor(Math.log(bytes) / Math.log(k))
-      return `${Math.round((bytes / k ** i) * 100) / 100} ${sizes[i]}`
-    }
+      setTimeout(() => {
+        const newPos = before.length + insertText.length
+        textarea.setSelectionRange(newPos, newPos)
+        textarea.focus()
+      }, 0)
 
-    const isImageFile = (type: string) => {
-      return type.startsWith('image/')
-    }
-
-    const getFileIcon = (mediaType: string) => {
-      if (mediaType.startsWith('image/')) {
-        return <Image className='h-5 w-5 text-muted-foreground' />
-      }
-      if (mediaType.includes('pdf')) {
-        return <FileText className='h-5 w-5 text-red-500' />
-      }
-      if (mediaType.includes('text') || mediaType.includes('json') || mediaType.includes('xml')) {
-        return <FileText className='h-5 w-5 text-blue-500' />
-      }
-      return <FileText className='h-5 w-5 text-muted-foreground' />
-    }
+      mentionMenu.setShowMentionMenu(true)
+      mentionMenu.setOpenSubmenuFor(null)
+      mentionMenu.setMentionActiveIndex(0)
+      mentionMenu.setSubmenuActiveIndex(0)
+    }, [disabled, isLoading, mentionMenu, message, setMessage])
 
     const canSubmit = message.trim().length > 0 && !disabled && !isLoading
     const showAbortButton = isLoading && onAbort
 
-    const handleModeToggle = () => {
-      if (onModeChange) {
-        // Toggle between Ask and Agent
-        onModeChange(mode === 'ask' ? 'agent' : 'ask')
+    // Render overlay content with highlighted mentions
+    const renderOverlayContent = useCallback(() => {
+      const contexts = contextManagement.selectedContexts
+
+      // Handle empty message
+      if (!message) {
+        return <span>{'\u00A0'}</span>
       }
-    }
 
-    const getModeIcon = () => {
-      if (mode === 'ask') {
-        return <MessageCircle className='h-3 w-3 text-muted-foreground' />
+      // If no contexts, render the message directly with proper newline handling
+      if (contexts.length === 0) {
+        // Add a zero-width space at the end if message ends with newline
+        // This ensures the newline is rendered and height is calculated correctly
+        const displayText = message.endsWith('\n') ? `${message}\u200B` : message
+        return <span>{displayText}</span>
       }
-      return <Package className='h-3 w-3 text-muted-foreground' />
-    }
 
-    const getModeText = () => {
-      if (mode === 'ask') {
-        return 'Ask'
+      const elements: React.ReactNode[] = []
+      const labels = contexts.map((c) => c.label).filter(Boolean)
+
+      // Build ranges for all mentions to highlight them including spaces
+      const ranges = mentionTokensWithContext.computeMentionRanges()
+
+      if (ranges.length === 0) {
+        const displayText = message.endsWith('\n') ? `${message}\u200B` : message
+        return <span>{displayText}</span>
       }
-      return 'Agent'
-    }
 
-    // Depth toggle state comes from global store; access via useCopilotStore
-    const { agentDepth, agentPrefetch, setAgentDepth, setAgentPrefetch } = useCopilotStore()
+      let lastIndex = 0
+      for (let i = 0; i < ranges.length; i++) {
+        const range = ranges[i]
 
-    const cycleDepth = () => {
-      // 8 modes: depths 0-3, each with prefetch off/on. Cycle depth, then toggle prefetch when wrapping.
-      const nextDepth = agentDepth === 3 ? 0 : ((agentDepth + 1) as 0 | 1 | 2 | 3)
-      if (nextDepth === 0 && agentDepth === 3) {
-        setAgentPrefetch(!agentPrefetch)
+        // Add text before mention
+        if (range.start > lastIndex) {
+          const before = message.slice(lastIndex, range.start)
+          elements.push(<span key={`text-${i}-${lastIndex}-${range.start}`}>{before}</span>)
+        }
+
+        // Add highlighted mention (including spaces)
+        // Use index + start + end to ensure unique keys even with duplicate contexts
+        const mentionText = message.slice(range.start, range.end)
+        elements.push(
+          <span
+            key={`mention-${i}-${range.start}-${range.end}`}
+            className='rounded-[6px] bg-[rgba(142,76,251,0.65)]'
+          >
+            {mentionText}
+          </span>
+        )
+        lastIndex = range.end
       }
-      setAgentDepth(nextDepth)
-    }
 
-    const getCollapsedModeLabel = () => {
-      const base = getDepthLabelFor(agentDepth)
-      return !agentPrefetch ? `${base} MAX` : base
-    }
+      const tail = message.slice(lastIndex)
+      if (tail) {
+        // Add a zero-width space at the end if tail ends with newline
+        const displayTail = tail.endsWith('\n') ? `${tail}\u200B` : tail
+        elements.push(<span key={`tail-${lastIndex}`}>{displayTail}</span>)
+      }
 
-    const getDepthLabelFor = (value: 0 | 1 | 2 | 3) => {
-      return value === 0 ? 'Fast' : value === 1 ? 'Balanced' : value === 2 ? 'Advanced' : 'Expert'
-    }
-
-    // Removed descriptive suffixes; concise labels only
-    const getDepthDescription = (value: 0 | 1 | 2 | 3) => {
-      if (value === 0)
-        return 'Fastest and cheapest. Good for small edits, simple workflows, and small tasks.'
-      if (value === 1) return 'Balances speed and reasoning. Good fit for most tasks.'
-      if (value === 2)
-        return 'More reasoning for larger workflows and complex edits, still balanced for speed.'
-      return 'Maximum reasoning power. Best for complex workflow building and debugging.'
-    }
-
-    const getDepthIconFor = (value: 0 | 1 | 2 | 3) => {
-      if (value === 0) return <Zap className='h-3 w-3 text-muted-foreground' />
-      if (value === 1) return <InfinityIcon className='h-3 w-3 text-muted-foreground' />
-      if (value === 2) return <Brain className='h-3 w-3 text-muted-foreground' />
-      return <BrainCircuit className='h-3 w-3 text-muted-foreground' />
-    }
-
-    const getDepthIcon = () => getDepthIconFor(agentDepth)
+      // Ensure there's always something to render for height calculation
+      return elements.length > 0 ? elements : <span>{'\u00A0'}</span>
+    }, [message, contextManagement.selectedContexts, mentionTokensWithContext])
 
     return (
-      <div className={cn('relative flex-none pb-4', className)}>
+      <div
+        ref={setContainerRef}
+        data-user-input
+        className={cn('relative w-full flex-none [max-width:var(--panel-max-width)]', className)}
+        style={{ '--panel-max-width': `${panelWidth - 16}px` } as React.CSSProperties}
+      >
         <div
+          ref={setInputContainerRef}
           className={cn(
-            'rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] p-2 shadow-xs transition-all duration-200 dark:border-[#414141] dark:bg-[var(--surface-elevated)]',
-            isDragging &&
-              'border-[var(--brand-primary-hover-hex)] bg-purple-50/50 dark:border-[var(--brand-primary-hover-hex)] dark:bg-purple-950/20'
+            'relative w-full rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[6px] py-[6px] transition-colors dark:bg-[var(--surface-9)]',
+            fileAttachments.isDragging && 'ring-[1.75px] ring-[var(--brand-secondary)]'
           )}
-          onDragEnter={handleDragEnter}
-          onDragLeave={handleDragLeave}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
+          onDragEnter={fileAttachments.handleDragEnter}
+          onDragLeave={fileAttachments.handleDragLeave}
+          onDragOver={fileAttachments.handleDragOver}
+          onDrop={fileAttachments.handleDrop}
         >
-          {/* Attached Files Display with Thumbnails */}
-          {attachedFiles.length > 0 && (
-            <div className='mb-2 flex flex-wrap gap-1.5'>
-              {attachedFiles.map((file) => (
-                <div
-                  key={file.id}
-                  className='group relative h-16 w-16 cursor-pointer overflow-hidden rounded-md border border-border/50 bg-muted/20 transition-all hover:bg-muted/40'
-                  title={`${file.name} (${formatFileSize(file.size)})`}
-                  onClick={() => handleFileClick(file)}
-                >
-                  {isImageFile(file.type) && file.previewUrl ? (
-                    // For images, show actual thumbnail
-                    <img
-                      src={file.previewUrl}
-                      alt={file.name}
-                      className='h-full w-full object-cover'
-                    />
-                  ) : isImageFile(file.type) && file.key ? (
-                    // For uploaded images without preview URL, use S3 URL
-                    <img
-                      src={`/api/files/serve/s3/${encodeURIComponent(file.key)}?bucket=copilot`}
-                      alt={file.name}
-                      className='h-full w-full object-cover'
-                    />
-                  ) : (
-                    // For other files, show icon centered
-                    <div className='flex h-full w-full items-center justify-center bg-background/50'>
-                      {getFileIcon(file.type)}
-                    </div>
-                  )}
+          {/* Top Row: Context controls + Build Workflow button */}
+          <div className='mb-[6px] flex flex-wrap items-center justify-between gap-[6px]'>
+            <div className='flex flex-wrap items-center gap-[6px]'>
+              {!disableMentions && (
+                <>
+                  <Badge
+                    variant='outline'
+                    onClick={handleOpenMentionMenuWithAt}
+                    title='Insert @'
+                    className={cn(
+                      'cursor-pointer rounded-[6px] p-[4.5px]',
+                      (disabled || isLoading) && 'cursor-not-allowed'
+                    )}
+                  >
+                    <AtSign className='h-3 w-3' strokeWidth={1.75} />
+                  </Badge>
 
-                  {/* Loading overlay */}
-                  {file.uploading && (
-                    <div className='absolute inset-0 flex items-center justify-center bg-black/50'>
-                      <Loader2 className='h-4 w-4 animate-spin text-white' />
-                    </div>
-                  )}
-
-                  {/* Remove button */}
-                  {!file.uploading && (
-                    <Button
-                      variant='ghost'
-                      size='icon'
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        removeFile(file.id)
-                      }}
-                      className='absolute top-0.5 right-0.5 h-5 w-5 bg-black/50 text-white opacity-0 transition-opacity hover:bg-black/70 group-hover:opacity-100'
-                    >
-                      <X className='h-3 w-3' />
-                    </Button>
-                  )}
-
-                  {/* Hover overlay effect */}
-                  <div className='pointer-events-none absolute inset-0 bg-black/10 opacity-0 transition-opacity group-hover:opacity-100' />
-                </div>
-              ))}
+                  {/* Selected Context Pills */}
+                  <ContextPills
+                    contexts={contextManagement.selectedContexts}
+                    onRemoveContext={contextManagement.removeContext}
+                  />
+                </>
+              )}
             </div>
-          )}
 
-          {/* Textarea Field */}
-          <Textarea
-            ref={textareaRef}
-            value={message}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            placeholder={isDragging ? 'Drop files here...' : placeholder}
-            disabled={disabled}
-            rows={1}
-            className='mb-2 min-h-[32px] w-full resize-none overflow-hidden border-0 bg-transparent px-[2px] py-1 text-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
-            style={{ height: 'auto' }}
+            {hasPlanArtifact && (
+              <Button
+                type='button'
+                variant='outline'
+                onClick={handleBuildWorkflow}
+                disabled={disabled || isLoading}
+              >
+                Build Plan
+              </Button>
+            )}
+          </div>
+
+          {/* Attached Files Display */}
+          <AttachedFilesDisplay
+            files={fileAttachments.attachedFiles}
+            onFileClick={fileAttachments.handleFileClick}
+            onFileRemove={fileAttachments.removeFile}
+            formatFileSize={fileAttachments.formatFileSize}
+            getFileIconType={fileAttachments.getFileIconType}
           />
 
-          {/* Bottom Row: Mode Selector + Attach Button + Send Button */}
-          <div className='flex items-center justify-between'>
-            {/* Left side: Mode Selector and Depth (if Agent) */}
-            <div className='flex items-center gap-1.5'>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    disabled={!onModeChange}
-                    className='flex h-6 items-center gap-1.5 rounded-full border px-2 py-1 font-medium text-xs'
-                  >
-                    {getModeIcon()}
-                    <span>{getModeText()}</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align='start' className='p-0'>
-                  <TooltipProvider>
-                    <div className='w-[160px] p-1'>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <DropdownMenuItem
-                            onSelect={() => onModeChange?.('ask')}
-                            className={cn(
-                              'flex items-center justify-between rounded-sm px-2 py-1.5 text-xs leading-4',
-                              mode === 'ask' && 'bg-muted/40'
-                            )}
-                          >
-                            <span className='flex items-center gap-1.5'>
-                              <MessageCircle className='h-3 w-3 text-muted-foreground' />
-                              Ask
-                            </span>
-                            {mode === 'ask' && <Check className='h-3 w-3 text-muted-foreground' />}
-                          </DropdownMenuItem>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side='right'
-                          sideOffset={6}
-                          align='center'
-                          className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
-                        >
-                          Ask mode can help answer questions about your workflow, tell you about
-                          Sim, and guide you in building/editing.
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <DropdownMenuItem
-                            onSelect={() => onModeChange?.('agent')}
-                            className={cn(
-                              'flex items-center justify-between rounded-sm px-2 py-1.5 text-xs leading-4',
-                              mode === 'agent' && 'bg-muted/40'
-                            )}
-                          >
-                            <span className='flex items-center gap-1.5'>
-                              <Package className='h-3 w-3 text-muted-foreground' />
-                              Agent
-                            </span>
-                            {mode === 'agent' && (
-                              <Check className='h-3 w-3 text-muted-foreground' />
-                            )}
-                          </DropdownMenuItem>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side='right'
-                          sideOffset={6}
-                          align='center'
-                          className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
-                        >
-                          Agent mode can build, edit, and interact with your workflows (Recommended)
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </TooltipProvider>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              {
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      className='flex h-6 items-center gap-1.5 rounded-full border px-2 py-1 font-medium text-xs'
-                      title='Choose mode'
-                    >
-                      {getDepthIcon()}
-                      <span>{getCollapsedModeLabel()}</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align='start' className='p-0'>
-                    <TooltipProvider delayDuration={100} skipDelayDuration={0}>
-                      <div className='w-[260px] p-3'>
-                        <div className='mb-3 flex items-center justify-between'>
-                          <div className='flex items-center gap-1.5'>
-                            <span className='font-medium text-xs'>MAX mode</span>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  type='button'
-                                  className='h-3.5 w-3.5 rounded text-muted-foreground transition-colors hover:text-foreground'
-                                  aria-label='MAX mode info'
-                                >
-                                  <Info className='h-3.5 w-3.5' />
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent
-                                side='right'
-                                sideOffset={6}
-                                align='center'
-                                className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
-                              >
-                                Significantly increases depth of reasoning
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                          <Switch
-                            checked={!agentPrefetch}
-                            onCheckedChange={(checked) => setAgentPrefetch(!checked)}
-                          />
-                        </div>
-                        <div className='my-2 flex justify-center'>
-                          <div className='h-px w-[100%] bg-border' />
-                        </div>
-                        <div className='mb-3'>
-                          <div className='mb-2 flex items-center justify-between'>
-                            <span className='font-medium text-xs'>Mode</span>
-                            <span className='text-muted-foreground text-xs'>
-                              {getDepthLabelFor(agentDepth)}
-                            </span>
-                          </div>
-                          <div className='relative'>
-                            <Slider
-                              min={0}
-                              max={3}
-                              step={1}
-                              value={[agentDepth]}
-                              onValueChange={(val) =>
-                                setAgentDepth((val?.[0] ?? 0) as 0 | 1 | 2 | 3)
-                              }
-                            />
-                            <div className='pointer-events-none absolute inset-0'>
-                              <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-[33.333%] h-2 w-[3px] bg-background' />
-                              <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-[66.667%] h-2 w-[3px] bg-background' />
-                            </div>
-                          </div>
-                        </div>
-                        <div className='mt-3 text-[11px] text-muted-foreground'>
-                          {getDepthDescription(agentDepth)}
-                        </div>
-                      </div>
-                    </TooltipProvider>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              }
+          {/* Textarea Field with overlay */}
+          <div className='relative mb-[6px]'>
+            {/* Highlight overlay - must have identical flow as textarea */}
+            <div
+              ref={overlayRef}
+              className='pointer-events-none absolute top-0 left-0 z-[1] m-0 box-border h-auto max-h-[120px] min-h-[48px] w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-0 bg-transparent px-[2px] py-1 font-medium font-sans text-[#0D0D0D] text-sm leading-[1.25rem] outline-none [-ms-overflow-style:none] [scrollbar-width:none] [text-rendering:optimizeLegibility] dark:text-gray-100 [&::-webkit-scrollbar]:hidden'
+              aria-hidden='true'
+            >
+              {renderOverlayContent()}
+            </div>
+
+            <Textarea
+              ref={mentionMenu.textareaRef}
+              value={message}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              onCut={mentionTokensWithContext.handleCut}
+              onSelect={handleSelectAdjust}
+              onMouseUp={handleSelectAdjust}
+              onScroll={(e) => {
+                const overlay = overlayRef.current
+                if (overlay) {
+                  overlay.scrollTop = e.currentTarget.scrollTop
+                  overlay.scrollLeft = e.currentTarget.scrollLeft
+                }
+              }}
+              placeholder={fileAttachments.isDragging ? 'Drop files here...' : effectivePlaceholder}
+              disabled={disabled}
+              rows={2}
+              className='relative z-[2] m-0 box-border h-auto min-h-[48px] w-full resize-none overflow-y-auto overflow-x-hidden break-words border-0 bg-transparent px-[2px] py-1 font-medium font-sans text-sm text-transparent leading-[1.25rem] caret-foreground outline-none [-ms-overflow-style:none] [scrollbar-width:none] [text-rendering:auto] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 dark:placeholder:text-[var(--text-muted)] [&::-webkit-scrollbar]:hidden'
+            />
+
+            {/* Mention Menu Portal */}
+            {!disableMentions &&
+              mentionMenu.showMentionMenu &&
+              createPortal(
+                <MentionMenu
+                  mentionMenu={mentionMenu}
+                  mentionData={mentionData}
+                  message={message}
+                  insertHandlers={insertHandlers}
+                />,
+                document.body
+              )}
+          </div>
+
+          {/* Bottom Row: Mode Selector + Model Selector + Attach Button + Send Button */}
+          <div className='flex items-center justify-between gap-2'>
+            {/* Left side: Mode Selector + Model Selector */}
+            <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+              {!hideModeSelector && (
+                <ModeSelector
+                  mode={mode}
+                  onModeChange={onModeChange}
+                  isNearTop={isNearTop}
+                  disabled={disabled}
+                />
+              )}
+
+              <ModelSelector
+                selectedModel={selectedModel}
+                isNearTop={isNearTop}
+                onModelSelect={(model: string) => setSelectedModel(model as any)}
+              />
             </div>
 
             {/* Right side: Attach Button + Send Button */}
-            <div className='flex items-center gap-1'>
-              {/* Attach Button */}
-              <Button
-                variant='ghost'
-                size='icon'
-                onClick={handleFileSelect}
-                disabled={disabled || isLoading}
-                className='h-6 w-6 text-muted-foreground hover:text-foreground'
+            <div className='flex flex-shrink-0 items-center gap-[10px]'>
+              <Badge
+                onClick={fileAttachments.handleFileSelect}
                 title='Attach file'
+                className={cn(
+                  'cursor-pointer rounded-[6px] bg-transparent p-[0px] dark:bg-transparent',
+                  (disabled || isLoading) && 'cursor-not-allowed opacity-50'
+                )}
               >
-                <Paperclip className='h-3 w-3' />
-              </Button>
+                <Image className='!h-3.5 !w-3.5 scale-x-110' />
+              </Badge>
 
-              {/* Send Button */}
               {showAbortButton ? (
                 <Button
                   onClick={handleAbort}
                   disabled={isAborting}
-                  size='icon'
-                  className='h-6 w-6 rounded-full bg-red-500 text-white transition-all duration-200 hover:bg-red-600'
+                  className={cn(
+                    'h-[20px] w-[20px] rounded-full p-0 transition-colors',
+                    !isAborting
+                      ? 'bg-[#C0C0C0] hover:bg-[#D0D0D0] dark:bg-[#C0C0C0] dark:hover:bg-[#D0D0D0]'
+                      : 'bg-[#C0C0C0] dark:bg-[#C0C0C0]'
+                  )}
                   title='Stop generation'
                 >
                   {isAborting ? (
-                    <Loader2 className='h-3 w-3 animate-spin' />
+                    <Loader2 className='block h-[13px] w-[13px] animate-spin text-black' />
                   ) : (
-                    <X className='h-3 w-3' />
+                    <svg
+                      className='block h-[13px] w-[13px]'
+                      viewBox='0 0 24 24'
+                      fill='black'
+                      xmlns='http://www.w3.org/2000/svg'
+                    >
+                      <rect x='4' y='4' width='16' height='16' rx='3' ry='3' />
+                    </svg>
                   )}
                 </Button>
               ) : (
                 <Button
-                  onClick={handleSubmit}
+                  onClick={() => {
+                    void handleSubmit()
+                  }}
                   disabled={!canSubmit}
-                  size='icon'
-                  className='h-6 w-6 rounded-full bg-[var(--brand-primary-hover-hex)] text-white shadow-[0_0_0_0_var(--brand-primary-hover-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
+                  className={cn(
+                    'h-[22px] w-[22px] rounded-full p-0 transition-colors',
+                    canSubmit
+                      ? 'bg-[#C0C0C0] hover:bg-[#D0D0D0] dark:bg-[#C0C0C0] dark:hover:bg-[#D0D0D0]'
+                      : 'bg-[#C0C0C0] dark:bg-[#C0C0C0]'
+                  )}
                 >
                   {isLoading ? (
-                    <Loader2 className='h-3 w-3 animate-spin' />
+                    <Loader2 className='block h-3.5 w-3.5 animate-spin text-black' />
                   ) : (
-                    <ArrowUp className='h-3 w-3' />
+                    <ArrowUp className='block h-3.5 w-3.5 text-black' strokeWidth={2.25} />
                   )}
                 </Button>
               )}
@@ -758,11 +803,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
           {/* Hidden File Input */}
           <input
-            ref={fileInputRef}
+            ref={fileAttachments.fileInputRef}
             type='file'
-            onChange={handleFileChange}
+            onChange={fileAttachments.handleFileChange}
             className='hidden'
-            accept='.pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,.gif,.svg'
+            accept='image/*'
             multiple
             disabled={disabled || isLoading}
           />

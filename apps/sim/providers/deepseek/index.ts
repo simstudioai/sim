@@ -8,7 +8,11 @@ import type {
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
-import { prepareToolsWithUsageControl, trackForcedToolUsage } from '@/providers/utils'
+import {
+  prepareToolExecution,
+  prepareToolsWithUsageControl,
+  trackForcedToolUsage,
+} from '@/providers/utils'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('DeepseekProvider')
@@ -289,25 +293,7 @@ export const deepseekProvider: ProviderConfig = {
               // Execute the tool
               const toolCallStartTime = Date.now()
 
-              // Only merge actual tool parameters for logging
-              const toolParams = {
-                ...tool.params,
-                ...toolArgs,
-              }
-
-              // Add system parameters for execution
-              const executionParams = {
-                ...toolParams,
-                ...(request.workflowId
-                  ? {
-                      _context: {
-                        workflowId: request.workflowId,
-                        ...(request.chatId ? { chatId: request.chatId } : {}),
-                      },
-                    }
-                  : {}),
-                ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
-              }
+              const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
 
               const result = await executeTool(toolName, executionParams, true)
               const toolCallEndTime = Date.now()
@@ -471,8 +457,8 @@ export const deepseekProvider: ProviderConfig = {
       const totalDuration = providerEndTime - providerStartTime
 
       // POST-TOOL STREAMING: stream final response after tool calls if requested
-      if (request.stream && iterationCount > 0) {
-        logger.info('Using streaming for final DeepSeek response after tool calls')
+      if (request.stream) {
+        logger.info('Using streaming for final DeepSeek response after tool processing')
 
         // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
         // This prevents the API from trying to force tool usage again in the final streaming response

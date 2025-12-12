@@ -1,0 +1,53 @@
+---
+title: Stagehand Extract
+description: Extract data from websites
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="stagehand"
+  color="#FFC83C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Stagehand](https://stagehand.com) is a tool that allows you to extract structured data from webpages using Browserbase and OpenAI.
+
+With Stagehand, you can:
+
+- **Extract structured data**: Extract structured data from webpages using Browserbase and OpenAI
+- **Save data to a database**: Save the extracted data to a database
+- **Automate workflows**: Automate workflows to extract data from webpages
+
+In Sim, the Stagehand integration enables your agents to extract structured data from webpages using Browserbase and OpenAI. This allows for powerful automation scenarios such as data extraction, data analysis, and data integration. Your agents can extract structured data from webpages, save the extracted data to a database, and automate workflows to extract data from webpages. This integration bridges the gap between your AI workflows and your data management system, enabling seamless data extraction and integration. By connecting Sim with Stagehand, you can automate data extraction processes, maintain up-to-date information repositories, generate reports, and organize information intelligently - all through your intelligent agents.
+{/* MANUAL-CONTENT-END */}
+
+## Usage Instructions
+
+Integrate Stagehand into the workflow. Can extract structured data from webpages.
+
+## Tools
+
+### `stagehand_extract`
+
+Extract structured data from a webpage using Stagehand
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | URL of the webpage to extract data from |
+| `instruction` | string | Yes | Instructions for extraction |
+| `apiKey` | string | Yes | OpenAI API key for extraction \(required by Stagehand\) |
+| `schema` | json | Yes | JSON schema defining the structure of the data to extract |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | object | Extracted structured data matching the provided schema |
+
+## Notes
+
+- Category: `tools`
+- Type: `stagehand`

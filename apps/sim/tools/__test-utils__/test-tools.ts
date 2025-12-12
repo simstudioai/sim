@@ -23,7 +23,7 @@ const createMockHeaders = (customHeaders: Record<string, string> = {}) => {
     'Accept-Encoding': 'gzip, deflate, br',
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
-    Referer: 'https://app.simstudio.dev',
+    Referer: 'https://www.simstudio.dev',
     'Sec-Ch-Ua': 'Chromium;v=91, Not-A.Brand;v=99',
     'Sec-Ch-Ua-Mobile': '?0',
     'Sec-Ch-Ua-Platform': '"macOS"',

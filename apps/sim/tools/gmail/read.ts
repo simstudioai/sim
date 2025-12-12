@@ -1,4 +1,5 @@
-import type { GmailReadParams, GmailToolResponse } from '@/tools/gmail/types'
+import { createLogger } from '@/lib/logs/console/logger'
+import type { GmailAttachment, GmailReadParams, GmailToolResponse } from '@/tools/gmail/types'
 import {
   createMessagesSummary,
   GMAIL_API_BASE,
@@ -6,6 +7,8 @@ import {
   processMessageForSummary,
 } from '@/tools/gmail/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('GmailReadTool')
 
 export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
   id: 'gmail_read',
@@ -16,10 +19,6 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
   oauth: {
     required: true,
     provider: 'google-email',
-    additionalScopes: [
-      'https://www.googleapis.com/auth/gmail.labels',
-      'https://www.googleapis.com/auth/gmail.readonly',
-    ],
   },
 
   params: {
@@ -98,7 +97,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
       }
 
       // Set max results (default to 1 for simplicity, max 10)
-      const maxResults = params.maxResults ? Math.min(params.maxResults, 10) : 1
+      const maxResults = params.maxResults ? Math.min(Number(params.maxResults), 10) : 1
       url.searchParams.append('maxResults', maxResults.toString())
 
       return url.toString()
@@ -135,7 +134,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
 
       // For agentic workflows, we'll fetch the first message by default
       // If maxResults > 1, we'll return a summary of messages found
-      const maxResults = params?.maxResults ? Math.min(params.maxResults, 10) : 1
+      const maxResults = params?.maxResults ? Math.min(Number(params.maxResults), 10) : 1
 
       if (maxResults === 1) {
         try {
@@ -195,22 +194,41 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
 
           const messages = await Promise.all(messagePromises)
 
-          // Process all messages and create a summary
-          const processedMessages = messages.map(processMessageForSummary)
+          // Create summary from processed messages first
+          const summaryMessages = messages.map(processMessageForSummary)
+
+          const allAttachments: GmailAttachment[] = []
+          if (params?.includeAttachments) {
+            for (const msg of messages) {
+              try {
+                const processedResult = await processMessage(msg, params)
+                if (
+                  processedResult.output.attachments &&
+                  processedResult.output.attachments.length > 0
+                ) {
+                  allAttachments.push(...processedResult.output.attachments)
+                }
+              } catch (error: any) {
+                logger.error(`Error processing message ${msg.id} for attachments:`, error)
+              }
+            }
+          }
 
           return {
             success: true,
             output: {
-              content: createMessagesSummary(processedMessages),
+              content: createMessagesSummary(summaryMessages),
               metadata: {
-                results: processedMessages.map((msg) => ({
+                results: summaryMessages.map((msg) => ({
                   id: msg.id,
                   threadId: msg.threadId,
                   subject: msg.subject,
                   from: msg.from,
+                  to: msg.to,
                   date: msg.date,
                 })),
               },
+              attachments: allAttachments,
             },
           }
         } catch (error: any) {
@@ -224,6 +242,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
                   threadId: msg.threadId,
                 })),
               },
+              attachments: [],
             },
           }
         }

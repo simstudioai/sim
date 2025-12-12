@@ -1,12 +1,18 @@
 import { render } from '@react-email/components'
 import {
   BatchInvitationEmail,
+  EnterpriseSubscriptionEmail,
   HelpConfirmationEmail,
   InvitationEmail,
   OTPVerificationEmail,
+  PlanWelcomeEmail,
   ResetPasswordEmail,
+  UsageThresholdEmail,
 } from '@/components/emails'
+import CreditPurchaseEmail from '@/components/emails/billing/credit-purchase-email'
+import FreeTierUpgradeEmail from '@/components/emails/billing/free-tier-upgrade-email'
 import { getBrandConfig } from '@/lib/branding/branding'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 
 export async function renderOTPEmail(
   otp: string,
@@ -82,6 +88,63 @@ export async function renderHelpConfirmationEmail(
   )
 }
 
+export async function renderEnterpriseSubscriptionEmail(
+  userName: string,
+  userEmail: string
+): Promise<string> {
+  const baseUrl = getBaseUrl()
+  const loginLink = `${baseUrl}/login`
+
+  return await render(
+    EnterpriseSubscriptionEmail({
+      userName,
+      userEmail,
+      loginLink,
+      createdDate: new Date(),
+    })
+  )
+}
+
+export async function renderUsageThresholdEmail(params: {
+  userName?: string
+  planName: string
+  percentUsed: number
+  currentUsage: number
+  limit: number
+  ctaLink: string
+}): Promise<string> {
+  return await render(
+    UsageThresholdEmail({
+      userName: params.userName,
+      planName: params.planName,
+      percentUsed: params.percentUsed,
+      currentUsage: params.currentUsage,
+      limit: params.limit,
+      ctaLink: params.ctaLink,
+      updatedDate: new Date(),
+    })
+  )
+}
+
+export async function renderFreeTierUpgradeEmail(params: {
+  userName?: string
+  percentUsed: number
+  currentUsage: number
+  limit: number
+  upgradeLink: string
+}): Promise<string> {
+  return await render(
+    FreeTierUpgradeEmail({
+      userName: params.userName,
+      percentUsed: params.percentUsed,
+      currentUsage: params.currentUsage,
+      limit: params.limit,
+      upgradeLink: params.upgradeLink,
+      updatedDate: new Date(),
+    })
+  )
+}
+
 export function getEmailSubject(
   type:
     | 'sign-in'
@@ -91,6 +154,12 @@ export function getEmailSubject(
     | 'invitation'
     | 'batch-invitation'
     | 'help-confirmation'
+    | 'enterprise-subscription'
+    | 'usage-threshold'
+    | 'free-tier-upgrade'
+    | 'plan-welcome-pro'
+    | 'plan-welcome-team'
+    | 'credit-purchase'
 ): string {
   const brandName = getBrandConfig().name
 
@@ -109,7 +178,49 @@ export function getEmailSubject(
       return `You've been invited to join a team and workspaces on ${brandName}`
     case 'help-confirmation':
       return 'Your request has been received'
+    case 'enterprise-subscription':
+      return `Your Enterprise Plan is now active on ${brandName}`
+    case 'usage-threshold':
+      return `You're nearing your monthly budget on ${brandName}`
+    case 'free-tier-upgrade':
+      return `You're at 90% of your free credits on ${brandName}`
+    case 'plan-welcome-pro':
+      return `Your Pro plan is now active on ${brandName}`
+    case 'plan-welcome-team':
+      return `Your Team plan is now active on ${brandName}`
+    case 'credit-purchase':
+      return `Credits added to your ${brandName} account`
     default:
       return brandName
   }
+}
+
+export async function renderPlanWelcomeEmail(params: {
+  planName: 'Pro' | 'Team'
+  userName?: string
+  loginLink?: string
+}): Promise<string> {
+  return await render(
+    PlanWelcomeEmail({
+      planName: params.planName,
+      userName: params.userName,
+      loginLink: params.loginLink,
+      createdDate: new Date(),
+    })
+  )
+}
+
+export async function renderCreditPurchaseEmail(params: {
+  userName?: string
+  amount: number
+  newBalance: number
+}): Promise<string> {
+  return await render(
+    CreditPurchaseEmail({
+      userName: params.userName,
+      amount: params.amount,
+      newBalance: params.newBalance,
+      purchaseDate: new Date(),
+    })
+  )
 }

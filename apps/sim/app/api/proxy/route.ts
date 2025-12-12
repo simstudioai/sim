@@ -1,10 +1,30 @@
+import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { isDev } from '@/lib/environment'
+import { z } from 'zod'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { generateInternalToken } from '@/lib/auth/internal'
+import { isDev } from '@/lib/core/config/environment'
+import { validateProxyUrl } from '@/lib/core/security/input-validation'
+import { generateRequestId } from '@/lib/core/utils/request'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
 import { executeTool } from '@/tools'
 import { getTool, validateRequiredParametersAfterMerge } from '@/tools/utils'
 
 const logger = createLogger('ProxyAPI')
+
+const proxyPostSchema = z.object({
+  toolId: z.string().min(1, 'toolId is required'),
+  params: z.record(z.any()).optional().default({}),
+  executionContext: z
+    .object({
+      workflowId: z.string().optional(),
+      workspaceId: z.string().optional(),
+      executionId: z.string().optional(),
+      userId: z.string().optional(),
+    })
+    .optional(),
+})
 
 /**
  * Creates a minimal set of default headers for proxy requests
@@ -73,11 +93,93 @@ const createErrorResponse = (error: any, status = 500, additionalData = {}) => {
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const targetUrl = url.searchParams.get('url')
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
+
+  // Vault download proxy: /api/proxy?vaultDownload=1&bucket=...&object=...&credentialId=...
+  const vaultDownload = url.searchParams.get('vaultDownload')
+  if (vaultDownload === '1') {
+    try {
+      const bucket = url.searchParams.get('bucket')
+      const objectParam = url.searchParams.get('object')
+      const credentialId = url.searchParams.get('credentialId')
+
+      if (!bucket || !objectParam || !credentialId) {
+        return createErrorResponse('Missing bucket, object, or credentialId', 400)
+      }
+
+      // Fetch access token using existing token API
+      const baseUrl = new URL(getBaseUrl())
+      const tokenUrl = new URL('/api/auth/oauth/token', baseUrl)
+
+      // Build headers: forward session cookies if present; include internal auth for server-side
+      const tokenHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+      const incomingCookie = request.headers.get('cookie')
+      if (incomingCookie) tokenHeaders.Cookie = incomingCookie
+      try {
+        const internalToken = await generateInternalToken()
+        tokenHeaders.Authorization = `Bearer ${internalToken}`
+      } catch (_e) {
+        // best-effort internal auth
+      }
+
+      // Optional workflow context for collaboration auth
+      const workflowId = url.searchParams.get('workflowId') || undefined
+
+      const tokenRes = await fetch(tokenUrl.toString(), {
+        method: 'POST',
+        headers: tokenHeaders,
+        body: JSON.stringify({ credentialId, workflowId }),
+      })
+
+      if (!tokenRes.ok) {
+        const err = await tokenRes.text()
+        return createErrorResponse(`Failed to fetch access token: ${err}`, 401)
+      }
+
+      const tokenJson = await tokenRes.json()
+      const accessToken = tokenJson.accessToken
+      if (!accessToken) {
+        return createErrorResponse('No access token available', 401)
+      }
+
+      // Avoid double-encoding: incoming object may already be percent-encoded
+      const objectDecoded = decodeURIComponent(objectParam)
+      const gcsUrl = `https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(
+        bucket
+      )}/o/${encodeURIComponent(objectDecoded)}?alt=media`
+
+      const fileRes = await fetch(gcsUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+
+      if (!fileRes.ok) {
+        const errText = await fileRes.text()
+        return createErrorResponse(errText || 'Failed to download file', fileRes.status)
+      }
+
+      const headers = new Headers()
+      fileRes.headers.forEach((v, k) => headers.set(k, v))
+      return new NextResponse(fileRes.body, { status: 200, headers })
+    } catch (error: any) {
+      logger.error(`[${requestId}] Vault download proxy failed`, {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return createErrorResponse('Vault download failed', 500)
+    }
+  }
 
   if (!targetUrl) {
     logger.error(`[${requestId}] Missing 'url' parameter`)
     return createErrorResponse("Missing 'url' parameter", 400)
+  }
+
+  const urlValidation = validateProxyUrl(targetUrl)
+  if (!urlValidation.isValid) {
+    logger.warn(`[${requestId}] Blocked proxy request`, {
+      url: targetUrl.substring(0, 100),
+      error: urlValidation.error,
+    })
+    return createErrorResponse(urlValidation.error || 'Invalid URL', 403)
   }
 
   const method = url.searchParams.get('method') || 'GET'
@@ -109,7 +211,6 @@ export async function GET(request: Request) {
   logger.info(`[${requestId}] Proxying ${method} request to: ${targetUrl}`)
 
   try {
-    // Forward the request to the target URL with all specified headers
     const response = await fetch(targetUrl, {
       method: method,
       headers: {
@@ -119,7 +220,6 @@ export async function GET(request: Request) {
       body: body || undefined,
     })
 
-    // Get response data
     const contentType = response.headers.get('content-type') || ''
     let data
 
@@ -129,7 +229,6 @@ export async function GET(request: Request) {
       data = await response.text()
     }
 
-    // For error responses, include a more descriptive error message
     const errorMessage = !response.ok
       ? data && typeof data === 'object' && data.error
         ? `${data.error.message || JSON.stringify(data.error)}`
@@ -140,7 +239,6 @@ export async function GET(request: Request) {
       logger.error(`[${requestId}] External API error: ${response.status} ${response.statusText}`)
     }
 
-    // Return the proxied response
     return formatResponse({
       success: response.ok,
       status: response.status,
@@ -160,13 +258,18 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+export async function POST(request: NextRequest) {
+  const requestId = generateRequestId()
   const startTime = new Date()
   const startTimeISO = startTime.toISOString()
 
   try {
-    // Parse request body
+    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    if (!authResult.success) {
+      logger.error(`[${requestId}] Authentication failed for proxy:`, authResult.error)
+      return createErrorResponse('Unauthorized', 401)
+    }
+
     let requestBody
     try {
       requestBody = await request.json()
@@ -177,16 +280,21 @@ export async function POST(request: Request) {
       throw new Error('Invalid JSON in request body')
     }
 
-    const { toolId, params, executionContext } = requestBody
-
-    if (!toolId) {
-      logger.error(`[${requestId}] Missing toolId in request`)
-      throw new Error('Missing toolId in request')
+    const validationResult = proxyPostSchema.safeParse(requestBody)
+    if (!validationResult.success) {
+      logger.error(`[${requestId}] Request validation failed`, {
+        errors: validationResult.error.errors,
+      })
+      const errorMessages = validationResult.error.errors
+        .map((err) => `${err.path.join('.')}: ${err.message}`)
+        .join(', ')
+      throw new Error(`Validation failed: ${errorMessages}`)
     }
+
+    const { toolId, params } = validationResult.data
 
     logger.info(`[${requestId}] Processing tool: ${toolId}`)
 
-    // Get tool
     const tool = getTool(toolId)
 
     if (!tool) {
@@ -194,7 +302,6 @@ export async function POST(request: Request) {
       throw new Error(`Tool not found: ${toolId}`)
     }
 
-    // Validate the tool and its parameters
     try {
       validateRequiredParametersAfterMerge(toolId, tool, params)
     } catch (validationError) {
@@ -202,7 +309,6 @@ export async function POST(request: Request) {
         error: validationError instanceof Error ? validationError.message : String(validationError),
       })
 
-      // Add timing information even to error responses
       const endTime = new Date()
       const endTimeISO = endTime.toISOString()
       const duration = endTime.getTime() - startTime.getTime()
@@ -214,20 +320,18 @@ export async function POST(request: Request) {
       })
     }
 
-    // Check if tool has file outputs - if so, don't skip post-processing
     const hasFileOutputs =
       tool.outputs &&
       Object.values(tool.outputs).some(
         (output) => output.type === 'file' || output.type === 'file[]'
       )
 
-    // Execute tool
     const result = await executeTool(
       toolId,
       params,
       true, // skipProxy (we're already in the proxy)
       !hasFileOutputs, // skipPostProcess (don't skip if tool has file outputs)
-      executionContext // pass execution context for file processing
+      undefined // execution context is not available in proxy context
     )
 
     if (!result.success) {
@@ -235,7 +339,6 @@ export async function POST(request: Request) {
         error: result.error || 'Unknown error',
       })
 
-      // Let the main executeTool handle error transformation to avoid double transformation
       throw new Error(result.error || 'Tool execution failed')
     }
 
@@ -243,10 +346,8 @@ export async function POST(request: Request) {
     const endTimeISO = endTime.toISOString()
     const duration = endTime.getTime() - startTime.getTime()
 
-    // Add explicit timing information directly to the response
     const responseWithTimingData = {
       ...result,
-      // Add timing data both at root level and in nested timing object
       startTime: startTimeISO,
       endTime: endTimeISO,
       duration,
@@ -259,7 +360,6 @@ export async function POST(request: Request) {
 
     logger.info(`[${requestId}] Tool executed successfully: ${toolId} (${duration}ms)`)
 
-    // Return the response with CORS headers
     return formatResponse(responseWithTimingData)
   } catch (error: any) {
     logger.error(`[${requestId}] Proxy request failed`, {
@@ -268,7 +368,6 @@ export async function POST(request: Request) {
       name: error instanceof Error ? error.name : undefined,
     })
 
-    // Add timing information even to error responses
     const endTime = new Date()
     const endTimeISO = endTime.toISOString()
     const duration = endTime.getTime() - startTime.getTime()

@@ -1,0 +1,70 @@
+---
+title: Übersicht
+description: Leistungsstarke tools zur verbesserung ihrer agentischen workflows
+---
+
+import { Card, Cards } from "fumadocs-ui/components/card";
+import { Step, Steps } from "fumadocs-ui/components/steps";
+import { Video } from '@/components/ui/video';
+
+Tools sind leistungsstarke komponenten in Sim, die es ihren workflows ermöglichen, mit externen diensten zu interagieren, daten zu verarbeiten und spezialisierte aufgaben auszuführen. Sie erweitern die fähigkeiten ihrer agenten und workflows, indem sie zugang zu verschiedenen APIs und diensten bieten.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="toolbar.mp4" width={700} height={450} />
+</div>
+
+## Was ist ein Tool?
+
+Ein Tool ist eine spezialisierte Komponente, die eine bestimmte Funktionalität oder Integration mit externen Diensten bietet. Tools können verwendet werden, um im Web zu suchen, mit Datenbanken zu interagieren, Bilder zu verarbeiten, Text oder Bilder zu generieren, über Messaging-Plattformen zu kommunizieren und vieles mehr.
+
+## Verwendung von Tools in Workflows
+
+Es gibt zwei Hauptmöglichkeiten, Tools in Ihren Sim-Workflows zu verwenden:
+
+<Steps>
+  <Step>
+    <strong>Als eigenständige Blöcke</strong>: Tools können als einzelne
+    Blöcke auf der Arbeitsfläche hinzugefügt werden, wenn Sie deterministischen,
+    direkten Zugriff auf ihre Funktionalität benötigen. Dies gibt Ihnen präzise
+    Kontrolle darüber, wann und wie das Tool aufgerufen wird.
+  </Step>
+  <Step>
+    <strong>Als Agent-Tools</strong>: Tools können zu Agent-Blöcken hinzugefügt werden,
+    indem Sie auf "Tools hinzufügen" klicken und die erforderlichen Parameter konfigurieren.
+    Dies ermöglicht es Agenten, dynamisch zu entscheiden, welche Tools basierend auf dem
+    Kontext und den Anforderungen der Aufgabe verwendet werden sollen.
+  </Step>
+</Steps>
+
+## Tool-Konfiguration
+
+Jedes Tool erfordert eine spezifische Konfiguration, um ordnungsgemäß zu funktionieren. Zu den gängigen Konfigurationselementen gehören:
+
+- **API-Schlüssel**: Viele Tools erfordern eine Authentifizierung über API-Schlüssel
+- **Verbindungsparameter**: Endpunkte, Datenbankidentifikatoren usw.
+- **Eingabeformatierung**: Wie Daten für das Tool strukturiert werden sollten
+- **Ausgabebehandlung**: Wie die Ergebnisse des Tools verarbeitet werden sollen
+
+## Verfügbare Tools
+
+Sim bietet eine vielfältige Sammlung von Tools für verschiedene Zwecke, darunter:
+
+- **KI und Sprachverarbeitung**: OpenAI, ElevenLabs, Übersetzungsdienste
+- **Suche und Recherche**: Google Search, Tavily, Exa, Perplexity
+- **Dokumentenbearbeitung**: Google Docs, Google Sheets, Notion, Confluence
+- **Medienverarbeitung**: Vision, Image Generator
+- **Kommunikation**: Slack, WhatsApp, Twilio SMS, Gmail
+- **Datenspeicherung**: Pinecone, Supabase, Airtable
+- **Entwicklung**: GitHub
+
+Jedes Tool verfügt über eine eigene Dokumentationsseite mit detaillierten Anweisungen zur Konfiguration und Verwendung.
+
+## Tool-Ausgaben
+
+Tools liefern typischerweise strukturierte Daten, die von nachfolgenden Blöcken in Ihrem Workflow verarbeitet werden können. Das Format dieser Daten variiert je nach Tool und Operation, enthält aber im Allgemeinen:
+
+- Den Hauptinhalt oder das Ergebnis
+- Metadaten über die Operation
+- Statusinformationen
+
+Informieren Sie sich in der spezifischen Dokumentation jedes Tools, um das genaue Ausgabeformat zu verstehen.

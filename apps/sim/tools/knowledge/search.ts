@@ -11,22 +11,33 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
     knowledgeBaseId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'ID of the knowledge base to search in',
     },
     query: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Search query text (optional when using tag filters)',
     },
     topK: {
       type: 'number',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Number of most similar results to return (1-100)',
     },
     tagFilters: {
-      type: 'any',
+      type: 'array',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Array of tag filters with tagName and tagValue properties',
+      items: {
+        type: 'object',
+        properties: {
+          tagName: { type: 'string' },
+          tagValue: { type: 'string' },
+        },
+      },
     },
   },
 
@@ -78,9 +89,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       const requestBody = {
         knowledgeBaseIds,
         query: params.query,
-        topK: params.topK
-          ? Math.max(1, Math.min(100, Number.parseInt(params.topK.toString()) || 10))
-          : 10,
+        topK: params.topK ? Math.max(1, Math.min(100, Number(params.topK))) : 10,
         ...(Object.keys(filters).length > 0 && { filters }),
         ...(workflowId && { workflowId }),
       }
@@ -110,12 +119,12 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       items: {
         type: 'object',
         properties: {
-          id: { type: 'string' },
-          content: { type: 'string' },
-          documentId: { type: 'string' },
-          chunkIndex: { type: 'number' },
-          similarity: { type: 'number' },
-          metadata: { type: 'object' },
+          documentId: { type: 'string', description: 'Document ID' },
+          documentName: { type: 'string', description: 'Document name' },
+          content: { type: 'string', description: 'Content of the result' },
+          chunkIndex: { type: 'number', description: 'Index of the chunk within the document' },
+          similarity: { type: 'number', description: 'Similarity score of the result' },
+          metadata: { type: 'object', description: 'Metadata of the result, including tags' },
         },
       },
     },

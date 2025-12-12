@@ -1,0 +1,165 @@
+---
+title: Trello
+description: Trello-Boards und -Karten verwalten
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="trello"
+  color="#0052CC"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Trello](https://trello.com) ist ein visuelles Kollaborationstool, das Ihnen hilft, Projekte, Aufgaben und Arbeitsabläufe mithilfe von Boards, Listen und Karten zu organisieren.
+
+Mit Trello in Sim können Sie:
+
+- **Boards und Listen anzeigen**: Sehen Sie die Boards, auf die Sie Zugriff haben, und die zugehörigen Listen ein.
+- **Karten auflisten und durchsuchen**: Rufen Sie alle Karten auf einem Board ab oder filtern Sie nach Listen, um deren Inhalt und Status zu sehen.
+- **Karten erstellen**: Fügen Sie einer Trello-Liste neue Karten hinzu, einschließlich Beschreibungen, Labels und Fälligkeitsdaten.
+- **Karten aktualisieren und verschieben**: Bearbeiten Sie Karteneigenschaften, verschieben Sie Karten zwischen Listen und legen Sie Fälligkeitsdaten oder Labels fest.
+- **Aktuelle Aktivitäten abrufen**: Rufen Sie Aktionen und Aktivitätsverlauf für Boards und Karten ab.
+- **Karten kommentieren**: Fügen Sie Karten Kommentare für die Zusammenarbeit und Nachverfolgung hinzu.
+
+Die Integration von Trello mit Sim ermöglicht es Ihren Agenten, die Aufgaben, Boards und Projekte Ihres Teams programmatisch zu verwalten. Automatisieren Sie Projektmanagement-Workflows, halten Sie Aufgabenlisten aktuell, synchronisieren Sie mit anderen Tools oder lösen Sie intelligente Workflows als Reaktion auf Trello-Ereignisse aus – alles durch Ihre KI-Agenten.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integrieren Sie Trello, um Boards und Karten zu verwalten. Listen Sie Boards auf, listen Sie Karten auf, erstellen Sie Karten, aktualisieren Sie Karten, rufen Sie Aktionen ab und fügen Sie Kommentare hinzu.
+
+## Tools
+
+### `trello_list_lists`
+
+Alle Listen auf einem Trello-Board auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Ja | ID des Boards, von dem Listen aufgelistet werden sollen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Vorgang erfolgreich war |
+| `lists` | array | Array von Listenobjekten mit id, name, closed, pos und idBoard |
+| `count` | number | Anzahl der zurückgegebenen Listen |
+| `error` | string | Fehlermeldung, wenn der Vorgang fehlgeschlagen ist |
+
+### `trello_list_cards`
+
+Alle Listen eines Trello-Boards auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Ja | ID des Boards, von dem Listen aufgelistet werden sollen |
+| `listId` | string | Nein | Optional: Karten nach Listen-ID filtern |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Vorgang erfolgreich war |
+| `cards` | array | Array von Kartenobjekten mit id, name, desc, url, Board/Listen-IDs, Labels und Fälligkeitsdatum |
+| `count` | number | Anzahl der zurückgegebenen Karten |
+| `error` | string | Fehlermeldung, wenn der Vorgang fehlgeschlagen ist |
+
+### `trello_create_card`
+
+Eine neue Karte auf einem Trello-Board erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Ja | ID des Boards, auf dem die Karte erstellt werden soll |
+| `listId` | string | Ja | ID der Liste, in der die Karte erstellt werden soll |
+| `name` | string | Ja | Name/Titel der Karte |
+| `desc` | string | Nein | Beschreibung der Karte |
+| `pos` | string | Nein | Position der Karte \(top, bottom oder positive Gleitkommazahl\) |
+| `due` | string | Nein | Fälligkeitsdatum \(ISO 8601-Format\) |
+| `labels` | string | Nein | Kommagetrennte Liste von Label-IDs |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Karte erfolgreich erstellt wurde |
+| `card` | object | Das erstellte Kartenobjekt mit ID, Name, Beschreibung, URL und anderen Eigenschaften |
+| `error` | string | Fehlermeldung, falls der Vorgang fehlgeschlagen ist |
+
+### `trello_update_card`
+
+Eine bestehende Karte in Trello aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `cardId` | string | Ja | ID der zu aktualisierenden Karte |
+| `name` | string | Nein | Neuer Name/Titel der Karte |
+| `desc` | string | Nein | Neue Beschreibung der Karte |
+| `closed` | boolean | Nein | Karte archivieren/schließen \(true\) oder wieder öffnen \(false\) |
+| `idList` | string | Nein | Karte in eine andere Liste verschieben |
+| `due` | string | Nein | Fälligkeitsdatum \(ISO 8601-Format\) |
+| `dueComplete` | boolean | Nein | Fälligkeitsdatum als abgeschlossen markieren |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Karte erfolgreich aktualisiert wurde |
+| `card` | object | Das aktualisierte Kartenobjekt mit ID, Name, Beschreibung, URL und anderen Eigenschaften |
+| `error` | string | Fehlermeldung, falls der Vorgang fehlgeschlagen ist |
+
+### `trello_get_actions`
+
+Aktivitäten/Aktionen von einem Board oder einer Karte abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Nein | ID des Boards, von dem Aktionen abgerufen werden sollen \(entweder boardId oder cardId erforderlich\) |
+| `cardId` | string | Nein | ID der Karte, von der Aktionen abgerufen werden sollen \(entweder boardId oder cardId erforderlich\) |
+| `filter` | string | Nein | Aktionen nach Typ filtern \(z.B. "commentCard,updateCard,createCard" oder "all"\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Aktionen \(Standard: 50, max: 1000\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Vorgang erfolgreich war |
+| `actions` | array | Array von Aktionsobjekten mit Typ, Datum, Mitglied und Daten |
+| `count` | number | Anzahl der zurückgegebenen Aktionen |
+| `error` | string | Fehlermeldung, falls der Vorgang fehlgeschlagen ist |
+
+### `trello_add_comment`
+
+Einen Kommentar zu einer Trello-Karte hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `cardId` | string | Ja | ID der Karte, die kommentiert werden soll |
+| `text` | string | Ja | Kommentartext |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Kommentar erfolgreich hinzugefügt wurde |
+| `comment` | object | Das erstellte Kommentarobjekt mit ID, Text, Datum und Mitglied-Ersteller |
+| `error` | string | Fehlermeldung, falls der Vorgang fehlgeschlagen ist |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `trello`

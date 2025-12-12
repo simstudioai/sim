@@ -1,0 +1,76 @@
+---
+title: 関数
+---
+
+import { Image } from '@/components/ui/image'
+
+ファンクションブロックは、ワークフローでカスタムJavaScriptまたはTypeScriptコードを実行します。データの変換、計算の実行、またはカスタムロジックの実装が可能です。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/function.png"
+    alt="コードエディタ付き関数ブロック"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## 出力
+
+- **`<function.result>`**: 関数から返される値
+- **`<function.stdout>`**: コードからのconsole.log()出力
+
+## 使用例
+
+**データ処理パイプライン** - APIレスポンスを構造化データに変換
+
+```
+API (Fetch) → Function (Process & Validate) → Function (Calculate Metrics) → Response
+```
+
+**ビジネスロジックの実装** - ロイヤルティスコアとランクの計算
+
+```
+Agent (Get History) → Function (Calculate Score) → Function (Determine Tier) → Condition (Route)
+```
+
+**データの検証とサニタイズ** - ユーザー入力の検証とクリーニング
+
+```
+Input → Function (Validate & Sanitize) → API (Save to Database)
+```
+
+### 例：ロイヤルティスコア計算機
+
+```javascript title="loyalty-calculator.js"
+// Process customer data and calculate loyalty score
+const { purchaseHistory, accountAge, supportTickets } = <agent>;
+
+// Calculate metrics
+const totalSpent = purchaseHistory.reduce((sum, purchase) => sum + purchase.amount, 0);
+const purchaseFrequency = purchaseHistory.length / (accountAge / 365);
+const ticketRatio = supportTickets.resolved / supportTickets.total;
+
+// Calculate loyalty score (0-100)
+const spendScore = Math.min(totalSpent / 1000 * 30, 30);
+const frequencyScore = Math.min(purchaseFrequency * 20, 40);
+const supportScore = ticketRatio * 30;
+
+const loyaltyScore = Math.round(spendScore + frequencyScore + supportScore);
+
+return {
+  customer: <agent.name>,
+  loyaltyScore,
+  loyaltyTier: loyaltyScore >= 80 ? "Platinum" : loyaltyScore >= 60 ? "Gold" : "Silver",
+  metrics: { spendScore, frequencyScore, supportScore }
+};
+```
+
+## ベストプラクティス
+
+- **関数を集中させる**: 保守性とデバッグを向上させるために、一つのことをうまく行う関数を書く
+- **エラーを適切に処理する**: try/catchブロックを使用して潜在的なエラーを処理し、意味のあるエラーメッセージを提供する
+- **エッジケースをテストする**: 異常な入力、null値、境界条件を正しく処理することを確認する
+- **パフォーマンスを最適化する**: 大規模なデータセットに対する計算の複雑さとメモリ使用量に注意する
+- **デバッグにconsole.log()を使用する**: 関数の実行をデバッグおよび監視するためにstdout出力を活用する

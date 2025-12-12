@@ -1,0 +1,145 @@
+---
+title: Pinecone
+description: 使用 Pinecone 向量数据库
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="pinecone"
+  color="#0D1117"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Pinecone](https://www.pinecone.io) 是一个专为构建高性能向量搜索应用程序而设计的向量数据库。它能够高效存储、管理和进行高维向量嵌入的相似性搜索，非常适合需要语义搜索功能的 AI 应用程序。
+
+使用 Pinecone，您可以：
+
+- **存储向量嵌入**：高效管理大规模高维向量
+- **执行相似性搜索**：在毫秒内找到与查询向量最相似的向量
+- **构建语义搜索**：创建基于意义而非关键词的搜索体验
+- **实现推荐系统**：基于内容相似性生成个性化推荐
+- **部署机器学习模型**：运行依赖向量相似性的机器学习模型
+- **无缝扩展**：处理数十亿个向量并保持一致的性能
+- **维护实时索引**：随着新数据的到来实时更新您的向量数据库
+
+在 Sim 中，Pinecone 集成使您的代理能够以编程方式利用向量搜索功能作为其工作流程的一部分。这允许结合自然语言处理与语义搜索和检索的复杂自动化场景。您的代理可以从文本生成嵌入，将这些向量存储在 Pinecone 索引中，并执行相似性搜索以找到最相关的信息。此集成弥合了您的 AI 工作流程与向量搜索基础设施之间的差距，使信息检索更加智能化，基于语义意义而非精确的关键词匹配。通过将 Sim 与 Pinecone 连接，您可以创建能够理解上下文、从大型数据集中检索相关信息并向用户提供更准确和个性化响应的代理——这一切无需复杂的基础设施管理或向量数据库的专业知识。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Pinecone 集成到工作流程中。可以生成嵌入、插入文本、使用文本搜索、获取向量以及使用向量搜索。需要 API 密钥。
+
+## 工具
+
+### `pinecone_generate_embeddings`
+
+使用 Pinecone 从文本生成嵌入
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `model` | 字符串 | 是 | 用于生成嵌入的模型 |
+| `inputs` | 数组 | 是 | 要生成嵌入的文本输入数组 |
+| `apiKey` | 字符串 | 是 | Pinecone API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `data` | 数组 | 包含值和向量类型的生成嵌入数据 |
+| `model` | 字符串 | 用于生成嵌入的模型 |
+| `vector_type` | 字符串 | 生成的向量类型（密集/稀疏） |
+| `usage` | 对象 | 嵌入生成的使用统计数据 |
+
+### `pinecone_upsert_text`
+
+在 Pinecone 索引中插入或更新文本记录
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `indexHost` | string | 是 | 完整的 Pinecone 索引主机 URL |
+| `namespace` | string | 是 | 要插入记录的命名空间 |
+| `records` | array | 是 | 要插入的记录或记录数组，每个记录包含 _id、文本和可选的元数据 |
+| `apiKey` | string | 是 | Pinecone API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `statusText` | string | 插入操作的状态 |
+| `upsertedCount` | number | 成功插入的记录数量 |
+
+### `pinecone_search_text`
+
+在 Pinecone 索引中搜索相似文本
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `indexHost` | string | 是 | 完整的 Pinecone 索引主机 URL |
+| `namespace` | string | 否 | 要搜索的命名空间 |
+| `searchQuery` | string | 是 | 要搜索的文本 |
+| `topK` | string | 否 | 要返回的结果数量 |
+| `fields` | array | 否 | 结果中要返回的字段 |
+| `filter` | object | 否 | 要应用于搜索的过滤器 |
+| `rerank` | object | 否 | 重排序参数 |
+| `apiKey` | string | 是 | Pinecone API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `matches` | array | 包含 ID、分数和元数据的搜索结果 |
+
+### `pinecone_search_vector`
+
+在 Pinecone 索引中搜索相似向量
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `indexHost` | string | 是 | 完整的 Pinecone 索引主机 URL |
+| `namespace` | string | 否 | 要搜索的命名空间 |
+| `vector` | array | 是 | 要搜索的向量 |
+| `topK` | number | 否 | 要返回的结果数量 |
+| `filter` | object | 否 | 要应用于搜索的过滤器 |
+| `includeValues` | boolean | 否 | 在响应中包含向量值 |
+| `includeMetadata` | boolean | 否 | 在响应中包含元数据 |
+| `apiKey` | string | 是 | Pinecone API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `matches` | array | 包含 ID、分数、值和元数据的向量搜索结果 |
+| `namespace` | string | 执行搜索的命名空间 |
+
+### `pinecone_fetch`
+
+从 Pinecone 索引中通过 ID 获取向量
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `indexHost` | string | 是 | 完整的 Pinecone 索引主机 URL |
+| `ids` | array | 是 | 要获取的向量 ID 数组 |
+| `namespace` | string | 否 | 要从中获取向量的命名空间 |
+| `apiKey` | string | 是 | Pinecone API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `matches` | 数组 | 包含 ID、值、元数据和分数的获取向量 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`pinecone`

@@ -35,8 +35,8 @@ export interface ToolCall {
   startTime: string
   endTime: string
   status: 'success' | 'error'
-  input: Record<string, unknown>
-  output: Record<string, unknown>
+  input?: Record<string, unknown>
+  output?: Record<string, unknown>
   error?: string
 }
 
@@ -52,7 +52,7 @@ export interface ExecutionEnvironment {
 }
 
 export interface ExecutionTrigger {
-  type: 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
+  type: 'api' | 'webhook' | 'schedule' | 'manual' | 'chat' | string
   source: string
   data?: Record<string, unknown>
   timestamp: string
@@ -93,10 +93,6 @@ export interface WorkflowExecutionLog {
     type: string
     url: string
     key: string
-    uploadedAt: string
-    expiresAt: string
-    storageProvider?: 's3' | 'blob' | 'local'
-    bucketName?: string
   }>
   // Execution details
   executionData: {
@@ -133,6 +129,27 @@ export interface WorkflowExecutionLog {
 export type WorkflowExecutionLogInsert = Omit<WorkflowExecutionLog, 'id' | 'createdAt'>
 export type WorkflowExecutionLogSelect = WorkflowExecutionLog
 
+export interface TokenInfo {
+  input?: number
+  output?: number
+  total?: number
+  prompt?: number
+  completion?: number
+}
+
+export interface ProviderTiming {
+  duration: number
+  startTime: string
+  endTime: string
+  segments: Array<{
+    type: string
+    name?: string
+    startTime: string | number
+    endTime: string | number
+    duration: number
+  }>
+}
+
 export interface TraceSpan {
   id: string
   name: string
@@ -143,11 +160,21 @@ export interface TraceSpan {
   children?: TraceSpan[]
   toolCalls?: ToolCall[]
   status?: 'success' | 'error'
-  tokens?: number
+  tokens?: number | TokenInfo
   relativeStartMs?: number
   blockId?: string
   input?: Record<string, unknown>
   output?: Record<string, unknown>
+  model?: string
+  cost?: {
+    input?: number
+    output?: number
+    total?: number
+  }
+  providerTiming?: ProviderTiming
+  loopId?: string
+  parallelId?: string
+  iterationIndex?: number
 }
 
 export interface WorkflowExecutionSummary {

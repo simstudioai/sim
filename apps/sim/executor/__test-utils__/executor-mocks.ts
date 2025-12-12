@@ -48,6 +48,8 @@ export const setupHandlerMocks = () => {
     LoopBlockHandler: createMockHandler('loop'),
     ParallelBlockHandler: createMockHandler('parallel'),
     WorkflowBlockHandler: createMockHandler('workflow'),
+    VariablesBlockHandler: createMockHandler('variables'),
+    WaitBlockHandler: createMockHandler('wait'),
     GenericBlockHandler: createMockHandler('generic'),
     ResponseBlockHandler: createMockHandler('response'),
   }))
@@ -57,7 +59,7 @@ export const setupHandlerMocks = () => {
  * Setup store mocks with configurable options
  */
 export const setupStoreMocks = (options?: {
-  isDebugModeEnabled?: boolean
+  isDebugging?: boolean
   consoleAddFn?: ReturnType<typeof vi.fn>
   consoleUpdateFn?: ReturnType<typeof vi.fn>
 }) => {
@@ -66,15 +68,14 @@ export const setupStoreMocks = (options?: {
 
   vi.doMock('@/stores/settings/general/store', () => ({
     useGeneralStore: {
-      getState: () => ({
-        isDebugModeEnabled: options?.isDebugModeEnabled ?? false,
-      }),
+      getState: () => ({}),
     },
   }))
 
   vi.doMock('@/stores/execution/store', () => ({
     useExecutionStore: {
       getState: () => ({
+        isDebugging: options?.isDebugging ?? false,
         setIsExecuting: vi.fn(),
         reset: vi.fn(),
         setActiveBlocks: vi.fn(),
@@ -93,8 +94,8 @@ export const setupStoreMocks = (options?: {
     },
   }))
 
-  vi.doMock('@/stores/panel/console/store', () => ({
-    useConsoleStore: {
+  vi.doMock('@/stores/terminal', () => ({
+    useTerminalConsoleStore: {
       getState: () => ({
         addConsole: consoleAddFn,
         updateConsole: consoleUpdateFn,
@@ -129,7 +130,7 @@ export const setupExecutorCoreMocks = () => {
     LoopManager: vi.fn().mockImplementation(() => ({
       processLoopIterations: vi.fn().mockResolvedValue(false),
       getLoopIndex: vi.fn().mockImplementation((loopId, blockId, context) => {
-        return context.loopIterations?.get(loopId) || 0
+        return context.loopExecutions?.get(loopId)?.iteration || 0
       }),
     })),
   }))
@@ -462,8 +463,7 @@ export const createWorkflowWithResponse = (): SerializedWorkflow => ({
  */
 export interface MockContextOptions {
   workflowId?: string
-  loopIterations?: Map<string, number>
-  loopItems?: Map<string, any>
+  loopExecutions?: Map<string, any>
   executedBlocks?: Set<string>
   activeExecutionPath?: Set<string>
   completedLoops?: Set<string>
@@ -484,13 +484,12 @@ export const createMockContext = (options: MockContextOptions = {}) => {
     metadata: { startTime: new Date().toISOString(), duration: 0 },
     environmentVariables: {},
     decisions: { router: new Map(), condition: new Map() },
-    loopIterations: options.loopIterations || new Map(),
-    loopItems: options.loopItems || new Map(),
+    loopExecutions: options.loopExecutions || new Map(),
     executedBlocks: options.executedBlocks || new Set<string>(),
     activeExecutionPath: options.activeExecutionPath || new Set<string>(),
     workflow,
     completedLoops: options.completedLoops || new Set<string>(),
-    parallelExecutions: options.parallelExecutions,
+    parallelExecutions: options.parallelExecutions || new Map(),
     parallelBlockMapping: options.parallelBlockMapping,
     currentVirtualBlockId: options.currentVirtualBlockId,
   }
@@ -508,7 +507,7 @@ export const createLoopManagerMock = (options?: {
     getLoopIndex:
       options?.getLoopIndexImpl ||
       vi.fn().mockImplementation((loopId, blockId, context) => {
-        return context.loopIterations.get(loopId) || 0
+        return context.loopExecutions?.get(loopId)?.iteration || 0
       }),
   })),
 })
@@ -522,7 +521,6 @@ export const createParallelExecutionState = (options?: {
   completedExecutions?: number
   executionResults?: Map<string, any>
   activeIterations?: Set<number>
-  currentIteration?: number
   parallelType?: 'count' | 'collection'
 }) => ({
   parallelCount: options?.parallelCount ?? 3,
@@ -531,7 +529,6 @@ export const createParallelExecutionState = (options?: {
   completedExecutions: options?.completedExecutions ?? 0,
   executionResults: options?.executionResults ?? new Map<string, any>(),
   activeIterations: options?.activeIterations ?? new Set<number>(),
-  currentIteration: options?.currentIteration ?? 1,
   parallelType: options?.parallelType,
 })
 
@@ -556,7 +553,7 @@ export const createParallelManagerMock = (options?: {
             }
 
             const parallelState = context.parallelExecutions?.get(parallelId)
-            if (!parallelState || parallelState.currentIteration === 0) {
+            if (!parallelState) {
               continue
             }
 
@@ -604,7 +601,8 @@ export const createParallelManagerMock = (options?: {
       getIterationItem: vi.fn(),
       areAllVirtualBlocksExecuted: vi
         .fn()
-        .mockImplementation((parallelId, parallel, executedBlocks, state) => {
+        .mockImplementation((parallelId, parallel, executedBlocks, state, context) => {
+          // Simple mock implementation - check all blocks (ignoring conditional routing for tests)
           for (const nodeId of parallel.nodes) {
             for (let i = 0; i < state.parallelCount; i++) {
               const virtualBlockId = `${nodeId}_parallel_${parallelId}_iteration_${i}`
@@ -667,7 +665,6 @@ export const createParallelBlockHandler = vi.fn().mockImplementation(() => {
           completedExecutions: 0,
           executionResults: new Map(),
           activeIterations: new Set(),
-          currentIteration: 1,
         }
         context.parallelExecutions.set(parallelId, parallelState)
 
@@ -907,20 +904,16 @@ export const setupParallelTestMocks = (options?: {
   distributionData?: any
   maxParallelChecks?: number
 }) => {
-  // Setup stores
   setupStoreMocks()
 
-  // Setup core executor mocks
   setupExecutorCoreMocks()
 
-  // Setup parallel manager with correct relative path
   vi.doMock('@/executor/parallels', () =>
     createParallelManagerMock({
       maxChecks: options?.maxParallelChecks,
     })
   )
 
-  // Setup loop manager with correct relative path
   vi.doMock('@/executor/loops', () => createLoopManagerMock())
 }
 
@@ -928,7 +921,7 @@ export const setupParallelTestMocks = (options?: {
  * Sets up all standard mocks for executor tests
  */
 export const setupAllMocks = (options?: {
-  isDebugModeEnabled?: boolean
+  isDebugging?: boolean
   consoleAddFn?: ReturnType<typeof vi.fn>
   consoleUpdateFn?: ReturnType<typeof vi.fn>
 }) => {

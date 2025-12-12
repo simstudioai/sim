@@ -1,17 +1,21 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { ArrowRight, ChevronRight, Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { client } from '@/lib/auth-client'
-import { quickValidateEmail } from '@/lib/email/validation'
+import { client, useSession } from '@/lib/auth/auth-client'
+import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
+import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
-import { cn } from '@/lib/utils'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { inter } from '@/app/_styles/fonts/inter/inter'
+import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
+import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
 
 const logger = createLogger('SignupForm')
 
@@ -49,10 +53,6 @@ const NAME_VALIDATIONS = {
     regex: /^(?!.*\s\s).*$/,
     message: 'Name cannot contain consecutive spaces.',
   },
-  noLeadingTrailingSpaces: {
-    test: (value: string) => value === value.trim(),
-    message: 'Name cannot start or end with spaces.',
-  },
 }
 
 const validateEmailField = (emailValue: string): string[] => {
@@ -82,6 +82,7 @@ function SignupFormContent({
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { refetch: refetchSession } = useSession()
   const [isLoading, setIsLoading] = useState(false)
   const [, setMounted] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -94,8 +95,9 @@ function SignupFormContent({
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
   const [redirectUrl, setRedirectUrl] = useState('')
   const [isInviteFlow, setIsInviteFlow] = useState(false)
+  const [buttonClass, setButtonClass] = useState('auth-button-gradient')
+  const [isButtonHovered, setIsButtonHovered] = useState(false)
 
-  // Name validation state
   const [name, setName] = useState('')
   const [nameErrors, setNameErrors] = useState<string[]>([])
   const [showNameValidationError, setShowNameValidationError] = useState(false)
@@ -107,25 +109,46 @@ function SignupFormContent({
       setEmail(emailParam)
     }
 
-    // Handle redirection for invitation flow
     const redirectParam = searchParams.get('redirect')
     if (redirectParam) {
       setRedirectUrl(redirectParam)
 
-      // Check if this is part of an invitation flow
       if (redirectParam.startsWith('/invite/')) {
         setIsInviteFlow(true)
       }
     }
 
-    // Explicitly check for invite_flow parameter
     const inviteFlowParam = searchParams.get('invite_flow')
     if (inviteFlowParam === 'true') {
       setIsInviteFlow(true)
     }
+
+    const checkCustomBrand = () => {
+      const computedStyle = getComputedStyle(document.documentElement)
+      const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
+
+      if (brandAccent && brandAccent !== '#6f3dfa') {
+        setButtonClass('auth-button-custom')
+      } else {
+        setButtonClass('auth-button-gradient')
+      }
+    }
+
+    checkCustomBrand()
+
+    window.addEventListener('resize', checkCustomBrand)
+    const observer = new MutationObserver(checkCustomBrand)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['style', 'class'],
+    })
+
+    return () => {
+      window.removeEventListener('resize', checkCustomBrand)
+      observer.disconnect()
+    }
   }, [searchParams])
 
-  // Validate password and return array of error messages
   const validatePassword = (passwordValue: string): string[] => {
     const errors: string[] = []
 
@@ -152,18 +175,17 @@ function SignupFormContent({
     return errors
   }
 
-  // Validate name and return array of error messages
   const validateName = (nameValue: string): string[] => {
     const errors: string[] = []
 
     if (!NAME_VALIDATIONS.required.test(nameValue)) {
       errors.push(NAME_VALIDATIONS.required.message)
-      return errors // Return early for required field
+      return errors
     }
 
     if (!NAME_VALIDATIONS.notEmpty.test(nameValue)) {
       errors.push(NAME_VALIDATIONS.notEmpty.message)
-      return errors // Return early for empty field
+      return errors
     }
 
     if (!NAME_VALIDATIONS.validCharacters.regex.test(nameValue.trim())) {
@@ -174,10 +196,6 @@ function SignupFormContent({
       errors.push(NAME_VALIDATIONS.noConsecutiveSpaces.message)
     }
 
-    if (!NAME_VALIDATIONS.noLeadingTrailingSpaces.test(nameValue)) {
-      errors.push(NAME_VALIDATIONS.noLeadingTrailingSpaces.message)
-    }
-
     return errors
   }
 
@@ -185,18 +203,16 @@ function SignupFormContent({
     const newPassword = e.target.value
     setPassword(newPassword)
 
-    // Silently validate but don't show errors
     const errors = validatePassword(newPassword)
     setPasswordErrors(errors)
     setShowValidationError(false)
   }
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newName = e.target.value
-    setName(newName)
+    const rawValue = e.target.value
+    setName(rawValue)
 
-    // Silently validate but don't show errors until submit
-    const errors = validateName(newName)
+    const errors = validateName(rawValue)
     setNameErrors(errors)
     setShowNameValidationError(false)
   }
@@ -205,12 +221,10 @@ function SignupFormContent({
     const newEmail = e.target.value
     setEmail(newEmail)
 
-    // Silently validate but don't show errors until submit
     const errors = validateEmailField(newEmail)
     setEmailErrors(errors)
     setShowEmailValidationError(false)
 
-    // Clear any previous server-side email errors when the user starts typing
     if (emailError) {
       setEmailError('')
     }
@@ -221,25 +235,24 @@ function SignupFormContent({
     setIsLoading(true)
 
     const formData = new FormData(e.currentTarget)
-    const emailValue = formData.get('email') as string
+    const emailValueRaw = formData.get('email') as string
+    const emailValue = emailValueRaw.trim().toLowerCase()
     const passwordValue = formData.get('password') as string
-    const name = formData.get('name') as string
+    const nameValue = formData.get('name') as string
 
-    // Validate name on submit
-    const nameValidationErrors = validateName(name)
+    const trimmedName = nameValue.trim()
+
+    const nameValidationErrors = validateName(trimmedName)
     setNameErrors(nameValidationErrors)
     setShowNameValidationError(nameValidationErrors.length > 0)
 
-    // Validate email on submit
     const emailValidationErrors = validateEmailField(emailValue)
     setEmailErrors(emailValidationErrors)
     setShowEmailValidationError(emailValidationErrors.length > 0)
 
-    // Validate password on submit
     const errors = validatePassword(passwordValue)
     setPasswordErrors(errors)
 
-    // Only show validation errors if there are any
     setShowValidationError(errors.length > 0)
 
     try {
@@ -248,7 +261,6 @@ function SignupFormContent({
         emailValidationErrors.length > 0 ||
         errors.length > 0
       ) {
-        // Prioritize name errors first, then email errors, then password errors
         if (nameValidationErrors.length > 0) {
           setNameErrors([nameValidationErrors[0]])
           setShowNameValidationError(true)
@@ -265,8 +277,6 @@ function SignupFormContent({
         return
       }
 
-      // Check if name will be truncated and warn user
-      const trimmedName = name.trim()
       if (trimmedName.length > 100) {
         setNameErrors(['Name will be truncated to 100 characters. Please shorten your name.'])
         setShowNameValidationError(true)
@@ -330,34 +340,30 @@ function SignupFormContent({
         return
       }
 
-      // For new signups, always require verification
+      try {
+        await refetchSession()
+        logger.info('Session refreshed after successful signup')
+      } catch (sessionError) {
+        logger.error('Failed to refresh session after signup:', sessionError)
+      }
+
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('verificationEmail', emailValue)
-        localStorage.setItem('has_logged_in_before', 'true')
-
-        // Set cookie flag for middleware check
-        document.cookie = 'requiresEmailVerification=true; path=/; max-age=900; SameSite=Lax' // 15 min expiry
-        document.cookie = 'has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax'
-
-        // Store invitation flow state if applicable
         if (isInviteFlow && redirectUrl) {
           sessionStorage.setItem('inviteRedirectUrl', redirectUrl)
           sessionStorage.setItem('isInviteFlow', 'true')
         }
       }
 
-      // Send verification OTP manually
       try {
         await client.emailOtp.sendVerificationOtp({
           email: emailValue,
-          type: 'email-verification',
+          type: 'sign-in',
         })
-      } catch (otpError) {
-        logger.error('Failed to send OTP:', otpError)
-        // Continue anyway - user can use resend button
+      } catch (otpErr) {
+        logger.warn('Failed to send sign-in OTP after signup; user can press Resend', otpErr)
       }
 
-      // Always redirect to verification for new signups
       router.push('/verify?fromSignup=true')
     } catch (error) {
       logger.error('Signup error:', error)
@@ -366,147 +372,244 @@ function SignupFormContent({
   }
 
   return (
-    <div className='space-y-6'>
-      <div className='space-y-2 text-center'>
-        <h1 className='font-semibold text-[32px] text-white tracking-tight'>Create Account</h1>
-        <p className='text-neutral-400 text-sm'>Enter your details to create a new account</p>
+    <>
+      <div className='space-y-1 text-center'>
+        <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+          Create an account
+        </h1>
+        <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+          Create an account or log in
+        </p>
       </div>
 
-      <div className='flex flex-col gap-6'>
-        <div className='rounded-xl border border-neutral-700/40 bg-neutral-800/50 p-6 backdrop-blur-sm'>
+      {/* SSO Login Button (primary top-only when it is the only method) */}
+      {(() => {
+        const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
+        const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
+        const hasSocial = githubAvailable || googleAvailable
+        const hasOnlySSO = ssoEnabled && !emailEnabled && !hasSocial
+        return hasOnlySSO
+      })() && (
+        <div className={`${inter.className} mt-8`}>
+          <SSOLoginButton
+            callbackURL={redirectUrl || '/workspace'}
+            variant='primary'
+            primaryClassName={buttonClass}
+          />
+        </div>
+      )}
+
+      {/* Email/Password Form - show unless explicitly disabled */}
+      {!isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && (
+        <form onSubmit={onSubmit} className={`${inter.className} mt-8 space-y-8`}>
+          <div className='space-y-6'>
+            <div className='space-y-2'>
+              <div className='flex items-center justify-between'>
+                <Label htmlFor='name'>Full name</Label>
+              </div>
+              <Input
+                id='name'
+                name='name'
+                placeholder='Enter your name'
+                type='text'
+                autoCapitalize='words'
+                autoComplete='name'
+                title='Name can only contain letters, spaces, hyphens, and apostrophes'
+                value={name}
+                onChange={handleNameChange}
+                className={cn(
+                  'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                  showNameValidationError &&
+                    nameErrors.length > 0 &&
+                    'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                )}
+              />
+              {showNameValidationError && nameErrors.length > 0 && (
+                <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                  {nameErrors.map((error, index) => (
+                    <p key={index}>{error}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className='space-y-2'>
+              <div className='flex items-center justify-between'>
+                <Label htmlFor='email'>Email</Label>
+              </div>
+              <Input
+                id='email'
+                name='email'
+                placeholder='Enter your email'
+                autoCapitalize='none'
+                autoComplete='email'
+                autoCorrect='off'
+                value={email}
+                onChange={handleEmailChange}
+                className={cn(
+                  'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                  (emailError || (showEmailValidationError && emailErrors.length > 0)) &&
+                    'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                )}
+              />
+              {showEmailValidationError && emailErrors.length > 0 && (
+                <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                  {emailErrors.map((error, index) => (
+                    <p key={index}>{error}</p>
+                  ))}
+                </div>
+              )}
+              {emailError && !showEmailValidationError && (
+                <div className='mt-1 text-red-400 text-xs'>
+                  <p>{emailError}</p>
+                </div>
+              )}
+            </div>
+            <div className='space-y-2'>
+              <div className='flex items-center justify-between'>
+                <Label htmlFor='password'>Password</Label>
+              </div>
+              <div className='relative'>
+                <Input
+                  id='password'
+                  name='password'
+                  type={showPassword ? 'text' : 'password'}
+                  autoCapitalize='none'
+                  autoComplete='new-password'
+                  placeholder='Enter your password'
+                  autoCorrect='off'
+                  value={password}
+                  onChange={handlePasswordChange}
+                  className={cn(
+                    'rounded-[10px] pr-10 shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                    showValidationError &&
+                      passwordErrors.length > 0 &&
+                      'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                  )}
+                />
+                <button
+                  type='button'
+                  onClick={() => setShowPassword(!showPassword)}
+                  className='-translate-y-1/2 absolute top-1/2 right-3 text-gray-500 transition hover:text-gray-700'
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              {showValidationError && passwordErrors.length > 0 && (
+                <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                  {passwordErrors.map((error, index) => (
+                    <p key={index}>{error}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <Button
+            type='submit'
+            onMouseEnter={() => setIsButtonHovered(true)}
+            onMouseLeave={() => setIsButtonHovered(false)}
+            className='group inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] py-[6px] pr-[10px] pl-[12px] text-[15px] text-white shadow-[inset_0_2px_4px_0_#9B77FF] transition-all'
+            disabled={isLoading}
+          >
+            <span className='flex items-center gap-1'>
+              {isLoading ? 'Creating account' : 'Create account'}
+              <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
+                {isButtonHovered ? (
+                  <ArrowRight className='h-4 w-4' aria-hidden='true' />
+                ) : (
+                  <ChevronRight className='h-4 w-4' aria-hidden='true' />
+                )}
+              </span>
+            </span>
+          </Button>
+        </form>
+      )}
+
+      {/* Divider - show when we have multiple auth methods */}
+      {(() => {
+        const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
+        const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
+        const hasSocial = githubAvailable || googleAvailable
+        const hasOnlySSO = ssoEnabled && !emailEnabled && !hasSocial
+        const showBottomSection = hasSocial || (ssoEnabled && !hasOnlySSO)
+        const showDivider = (emailEnabled || hasOnlySSO) && showBottomSection
+        return showDivider
+      })() && (
+        <div className={`${inter.className} relative my-6 font-light`}>
+          <div className='absolute inset-0 flex items-center'>
+            <div className='auth-divider w-full border-t' />
+          </div>
+          <div className='relative flex justify-center text-sm'>
+            <span className='bg-white px-4 font-[340] text-muted-foreground'>Or continue with</span>
+          </div>
+        </div>
+      )}
+
+      {(() => {
+        const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
+        const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
+        const hasSocial = githubAvailable || googleAvailable
+        const hasOnlySSO = ssoEnabled && !emailEnabled && !hasSocial
+        const showBottomSection = hasSocial || (ssoEnabled && !hasOnlySSO)
+        return showBottomSection
+      })() && (
+        <div
+          className={cn(
+            inter.className,
+            isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) ? 'mt-8' : undefined
+          )}
+        >
           <SocialLoginButtons
             githubAvailable={githubAvailable}
             googleAvailable={googleAvailable}
             callbackURL={redirectUrl || '/workspace'}
             isProduction={isProduction}
-          />
-
-          <div className='relative mt-2 py-4'>
-            <div className='absolute inset-0 flex items-center'>
-              <div className='w-full border-neutral-700/50 border-t' />
-            </div>
-          </div>
-
-          <form onSubmit={onSubmit} className='space-y-5'>
-            <div className='space-y-4'>
-              <div className='space-y-2'>
-                <Label htmlFor='name' className='text-neutral-300'>
-                  Full Name
-                </Label>
-                <Input
-                  id='name'
-                  name='name'
-                  placeholder='Enter your name'
-                  type='text'
-                  autoCapitalize='words'
-                  autoComplete='name'
-                  title='Name can only contain letters, spaces, hyphens, and apostrophes'
-                  value={name}
-                  onChange={handleNameChange}
-                  className={cn(
-                    'border-neutral-700 bg-neutral-900 text-white placeholder:text-white/60',
-                    showNameValidationError &&
-                      nameErrors.length > 0 &&
-                      'border-red-500 focus-visible:ring-red-500'
-                  )}
-                />
-                {showNameValidationError && nameErrors.length > 0 && (
-                  <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                    {nameErrors.map((error, index) => (
-                      <p key={index}>{error}</p>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className='space-y-2'>
-                <Label htmlFor='email' className='text-neutral-300'>
-                  Email
-                </Label>
-                <Input
-                  id='email'
-                  name='email'
-                  placeholder='Enter your email'
-                  autoCapitalize='none'
-                  autoComplete='email'
-                  autoCorrect='off'
-                  value={email}
-                  onChange={handleEmailChange}
-                  className={cn(
-                    'border-neutral-700 bg-neutral-900 text-white placeholder:text-white/60',
-                    (emailError || (showEmailValidationError && emailErrors.length > 0)) &&
-                      'border-red-500 focus-visible:ring-red-500'
-                  )}
-                />
-                {showEmailValidationError && emailErrors.length > 0 && (
-                  <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                    {emailErrors.map((error, index) => (
-                      <p key={index}>{error}</p>
-                    ))}
-                  </div>
-                )}
-                {emailError && !showEmailValidationError && (
-                  <div className='mt-1 text-red-400 text-xs'>
-                    <p>{emailError}</p>
-                  </div>
-                )}
-              </div>
-              <div className='space-y-2'>
-                <Label htmlFor='password' className='text-neutral-300'>
-                  Password
-                </Label>
-                <div className='relative'>
-                  <Input
-                    id='password'
-                    name='password'
-                    type={showPassword ? 'text' : 'password'}
-                    autoCapitalize='none'
-                    autoComplete='new-password'
-                    placeholder='Enter your password'
-                    autoCorrect='off'
-                    value={password}
-                    onChange={handlePasswordChange}
-                    className='border-neutral-700 bg-neutral-900 pr-10 text-white placeholder:text-white/60'
-                  />
-                  <button
-                    type='button'
-                    onClick={() => setShowPassword(!showPassword)}
-                    className='-translate-y-1/2 absolute top-1/2 right-3 text-neutral-400 transition hover:text-white'
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-                {showValidationError && passwordErrors.length > 0 && (
-                  <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                    {passwordErrors.map((error, index) => (
-                      <p key={index}>{error}</p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <Button
-              type='submit'
-              className='flex h-11 w-full items-center justify-center gap-2 bg-[var(--brand-primary-hex)] font-medium text-base text-white shadow-[var(--brand-primary-hex)]/20 shadow-lg transition-colors duration-200 hover:bg-[var(--brand-primary-hover-hex)]'
-              disabled={isLoading}
-            >
-              {isLoading ? 'Creating account...' : 'Create Account'}
-            </Button>
-          </form>
-        </div>
-
-        <div className='text-center text-sm'>
-          <span className='text-neutral-400'>Already have an account? </span>
-          <Link
-            href={isInviteFlow ? `/login?invite_flow=true&callbackUrl=${redirectUrl}` : '/login'}
-            className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
           >
-            Sign in
-          </Link>
+            {isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')) && (
+              <SSOLoginButton
+                callbackURL={redirectUrl || '/workspace'}
+                variant='outline'
+                primaryClassName={buttonClass}
+              />
+            )}
+          </SocialLoginButtons>
         </div>
+      )}
+
+      <div className={`${inter.className} pt-6 text-center font-light text-[14px]`}>
+        <span className='font-normal'>Already have an account? </span>
+        <Link
+          href={isInviteFlow ? `/login?invite_flow=true&callbackUrl=${redirectUrl}` : '/login'}
+          className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
+        >
+          Sign in
+        </Link>
       </div>
-    </div>
+
+      <div
+        className={`${inter.className} auth-text-muted absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[13px] leading-relaxed sm:px-8 md:px-[44px]`}
+      >
+        By creating an account, you agree to our{' '}
+        <Link
+          href='/terms'
+          target='_blank'
+          rel='noopener noreferrer'
+          className='auth-link underline-offset-4 transition hover:underline'
+        >
+          Terms of Service
+        </Link>{' '}
+        and{' '}
+        <Link
+          href='/privacy'
+          target='_blank'
+          rel='noopener noreferrer'
+          className='auth-link underline-offset-4 transition hover:underline'
+        >
+          Privacy Policy
+        </Link>
+      </div>
+    </>
   )
 }
 

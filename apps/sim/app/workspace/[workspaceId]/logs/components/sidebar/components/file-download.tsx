@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Download, Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { ArrowDown, Loader2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
+import { extractWorkspaceIdFromExecutionKey, getViewerUrl } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FileDownload')
 
@@ -22,12 +24,19 @@ interface FileDownloadProps {
   }
   isExecutionFile?: boolean // Flag to indicate this is an execution file
   className?: string
+  workspaceId?: string // Optional workspace ID (can be extracted from file key if not provided)
 }
 
-export function FileDownload({ file, isExecutionFile = false, className }: FileDownloadProps) {
+export function FileDownload({
+  file,
+  isExecutionFile = false,
+  className,
+  workspaceId,
+}: FileDownloadProps) {
   const [isDownloading, setIsDownloading] = useState(false)
+  const router = useRouter()
 
-  const handleDownload = async () => {
+  const handleDownload = () => {
     if (isDownloading) return
 
     setIsDownloading(true)
@@ -35,34 +44,50 @@ export function FileDownload({ file, isExecutionFile = false, className }: FileD
     try {
       logger.info(`Initiating download for file: ${file.name}`)
 
-      // Generate a fresh download URL
-      const response = await fetch('/api/files/download', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          key: file.key,
-          name: file.name,
-          storageProvider: file.storageProvider,
-          bucketName: file.bucketName,
-          isExecutionFile, // Add flag to indicate execution file
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: response.statusText }))
-        throw new Error(errorData.error || `Failed to generate download URL: ${response.status}`)
+      if (file.key.startsWith('url/')) {
+        if (file.url) {
+          window.open(file.url, '_blank')
+          logger.info(`Opened URL-type file directly: ${file.url}`)
+          return
+        }
+        throw new Error('URL is required for URL-type files')
       }
 
-      const { downloadUrl, fileName } = await response.json()
+      let resolvedWorkspaceId = workspaceId
+      if (!resolvedWorkspaceId && isExecutionFile) {
+        resolvedWorkspaceId = extractWorkspaceIdFromExecutionKey(file.key) || undefined
+      } else if (!resolvedWorkspaceId) {
+        const segments = file.key.split('/')
+        if (segments.length >= 2 && /^[a-f0-9-]{36}$/.test(segments[0])) {
+          resolvedWorkspaceId = segments[0]
+        }
+      }
 
-      // Open the download URL in a new tab
-      window.open(downloadUrl, '_blank')
+      if (isExecutionFile) {
+        const serveUrl =
+          file.url || `/api/files/serve/${encodeURIComponent(file.key)}?context=execution`
+        window.open(serveUrl, '_blank')
+        logger.info(`Opened execution file serve URL: ${serveUrl}`)
+      } else {
+        const viewerUrl = resolvedWorkspaceId ? getViewerUrl(file.key, resolvedWorkspaceId) : null
 
-      logger.info(`Download initiated for file: ${fileName}`)
+        if (viewerUrl) {
+          router.push(viewerUrl)
+          logger.info(`Navigated to viewer URL: ${viewerUrl}`)
+        } else {
+          logger.warn(
+            `Could not construct viewer URL for file: ${file.name}, falling back to serve URL`
+          )
+          const serveUrl =
+            file.url || `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
+          window.open(serveUrl, '_blank')
+        }
+      }
     } catch (error) {
       logger.error(`Failed to download file ${file.name}:`, error)
+      if (file.url) {
+        window.open(file.url, '_blank')
+      }
     } finally {
       setIsDownloading(false)
     }
@@ -71,7 +96,6 @@ export function FileDownload({ file, isExecutionFile = false, className }: FileD
   return (
     <Button
       variant='ghost'
-      size='sm'
       className={`h-7 px-2 text-xs ${className}`}
       onClick={handleDownload}
       disabled={isDownloading}
@@ -79,7 +103,7 @@ export function FileDownload({ file, isExecutionFile = false, className }: FileD
       {isDownloading ? (
         <Loader2 className='h-3 w-3 animate-spin' />
       ) : (
-        <Download className='h-3 w-3' />
+        <ArrowDown className='h-[14px] w-[14px]' />
       )}
       {isDownloading ? 'Downloading...' : 'Download'}
     </Button>

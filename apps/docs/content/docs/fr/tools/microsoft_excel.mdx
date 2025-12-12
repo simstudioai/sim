@@ -1,0 +1,114 @@
+---
+title: Microsoft Excel
+description: Lire, écrire et mettre à jour des données
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="microsoft_excel"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Microsoft Teams](https://www.microsoft.com/en-us/microsoft-365/excel) est une application de tableur puissante qui permet la gestion, l'analyse et la visualisation des données. Grâce à l'intégration de Microsoft Excel dans Sim, vous pouvez lire, écrire et manipuler programmatiquement les données de feuilles de calcul pour répondre à vos besoins d'automatisation de flux de travail.
+
+Avec l'intégration Microsoft Excel, vous pouvez :
+
+- **Lire les données des feuilles de calcul** : accéder aux données de plages, feuilles et cellules spécifiques
+- **Écrire et mettre à jour des données** : ajouter de nouvelles données ou modifier le contenu existant des feuilles de calcul
+- **Gérer des tableaux** : créer et manipuler des structures de données tabulaires
+- **Gérer plusieurs feuilles** : travailler avec plusieurs feuilles de calcul dans un classeur
+- **Traiter les données** : importer, exporter et transformer les données des feuilles de calcul
+
+Dans Sim, l'intégration Microsoft Excel offre un accès transparent aux fonctionnalités des feuilles de calcul grâce à l'authentification OAuth. Vous pouvez lire des données de plages spécifiques, écrire de nouvelles informations, mettre à jour des cellules existantes et gérer divers formats de données. L'intégration prend en charge les opérations de lecture et d'écriture avec des options d'entrée et de sortie flexibles. Cela vous permet de créer des flux de travail qui peuvent gérer efficacement les données des feuilles de calcul, que vous extrayiez des informations pour analyse, mettiez à jour des enregistrements automatiquement ou mainteniez la cohérence des données dans vos applications.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Microsoft Excel dans le flux de travail. Peut lire, écrire, mettre à jour, ajouter au tableau et créer de nouvelles feuilles de calcul.
+
+## Outils
+
+### `microsoft_excel_read`
+
+Lire des données d'une feuille de calcul Microsoft Excel
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | chaîne | Oui | L'identifiant de la feuille de calcul à lire |
+| `range` | chaîne | Non | La plage de cellules à lire. Accepte "NomFeuille!A1:B2" pour des plages explicites ou simplement "NomFeuille" pour lire la plage utilisée de cette feuille. Si omis, lit la plage utilisée de la première feuille. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | objet | Données de plage de la feuille de calcul |
+
+### `microsoft_excel_write`
+
+Écrire des données dans une feuille de calcul Microsoft Excel
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | chaîne | Oui | L'identifiant de la feuille de calcul dans laquelle écrire |
+| `range` | chaîne | Non | La plage de cellules dans laquelle écrire |
+| `values` | tableau | Oui | Les données à écrire dans la feuille de calcul |
+| `valueInputOption` | chaîne | Non | Le format des données à écrire |
+| `includeValuesInResponse` | booléen | Non | Indique si les valeurs écrites doivent être incluses dans la réponse |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `updatedRange` | string | La plage qui a été mise à jour |
+| `updatedRows` | number | Nombre de lignes qui ont été mises à jour |
+| `updatedColumns` | number | Nombre de colonnes qui ont été mises à jour |
+| `updatedCells` | number | Nombre de cellules qui ont été mises à jour |
+| `metadata` | object | Métadonnées de la feuille de calcul |
+
+### `microsoft_excel_table_add`
+
+Ajouter de nouvelles lignes à un tableau Microsoft Excel
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `spreadsheetId` | string | Oui | L'ID de la feuille de calcul contenant le tableau |
+| `tableName` | string | Oui | Le nom du tableau auquel ajouter des lignes |
+| `values` | array | Oui | Les données à ajouter au tableau \(tableau de tableaux ou tableau d'objets\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `index` | number | Index de la première ligne qui a été ajoutée |
+| `values` | array | Tableau des lignes qui ont été ajoutées au tableau |
+| `metadata` | object | Métadonnées de la feuille de calcul |
+
+### `microsoft_excel_worksheet_add`
+
+Créer une nouvelle feuille de calcul dans un classeur Microsoft Excel
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | chaîne | Oui | L'identifiant du classeur Excel dans lequel ajouter la feuille de calcul |
+| `worksheetName` | chaîne | Oui | Le nom de la nouvelle feuille de calcul. Doit être unique dans le classeur et ne peut pas dépasser 31 caractères |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `worksheet` | objet | Détails de la feuille de calcul nouvellement créée |
+
+## Remarques
+
+- Catégorie : `tools`
+- Type : `microsoft_excel`

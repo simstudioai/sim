@@ -1,0 +1,114 @@
+---
+title: Microsoft Excel
+description: 读取、写入和更新数据
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="microsoft_excel"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Microsoft Teams](https://www.microsoft.com/en-us/microsoft-365/excel) 是一款功能强大的电子表格应用程序，可实现数据管理、分析和可视化。通过 Sim 中的 Microsoft Excel 集成，您可以以编程方式读取、写入和操作电子表格数据，以支持您的工作流自动化需求。
+
+通过 Microsoft Excel 集成，您可以：
+
+- **读取电子表格数据**：访问特定范围、工作表和单元格中的数据
+- **写入和更新数据**：添加新数据或修改现有电子表格内容
+- **管理表格**：创建和操作表格数据结构
+- **处理多个工作表**：处理工作簿中的多个工作表
+- **处理数据**：导入、导出和转换电子表格数据
+
+在 Sim 中，Microsoft Excel 集成通过 OAuth 身份验证提供无缝的电子表格功能访问。您可以从特定范围读取数据，写入新信息，更新现有单元格，并处理各种数据格式。该集成支持读取和写入操作，具有灵活的输入和输出选项。这使您能够构建有效管理电子表格数据的工作流，无论是提取信息进行分析、自动更新记录，还是在应用程序之间保持数据一致性。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Microsoft Excel 集成到工作流程中。可以读取、写入、更新、添加到表格以及创建新工作表。
+
+## 工具
+
+### `microsoft_excel_read`
+
+从 Microsoft Excel 电子表格中读取数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | 是 | 要读取的电子表格的 ID |
+| `range` | string | 否 | 要读取的单元格范围。接受 "SheetName!A1:B2" 形式的显式范围，或仅输入 "SheetName" 以读取该工作表的已用范围。如果省略，将读取第一个工作表的已用范围。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `data` | object | 电子表格中的范围数据 |
+
+### `microsoft_excel_write`
+
+向 Microsoft Excel 电子表格写入数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | 是 | 要写入的电子表格的 ID |
+| `range` | string | 否 | 要写入的单元格范围 |
+| `values` | array | 是 | 要写入电子表格的数据 |
+| `valueInputOption` | string | 否 | 要写入数据的格式 |
+| `includeValuesInResponse` | boolean | 否 | 是否在响应中包含写入的值 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `updatedRange` | string | 更新的范围 |
+| `updatedRows` | number | 更新的行数 |
+| `updatedColumns` | number | 更新的列数 |
+| `updatedCells` | number | 更新的单元格数 |
+| `metadata` | object | 电子表格元数据 |
+
+### `microsoft_excel_table_add`
+
+向 Microsoft Excel 表格添加新行
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | 是 | 包含表格的电子表格的 ID |
+| `tableName` | string | 是 | 要添加行的表格名称 |
+| `values` | array | 是 | 要添加到表格的数据 \(数组的数组或对象的数组\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `index` | number | 添加的第一行的索引 |
+| `values` | array | 添加到表格的行数组 |
+| `metadata` | object | 电子表格元数据 |
+
+### `microsoft_excel_worksheet_add`
+
+在 Microsoft Excel 工作簿中创建一个新工作表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | 是 | 要添加工作表的 Excel 工作簿的 ID |
+| `worksheetName` | string | 是 | 新工作表的名称。必须在工作簿中唯一，且不能超过 31 个字符 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `worksheet` | object | 新创建工作表的详细信息 |
+
+## 注意
+
+- 类别：`tools`
+- 类型：`microsoft_excel`

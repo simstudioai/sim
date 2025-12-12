@@ -1,0 +1,126 @@
+---
+title: Google Drive
+description: 创建、上传和列出文件
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_drive"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Drive](https://drive.google.com) 是 Google 的云存储和文件同步服务，允许用户存储文件、在设备之间同步文件，并与他人共享文件。作为 Google 生产力生态系统的核心组件，Google Drive 提供了强大的存储、组织和协作功能。
+
+了解如何在 Sim 中集成 Google Drive 工具，通过工作流轻松从您的 Drive 中提取信息。本教程将指导您连接 Google Drive、设置数据检索以及使用存储的文档和文件来增强自动化功能。非常适合实时与您的代理同步重要数据。
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/cRoRr4b-EAs"
+  title="在 Sim 中使用 Google Drive 工具"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+使用 Google Drive，您可以：
+
+- **在云端存储文件**：上传文件并通过互联网随时随地访问
+- **组织内容**：创建文件夹、使用颜色编码并实施命名约定
+- **共享与协作**：控制访问权限并同时处理文件
+- **高效搜索**：利用 Google 强大的搜索技术快速找到文件
+- **跨设备访问**：在桌面、移动设备和网页平台上使用 Google Drive
+- **与其他服务集成**：连接 Google Docs、Sheets、Slides 和第三方应用程序
+
+在 Sim 中，Google Drive 集成使您的代理可以以编程方式直接与云存储交互。这支持强大的自动化场景，例如文件管理、内容组织和文档工作流。您的代理可以将新文件上传到特定文件夹，下载现有文件以处理其内容，并列出文件夹内容以导航存储结构。此集成弥合了 AI 工作流与文档管理系统之间的差距，实现了无人工干预的无缝文件操作。通过将 Sim 与 Google Drive 连接，您可以自动化基于文件的工作流、智能管理文档，并将云存储操作集成到代理的功能中。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Google Drive 集成到工作流程中。可以创建、上传和列出文件。需要 OAuth。
+
+## 工具
+
+### `google_drive_upload`
+
+上传文件到 Google Drive
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `fileName` | string | 是 | 要上传文件的名称 |
+| `file` | file | 否 | 要上传的二进制文件 \(UserFile 对象\) |
+| `content` | string | 否 | 要上传的文本内容 \(使用此项或 file，不可同时使用\) |
+| `mimeType` | string | 否 | 要上传文件的 MIME 类型 \(如果未提供，将从文件中自动检测\) |
+| `folderSelector` | string | 否 | 选择要上传文件的文件夹 |
+| `folderId` | string | 否 | 要上传文件的文件夹 ID \(内部使用\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `file` | json | 上传文件的元数据，包括 ID、名称和链接 |
+
+### `google_drive_create_folder`
+
+在 Google Drive 中创建一个新文件夹
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `fileName` | string | 是 | 要创建的文件夹名称 |
+| `folderSelector` | string | 否 | 选择要在其中创建文件夹的父文件夹 |
+| `folderId` | string | 否 | 父文件夹的 ID（内部使用） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `file` | json | 创建的文件夹元数据，包括 ID、名称和父文件夹信息 |
+
+### `google_drive_download`
+
+从 Google Drive 下载文件（自动导出 Google Workspace 文件）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | 是 | 要下载的文件 ID |
+| `mimeType` | string | 否 | 导出 Google Workspace 文件的 MIME 类型（可选） |
+| `fileName` | string | 否 | 可选的文件名覆盖 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `file` | file | 下载的文件存储在执行文件中 |
+
+### `google_drive_list`
+
+列出 Google Drive 中的文件和文件夹
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `folderSelector` | string | 否 | 选择要列出文件的文件夹 |
+| `folderId` | string | 否 | 要列出文件的文件夹 ID（内部使用） |
+| `query` | string | 否 | 用于按名称过滤文件的搜索词（例如，"budget" 会找到名称中包含 "budget" 的文件）。不要在此处使用 Google Drive 查询语法 - 只需提供一个普通的搜索词即可。 |
+| `pageSize` | number | 否 | 要返回的最大文件数（默认值：100） |
+| `pageToken` | string | 否 | 用于分页的页面令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `files` | json | 指定文件夹中文件元数据对象的数组 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`google_drive`

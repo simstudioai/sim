@@ -1,8 +1,9 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GoogleDriveFileAPI')
@@ -11,11 +12,10 @@ const logger = createLogger('GoogleDriveFileAPI')
  * Get a single file from Google Drive
  */
 export async function GET(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8) // Generate a short request ID for correlation
+  const requestId = generateRequestId()
   logger.info(`[${requestId}] Google Drive file request received`)
 
   try {
-    // Get the credential ID and file ID from the query params
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
     const fileId = searchParams.get('fileId')
@@ -26,12 +26,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID and File ID are required' }, { status: 400 })
     }
 
+    const fileIdValidation = validateAlphanumericId(fileId, 'fileId', 255)
+    if (!fileIdValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid file ID: ${fileIdValidation.error}`)
+      return NextResponse.json({ error: fileIdValidation.error }, { status: 400 })
+    }
+
     const authz = await authorizeCredentialUse(request, { credentialId: credentialId, workflowId })
     if (!authz.ok || !authz.credentialOwnerUserId) {
       return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
     }
 
-    // Refresh access token if needed using the utility function
     const accessToken = await refreshAccessTokenIfNeeded(
       credentialId,
       authz.credentialOwnerUserId,
@@ -42,7 +47,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
-    // Fetch the file from Google Drive API
     logger.info(`[${requestId}] Fetching file ${fileId} from Google Drive API`)
     const response = await fetch(
       `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,iconLink,webViewLink,thumbnailLink,createdTime,modifiedTime,size,owners,exportLinks,shortcutDetails&supportsAllDrives=true`,
@@ -52,6 +56,35 @@ export async function GET(request: NextRequest) {
         },
       }
     )
+
+    if (!response.ok && response.status === 404) {
+      logger.info(`[${requestId}] File not found, checking if it's a shared drive`)
+      const driveResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/drives/${fileId}?fields=id,name`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      )
+
+      if (driveResponse.ok) {
+        const driveData = await driveResponse.json()
+        logger.info(`[${requestId}] Found shared drive: ${driveData.name}`)
+        return NextResponse.json(
+          {
+            file: {
+              id: driveData.id,
+              name: driveData.name,
+              mimeType: 'application/vnd.google-apps.folder',
+              iconLink:
+                'https://ssl.gstatic.com/docs/doclist/images/icon_11_shared_collection_list_1.png',
+            },
+          },
+          { status: 200 }
+        )
+      }
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
@@ -69,15 +102,13 @@ export async function GET(request: NextRequest) {
 
     const file = await response.json()
 
-    // In case of Google Docs, Sheets, etc., provide the export links
     const exportFormats: { [key: string]: string } = {
-      'application/vnd.google-apps.document': 'application/pdf', // Google Docs to PDF
+      'application/vnd.google-apps.document': 'application/pdf',
       'application/vnd.google-apps.spreadsheet':
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // Google Sheets to XLSX
-      'application/vnd.google-apps.presentation': 'application/pdf', // Google Slides to PDF
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.google-apps.presentation': 'application/pdf',
     }
 
-    // Resolve shortcuts transparently for UI stability
     if (
       file.mimeType === 'application/vnd.google-apps.shortcut' &&
       file.shortcutDetails?.targetId
@@ -105,21 +136,17 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // If the file is a Google Docs, Sheets, or Slides file, we need to provide the export link
     if (file.mimeType.startsWith('application/vnd.google-apps.')) {
       const format = exportFormats[file.mimeType] || 'application/pdf'
       if (!file.exportLinks) {
-        // If export links are not available in the response, try to construct one
         file.downloadUrl = `https://www.googleapis.com/drive/v3/files/${file.id}/export?mimeType=${encodeURIComponent(
           format
-        )}`
+        )}&supportsAllDrives=true`
       } else {
-        // Use the export link from the response if available
         file.downloadUrl = file.exportLinks[format]
       }
     } else {
-      // For regular files, use the download link
-      file.downloadUrl = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`
+      file.downloadUrl = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&supportsAllDrives=true`
     }
 
     return NextResponse.json({ file }, { status: 200 })

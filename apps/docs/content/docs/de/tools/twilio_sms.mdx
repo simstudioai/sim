@@ -1,0 +1,60 @@
+---
+title: Twilio SMS
+description: SMS-Nachrichten versenden
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="twilio_sms"
+  color="#F22F46"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Twilio SMS](https://www.twilio.com/en-us/sms) ist eine leistungsstarke Cloud-Kommunikationsplattform, die es Unternehmen ermöglicht, Messaging-Funktionen in ihre Anwendungen und Dienste zu integrieren.
+
+Twilio SMS bietet eine robuste API zum programmatischen Senden und Empfangen von Textnachrichten weltweit. Mit Abdeckung in über 180 Ländern und einer 99,999% Verfügbarkeits-SLA hat sich Twilio als Branchenführer in der Kommunikationstechnologie etabliert.
+
+Zu den wichtigsten Funktionen von Twilio SMS gehören:
+
+- **Globale Reichweite**: Senden Sie Nachrichten an Empfänger weltweit mit lokalen Telefonnummern in mehreren Ländern
+- **Programmierbares Messaging**: Passen Sie die Nachrichtenzustellung mit Webhooks, Zustellbestätigungen und Planungsoptionen an
+- **Erweiterte Analytik**: Verfolgen Sie Zustellraten, Engagement-Metriken und optimieren Sie Ihre Messaging-Kampagnen
+
+In Sim ermöglicht die Twilio SMS-Integration Ihren Agenten, diese leistungsstarken Messaging-Funktionen als Teil ihrer Workflows zu nutzen. Dies schafft Möglichkeiten für anspruchsvolle Kundenbindungsszenarien wie Terminerinnerungen, Verifizierungscodes, Warnmeldungen und interaktive Gespräche. Die Integration überbrückt die Lücke zwischen Ihren KI-Workflows und Kundenkommunikationskanälen und ermöglicht es Ihren Agenten, zeitnahe, relevante Informationen direkt auf die Mobilgeräte der Benutzer zu liefern. Durch die Verbindung von Sim mit Twilio SMS können Sie intelligente Agenten erstellen, die Kunden über ihren bevorzugten Kommunikationskanal ansprechen, die Benutzererfahrung verbessern und gleichzeitig routinemäßige Messaging-Aufgaben automatisieren.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Twilio in den Workflow integrieren. Kann SMS-Nachrichten senden.
+
+## Tools
+
+### `twilio_send_sms`
+
+Senden Sie Textnachrichten an einzelne oder mehrere Empfänger über die Twilio API.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `phoneNumbers` | string | Ja | Telefonnummern, an die die Nachricht gesendet werden soll, durch Zeilenumbrüche getrennt |
+| `message` | string | Ja | Zu sendende Nachricht |
+| `accountSid` | string | Ja | Twilio Account SID |
+| `authToken` | string | Ja | Twilio Auth Token |
+| `fromNumber` | string | Ja | Twilio-Telefonnummer, von der die Nachricht gesendet wird |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | SMS-Sendeerfolg-Status |
+| `messageId` | string | Eindeutige Twilio-Nachrichtenkennung \(SID\) |
+| `status` | string | Nachrichtenzustellungsstatus von Twilio |
+| `fromNumber` | string | Telefonnummer, von der die Nachricht gesendet wurde |
+| `toNumber` | string | Telefonnummer, an die die Nachricht gesendet wurde |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `twilio_sms`

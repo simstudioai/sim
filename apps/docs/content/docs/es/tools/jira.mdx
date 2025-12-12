@@ -1,0 +1,495 @@
+---
+title: Jira
+description: Interactúa con Jira
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="jira"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Jira](https://www.atlassian.com/jira) es una plataforma líder de gestión de proyectos y seguimiento de incidencias que ayuda a los equipos a planificar, rastrear y gestionar proyectos de desarrollo de software ágil de manera efectiva. Como parte de la suite de Atlassian, Jira se ha convertido en el estándar de la industria para equipos de desarrollo de software y profesionales de gestión de proyectos en todo el mundo.
+
+Jira proporciona un conjunto completo de herramientas para gestionar proyectos complejos a través de su sistema de flujo de trabajo flexible y personalizable. Con su robusta API y capacidades de integración, Jira permite a los equipos optimizar sus procesos de desarrollo y mantener una clara visibilidad del progreso del proyecto.
+
+Las características principales de Jira incluyen:
+
+- Gestión de proyectos ágiles: Soporte para metodologías Scrum y Kanban con tableros y flujos de trabajo personalizables
+- Seguimiento de incidencias: Sistema sofisticado de seguimiento para errores, historias, épicas y tareas con informes detallados
+- Automatización de flujos de trabajo: Potentes reglas de automatización para optimizar tareas y procesos repetitivos
+- Búsqueda avanzada: JQL (Jira Query Language) para filtrado e informes complejos de incidencias
+
+En Sim, la integración con Jira permite a tus agentes interactuar sin problemas con tu flujo de trabajo de gestión de proyectos. Esto crea oportunidades para la creación, actualización y seguimiento automatizado de incidencias como parte de tus flujos de trabajo de IA. La integración permite a los agentes crear, recuperar y actualizar incidencias de Jira de forma programática, facilitando tareas automatizadas de gestión de proyectos y asegurando que la información importante sea debidamente rastreada y documentada. Al conectar Sim con Jira, puedes construir agentes inteligentes que mantengan la visibilidad del proyecto mientras automatizan tareas rutinarias de gestión de proyectos, mejorando la productividad del equipo y asegurando un seguimiento consistente del proyecto.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Jira en el flujo de trabajo. Puede leer, escribir y actualizar incidencias. También puede activar flujos de trabajo basados en eventos webhook de Jira.
+
+## Herramientas
+
+### `jira_retrieve`
+
+Recupera información detallada sobre una incidencia específica de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `projectId` | string | No | ID del proyecto de Jira \(opcional; no es necesario para recuperar una sola incidencia\). |
+| `issueKey` | string | Sí | Clave de la incidencia de Jira a recuperar \(p. ej., PROJ-123\) |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles de la incidencia de Jira con clave de incidencia, resumen, descripción, marcas de tiempo de creación y actualización |
+
+### `jira_update`
+
+Actualizar una incidencia de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `projectId` | string | No | ID del proyecto de Jira para actualizar incidencias. Si no se proporciona, se recuperarán todas las incidencias. |
+| `issueKey` | string | Sí | Clave de la incidencia de Jira a actualizar |
+| `summary` | string | No | Nuevo resumen para la incidencia |
+| `description` | string | No | Nueva descripción para la incidencia |
+| `status` | string | No | Nuevo estado para la incidencia |
+| `priority` | string | No | Nueva prioridad para la incidencia |
+| `assignee` | string | No | Nuevo asignado para la incidencia |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles actualizados de la incidencia de Jira con marca de tiempo, clave de incidencia, resumen y estado de éxito |
+
+### `jira_write`
+
+Escribir una incidencia de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `projectId` | string | Sí | ID del proyecto para la incidencia |
+| `summary` | string | Sí | Resumen de la incidencia |
+| `description` | string | No | Descripción de la incidencia |
+| `priority` | string | No | Prioridad de la incidencia |
+| `assignee` | string | No | Asignado para la incidencia |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
+| `issueType` | string | Sí | Tipo de incidencia a crear \(p. ej., Tarea, Historia\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles de la incidencia de Jira creada con marca de tiempo, clave de incidencia, resumen, estado de éxito y URL |
+
+### `jira_bulk_read`
+
+Recuperar múltiples incidencias de Jira en bloque
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `projectId` | string | Sí | ID del proyecto de Jira |
+| `cloudId` | string | No | ID de Jira cloud |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | array | Array de incidencias de Jira con resumen, descripción, marcas de tiempo de creación y actualización |
+
+### `jira_delete_issue`
+
+Eliminar una incidencia de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `issueKey` | string | Sí | Clave de la incidencia de Jira a eliminar \(p. ej., PROJ-123\) |
+| `deleteSubtasks` | boolean | No | Si se deben eliminar las subtareas. Si es falso, las incidencias principales con subtareas no se pueden eliminar. |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles de la incidencia eliminada con marca de tiempo, clave de incidencia y estado de éxito |
+
+### `jira_assign_issue`
+
+Asignar una incidencia de Jira a un usuario
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `issueKey` | string | Sí | Clave de la incidencia de Jira a asignar \(p. ej., PROJ-123\) |
+| `accountId` | string | Sí | ID de cuenta del usuario al que asignar la incidencia. Usa "-1" para asignación automática o null para desasignar. |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles de la asignación con marca de tiempo, clave de incidencia, ID del asignado y estado de éxito |
+
+### `jira_transition_issue`
+
+Mover una incidencia de Jira entre estados de flujo de trabajo (p. ej., Pendiente -> En progreso)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `issueKey` | string | Sí | Clave de la incidencia de Jira a transicionar \(p. ej., PROJ-123\) |
+| `transitionId` | string | Sí | ID de la transición a ejecutar \(p. ej., "11" para "Pendiente", "21" para "En progreso"\) |
+| `comment` | string | No | Comentario opcional para añadir al transicionar la incidencia |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles de la transición con marca de tiempo, clave de incidencia, ID de transición y estado de éxito |
+
+### `jira_search_issues`
+
+Buscar incidencias de Jira usando JQL (Jira Query Language)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `jql` | string | Sí | Cadena de consulta JQL para buscar incidencias \(p. ej., "project = PROJ AND status = Open"\) |
+| `startAt` | number | No | El índice del primer resultado a devolver \(para paginación\) |
+| `maxResults` | number | No | Número máximo de resultados a devolver \(predeterminado: 50\) |
+| `fields` | array | No | Array de nombres de campos a devolver \(predeterminado: \['summary', 'status', 'assignee', 'created', 'updated'\]\) |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultados de búsqueda con marca de tiempo, recuento total, detalles de paginación y array de incidencias coincidentes |
+
+### `jira_add_comment`
+
+Añadir un comentario a una incidencia de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `issueKey` | string | Sí | Clave de la incidencia de Jira a la que añadir el comentario \(p. ej., PROJ-123\) |
+| `body` | string | Sí | Texto del cuerpo del comentario |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles del comentario con marca de tiempo, clave de incidencia, ID del comentario, cuerpo y estado de éxito |
+
+### `jira_get_comments`
+
+Obtener todos los comentarios de una incidencia de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `issueKey` | string | Sí | Clave de la incidencia de Jira de la que obtener comentarios \(p. ej., PROJ-123\) |
+| `startAt` | number | No | Índice del primer comentario a devolver \(predeterminado: 0\) |
+| `maxResults` | number | No | Número máximo de comentarios a devolver \(predeterminado: 50\) |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de comentarios con marca de tiempo, clave de incidencia, recuento total y array de comentarios |
+
+### `jira_update_comment`
+
+Actualizar un comentario existente en una incidencia de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `issueKey` | string | Sí | Clave de incidencia de Jira que contiene el comentario \(p. ej., PROJ-123\) |
+| `commentId` | string | Sí | ID del comentario a actualizar |
+| `body` | string | Sí | Texto actualizado del comentario |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles del comentario actualizado con marca de tiempo, clave de incidencia, ID de comentario, texto del cuerpo y estado de éxito |
+
+### `jira_delete_comment`
+
+Eliminar un comentario de una incidencia de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `issueKey` | string | Sí | Clave de incidencia de Jira que contiene el comentario \(p. ej., PROJ-123\) |
+| `commentId` | string | Sí | ID del comentario a eliminar |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles de eliminación con marca de tiempo, clave de incidencia, ID de comentario y estado de éxito |
+
+### `jira_get_attachments`
+
+Obtener todos los adjuntos de una incidencia de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `issueKey` | string | Sí | Clave de la incidencia de Jira de la que obtener los adjuntos \(p. ej., PROJ-123\) |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de adjuntos con marca de tiempo, clave de incidencia y array de adjuntos |
+
+### `jira_delete_attachment`
+
+Eliminar un adjunto de una incidencia de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `attachmentId` | string | Sí | ID del adjunto a eliminar |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles de eliminación con marca de tiempo, ID de adjunto y estado de éxito |
+
+### `jira_add_worklog`
+
+Añadir una entrada de registro de trabajo de seguimiento de tiempo a una incidencia de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `issueKey` | string | Sí | Clave de la incidencia de Jira a la que añadir el registro de trabajo \(p. ej., PROJ-123\) |
+| `timeSpentSeconds` | number | Sí | Tiempo dedicado en segundos |
+| `comment` | string | No | Comentario opcional para la entrada del registro de trabajo |
+| `started` | string | No | Hora de inicio opcional en formato ISO \(por defecto es la hora actual\) |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles del registro de trabajo con marca de tiempo, clave de incidencia, ID del registro de trabajo, tiempo dedicado en segundos y estado de éxito |
+
+### `jira_get_worklogs`
+
+Obtener todas las entradas de registro de trabajo de una incidencia de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `issueKey` | string | Sí | Clave de la incidencia de Jira de la que obtener los registros de trabajo \(p. ej., PROJ-123\) |
+| `startAt` | number | No | Índice del primer registro de trabajo a devolver \(predeterminado: 0\) |
+| `maxResults` | number | No | Número máximo de registros de trabajo a devolver \(predeterminado: 50\) |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de registros de trabajo con marca de tiempo, clave de incidencia, recuento total y array de registros de trabajo |
+
+### `jira_update_worklog`
+
+Actualizar una entrada existente de registro de trabajo en una incidencia de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `issueKey` | string | Sí | Clave de incidencia de Jira que contiene el registro de trabajo \(p. ej., PROJ-123\) |
+| `worklogId` | string | Sí | ID de la entrada de registro de trabajo a actualizar |
+| `timeSpentSeconds` | number | No | Tiempo empleado en segundos |
+| `comment` | string | No | Comentario opcional para la entrada de registro de trabajo |
+| `started` | string | No | Hora de inicio opcional en formato ISO |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles de actualización del registro de trabajo con marca de tiempo, clave de incidencia, ID de registro de trabajo y estado de éxito |
+
+### `jira_delete_worklog`
+
+Eliminar una entrada de registro de trabajo de una incidencia de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `issueKey` | string | Sí | Clave de incidencia de Jira que contiene el registro de trabajo \(p. ej., PROJ-123\) |
+| `worklogId` | string | Sí | ID de la entrada de registro de trabajo a eliminar |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles de eliminación con marca de tiempo, clave de incidencia, ID de registro de trabajo y estado de éxito |
+
+### `jira_create_issue_link`
+
+Crear una relación de enlace entre dos incidencias de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `inwardIssueKey` | string | Sí | Clave de incidencia de Jira para la incidencia de entrada \(p. ej., PROJ-123\) |
+| `outwardIssueKey` | string | Sí | Clave de incidencia de Jira para la incidencia de salida \(p. ej., PROJ-456\) |
+| `linkType` | string | Sí | El tipo de relación de enlace \(p. ej., "Bloquea", "Se relaciona con", "Duplica"\) |
+| `comment` | string | No | Comentario opcional para añadir al enlace de la incidencia |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles del enlace de incidencia con marca de tiempo, clave de incidencia de entrada, clave de incidencia de salida, tipo de enlace y estado de éxito |
+
+### `jira_delete_issue_link`
+
+Eliminar un enlace entre dos incidencias de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `linkId` | string | Sí | ID del enlace de incidencia a eliminar |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles de eliminación con marca de tiempo, ID del enlace y estado de éxito |
+
+### `jira_add_watcher`
+
+Añadir un observador a una incidencia de Jira para recibir notificaciones sobre actualizaciones
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `issueKey` | string | Sí | Clave de la incidencia de Jira a la que añadir el observador \(p. ej., PROJ-123\) |
+| `accountId` | string | Sí | ID de cuenta del usuario que se añadirá como observador |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles del observador con marca de tiempo, clave de incidencia, ID de cuenta del observador y estado de éxito |
+
+### `jira_remove_watcher`
+
+Eliminar un observador de una incidencia de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `issueKey` | string | Sí | Clave de la incidencia de Jira de la que eliminar el observador \(p. ej., PROJ-123\) |
+| `accountId` | string | Sí | ID de cuenta del usuario que se eliminará como observador |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles de eliminación con marca de tiempo, clave de incidencia, ID de cuenta del observador y estado de éxito |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `jira`

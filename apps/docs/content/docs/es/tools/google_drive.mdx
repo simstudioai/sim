@@ -1,0 +1,126 @@
+---
+title: Google Drive
+description: Crear, subir y listar archivos
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_drive"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Drive](https://drive.google.com) es el servicio de almacenamiento en la nube y sincronización de archivos de Google que permite a los usuarios almacenar archivos, sincronizarlos entre dispositivos y compartirlos con otros. Como componente central del ecosistema de productividad de Google, Google Drive ofrece capacidades robustas de almacenamiento, organización y colaboración.
+
+Aprende cómo integrar la herramienta Google Drive en Sim para extraer información de tu Drive sin esfuerzo a través de tus flujos de trabajo. Este tutorial te guía a través de la conexión con Google Drive, la configuración de la recuperación de datos y el uso de documentos y archivos almacenados para mejorar la automatización. Perfecto para sincronizar datos importantes con tus agentes en tiempo real.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/cRoRr4b-EAs"
+  title="Usa la herramienta Google Drive en Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Con Google Drive, puedes:
+
+- **Almacenar archivos en la nube**: Sube y accede a tus archivos desde cualquier lugar con acceso a internet
+- **Organizar contenido**: Crea carpetas, usa códigos de color e implementa convenciones de nomenclatura
+- **Compartir y colaborar**: Controla los permisos de acceso y trabaja simultáneamente en archivos
+- **Buscar eficientemente**: Encuentra archivos rápidamente con la potente tecnología de búsqueda de Google
+- **Acceder desde varios dispositivos**: Usa Google Drive en plataformas de escritorio, móviles y web
+- **Integrar con otros servicios**: Conéctate con Google Docs, Sheets, Slides y aplicaciones de terceros
+
+En Sim, la integración con Google Drive permite a tus agentes interactuar directamente con tu almacenamiento en la nube de forma programática. Esto permite potentes escenarios de automatización como gestión de archivos, organización de contenido y flujos de trabajo de documentos. Tus agentes pueden subir nuevos archivos a carpetas específicas, descargar archivos existentes para procesar su contenido y listar el contenido de carpetas para navegar por la estructura de almacenamiento. Esta integración cierra la brecha entre tus flujos de trabajo de IA y tu sistema de gestión de documentos, permitiendo operaciones de archivos sin intervención manual. Al conectar Sim con Google Drive, puedes automatizar flujos de trabajo basados en archivos, gestionar documentos de manera inteligente e incorporar operaciones de almacenamiento en la nube a las capacidades de tu agente.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Google Drive en el flujo de trabajo. Puede crear, subir y listar archivos. Requiere OAuth.
+
+## Herramientas
+
+### `google_drive_upload`
+
+Subir un archivo a Google Drive
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `fileName` | string | Sí | El nombre del archivo a subir |
+| `file` | file | No | Archivo binario para subir \(objeto UserFile\) |
+| `content` | string | No | Contenido de texto para subir \(use esto O archivo, no ambos\) |
+| `mimeType` | string | No | El tipo MIME del archivo a subir \(auto-detectado del archivo si no se proporciona\) |
+| `folderSelector` | string | No | Seleccione la carpeta donde subir el archivo |
+| `folderId` | string | No | El ID de la carpeta donde subir el archivo \(uso interno\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `file` | json | Metadatos del archivo subido incluyendo ID, nombre y enlaces |
+
+### `google_drive_create_folder`
+
+Crear una nueva carpeta en Google Drive
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `fileName` | string | Sí | Nombre de la carpeta a crear |
+| `folderSelector` | string | No | Seleccionar la carpeta principal donde crear la carpeta |
+| `folderId` | string | No | ID de la carpeta principal \(uso interno\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `file` | json | Metadatos de la carpeta creada incluyendo ID, nombre e información de la carpeta principal |
+
+### `google_drive_download`
+
+Descargar un archivo de Google Drive (exporta automáticamente archivos de Google Workspace)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Sí | El ID del archivo a descargar |
+| `mimeType` | string | No | El tipo MIME para exportar archivos de Google Workspace \(opcional\) |
+| `fileName` | string | No | Anulación opcional del nombre del archivo |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `file` | file | Archivo descargado almacenado en los archivos de ejecución |
+
+### `google_drive_list`
+
+Listar archivos y carpetas en Google Drive
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `folderSelector` | string | No | Selecciona la carpeta desde la que listar archivos |
+| `folderId` | string | No | El ID de la carpeta desde la que listar archivos \(uso interno\) |
+| `query` | string | No | Término de búsqueda para filtrar archivos por nombre \(p. ej. "presupuesto" encuentra archivos con "presupuesto" en el nombre\). NO uses la sintaxis de consulta de Google Drive aquí - solo proporciona un término de búsqueda simple. |
+| `pageSize` | number | No | El número máximo de archivos a devolver \(predeterminado: 100\) |
+| `pageToken` | string | No | El token de página para usar en la paginación |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `files` | json | Array de objetos de metadatos de archivos de la carpeta especificada |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `google_drive`

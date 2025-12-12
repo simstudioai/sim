@@ -1,0 +1,160 @@
+---
+title: PostgreSQL
+description: PostgreSQLデータベースに接続する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="postgresql"
+  color="#336791"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[PostgreSQL](https://www.postgresql.org/)ツールを使用すると、任意のPostgreSQLデータベースに接続し、エージェントワークフロー内で直接幅広いデータベース操作を実行できます。安全な接続処理と柔軟な構成により、データの管理やインタラクションが簡単に行えます。
+
+PostgreSQLツールでは、以下のことが可能です：
+
+- **データのクエリ**: `postgresql_query` 操作を使用して、PostgreSQLテーブルからデータを取得するSELECTクエリを実行できます。
+- **レコードの挿入**: `postgresql_insert` 操作を使用して、テーブルと挿入するデータを指定することで、テーブルに新しい行を追加できます。
+- **レコードの更新**: `postgresql_update` 操作を使用して、テーブル、新しいデータ、WHERE条件を提供することで、テーブル内の既存データを変更できます。
+- **レコードの削除**: `postgresql_delete` 操作を使用して、テーブルとWHERE条件を指定することで、テーブルから行を削除できます。
+- **生のSQLの実行**: 高度なユースケース向けに `postgresql_execute` 操作を使用して、任意のカスタムSQLコマンドを実行できます。
+
+PostgreSQLツールは、エージェントが構造化データとインタラクションする必要があるシナリオに最適です。例えば、レポートの自動化、システム間のデータ同期、データ駆動型ワークフローの強化などです。データベースアクセスを合理化し、PostgreSQLデータをプログラムで簡単に読み取り、書き込み、管理できるようにします。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+PostgreSQLをワークフローに統合します。クエリ、挿入、更新、削除、および生のSQLを実行できます。
+
+## ツール
+
+### `postgresql_query`
+
+PostgreSQLデータベースでSELECTクエリを実行する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | PostgreSQLサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | PostgreSQLサーバーのポート（デフォルト：5432） |
+| `database` | string | はい | 接続先のデータベース名 |
+| `username` | string | はい | データベースのユーザー名 |
+| `password` | string | はい | データベースのパスワード |
+| `ssl` | string | いいえ | SSL接続モード（disabled、required、preferred） |
+| `query` | string | はい | 実行するSQL SELECTクエリ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `rows` | array | クエリから返された行の配列 |
+| `rowCount` | number | 返された行数 |
+
+### `postgresql_insert`
+
+PostgreSQLデータベースにデータを挿入する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | PostgreSQLサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | PostgreSQLサーバーのポート（デフォルト：5432） |
+| `database` | string | はい | 接続先のデータベース名 |
+| `username` | string | はい | データベースのユーザー名 |
+| `password` | string | はい | データベースのパスワード |
+| `ssl` | string | いいえ | SSL接続モード（disabled、required、preferred） |
+| `table` | string | はい | データを挿入するテーブル名 |
+| `data` | object | はい | 挿入するデータオブジェクト（キーと値のペア） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `rows` | array | 挿入されたデータ（RETURNING句が使用された場合） |
+| `rowCount` | number | 挿入された行数 |
+
+### `postgresql_update`
+
+PostgreSQLデータベースのデータを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | PostgreSQLサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | PostgreSQLサーバーのポート（デフォルト：5432） |
+| `database` | string | はい | 接続先のデータベース名 |
+| `username` | string | はい | データベースのユーザー名 |
+| `password` | string | はい | データベースのパスワード |
+| `ssl` | string | いいえ | SSL接続モード（disabled、required、preferred） |
+| `table` | string | はい | データを更新するテーブル名 |
+| `data` | object | はい | 更新するフィールドを含むデータオブジェクト（キーと値のペア） |
+| `where` | string | はい | WHERE句の条件（WHEREキーワードなし） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `rows` | array | 更新されたデータ（RETURNINGクラウズを使用した場合） |
+| `rowCount` | number | 更新された行数 |
+
+### `postgresql_delete`
+
+PostgreSQLデータベースからデータを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | PostgreSQLサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | PostgreSQLサーバーのポート（デフォルト：5432） |
+| `database` | string | はい | 接続先のデータベース名 |
+| `username` | string | はい | データベースのユーザー名 |
+| `password` | string | はい | データベースのパスワード |
+| `ssl` | string | いいえ | SSL接続モード（disabled、required、preferred） |
+| `table` | string | はい | データを削除するテーブル名 |
+| `where` | string | はい | WHERE句の条件（WHEREキーワードなし） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `rows` | array | 削除されたデータ（RETURNINGクラウズを使用した場合） |
+| `rowCount` | number | 削除された行数 |
+
+### `postgresql_execute`
+
+PostgreSQLデータベースで生のSQLクエリを実行する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | PostgreSQLサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | PostgreSQLサーバーのポート（デフォルト：5432） |
+| `database` | string | はい | 接続先のデータベース名 |
+| `username` | string | はい | データベースのユーザー名 |
+| `password` | string | はい | データベースのパスワード |
+| `ssl` | string | いいえ | SSL接続モード（disabled、required、preferred） |
+| `query` | string | はい | 実行する生のSQLクエリ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `rows` | array | クエリから返された行の配列 |
+| `rowCount` | number | 影響を受けた行数 |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `postgresql`

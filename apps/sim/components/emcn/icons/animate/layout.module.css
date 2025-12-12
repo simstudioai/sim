@@ -1,0 +1,179 @@
+/* Counterclockwise animations */
+@keyframes move-top-right-ccw {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-11px, 0);
+  }
+  50% {
+    transform: translate(-11px, 13px);
+  }
+  75% {
+    transform: translate(0, 13px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes move-top-left-ccw {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(0, 9px);
+  }
+  50% {
+    transform: translate(11px, 9px);
+  }
+  75% {
+    transform: translate(11px, 0);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes move-bottom-left-ccw {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(11px, 0);
+  }
+  50% {
+    transform: translate(11px, -13px);
+  }
+  75% {
+    transform: translate(0, -13px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes move-bottom-right-ccw {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(0, -9px);
+  }
+  50% {
+    transform: translate(-11px, -9px);
+  }
+  75% {
+    transform: translate(-11px, 0);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* Clockwise animations */
+@keyframes move-top-right-cw {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(0, 13px);
+  }
+  50% {
+    transform: translate(-11px, 13px);
+  }
+  75% {
+    transform: translate(-11px, 0);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes move-top-left-cw {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(11px, 0);
+  }
+  50% {
+    transform: translate(11px, 9px);
+  }
+  75% {
+    transform: translate(0, 9px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes move-bottom-left-cw {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(0, -13px);
+  }
+  50% {
+    transform: translate(11px, -13px);
+  }
+  75% {
+    transform: translate(11px, 0);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes move-bottom-right-cw {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-11px, 0);
+  }
+  50% {
+    transform: translate(-11px, -9px);
+  }
+  75% {
+    transform: translate(0, -9px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* Counterclockwise variant */
+.animated-layout-svg .block-top-left {
+  animation: move-top-left-ccw 2.5s ease-in-out infinite;
+}
+
+.animated-layout-svg .block-top-right {
+  animation: move-top-right-ccw 2.5s ease-in-out infinite;
+}
+
+.animated-layout-svg .block-bottom-right {
+  animation: move-bottom-right-ccw 2.5s ease-in-out infinite;
+}
+
+.animated-layout-svg .block-bottom-left {
+  animation: move-bottom-left-ccw 2.5s ease-in-out infinite;
+}
+
+/* Clockwise variant overrides */
+.animated-layout-svg.clockwise .block-top-left {
+  animation: move-top-left-cw 2.5s ease-in-out infinite;
+}
+
+.animated-layout-svg.clockwise .block-top-right {
+  animation: move-top-right-cw 2.5s ease-in-out infinite;
+}
+
+.animated-layout-svg.clockwise .block-bottom-right {
+  animation: move-bottom-right-cw 2.5s ease-in-out infinite;
+}
+
+.animated-layout-svg.clockwise .block-bottom-left {
+  animation: move-bottom-left-cw 2.5s ease-in-out infinite;
+}

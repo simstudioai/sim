@@ -1,0 +1,131 @@
+---
+title: Workflow Variables
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Video } from '@/components/ui/video'
+
+Variables in Sim act as a global store for data that can be accessed and modified by any block in your workflow, allowing you to store and share data across your workflow with global variables. They provide a powerful way to share information between different parts of your workflow, maintain state, and create more dynamic applications.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="variables.mp4" />
+</div>
+
+<Callout type="info">
+  Variables allow you to store and share data across your entire workflow, making it easy to
+  maintain state and create complex, interconnected systems.
+</Callout>
+
+## Overview
+
+The Variables feature serves as a central data store for your workflow, enabling you to:
+
+<Steps>
+  <Step>
+    <strong>Store global data</strong>: Create variables that persist throughout workflow execution
+  </Step>
+  <Step>
+    <strong>Share information between blocks</strong>: Access the same data from any block in your
+    workflow
+  </Step>
+  <Step>
+    <strong>Maintain workflow state</strong>: Keep track of important values as your workflow runs
+  </Step>
+  <Step>
+    <strong>Create dynamic workflows</strong>: Build more flexible systems that can adapt based on
+    stored values
+  </Step>
+</Steps>
+
+## Creating Variables
+
+You can create and manage variables from the Variables panel in the sidebar. Each variable has:
+
+- **Name**: A unique identifier used to reference the variable
+- **Value**: The data stored in the variable (supports various data types)
+- **Description** (optional): A note explaining the variable's purpose
+
+## Accessing Variables
+
+Variables can be accessed from any block in your workflow using the variable dropdown. Simply:
+
+1. Type `<` in any text field within a block
+2. Browse the dropdown menu to select from available variables
+3. Select the variable you want to use
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="variables-dropdown.mp4" />
+</div>
+
+<Callout>
+  You can also drag the connection tag into a field to open the variable dropdown and access
+  available variables.
+</Callout>
+
+## Variable Types
+
+Variables in Sim can store various types of data:
+
+<Tabs items={['Text', 'Numbers', 'Boolean', 'Objects', 'Arrays']}>
+  <Tab>
+    ```
+    "Hello, World!"
+    ```
+    <p className="mt-2">Text variables store strings of characters. They're useful for storing messages, names, and other text data.</p>
+  </Tab>
+  <Tab>
+    ```
+    42
+    ```
+    <p className="mt-2">Number variables store numeric values that can be used in calculations or comparisons.</p>
+  </Tab>
+  <Tab>
+    ```
+    true
+    ```
+    <p className="mt-2">Boolean variables store true/false values, perfect for flags and condition checks.</p>
+  </Tab>
+  <Tab>
+    ```json
+    {
+      "name": "John",
+      "age": 30,
+      "city": "New York"
+    }
+    ```
+    <p className="mt-2">Object variables store structured data with properties and values.</p>
+  </Tab>
+  <Tab>
+    ```json
+    [1, 2, 3, "four", "five"]
+    ```
+    <p className="mt-2">Array variables store ordered collections of items.</p>
+  </Tab>
+</Tabs>
+
+## Using Variables in Blocks
+
+When you access a variable from a block, you can:
+
+- **Read its value**: Use the variable's current value in your block's logic
+- **Modify it**: Update the variable's value based on your block's processing
+- **Use it in expressions**: Include variables in expressions and calculations
+
+## Variable Scope
+
+Variables in Sim have global scope, meaning:
+
+- They are accessible from any block in your workflow
+- Changes to variables persist throughout workflow execution
+- Variables maintain their values between runs, unless explicitly reset
+
+## Best Practices
+
+- **Use Descriptive Names**: Choose variable names that clearly indicate what the variable represents. For example, use `userPreferences` instead of `up`.
+- **Document Your Variables**: Add descriptions to your variables to help other team members understand their purpose and usage.
+- **Consider Variable Scope**: Remember that variables are global and can be modified by any block. Design your workflow with this in mind to prevent unexpected behavior.
+- **Initialize Variables Early**: Set up and initialize your variables at the beginning of your workflow to ensure they're available when needed.
+- **Handle Missing Variables**: Always consider the case where a variable might not yet exist or might have an unexpected value. Add appropriate validation in your blocks.
+- **Limit Variable Count**: Keep the number of variables manageable. Too many variables can make your workflow difficult to understand and maintain.

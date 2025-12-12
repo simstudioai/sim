@@ -1,0 +1,73 @@
+---
+title: SMTP
+description: 通过任何 SMTP 邮件服务器发送电子邮件
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="smtp"
+  color="#2D3748"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SMTP（简单邮件传输协议）](https://en.wikipedia.org/wiki/Simple_Mail_Transfer_Protocol) 是互联网电子邮件传输的基础标准。通过连接任何兼容 SMTP 的服务器（如 Gmail、Outlook 或您组织的邮件基础设施），您可以以编程方式发送电子邮件并自动化您的外发通信。
+
+SMTP 集成允许您通过直接的服务器连接完全自定义电子邮件发送，支持基本和高级的电子邮件使用场景。使用 SMTP，您可以控制消息传递、收件人管理和内容格式的每个方面，使其适用于事务性通知、大量邮件发送以及任何需要强大外发电子邮件传递的自动化工作流程。
+
+**通过 SMTP 集成可用的关键功能包括：**
+
+- **通用电子邮件传递：** 通过配置标准服务器连接参数，使用任何 SMTP 服务器发送电子邮件。
+- **可自定义的发件人和收件人：** 指定发件人地址、显示名称、主要收件人，以及抄送 (CC) 和密送 (BCC) 字段。
+- **丰富的内容支持：** 根据您的需求发送纯文本或格式丰富的 HTML 电子邮件。
+- **附件：** 在外发电子邮件中包含多个文件作为附件。
+- **灵活的安全性：** 根据您的 SMTP 提供商支持的协议，使用 TLS、SSL 或标准（未加密）协议进行连接。
+- **高级头信息：** 设置回复地址头和其他高级电子邮件选项，以满足复杂的邮件流和用户交互需求。
+
+通过将 SMTP 与 Sim 集成，代理和工作流程可以以编程方式将电子邮件作为任何自动化流程的一部分发送——从发送通知和确认，到自动化外部通信、报告和文档传递。这提供了一种高度灵活、与提供商无关的方法，可以直接在您的 AI 驱动流程中管理电子邮件。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+使用任何 SMTP 服务器（如 Gmail、Outlook、自定义服务器等）发送电子邮件。配置 SMTP 连接设置，并完全控制内容、收件人和附件来发送电子邮件。
+
+## 工具
+
+### `smtp_send_mail`
+
+通过 SMTP 服务器发送电子邮件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `smtpHost` | string | 是 | SMTP 服务器主机名（例如：smtp.gmail.com） |
+| `smtpPort` | number | 是 | SMTP 服务器端口（TLS 为 587，SSL 为 465） |
+| `smtpUsername` | string | 是 | SMTP 身份验证用户名 |
+| `smtpPassword` | string | 是 | SMTP 身份验证密码 |
+| `smtpSecure` | string | 是 | 安全协议（TLS、SSL 或无） |
+| `from` | string | 是 | 发件人电子邮件地址 |
+| `to` | string | 是 | 收件人电子邮件地址 |
+| `subject` | string | 是 | 电子邮件主题 |
+| `body` | string | 是 | 电子邮件正文内容 |
+| `contentType` | string | 否 | 内容类型（text 或 html） |
+| `fromName` | string | 否 | 发件人显示名称 |
+| `cc` | string | 否 | 抄送收件人（逗号分隔） |
+| `bcc` | string | 否 | 密送收件人（逗号分隔） |
+| `replyTo` | string | 否 | 回复电子邮件地址 |
+| `attachments` | file[] | 否 | 附加到电子邮件的文件 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 邮件是否成功发送 |
+| `messageId` | string | 来自 SMTP 服务器的消息 ID |
+| `to` | string | 收件人电子邮件地址 |
+| `subject` | string | 电子邮件主题 |
+| `error` | string | 如果发送失败的错误消息 |
+
+## 注意
+
+- 分类：`tools`
+- 类型：`smtp`

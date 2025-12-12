@@ -1,0 +1,120 @@
+---
+title: 响应
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Response 块用于格式化并将结构化的 HTTP 响应发送回 API 调用方。使用它可以通过适当的状态码和头信息返回工作流结果。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/response.png"
+    alt="响应模块配置"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout type="info">
+  Response 块是终止块——它们会结束工作流的执行，无法连接到其他块。
+</Callout>
+
+## 配置选项
+
+### 响应数据
+
+响应数据是将发送回 API 调用方的主要内容。它应以 JSON 格式编写，可以包括：
+
+- 静态值
+- 使用 `<variable.name>` 语法动态引用工作流变量
+- 嵌套对象和数组
+- 任何有效的 JSON 结构
+
+### 状态码
+
+为响应设置 HTTP 状态码（默认为 200）：
+
+**成功 (2xx)：**
+- **200**: OK - 标准成功响应
+- **201**: Created - 资源成功创建
+- **204**: No Content - 成功但无响应内容
+
+**客户端错误 (4xx)：**
+- **400**: Bad Request - 请求参数无效
+- **401**: Unauthorized - 需要身份验证
+- **404**: Not Found - 资源不存在
+- **422**: Unprocessable Entity - 验证错误
+
+**服务器错误 (5xx)：**
+- **500**: Internal Server Error - 服务器端错误
+- **502**: Bad Gateway - 外部服务错误
+- **503**: Service Unavailable - 服务暂时不可用
+
+### 响应头
+
+配置要包含在响应中的额外 HTTP 头信息。
+
+头信息以键值对的形式配置：
+
+| 键 | 值 |
+|-----|-------|
+| Content-Type | application/json |
+| Cache-Control | no-cache |
+| X-API-Version | 1.0 |
+
+## 示例用例
+
+**API 端点响应** - 返回来自搜索 API 的结构化数据
+
+```
+Agent (Search) → Function (Format & Paginate) → Response (200, JSON)
+```
+
+**Webhook 确认** - 确认 webhook 的接收和处理
+
+```
+Webhook Trigger → Function (Process) → Response (200, Confirmation)
+```
+
+**错误响应处理** - 返回适当的错误响应
+
+```
+Condition (Error Detected) → Router → Response (400/500, Error Details)
+```
+
+## 输出
+
+响应块是终端块——它们结束工作流的执行并将 HTTP 响应发送给 API 调用者。下游块不可用任何输出。
+
+## 变量引用
+
+使用 `<variable.name>` 语法在响应中动态插入工作流变量：
+
+```json
+{
+  "user": {
+    "id": "<variable.userId>",
+    "name": "<variable.userName>",
+    "email": "<variable.userEmail>"
+  },
+  "query": "<variable.searchQuery>",
+  "results": "<variable.searchResults>",
+  "totalFound": "<variable.resultCount>",
+  "processingTime": "<variable.executionTime>ms"
+}
+```
+
+<Callout type="warning">
+  变量名称区分大小写，必须与工作流中可用的变量完全匹配。
+</Callout>
+
+## 最佳实践
+
+- **使用有意义的状态码**：选择适当的 HTTP 状态码，准确反映工作流的结果
+- **结构化响应的一致性**：在所有 API 端点中保持一致的 JSON 结构，以提升开发者体验
+- **包含相关元数据**：添加时间戳和版本信息，以便调试和监控
+- **优雅地处理错误**：在工作流中使用条件逻辑设置适当的错误响应，并提供描述性消息
+- **验证变量引用**：确保所有引用的变量存在并在响应块执行前包含预期的数据类型

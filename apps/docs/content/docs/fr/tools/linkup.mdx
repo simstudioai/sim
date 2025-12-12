@@ -1,0 +1,62 @@
+---
+title: Linkup
+description: Recherchez sur le web avec Linkup
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="linkup"
+  color="#D6D3C7"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Linkup](https://linkup.so) est un puissant outil de recherche web qui s'intègre parfaitement à Sim, permettant à vos agents IA d'accéder à des informations actualisées du web avec une attribution appropriée des sources.
+
+Linkup améliore vos agents IA en leur donnant la capacité de rechercher sur le web des informations actuelles. Lorsqu'il est intégré dans la boîte à outils de votre agent :
+
+- **Accès aux informations en temps réel** : les agents peuvent récupérer les dernières informations du web, gardant les réponses actuelles et pertinentes.
+- **Attribution des sources** : toutes les informations sont accompagnées de citations appropriées, assurant transparence et crédibilité.
+- **Implémentation simple** : ajoutez Linkup à l'ensemble d'outils de vos agents avec une configuration minimale.
+- **Conscience contextuelle** : les agents peuvent utiliser les informations du web tout en conservant leur personnalité et leur style conversationnel.
+
+Pour implémenter Linkup dans votre agent, ajoutez simplement l'outil à la configuration de votre agent. Votre agent pourra alors effectuer des recherches sur le web chaque fois qu'il aura besoin de répondre à des questions nécessitant des informations actuelles.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Linkup dans le flux de travail. Peut effectuer des recherches sur le web. Nécessite une clé API.
+
+## Outils
+
+### `linkup_search`
+
+Recherchez des informations sur le web en utilisant Linkup
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `q` | string | Oui | La requête de recherche |
+| `depth` | string | Oui | Profondeur de recherche \(doit être soit "standard" soit "deep"\) |
+| `outputType` | string | Oui | Type de sortie à retourner \(doit être "sourcedAnswer" ou "searchResults"\) |
+| `apiKey` | string | Oui | Entrez votre clé API Linkup |
+| `includeImages` | boolean | Non | Indique s'il faut inclure des images dans les résultats de recherche |
+| `fromDate` | string | Non | Date de début pour filtrer les résultats \(format AAAA-MM-JJ\) |
+| `toDate` | string | Non | Date de fin pour filtrer les résultats \(format AAAA-MM-JJ\) |
+| `excludeDomains` | string | Non | Liste de noms de domaine séparés par des virgules à exclure des résultats de recherche |
+| `includeDomains` | string | Non | Liste de noms de domaine séparés par des virgules pour restreindre les résultats de recherche |
+| `includeInlineCitations` | boolean | Non | Ajouter des citations en ligne aux réponses \(s'applique uniquement lorsque outputType est "sourcedAnswer"\) |
+| `includeSources` | boolean | Non | Inclure les sources dans la réponse |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `answer` | chaîne | La réponse sourcée à la requête de recherche |
+| `sources` | tableau | Tableau des sources utilisées pour compiler la réponse, chacune contenant nom, url et extrait |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `linkup`

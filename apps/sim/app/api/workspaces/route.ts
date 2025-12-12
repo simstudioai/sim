@@ -1,12 +1,18 @@
-import crypto from 'crypto'
+import { db } from '@sim/db'
+import { permissions, workflow, workspace } from '@sim/db/schema'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { permissions, workflow, workflowBlocks, workspace } from '@/db/schema'
+import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
+import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('Workspaces')
+
+const createWorkspaceSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required'),
+})
 
 // Get all workspaces for the current user
 export async function GET() {
@@ -61,24 +67,22 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { name } = await req.json()
-
-    if (!name) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
-    }
+    const { name } = createWorkspaceSchema.parse(await req.json())
 
     const newWorkspace = await createWorkspace(session.user.id, name)
 
     return NextResponse.json({ workspace: newWorkspace })
   } catch (error) {
-    console.error('Error creating workspace:', error)
+    logger.error('Error creating workspace:', error)
     return NextResponse.json({ error: 'Failed to create workspace' }, { status: 500 })
   }
 }
 
 // Helper function to create a default workspace
 async function createDefaultWorkspace(userId: string, userName?: string | null) {
-  const workspaceName = userName ? `${userName}'s Workspace` : 'My Workspace'
+  // Extract first name only by splitting on spaces and taking the first part
+  const firstName = userName?.split(' ')[0] || null
+  const workspaceName = firstName ? `${firstName}'s Workspace` : 'My Workspace'
   return createWorkspace(userId, workspaceName)
 }
 
@@ -96,6 +100,8 @@ async function createWorkspace(userId: string, name: string) {
         id: workspaceId,
         name,
         ownerId: userId,
+        billedAccountUserId: userId,
+        allowPersonalApiKeys: true,
         createdAt: now,
         updatedAt: now,
       })
@@ -111,9 +117,7 @@ async function createWorkspace(userId: string, name: string) {
         updatedAt: now,
       })
 
-      // Create initial workflow for the workspace with start block
-      const starterId = crypto.randomUUID()
-
+      // Create initial workflow for the workspace (empty canvas)
       // Create the workflow
       await tx.insert(workflow).values({
         id: workflowId,
@@ -127,73 +131,23 @@ async function createWorkspace(userId: string, name: string) {
         createdAt: now,
         updatedAt: now,
         isDeployed: false,
-        collaborators: [],
         runCount: 0,
         variables: {},
-        isPublished: false,
-        marketplaceData: null,
       })
 
-      // Insert the start block into workflow_blocks table
-      await tx.insert(workflowBlocks).values({
-        id: starterId,
-        workflowId: workflowId,
-        type: 'starter',
-        name: 'Start',
-        positionX: '100',
-        positionY: '100',
-        enabled: true,
-        horizontalHandles: true,
-        isWide: false,
-        advancedMode: false,
-        height: '95',
-        subBlocks: {
-          startWorkflow: {
-            id: 'startWorkflow',
-            type: 'dropdown',
-            value: 'manual',
-          },
-          webhookPath: {
-            id: 'webhookPath',
-            type: 'short-input',
-            value: '',
-          },
-          webhookSecret: {
-            id: 'webhookSecret',
-            type: 'short-input',
-            value: '',
-          },
-          scheduleType: {
-            id: 'scheduleType',
-            type: 'dropdown',
-            value: 'daily',
-          },
-          minutesInterval: {
-            id: 'minutesInterval',
-            type: 'short-input',
-            value: '',
-          },
-          minutesStartingAt: {
-            id: 'minutesStartingAt',
-            type: 'short-input',
-            value: '',
-          },
-        },
-        outputs: {
-          response: {
-            type: {
-              input: 'any',
-            },
-          },
-        },
-        createdAt: now,
-        updatedAt: now,
-      })
+      // No blocks are inserted - empty canvas
 
       logger.info(
         `Created workspace ${workspaceId} with initial workflow ${workflowId} for user ${userId}`
       )
     })
+
+    const { workflowState } = buildDefaultWorkflowArtifacts()
+    const seedResult = await saveWorkflowToNormalizedTables(workflowId, workflowState)
+
+    if (!seedResult.success) {
+      throw new Error(seedResult.error || 'Failed to seed default workflow state')
+    }
   } catch (error) {
     logger.error(`Failed to create workspace ${workspaceId} with initial workflow:`, error)
     throw error
@@ -204,6 +158,8 @@ async function createWorkspace(userId: string, name: string) {
     id: workspaceId,
     name,
     ownerId: userId,
+    billedAccountUserId: userId,
+    allowPersonalApiKeys: true,
     createdAt: now,
     updatedAt: now,
     role: 'owner',

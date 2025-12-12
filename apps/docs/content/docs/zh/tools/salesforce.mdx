@@ -1,0 +1,820 @@
+---
+title: Salesforce
+description: 与 Salesforce CRM 互动
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="salesforce"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Salesforce](https://www.salesforce.com/) 工具使您能够直接连接到 Salesforce CRM，并在您的代理工作流中执行广泛的客户关系管理操作。通过无缝且安全的集成，您可以高效地访问并自动化销售、支持和营销数据中的关键业务流程。
+
+使用 Salesforce 工具，您可以：
+
+- **检索账户**：使用 `salesforce_get_accounts` 操作从 Salesforce 中获取账户，支持自定义过滤、排序和字段选择。
+- **创建账户**：通过 `salesforce_create_account` 操作自动将新账户添加到 Salesforce，指定名称、行业和账单地址等详细信息。
+- **管理联系人**：如果提供类似工具，可用于联系人管理——添加、更新或根据需要获取联系人。
+- **处理潜在客户和商机**：将潜在客户和商机管理集成到您的工作流中，让您的代理捕获、筛选并更新销售管道数据。
+- **跟踪案例和任务**：通过与 Salesforce 中的案例和任务交互，自动化客户支持和跟进活动。
+
+Salesforce 工具非常适合需要简化销售、账户管理、潜在客户生成和支持操作的工作流。无论您的代理是跨平台同步数据、提供实时客户洞察，还是自动化常规 CRM 更新，Salesforce 工具都能将 Salesforce 的全部功能和可扩展性引入您的程序化、代理驱动的流程中。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Salesforce 集成到您的工作流中。通过强大的自动化功能管理账户、联系人、潜在客户、商机、案例和任务。
+
+## 工具
+
+### `salesforce_get_accounts`
+
+从 Salesforce CRM 检索账户
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | Salesforce OAuth 的 ID 令牌（包含实例 URL） |
+| `instanceUrl` | string | 否 | Salesforce 实例 URL |
+| `limit` | string | 否 | 返回结果的数量（默认：100，最大：2000） |
+| `fields` | string | 否 | 要返回的字段的逗号分隔列表（例如："Id,Name,Industry,Phone"） |
+| `orderBy` | string | 否 | 排序字段（例如："Name ASC" 或 "CreatedDate DESC"） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 账户数据 |
+
+### `salesforce_create_account`
+
+在 Salesforce CRM 中创建一个新账户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `name` | string | 是 | 账户名称（必需） |
+| `type` | string | 否 | 账户类型（例如：客户、合作伙伴、潜在客户） |
+| `industry` | string | 否 | 行业（例如：科技、医疗、金融） |
+| `phone` | string | 否 | 电话号码 |
+| `website` | string | 否 | 网站 URL |
+| `billingStreet` | string | 否 | 账单街道地址 |
+| `billingCity` | string | 否 | 账单城市 |
+| `billingState` | string | 否 | 账单州/省 |
+| `billingPostalCode` | string | 否 | 账单邮政编码 |
+| `billingCountry` | string | 否 | 账单国家 |
+| `description` | string | 否 | 账户描述 |
+| `annualRevenue` | string | 否 | 年收入（数字） |
+| `numberOfEmployees` | string | 否 | 员工人数（数字） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的账户数据 |
+
+### `salesforce_update_account`
+
+更新 Salesforce CRM 中的现有账户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `accountId` | string | 是 | 要更新的账户 ID（必需） |
+| `name` | string | 否 | 账户名称 |
+| `type` | string | 否 | 账户类型 |
+| `industry` | string | 否 | 行业 |
+| `phone` | string | 否 | 电话号码 |
+| `website` | string | 否 | 网站 URL |
+| `billingStreet` | string | 否 | 账单街道地址 |
+| `billingCity` | string | 否 | 账单城市 |
+| `billingState` | string | 否 | 账单州/省 |
+| `billingPostalCode` | string | 否 | 账单邮政编码 |
+| `billingCountry` | string | 否 | 账单国家 |
+| `description` | string | 否 | 账户描述 |
+| `annualRevenue` | string | 否 | 年收入（数字） |
+| `numberOfEmployees` | string | 否 | 员工人数（数字） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新后的账户数据 |
+
+### `salesforce_delete_account`
+
+从 Salesforce CRM 中删除账户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `accountId` | string | 是 | 要删除的账户 ID（必需） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 已删除的账户数据 |
+
+### `salesforce_get_contacts`
+
+从 Salesforce 获取联系人 - 如果提供了 ID，则返回单个联系人；如果未提供，则返回列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `contactId` | string | 否 | 联系人 ID（如果提供，则返回单个联系人） |
+| `limit` | string | 否 | 返回结果数量（默认：100，最大：2000）。仅适用于列表查询。 |
+| `fields` | string | 否 | 逗号分隔的字段（例如："Id,FirstName,LastName,Email,Phone"） |
+| `orderBy` | string | 否 | 排序字段（例如："LastName ASC"）。仅适用于列表查询。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 联系人数据 |
+
+### `salesforce_create_contact`
+
+在 Salesforce CRM 中创建新联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `lastName` | string | 是 | 姓（必需） |
+| `firstName` | string | 否 | 名 |
+| `email` | string | 否 | 电子邮件地址 |
+| `phone` | string | 否 | 电话号码 |
+| `accountId` | string | 否 | 要关联的账户 ID |
+| `title` | string | 否 | 无描述 |
+| `department` | string | 否 | 部门 |
+| `mailingStreet` | string | 否 | 邮寄街道 |
+| `mailingCity` | string | 否 | 邮寄城市 |
+| `mailingState` | string | 否 | 邮寄州 |
+| `mailingPostalCode` | string | 否 | 邮寄邮政编码 |
+| `mailingCountry` | string | 否 | 邮寄国家 |
+| `description` | string | 否 | 联系人描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的联系人数据 |
+
+### `salesforce_update_contact`
+
+更新 Salesforce CRM 中的现有联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `contactId` | string | 是 | 要更新的联系人 ID（必需） |
+| `lastName` | string | 否 | 姓 |
+| `firstName` | string | 否 | 名 |
+| `email` | string | 否 | 邮箱地址 |
+| `phone` | string | 否 | 电话号码 |
+| `accountId` | string | 否 | 要关联的账户 ID |
+| `title` | string | 否 | 无描述 |
+| `department` | string | 否 | 部门 |
+| `mailingStreet` | string | 否 | 邮寄街道 |
+| `mailingCity` | string | 否 | 邮寄城市 |
+| `mailingState` | string | 否 | 邮寄州 |
+| `mailingPostalCode` | string | 否 | 邮寄邮政编码 |
+| `mailingCountry` | string | 否 | 邮寄国家 |
+| `description` | string | 否 | 描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 更新的联系人数据 |
+
+### `salesforce_delete_contact`
+
+从 Salesforce CRM 中删除联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `contactId` | string | 是 | 要删除的联系人 ID（必需） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 已删除的联系人数据 |
+
+### `salesforce_get_leads`
+
+从 Salesforce 获取潜在客户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `leadId` | string | 否 | 潜在客户 ID（可选） |
+| `limit` | string | 否 | 最大结果数（默认：100） |
+| `fields` | string | 否 | 逗号分隔的字段 |
+| `orderBy` | string | 否 | 排序字段 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功状态 |
+| `output` | object | 潜在客户数据 |
+
+### `salesforce_create_lead`
+
+创建新潜在客户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `lastName` | string | 是 | 姓（必需） |
+| `company` | string | 是 | 公司（必需） |
+| `firstName` | string | 否 | 名 |
+| `email` | string | 否 | 无描述 |
+| `phone` | string | 否 | 无描述 |
+| `status` | string | 否 | 潜在客户状态 |
+| `leadSource` | string | 否 | 潜在客户来源 |
+| `title` | string | 否 | 无描述 |
+| `description` | string | 否 | 描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功 |
+| `output` | object | 创建的潜在客户 |
+
+### `salesforce_update_lead`
+
+更新现有的潜在客户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `leadId` | string | 是 | 潜在客户 ID（必需） |
+| `lastName` | string | 否 | 姓氏 |
+| `company` | string | 否 | 无描述 |
+| `firstName` | string | 否 | 名字 |
+| `email` | string | 否 | 无描述 |
+| `phone` | string | 否 | 无描述 |
+| `status` | string | 否 | 潜在客户状态 |
+| `leadSource` | string | 否 | 潜在客户来源 |
+| `title` | string | 否 | 无描述 |
+| `description` | string | 否 | 描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功 |
+| `output` | object | 更新的潜在客户 |
+
+### `salesforce_delete_lead`
+
+删除潜在客户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `leadId` | string | 是 | 潜在客户 ID（必需） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功 |
+| `output` | object | 已删除的潜在客户 |
+
+### `salesforce_get_opportunities`
+
+从 Salesforce 获取机会
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `opportunityId` | string | 否 | 机会 ID（可选） |
+| `limit` | string | 否 | 最大结果数（默认：100） |
+| `fields` | string | 否 | 逗号分隔的字段 |
+| `orderBy` | string | 否 | 排序字段 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功 |
+| `output` | object | 机会数据 |
+
+### `salesforce_create_opportunity`
+
+创建新机会
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `name` | string | 是 | 机会名称（必需） |
+| `stageName` | string | 是 | 阶段名称（必需） |
+| `closeDate` | string | 是 | 关闭日期 YYYY-MM-DD（必需） |
+| `accountId` | string | 否 | 账户 ID |
+| `amount` | string | 否 | 金额（数字） |
+| `probability` | string | 否 | 概率（0-100） |
+| `description` | string | 否 | 描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功 |
+| `output` | object | 创建的机会 |
+
+### `salesforce_update_opportunity`
+
+更新现有的机会
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `opportunityId` | string | 是 | 机会 ID （必需） |
+| `name` | string | 否 | 机会名称 |
+| `stageName` | string | 否 | 阶段名称 |
+| `closeDate` | string | 否 | 关闭日期 YYYY-MM-DD |
+| `accountId` | string | 否 | 账户 ID |
+| `amount` | string | 否 | 无描述 |
+| `probability` | string | 否 | 概率（0-100） |
+| `description` | string | 否 | 描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功 |
+| `output` | object | 更新的机会 |
+
+### `salesforce_delete_opportunity`
+
+删除一个机会
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `opportunityId` | string | 是 | 机会 ID （必需） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功 |
+| `output` | object | 删除的机会 |
+
+### `salesforce_get_cases`
+
+从 Salesforce 获取案例
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `caseId` | string | 否 | 案例 ID（可选） |
+| `limit` | string | 否 | 最大结果数（默认：100） |
+| `fields` | string | 否 | 逗号分隔的字段 |
+| `orderBy` | string | 否 | 排序字段 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功 |
+| `output` | object | 案例数据 |
+
+### `salesforce_create_case`
+
+创建新案例
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `subject` | string | 是 | 案例主题（必需） |
+| `status` | string | 否 | 状态（例如：新建、处理中、已升级） |
+| `priority` | string | 否 | 优先级（例如：低、中、高） |
+| `origin` | string | 否 | 来源（例如：电话、电子邮件、网页） |
+| `contactId` | string | 否 | 联系人 ID |
+| `accountId` | string | 否 | 账户 ID |
+| `description` | string | 否 | 描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功 |
+| `output` | object | 创建的案例 |
+
+### `salesforce_update_case`
+
+更新现有案例
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `caseId` | string | 是 | 案例 ID（必需） |
+| `subject` | string | 否 | 案例主题 |
+| `status` | string | 否 | 状态 |
+| `priority` | string | 否 | 优先级 |
+| `description` | string | 否 | 描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功 |
+| `output` | object | 更新的案例 |
+
+### `salesforce_delete_case`
+
+删除案例
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `caseId` | string | 是 | 案例 ID（必需） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功 |
+| `output` | object | 已删除的案例 |
+
+### `salesforce_get_tasks`
+
+从 Salesforce 获取任务
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `taskId` | string | 否 | 任务 ID（可选） |
+| `limit` | string | 否 | 最大结果数（默认：100） |
+| `fields` | string | 否 | 逗号分隔的字段 |
+| `orderBy` | string | 否 | 按字段排序 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功 |
+| `output` | object | 任务数据 |
+
+### `salesforce_create_task`
+
+创建新任务
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `subject` | string | 是 | 任务主题（必需） |
+| `status` | string | 否 | 状态（例如：未开始、进行中、已完成） |
+| `priority` | string | 否 | 优先级（例如：低、普通、高） |
+| `activityDate` | string | 否 | 截止日期 YYYY-MM-DD |
+| `whoId` | string | 否 | 相关联系人/潜在客户 ID |
+| `whatId` | string | 否 | 相关账户/机会 ID |
+| `description` | string | 否 | 描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功 |
+| `output` | object | 已创建的任务 |
+
+### `salesforce_update_task`
+
+更新现有任务
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `taskId` | string | 是 | 任务 ID（必需） |
+| `subject` | string | 否 | 任务主题 |
+| `status` | string | 否 | 状态 |
+| `priority` | string | 否 | 优先级 |
+| `activityDate` | string | 否 | 截止日期 YYYY-MM-DD |
+| `description` | string | 否 | 描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功 |
+| `output` | object | 更新的任务 |
+
+### `salesforce_delete_task`
+
+删除任务
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `taskId` | string | 是 | 任务 ID（必需） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功 |
+| `output` | object | 已删除的任务 |
+
+### `salesforce_list_reports`
+
+获取当前用户可访问的报告列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `folderName` | string | 否 | 按文件夹名称筛选 |
+| `searchTerm` | string | 否 | 按名称筛选报告的搜索词 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功状态 |
+| `output` | object | 报告数据 |
+
+### `salesforce_get_report`
+
+获取特定报告的元数据和描述信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `reportId` | string | 是 | 报告 ID（必需） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功状态 |
+| `output` | object | 报告元数据 |
+
+### `salesforce_run_report`
+
+执行报告并检索结果
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `reportId` | string | 是 | 报告 ID（必需） |
+| `includeDetails` | string | 否 | 包含详细行（true/false，默认值：true） |
+| `filters` | string | 否 | 要应用的报告过滤器的 JSON 字符串 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功状态 |
+| `output` | object | 报告结果 |
+
+### `salesforce_list_report_types`
+
+获取可用报告类型的列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功状态 |
+| `output` | object | 报告类型数据 |
+
+### `salesforce_list_dashboards`
+
+获取当前用户可访问的仪表板列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `folderName` | string | 否 | 按文件夹名称过滤 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功状态 |
+| `output` | object | 仪表板数据 |
+
+### `salesforce_get_dashboard`
+
+获取特定仪表板的详细信息和结果
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `dashboardId` | string | 是 | 仪表板 ID （必需） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功状态 |
+| `output` | object | 仪表板数据 |
+
+### `salesforce_refresh_dashboard`
+
+刷新仪表板以获取最新数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `dashboardId` | string | 是 | 仪表板 ID （必需） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功状态 |
+| `output` | object | 刷新后的仪表板数据 |
+
+### `salesforce_query`
+
+执行自定义 SOQL 查询以从 Salesforce 检索数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `query` | string | 是 | 要执行的 SOQL 查询（例如：SELECT Id, Name FROM Account LIMIT 10） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功状态 |
+| `output` | object | 查询结果 |
+
+### `salesforce_query_more`
+
+使用上一次查询的 nextRecordsUrl 检索更多查询结果
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `nextRecordsUrl` | string | 是 | 上一次查询响应中的 nextRecordsUrl |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功状态 |
+| `output` | object | 查询结果 |
+
+### `salesforce_describe_object`
+
+获取 Salesforce 对象的元数据和字段信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+| `objectName` | string | 是 | 对象的 API 名称（例如：Account、Contact、Lead、Custom_Object__c） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功状态 |
+| `output` | object | 对象元数据 |
+
+### `salesforce_list_objects`
+
+获取所有可用的 Salesforce 对象列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | 否 | 无描述 |
+| `instanceUrl` | string | 否 | 无描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成功状态 |
+| `output` | object | 对象列表 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`salesforce`

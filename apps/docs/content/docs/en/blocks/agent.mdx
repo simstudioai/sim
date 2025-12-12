@@ -1,0 +1,155 @@
+---
+title: Agent
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+The Agent block connects your workflow to Large Language Models (LLMs). It processes natural language inputs, calls external tools, and generates structured or unstructured outputs.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/agent.png"
+    alt="Agent Block Configuration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div> 
+
+## Configuration Options
+
+### System Prompt
+
+The system prompt establishes the agent's operational parameters and behavioral constraints. This configuration defines the agent's role, response methodology, and processing boundaries for all incoming requests.
+
+```markdown
+You are a helpful assistant that specializes in financial analysis.
+Always provide clear explanations and cite sources when possible.
+When responding to questions about investments, include risk disclaimers.
+```
+
+### User Prompt
+
+The user prompt represents the primary input data for inference processing. This parameter accepts natural language text or structured data that the agent will analyze and respond to. Input sources include:
+
+- **Static Configuration**: Direct text input specified in the block configuration
+- **Dynamic Input**: Data passed from upstream blocks through connection interfaces
+- **Runtime Generation**: Programmatically generated content during workflow execution
+
+### Model Selection
+
+The Agent block supports multiple LLM providers through a unified inference interface. Available models include:
+
+- **OpenAI**: GPT-5.1, GPT-5, GPT-4o, o1, o3, o4-mini, gpt-4.1
+- **Anthropic**: Claude 4.5 Sonnet, Claude Opus 4.1
+- **Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
+- **Other Providers**: Groq, Cerebras, xAI, Azure OpenAI, OpenRouter
+- **Local Models**: Ollama or VLLM compatible models
+
+### Temperature
+
+Controls response randomness and creativity:
+
+- **Low (0-0.3)**: Deterministic and focused. Best for factual tasks and accuracy.
+- **Medium (0.3-0.7)**: Balanced creativity and focus. Good for general use.
+- **High (0.7-2.0)**: Creative and varied. Ideal for brainstorming and content generation.
+
+### API Key
+
+Your API key for the selected LLM provider. This is securely stored and used for authentication.
+
+### Tools
+
+Extend agent capabilities with external integrations. Select from 60+ pre-built tools or define custom functions.
+
+**Available Categories:**
+- **Communication**: Gmail, Slack, Telegram, WhatsApp, Microsoft Teams
+- **Data Sources**: Notion, Google Sheets, Airtable, Supabase, Pinecone
+- **Web Services**: Firecrawl, Google Search, Exa AI, browser automation
+- **Development**: GitHub, Jira, Linear
+- **AI Services**: OpenAI, Perplexity, Hugging Face, ElevenLabs
+
+**Execution Modes:**
+- **Auto**: Model decides when to use tools based on context
+- **Required**: Tool must be called in every request
+- **None**: Tool available but not suggested to model
+
+### Response Format
+
+The Response Format parameter enforces structured output generation through JSON Schema validation. This ensures consistent, machine-readable responses that conform to predefined data structures:
+
+```json
+{
+  "name": "user_analysis",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "sentiment": {
+        "type": "string",
+        "enum": ["positive", "negative", "neutral"]
+      },
+      "confidence": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "required": ["sentiment", "confidence"]
+  }
+}
+```
+
+This configuration constrains the model's output to comply with the specified schema, preventing free-form text responses and ensuring structured data generation.
+
+### Accessing Results
+
+After an agent completes, you can access its outputs:
+
+- **`<agent.content>`**: The agent's response text or structured data
+- **`<agent.tokens>`**: Token usage statistics (prompt, completion, total)
+- **`<agent.tool_calls>`**: Details of any tools the agent used during execution
+- **`<agent.cost>`**: Estimated cost of the API call (if available)
+
+## Advanced Features
+
+### Memory + Agent: Conversation History
+
+Use a `Memory` block with a consistent `id` (for example, `chat`) to persist messages between runs, and include that history in the Agent's prompt.
+
+- Add the user's message before the Agent
+- Read the conversation history for context
+- Append the Agent's reply after it runs
+
+See the [`Memory`](/tools/memory) block reference for details.
+
+## Outputs
+
+- **`<agent.content>`**: Agent's response text
+- **`<agent.tokens>`**: Token usage statistics
+- **`<agent.tool_calls>`**: Tool execution details
+- **`<agent.cost>`**: Estimated API call cost
+
+## Example Use Cases
+
+**Customer Support Automation** - Handle inquiries with database and tool access
+```
+API (Ticket) → Agent (Postgres, KB, Linear) → Gmail (Reply) → Memory (Save)
+```
+
+**Multi-Model Content Analysis** - Analyze content with different AI models
+```
+Function (Process) → Agent (GPT-4o Technical) → Agent (Claude Sentiment) → Function (Report)
+```
+
+**Tool-Powered Research Assistant** - Research with web search and document access
+```
+Input → Agent (Google Search, Notion) → Function (Compile Report)
+```
+
+## Best Practices
+
+- **Be specific in system prompts**: Clearly define the agent's role, tone, and limitations. The more specific your instructions are, the better the agent will be able to fulfill its intended purpose.
+- **Choose the right temperature setting**: Use lower temperature settings (0-0.3) when accuracy is important, or increase temperature (0.7-2.0) for more creative or varied responses
+- **Leverage tools effectively**: Integrate tools that complement the agent's purpose and enhance its capabilities. Be selective about which tools you provide to avoid overwhelming the agent. For tasks with little overlap, use another Agent block for the best results.

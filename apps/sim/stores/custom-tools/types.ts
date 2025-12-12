@@ -13,6 +13,8 @@ export interface CustomToolSchema {
 
 export interface CustomToolDefinition {
   id: string
+  workspaceId: string | null
+  userId: string | null
   title: string
   schema: CustomToolSchema
   code: string
@@ -20,22 +22,15 @@ export interface CustomToolDefinition {
   updatedAt?: string
 }
 
-export interface CustomToolsStore {
-  tools: Record<string, CustomToolDefinition>
-  isLoading: boolean
-  error: string | null
+export interface CustomToolsState {
+  tools: CustomToolDefinition[]
+}
 
-  // CRUD operations
-  addTool: (tool: Omit<CustomToolDefinition, 'id' | 'createdAt' | 'updatedAt'>) => string
-  updateTool: (
-    id: string,
-    updates: Partial<Omit<CustomToolDefinition, 'id' | 'createdAt' | 'updatedAt'>>
-  ) => boolean
-  removeTool: (id: string) => void
+export interface CustomToolsActions {
+  setTools: (tools: CustomToolDefinition[]) => void
   getTool: (id: string) => CustomToolDefinition | undefined
   getAllTools: () => CustomToolDefinition[]
-
-  // Server sync operations
-  loadCustomTools: () => Promise<void>
-  sync: () => Promise<void>
+  reset: () => void
 }
+
+export interface CustomToolsStore extends CustomToolsState, CustomToolsActions {}

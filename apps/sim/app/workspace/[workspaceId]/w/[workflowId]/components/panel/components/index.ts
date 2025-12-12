@@ -1,4 +1,5 @@
-export { Chat } from './chat/chat'
-export { Console } from './console/console'
 export { Copilot } from './copilot/copilot'
-export { Variables } from './variables/variables'
+export { Deploy } from './deploy/deploy'
+export { Editor } from './editor/editor'
+export { Toolbar } from './toolbar/toolbar'
+export { WorkflowControls } from './workflow-controls/workflow-controls'

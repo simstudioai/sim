@@ -1,0 +1,139 @@
+---
+title: Twilio Voice
+description: Make and manage phone calls
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="twilio_voice"
+  color="#F22F46"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Twilio Voice](https://www.twilio.com/en-us/voice) is a powerful cloud communications platform that enables businesses to make, receive, and manage phone calls programmatically through a simple API.
+
+Twilio Voice provides a robust API for building sophisticated voice applications with global reach. With coverage in over 100 countries, carrier-grade reliability, and a 99.95% uptime SLA, Twilio has established itself as the industry leader in programmable voice communications.
+
+Key features of Twilio Voice include:
+
+- **Global Voice Network**: Make and receive calls worldwide with local phone numbers in multiple countries
+- **Programmable Call Control**: Use TwiML to control call flow, record conversations, gather DTMF input, and implement IVR systems
+- **Advanced Capabilities**: Speech recognition, text-to-speech, call forwarding, conferencing, and answering machine detection
+- **Real-time Analytics**: Track call quality, duration, costs, and optimize your voice applications
+
+In Sim, the Twilio Voice integration enables your agents to leverage these powerful voice capabilities as part of their workflows. This creates opportunities for sophisticated customer engagement scenarios like appointment reminders, verification calls, automated support lines, and interactive voice response systems. The integration bridges the gap between your AI workflows and voice communication channels, enabling your agents to deliver timely, relevant information directly through phone calls. By connecting Sim with Twilio Voice, you can create intelligent agents that engage customers through their preferred communication channel, enhancing the user experience while automating routine calling tasks.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Twilio Voice into the workflow. Make outbound calls and retrieve call recordings.
+
+
+
+## Tools
+
+### `twilio_voice_make_call`
+
+Make an outbound phone call using Twilio Voice API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `to` | string | Yes | Phone number to call \(E.164 format, e.g., +14155551234\) |
+| `from` | string | Yes | Your Twilio phone number to call from \(E.164 format\) |
+| `url` | string | No | URL that returns TwiML instructions for the call |
+| `twiml` | string | No | TwiML instructions to execute \(alternative to URL\). Use square brackets instead of angle brackets, e.g., \[Response\]\[Say\]Hello\[/Say\]\[/Response\] |
+| `statusCallback` | string | No | Webhook URL for call status updates |
+| `statusCallbackMethod` | string | No | HTTP method for status callback \(GET or POST\) |
+| `accountSid` | string | Yes | Twilio Account SID |
+| `authToken` | string | Yes | Twilio Auth Token |
+| `record` | boolean | No | Whether to record the call |
+| `recordingStatusCallback` | string | No | Webhook URL for recording status updates |
+| `timeout` | number | No | Time to wait for answer before giving up \(seconds, default: 60\) |
+| `machineDetection` | string | No | Answering machine detection: Enable or DetectMessageEnd |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the call was successfully initiated |
+| `callSid` | string | Unique identifier for the call |
+| `status` | string | Call status \(queued, ringing, in-progress, completed, etc.\) |
+| `direction` | string | Call direction \(outbound-api\) |
+| `from` | string | Phone number the call is from |
+| `to` | string | Phone number the call is to |
+| `duration` | number | Call duration in seconds |
+| `price` | string | Cost of the call |
+| `priceUnit` | string | Currency of the price |
+| `error` | string | Error message if call failed |
+
+### `twilio_voice_list_calls`
+
+Retrieve a list of calls made to and from an account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accountSid` | string | Yes | Twilio Account SID |
+| `authToken` | string | Yes | Twilio Auth Token |
+| `to` | string | No | Filter by calls to this phone number |
+| `from` | string | No | Filter by calls from this phone number |
+| `status` | string | No | Filter by call status \(queued, ringing, in-progress, completed, etc.\) |
+| `startTimeAfter` | string | No | Filter calls that started on or after this date \(YYYY-MM-DD\) |
+| `startTimeBefore` | string | No | Filter calls that started on or before this date \(YYYY-MM-DD\) |
+| `pageSize` | number | No | Number of records to return \(max 1000, default 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the calls were successfully retrieved |
+| `calls` | array | Array of call objects |
+| `total` | number | Total number of calls returned |
+| `page` | number | Current page number |
+| `pageSize` | number | Number of calls per page |
+| `error` | string | Error message if retrieval failed |
+
+### `twilio_voice_get_recording`
+
+Retrieve call recording information and transcription (if enabled via TwiML).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `recordingSid` | string | Yes | Recording SID to retrieve |
+| `accountSid` | string | Yes | Twilio Account SID |
+| `authToken` | string | Yes | Twilio Auth Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the recording was successfully retrieved |
+| `recordingSid` | string | Unique identifier for the recording |
+| `callSid` | string | Call SID this recording belongs to |
+| `duration` | number | Duration of the recording in seconds |
+| `status` | string | Recording status \(completed, processing, etc.\) |
+| `channels` | number | Number of channels \(1 for mono, 2 for dual\) |
+| `source` | string | How the recording was created |
+| `mediaUrl` | string | URL to download the recording media file |
+| `price` | string | Cost of the recording |
+| `priceUnit` | string | Currency of the price |
+| `uri` | string | Relative URI of the recording resource |
+| `transcriptionText` | string | Transcribed text from the recording \(if available\) |
+| `transcriptionStatus` | string | Transcription status \(completed, in-progress, failed\) |
+| `transcriptionPrice` | string | Cost of the transcription |
+| `transcriptionPriceUnit` | string | Currency of the transcription price |
+| `error` | string | Error message if retrieval failed |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `twilio_voice`

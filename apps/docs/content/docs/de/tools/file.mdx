@@ -1,0 +1,54 @@
+---
+title: Datei
+description: Mehrere Dateien lesen und parsen
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="file"
+  color="#40916C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Das Datei-Parser-Tool bietet eine leistungsstarke Möglichkeit, Inhalte aus verschiedenen Dateiformaten zu extrahieren und zu verarbeiten, wodurch Dokumentendaten einfach in Ihre Agent-Workflows integriert werden können. Dieses Tool unterstützt mehrere Dateiformate und kann Dateien mit einer Größe von bis zu 200 MB verarbeiten.
+
+Mit dem Datei-Parser können Sie:
+
+- **Mehrere Dateiformate verarbeiten**: Text aus PDFs, CSVs, Word-Dokumenten (DOCX), Textdateien und mehr extrahieren
+- **Große Dateien verarbeiten**: Dokumente mit einer Größe von bis zu 200 MB verarbeiten
+- **Dateien von URLs parsen**: Inhalte direkt aus online gehosteten Dateien extrahieren, indem Sie deren URLs angeben
+- **Mehrere Dateien gleichzeitig verarbeiten**: Mehrere Dateien in einem einzigen Vorgang hochladen und parsen
+- **Strukturierte Daten extrahieren**: Formatierung und Struktur der Originaldokumente wenn möglich beibehalten
+
+Das Datei-Parser-Tool ist besonders nützlich für Szenarien, in denen Ihre Agenten mit Dokumenteninhalten arbeiten müssen, wie z.B. bei der Analyse von Berichten, der Extraktion von Daten aus Tabellenkalkulationen oder der Verarbeitung von Text aus verschiedenen Dokumentenquellen. Es vereinfacht den Prozess, Dokumenteninhalte für Ihre Agenten verfügbar zu machen, sodass sie genauso einfach mit in Dateien gespeicherten Informationen arbeiten können wie mit direkter Texteingabe.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Datei in den Workflow integrieren. Kann eine Datei manuell hochladen oder eine Datei-URL einfügen.
+
+## Tools
+
+### `file_parser`
+
+Parsen einer oder mehrerer hochgeladener Dateien oder Dateien von URLs (Text, PDF, CSV, Bilder usw.)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `filePath` | string | Ja | Pfad zu der/den Datei(en). Kann ein einzelner Pfad, URL oder ein Array von Pfaden sein. |
+| `fileType` | string | Nein | Typ der zu parsenden Datei (wird automatisch erkannt, wenn nicht angegeben) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `files` | array | Array der geparsten Dateien |
+| `combinedContent` | string | Kombinierter Inhalt aller geparsten Dateien |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `file`

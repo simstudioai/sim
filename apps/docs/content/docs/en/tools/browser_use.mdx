@@ -1,0 +1,65 @@
+---
+title: Browser Use
+description: Run browser automation tasks
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="browser_use"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[BrowserUse](https://browser-use.com/) is a powerful browser automation platform that enables you to create and run browser tasks programmatically. It provides a way to automate web interactions through natural language instructions, allowing you to navigate websites, fill forms, extract data, and perform complex sequences of actions without writing code.
+
+With BrowserUse, you can:
+
+- **Automate web interactions**: Navigate to websites, click buttons, fill forms, and perform other browser actions
+- **Extract data**: Scrape content from websites, including text, images, and structured data
+- **Execute complex workflows**: Chain multiple actions together to complete sophisticated web tasks
+- **Monitor task execution**: Watch browser tasks run in real-time with visual feedback
+- **Process results programmatically**: Receive structured output from web automation tasks
+
+In Sim, the BrowserUse integration allows your agents to interact with the web as if they were human users. This enables scenarios like research, data collection, form submission, and web testing - all through simple natural language instructions. Your agents can gather information from websites, interact with web applications, and perform actions that would typically require manual browsing, expanding their capabilities to include the entire web as a resource.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Browser Use into the workflow. Can navigate the web and perform actions as if a real user was interacting with the browser.
+
+
+
+## Tools
+
+### `browser_use_run_task`
+
+Runs a browser automation task using BrowserUse
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `task` | string | Yes | What should the browser agent do |
+| `variables` | json | No | Optional variables to use as secrets \(format: \{key: value\}\) |
+| `format` | string | No | No description |
+| `save_browser_data` | boolean | No | Whether to save browser data |
+| `model` | string | No | LLM model to use \(default: gpt-4o\) |
+| `apiKey` | string | Yes | API key for BrowserUse API |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Task execution identifier |
+| `success` | boolean | Task completion status |
+| `output` | json | Task output data |
+| `steps` | json | Execution steps taken |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `browser_use`

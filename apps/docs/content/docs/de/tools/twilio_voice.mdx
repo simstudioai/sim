@@ -1,0 +1,134 @@
+---
+title: Twilio Voice
+description: Telefonate tätigen und verwalten
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="twilio_voice"
+  color="#F22F46"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Twilio Voice](https://www.twilio.com/en-us/voice) ist eine leistungsstarke Cloud-Kommunikationsplattform, die es Unternehmen ermöglicht, Telefonate programmgesteuert über eine einfache API zu tätigen, zu empfangen und zu verwalten.
+
+Twilio Voice bietet eine robuste API zum Erstellen anspruchsvoller Sprachanwendungen mit globaler Reichweite. Mit Abdeckung in über 100 Ländern, Carrier-Grade-Zuverlässigkeit und einer 99,95% Verfügbarkeits-SLA hat sich Twilio als Branchenführer im Bereich programmierbarer Sprachkommunikation etabliert.
+
+Zu den wichtigsten Funktionen von Twilio Voice gehören:
+
+- **Globales Sprachnetzwerk**: Weltweit Anrufe tätigen und empfangen mit lokalen Telefonnummern in mehreren Ländern
+- **Programmierbare Anrufsteuerung**: Verwendung von TwiML zur Steuerung des Anrufablaufs, Aufzeichnung von Gesprächen, Erfassung von DTMF-Eingaben und Implementierung von IVR-Systemen
+- **Erweiterte Funktionen**: Spracherkennung, Text-to-Speech, Anrufweiterleitung, Konferenzschaltung und Anrufbeantworter-Erkennung
+- **Echtzeit-Analytik**: Überwachung von Anrufqualität, -dauer, -kosten und Optimierung Ihrer Sprachanwendungen
+
+In Sim ermöglicht die Twilio Voice-Integration Ihren Agenten, diese leistungsstarken Sprachfunktionen als Teil ihrer Workflows zu nutzen. Dies schafft Möglichkeiten für anspruchsvolle Kundenbindungsszenarien wie Terminerinnerungen, Verifizierungsanrufe, automatisierte Support-Hotlines und interaktive Sprachdialogsysteme. Die Integration überbrückt die Lücke zwischen Ihren KI-Workflows und Sprachkommunikationskanälen und ermöglicht es Ihren Agenten, zeitnahe, relevante Informationen direkt über Telefonanrufe zu liefern. Durch die Verbindung von Sim mit Twilio Voice können Sie intelligente Agenten erstellen, die Kunden über ihren bevorzugten Kommunikationskanal ansprechen, die Benutzererfahrung verbessern und gleichzeitig routinemäßige Anrufaufgaben automatisieren.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integrieren Sie Twilio Voice in den Workflow. Tätigen Sie ausgehende Anrufe und rufen Sie Anrufaufzeichnungen ab.
+
+## Tools
+
+### `twilio_voice_make_call`
+
+Tätigen Sie einen ausgehenden Anruf mit der Twilio Voice API.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `to` | string | Ja | Anzurufende Telefonnummer \(E.164-Format, z.B. +14155551234\) |
+| `from` | string | Ja | Ihre Twilio-Telefonnummer, von der aus angerufen wird \(E.164-Format\) |
+| `url` | string | Nein | URL, die TwiML-Anweisungen für den Anruf zurückgibt |
+| `twiml` | string | Nein | TwiML-Anweisungen zur Ausführung \(Alternative zur URL\). Verwenden Sie eckige Klammern anstelle von spitzen Klammern, z.B. \[Response\]\[Say\]Hello\[/Say\]\[/Response\] |
+| `statusCallback` | string | Nein | Webhook-URL für Anrufstatus-Updates |
+| `statusCallbackMethod` | string | Nein | HTTP-Methode für Status-Callback \(GET oder POST\) |
+| `accountSid` | string | Ja | Twilio Account SID |
+| `authToken` | string | Ja | Twilio Auth Token |
+| `record` | boolean | Nein | Ob der Anruf aufgezeichnet werden soll |
+| `recordingStatusCallback` | string | Nein | Webhook-URL für Aufzeichnungsstatus-Updates |
+| `timeout` | number | Nein | Wartezeit auf Antwort bevor aufgegeben wird \(Sekunden, Standard: 60\) |
+| `machineDetection` | string | Nein | Anrufbeantworter-Erkennung: Enable oder DetectMessageEnd |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Anruf erfolgreich eingeleitet wurde |
+| `callSid` | string | Eindeutige Kennung für den Anruf |
+| `status` | string | Anrufstatus \(queued, ringing, in-progress, completed, usw.\) |
+| `direction` | string | Anrufrichtung \(outbound-api\) |
+| `from` | string | Telefonnummer, von der aus angerufen wird |
+| `to` | string | Telefonnummer, die angerufen wird |
+| `duration` | number | Anrufdauer in Sekunden |
+| `price` | string | Kosten des Anrufs |
+| `priceUnit` | string | Währung des Preises |
+| `error` | string | Fehlermeldung, wenn der Anruf fehlgeschlagen ist |
+
+### `twilio_voice_list_calls`
+
+Rufen Sie eine Liste der Anrufe ab, die zu und von einem Konto getätigt wurden.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `accountSid` | string | Ja | Twilio Account SID |
+| `authToken` | string | Ja | Twilio Auth Token |
+| `to` | string | Nein | Nach Anrufen zu dieser Telefonnummer filtern |
+| `from` | string | Nein | Nach Anrufen von dieser Telefonnummer filtern |
+| `status` | string | Nein | Nach Anrufstatus filtern \(queued, ringing, in-progress, completed, etc.\) |
+| `startTimeAfter` | string | Nein | Anrufe filtern, die an oder nach diesem Datum begonnen haben \(JJJJ-MM-TT\) |
+| `startTimeBefore` | string | Nein | Anrufe filtern, die an oder vor diesem Datum begonnen haben \(JJJJ-MM-TT\) |
+| `pageSize` | number | Nein | Anzahl der zurückzugebenden Datensätze \(max. 1000, Standard 50\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Anrufe erfolgreich abgerufen wurden |
+| `calls` | array | Array von Anrufobjekten |
+| `total` | number | Gesamtanzahl der zurückgegebenen Anrufe |
+| `page` | number | Aktuelle Seitennummer |
+| `pageSize` | number | Anzahl der Anrufe pro Seite |
+| `error` | string | Fehlermeldung, wenn der Abruf fehlgeschlagen ist |
+
+### `twilio_voice_get_recording`
+
+Rufen Sie Anrufaufzeichnungsinformationen und Transkription ab (falls über TwiML aktiviert).
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `recordingSid` | string | Ja | Abzurufende Recording SID |
+| `accountSid` | string | Ja | Twilio Account SID |
+| `authToken` | string | Ja | Twilio Auth Token |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Aufnahme erfolgreich abgerufen wurde |
+| `recordingSid` | string | Eindeutige Kennung für die Aufnahme |
+| `callSid` | string | Call SID, zu der diese Aufnahme gehört |
+| `duration` | number | Dauer der Aufnahme in Sekunden |
+| `status` | string | Aufnahmestatus \(completed, processing, usw.\) |
+| `channels` | number | Anzahl der Kanäle \(1 für Mono, 2 für Dual\) |
+| `source` | string | Wie die Aufnahme erstellt wurde |
+| `mediaUrl` | string | URL zum Herunterladen der Aufnahmedatei |
+| `price` | string | Kosten der Aufnahme |
+| `priceUnit` | string | Währung des Preises |
+| `uri` | string | Relativer URI der Aufnahmeressource |
+| `transcriptionText` | string | Transkribierter Text aus der Aufnahme \(falls verfügbar\) |
+| `transcriptionStatus` | string | Transkriptionsstatus \(completed, in-progress, failed\) |
+| `transcriptionPrice` | string | Kosten der Transkription |
+| `transcriptionPriceUnit` | string | Währung des Transkriptionspreises |
+| `error` | string | Fehlermeldung, falls der Abruf fehlgeschlagen ist |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `twilio_voice`

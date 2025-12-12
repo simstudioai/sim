@@ -1,0 +1,116 @@
+---
+title: Overview
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+
+Sim's execution engine brings your workflows to life by processing blocks in the correct order, managing data flow, and handling errors gracefully, so you can understand exactly how workflows are executed in Sim.
+
+<Callout type="info">
+  Every workflow execution follows a deterministic path based on your block connections and logic, ensuring predictable and reliable results.
+</Callout>
+
+## Documentation Overview
+
+<Cards>
+  <Card title="Execution Basics" href="/execution/basics">
+    Learn about the fundamental execution flow, block types, and how data flows through your
+    workflow
+  </Card>
+
+  <Card title="Logging" href="/execution/logging">
+    Monitor workflow executions with comprehensive logging and real-time visibility
+  </Card>
+  
+  <Card title="Cost Calculation" href="/execution/costs">
+    Understand how workflow execution costs are calculated and optimized
+  </Card>
+  
+  <Card title="External API" href="/execution/api">
+    Access execution logs and set up webhooks programmatically via REST API
+  </Card>
+</Cards>
+
+## Key Concepts
+
+### Topological Execution
+Blocks execute in dependency order, similar to how a spreadsheet recalculates cells. The execution engine automatically determines which blocks can run based on completed dependencies.
+
+### Path Tracking
+The engine actively tracks execution paths through your workflow. Router and Condition blocks dynamically update these paths, ensuring only relevant blocks execute.
+
+### Layer-Based Processing
+Instead of executing blocks one-by-one, the engine identifies layers of blocks that can run in parallel, optimizing performance for complex workflows.
+
+### Execution Context
+Each workflow maintains a rich context during execution containing:
+- Block outputs and states
+- Active execution paths
+- Loop and parallel iteration tracking
+- Environment variables
+- Routing decisions
+
+
+## Deployment Snapshots
+
+All public entry points—API, Chat, Schedule, Webhook, and Manual runs—execute the workflow’s active deployment snapshot. Publish a new deployment whenever you change the canvas so every trigger uses the updated version.
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/execution/deployment-versions.png'
+    alt='Deployment versions table'
+    width={500}
+    height={280}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+The Deploy modal keeps a full version history—inspect any snapshot, compare it against your draft, and promote or roll back with one click when you need to restore a prior release.
+
+## Programmatic Execution
+
+Execute workflows from your applications using our official SDKs:
+
+```bash
+# TypeScript/JavaScript
+npm install simstudio-ts-sdk
+
+# Python
+pip install simstudio-sdk
+```
+
+```typescript
+// TypeScript Example
+import { SimStudioClient } from 'simstudio-ts-sdk';
+
+const client = new SimStudioClient({ 
+  apiKey: 'your-api-key' 
+});
+
+const result = await client.executeWorkflow('workflow-id', {
+  input: { message: 'Hello' }
+});
+```
+
+## Best Practices
+
+### Design for Reliability
+- Handle errors gracefully with appropriate fallback paths
+- Use environment variables for sensitive data
+- Add logging to Function blocks for debugging
+
+### Optimize Performance
+- Minimize external API calls where possible
+- Use parallel execution for independent operations
+- Cache results with Memory blocks when appropriate
+
+### Monitor Executions
+- Review logs regularly to understand performance patterns
+- Track costs for AI model usage
+- Use workflow snapshots to debug issues
+
+## What's Next?
+
+Start with [Execution Basics](/execution/basics) to understand how workflows run, then explore [Logging](/execution/logging) to monitor your executions and [Cost Calculation](/execution/costs) to optimize your spending.

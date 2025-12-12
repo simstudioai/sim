@@ -1,0 +1,217 @@
+---
+title: Google 群组
+description: 管理 Google Workspace 群组及其成员
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_groups"
+  color="#E8F0FE"
+/>
+
+## 使用说明
+
+连接到 Google Workspace，使用 Admin SDK Directory API 创建、更新和管理群组及其成员。
+
+## 工具
+
+### `google_groups_list_groups`
+
+列出 Google Workspace 域中的所有群组
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `customer` | string | 否 | 客户 ID 或 "my_customer" 表示已认证用户的域 |
+| `domain` | string | 否 | 用于筛选群组的域名 |
+| `maxResults` | number | 否 | 返回的最大结果数 \(1-200\) |
+| `pageToken` | string | 否 | 分页的令牌 |
+| `query` | string | 否 | 用于筛选群组的搜索查询 \(例如："email:admin*"\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups API 响应数据 |
+
+### `google_groups_get_group`
+
+通过电子邮件或群组 ID 获取特定 Google 群组的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | 是 | 群组电子邮件地址或唯一群组 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups API 响应数据 |
+
+### `google_groups_create_group`
+
+在域中创建一个新的 Google 群组
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | 是 | 新组的电子邮件地址 \(例如：team@yourdomain.com\) |
+| `name` | string | 是 | 组的显示名称 |
+| `description` | string | 否 | 组的描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups API 响应数据 |
+
+### `google_groups_update_group`
+
+更新现有的 Google 群组
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | 是 | 群组的电子邮件地址或唯一群组 ID |
+| `name` | string | 否 | 群组的新显示名称 |
+| `description` | string | 否 | 群组的新描述 |
+| `email` | string | 否 | 群组的新电子邮件地址 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups API 响应数据 |
+
+### `google_groups_delete_group`
+
+删除 Google 群组
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | 是 | 要删除的群组电子邮件地址或唯一群组 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups API 响应数据 |
+
+### `google_groups_list_members`
+
+列出 Google 群组的所有成员
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | 是 | 群组的电子邮件地址或唯一群组 ID |
+| `maxResults` | number | 否 | 返回的最大结果数 \(1-200\) |
+| `pageToken` | string | 否 | 分页的令牌 |
+| `roles` | string | 否 | 按角色筛选 \(逗号分隔：OWNER, MANAGER, MEMBER\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups API 响应数据 |
+
+### `google_groups_get_member`
+
+获取 Google 群组中特定成员的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | 是 | 群组的电子邮件地址或唯一群组 ID |
+| `memberKey` | string | 是 | 成员的电子邮件地址或唯一成员 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups API 响应数据 |
+
+### `google_groups_add_member`
+
+向 Google 群组添加新成员
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | 是 | 群组的电子邮件地址或唯一群组 ID |
+| `email` | string | 是 | 要添加成员的电子邮件地址 |
+| `role` | string | 否 | 成员的角色 \(MEMBER, MANAGER, 或 OWNER\)。默认为 MEMBER。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups API 响应数据 |
+
+### `google_groups_remove_member`
+
+从 Google 群组中移除成员
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | 是 | 群组的电子邮件地址或唯一群组 ID |
+| `memberKey` | string | 是 | 要移除的成员的电子邮件地址或唯一 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups API 响应数据 |
+
+### `google_groups_update_member`
+
+更新成员信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | 是 | 群组的电子邮件地址或唯一群组 ID |
+| `memberKey` | string | 是 | 成员的电子邮件地址或唯一成员 ID |
+| `role` | string | 是 | 成员的新角色 \(MEMBER, MANAGER, 或 OWNER\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups API 响应数据 |
+
+### `google_groups_has_member`
+
+检查用户是否为 Google 群组的成员
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | 是 | 群组的电子邮件地址或唯一群组 ID |
+| `memberKey` | string | 是 | 要检查的成员的电子邮件地址或唯一成员 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `output` | json | Google Groups API 响应数据 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`google_groups`

@@ -36,6 +36,7 @@ export const BlockOperationSchema = z.object({
     type: z.string().optional(),
     name: z.string().optional(),
     position: PositionSchema.optional(),
+    commit: z.boolean().optional(),
     data: z.record(z.any()).optional(),
     subBlocks: z.record(z.any()).optional(),
     outputs: z.record(z.any()).optional(),
@@ -43,7 +44,6 @@ export const BlockOperationSchema = z.object({
     extent: z.enum(['parent']).nullable().optional(),
     enabled: z.boolean().optional(),
     horizontalHandles: z.boolean().optional(),
-    isWide: z.boolean().optional(),
     advancedMode: z.boolean().optional(),
     triggerMode: z.boolean().optional(),
     height: z.number().optional(),
@@ -114,11 +114,22 @@ export const VariableOperationSchema = z.union([
   }),
 ])
 
+export const WorkflowStateOperationSchema = z.object({
+  operation: z.literal('replace-state'),
+  target: z.literal('workflow'),
+  payload: z.object({
+    state: z.any(), // Full workflow state
+  }),
+  timestamp: z.number(),
+  operationId: z.string().optional(),
+})
+
 export const WorkflowOperationSchema = z.union([
   BlockOperationSchema,
   EdgeOperationSchema,
   SubflowOperationSchema,
   VariableOperationSchema,
+  WorkflowStateOperationSchema,
 ])
 
 export { PositionSchema, AutoConnectEdgeSchema }

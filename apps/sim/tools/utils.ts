@@ -1,5 +1,5 @@
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getBaseUrl } from '@/lib/urls/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { tools } from '@/tools/registry'
@@ -62,11 +62,26 @@ export function formatRequestParams(tool: ToolConfig, params: Record<string, any
   const isPreformattedContent =
     headers['Content-Type'] === 'application/x-ndjson' ||
     headers['Content-Type'] === 'application/x-www-form-urlencoded'
-  const body = hasBody
-    ? isPreformattedContent && typeof bodyResult === 'string'
-      ? bodyResult
-      : JSON.stringify(bodyResult)
-    : undefined
+
+  let body: string | undefined
+  if (hasBody) {
+    if (isPreformattedContent) {
+      // Check if bodyResult is a string
+      if (typeof bodyResult === 'string') {
+        body = bodyResult
+      }
+      // Check if bodyResult is an object with a 'body' property (Twilio pattern)
+      else if (bodyResult && typeof bodyResult === 'object' && 'body' in bodyResult) {
+        body = bodyResult.body
+      }
+      // Otherwise JSON stringify it
+      else {
+        body = JSON.stringify(bodyResult)
+      }
+    } else {
+      body = typeof bodyResult === 'string' ? bodyResult : JSON.stringify(bodyResult)
+    }
+  }
 
   return { url, method, headers, body }
 }
@@ -157,7 +172,7 @@ export function validateRequiredParametersAfterMerge(
       const toolName = tool.name || toolId
       const friendlyParamName =
         parameterNameMap?.[paramName] || formatParameterNameForError(paramName)
-      throw new Error(`"${friendlyParamName}" is required for ${toolName}`)
+      throw new Error(`${friendlyParamName} is required for ${toolName}`)
     }
   }
 }
@@ -242,12 +257,22 @@ export function createCustomToolRequestBody(
     // 3. Empty object (fallback)
     const envVars = params.envVars || (isClient ? getClientEnvVars(getStore) : {})
 
+    // Get workflow variables from params (passed from execution context)
+    const workflowVariables = params.workflowVariables || {}
+
+    // Get block data and mapping from params (passed from execution context)
+    const blockData = params.blockData || {}
+    const blockNameMapping = params.blockNameMapping || {}
+
     // Include everything needed for execution
     return {
       code: customTool.code,
       params: params, // These will be available in the VM context
       schema: customTool.schema.function.parameters, // For validation
       envVars: envVars, // Environment variables
+      workflowVariables: workflowVariables, // Workflow variables for <variable.name> resolution
+      blockData: blockData, // Runtime block outputs for <block.field> resolution
+      blockNameMapping: blockNameMapping, // Block name to ID mapping
       workflowId: workflowId, // Pass workflowId for server-side context
       isCustomTool: true, // Flag to indicate this is a custom tool execution
     }
@@ -355,7 +380,22 @@ async function getCustomTool(
       url.searchParams.append('workflowId', workflowId)
     }
 
-    const response = await fetch(url.toString())
+    // For server-side calls (during workflow execution), use internal JWT token
+    const headers: Record<string, string> = {}
+    if (typeof window === 'undefined') {
+      try {
+        const { generateInternalToken } = await import('@/lib/auth/internal')
+        const internalToken = await generateInternalToken()
+        headers.Authorization = `Bearer ${internalToken}`
+      } catch (error) {
+        logger.warn('Failed to generate internal token for custom tools fetch', { error })
+        // Continue without token - will fail auth and be reported upstream
+      }
+    }
+
+    const response = await fetch(url.toString(), {
+      headers,
+    })
 
     if (!response.ok) {
       logger.error(`Failed to fetch custom tools: ${response.statusText}`)

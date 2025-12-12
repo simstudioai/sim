@@ -1,11 +1,10 @@
 import { runs } from '@trigger.dev/sdk'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { getSession } from '@/lib/auth'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { createErrorResponse } from '@/app/api/workflows/utils'
-import { db } from '@/db'
-import { apiKey as apiKeyTable } from '@/db/schema'
 
 const logger = createLogger('TaskStatusAPI')
 
@@ -14,7 +13,7 @@ export async function GET(
   { params }: { params: Promise<{ jobId: string }> }
 ) {
   const { jobId: taskId } = await params
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     logger.debug(`[${requestId}] Getting status for task: ${taskId}`)
@@ -26,14 +25,17 @@ export async function GET(
     if (!authenticatedUserId) {
       const apiKeyHeader = request.headers.get('x-api-key')
       if (apiKeyHeader) {
-        const [apiKeyRecord] = await db
-          .select({ userId: apiKeyTable.userId })
-          .from(apiKeyTable)
-          .where(eq(apiKeyTable.key, apiKeyHeader))
-          .limit(1)
-
-        if (apiKeyRecord) {
-          authenticatedUserId = apiKeyRecord.userId
+        const authResult = await authenticateApiKeyFromHeader(apiKeyHeader)
+        if (authResult.success && authResult.userId) {
+          authenticatedUserId = authResult.userId
+          if (authResult.keyId) {
+            await updateApiKeyLastUsed(authResult.keyId).catch((error) => {
+              logger.warn(`[${requestId}] Failed to update API key last used timestamp:`, {
+                keyId: authResult.keyId,
+                error,
+              })
+            })
+          }
         }
       }
     }

@@ -1,3 +1,5 @@
+import { db } from '@sim/db'
+import { copilotChats } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -7,10 +9,8 @@ import {
   createNotFoundResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/auth'
+} from '@/lib/copilot/request-helpers'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { copilotChats } from '@/db/schema'
 
 const logger = createLogger('CopilotChatUpdateAPI')
 
@@ -28,7 +28,7 @@ const UpdateMessagesSchema = z.object({
         .array(
           z.object({
             id: z.string(),
-            s3_key: z.string(),
+            key: z.string(),
             filename: z.string(),
             media_type: z.string(),
             size: z.number(),
@@ -37,6 +37,14 @@ const UpdateMessagesSchema = z.object({
         .optional(),
     })
   ),
+  planArtifact: z.string().nullable().optional(),
+  config: z
+    .object({
+      mode: z.enum(['ask', 'build', 'plan']).optional(),
+      model: z.string().optional(),
+    })
+    .nullable()
+    .optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -49,7 +57,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { chatId, messages } = UpdateMessagesSchema.parse(body)
+    const { chatId, messages, planArtifact, config } = UpdateMessagesSchema.parse(body)
 
     // Verify that the chat belongs to the user
     const [chat] = await db
@@ -62,18 +70,27 @@ export async function POST(req: NextRequest) {
       return createNotFoundResponse('Chat not found or unauthorized')
     }
 
-    // Update chat with new messages
-    await db
-      .update(copilotChats)
-      .set({
-        messages: messages,
-        updatedAt: new Date(),
-      })
-      .where(eq(copilotChats.id, chatId))
+    // Update chat with new messages, plan artifact, and config
+    const updateData: Record<string, any> = {
+      messages: messages,
+      updatedAt: new Date(),
+    }
 
-    logger.info(`[${tracker.requestId}] Successfully updated chat messages`, {
+    if (planArtifact !== undefined) {
+      updateData.planArtifact = planArtifact
+    }
+
+    if (config !== undefined) {
+      updateData.config = config
+    }
+
+    await db.update(copilotChats).set(updateData).where(eq(copilotChats.id, chatId))
+
+    logger.info(`[${tracker.requestId}] Successfully updated chat`, {
       chatId,
       newMessageCount: messages.length,
+      hasPlanArtifact: !!planArtifact,
+      hasConfig: !!config,
     })
 
     return NextResponse.json({

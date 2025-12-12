@@ -1,0 +1,62 @@
+---
+title: Serper
+description: Search the web using Serper
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="serper"
+  color="#2B3543"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Serper](https://www.serper.com/) is a Google Search API that provides developers with programmatic access to Google search results. It offers a reliable, high-performance way to integrate Google search capabilities into applications without the complexity of web scraping or the limitations of other search APIs.
+
+With Serper, you can:
+
+- **Access Google search results**: Get structured data from Google search results programmatically
+- **Perform different search types**: Run web searches, image searches, news searches, and more
+- **Retrieve rich metadata**: Obtain titles, snippets, URLs, and other relevant information from search results
+- **Scale your applications**: Build search-powered features with a reliable and fast API
+- **Avoid rate limiting**: Get consistent access to search results without worrying about IP blocks
+
+In Sim, the Serper integration enables your agents to leverage the power of web search as part of their workflows. This allows for sophisticated automation scenarios that require up-to-date information from the internet. Your agents can formulate search queries, retrieve relevant results, and use this information to make decisions or provide responses. This integration bridges the gap between your workflow automation and the vast knowledge available on the web, enabling your agents to access real-time information without manual intervention. By connecting Sim with Serper, you can create agents that stay current with the latest information, provide more accurate responses, and deliver more value to users.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Serper into the workflow. Can search the web.
+
+
+
+## Tools
+
+### `serper_search`
+
+A powerful web search tool that provides access to Google search results through Serper.dev API. Supports different types of searches including regular web search, news, places, and images, with each result containing relevant metadata like titles, URLs, snippets, and type-specific information.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | The search query |
+| `num` | number | No | Number of results to return |
+| `gl` | string | No | Country code for search results |
+| `hl` | string | No | Language code for search results |
+| `type` | string | No | Type of search to perform |
+| `apiKey` | string | Yes | Serper API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `searchResults` | array | Search results with titles, links, snippets, and type-specific metadata \(date for news, rating for places, imageUrl for images\) |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `serper`

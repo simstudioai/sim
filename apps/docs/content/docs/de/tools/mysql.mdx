@@ -1,0 +1,160 @@
+---
+title: MySQL
+description: Verbindung zur MySQL-Datenbank herstellen
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mysql"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Das [MySQL](https://www.mysql.com/) Tool ermöglicht es Ihnen, eine Verbindung zu jeder MySQL-Datenbank herzustellen und eine Vielzahl von Datenbankoperationen direkt in Ihren agentischen Workflows durchzuführen. Mit sicherer Verbindungshandhabung und flexibler Konfiguration können Sie Ihre Daten einfach verwalten und mit ihnen interagieren.
+
+Mit dem MySQL-Tool können Sie:
+
+- **Daten abfragen**: Führen Sie SELECT-Abfragen aus, um Daten aus Ihren MySQL-Tabellen mit der `mysql_query` Operation abzurufen.
+- **Datensätze einfügen**: Fügen Sie mit der `mysql_insert` Operation neue Zeilen zu Ihren Tabellen hinzu, indem Sie die Tabelle und die einzufügenden Daten angeben.
+- **Datensätze aktualisieren**: Ändern Sie bestehende Daten in Ihren Tabellen mit der `mysql_update` Operation, indem Sie die Tabelle, neue Daten und WHERE-Bedingungen angeben.
+- **Datensätze löschen**: Entfernen Sie Zeilen aus Ihren Tabellen mit der `mysql_delete` Operation, indem Sie die Tabelle und WHERE-Bedingungen angeben.
+- **Raw SQL ausführen**: Führen Sie beliebige benutzerdefinierte SQL-Befehle mit der `mysql_execute` Operation für fortgeschrittene Anwendungsfälle aus.
+
+Das MySQL-Tool ist ideal für Szenarien, in denen Ihre Agenten mit strukturierten Daten interagieren müssen – wie beispielsweise bei der Automatisierung von Berichten, der Synchronisierung von Daten zwischen Systemen oder der Unterstützung datengesteuerter Workflows. Es vereinfacht den Datenbankzugriff und macht es einfach, MySQL-Daten programmgesteuert zu lesen, zu schreiben und zu verwalten.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integrieren Sie MySQL in den Workflow. Kann Abfragen, Einfügen, Aktualisieren, Löschen und rohe SQL-Befehle ausführen.
+
+## Tools
+
+### `mysql_query`
+
+SELECT-Abfrage in MySQL-Datenbank ausführen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | MySQL-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | MySQL-Server-Port \(Standard: 3306\) |
+| `database` | string | Ja | Datenbankname für die Verbindung |
+| `username` | string | Ja | Datenbank-Benutzername |
+| `password` | string | Ja | Datenbank-Passwort |
+| `ssl` | string | Nein | SSL-Verbindungsmodus \(disabled, required, preferred\) |
+| `query` | string | Ja | SQL SELECT-Abfrage zum Ausführen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `rows` | array | Array der zurückgegebenen Zeilen aus der Abfrage |
+| `rowCount` | number | Anzahl der zurückgegebenen Zeilen |
+
+### `mysql_insert`
+
+Neuen Datensatz in MySQL-Datenbank einfügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | MySQL-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | MySQL-Server-Port \(Standard: 3306\) |
+| `database` | string | Ja | Datenbankname für die Verbindung |
+| `username` | string | Ja | Datenbank-Benutzername |
+| `password` | string | Ja | Datenbank-Passwort |
+| `ssl` | string | Nein | SSL-Verbindungsmodus \(disabled, required, preferred\) |
+| `table` | string | Ja | Tabellenname zum Einfügen |
+| `data` | object | Ja | Einzufügende Daten als Schlüssel-Wert-Paare |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `rows` | array | Array der eingefügten Zeilen |
+| `rowCount` | number | Anzahl der eingefügten Zeilen |
+
+### `mysql_update`
+
+Bestehende Datensätze in MySQL-Datenbank aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | MySQL-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | MySQL-Server-Port (Standard: 3306) |
+| `database` | string | Ja | Name der Datenbank, zu der verbunden werden soll |
+| `username` | string | Ja | Datenbank-Benutzername |
+| `password` | string | Ja | Datenbank-Passwort |
+| `ssl` | string | Nein | SSL-Verbindungsmodus (disabled, required, preferred) |
+| `table` | string | Ja | Name der zu aktualisierenden Tabelle |
+| `data` | object | Ja | Zu aktualisierende Daten als Schlüssel-Wert-Paare |
+| `where` | string | Ja | WHERE-Klausel-Bedingung (ohne WHERE-Schlüsselwort) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `rows` | array | Array der aktualisierten Zeilen |
+| `rowCount` | number | Anzahl der aktualisierten Zeilen |
+
+### `mysql_delete`
+
+Datensätze aus MySQL-Datenbank löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | MySQL-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | MySQL-Server-Port (Standard: 3306) |
+| `database` | string | Ja | Name der Datenbank, zu der verbunden werden soll |
+| `username` | string | Ja | Datenbank-Benutzername |
+| `password` | string | Ja | Datenbank-Passwort |
+| `ssl` | string | Nein | SSL-Verbindungsmodus (disabled, required, preferred) |
+| `table` | string | Ja | Name der Tabelle, aus der gelöscht werden soll |
+| `where` | string | Ja | WHERE-Klausel-Bedingung (ohne WHERE-Schlüsselwort) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `rows` | array | Array der gelöschten Zeilen |
+| `rowCount` | number | Anzahl der gelöschten Zeilen |
+
+### `mysql_execute`
+
+Führt eine rohe SQL-Abfrage auf einer MySQL-Datenbank aus
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | MySQL-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | MySQL-Server-Port (Standard: 3306) |
+| `database` | string | Ja | Datenbankname für die Verbindung |
+| `username` | string | Ja | Datenbank-Benutzername |
+| `password` | string | Ja | Datenbank-Passwort |
+| `ssl` | string | Nein | SSL-Verbindungsmodus (disabled, required, preferred) |
+| `query` | string | Ja | Rohe SQL-Abfrage zur Ausführung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `rows` | array | Array der von der Abfrage zurückgegebenen Zeilen |
+| `rowCount` | number | Anzahl der betroffenen Zeilen |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `mysql`

@@ -1,0 +1,250 @@
+---
+title: Loop
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+El bloque Loop es un contenedor que ejecuta bloques repetidamente. Itera sobre colecciones, repite operaciones un número fijo de veces o continúa mientras se cumpla una condición.
+
+<Callout type="info">
+  Los bloques Loop son nodos contenedores que albergan otros bloques dentro de ellos. Los bloques contenidos se ejecutan múltiples veces según tu configuración.
+</Callout>
+
+## Opciones de configuración
+
+### Tipo de bucle
+
+Elige entre cuatro tipos de bucles:
+
+<Tabs items={['For Loop', 'ForEach Loop', 'While Loop', 'Do-While Loop']}>
+  <Tab>
+    **Bucle For (Iteraciones)** - Un bucle numérico que se ejecuta un número fijo de veces:
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-1.png"
+        alt="Bucle For con iteraciones"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Úsalo cuando necesites repetir una operación un número específico de veces.
+    
+
+    ```
+    Example: Run 5 times
+    - Iteration 1
+    - Iteration 2
+    - Iteration 3
+    - Iteration 4
+    - Iteration 5
+    ```
+
+  </Tab>
+  <Tab>
+    **Bucle ForEach (Colección)** - Un bucle basado en colecciones que itera sobre cada elemento en un array u objeto:
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-2.png"
+        alt="Bucle ForEach con colección"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Úsalo cuando necesites procesar una colección de elementos.
+    
+
+    ```
+    Example: Process ["apple", "banana", "orange"]
+    - Iteration 1: Process "apple"
+    - Iteration 2: Process "banana"
+    - Iteration 3: Process "orange"
+    ```
+
+  </Tab>
+  <Tab>
+    **Bucle While (Basado en condición)** - Continúa ejecutándose mientras una condición se evalúe como verdadera:
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-3.png"
+        alt="Bucle While con condición"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Úsalo cuando necesites repetir hasta que se cumpla una condición específica. La condición se verifica **antes** de cada iteración.
+
+    ```
+    Example: While {"<variable.i>"} < 10
+    - Check condition → Execute if true
+    - Inside loop: Increment {"<variable.i>"}
+    - Inside loop: Variables assigns i = {"<variable.i>"} + 1
+    - Check condition → Execute if true
+    - Check condition → Exit if false
+    ```
+
+  </Tab>
+  <Tab>
+    **Bucle Do-While (Basado en condición)** - Se ejecuta al menos una vez, luego continúa mientras una condición sea verdadera:
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-4.png"
+        alt="Bucle Do-While con condición"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Úsalo cuando necesites ejecutar al menos una vez, luego repetir hasta que se cumpla una condición. La condición se verifica **después** de cada iteración.
+
+    ```
+    Example: Do-while {"<variable.i>"} < 10
+    - Execute blocks
+    - Inside loop: Increment {"<variable.i>"}
+    - Inside loop: Variables assigns i = {"<variable.i>"} + 1
+    - Check condition → Continue if true
+    - Check condition → Exit if false
+    ```
+
+  </Tab>
+</Tabs>
+
+## Cómo usar bucles
+
+### Creando un bucle
+
+1. Arrastra un bloque de Bucle desde la barra de herramientas a tu lienzo
+2. Configura el tipo de bucle y los parámetros
+3. Arrastra otros bloques dentro del contenedor del bucle
+4. Conecta los bloques según sea necesario
+
+### Accediendo a los resultados
+
+Después de que un bucle se completa, puedes acceder a los resultados agregados:
+
+- **loop.results**: Array de resultados de todas las iteraciones del bucle
+
+## Ejemplos de casos de uso
+
+**Procesamiento de resultados de API** - Bucle ForEach procesa registros de clientes desde una API
+
+```javascript
+// Procesar cada cliente en la respuesta de la API
+forEach(response.customers, (customer) => {
+  // Verificar estado de la cuenta
+  if (customer.status === 'active') {
+    // Enviar correo electrónico de bienvenida
+    sendEmail(customer.email, 'Bienvenido a nuestro servicio');
+  }
+});
+```
+
+**Generación iterativa de contenido** - Bucle For genera múltiples variaciones de contenido
+
+```javascript
+// Generar 3 variaciones de contenido
+for (let i = 0; i < 3; i++) {
+  // Crear variación con diferentes tonos
+  const variation = generateContent({
+    topic: 'beneficios del producto',
+    tone: ['profesional', 'casual', 'entusiasta'][i]
+  });
+  // Guardar variación
+  variations.push(variation);
+}
+```
+
+**Contador con bucle While** - Bucle While procesa elementos con contador
+
+```javascript
+// Procesar elementos mientras haya disponibles
+let count = 0;
+while (count < items.length) {
+  // Procesar elemento actual
+  processItem(items[count]);
+  // Incrementar contador
+  count++;
+}
+```
+
+## Características avanzadas
+
+### Limitaciones
+
+<Callout type="warning">
+  Los bloques contenedores (Bucles y Paralelos) no pueden anidarse unos dentro de otros. Esto significa:
+  - No puedes colocar un bloque de Bucle dentro de otro bloque de Bucle
+  - No puedes colocar un bloque Paralelo dentro de un bloque de Bucle
+  - No puedes colocar ningún bloque contenedor dentro de otro bloque contenedor
+  
+  Si necesitas iteración multidimensional, considera reestructurar tu flujo de trabajo para usar bucles secuenciales o procesar datos por etapas.
+</Callout>
+
+<Callout type="info">
+  Los bucles se ejecutan secuencialmente, no en paralelo. Si necesitas ejecución concurrente, usa el bloque Paralelo en su lugar.
+</Callout>
+
+## Entradas y salidas
+
+<Tabs items={['Configuración', 'Variables', 'Resultados']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Tipo de bucle</strong>: Elige entre 'for', 'forEach', 'while', o 'doWhile'
+      </li>
+      <li>
+        <strong>Iteraciones</strong>: Número de veces a ejecutar (bucles for)
+      </li>
+      <li>
+        <strong>Colección</strong>: Array u objeto sobre el que iterar (bucles forEach)
+      </li>
+      <li>
+        <strong>Condición</strong>: Expresión booleana a evaluar (bucles while/do-while)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>loop.currentItem</strong>: Elemento actual siendo procesado
+      </li>
+      <li>
+        <strong>loop.index</strong>: Número de iteración actual (base 0)
+      </li>
+      <li>
+        <strong>loop.items</strong>: Colección completa (bucles forEach)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>loop.results</strong>: Array de todos los resultados de iteración
+      </li>
+      <li>
+        <strong>Estructura</strong>: Los resultados mantienen el orden de iteración
+      </li>
+      <li>
+        <strong>Acceso</strong>: Disponible en bloques después del bucle
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Mejores prácticas
+
+- **Establece límites razonables**: Mantén el número de iteraciones en un nivel razonable para evitar tiempos de ejecución prolongados
+- **Usa ForEach para colecciones**: Cuando proceses arrays u objetos, utiliza bucles ForEach en lugar de bucles For
+- **Maneja los errores con elegancia**: Considera añadir manejo de errores dentro de los bucles para flujos de trabajo robustos

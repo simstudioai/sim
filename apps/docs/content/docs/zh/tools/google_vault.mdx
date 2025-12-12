@@ -1,0 +1,160 @@
+---
+title: Google Vault
+description: 搜索、导出和管理 Vault 事项的保留/导出
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_vault"
+  color="#E8F0FE"
+/>
+
+## 使用说明
+
+连接 Google Vault 以创建导出、列出导出并管理事项中的保留。
+
+## 工具
+
+### `google_vault_create_matters_export`
+
+创建导出事项
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | 字符串 | 是 | 无描述 |
+| `exportName` | 字符串 | 是 | 无描述 |
+| `corpus` | 字符串 | 是 | 要导出的数据集 \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
+| `accountEmails` | 字符串 | 否 | 用于限定导出的以逗号分隔的用户邮箱列表 |
+| `orgUnitId` | 字符串 | 否 | 用于限定导出的组织单位 ID \(邮箱的替代选项\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `output` | json | Vault API 响应数据 |
+| `file` | json | 从执行文件中下载的导出文件 \(UserFile\) |
+
+### `google_vault_list_matters_export`
+
+列出事项的导出
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | 字符串 | 是 | 无描述 |
+| `pageSize` | 数字 | 否 | 无描述 |
+| `pageToken` | 字符串 | 否 | 无描述 |
+| `exportId` | 字符串 | 否 | 无描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `output` | json | Vault API 响应数据 |
+| `file` | json | 从执行文件中下载的导出文件 \(UserFile\) |
+
+### `google_vault_download_export_file`
+
+从 Google Vault 导出中下载单个文件（GCS 对象）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | 字符串 | 是 | 无描述 |
+| `bucketName` | 字符串 | 是 | 无描述 |
+| `objectName` | 字符串 | 是 | 无描述 |
+| `fileName` | 字符串 | 否 | 无描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `file` | 文件 | 下载的 Vault 导出文件存储在执行文件中 |
+
+### `google_vault_create_matters_holds`
+
+在案件中创建保留
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | 字符串 | 是 | 无描述 |
+| `holdName` | 字符串 | 是 | 无描述 |
+| `corpus` | 字符串 | 是 | 要保留的数据集 \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
+| `accountEmails` | 字符串 | 否 | 要保留的用户电子邮件的逗号分隔列表 |
+| `orgUnitId` | 字符串 | 否 | 要保留的组织单位 ID \(账户的替代选项\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `output` | json | Vault API 响应数据 |
+| `file` | json | 从执行文件中下载的导出文件 \(UserFile\) |
+
+### `google_vault_list_matters_holds`
+
+列出案件的保留
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | 字符串 | 是 | 无描述 |
+| `pageSize` | 数字 | 否 | 无描述 |
+| `pageToken` | 字符串 | 否 | 无描述 |
+| `holdId` | 字符串 | 否 | 无描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `output` | json | Vault API 响应数据 |
+| `file` | json | 从执行文件中下载的导出文件 \(UserFile\) |
+
+### `google_vault_create_matters`
+
+在 Google Vault 中创建一个新事项
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | 是 | 无描述 |
+| `description` | string | 否 | 无描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `output` | json | Vault API 响应数据 |
+| `file` | json | 从执行文件中下载的导出文件 \(UserFile\) |
+
+### `google_vault_list_matters`
+
+列出事项，或在提供 matterId 的情况下获取特定事项
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | 否 | 无描述 |
+| `pageToken` | string | 否 | 无描述 |
+| `matterId` | string | 否 | 无描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `output` | json | Vault API 响应数据 |
+| `file` | json | 从执行文件中下载的导出文件 \(UserFile\) |
+
+## 注意事项
+
+- 类别: `tools`
+- 类型: `google_vault`

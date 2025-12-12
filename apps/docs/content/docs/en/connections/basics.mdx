@@ -1,0 +1,49 @@
+---
+title: Basics
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Video } from '@/components/ui/video'
+
+## How Connections Work
+
+Connections are the pathways that allow data to flow between blocks in your workflow. In Sim, connections define how information passes from one block to another, enabling data flow throughout your workflow.
+
+<Callout type="info">
+  Each connection represents a directed relationship where data flows from a source block's output
+  to a destination block's input.
+</Callout>
+
+### Creating Connections
+
+<Steps>
+  <Step>
+    <strong>Select Source Block</strong>: Click on the output port of the block you want to connect
+    from
+  </Step>
+  <Step>
+    <strong>Draw Connection</strong>: Drag to the input port of the destination block
+  </Step>
+  <Step>
+    <strong>Confirm Connection</strong>: Release to create the connection
+  </Step>
+</Steps>
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="connections-build.mp4" width={700} height={450} />
+</div>
+
+### Connection Flow
+
+The flow of data through connections follows these principles:
+
+1. **Directional Flow**: Data always flows from outputs to inputs
+2. **Execution Order**: Blocks execute in order based on their connections
+3. **Data Transformation**: Data may be transformed as it passes between blocks
+4. **Conditional Paths**: Some blocks (like Router and Condition) can direct flow to different paths
+
+<Callout type="warning">
+  Deleting a connection will immediately stop data flow between the blocks. Make sure this is
+  intended before removing connections.
+</Callout>

@@ -2,25 +2,93 @@ import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks'
-import { resolveOutputType } from '@/blocks/utils'
-import {
-  pushHistory,
-  type WorkflowStoreWithHistory,
-  withHistory,
-} from '@/stores/workflows/middleware'
+import type { SubBlockConfig } from '@/blocks/types'
+import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { mergeSubblockState } from '@/stores/workflows/utils'
+import {
+  getUniqueBlockName,
+  mergeSubblockState,
+  normalizeBlockName,
+} from '@/stores/workflows/utils'
 import type {
   Position,
   SubBlockState,
-  SyncControl,
   WorkflowState,
+  WorkflowStore,
 } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('WorkflowStore')
+
+/**
+ * Creates a deep clone of an initial sub-block value to avoid shared references.
+ *
+ * @param value - The value to clone.
+ * @returns A cloned value suitable for initializing sub-block state.
+ */
+function cloneInitialSubblockValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => cloneInitialSubblockValue(item))
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>(
+      (acc, [key, entry]) => {
+        acc[key] = cloneInitialSubblockValue(entry)
+        return acc
+      },
+      {}
+    )
+  }
+
+  return value ?? null
+}
+
+/**
+ * Resolves the initial value for a sub-block based on its configuration.
+ *
+ * @param config - The sub-block configuration.
+ * @returns The resolved initial value or null when no defaults are defined.
+ */
+function resolveInitialSubblockValue(config: SubBlockConfig): unknown {
+  if (typeof config.value === 'function') {
+    try {
+      const resolved = config.value({})
+      return cloneInitialSubblockValue(resolved)
+    } catch (error) {
+      logger.warn('Failed to resolve dynamic sub-block default value', {
+        subBlockId: config.id,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  if (config.defaultValue !== undefined) {
+    return cloneInitialSubblockValue(config.defaultValue)
+  }
+
+  if (config.type === 'input-format') {
+    return [
+      {
+        id: crypto.randomUUID(),
+        name: '',
+        type: 'string',
+        value: '',
+        collapsed: false,
+      },
+    ]
+  }
+
+  if (config.type === 'table') {
+    return []
+  }
+
+  return null
+}
 
 const initialState = {
   blocks: {},
@@ -34,55 +102,12 @@ const initialState = {
   // New field for per-workflow deployment tracking
   deploymentStatuses: {},
   needsRedeployment: false,
-  hasActiveWebhook: false,
-  history: {
-    past: [],
-    present: {
-      state: {
-        blocks: {},
-        edges: [],
-        loops: {},
-        parallels: {},
-        isDeployed: false,
-        isPublished: false,
-      },
-      timestamp: Date.now(),
-      action: 'Initial state',
-      subblockValues: {},
-    },
-    future: [],
-  },
 }
 
-// Create a consolidated sync control implementation
-/**
- * Socket-based SyncControl implementation (replaces HTTP sync)
- */
-const createSyncControl = (): SyncControl => ({
-  markDirty: () => {
-    // No-op: Socket-based sync handles this automatically
-  },
-  isDirty: () => {
-    // Always return false since socket sync is real-time
-    return false
-  },
-  forceSync: () => {
-    // No-op: Socket-based sync is always in sync
-  },
-})
-
-export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
+export const useWorkflowStore = create<WorkflowStore>()(
   devtools(
-    withHistory((set, get) => ({
+    (set, get) => ({
       ...initialState,
-      undo: () => {},
-      redo: () => {},
-      canUndo: () => false,
-      canRedo: () => false,
-      revertToHistoryState: () => {},
-
-      // Implement sync control interface
-      sync: createSyncControl(),
 
       setNeedsRedeploymentFlag: (needsRedeployment: boolean) => {
         set({ needsRedeployment })
@@ -99,7 +124,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         blockProperties?: {
           enabled?: boolean
           horizontalHandles?: boolean
-          isWide?: boolean
           advancedMode?: boolean
           triggerMode?: boolean
           height?: number
@@ -126,7 +150,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 outputs: {},
                 enabled: blockProperties?.enabled ?? true,
                 horizontalHandles: blockProperties?.horizontalHandles ?? true,
-                isWide: blockProperties?.isWide ?? false,
                 advancedMode: blockProperties?.advancedMode ?? false,
                 triggerMode: blockProperties?.triggerMode ?? false,
                 height: blockProperties?.height ?? 0,
@@ -139,9 +162,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           }
 
           set(newState)
-          pushHistory(set, get, newState, `Add ${type} node`)
           get().updateLastSaved()
-          // get().sync.markDirty() // Disabled: Using socket-based sync
           return
         }
 
@@ -154,16 +175,44 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         const subBlocks: Record<string, SubBlockState> = {}
+        const subBlockStore = useSubBlockStore.getState()
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+
         blockConfig.subBlocks.forEach((subBlock) => {
           const subBlockId = subBlock.id
+          const initialValue = resolveInitialSubblockValue(subBlock)
+          const normalizedValue =
+            initialValue !== undefined && initialValue !== null ? initialValue : null
+
           subBlocks[subBlockId] = {
             id: subBlockId,
             type: subBlock.type,
-            value: null,
+            value: normalizedValue as SubBlockState['value'],
+          }
+
+          if (activeWorkflowId) {
+            try {
+              const valueToStore =
+                initialValue !== undefined ? cloneInitialSubblockValue(initialValue) : null
+              subBlockStore.setValue(id, subBlockId, valueToStore)
+            } catch (error) {
+              logger.warn('Failed to seed sub-block store value during block creation', {
+                blockId: id,
+                subBlockId,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
+          } else {
+            logger.warn('Cannot seed sub-block store value: activeWorkflowId not available', {
+              blockId: id,
+              subBlockId,
+            })
           }
         })
 
-        const outputs = resolveOutputType(blockConfig.outputs)
+        // Get outputs based on trigger mode
+        const triggerMode = blockProperties?.triggerMode ?? false
+        const outputs = getBlockOutputs(type, subBlocks, triggerMode)
 
         const newState = {
           blocks: {
@@ -177,10 +226,10 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               outputs,
               enabled: blockProperties?.enabled ?? true,
               horizontalHandles: blockProperties?.horizontalHandles ?? true,
-              isWide: blockProperties?.isWide ?? false,
               advancedMode: blockProperties?.advancedMode ?? false,
-              triggerMode: blockProperties?.triggerMode ?? false,
+              triggerMode: triggerMode,
               height: blockProperties?.height ?? 0,
+              layout: {},
               data: nodeData,
             },
           },
@@ -190,9 +239,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, `Add ${type} block`)
         get().updateLastSaved()
-        // get().sync.markDirty() // Disabled: Using socket-based sync
       },
 
       updateBlockPosition: (id: string, position: Position) => {
@@ -228,6 +275,11 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                   ...block.data,
                   width: dimensions.width,
                   height: dimensions.height,
+                },
+                layout: {
+                  ...block.layout,
+                  measuredWidth: dimensions.width,
+                  measuredHeight: dimensions.height,
                 },
               },
             },
@@ -296,12 +348,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         })
 
         set(newState)
-        pushHistory(
-          set,
-          get,
-          newState,
-          parentId ? `Set parent for ${block.name}` : `Remove parent for ${block.name}`
-        )
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
       },
@@ -372,12 +418,19 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         })
 
         set(newState)
-        pushHistory(set, get, newState, 'Remove block and children')
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
       },
 
       addEdge: (edge: Edge) => {
+        // Prevent connections to/from annotation-only blocks (non-executable)
+        const sourceBlock = get().blocks[edge.source]
+        const targetBlock = get().blocks[edge.target]
+
+        if (isAnnotationOnlyBlock(sourceBlock?.type) || isAnnotationOnlyBlock(targetBlock?.type)) {
+          return
+        }
+
         // Check for duplicate connections
         const isDuplicate = get().edges.some(
           (existingEdge) =>
@@ -392,12 +445,14 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           return
         }
 
-        const newEdge = {
+        const newEdge: Edge = {
           id: edge.id || crypto.randomUUID(),
           source: edge.source,
           target: edge.target,
           sourceHandle: edge.sourceHandle,
           targetHandle: edge.targetHandle,
+          type: edge.type || 'default',
+          data: edge.data || {},
         }
 
         const newEdges = [...get().edges, newEdge]
@@ -410,9 +465,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, 'Add connection')
         get().updateLastSaved()
-        // get().sync.markDirty() // Disabled: Using socket-based sync
       },
 
       removeEdge: (edgeId: string) => {
@@ -433,9 +486,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, 'Remove connection')
         get().updateLastSaved()
-        // get().sync.markDirty() // Disabled: Using socket-based sync
       },
 
       clear: () => {
@@ -444,27 +495,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           edges: [],
           loops: {},
           parallels: {},
-          history: {
-            past: [],
-            present: {
-              state: {
-                blocks: {},
-                edges: [],
-                loops: {},
-                parallels: {},
-                isDeployed: false,
-                isPublished: false,
-              },
-              timestamp: Date.now(),
-              action: 'Initial state',
-              subblockValues: {},
-            },
-            future: [],
-          },
           lastSaved: Date.now(),
-          isDeployed: false,
-          isPublished: false,
-          hasActiveWebhook: false,
         }
         set(newState)
         // Note: Socket.IO handles real-time sync automatically
@@ -489,8 +520,44 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           deployedAt: state.deployedAt,
           deploymentStatuses: state.deploymentStatuses,
           needsRedeployment: state.needsRedeployment,
-          hasActiveWebhook: state.hasActiveWebhook,
         }
+      },
+      replaceWorkflowState: (
+        workflowState: WorkflowState,
+        options?: { updateLastSaved?: boolean }
+      ) => {
+        set((state) => {
+          const nextBlocks = workflowState.blocks || {}
+          const nextEdges = workflowState.edges || []
+          const nextLoops =
+            Object.keys(workflowState.loops || {}).length > 0
+              ? workflowState.loops
+              : generateLoopBlocks(nextBlocks)
+          const nextParallels =
+            Object.keys(workflowState.parallels || {}).length > 0
+              ? workflowState.parallels
+              : generateParallelBlocks(nextBlocks)
+
+          return {
+            ...state,
+            blocks: nextBlocks,
+            edges: nextEdges,
+            loops: nextLoops,
+            parallels: nextParallels,
+            isDeployed:
+              workflowState.isDeployed !== undefined ? workflowState.isDeployed : state.isDeployed,
+            deployedAt: workflowState.deployedAt ?? state.deployedAt,
+            deploymentStatuses: workflowState.deploymentStatuses || state.deploymentStatuses,
+            needsRedeployment:
+              workflowState.needsRedeployment !== undefined
+                ? workflowState.needsRedeployment
+                : state.needsRedeployment,
+            lastSaved:
+              options?.updateLastSaved === true
+                ? Date.now()
+                : (workflowState.lastSaved ?? state.lastSaved),
+          }
+        })
       },
 
       toggleBlockEnabled: (id: string) => {
@@ -522,11 +589,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           y: block.position.y + 20,
         }
 
-        // More efficient name handling
-        const match = block.name.match(/(.*?)(\d+)?$/)
-        const newName = match?.[2]
-          ? `${match[1]}${Number.parseInt(match[2]) + 1}`
-          : `${block.name} 1`
+        const newName = getUniqueBlockName(block.name, get().blocks)
 
         // Get merged state to capture current subblock values
         const mergedBlock = mergeSubblockState(get().blocks, id)[id]
@@ -576,7 +639,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, `Duplicate ${block.type} block`)
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
       },
@@ -601,7 +663,28 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
       updateBlockName: (id: string, name: string) => {
         const oldBlock = get().blocks[id]
-        if (!oldBlock) return
+        if (!oldBlock) return { success: false, changedSubblocks: [] }
+
+        // Check for normalized name collisions
+        const normalizedNewName = normalizeBlockName(name)
+        const currentBlocks = get().blocks
+
+        // Find any other block with the same normalized name
+        const conflictingBlock = Object.entries(currentBlocks).find(([blockId, block]) => {
+          return (
+            blockId !== id && // Different block
+            block.name && // Has a name
+            normalizeBlockName(block.name) === normalizedNewName // Same normalized name
+          )
+        })
+
+        if (conflictingBlock) {
+          // Don't allow the rename - another block already uses this normalized name
+          logger.error(
+            `Cannot rename block to "${name}" - another block "${conflictingBlock[1].name}" already uses the normalized name "${normalizedNewName}"`
+          )
+          return { success: false, changedSubblocks: [] }
+        }
 
         // Create a new state with the updated block name
         const newState = {
@@ -620,12 +703,13 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // Update references in subblock store
         const subBlockStore = useSubBlockStore.getState()
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        const changedSubblocks: Array<{ blockId: string; subBlockId: string; newValue: any }> = []
+
         if (activeWorkflowId) {
           // Get the workflow values for the active workflow
           // workflowValues: {[block_id]:{[subblock_id]:[subblock_value]}}
           const workflowValues = subBlockStore.workflowValues[activeWorkflowId] || {}
           const updatedWorkflowValues = { ...workflowValues }
-          const changedSubblocks: Array<{ blockId: string; subBlockId: string; newValue: any }> = []
 
           // Loop through blocks
           Object.entries(workflowValues).forEach(([blockId, blockValues]) => {
@@ -684,50 +768,17 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               [activeWorkflowId]: updatedWorkflowValues,
             },
           })
-
-          // Store changed subblocks for collaborative sync
-          if (changedSubblocks.length > 0) {
-            // Store the changed subblocks for the collaborative function to pick up
-            ;(window as any).__pendingSubblockUpdates = changedSubblocks
-          }
         }
 
         set(newState)
-        pushHistory(set, get, newState, `${name} block name updated`)
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
-      },
 
-      toggleBlockWide: (id: string) => {
-        set((state) => ({
-          blocks: {
-            ...state.blocks,
-            [id]: {
-              ...state.blocks[id],
-              isWide: !state.blocks[id].isWide,
-            },
-          },
-          edges: [...state.edges],
-          loops: { ...state.loops },
-        }))
-        get().updateLastSaved()
-        // Note: Socket.IO handles real-time sync automatically
-      },
-
-      setBlockWide: (id: string, isWide: boolean) => {
-        set((state) => ({
-          blocks: {
-            ...state.blocks,
-            [id]: {
-              ...state.blocks[id],
-              isWide,
-            },
-          },
-          edges: [...state.edges],
-          loops: { ...state.loops },
-        }))
-        get().updateLastSaved()
-        // Note: Socket.IO handles real-time sync automatically
+        // Return both success status and changed subblocks for collaborative sync
+        return {
+          success: true,
+          changedSubblocks,
+        }
       },
 
       setBlockAdvancedMode: (id: string, advancedMode: boolean) => {
@@ -762,20 +813,33 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // Note: Socket.IO handles real-time sync automatically
       },
 
-      updateBlockHeight: (id: string, height: number) => {
-        set((state) => ({
-          blocks: {
-            ...state.blocks,
-            [id]: {
-              ...state.blocks[id],
-              height,
+      updateBlockLayoutMetrics: (id: string, dimensions: { width: number; height: number }) => {
+        set((state) => {
+          const block = state.blocks[id]
+          if (!block) {
+            logger.warn(`Cannot update layout metrics: Block ${id} not found in workflow store`)
+            return state
+          }
+
+          return {
+            blocks: {
+              ...state.blocks,
+              [id]: {
+                ...block,
+                height: dimensions.height,
+                layout: {
+                  ...block.layout,
+                  measuredWidth: dimensions.width,
+                  measuredHeight: dimensions.height,
+                },
+              },
             },
-          },
-          edges: [...state.edges],
-          loops: { ...state.loops },
-        }))
+            edges: [...state.edges],
+            loops: { ...state.loops },
+          }
+        })
         get().updateLastSaved()
-        // No sync needed for height changes, just visual
+        // No sync needed for layout changes, just visual
       },
 
       updateLoopCount: (loopId: string, count: number) =>
@@ -801,7 +865,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           }
         }),
 
-      updateLoopType: (loopId: string, loopType: 'for' | 'forEach') =>
+      updateLoopType: (loopId: string, loopType: 'for' | 'forEach' | 'while' | 'doWhile') =>
         set((state) => {
           const block = state.blocks[loopId]
           if (!block || block.type !== 'loop') return state
@@ -824,7 +888,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           }
         }),
 
-      updateLoopCollection: (loopId: string, collection: string) =>
+      setLoopForEachItems: (loopId: string, items: any) =>
         set((state) => {
           const block = state.blocks[loopId]
           if (!block || block.type !== 'loop') return state
@@ -835,7 +899,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               ...block,
               data: {
                 ...block.data,
-                collection,
+                collection: items ?? '',
               },
             },
           }
@@ -843,9 +907,74 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           return {
             blocks: newBlocks,
             edges: [...state.edges],
-            loops: generateLoopBlocks(newBlocks), // Regenerate loops
+            loops: generateLoopBlocks(newBlocks),
           }
         }),
+
+      setLoopWhileCondition: (loopId: string, condition: string) =>
+        set((state) => {
+          const block = state.blocks[loopId]
+          if (!block || block.type !== 'loop') return state
+
+          const newBlocks = {
+            ...state.blocks,
+            [loopId]: {
+              ...block,
+              data: {
+                ...block.data,
+                whileCondition: condition ?? '',
+              },
+            },
+          }
+
+          return {
+            blocks: newBlocks,
+            edges: [...state.edges],
+            loops: generateLoopBlocks(newBlocks),
+          }
+        }),
+
+      setLoopDoWhileCondition: (loopId: string, condition: string) =>
+        set((state) => {
+          const block = state.blocks[loopId]
+          if (!block || block.type !== 'loop') return state
+
+          const newBlocks = {
+            ...state.blocks,
+            [loopId]: {
+              ...block,
+              data: {
+                ...block.data,
+                doWhileCondition: condition ?? '',
+              },
+            },
+          }
+
+          return {
+            blocks: newBlocks,
+            edges: [...state.edges],
+            loops: generateLoopBlocks(newBlocks),
+          }
+        }),
+
+      updateLoopCollection: (loopId: string, collection: string) => {
+        const store = get()
+        const block = store.blocks[loopId]
+        if (!block || block.type !== 'loop') return
+
+        const loopType = block.data?.loopType || 'for'
+
+        if (loopType === 'while') {
+          store.setLoopWhileCondition(loopId, collection)
+        } else if (loopType === 'doWhile') {
+          store.setLoopDoWhileCondition(loopId, collection)
+        } else if (loopType === 'forEach') {
+          store.setLoopForEachItems(loopId, collection)
+        } else {
+          // Default to forEach-style storage for backward compatibility
+          store.setLoopForEachItems(loopId, collection)
+        }
+      },
 
       // Function to convert UI loop blocks to execution format
       generateLoopBlocks: () => {
@@ -857,15 +986,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           ...state,
           lastUpdate: Date.now(),
         }))
-      },
-
-      setWebhookStatus: (hasActiveWebhook: boolean) => {
-        // Only update if the status has changed to avoid unnecessary rerenders
-        if (get().hasActiveWebhook !== hasActiveWebhook) {
-          set({ hasActiveWebhook })
-          get().updateLastSaved()
-          // Note: Socket.IO handles real-time sync automatically
-        }
       },
 
       revertToDeployedState: async (deployedState: WorkflowState) => {
@@ -888,7 +1008,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           parallels: deployedState.parallels || {},
           isDeployed: true,
           needsRedeployment: false,
-          hasActiveWebhook: false, // Reset webhook status
           // Keep existing deployment statuses and update for the active workflow if needed
           deploymentStatuses: {
             ...get().deploymentStatuses,
@@ -923,25 +1042,19 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           },
         })
 
-        // Check if there's an active webhook in the deployed state
-        const starterBlock = Object.values(deployedState.blocks).find(
-          (block) => block.type === 'starter'
-        )
-        if (starterBlock && starterBlock.subBlocks?.startWorkflow?.value === 'webhook') {
-          set({ hasActiveWebhook: true })
-        }
-
-        pushHistory(set, get, newState, 'Reverted to deployed state')
         get().updateLastSaved()
 
         // Call API to persist the revert to normalized tables
         try {
-          const response = await fetch(`/api/workflows/${activeWorkflowId}/revert-to-deployed`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          })
+          const response = await fetch(
+            `/api/workflows/${activeWorkflowId}/deployments/active/revert`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            }
+          )
 
           if (!response.ok) {
             const errorData = await response.json()
@@ -984,6 +1097,15 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         const newTriggerMode = !block.triggerMode
 
+        // When switching TO trigger mode, check if block is inside a subflow
+        if (newTriggerMode && TriggerUtils.isBlockInSubflow(id, get().blocks)) {
+          logger.warn('Cannot enable trigger mode for block inside loop or parallel subflow', {
+            blockId: id,
+            blockType: block.type,
+          })
+          return
+        }
+
         // When switching TO trigger mode, remove all incoming connections
         let filteredEdges = [...get().edges]
         if (newTriggerMode) {
@@ -1012,7 +1134,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, `Toggle trigger mode for ${block.type} block`)
         get().updateLastSaved()
 
         // Handle webhook enable/disable when toggling trigger mode
@@ -1042,12 +1163,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 })
 
                 if (!updateResponse.ok) {
-                  console.error('Failed to update webhook status')
+                  logger.error('Failed to update webhook status')
                 }
               }
             }
           } catch (error) {
-            console.error('Error toggling webhook status:', error)
+            logger.error('Error toggling webhook status:', error)
           }
         }
 
@@ -1081,7 +1202,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, `Update parallel count`)
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
       },
@@ -1109,7 +1229,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, `Update parallel collection`)
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
       },
@@ -1137,7 +1256,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, `Update parallel type`)
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
       },
@@ -1146,7 +1264,15 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       generateParallelBlocks: () => {
         return generateParallelBlocks(get().blocks)
       },
-    })),
+
+      setDragStartPosition: (position) => {
+        set({ dragStartPosition: position })
+      },
+
+      getDragStartPosition: () => {
+        return get().dragStartPosition || null
+      },
+    }),
     { name: 'workflow-store' }
   )
 )

@@ -1,12 +1,13 @@
 'use client'
 
-import { useCallback, useEffect } from 'react'
+import { useCallback } from 'react'
 import {
   Building2,
   Check,
   Clock,
   Database,
   DollarSign,
+  HardDrive,
   HeadphonesIcon,
   Infinity as InfinityIcon,
   MessageSquare,
@@ -22,11 +23,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { useSession, useSubscription } from '@/lib/auth-client'
+import { useSession } from '@/lib/auth/auth-client'
+import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
+import { getSubscriptionStatus } from '@/lib/billing/client/utils'
+import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
-import { cn } from '@/lib/utils'
-import { useOrganizationStore } from '@/stores/organization'
-import { useSubscriptionStore } from '@/stores/subscription/store'
+import { useOrganizations } from '@/hooks/queries/organization'
+import { useSubscriptionData } from '@/hooks/queries/subscription'
 
 const logger = createLogger('SubscriptionModal')
 
@@ -43,53 +46,21 @@ interface PlanFeature {
 
 export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps) {
   const { data: session } = useSession()
-  const betterAuthSubscription = useSubscription()
-  const { activeOrganization } = useOrganizationStore()
-  const { loadData, getSubscriptionStatus, isLoading } = useSubscriptionStore()
+  const { handleUpgrade } = useSubscriptionUpgrade()
+  const { data: orgsData } = useOrganizations()
+  const { data: subscriptionData, isLoading } = useSubscriptionData()
+  const activeOrganization = orgsData?.activeOrganization
+  const subscription = getSubscriptionStatus(subscriptionData?.data)
 
-  // Load subscription data when modal opens
-  useEffect(() => {
-    if (open) {
-      loadData()
-    }
-  }, [open, loadData])
-
-  const subscription = getSubscriptionStatus()
-
-  const handleUpgrade = useCallback(
+  const handleUpgradeWithErrorHandling = useCallback(
     async (targetPlan: 'pro' | 'team') => {
-      if (!session?.user?.id) return
-
-      const subscriptionData = useSubscriptionStore.getState().subscriptionData
-      const currentSubscriptionId = subscriptionData?.stripeSubscriptionId
-
-      let referenceId = session.user.id
-      if (subscription.isTeam && activeOrganization?.id) {
-        referenceId = activeOrganization.id
-      }
-
-      const currentUrl = window.location.origin + window.location.pathname
-
       try {
-        const upgradeParams: any = {
-          plan: targetPlan,
-          referenceId,
-          successUrl: currentUrl,
-          cancelUrl: currentUrl,
-          seats: targetPlan === 'team' ? 1 : undefined,
-        }
-
-        if (currentSubscriptionId) {
-          upgradeParams.subscriptionId = currentSubscriptionId
-        }
-
-        await betterAuthSubscription.upgrade(upgradeParams)
+        await handleUpgrade(targetPlan)
       } catch (error) {
-        logger.error('Failed to initiate subscription upgrade:', error)
-        alert('Failed to initiate upgrade. Please try again or contact support.')
+        alert(error instanceof Error ? error.message : 'Unknown error occurred')
       }
     },
-    [session?.user?.id, subscription.isTeam, activeOrganization?.id, betterAuthSubscription]
+    [handleUpgrade]
   )
 
   const handleContactUs = () => {
@@ -106,6 +77,7 @@ export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps
         { text: '$10 free inference credit', included: true, icon: DollarSign },
         { text: '10 runs per minute (sync)', included: true, icon: Zap },
         { text: '50 runs per minute (async)', included: true, icon: Clock },
+        { text: '5GB file storage', included: true, icon: HardDrive },
         { text: '7-day log retention', included: true, icon: Database },
       ],
       isActive: subscription.isFree,
@@ -118,13 +90,14 @@ export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps
       features: [
         { text: '25 runs per minute (sync)', included: true, icon: Zap },
         { text: '200 runs per minute (async)', included: true, icon: Clock },
+        { text: '50GB file storage', included: true, icon: HardDrive },
         { text: 'Unlimited workspaces', included: true, icon: Building2 },
         { text: 'Unlimited workflows', included: true, icon: Workflow },
         { text: 'Unlimited invites', included: true, icon: Users },
         { text: 'Unlimited log retention', included: true, icon: Database },
       ],
       isActive: subscription.isPro && !subscription.isTeam,
-      action: subscription.isFree ? () => handleUpgrade('pro') : null,
+      action: subscription.isFree ? () => handleUpgradeWithErrorHandling('pro') : null,
     },
     {
       name: 'Team',
@@ -133,11 +106,12 @@ export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps
       features: [
         { text: '75 runs per minute (sync)', included: true, icon: Zap },
         { text: '500 runs per minute (async)', included: true, icon: Clock },
+        { text: '500GB file storage (pooled)', included: true, icon: HardDrive },
         { text: 'Everything in Pro', included: true, icon: InfinityIcon },
         { text: 'Dedicated Slack channel', included: true, icon: MessageSquare },
       ],
       isActive: subscription.isTeam,
-      action: !subscription.isTeam ? () => handleUpgrade('team') : null,
+      action: !subscription.isTeam ? () => handleUpgradeWithErrorHandling('team') : null,
     },
     {
       name: 'Enterprise',
@@ -145,6 +119,7 @@ export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps
       description: '',
       features: [
         { text: 'Custom rate limits', included: true, icon: Zap },
+        { text: 'Custom file storage', included: true, icon: HardDrive },
         { text: 'Enterprise hosting license', included: true, icon: Server },
         { text: 'Custom enterprise support', included: true, icon: HeadphonesIcon },
       ],

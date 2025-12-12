@@ -1,0 +1,98 @@
+---
+title: Mem0
+description: Agent-Speicherverwaltung
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mem0"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Mem0](https://mem0.ai) ist ein leistungsstarkes Gedächtnisverwaltungssystem, das speziell für KI-Agenten entwickelt wurde. Es bietet einen persistenten, durchsuchbaren Speicher, der es Agenten ermöglicht, vergangene Interaktionen zu erinnern, aus Erfahrungen zu lernen und Kontext über Gespräche und Workflow-Ausführungen hinweg zu bewahren.
+
+Mit Mem0 können Sie:
+
+- **Agenten-Erinnerungen speichern**: Gesprächsverlauf, Benutzerpräferenzen und wichtigen Kontext sichern
+- **Relevante Informationen abrufen**: Semantische Suche nutzen, um die relevantesten vergangenen Interaktionen zu finden
+- **Kontextbewusste Agenten erstellen**: Ihren Agenten ermöglichen, auf vergangene Gespräche zu verweisen und Kontinuität zu wahren
+- **Interaktionen personalisieren**: Antworten basierend auf Benutzerhistorie und -präferenzen anpassen
+- **Langzeitgedächtnis implementieren**: Agenten erstellen, die im Laufe der Zeit lernen und sich anpassen
+- **Gedächtnisverwaltung skalieren**: Gedächtnisanforderungen für mehrere Benutzer und komplexe Workflows verwalten
+
+In Sim ermöglicht die Mem0-Integration Ihren Agenten, ein persistentes Gedächtnis über Workflow-Ausführungen hinweg zu bewahren. Dies erlaubt natürlichere, kontextbewusste Interaktionen, bei denen Agenten vergangene Gespräche abrufen, Benutzerpräferenzen speichern und auf früheren Interaktionen aufbauen können. Durch die Verbindung von Sim mit Mem0 können Sie Agenten erstellen, die menschenähnlicher in ihrer Fähigkeit wirken, sich an vergangene Erfahrungen zu erinnern und daraus zu lernen. Die Integration unterstützt das Hinzufügen neuer Erinnerungen, das semantische Durchsuchen bestehender Erinnerungen und das Abrufen spezifischer Gedächtniseinträge. Diese Gedächtnisverwaltungsfähigkeit ist wesentlich für die Entwicklung anspruchsvoller Agenten, die Kontext über Zeit hinweg bewahren, Interaktionen basierend auf Benutzerhistorie personalisieren und ihre Leistung durch angesammeltes Wissen kontinuierlich verbessern können.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integrieren Sie Mem0 in den Workflow. Kann Erinnerungen hinzufügen, durchsuchen und abrufen. API-Schlüssel erforderlich.
+
+## Tools
+
+### `mem0_add_memories`
+
+Fügen Sie Erinnerungen zu Mem0 für persistente Speicherung und Abruf hinzu
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Ja | Benutzer-ID, die mit dem Speicher verknüpft ist |
+| `messages` | json | Ja | Array von Nachrichtenobjekten mit Rolle und Inhalt |
+| `apiKey` | string | Ja | Ihr Mem0 API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ids` | array | Array von erstellten Speicher-IDs |
+| `memories` | array | Array von erstellten Speicherobjekten |
+
+### `mem0_search_memories`
+
+Suche nach Speichern in Mem0 mit semantischer Suche
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Ja | Benutzer-ID, für die Speicher gesucht werden sollen |
+| `query` | string | Ja | Suchanfrage zum Finden relevanter Speicher |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse |
+| `apiKey` | string | Ja | Ihr Mem0 API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `searchResults` | array | Array von Suchergebnissen mit Speicherdaten, die jeweils ID, Daten und Bewertung enthalten |
+| `ids` | array | Array von Speicher-IDs, die in den Suchergebnissen gefunden wurden |
+
+### `mem0_get_memories`
+
+Abrufen von Speichern aus Mem0 nach ID oder Filterkriterien
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Ja | Benutzer-ID, für die Erinnerungen abgerufen werden sollen |
+| `memoryId` | string | Nein | Spezifische Erinnerungs-ID zum Abrufen |
+| `startDate` | string | Nein | Startdatum für die Filterung nach created_at \(Format: JJJJ-MM-TT\) |
+| `endDate` | string | Nein | Enddatum für die Filterung nach created_at \(Format: JJJJ-MM-TT\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse |
+| `apiKey` | string | Ja | Ihr Mem0 API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `memories` | array | Array von abgerufenen Erinnerungsobjekten |
+| `ids` | array | Array von Erinnerungs-IDs, die abgerufen wurden |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `mem0`

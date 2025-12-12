@@ -37,6 +37,12 @@ export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse>
       visibility: 'user-or-llm',
       description: 'Email body content',
     },
+    contentType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Content type for the email body (text or html)',
+    },
     replyToMessageId: {
       type: 'string',
       required: false,
@@ -61,108 +67,49 @@ export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse>
       visibility: 'user-or-llm',
       description: 'BCC recipients (comma-separated)',
     },
+    attachments: {
+      type: 'file[]',
+      required: false,
+      visibility: 'user-only',
+      description: 'Files to attach to the email',
+    },
   },
 
   request: {
-    url: (params) => {
-      // If replying to a specific message, use the reply endpoint
-      if (params.replyToMessageId) {
-        return `https://graph.microsoft.com/v1.0/me/messages/${params.replyToMessageId}/reply`
-      }
-      // Otherwise use the regular send mail endpoint
-      return `https://graph.microsoft.com/v1.0/me/sendMail`
-    },
+    url: '/api/tools/outlook/send',
     method: 'POST',
-    headers: (params) => {
-      // Validate access token
-      if (!params.accessToken) {
-        throw new Error('Access token is required')
-      }
-
+    headers: () => ({
+      'Content-Type': 'application/json',
+    }),
+    body: (params: OutlookSendParams) => {
       return {
-        Authorization: `Bearer ${params.accessToken}`,
-        'Content-Type': 'application/json',
-      }
-    },
-    body: (params: OutlookSendParams): Record<string, any> => {
-      // Helper function to parse comma-separated emails
-      const parseEmails = (emailString?: string) => {
-        if (!emailString) return []
-        return emailString
-          .split(',')
-          .map((email) => email.trim())
-          .filter((email) => email.length > 0)
-          .map((email) => ({ emailAddress: { address: email } }))
-      }
-
-      // If replying to a message, use the reply format
-      if (params.replyToMessageId) {
-        const replyBody: any = {
-          message: {
-            body: {
-              contentType: 'Text',
-              content: params.body,
-            },
-          },
-        }
-
-        // Add CC/BCC if provided
-        const ccRecipients = parseEmails(params.cc)
-        const bccRecipients = parseEmails(params.bcc)
-
-        if (ccRecipients.length > 0) {
-          replyBody.message.ccRecipients = ccRecipients
-        }
-        if (bccRecipients.length > 0) {
-          replyBody.message.bccRecipients = bccRecipients
-        }
-
-        return replyBody
-      }
-
-      // Regular send mail format
-      const toRecipients = parseEmails(params.to)
-      const ccRecipients = parseEmails(params.cc)
-      const bccRecipients = parseEmails(params.bcc)
-
-      const message: any = {
+        accessToken: params.accessToken,
+        to: params.to,
         subject: params.subject,
-        body: {
-          contentType: 'Text',
-          content: params.body,
-        },
-        toRecipients,
-      }
-
-      // Add CC/BCC if provided
-      if (ccRecipients.length > 0) {
-        message.ccRecipients = ccRecipients
-      }
-      if (bccRecipients.length > 0) {
-        message.bccRecipients = bccRecipients
-      }
-
-      // Add conversation ID for threading if provided
-      if (params.conversationId) {
-        message.conversationId = params.conversationId
-      }
-
-      return {
-        message,
-        saveToSentItems: true,
+        body: params.body,
+        contentType: params.contentType || 'text',
+        cc: params.cc || null,
+        bcc: params.bcc || null,
+        replyToMessageId: params.replyToMessageId || null,
+        conversationId: params.conversationId || null,
+        attachments: params.attachments || null,
       }
     },
   },
 
   transformResponse: async (response) => {
-    // Outlook sendMail API returns empty body on success
+    const data = await response.json()
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to send Outlook email')
+    }
     return {
       success: true,
       output: {
-        message: 'Email sent successfully',
+        message: data.output.message,
         results: {
-          status: 'sent',
-          timestamp: new Date().toISOString(),
+          status: data.output.status,
+          timestamp: data.output.timestamp,
+          attachmentCount: data.output.attachmentCount || 0,
         },
       },
     }

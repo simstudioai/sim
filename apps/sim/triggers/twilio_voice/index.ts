@@ -1,0 +1,1 @@
+export { twilioVoiceWebhookTrigger } from './webhook'

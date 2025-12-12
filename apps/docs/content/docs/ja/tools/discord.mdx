@@ -1,0 +1,737 @@
+---
+title: Discord
+description: Discordとの連携
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="discord"
+  color="#5865F2"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Discord](https://discord.com)は、友人、コミュニティ、チームとつながることができる強力なコミュニケーションプラットフォームです。テキストチャンネル、ボイスチャンネル、ビデオ通話など、チームコラボレーションのための様々な機能を提供しています。
+
+Discordアカウントまたはボットを使用すると、以下のことができます：
+
+- **メッセージの送信**: 特定のチャンネルにメッセージを送信する
+- **メッセージの取得**: 特定のチャンネルからメッセージを取得する
+- **サーバーの取得**: 特定のサーバーに関する情報を取得する
+- **ユーザーの取得**: 特定のユーザーに関する情報を取得する
+
+Simでは、Discord連携によりエージェントが組織のDiscordサーバーにアクセスして活用することができます。エージェントはDiscordチャンネルから情報を取得したり、特定のユーザーを検索したり、サーバー情報を取得したり、メッセージを送信したりすることができます。これにより、ワークフローをDiscordコミュニティと統合し、通知を自動化し、インタラクティブな体験を作成することができます。
+
+> **重要:** メッセージの内容を読むには、DiscordボットがDiscord開発者ポータルで「メッセージコンテンツインテント」を有効にする必要があります。この権限がないと、メッセージのメタデータは受信できますが、コンテンツフィールドは空になります。
+
+SimのDiscordコンポーネントは効率的な遅延読み込みを使用し、必要な時だけデータを取得することでAPI呼び出しを最小限に抑え、レート制限を防ぎます。トークンの更新はバックグラウンドで自動的に行われ、接続を維持します。
+
+### Discordボットの設定
+
+1. [Discord開発者ポータル](https://discord.com/developers/applications)にアクセスします
+2. 新しいアプリケーションを作成し、「Bot」タブに移動します
+3. ボットを作成し、ボットトークンをコピーします
+4. 「特権ゲートウェイインテント」で、メッセージ内容を読み取るための**メッセージコンテンツインテント**を有効にします
+5. 適切な権限でボットをサーバーに招待します
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+包括的なDiscord統合：メッセージ、スレッド、チャンネル、ロール、メンバー、招待、ウェブフック。
+
+## ツール
+
+### `discord_send_message`
+
+Discordチャンネルにメッセージを送信する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `channelId` | string | はい | メッセージを送信するDiscordチャンネルID |
+| `content` | string | いいえ | メッセージのテキスト内容 |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+| `files` | file[] | いいえ | メッセージに添付するファイル |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | Discordメッセージデータ |
+
+### `discord_get_messages`
+
+Discordチャンネルからメッセージを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `channelId` | string | はい | メッセージを取得するDiscordチャンネルID |
+| `limit` | number | いいえ | 取得するメッセージの最大数（デフォルト：10、最大：100） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | メッセージデータのコンテナ |
+
+### `discord_get_server`
+
+Discordサーバー（ギルド）に関する情報を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | Discordサーバー（ギルド）情報 |
+
+### `discord_get_user`
+
+Discordユーザーに関する情報を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のDiscordボットトークン |
+| `userId` | string | はい | DiscordユーザーID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | Discordユーザー情報 |
+
+### `discord_edit_message`
+
+Discordチャンネルの既存メッセージを編集する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `channelId` | string | はい | メッセージを含むDiscordチャンネルID |
+| `messageId` | string | はい | 編集するメッセージのID |
+| `content` | string | いいえ | メッセージの新しいテキスト内容 |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 更新されたDiscordメッセージデータ |
+
+### `discord_delete_message`
+
+Discordチャンネルからメッセージを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `channelId` | string | はい | メッセージを含むDiscordチャンネルID |
+| `messageId` | string | はい | 削除するメッセージのID |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+
+### `discord_add_reaction`
+
+Discordメッセージにリアクション絵文字を追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `channelId` | string | はい | メッセージを含むDiscordチャンネルID |
+| `messageId` | string | はい | リアクションを付けるメッセージのID |
+| `emoji` | string | はい | リアクションする絵文字（Unicode絵文字またはname:id形式のカスタム絵文字） |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+
+### `discord_remove_reaction`
+
+Discordメッセージからリアクションを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `channelId` | string | はい | メッセージを含むDiscordチャンネルID |
+| `messageId` | string | はい | リアクションがあるメッセージのID |
+| `emoji` | string | はい | 削除する絵文字（Unicode絵文字またはname:id形式のカスタム絵文字） |
+| `userId` | string | いいえ | リアクションを削除するユーザーのID（省略するとボット自身のリアクションを削除） |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+
+### `discord_pin_message`
+
+Discordチャンネルでメッセージをピン留めする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `channelId` | string | はい | メッセージを含むDiscordチャンネルID |
+| `messageId` | string | はい | ピン留めするメッセージのID |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+
+### `discord_unpin_message`
+
+Discordチャンネルでメッセージのピン留めを解除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `channelId` | string | はい | メッセージを含むDiscordチャンネルID |
+| `messageId` | string | はい | ピン留めを解除するメッセージのID |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+
+### `discord_create_thread`
+
+Discordチャンネルでスレッドを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `channelId` | string | はい | スレッドを作成するDiscordチャンネルID |
+| `name` | string | はい | スレッドの名前（1〜100文字） |
+| `messageId` | string | いいえ | スレッドを作成する元のメッセージID（既存のメッセージからスレッドを作成する場合） |
+| `autoArchiveDuration` | number | いいえ | スレッドを自動アーカイブする時間（分）（60、1440、4320、10080） |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 作成されたスレッドデータ |
+
+### `discord_join_thread`
+
+Discordのスレッドに参加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `threadId` | string | はい | 参加するスレッドID |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+
+### `discord_leave_thread`
+
+Discordのスレッドから退出する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `threadId` | string | はい | 退出するスレッドID |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+
+### `discord_archive_thread`
+
+Discordのスレッドをアーカイブまたはアーカイブ解除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `threadId` | string | はい | アーカイブ/アーカイブ解除するスレッドID |
+| `archived` | boolean | はい | スレッドをアーカイブする（true）またはアーカイブ解除する（false） |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 更新されたスレッドデータ |
+
+### `discord_create_channel`
+
+Discordサーバーに新しいチャンネルを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+| `name` | string | はい | チャンネル名（1〜100文字） |
+| `type` | number | いいえ | チャンネルタイプ（0=テキスト、2=ボイス、4=カテゴリ、5=アナウンス、13=ステージ） |
+| `topic` | string | いいえ | チャンネルトピック（0〜1024文字） |
+| `parentId` | string | いいえ | チャンネルの親カテゴリID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 作成されたチャンネルデータ |
+
+### `discord_update_channel`
+
+Discordチャンネルを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `channelId` | string | はい | 更新するDiscordチャンネルID |
+| `name` | string | いいえ | チャンネルの新しい名前 |
+| `topic` | string | いいえ | チャンネルの新しいトピック |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 更新されたチャンネルデータ |
+
+### `discord_delete_channel`
+
+Discordチャンネルを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `channelId` | string | はい | 削除するDiscordチャンネルID |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+
+### `discord_get_channel`
+
+Discordチャンネルに関する情報を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `channelId` | string | はい | 取得するDiscordチャンネルID |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | チャンネルデータ |
+
+### `discord_create_role`
+
+Discordサーバーに新しいロールを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+| `name` | string | はい | ロールの名前 |
+| `color` | number | いいえ | RGB色の整数値（例：赤色の場合は0xFF0000） |
+| `hoist` | boolean | いいえ | ロールメンバーをオンラインメンバーとは別に表示するかどうか |
+| `mentionable` | boolean | いいえ | ロールがメンション可能かどうか |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 作成されたロールデータ |
+
+### `discord_update_role`
+
+Discordサーバーのロールを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+| `roleId` | string | はい | 更新するロールID |
+| `name` | string | いいえ | ロールの新しい名前 |
+| `color` | number | いいえ | 整数としてのRGB色値 |
+| `hoist` | boolean | いいえ | ロールメンバーを個別に表示するかどうか |
+| `mentionable` | boolean | いいえ | ロールがメンション可能かどうか |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 更新されたロールデータ |
+
+### `discord_delete_role`
+
+Discordサーバーからロールを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+| `roleId` | string | はい | 削除するロールID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+
+### `discord_assign_role`
+
+Discordサーバーのメンバーにロールを割り当てる
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+| `userId` | string | はい | ロールを割り当てるユーザーID |
+| `roleId` | string | はい | 割り当てるロールID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+
+### `discord_remove_role`
+
+Discordサーバーのメンバーからロールを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+| `userId` | string | はい | ロールを削除するユーザーID |
+| `roleId` | string | はい | 削除するロールID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+
+### `discord_kick_member`
+
+Discordサーバーからメンバーをキックする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+| `userId` | string | はい | キックするユーザーID |
+| `reason` | string | いいえ | メンバーをキックする理由 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+
+### `discord_ban_member`
+
+Discordサーバーからメンバーをバンする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+| `userId` | string | はい | バンするユーザーID |
+| `reason` | string | いいえ | メンバーをバンする理由 |
+| `deleteMessageDays` | number | いいえ | メッセージを削除する日数（0-7） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+
+### `discord_unban_member`
+
+Discordサーバーからメンバーのバンを解除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+| `userId` | string | はい | バンを解除するユーザーID |
+| `reason` | string | いいえ | メンバーのバンを解除する理由 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+
+### `discord_get_member`
+
+Discordサーバーのメンバーに関する情報を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+| `userId` | string | はい | 取得するユーザーID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | メンバーデータ |
+
+### `discord_update_member`
+
+Discordサーバーのメンバーを更新する（例：ニックネームの変更）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+| `userId` | string | はい | 更新するユーザーID |
+| `nick` | string | いいえ | メンバーの新しいニックネーム（削除する場合はnull） |
+| `mute` | boolean | いいえ | ボイスチャンネルでメンバーをミュートするかどうか |
+| `deaf` | boolean | いいえ | ボイスチャンネルでメンバーをスピーカーミュート（聴取禁止）するかどうか |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 更新されたメンバーデータ |
+
+### `discord_create_invite`
+
+Discordチャンネルの招待リンクを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `channelId` | string | はい | 招待を作成するDiscordチャンネルID |
+| `maxAge` | number | いいえ | 招待の有効期間（秒）（0 = 無期限、デフォルト86400） |
+| `maxUses` | number | いいえ | 最大使用回数（0 = 無制限、デフォルト0） |
+| `temporary` | boolean | いいえ | 一時的なメンバーシップを付与するかどうか |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 作成された招待データ |
+
+### `discord_get_invite`
+
+Discord招待に関する情報を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `inviteCode` | string | はい | 取得する招待コード |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 招待データ |
+
+### `discord_delete_invite`
+
+Discord招待を削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `inviteCode` | string | はい | 削除する招待コード |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+
+### `discord_create_webhook`
+
+Discordチャンネルにウェブフックを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `channelId` | string | はい | ウェブフックを作成するDiscordチャンネルID |
+| `name` | string | はい | ウェブフックの名前（1〜80文字） |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 作成されたウェブフックデータ |
+
+### `discord_execute_webhook`
+
+メッセージを送信するためにDiscordウェブフックを実行する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `webhookId` | string | はい | ウェブフックID |
+| `webhookToken` | string | はい | ウェブフックトークン |
+| `content` | string | はい | 送信するメッセージ内容 |
+| `username` | string | いいえ | ウェブフックのデフォルトユーザー名を上書きする |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | ウェブフックを通じて送信されたメッセージ |
+
+### `discord_get_webhook`
+
+Discordウェブフックに関する情報を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `webhookId` | string | はい | 取得するウェブフックID |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | ウェブフックデータ |
+
+### `discord_delete_webhook`
+
+Discordウェブフックを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | 認証用のボットトークン |
+| `webhookId` | string | はい | 削除するウェブフックID |
+| `serverId` | string | はい | DiscordサーバーID（ギルドID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `discord`

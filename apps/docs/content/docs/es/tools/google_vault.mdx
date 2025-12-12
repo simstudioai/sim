@@ -1,0 +1,160 @@
+---
+title: Google Vault
+description: Buscar, exportar y gestionar retenciones/exportaciones para asuntos de Vault
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_vault"
+  color="#E8F0FE"
+/>
+
+## Instrucciones de uso
+
+Conecta Google Vault para crear exportaciones, listar exportaciones y gestionar retenciones dentro de los asuntos.
+
+## Herramientas
+
+### `google_vault_create_matters_export`
+
+Crear una exportación en un asunto
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Sí | Sin descripción |
+| `exportName` | string | Sí | Sin descripción |
+| `corpus` | string | Sí | Corpus de datos para exportar \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
+| `accountEmails` | string | No | Lista separada por comas de correos electrónicos de usuarios para delimitar la exportación |
+| `orgUnitId` | string | No | ID de la unidad organizativa para delimitar la exportación \(alternativa a los correos electrónicos\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `output` | json | Datos de respuesta de la API de Vault |
+| `file` | json | Archivo de exportación descargado \(UserFile\) de los archivos de ejecución |
+
+### `google_vault_list_matters_export`
+
+Listar exportaciones para un asunto
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Sí | Sin descripción |
+| `pageSize` | number | No | Sin descripción |
+| `pageToken` | string | No | Sin descripción |
+| `exportId` | string | No | Sin descripción |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `output` | json | Datos de respuesta de la API de Vault |
+| `file` | json | Archivo de exportación descargado \(UserFile\) de los archivos de ejecución |
+
+### `google_vault_download_export_file`
+
+Descargar un solo archivo de una exportación de Google Vault (objeto GCS)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Sí | Sin descripción |
+| `bucketName` | string | Sí | Sin descripción |
+| `objectName` | string | Sí | Sin descripción |
+| `fileName` | string | No | Sin descripción |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `file` | file | Archivo de exportación de Vault descargado almacenado en archivos de ejecución |
+
+### `google_vault_create_matters_holds`
+
+Crear una retención en un asunto
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Sí | Sin descripción |
+| `holdName` | string | Sí | Sin descripción |
+| `corpus` | string | Sí | Corpus de datos para retener \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
+| `accountEmails` | string | No | Lista separada por comas de correos electrónicos de usuarios para poner en retención |
+| `orgUnitId` | string | No | ID de unidad organizativa para poner en retención \(alternativa a cuentas\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `output` | json | Datos de respuesta de la API de Vault |
+| `file` | json | Archivo de exportación descargado \(UserFile\) de los archivos de ejecución |
+
+### `google_vault_list_matters_holds`
+
+Listar retenciones para un asunto
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Sí | Sin descripción |
+| `pageSize` | number | No | Sin descripción |
+| `pageToken` | string | No | Sin descripción |
+| `holdId` | string | No | Sin descripción |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `output` | json | Datos de respuesta de la API de Vault |
+| `file` | json | Archivo de exportación descargado (UserFile) de los archivos de ejecución |
+
+### `google_vault_create_matters`
+
+Crear un nuevo asunto en Google Vault
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Sí | Sin descripción |
+| `description` | string | No | Sin descripción |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `output` | json | Datos de respuesta de la API de Vault |
+| `file` | json | Archivo de exportación descargado (UserFile) de los archivos de ejecución |
+
+### `google_vault_list_matters`
+
+Listar asuntos, o obtener un asunto específico si se proporciona matterId
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | No | Sin descripción |
+| `pageToken` | string | No | Sin descripción |
+| `matterId` | string | No | Sin descripción |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `output` | json | Datos de respuesta de la API de Vault |
+| `file` | json | Archivo de exportación descargado (UserFile) de los archivos de ejecución |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `google_vault`

@@ -1,0 +1,175 @@
+---
+title: Notion
+description: Administrar páginas de Notion
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="notion"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Notion](https://www.notion.so) es un espacio de trabajo todo en uno que combina notas, documentos, wikis y herramientas de gestión de proyectos en una sola plataforma. Ofrece un entorno flexible y personalizable donde los usuarios pueden crear, organizar y colaborar en contenido en varios formatos.
+
+Con Notion, puedes:
+
+- **Crear contenido versátil**: Construir documentos, wikis, bases de datos, tableros kanban, calendarios y más
+- **Organizar información**: Estructurar contenido jerárquicamente con páginas anidadas y potentes bases de datos
+- **Colaborar sin problemas**: Compartir espacios de trabajo y páginas con miembros del equipo para colaboración en tiempo real
+- **Personalizar tu espacio de trabajo**: Diseñar tu flujo de trabajo ideal con plantillas flexibles y bloques de construcción
+- **Conectar información**: Enlazar entre páginas y bases de datos para crear una red de conocimiento
+- **Acceder desde cualquier lugar**: Usar Notion en plataformas web, escritorio y móviles con sincronización automática
+
+En Sim, la integración con Notion permite a tus agentes interactuar directamente con tu espacio de trabajo de Notion de forma programática. Esto permite potentes escenarios de automatización como gestión del conocimiento, creación de contenido y recuperación de información. Tus agentes pueden:
+
+- **Leer páginas de Notion**: Extraer contenido y metadatos de cualquier página de Notion.
+- **Leer bases de datos de Notion**: Recuperar la estructura e información de bases de datos.
+- **Escribir en páginas**: Añadir nuevo contenido a páginas existentes de Notion.
+- **Crear nuevas páginas**: Generar nuevas páginas de Notion bajo una página principal, con títulos y contenido personalizados.
+- **Consultar bases de datos**: Buscar y filtrar entradas de bases de datos utilizando criterios avanzados de filtrado y ordenación.
+- **Buscar en el espacio de trabajo**: Buscar en todo tu espacio de trabajo de Notion páginas o bases de datos que coincidan con consultas específicas.
+- **Crear nuevas bases de datos**: Crear programáticamente nuevas bases de datos con propiedades y estructura personalizadas.
+
+Esta integración cierra la brecha entre tus flujos de trabajo de IA y tu base de conocimiento, permitiendo una gestión de documentación e información sin problemas. Al conectar Sim con Notion, puedes automatizar procesos de documentación, mantener repositorios de información actualizados, generar informes y organizar información de manera inteligente, todo a través de tus agentes inteligentes.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Notion en el flujo de trabajo. Puede leer páginas, leer bases de datos, crear páginas, crear bases de datos, añadir contenido, consultar bases de datos y buscar en el espacio de trabajo. Requiere OAuth.
+
+## Herramientas
+
+### `notion_read`
+
+Leer contenido de una página de Notion
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `pageId` | string | Sí | El ID de la página de Notion para leer |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Contenido de la página en formato markdown con encabezados, párrafos, listas y tareas pendientes |
+| `metadata` | object | Metadatos de la página incluyendo título, URL y marcas de tiempo |
+
+### `notion_read_database`
+
+Leer información y estructura de base de datos desde Notion
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `databaseId` | string | Sí | El ID de la base de datos de Notion para leer |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Información de la base de datos incluyendo título, esquema de propiedades y metadatos |
+| `metadata` | object | Metadatos de la base de datos incluyendo título, ID, URL, marcas de tiempo y esquema de propiedades |
+
+### `notion_write`
+
+Añadir contenido a una página de Notion
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `pageId` | string | Sí | El ID de la página de Notion a la que añadir contenido |
+| `content` | string | Sí | El contenido para añadir a la página |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de éxito que confirma que el contenido se añadió a la página |
+
+### `notion_create_page`
+
+Crear una nueva página en Notion
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `parentId` | string | Sí | ID de la página padre |
+| `title` | string | No | Título de la nueva página |
+| `content` | string | No | Contenido opcional para añadir a la página al crearla |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de éxito que confirma la creación de la página |
+| `metadata` | object | Metadatos de la página incluyendo título, ID de página, URL y marcas de tiempo |
+
+### `notion_query_database`
+
+Consultar y filtrar entradas de base de datos de Notion con filtrado avanzado
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `databaseId` | string | Sí | El ID de la base de datos a consultar |
+| `filter` | string | No | Condiciones de filtro en formato JSON \(opcional\) |
+| `sorts` | string | No | Criterios de ordenación como array JSON \(opcional\) |
+| `pageSize` | number | No | Número de resultados a devolver \(predeterminado: 100, máximo: 100\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Lista formateada de entradas de la base de datos con sus propiedades |
+| `metadata` | object | Metadatos de la consulta incluyendo recuento total de resultados, información de paginación y array de resultados sin procesar |
+
+### `notion_search`
+
+Buscar en todas las páginas y bases de datos en el espacio de trabajo de Notion
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | No | Términos de búsqueda \(dejar vacío para obtener todas las páginas\) |
+| `filterType` | string | No | Filtrar por tipo de objeto: página, base de datos, o dejar vacío para todos |
+| `pageSize` | number | No | Número de resultados a devolver \(predeterminado: 100, máximo: 100\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Lista formateada de resultados de búsqueda incluyendo páginas y bases de datos |
+| `metadata` | object | Metadatos de búsqueda incluyendo recuento total de resultados, información de paginación y matriz de resultados sin procesar |
+
+### `notion_create_database`
+
+Crear una nueva base de datos en Notion con propiedades personalizadas
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `parentId` | string | Sí | ID de la página principal donde se creará la base de datos |
+| `title` | string | Sí | Título para la nueva base de datos |
+| `properties` | string | No | Propiedades de la base de datos como objeto JSON \(opcional, creará una propiedad "Nombre" predeterminada si está vacío\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de éxito con detalles de la base de datos y lista de propiedades |
+| `metadata` | object | Metadatos de la base de datos incluyendo ID, título, URL, tiempo de creación y esquema de propiedades |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `notion`

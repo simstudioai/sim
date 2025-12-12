@@ -9,13 +9,13 @@ export const StarterBlock: BlockConfig = {
   category: 'blocks',
   bgColor: '#2FB3FF',
   icon: StartIcon,
+  hideFromToolbar: true,
   subBlocks: [
     // Main trigger selector
     {
       id: 'startWorkflow',
       title: 'Start Workflow',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Run manually', id: 'manual' },
         { label: 'Chat', id: 'chat' },
@@ -27,7 +27,6 @@ export const StarterBlock: BlockConfig = {
       id: 'inputFormat',
       title: 'Input Format',
       type: 'input-format',
-      layout: 'full',
       description:
         'Name and Type define your input schema. Value is used only for manual test runs.',
       mode: 'advanced',

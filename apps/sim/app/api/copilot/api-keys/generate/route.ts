@@ -1,34 +1,12 @@
-import { createCipheriv, createHash, createHmac, randomBytes } from 'crypto'
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console/logger'
-import { generateApiKey } from '@/lib/utils'
-import { db } from '@/db'
-import { copilotApiKeys } from '@/db/schema'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/copilot/constants'
+import { env } from '@/lib/core/config/env'
 
-const logger = createLogger('CopilotApiKeysGenerate')
-
-function deriveKey(keyString: string): Buffer {
-  return createHash('sha256').update(keyString, 'utf8').digest()
-}
-
-function encryptRandomIv(plaintext: string, keyString: string): string {
-  const key = deriveKey(keyString)
-  const iv = randomBytes(16)
-  const cipher = createCipheriv('aes-256-gcm', key, iv)
-  let encrypted = cipher.update(plaintext, 'utf8', 'hex')
-  encrypted += cipher.final('hex')
-  const authTag = cipher.getAuthTag().toString('hex')
-  return `${iv.toString('hex')}:${encrypted}:${authTag}`
-}
-
-function computeLookup(plaintext: string, keyString: string): string {
-  // Deterministic, constant-time comparable MAC: HMAC-SHA256(DB_KEY, plaintext)
-  return createHmac('sha256', Buffer.from(keyString, 'utf8'))
-    .update(plaintext, 'utf8')
-    .digest('hex')
-}
+const GenerateApiKeySchema = z.object({
+  name: z.string().min(1, 'Name is required').max(255, 'Name is too long'),
+})
 
 export async function POST(req: NextRequest) {
   try {
@@ -37,34 +15,53 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (!env.AGENT_API_DB_ENCRYPTION_KEY) {
-      logger.error('AGENT_API_DB_ENCRYPTION_KEY is not set')
-      return NextResponse.json({ error: 'Server not configured' }, { status: 500 })
-    }
-
     const userId = session.user.id
 
-    // Generate and prefix the key (strip the generic sim_ prefix from the random part)
-    const rawKey = generateApiKey().replace(/^sim_/, '')
-    const plaintextKey = `sk-sim-copilot-${rawKey}`
+    // Move environment variable access inside the function
+    const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
-    // Encrypt with random IV for confidentiality
-    const dbEncrypted = encryptRandomIv(plaintextKey, env.AGENT_API_DB_ENCRYPTION_KEY)
+    const body = await req.json().catch(() => ({}))
+    const validationResult = GenerateApiKeySchema.safeParse(body)
 
-    // Compute deterministic lookup value for O(1) search
-    const lookup = computeLookup(plaintextKey, env.AGENT_API_DB_ENCRYPTION_KEY)
+    if (!validationResult.success) {
+      return NextResponse.json(
+        {
+          error: 'Invalid request body',
+          details: validationResult.error.errors,
+        },
+        { status: 400 }
+      )
+    }
 
-    const [inserted] = await db
-      .insert(copilotApiKeys)
-      .values({ userId, apiKeyEncrypted: dbEncrypted, apiKeyLookup: lookup })
-      .returning({ id: copilotApiKeys.id })
+    const { name } = validationResult.data
+
+    const res = await fetch(`${SIM_AGENT_API_URL}/api/validate-key/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
+      },
+      body: JSON.stringify({ userId, name }),
+    })
+
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: 'Failed to generate copilot API key' },
+        { status: res.status || 500 }
+      )
+    }
+
+    const data = (await res.json().catch(() => null)) as { apiKey?: string; id?: string } | null
+
+    if (!data?.apiKey) {
+      return NextResponse.json({ error: 'Invalid response from Sim Agent' }, { status: 500 })
+    }
 
     return NextResponse.json(
-      { success: true, key: { id: inserted.id, apiKey: plaintextKey } },
+      { success: true, key: { id: data?.id || 'new', apiKey: data.apiKey } },
       { status: 201 }
     )
   } catch (error) {
-    logger.error('Failed to generate copilot API key', { error })
     return NextResponse.json({ error: 'Failed to generate copilot API key' }, { status: 500 })
   }
 }

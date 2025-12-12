@@ -1,0 +1,119 @@
+---
+title: Microsoft Excel
+description: Read, write, and update data
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="microsoft_excel"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Microsoft Teams](https://www.microsoft.com/en-us/microsoft-365/excel) is a powerful spreadsheet application that enables data management, analysis, and visualization. Through the Microsoft Excel integration in Sim, you can programmatically read, write, and manipulate spreadsheet data to support your workflow automation needs.
+
+With Microsoft Excel integration, you can:
+
+- **Read Spreadsheet Data**: Access data from specific ranges, sheets, and cells
+- **Write and Update Data**: Add new data or modify existing spreadsheet content
+- **Manage Tables**: Create and manipulate tabular data structures
+- **Handle Multiple Sheets**: Work with multiple worksheets in a workbook
+- **Process Data**: Import, export, and transform spreadsheet data
+
+In Sim, the Microsoft Excel integration provides seamless access to spreadsheet functionality through OAuth authentication. You can read data from specific ranges, write new information, update existing cells, and handle various data formats. The integration supports both reading and writing operations with flexible input and output options. This enables you to build workflows that can effectively manage spreadsheet data, whether you're extracting information for analysis, updating records automatically, or maintaining data consistency across your applications.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Microsoft Excel into the workflow. Can read, write, update, add to table, and create new worksheets.
+
+
+
+## Tools
+
+### `microsoft_excel_read`
+
+Read data from a Microsoft Excel spreadsheet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet to read from |
+| `range` | string | No | The range of cells to read from. Accepts "SheetName!A1:B2" for explicit ranges or just "SheetName" to read the used range of that sheet. If omitted, reads the used range of the first sheet. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | object | Range data from the spreadsheet |
+
+### `microsoft_excel_write`
+
+Write data to a Microsoft Excel spreadsheet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet to write to |
+| `range` | string | No | The range of cells to write to |
+| `values` | array | Yes | The data to write to the spreadsheet |
+| `valueInputOption` | string | No | The format of the data to write |
+| `includeValuesInResponse` | boolean | No | Whether to include the written values in the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updatedRange` | string | The range that was updated |
+| `updatedRows` | number | Number of rows that were updated |
+| `updatedColumns` | number | Number of columns that were updated |
+| `updatedCells` | number | Number of cells that were updated |
+| `metadata` | object | Spreadsheet metadata |
+
+### `microsoft_excel_table_add`
+
+Add new rows to a Microsoft Excel table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet containing the table |
+| `tableName` | string | Yes | The name of the table to add rows to |
+| `values` | array | Yes | The data to add to the table \(array of arrays or array of objects\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `index` | number | Index of the first row that was added |
+| `values` | array | Array of rows that were added to the table |
+| `metadata` | object | Spreadsheet metadata |
+
+### `microsoft_excel_worksheet_add`
+
+Create a new worksheet (sheet) in a Microsoft Excel workbook
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | The ID of the Excel workbook to add the worksheet to |
+| `worksheetName` | string | Yes | The name of the new worksheet. Must be unique within the workbook and cannot exceed 31 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `worksheet` | object | Details of the newly created worksheet |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `microsoft_excel`

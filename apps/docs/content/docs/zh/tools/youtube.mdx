@@ -1,0 +1,215 @@
+---
+title: YouTube
+description: 与 YouTube 视频、频道和播放列表互动
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="youtube"
+  color="#FF0000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[YouTube](https://www.youtube.com/) 是全球最大的视频分享平台，拥有数十亿个视频，并为超过 20 亿的登录月活跃用户提供服务。
+
+通过 YouTube 的强大 API 功能，您可以：
+
+- **搜索内容**：使用特定关键词、过滤器和参数，在 YouTube 的庞大视频库中找到相关视频
+- **访问元数据**：获取视频的详细信息，包括标题、描述、观看次数和互动指标
+- **分析趋势**：识别特定类别或地区内的热门内容和趋势话题
+- **提取洞察**：收集关于观众偏好、内容表现和互动模式的数据
+
+在 Sim 中，YouTube 集成使您的代理能够以编程方式搜索和分析 YouTube 内容，作为其工作流程的一部分。这为需要最新视频信息的强大自动化场景提供了可能。您的代理可以搜索教学视频、研究内容趋势、从教育频道收集信息，或监控特定创作者的新上传内容。此集成弥合了您的 AI 工作流程与全球最大视频库之间的差距，使自动化更加复杂且内容感知。通过将 Sim 与 YouTube 连接，您可以创建能够跟上最新信息的代理，提供更准确的响应，并为用户带来更多价值——这一切都无需人工干预或自定义代码。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 YouTube 集成到工作流程中。可以搜索视频、获取视频详情、获取频道信息、获取频道中的所有视频、获取频道播放列表、获取播放列表项目、查找相关视频以及获取视频评论。
+
+## 工具
+
+### `youtube_search`
+
+使用 YouTube Data API 在 YouTube 上搜索视频。支持通过频道、日期范围、时长、类别、质量、字幕等进行高级筛选。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | 字符串 | 是 | YouTube 视频的搜索查询 |
+| `maxResults` | 数字 | 否 | 返回视频的最大数量 \(1-50\) |
+| `apiKey` | 字符串 | 是 | YouTube API 密钥 |
+| `channelId` | 字符串 | 否 | 将结果筛选为特定的 YouTube 频道 ID |
+| `publishedAfter` | 字符串 | 否 | 仅返回此日期之后发布的视频 \(RFC 3339 格式: "2024-01-01T00:00:00Z"\) |
+| `publishedBefore` | 字符串 | 否 | 仅返回此日期之前发布的视频 \(RFC 3339 格式: "2024-01-01T00:00:00Z"\) |
+| `videoDuration` | 字符串 | 否 | 按视频时长筛选: "short" \(&lt;4 分钟\), "medium" \(4-20 分钟\), "long" \(&gt;20 分钟\), "any" |
+| `order` | 字符串 | 否 | 按以下方式排序结果: "date", "rating", "relevance" \(默认\), "title", "videoCount", "viewCount" |
+| `videoCategoryId` | 字符串 | 否 | 按 YouTube 类别 ID 筛选 \(例如: "10" 表示音乐, "20" 表示游戏\) |
+| `videoDefinition` | 字符串 | 否 | 按视频质量筛选: "high" \(高清\), "standard", "any" |
+| `videoCaption` | 字符串 | 否 | 按字幕可用性筛选: "closedCaption" \(有字幕\), "none" \(无字幕\), "any" |
+| `regionCode` | 字符串 | 否 | 返回与特定地区相关的结果 \(ISO 3166-1 alpha-2 国家代码, 例如: "US", "GB"\) |
+| `relevanceLanguage` | 字符串 | 否 | 返回与特定语言最相关的结果 \(ISO 639-1 代码, 例如: "en", "es"\) |
+| `safeSearch` | 字符串 | 否 | 内容过滤级别: "moderate" \(默认\), "none", "strict" |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `items` | 数组 | 匹配搜索查询的 YouTube 视频数组 |
+
+### `youtube_video_details`
+
+获取特定 YouTube 视频的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | 字符串 | 是 | YouTube 视频 ID |
+| `apiKey` | 字符串 | 是 | YouTube API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `videoId` | 字符串 | YouTube 视频 ID |
+| `title` | 字符串 | 视频标题 |
+| `description` | 字符串 | 视频描述 |
+| `channelId` | 字符串 | 频道 ID |
+| `channelTitle` | 字符串 | 频道名称 |
+| `publishedAt` | 字符串 | 发布日期和时间 |
+| `duration` | 字符串 | 视频时长（ISO 8601 格式） |
+| `viewCount` | 数字 | 查看次数 |
+| `likeCount` | 数字 | 点赞次数 |
+| `commentCount` | 数字 | 评论数量 |
+| `thumbnail` | 字符串 | 视频缩略图 URL |
+| `tags` | 数组 | 视频标签 |
+
+### `youtube_channel_info`
+
+获取 YouTube 频道的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `channelId` | 字符串 | 否 | YouTube 频道 ID \(使用 channelId 或 username\) |
+| `username` | 字符串 | 否 | YouTube 频道用户名 \(使用 channelId 或 username\) |
+| `apiKey` | 字符串 | 是 | YouTube API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `channelId` | 字符串 | YouTube 频道 ID |
+| `title` | 字符串 | 频道名称 |
+| `description` | 字符串 | 频道描述 |
+| `subscriberCount` | 数字 | 订阅者数量 |
+| `videoCount` | 数字 | 视频数量 |
+| `viewCount` | 数字 | 频道总观看次数 |
+| `publishedAt` | 字符串 | 频道创建日期 |
+| `thumbnail` | 字符串 | 频道缩略图 URL |
+| `customUrl` | 字符串 | 频道自定义 URL |
+
+### `youtube_channel_videos`
+
+从特定的 YouTube 频道获取所有视频，并提供排序选项。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `channelId` | 字符串 | 是 | 要获取视频的 YouTube 频道 ID |
+| `maxResults` | 数字 | 否 | 返回视频的最大数量 \(1-50\) |
+| `order` | 字符串 | 否 | 排序顺序："date" \(最新优先\)、"rating"、"relevance"、"title"、"viewCount" |
+| `pageToken` | 字符串 | 否 | 分页的页面令牌 |
+| `apiKey` | 字符串 | 是 | YouTube API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `items` | 数组 | 来自频道的视频数组 |
+
+### `youtube_channel_playlists`
+
+从特定的 YouTube 频道获取所有播放列表。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `channelId` | 字符串 | 是 | 要获取播放列表的 YouTube 频道 ID |
+| `maxResults` | 数字 | 否 | 返回播放列表的最大数量 \(1-50\) |
+| `pageToken` | 字符串 | 否 | 分页的页面令牌 |
+| `apiKey` | 字符串 | 是 | YouTube API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `items` | 数组 | 来自频道的播放列表数组 |
+
+### `youtube_playlist_items`
+
+从 YouTube 播放列表中获取视频。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | 字符串 | 是 | YouTube 播放列表 ID |
+| `maxResults` | 数字 | 否 | 返回视频的最大数量 |
+| `pageToken` | 字符串 | 否 | 分页的页面令牌 |
+| `apiKey` | 字符串 | 是 | YouTube API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `items` | 数组 | 播放列表中的视频数组 |
+
+### `youtube_related_videos`
+
+查找与特定 YouTube 视频相关的视频。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | 字符串 | 是 | 用于查找相关视频的 YouTube 视频 ID |
+| `maxResults` | 数字 | 否 | 返回相关视频的最大数量 \(1-50\) |
+| `pageToken` | 字符串 | 否 | 分页的页面令牌 |
+| `apiKey` | 字符串 | 是 | YouTube API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `items` | 数组 | 相关视频的数组 |
+
+### `youtube_comments`
+
+从 YouTube 视频中获取评论。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | 字符串 | 是 | YouTube 视频 ID |
+| `maxResults` | 数字 | 否 | 返回评论的最大数量 |
+| `order` | 字符串 | 否 | 评论排序方式：时间或相关性 |
+| `pageToken` | 字符串 | 否 | 分页的页面令牌 |
+| `apiKey` | 字符串 | 是 | YouTube API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `items` | 数组 | 视频评论的数组 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`youtube`

@@ -63,8 +63,18 @@ app:
     # Generate secure 32-character secrets using: openssl rand -hex 32
     BETTER_AUTH_SECRET: ""  # REQUIRED - set via --set flag or external secret manager
     ENCRYPTION_KEY: ""      # REQUIRED - set via --set flag or external secret manager
+    INTERNAL_API_SECRET: "" # REQUIRED - set via --set flag or external secret manager, used for internal service-to-service authentication
+
+    # Optional: Scheduled Jobs Authentication
+    # Generate using: openssl rand -hex 32
+    CRON_SECRET: ""         # OPTIONAL - required only if cronjobs.enabled=true, authenticates scheduled job requests
+
+    # Optional: API Key Encryption (RECOMMENDED for production)
+    # Generate 64-character hex string using: openssl rand -hex 32 (outputs 64 hex chars = 32 bytes)
+    API_ENCRYPTION_KEY: ""  # OPTIONAL - encrypts API keys at rest, must be exactly 64 hex characters, if not set keys stored in plain text
     
     # Email & Communication
+    EMAIL_VERIFICATION_ENABLED: "false"                   # Enable email verification for user registration and login (defaults to false)
     RESEND_API_KEY: ""                                    # Resend API key for transactional emails
     FROM_EMAIL_ADDRESS: ""                                # Complete from address (e.g., "Sim <noreply@domain.com>" or "DoNotReply@domain.com")
     EMAIL_DOMAIN: ""                                      # Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)
@@ -108,9 +118,6 @@ app:
     NEXT_PUBLIC_DOCUMENTATION_URL: ""                    # Documentation URL (leave empty for none)
     NEXT_PUBLIC_TERMS_URL: ""                            # Terms of service URL (leave empty for none)
     NEXT_PUBLIC_PRIVACY_URL: ""                          # Privacy policy URL (leave empty for none)
-    
-    # Monitoring & Analytics (leave empty if not using)
-    NEXT_PUBLIC_SENTRY_DSN: ""                           # Sentry DSN for error tracking
     
     # Access Control (leave empty if not restricting login)
     ALLOWED_LOGIN_EMAILS: ""                             # Comma-separated list of allowed email addresses for login
@@ -292,9 +299,28 @@ postgresql:
       - ReadWriteOnce
   
   # SSL/TLS configuration (enable for production deployments with certificates)
+  # Requires cert-manager to be installed in the cluster
   tls:
     enabled: false
     certificatesSecret: postgres-tls-secret
+    # Certificate configuration (only used if enabled)
+    duration: "87600h"  # 10 years (default)
+    renewBefore: "2160h"  # Renew 90 days before expiry (default)
+    rotationPolicy: ""  # Set to "Always" to rotate private key on renewal (recommended for security)
+    privateKey:
+      algorithm: RSA  # RSA or ECDSA
+      size: 4096  # Key size in bits
+    # Issuer reference (REQUIRED if tls.enabled is true)
+    issuerRef:
+      name: selfsigned-cluster-issuer  # Name of your cert-manager Issuer/ClusterIssuer
+      kind: ClusterIssuer  # ClusterIssuer or Issuer
+      group: ""  # Optional: cert-manager.io (leave empty for default)
+    # Additional DNS names (optional)
+    additionalDnsNames: []
+    # Example:
+    # additionalDnsNames:
+    #   - postgres.example.com
+    #   - db.example.com
   
   # PostgreSQL configuration
   config:
@@ -497,9 +523,20 @@ autoscaling:
   behavior: {}
 
 # Pod disruption budget
+# Note: PDBs only protect against voluntary disruptions (node drains, autoscaler)
+# They do NOT affect rolling updates - use deployment.strategy.rollingUpdate for that
 podDisruptionBudget:
   enabled: false
-  minAvailable: 1
+  # Use either minAvailable or maxUnavailable (not both)
+  # Recommendation: Use maxUnavailable as it scales better with HPA
+  # - minAvailable: minimum pods that must remain available (e.g., 1, "50%")
+  # - maxUnavailable: maximum pods that can be unavailable (e.g., 1, "25%")
+  minAvailable: null
+  maxUnavailable: 1
+  # unhealthyPodEvictionPolicy: allows eviction of unhealthy pods during node drains
+  # Options: IfHealthyBudget (default) | AlwaysAllow (recommended for production)
+  # Set to null to use K8s default (IfHealthyBudget)
+  unhealthyPodEvictionPolicy: null
 
 # Monitoring configuration
 monitoring:
@@ -582,6 +619,94 @@ affinity: {}
 # Tolerations for scheduling on tainted nodes
 tolerations: []
 
+# CronJob configuration for scheduled tasks
+cronjobs:
+  # Enable/disable all cron jobs
+  enabled: true
+  
+  # Individual job configurations
+  jobs:
+    scheduleExecution:
+      enabled: true
+      name: schedule-execution
+      schedule: "*/1 * * * *"
+      path: "/api/schedules/execute"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+      
+    gmailWebhookPoll:
+      enabled: true
+      name: gmail-webhook-poll
+      schedule: "*/1 * * * *"
+      path: "/api/webhooks/poll/gmail"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+      
+    outlookWebhookPoll:
+      enabled: true
+      name: outlook-webhook-poll
+      schedule: "*/1 * * * *"
+      path: "/api/webhooks/poll/outlook"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    rssWebhookPoll:
+      enabled: true
+      name: rss-webhook-poll
+      schedule: "*/1 * * * *"
+      path: "/api/webhooks/poll/rss"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    renewSubscriptions:
+      enabled: true
+      name: renew-subscriptions
+      schedule: "0 */12 * * *"
+      path: "/api/cron/renew-subscriptions"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    inactivityAlertPoll:
+      enabled: true
+      name: inactivity-alert-poll
+      schedule: "*/15 * * * *"
+      path: "/api/notifications/poll"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+  # Global CronJob settings
+  image:
+    repository: curlimages/curl
+    tag: 8.5.0
+    pullPolicy: IfNotPresent
+    
+  resources:
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+      
+  restartPolicy: OnFailure
+  activeDeadlineSeconds: 300
+  startingDeadlineSeconds: 60
+  
+  # Pod security context
+  podSecurityContext:
+    fsGroup: 1001
+  
+  # Container security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+
 # Observability and telemetry configuration
 telemetry:
   # Enable/disable telemetry collection
@@ -637,3 +762,211 @@ telemetry:
     endpoint: "http://otlp-collector:4317"
     tls:
       enabled: false
+
+# Copilot service configuration (optional microservice)
+copilot:
+  # Enable/disable the copilot service
+  enabled: false
+  
+  # Server deployment configuration
+  server:
+    # Image configuration
+    image:
+      repository: simstudioai/copilot
+      tag: latest
+      pullPolicy: Always
+    
+    # Number of replicas
+    replicaCount: 1
+    
+    # Resource limits and requests
+    resources:
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+    
+    # Node selector for pod scheduling
+    # Leave empty to run on same infrastructure as main Sim platform
+    # Or specify labels to isolate on dedicated nodes: { "workload-type": "copilot" }
+    nodeSelector: {}
+    
+    # Pod security context
+    podSecurityContext:
+      fsGroup: 1001
+    
+    # Container security context
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1001
+    
+    # Environment variables (required and optional)
+    env:
+      PORT: "8080"
+      SERVICE_NAME: "copilot"
+      ENVIRONMENT: "production"
+      AGENT_API_DB_ENCRYPTION_KEY: ""
+      INTERNAL_API_SECRET: ""
+      LICENSE_KEY: ""
+      OPENAI_API_KEY_1: ""
+      ANTHROPIC_API_KEY_1: ""
+      SIM_BASE_URL: ""
+      SIM_AGENT_API_KEY: ""
+      REDIS_URL: ""
+      # Optional configuration
+      LOG_LEVEL: "info"
+      CORS_ALLOWED_ORIGINS: ""
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
+    
+    # Optional: additional static environment variables
+    extraEnv: []
+    
+    # Optional: references to existing ConfigMaps/Secrets
+    extraEnvFrom: []
+    
+    # Secret generation configuration (set create=false to use an existing secret)
+    secret:
+      create: true
+      name: ""
+      annotations: {}
+    
+    # Service configuration
+    service:
+      type: ClusterIP
+      port: 8080
+      targetPort: 8080
+    
+    # Health checks
+    readinessProbe:
+      httpGet:
+        path: /healthz
+        port: 8080
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    
+    livenessProbe:
+      httpGet:
+        path: /healthz
+        port: 8080
+      initialDelaySeconds: 15
+      periodSeconds: 30
+      timeoutSeconds: 5
+      failureThreshold: 3
+
+    # Pod Disruption Budget for high availability
+    podDisruptionBudget:
+      enabled: false
+      minAvailable: 1
+
+  # PostgreSQL database for copilot (separate from main Sim database)
+  postgresql:
+    # Enable/disable internal PostgreSQL for copilot
+    enabled: true
+    
+    # Image configuration
+    image:
+      repository: postgres
+      tag: 16-alpine
+      pullPolicy: IfNotPresent
+    
+    # Authentication configuration
+    auth:
+      username: copilot
+      password: ""  # REQUIRED - set via --set flag or external secret manager
+      database: copilot
+    
+    # Node selector for database pod scheduling
+    # Leave empty to run on same infrastructure as main Sim platform
+    # Or specify labels to isolate on dedicated nodes: { "workload-type": "copilot" }
+    nodeSelector: {}
+    
+    # Resource limits and requests
+    resources:
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+    
+    # Pod security context
+    podSecurityContext:
+      fsGroup: 999
+    
+    # Container security context
+    securityContext:
+      runAsUser: 999
+    
+    # Persistence configuration
+    persistence:
+      enabled: true
+      storageClass: ""
+      size: 10Gi
+      accessModes:
+        - ReadWriteOnce
+    
+    # Service configuration
+    service:
+      type: ClusterIP
+      port: 5432
+      targetPort: 5432
+    
+    # Health checks
+    livenessProbe:
+      exec:
+        command: ["pg_isready", "-U", "copilot", "-d", "copilot"]
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      timeoutSeconds: 5
+      failureThreshold: 10
+    
+    readinessProbe:
+      exec:
+        command: ["pg_isready", "-U", "copilot", "-d", "copilot"]
+      initialDelaySeconds: 5
+      periodSeconds: 3
+      timeoutSeconds: 5
+      failureThreshold: 10
+  
+  # External database configuration (use when connecting to a managed database)
+  database:
+    existingSecretName: ""
+    secretKey: DATABASE_URL
+    url: ""
+  
+  # Migration job configuration
+  migrations:
+    # Enable/disable migrations job
+    enabled: true
+    
+    # Image configuration (same as server)
+    image:
+      repository: simstudioai/copilot
+      tag: latest
+      pullPolicy: Always
+    
+    # Resource limits and requests
+    resources:
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+    
+    # Pod security context
+    podSecurityContext:
+      fsGroup: 1001
+    
+    # Container security context
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1001
+    
+    # Job configuration
+    backoffLimit: 3
+    restartPolicy: OnFailure

@@ -1,0 +1,58 @@
+---
+title: Embeddings
+description: Generar embeddings de Open AI
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="openai"
+  color="#10a37f"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[OpenAI](https://www.openai.com) es una empresa líder en investigación y despliegue de IA que ofrece una suite de potentes modelos y APIs de IA. OpenAI proporciona tecnologías de vanguardia que incluyen modelos de lenguaje grandes (como GPT-4), generación de imágenes (DALL-E) y embeddings que permiten a los desarrolladores crear aplicaciones sofisticadas impulsadas por IA.
+
+Con OpenAI, puedes:
+
+- **Generar texto**: Crea texto similar al humano para diversas aplicaciones usando modelos GPT
+- **Crear imágenes**: Transforma descripciones textuales en contenido visual con DALL-E
+- **Producir embeddings**: Convierte texto en vectores numéricos para búsqueda semántica y análisis
+- **Construir asistentes de IA**: Desarrolla agentes conversacionales con conocimiento especializado
+- **Procesar y analizar datos**: Extrae insights y patrones de texto no estructurado
+- **Traducir idiomas**: Convierte contenido entre diferentes idiomas con alta precisión
+- **Resumir contenido**: Condensa texto extenso preservando la información clave
+
+En Sim, la integración de OpenAI permite a tus agentes aprovechar estas potentes capacidades de IA de forma programática como parte de sus flujos de trabajo. Esto permite escenarios de automatización sofisticados que combinan comprensión del lenguaje natural, generación de contenido y análisis semántico. Tus agentes pueden generar embeddings vectoriales a partir de texto, que son representaciones numéricas que capturan el significado semántico, permitiendo sistemas avanzados de búsqueda, clasificación y recomendación. Además, a través de la integración con DALL-E, los agentes pueden crear imágenes a partir de descripciones textuales, abriendo posibilidades para la generación de contenido visual. Esta integración cierra la brecha entre tu automatización de flujos de trabajo y las capacidades de IA de vanguardia, permitiendo a tus agentes entender el contexto, generar contenido relevante y tomar decisiones inteligentes basadas en la comprensión semántica. Al conectar Sim con OpenAI, puedes crear agentes que procesen información de manera más inteligente, generen contenido creativo y ofrezcan experiencias más personalizadas a los usuarios.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integrar Embeddings en el flujo de trabajo. Puede generar embeddings a partir de texto. Requiere clave API.
+
+## Herramientas
+
+### `openai_embeddings`
+
+Generar embeddings a partir de texto usando OpenAI
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `input` | string | Sí | Texto para generar embeddings |
+| `model` | string | No | Modelo a utilizar para los embeddings |
+| `encodingFormat` | string | No | El formato en el que se devolverán los embeddings |
+| `apiKey` | string | Sí | Clave API de OpenAI |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultados de la generación de embeddings |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `openai`

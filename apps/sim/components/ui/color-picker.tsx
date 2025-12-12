@@ -6,8 +6,8 @@ import type { ButtonProps } from '@/components/ui/button'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { useForwardedRef } from '@/lib/use-forwarded-ref'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
+import { useForwardedRef } from '@/hooks/use-forwarded-ref'
 
 interface ColorPickerProps {
   value: string

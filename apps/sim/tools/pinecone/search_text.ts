@@ -75,7 +75,7 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
       // Format the query object
       const query = {
         inputs: { text: params.searchQuery },
-        top_k: Number.parseInt(params.topK || '10'),
+        top_k: params.topK ? Number(params.topK) : 10,
       }
 
       // Build the request body

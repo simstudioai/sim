@@ -19,6 +19,7 @@ describe('Chat API Route', () => {
   const mockCreateErrorResponse = vi.fn()
   const mockEncryptSecret = vi.fn()
   const mockCheckWorkflowAccessForChatCreation = vi.fn()
+  const mockDeployWorkflow = vi.fn()
 
   beforeEach(() => {
     vi.resetModules()
@@ -29,15 +30,15 @@ describe('Chat API Route', () => {
     mockInsert.mockReturnValue({ values: mockValues })
     mockValues.mockReturnValue({ returning: mockReturning })
 
-    vi.doMock('@/db', () => ({
+    vi.doMock('@sim/db', () => ({
       db: {
         select: mockSelect,
         insert: mockInsert,
       },
     }))
 
-    vi.doMock('@/db/schema', () => ({
-      chat: { userId: 'userId', subdomain: 'subdomain' },
+    vi.doMock('@sim/db/schema', () => ({
+      chat: { userId: 'userId', identifier: 'identifier' },
       workflow: { id: 'id', userId: 'userId', isDeployed: 'isDeployed' },
     }))
 
@@ -65,7 +66,7 @@ describe('Chat API Route', () => {
       }),
     }))
 
-    vi.doMock('@/lib/utils', () => ({
+    vi.doMock('@/lib/core/security/encryption', () => ({
       encryptSecret: mockEncryptSecret.mockResolvedValue({ encrypted: 'encrypted-password' }),
     }))
 
@@ -75,6 +76,14 @@ describe('Chat API Route', () => {
 
     vi.doMock('@/app/api/chat/utils', () => ({
       checkWorkflowAccessForChatCreation: mockCheckWorkflowAccessForChatCreation,
+    }))
+
+    vi.doMock('@/lib/workflows/persistence/utils', () => ({
+      deployWorkflow: mockDeployWorkflow.mockResolvedValue({
+        success: true,
+        version: 1,
+        deployedAt: new Date(),
+      }),
     }))
   })
 
@@ -169,7 +178,7 @@ describe('Chat API Route', () => {
       expect(response.status).toBe(400)
     })
 
-    it('should reject if subdomain already exists', async () => {
+    it('should reject if identifier already exists', async () => {
       vi.doMock('@/lib/auth', () => ({
         getSession: vi.fn().mockResolvedValue({
           user: { id: 'user-id' },
@@ -178,7 +187,7 @@ describe('Chat API Route', () => {
 
       const validData = {
         workflowId: 'workflow-123',
-        subdomain: 'test-chat',
+        identifier: 'test-chat',
         title: 'Test Chat',
         customizations: {
           primaryColor: '#000000',
@@ -186,7 +195,7 @@ describe('Chat API Route', () => {
         },
       }
 
-      mockLimit.mockResolvedValueOnce([{ id: 'existing-chat' }]) // Subdomain exists
+      mockLimit.mockResolvedValueOnce([{ id: 'existing-chat' }]) // Identifier exists
 
       const req = new NextRequest('http://localhost:3000/api/chat', {
         method: 'POST',
@@ -196,7 +205,7 @@ describe('Chat API Route', () => {
       const response = await POST(req)
 
       expect(response.status).toBe(400)
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Subdomain already in use', 400)
+      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Identifier already in use', 400)
     })
 
     it('should reject if workflow not found', async () => {
@@ -208,7 +217,7 @@ describe('Chat API Route', () => {
 
       const validData = {
         workflowId: 'workflow-123',
-        subdomain: 'test-chat',
+        identifier: 'test-chat',
         title: 'Test Chat',
         customizations: {
           primaryColor: '#000000',
@@ -216,7 +225,7 @@ describe('Chat API Route', () => {
         },
       }
 
-      mockLimit.mockResolvedValueOnce([]) // Subdomain is available
+      mockLimit.mockResolvedValueOnce([]) // Identifier is available
       mockCheckWorkflowAccessForChatCreation.mockResolvedValue({ hasAccess: false })
 
       const req = new NextRequest('http://localhost:3000/api/chat', {
@@ -236,11 +245,11 @@ describe('Chat API Route', () => {
     it('should allow chat deployment when user owns workflow directly', async () => {
       vi.doMock('@/lib/auth', () => ({
         getSession: vi.fn().mockResolvedValue({
-          user: { id: 'user-id' },
+          user: { id: 'user-id', email: 'user@example.com' },
         }),
       }))
 
-      vi.doMock('@/lib/env', () => ({
+      vi.doMock('@/lib/core/config/env', () => ({
         env: {
           NODE_ENV: 'development',
           NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
@@ -254,7 +263,7 @@ describe('Chat API Route', () => {
 
       const validData = {
         workflowId: 'workflow-123',
-        subdomain: 'test-chat',
+        identifier: 'test-chat',
         title: 'Test Chat',
         customizations: {
           primaryColor: '#000000',
@@ -262,7 +271,7 @@ describe('Chat API Route', () => {
         },
       }
 
-      mockLimit.mockResolvedValueOnce([]) // Subdomain is available
+      mockLimit.mockResolvedValueOnce([]) // Identifier is available
       mockCheckWorkflowAccessForChatCreation.mockResolvedValue({
         hasAccess: true,
         workflow: { userId: 'user-id', workspaceId: null, isDeployed: true },
@@ -283,11 +292,11 @@ describe('Chat API Route', () => {
     it('should allow chat deployment when user has workspace admin permission', async () => {
       vi.doMock('@/lib/auth', () => ({
         getSession: vi.fn().mockResolvedValue({
-          user: { id: 'user-id' },
+          user: { id: 'user-id', email: 'user@example.com' },
         }),
       }))
 
-      vi.doMock('@/lib/env', () => ({
+      vi.doMock('@/lib/core/config/env', () => ({
         env: {
           NODE_ENV: 'development',
           NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
@@ -299,7 +308,7 @@ describe('Chat API Route', () => {
 
       const validData = {
         workflowId: 'workflow-123',
-        subdomain: 'test-chat',
+        identifier: 'test-chat',
         title: 'Test Chat',
         customizations: {
           primaryColor: '#000000',
@@ -307,7 +316,7 @@ describe('Chat API Route', () => {
         },
       }
 
-      mockLimit.mockResolvedValueOnce([]) // Subdomain is available
+      mockLimit.mockResolvedValueOnce([]) // Identifier is available
       mockCheckWorkflowAccessForChatCreation.mockResolvedValue({
         hasAccess: true,
         workflow: { userId: 'other-user-id', workspaceId: 'workspace-123', isDeployed: true },
@@ -334,7 +343,7 @@ describe('Chat API Route', () => {
 
       const validData = {
         workflowId: 'workflow-123',
-        subdomain: 'test-chat',
+        identifier: 'test-chat',
         title: 'Test Chat',
         customizations: {
           primaryColor: '#000000',
@@ -342,7 +351,7 @@ describe('Chat API Route', () => {
         },
       }
 
-      mockLimit.mockResolvedValueOnce([]) // Subdomain is available
+      mockLimit.mockResolvedValueOnce([]) // Identifier is available
       mockCheckWorkflowAccessForChatCreation.mockResolvedValue({
         hasAccess: false,
       })
@@ -371,7 +380,7 @@ describe('Chat API Route', () => {
 
       const validData = {
         workflowId: 'workflow-123',
-        subdomain: 'test-chat',
+        identifier: 'test-chat',
         title: 'Test Chat',
         customizations: {
           primaryColor: '#000000',
@@ -379,7 +388,7 @@ describe('Chat API Route', () => {
         },
       }
 
-      mockLimit.mockResolvedValueOnce([]) // Subdomain is available
+      mockLimit.mockResolvedValueOnce([]) // Identifier is available
       mockCheckWorkflowAccessForChatCreation.mockRejectedValue(new Error('Permission check failed'))
 
       const req = new NextRequest('http://localhost:3000/api/chat', {
@@ -393,16 +402,16 @@ describe('Chat API Route', () => {
       expect(mockCheckWorkflowAccessForChatCreation).toHaveBeenCalledWith('workflow-123', 'user-id')
     })
 
-    it('should reject if workflow is not deployed', async () => {
+    it('should auto-deploy workflow if not already deployed', async () => {
       vi.doMock('@/lib/auth', () => ({
         getSession: vi.fn().mockResolvedValue({
-          user: { id: 'user-id' },
+          user: { id: 'user-id', email: 'user@example.com' },
         }),
       }))
 
       const validData = {
         workflowId: 'workflow-123',
-        subdomain: 'test-chat',
+        identifier: 'test-chat',
         title: 'Test Chat',
         customizations: {
           primaryColor: '#000000',
@@ -410,11 +419,12 @@ describe('Chat API Route', () => {
         },
       }
 
-      mockLimit.mockResolvedValueOnce([]) // Subdomain is available
+      mockLimit.mockResolvedValueOnce([]) // Identifier is available
       mockCheckWorkflowAccessForChatCreation.mockResolvedValue({
         hasAccess: true,
         workflow: { userId: 'user-id', workspaceId: null, isDeployed: false },
       })
+      mockReturning.mockResolvedValue([{ id: 'test-uuid' }])
 
       const req = new NextRequest('http://localhost:3000/api/chat', {
         method: 'POST',
@@ -423,11 +433,11 @@ describe('Chat API Route', () => {
       const { POST } = await import('@/app/api/chat/route')
       const response = await POST(req)
 
-      expect(response.status).toBe(400)
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith(
-        'Workflow must be deployed before creating a chat',
-        400
-      )
+      expect(response.status).toBe(200)
+      expect(mockDeployWorkflow).toHaveBeenCalledWith({
+        workflowId: 'workflow-123',
+        deployedBy: 'user-id',
+      })
     })
   })
 })

@@ -1,11 +1,14 @@
-import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { generateRequestId } from '@/lib/core/utils/request'
+import {
+  deleteKnowledgeBase,
+  getKnowledgeBaseById,
+  updateKnowledgeBase,
+} from '@/lib/knowledge/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
-import { db } from '@/db'
-import { knowledgeBase } from '@/db/schema'
 
 const logger = createLogger('KnowledgeBaseByIdAPI')
 
@@ -25,7 +28,7 @@ const UpdateKnowledgeBaseSchema = z.object({
 })
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const { id } = await params
 
   try {
@@ -48,13 +51,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const knowledgeBases = await db
-      .select()
-      .from(knowledgeBase)
-      .where(and(eq(knowledgeBase.id, id), isNull(knowledgeBase.deletedAt)))
-      .limit(1)
+    const knowledgeBaseData = await getKnowledgeBaseById(id)
 
-    if (knowledgeBases.length === 0) {
+    if (!knowledgeBaseData) {
       return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
     }
 
@@ -62,7 +61,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
     return NextResponse.json({
       success: true,
-      data: knowledgeBases[0],
+      data: knowledgeBaseData,
     })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching knowledge base`, error)
@@ -71,7 +70,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const { id } = await params
 
   try {
@@ -99,42 +98,22 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     try {
       const validatedData = UpdateKnowledgeBaseSchema.parse(body)
 
-      const updateData: any = {
-        updatedAt: new Date(),
-      }
-
-      if (validatedData.name !== undefined) updateData.name = validatedData.name
-      if (validatedData.description !== undefined)
-        updateData.description = validatedData.description
-      if (validatedData.workspaceId !== undefined)
-        updateData.workspaceId = validatedData.workspaceId
-
-      // Handle embedding model and dimension together to ensure consistency
-      if (
-        validatedData.embeddingModel !== undefined ||
-        validatedData.embeddingDimension !== undefined
-      ) {
-        updateData.embeddingModel = 'text-embedding-3-small'
-        updateData.embeddingDimension = 1536
-      }
-
-      if (validatedData.chunkingConfig !== undefined)
-        updateData.chunkingConfig = validatedData.chunkingConfig
-
-      await db.update(knowledgeBase).set(updateData).where(eq(knowledgeBase.id, id))
-
-      // Fetch the updated knowledge base
-      const updatedKnowledgeBase = await db
-        .select()
-        .from(knowledgeBase)
-        .where(eq(knowledgeBase.id, id))
-        .limit(1)
+      const updatedKnowledgeBase = await updateKnowledgeBase(
+        id,
+        {
+          name: validatedData.name,
+          description: validatedData.description,
+          workspaceId: validatedData.workspaceId,
+          chunkingConfig: validatedData.chunkingConfig,
+        },
+        requestId
+      )
 
       logger.info(`[${requestId}] Knowledge base updated: ${id} for user ${session.user.id}`)
 
       return NextResponse.json({
         success: true,
-        data: updatedKnowledgeBase[0],
+        data: updatedKnowledgeBase,
       })
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
@@ -155,7 +134,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const { id } = await params
 
   try {
@@ -178,14 +157,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Soft delete by setting deletedAt timestamp
-    await db
-      .update(knowledgeBase)
-      .set({
-        deletedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(knowledgeBase.id, id))
+    await deleteKnowledgeBase(id, requestId)
 
     logger.info(`[${requestId}] Knowledge base deleted: ${id} for user ${session.user.id}`)
 

@@ -1,0 +1,59 @@
+---
+title: File
+description: Read and parse multiple files
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="file"
+  color="#40916C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+The File Parser tool provides a powerful way to extract and process content from various file formats, making it easy to incorporate document data into your agent workflows. This tool supports multiple file formats and can handle files up to 200MB in size.
+
+With the File Parser, you can:
+
+- **Process multiple file formats**: Extract text from PDFs, CSVs, Word documents (DOCX), text files, and more
+- **Handle large files**: Process documents up to 200MB in size
+- **Parse files from URLs**: Directly extract content from files hosted online by providing their URLs
+- **Process multiple files at once**: Upload and parse several files in a single operation
+- **Extract structured data**: Maintain formatting and structure from the original documents when possible
+
+The File Parser tool is particularly useful for scenarios where your agents need to work with document content, such as analyzing reports, extracting data from spreadsheets, or processing text from various document sources. It simplifies the process of making document content available to your agents, allowing them to work with information stored in files just as easily as with direct text input.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate File into the workflow. Can upload a file manually or insert a file url.
+
+
+
+## Tools
+
+### `file_parser`
+
+Parse one or more uploaded files or files from URLs (text, PDF, CSV, images, etc.)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filePath` | string | Yes | Path to the file\(s\). Can be a single path, URL, or an array of paths. |
+| `fileType` | string | No | Type of file to parse \(auto-detected if not specified\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | array | Array of parsed files |
+| `combinedContent` | string | Combined content of all parsed files |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `file`

@@ -1,14 +1,23 @@
 import { ConnectIcon } from '@/components/icons'
-import { isHosted } from '@/lib/environment'
-import type { BlockConfig } from '@/blocks/types'
+import { isHosted } from '@/lib/core/config/environment'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { ProviderId } from '@/providers/types'
-import { getAllModelProviders, getBaseModelProviders, getHostedModels } from '@/providers/utils'
-import { useOllamaStore } from '@/stores/ollama/store'
+import {
+  getAllModelProviders,
+  getHostedModels,
+  getProviderIcon,
+  providers,
+} from '@/providers/utils'
+import { useProvidersStore } from '@/stores/providers/store'
 import type { ToolResponse } from '@/tools/types'
+
+const getCurrentOllamaModels = () => {
+  return useProvidersStore.getState().providers.ollama.models
+}
 
 interface RouterResponse extends ToolResponse {
   output: {
-    content: string
+    prompt: string
     model: string
     tokens?: {
       prompt?: number
@@ -98,9 +107,13 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
   type: 'router',
   name: 'Router',
   description: 'Route workflow',
+  authMode: AuthMode.ApiKey,
   longDescription:
-    'Intelligently direct workflow execution to different paths based on input analysis. Use AI to determine the most appropriate next step in your workflow based on content, intent, or specific criteria.',
-  docsLink: 'https://docs.sim.ai/blocks/router',
+    'This is a core workflow block. Intelligently direct workflow execution to different paths based on input analysis. Use natural language to instruct the router to route to certain blocks based on the input.',
+  bestPractices: `
+  - For the prompt, make it almost programmatic. Use the system prompt to define the routing criteria. Should be very specific with no ambiguity.
+  - Use the target block *names* to define the routing criteria.
+  `,
   category: 'blocks',
   bgColor: '#28C43F',
   icon: ConnectIcon,
@@ -109,48 +122,84 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       id: 'prompt',
       title: 'Prompt',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Route to the correct block based on the input...',
       required: true,
     },
     {
       id: 'model',
       title: 'Model',
-      type: 'dropdown',
-      layout: 'half',
-      options: () => {
-        const ollamaModels = useOllamaStore.getState().models
-        const baseModels = Object.keys(getBaseModelProviders())
-        return [...baseModels, ...ollamaModels].map((model) => ({
-          label: model,
-          id: model,
-        }))
-      },
+      type: 'combobox',
+      placeholder: 'Type or select a model...',
       required: true,
+      options: () => {
+        const providersState = useProvidersStore.getState()
+        const baseModels = providersState.providers.base.models
+        const ollamaModels = providersState.providers.ollama.models
+        const openrouterModels = providersState.providers.openrouter.models
+        const allModels = Array.from(new Set([...baseModels, ...ollamaModels, ...openrouterModels]))
+
+        return allModels.map((model) => {
+          const icon = getProviderIcon(model)
+          return { label: model, id: model, ...(icon && { icon }) }
+        })
+      },
     },
     {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter your API key',
       password: true,
       connectionDroppable: false,
       required: true,
-      // Hide API key for all hosted models when running on hosted version
+      // Hide API key for hosted models and Ollama models
       condition: isHosted
         ? {
             field: 'model',
             value: getHostedModels(),
             not: true, // Show for all models EXCEPT those listed
           }
-        : undefined, // Show for all models in non-hosted environments
+        : () => ({
+            field: 'model',
+            value: getCurrentOllamaModels(),
+            not: true, // Show for all models EXCEPT Ollama models
+          }),
+    },
+    {
+      id: 'azureEndpoint',
+      title: 'Azure OpenAI Endpoint',
+      type: 'short-input',
+      password: true,
+      placeholder: 'https://your-resource.openai.azure.com',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers['azure-openai'].models,
+      },
+    },
+    {
+      id: 'azureApiVersion',
+      title: 'Azure API Version',
+      type: 'short-input',
+      placeholder: '2024-07-01-preview',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers['azure-openai'].models,
+      },
+    },
+    {
+      id: 'temperature',
+      title: 'Temperature',
+      type: 'slider',
+      hidden: true,
+      min: 0,
+      max: 2,
     },
     {
       id: 'systemPrompt',
       title: 'System Prompt',
       type: 'code',
-      layout: 'full',
       hidden: true,
       value: (params: Record<string, any>) => {
         return generateRouterPrompt(params.prompt || '')
@@ -184,9 +233,15 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
     prompt: { type: 'string', description: 'Routing prompt content' },
     model: { type: 'string', description: 'AI model to use' },
     apiKey: { type: 'string', description: 'Provider API key' },
+    azureEndpoint: { type: 'string', description: 'Azure OpenAI endpoint URL' },
+    azureApiVersion: { type: 'string', description: 'Azure API version' },
+    temperature: {
+      type: 'number',
+      description: 'Response randomness level (low for consistent routing)',
+    },
   },
   outputs: {
-    content: { type: 'string', description: 'Routing response content' },
+    prompt: { type: 'string', description: 'Routing prompt used' },
     model: { type: 'string', description: 'Model used' },
     tokens: { type: 'json', description: 'Token usage' },
     cost: { type: 'json', description: 'Cost information' },

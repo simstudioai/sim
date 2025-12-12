@@ -1,0 +1,217 @@
+---
+title: Zep
+description: Mémoire à long terme pour les agents IA
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="zep"
+  color="#E8E8E8"
+/>
+
+## Instructions d'utilisation
+
+Intégrez Zep pour la gestion de la mémoire à long terme. Créez des fils de discussion, ajoutez des messages, récupérez du contexte avec des résumés générés par IA et extraction de faits.
+
+## Outils
+
+### `zep_create_thread`
+
+Démarrer un nouveau fil de conversation dans Zep
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | Oui | Identifiant unique pour le fil de discussion |
+| `userId` | string | Oui | ID utilisateur associé au fil de discussion |
+| `apiKey` | string | Oui | Votre clé API Zep |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `threadId` | string | L'ID du fil de discussion |
+| `userId` | string | L'ID utilisateur |
+| `uuid` | string | UUID interne |
+| `createdAt` | string | Horodatage de création |
+| `projectUuid` | string | UUID du projet |
+
+### `zep_get_threads`
+
+Lister tous les fils de conversation
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | Non | Nombre de fils à récupérer par page |
+| `pageNumber` | number | Non | Numéro de page pour la pagination |
+| `orderBy` | string | Non | Champ pour ordonner les résultats \(created_at, updated_at, user_id, thread_id\) |
+| `asc` | boolean | Non | Direction de tri : true pour ascendant, false pour descendant |
+| `apiKey` | string | Oui | Votre clé API Zep |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `threads` | array | Tableau d'objets de fil de discussion |
+| `responseCount` | number | Nombre de fils de discussion dans cette réponse |
+| `totalCount` | number | Nombre total de fils de discussion disponibles |
+
+### `zep_delete_thread`
+
+Supprimer un fil de conversation de Zep
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | Oui | ID du fil de discussion à supprimer |
+| `apiKey` | string | Oui | Votre clé API Zep |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Indique si le fil de discussion a été supprimé |
+
+### `zep_get_context`
+
+Récupérer le contexte utilisateur d'un fil de discussion en mode résumé ou basique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | Oui | ID du fil de discussion pour obtenir le contexte |
+| `mode` | string | Non | Mode de contexte : "summary" \(langage naturel\) ou "basic" \(faits bruts\) |
+| `minRating` | number | Non | Note minimale pour filtrer les faits pertinents |
+| `apiKey` | string | Oui | Votre clé API Zep |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `context` | string | La chaîne de contexte \(résumé ou basique\) |
+| `facts` | array | Faits extraits |
+| `entities` | array | Entités extraites |
+| `summary` | string | Résumé de la conversation |
+
+### `zep_get_messages`
+
+Récupérer les messages d'un fil de discussion
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `threadId` | chaîne | Oui | ID du fil de discussion pour récupérer les messages |
+| `limit` | nombre | Non | Nombre maximum de messages à renvoyer |
+| `cursor` | chaîne | Non | Curseur pour la pagination |
+| `lastn` | nombre | Non | Nombre de messages les plus récents à renvoyer \(remplace la limite et le curseur\) |
+| `apiKey` | chaîne | Oui | Votre clé API Zep |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `messages` | tableau | Tableau d'objets message |
+| `rowCount` | nombre | Nombre de messages dans cette réponse |
+| `totalCount` | nombre | Nombre total de messages dans le fil de discussion |
+
+### `zep_add_messages`
+
+Ajouter des messages à un fil de discussion existant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `threadId` | chaîne | Oui | ID du fil de discussion auquel ajouter des messages |
+| `messages` | json | Oui | Tableau d'objets message avec rôle et contenu |
+| `apiKey` | chaîne | Oui | Votre clé API Zep |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `context` | chaîne | Contexte mis à jour après l'ajout des messages |
+| `messageIds` | tableau | Tableau des UUID des messages ajoutés |
+| `threadId` | chaîne | L'ID du fil de discussion |
+
+### `zep_add_user`
+
+Créer un nouvel utilisateur dans Zep
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Oui | Identifiant unique pour l'utilisateur |
+| `email` | string | Non | Adresse e-mail de l'utilisateur |
+| `firstName` | string | Non | Prénom de l'utilisateur |
+| `lastName` | string | Non | Nom de famille de l'utilisateur |
+| `metadata` | json | Non | Métadonnées supplémentaires sous forme d'objet JSON |
+| `apiKey` | string | Oui | Votre clé API Zep |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | L'identifiant de l'utilisateur |
+| `email` | string | E-mail de l'utilisateur |
+| `firstName` | string | Prénom de l'utilisateur |
+| `lastName` | string | Nom de famille de l'utilisateur |
+| `uuid` | string | UUID interne |
+| `createdAt` | string | Horodatage de création |
+| `metadata` | object | Métadonnées de l'utilisateur |
+
+### `zep_get_user`
+
+Récupérer les informations d'un utilisateur depuis Zep
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Oui | ID de l'utilisateur à récupérer |
+| `apiKey` | string | Oui | Votre clé API Zep |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | L'identifiant de l'utilisateur |
+| `email` | string | E-mail de l'utilisateur |
+| `firstName` | string | Prénom de l'utilisateur |
+| `lastName` | string | Nom de famille de l'utilisateur |
+| `uuid` | string | UUID interne |
+| `createdAt` | string | Horodatage de création |
+| `updatedAt` | string | Horodatage de dernière mise à jour |
+| `metadata` | object | Métadonnées de l'utilisateur |
+
+### `zep_get_user_threads`
+
+Lister tous les fils de conversation pour un utilisateur spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `userId` | chaîne | Oui | ID de l'utilisateur pour lequel obtenir les fils |
+| `limit` | nombre | Non | Nombre maximum de fils à retourner |
+| `apiKey` | chaîne | Oui | Votre clé API Zep |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `threads` | tableau | Tableau d'objets de fils pour cet utilisateur |
+| `userId` | chaîne | L'ID de l'utilisateur |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `zep`

@@ -1,5 +1,8 @@
 export * from './base-styles'
 export { BatchInvitationEmail } from './batch-invitation-email'
+export { EnterpriseSubscriptionEmail } from './billing/enterprise-subscription-email'
+export { PlanWelcomeEmail } from './billing/plan-welcome-email'
+export { UsageThresholdEmail } from './billing/usage-threshold-email'
 export { default as EmailFooter } from './footer'
 export { HelpConfirmationEmail } from './help-confirmation-email'
 export { InvitationEmail } from './invitation-email'

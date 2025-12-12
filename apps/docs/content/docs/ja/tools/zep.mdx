@@ -1,0 +1,217 @@
+---
+title: Zep
+description: AIエージェント用の長期記憶
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="zep"
+  color="#E8E8E8"
+/>
+
+## 使用方法
+
+Zepを統合して長期記憶管理を実現。スレッドの作成、メッセージの追加、AI駆動の要約や事実抽出によるコンテキストの取得が可能です。
+
+## ツール
+
+### `zep_create_thread`
+
+Zepで新しい会話スレッドを開始する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | はい | スレッドの一意の識別子 |
+| `userId` | string | はい | スレッドに関連付けられたユーザーID |
+| `apiKey` | string | はい | あなたのZep APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `threadId` | string | スレッドID |
+| `userId` | string | ユーザーID |
+| `uuid` | string | 内部UUID |
+| `createdAt` | string | 作成タイムスタンプ |
+| `projectUuid` | string | プロジェクトUUID |
+
+### `zep_get_threads`
+
+すべての会話スレッドを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | いいえ | 1ページあたりに取得するスレッド数 |
+| `pageNumber` | number | いいえ | ページネーションのページ番号 |
+| `orderBy` | string | いいえ | 結果を並べ替える項目（created_at、updated_at、user_id、thread_id） |
+| `asc` | boolean | いいえ | 並べ替え方向：昇順はtrue、降順はfalse |
+| `apiKey` | string | はい | あなたのZep APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `threads` | array | スレッドオブジェクトの配列 |
+| `responseCount` | number | このレスポンスに含まれるスレッドの数 |
+| `totalCount` | number | 利用可能なスレッドの総数 |
+
+### `zep_delete_thread`
+
+Zepから会話スレッドを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | はい | 削除するスレッドID |
+| `apiKey` | string | はい | あなたのZep APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | スレッドが削除されたかどうか |
+
+### `zep_get_context`
+
+サマリーモードまたは基本モードでスレッドからユーザーコンテキストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | はい | コンテキストを取得するスレッドID |
+| `mode` | string | いいえ | コンテキストモード：「summary」（自然言語）または「basic」（生のファクト） |
+| `minRating` | number | いいえ | 関連するファクトをフィルタリングする最小評価 |
+| `apiKey` | string | はい | あなたのZep APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `context` | string | コンテキスト文字列（サマリーまたは基本） |
+| `facts` | array | 抽出されたファクト |
+| `entities` | array | 抽出されたエンティティ |
+| `summary` | string | 会話のサマリー |
+
+### `zep_get_messages`
+
+スレッドからメッセージを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | はい | メッセージを取得するスレッドID |
+| `limit` | number | いいえ | 返すメッセージの最大数 |
+| `cursor` | string | いいえ | ページネーション用のカーソル |
+| `lastn` | number | いいえ | 返す最新メッセージの数（limitとcursorより優先される） |
+| `apiKey` | string | はい | あなたのZep APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `messages` | array | メッセージオブジェクトの配列 |
+| `rowCount` | number | このレスポンスに含まれるメッセージの数 |
+| `totalCount` | number | スレッド内のメッセージの総数 |
+
+### `zep_add_messages`
+
+既存のスレッドにメッセージを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | はい | メッセージを追加するスレッドID |
+| `messages` | json | はい | ロールとコンテンツを持つメッセージオブジェクトの配列 |
+| `apiKey` | string | はい | あなたのZep APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `context` | string | メッセージ追加後の更新されたコンテキスト |
+| `messageIds` | array | 追加されたメッセージUUIDの配列 |
+| `threadId` | string | スレッドID |
+
+### `zep_add_user`
+
+Zepで新しいユーザーを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | はい | ユーザーの一意の識別子 |
+| `email` | string | いいえ | ユーザーのメールアドレス |
+| `firstName` | string | いいえ | ユーザーの名 |
+| `lastName` | string | いいえ | ユーザーの姓 |
+| `metadata` | json | いいえ | JSONオブジェクトとしての追加メタデータ |
+| `apiKey` | string | はい | あなたのZep APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `userId` | string | ユーザーID |
+| `email` | string | ユーザーのメール |
+| `firstName` | string | ユーザーの名 |
+| `lastName` | string | ユーザーの姓 |
+| `uuid` | string | 内部UUID |
+| `createdAt` | string | 作成タイムスタンプ |
+| `metadata` | object | ユーザーメタデータ |
+
+### `zep_get_user`
+
+Zepからユーザー情報を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | はい | 取得するユーザーID |
+| `apiKey` | string | はい | あなたのZep APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `userId` | string | ユーザーID |
+| `email` | string | ユーザーのメール |
+| `firstName` | string | ユーザーの名 |
+| `lastName` | string | ユーザーの姓 |
+| `uuid` | string | 内部UUID |
+| `createdAt` | string | 作成タイムスタンプ |
+| `updatedAt` | string | 最終更新タイムスタンプ |
+| `metadata` | object | ユーザーメタデータ |
+
+### `zep_get_user_threads`
+
+特定のユーザーのすべての会話スレッドを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | はい | スレッドを取得するユーザーID |
+| `limit` | number | いいえ | 返すスレッドの最大数 |
+| `apiKey` | string | はい | あなたのZep APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `threads` | array | このユーザーのスレッドオブジェクトの配列 |
+| `userId` | string | ユーザーID |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `zep`

@@ -1,0 +1,158 @@
+---
+title: Agent
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Le bloc Agent connecte votre flux de travail aux grands modèles de langage (LLM). Il traite les entrées en langage naturel, appelle des outils externes et génère des sorties structurées ou non structurées.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/agent.png"
+    alt="Configuration du bloc Agent"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div> 
+
+## Options de configuration
+
+### Prompt système
+
+Le prompt système établit les paramètres opérationnels et les contraintes comportementales de l'agent. Cette configuration définit le rôle de l'agent, sa méthodologie de réponse et les limites de traitement pour toutes les requêtes entrantes.
+
+```markdown
+You are a helpful assistant that specializes in financial analysis.
+Always provide clear explanations and cite sources when possible.
+When responding to questions about investments, include risk disclaimers.
+```
+
+### Prompt utilisateur
+
+Le prompt utilisateur représente les données d'entrée principales pour le traitement d'inférence. Ce paramètre accepte du texte en langage naturel ou des données structurées que l'agent analysera pour y répondre. Les sources d'entrée comprennent :
+
+- **Configuration statique** : saisie directe de texte spécifiée dans la configuration du bloc
+- **Entrée dynamique** : données transmises depuis des blocs en amont via des interfaces de connexion
+- **Génération à l'exécution** : contenu généré par programmation pendant l'exécution du flux de travail
+
+### Sélection du modèle
+
+Le bloc Agent prend en charge plusieurs fournisseurs de LLM via une interface d'inférence unifiée. Les modèles disponibles comprennent :
+
+- **OpenAI** : GPT-5.1, GPT-5, GPT-4o, o1, o3, o4-mini, gpt-4.1
+- **Anthropic** : Claude 4.5 Sonnet, Claude Opus 4.1
+- **Google** : Gemini 2.5 Pro, Gemini 2.0 Flash
+- **Autres fournisseurs** : Groq, Cerebras, xAI, Azure OpenAI, OpenRouter
+- **Modèles locaux** : modèles compatibles avec Ollama ou VLLM
+
+### Température
+
+Contrôle l'aléatoire et la créativité des réponses :
+
+- **Basse (0-0,3)** : déterministe et ciblée. Idéale pour les tâches factuelles et la précision.
+- **Moyenne (0,3-0,7)** : équilibre entre créativité et concentration. Adaptée à un usage général.
+- **Élevée (0,7-2,0)** : créative et variée. Idéale pour le brainstorming et la génération de contenu.
+
+### Clé API
+
+Votre clé API pour le fournisseur LLM sélectionné. Elle est stockée en toute sécurité et utilisée pour l'authentification.
+
+### Outils
+
+Étendez les capacités de l'agent avec des intégrations externes. Sélectionnez parmi plus de 60 outils préconçus ou définissez des fonctions personnalisées.
+
+**Catégories disponibles :**
+- **Communication** : Gmail, Slack, Telegram, WhatsApp, Microsoft Teams
+- **Sources de données** : Notion, Google Sheets, Airtable, Supabase, Pinecone
+- **Services web** : Firecrawl, Google Search, Exa AI, automatisation de navigateur
+- **Développement** : GitHub, Jira, Linear
+- **Services IA** : OpenAI, Perplexity, Hugging Face, ElevenLabs
+
+**Modes d'exécution :**
+- **Auto** : le modèle décide quand utiliser les outils en fonction du contexte
+- **Obligatoire** : l'outil doit être appelé à chaque requête
+- **Aucun** : l'outil est disponible mais n'est pas suggéré au modèle
+
+### Format de réponse
+
+Le paramètre Format de réponse impose la génération de sorties structurées grâce à la validation par schéma JSON. Cela garantit des réponses cohérentes et lisibles par machine qui se conforment à des structures de données prédéfinies :
+
+```json
+{
+  "name": "user_analysis",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "sentiment": {
+        "type": "string",
+        "enum": ["positive", "negative", "neutral"]
+      },
+      "confidence": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "required": ["sentiment", "confidence"]
+  }
+}
+```
+
+Cette configuration contraint la sortie du modèle à se conformer au schéma spécifié, empêchant les réponses en texte libre et assurant la génération de données structurées.
+
+### Accès aux résultats
+
+Une fois qu'un agent a terminé, vous pouvez accéder à ses sorties :
+
+- **`<agent.content>`** : Le texte de réponse de l'agent ou les données structurées
+- **`<agent.tokens>`** : Statistiques d'utilisation des tokens (prompt, complétion, total)
+- **`<agent.tool_calls>`** : Détails des outils que l'agent a utilisés pendant l'exécution
+- **`<agent.cost>`** : Coût estimé de l'appel API (si disponible)
+
+## Fonctionnalités avancées
+
+### Mémoire + Agent : historique de conversation
+
+Utilisez un bloc `Memory` avec un `id` cohérent (par exemple, `chat`) pour conserver les messages entre les exécutions, et inclure cet historique dans le prompt de l'Agent.
+
+- Ajoutez le message de l'utilisateur avant l'Agent
+- Lisez l'historique de conversation pour le contexte
+- Ajoutez la réponse de l'Agent après son exécution
+
+Consultez la référence du bloc [`Memory`](/tools/memory) pour plus de détails.
+
+## Sorties
+
+- **`<agent.content>`** : Texte de réponse de l'agent
+- **`<agent.tokens>`** : Statistiques d'utilisation des tokens
+- **`<agent.tool_calls>`** : Détails d'exécution des outils
+- **`<agent.cost>`** : Coût estimé de l'appel API
+
+## Exemples de cas d'utilisation
+
+**Automatisation du support client** - Traiter les demandes avec accès à la base de données et aux outils
+
+```
+API (Ticket) → Agent (Postgres, KB, Linear) → Gmail (Reply) → Memory (Save)
+```
+
+**Analyse de contenu multi-modèles** - Analyser le contenu avec différents modèles d'IA
+
+```
+Function (Process) → Agent (GPT-4o Technical) → Agent (Claude Sentiment) → Function (Report)
+```
+
+**Assistant de recherche avec outils** - Recherche avec accès web et consultation de documents
+
+```
+Input → Agent (Google Search, Notion) → Function (Compile Report)
+```
+
+## Bonnes pratiques
+
+- **Soyez précis dans les instructions système** : Définissez clairement le rôle, le ton et les limites de l'agent. Plus vos instructions sont spécifiques, mieux l'agent pourra remplir sa mission.
+- **Choisissez le bon réglage de température** : Utilisez des réglages de température plus bas (0-0,3) lorsque la précision est importante, ou augmentez la température (0,7-2,0) pour des réponses plus créatives ou variées
+- **Utilisez efficacement les outils** : Intégrez des outils qui complètent l'objectif de l'agent et améliorent ses capacités. Soyez sélectif dans le choix des outils pour éviter de surcharger l'agent. Pour les tâches avec peu de chevauchement, utilisez un autre bloc Agent pour obtenir les meilleurs résultats.

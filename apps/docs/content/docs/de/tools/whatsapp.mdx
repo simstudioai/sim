@@ -1,0 +1,57 @@
+---
+title: WhatsApp
+description: WhatsApp-Nachrichten senden
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="whatsapp"
+  color="#25D366"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[WhatsApp](https://www.whatsapp.com/) ist eine weltweit beliebte Messaging-Plattform, die sichere, zuverlässige Kommunikation zwischen Einzelpersonen und Unternehmen ermöglicht.
+
+Die WhatsApp Business API bietet Organisationen leistungsstarke Funktionen, um:
+
+- **Kunden zu erreichen**: Personalisierte Nachrichten, Benachrichtigungen und Updates direkt an die bevorzugte Messaging-App der Kunden senden
+- **Gespräche automatisieren**: Interaktive Chatbots und automatisierte Antwortsysteme für häufige Anfragen erstellen
+- **Support verbessern**: Echtzeit-Kundenservice über eine vertraute Oberfläche mit Unterstützung für reichhaltige Medien anbieten
+- **Conversions steigern**: Transaktionen und Follow-ups mit Kunden in einer sicheren, konformen Umgebung erleichtern
+
+In Sim ermöglicht die WhatsApp-Integration Ihren Agenten, diese Messaging-Funktionen als Teil ihrer Workflows zu nutzen. Dies schafft Möglichkeiten für anspruchsvolle Kundenbindungsszenarien wie Terminerinnerungen, Verifizierungscodes, Warnmeldungen und interaktive Gespräche. Die Integration überbrückt die Lücke zwischen Ihren KI-Workflows und Kundenkommunikationskanälen und ermöglicht es Ihren Agenten, zeitnahe, relevante Informationen direkt auf die Mobilgeräte der Benutzer zu liefern. Durch die Verbindung von Sim mit WhatsApp können Sie intelligente Agenten erstellen, die Kunden über ihre bevorzugte Messaging-Plattform ansprechen, die Benutzererfahrung verbessern und gleichzeitig routinemäßige Messaging-Aufgaben automatisieren.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integriert WhatsApp in den Workflow. Kann Nachrichten senden.
+
+## Tools
+
+### `whatsapp_send_message`
+
+WhatsApp-Nachrichten senden
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `phoneNumber` | string | Ja | Telefonnummer des Empfängers mit Ländervorwahl |
+| `message` | string | Ja | Zu sendender Nachrichteninhalt |
+| `phoneNumberId` | string | Ja | WhatsApp Business Telefonnummer-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus des WhatsApp-Nachrichtenversands |
+| `messageId` | string | Eindeutige WhatsApp-Nachrichten-ID |
+| `phoneNumber` | string | Telefonnummer des Empfängers |
+| `status` | string | Zustellungsstatus der Nachricht |
+| `timestamp` | string | Zeitstempel des Nachrichtenversands |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `whatsapp`

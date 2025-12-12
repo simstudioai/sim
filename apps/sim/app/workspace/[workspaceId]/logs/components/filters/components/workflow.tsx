@@ -1,14 +1,30 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { useParams } from 'next/navigation'
+import { Button } from '@/components/emcn'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { createLogger } from '@/lib/logs/console/logger'
+import {
+  commandListClass,
+  dropdownContentClass,
+  filterButtonClass,
+  workflowDropdownListStyle,
+} from '@/app/workspace/[workspaceId]/logs/components/filters/components/shared'
 import { useFilterStore } from '@/stores/logs/filters/store'
+
+const logger = createLogger('LogsWorkflowFilter')
 
 interface WorkflowOption {
   id: string
@@ -17,19 +33,27 @@ interface WorkflowOption {
 }
 
 export default function Workflow() {
-  const { workflowIds, toggleWorkflowId, setWorkflowIds } = useFilterStore()
+  const { workflowIds, toggleWorkflowId, setWorkflowIds, folderIds } = useFilterStore()
+  const params = useParams()
+  const workspaceId = params?.workspaceId as string | undefined
   const [workflows, setWorkflows] = useState<WorkflowOption[]>([])
   const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
 
-  // Fetch all available workflows from the API
   useEffect(() => {
     const fetchWorkflows = async () => {
       try {
         setLoading(true)
-        const response = await fetch('/api/workflows/sync')
+        const query = workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : ''
+        const response = await fetch(`/api/workflows${query}`)
         if (response.ok) {
           const { data } = await response.json()
-          const workflowOptions: WorkflowOption[] = data.map((workflow: any) => ({
+          const scoped = Array.isArray(data)
+            ? folderIds.length > 0
+              ? data.filter((w: any) => (w.folderId ? folderIds.includes(w.folderId) : false))
+              : data
+            : []
+          const workflowOptions: WorkflowOption[] = scoped.map((workflow: any) => ({
             id: workflow.id,
             name: workflow.name,
             color: workflow.color || '#3972F6',
@@ -37,16 +61,15 @@ export default function Workflow() {
           setWorkflows(workflowOptions)
         }
       } catch (error) {
-        console.error('Failed to fetch workflows:', error)
+        logger.error('Failed to fetch workflows', { error })
       } finally {
         setLoading(false)
       }
     }
 
     fetchWorkflows()
-  }, [])
+  }, [workspaceId, folderIds])
 
-  // Get display text for the dropdown button
   const getSelectedWorkflowsText = () => {
     if (workflowIds.length === 0) return 'All workflows'
     if (workflowIds.length === 1) {
@@ -56,12 +79,10 @@ export default function Workflow() {
     return `${workflowIds.length} workflows selected`
   }
 
-  // Check if a workflow is selected
   const isWorkflowSelected = (workflowId: string) => {
     return workflowIds.includes(workflowId)
   }
 
-  // Clear all selections
   const clearSelections = () => {
     setWorkflowIds([])
   }
@@ -69,66 +90,65 @@ export default function Workflow() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant='outline'
-          size='sm'
-          className='w-full justify-between rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] font-normal text-sm dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
-        >
+        <Button variant='outline' className={filterButtonClass}>
           {loading ? 'Loading workflows...' : getSelectedWorkflowsText()}
           <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align='start'
-        className='max-h-[300px] w-[180px] overflow-y-auto rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
-        style={{
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
-        }}
+        side='bottom'
+        avoidCollisions={false}
+        sideOffset={4}
+        className={dropdownContentClass}
       >
-        <DropdownMenuItem
-          key='all'
-          onSelect={(e) => {
-            e.preventDefault()
-            clearSelections()
-          }}
-          className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
-        >
-          <span>All workflows</span>
-          {workflowIds.length === 0 && <Check className='h-4 w-4 text-primary' />}
-        </DropdownMenuItem>
-
-        {!loading && workflows.length > 0 && <DropdownMenuSeparator />}
-
-        {!loading &&
-          workflows.map((workflow) => (
-            <DropdownMenuItem
-              key={workflow.id}
-              onSelect={(e) => {
-                e.preventDefault()
-                toggleWorkflowId(workflow.id)
-              }}
-              className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
-            >
-              <div className='flex items-center'>
-                <div
-                  className='mr-2 h-2 w-2 rounded-full'
-                  style={{ backgroundColor: workflow.color }}
-                />
-                {workflow.name}
-              </div>
-              {isWorkflowSelected(workflow.id) && <Check className='h-4 w-4 text-primary' />}
-            </DropdownMenuItem>
-          ))}
-
-        {loading && (
-          <DropdownMenuItem
-            disabled
-            className='rounded-md px-3 py-2 font-[380] text-muted-foreground text-sm'
-          >
-            Loading workflows...
-          </DropdownMenuItem>
-        )}
+        <Command>
+          <CommandInput placeholder='Search workflows...' onValueChange={(v) => setSearch(v)} />
+          <CommandList className={commandListClass} style={workflowDropdownListStyle}>
+            <CommandEmpty>{loading ? 'Loading workflows...' : 'No workflows found.'}</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value='all-workflows'
+                onSelect={() => {
+                  clearSelections()
+                }}
+                className='cursor-pointer'
+              >
+                <span>All workflows</span>
+                {workflowIds.length === 0 && (
+                  <Check className='ml-auto h-4 w-4 text-muted-foreground' />
+                )}
+              </CommandItem>
+              {useMemo(() => {
+                const q = search.trim().toLowerCase()
+                const filtered = q
+                  ? workflows.filter((w) => w.name.toLowerCase().includes(q))
+                  : workflows
+                return filtered.map((workflow) => (
+                  <CommandItem
+                    key={workflow.id}
+                    value={`${workflow.name}`}
+                    onSelect={() => {
+                      toggleWorkflowId(workflow.id)
+                    }}
+                    className='cursor-pointer'
+                  >
+                    <div className='flex items-center'>
+                      <div
+                        className='mr-2 h-2 w-2 rounded-full'
+                        style={{ backgroundColor: workflow.color }}
+                      />
+                      {workflow.name}
+                    </div>
+                    {isWorkflowSelected(workflow.id) && (
+                      <Check className='ml-auto h-4 w-4 text-muted-foreground' />
+                    )}
+                  </CommandItem>
+                ))
+              }, [workflows, search, workflowIds])}
+            </CommandGroup>
+          </CommandList>
+        </Command>
       </DropdownMenuContent>
     </DropdownMenu>
   )

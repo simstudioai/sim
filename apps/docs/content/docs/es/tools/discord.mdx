@@ -1,0 +1,737 @@
+---
+title: Discord
+description: Interactúa con Discord
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="discord"
+  color="#5865F2"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Discord](https://discord.com) es una potente plataforma de comunicación que te permite conectar con amigos, comunidades y equipos. Ofrece una variedad de funciones para la colaboración en equipo, incluyendo canales de texto, canales de voz y videollamadas.
+
+Con una cuenta o bot de Discord, puedes:
+
+- **Enviar mensajes**: Enviar mensajes a un canal específico
+- **Obtener mensajes**: Obtener mensajes de un canal específico
+- **Obtener servidor**: Obtener información sobre un servidor específico
+- **Obtener usuario**: Obtener información sobre un usuario específico
+
+En Sim, la integración con Discord permite a tus agentes acceder y aprovechar los servidores de Discord de tu organización. Los agentes pueden recuperar información de los canales de Discord, buscar usuarios específicos, obtener información del servidor y enviar mensajes. Esto permite que tus flujos de trabajo se integren con tus comunidades de Discord, automaticen notificaciones y creen experiencias interactivas.
+
+> **Importante:** Para leer el contenido de los mensajes, tu bot de Discord necesita tener habilitado el "Message Content Intent" en el Portal de Desarrolladores de Discord. Sin este permiso, seguirás recibiendo los metadatos del mensaje pero el campo de contenido aparecerá vacío.
+
+Los componentes de Discord en Sim utilizan una carga diferida eficiente, obteniendo datos solo cuando es necesario para minimizar las llamadas a la API y evitar limitaciones de tasa. La actualización de tokens ocurre automáticamente en segundo plano para mantener tu conexión.
+
+### Configuración de tu bot de Discord
+
+1. Ve al [Portal de Desarrolladores de Discord](https://discord.com/developers/applications)
+2. Crea una nueva aplicación y navega a la pestaña "Bot"
+3. Crea un bot y copia tu token de bot
+4. En "Privileged Gateway Intents", habilita el **Message Content Intent** para leer el contenido de los mensajes
+5. Invita a tu bot a tus servidores con los permisos apropiados
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integración completa con Discord: mensajes, hilos, canales, roles, miembros, invitaciones y webhooks.
+
+## Herramientas
+
+### `discord_send_message`
+
+Enviar un mensaje a un canal de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `channelId` | string | Sí | El ID del canal de Discord al que enviar el mensaje |
+| `content` | string | No | El contenido de texto del mensaje |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+| `files` | file[] | No | Archivos para adjuntar al mensaje |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Datos del mensaje de Discord |
+
+### `discord_get_messages`
+
+Recuperar mensajes de un canal de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `channelId` | string | Sí | El ID del canal de Discord del que recuperar mensajes |
+| `limit` | number | No | Número máximo de mensajes a recuperar \(predeterminado: 10, máx: 100\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Contenedor para datos de mensajes |
+
+### `discord_get_server`
+
+Recuperar información sobre un servidor de Discord (guild)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Información del servidor de Discord \(guild\) |
+
+### `discord_get_user`
+
+Recuperar información sobre un usuario de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | Token del bot de Discord para autenticación |
+| `userId` | string | Sí | El ID del usuario de Discord |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Información del usuario de Discord |
+
+### `discord_edit_message`
+
+Editar un mensaje existente en un canal de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `channelId` | string | Sí | El ID del canal de Discord que contiene el mensaje |
+| `messageId` | string | Sí | El ID del mensaje a editar |
+| `content` | string | No | El nuevo contenido de texto para el mensaje |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Datos actualizados del mensaje de Discord |
+
+### `discord_delete_message`
+
+Eliminar un mensaje de un canal de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `channelId` | string | Sí | El ID del canal de Discord que contiene el mensaje |
+| `messageId` | string | Sí | El ID del mensaje a eliminar |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+
+### `discord_add_reaction`
+
+Añadir una reacción con emoji a un mensaje de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `channelId` | string | Sí | El ID del canal de Discord que contiene el mensaje |
+| `messageId` | string | Sí | El ID del mensaje al que reaccionar |
+| `emoji` | string | Sí | El emoji para reaccionar \(emoji unicode o emoji personalizado en formato nombre:id\) |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+
+### `discord_remove_reaction`
+
+Eliminar una reacción de un mensaje de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `channelId` | string | Sí | El ID del canal de Discord que contiene el mensaje |
+| `messageId` | string | Sí | El ID del mensaje con la reacción |
+| `emoji` | string | Sí | El emoji a eliminar \(emoji unicode o emoji personalizado en formato nombre:id\) |
+| `userId` | string | No | El ID del usuario cuya reacción se eliminará \(omitir para eliminar la propia reacción del bot\) |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+
+### `discord_pin_message`
+
+Fijar un mensaje en un canal de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `channelId` | string | Sí | El ID del canal de Discord que contiene el mensaje |
+| `messageId` | string | Sí | El ID del mensaje a fijar |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+
+### `discord_unpin_message`
+
+Desfijar un mensaje en un canal de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `channelId` | string | Sí | El ID del canal de Discord que contiene el mensaje |
+| `messageId` | string | Sí | El ID del mensaje a desfijar |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+
+### `discord_create_thread`
+
+Crear un hilo en un canal de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `channelId` | string | Sí | El ID del canal de Discord donde crear el hilo |
+| `name` | string | Sí | El nombre del hilo \(1-100 caracteres\) |
+| `messageId` | string | No | El ID del mensaje para crear un hilo a partir de él \(si se crea desde un mensaje existente\) |
+| `autoArchiveDuration` | number | No | Duración en minutos para auto-archivar el hilo \(60, 1440, 4320, 10080\) |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Datos del hilo creado |
+
+### `discord_join_thread`
+
+Unirse a un hilo en Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `threadId` | string | Sí | El ID del hilo al que unirse |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+
+### `discord_leave_thread`
+
+Abandonar un hilo en Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `threadId` | string | Sí | El ID del hilo que se va a abandonar |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+
+### `discord_archive_thread`
+
+Archivar o desarchivar un hilo en Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `threadId` | string | Sí | El ID del hilo que se va a archivar/desarchivar |
+| `archived` | boolean | Sí | Si se debe archivar \(true\) o desarchivar \(false\) el hilo |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Datos actualizados del hilo |
+
+### `discord_create_channel`
+
+Crear un nuevo canal en un servidor de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+| `name` | string | Sí | El nombre del canal \(1-100 caracteres\) |
+| `type` | number | No | Tipo de canal \(0=texto, 2=voz, 4=categoría, 5=anuncio, 13=escenario\) |
+| `topic` | string | No | Tema del canal \(0-1024 caracteres\) |
+| `parentId` | string | No | ID de la categoría padre para el canal |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Datos del canal creado |
+
+### `discord_update_channel`
+
+Actualizar un canal de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `channelId` | string | Sí | El ID del canal de Discord a actualizar |
+| `name` | string | No | El nuevo nombre para el canal |
+| `topic` | string | No | El nuevo tema para el canal |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Datos del canal actualizado |
+
+### `discord_delete_channel`
+
+Eliminar un canal de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `channelId` | string | Sí | El ID del canal de Discord a eliminar |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+
+### `discord_get_channel`
+
+Obtener información sobre un canal de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `channelId` | string | Sí | El ID del canal de Discord a recuperar |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Datos del canal |
+
+### `discord_create_role`
+
+Crear un nuevo rol en un servidor de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+| `name` | string | Sí | El nombre del rol |
+| `color` | number | No | Valor de color RGB como entero \(p. ej., 0xFF0000 para rojo\) |
+| `hoist` | boolean | No | Si se deben mostrar los miembros del rol por separado de los miembros en línea |
+| `mentionable` | boolean | No | Si el rol puede ser mencionado |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Datos del rol creado |
+
+### `discord_update_role`
+
+Actualizar un rol en un servidor de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+| `roleId` | string | Sí | El ID del rol a actualizar |
+| `name` | string | No | El nuevo nombre para el rol |
+| `color` | number | No | Valor de color RGB como entero |
+| `hoist` | boolean | No | Si se deben mostrar los miembros del rol por separado |
+| `mentionable` | boolean | No | Si el rol puede ser mencionado |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Datos del rol actualizado |
+
+### `discord_delete_role`
+
+Eliminar un rol de un servidor de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+| `roleId` | string | Sí | El ID del rol a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+
+### `discord_assign_role`
+
+Asignar un rol a un miembro en un servidor de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+| `userId` | string | Sí | El ID del usuario al que asignar el rol |
+| `roleId` | string | Sí | El ID del rol a asignar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+
+### `discord_remove_role`
+
+Eliminar un rol de un miembro en un servidor de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+| `userId` | string | Sí | El ID del usuario al que quitar el rol |
+| `roleId` | string | Sí | El ID del rol a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+
+### `discord_kick_member`
+
+Expulsar a un miembro de un servidor de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+| `userId` | string | Sí | El ID del usuario a expulsar |
+| `reason` | string | No | Motivo para expulsar al miembro |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+
+### `discord_ban_member`
+
+Banear a un miembro de un servidor de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+| `userId` | string | Sí | El ID del usuario a banear |
+| `reason` | string | No | Motivo para banear al miembro |
+| `deleteMessageDays` | number | No | Número de días para eliminar mensajes \(0-7\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+
+### `discord_unban_member`
+
+Desbanear a un miembro de un servidor de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+| `userId` | string | Sí | El ID del usuario a desbanear |
+| `reason` | string | No | Motivo para desbanear al miembro |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+
+### `discord_get_member`
+
+Obtener información sobre un miembro en un servidor de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+| `userId` | string | Sí | El ID del usuario a recuperar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Datos del miembro |
+
+### `discord_update_member`
+
+Actualizar un miembro en un servidor de Discord (p. ej., cambiar apodo)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+| `userId` | string | Sí | El ID del usuario a actualizar |
+| `nick` | string | No | Nuevo apodo para el miembro \(null para eliminar\) |
+| `mute` | boolean | No | Si se debe silenciar al miembro en canales de voz |
+| `deaf` | boolean | No | Si se debe ensordecer al miembro en canales de voz |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Datos actualizados del miembro |
+
+### `discord_create_invite`
+
+Crear un enlace de invitación para un canal de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `channelId` | string | Sí | El ID del canal de Discord para el que crear una invitación |
+| `maxAge` | number | No | Duración de la invitación en segundos \(0 = nunca expira, predeterminado 86400\) |
+| `maxUses` | number | No | Número máximo de usos \(0 = ilimitado, predeterminado 0\) |
+| `temporary` | boolean | No | Si la invitación otorga membresía temporal |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Datos de la invitación creada |
+
+### `discord_get_invite`
+
+Obtener información sobre una invitación de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `inviteCode` | string | Sí | El código de invitación a recuperar |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Datos de la invitación |
+
+### `discord_delete_invite`
+
+Eliminar una invitación de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `inviteCode` | string | Sí | El código de invitación a eliminar |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+
+### `discord_create_webhook`
+
+Crear un webhook en un canal de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `channelId` | string | Sí | El ID del canal de Discord donde crear el webhook |
+| `name` | string | Sí | Nombre del webhook \(1-80 caracteres\) |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Datos del webhook creado |
+
+### `discord_execute_webhook`
+
+Ejecutar un webhook de Discord para enviar un mensaje
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `webhookId` | string | Sí | El ID del webhook |
+| `webhookToken` | string | Sí | El token del webhook |
+| `content` | string | Sí | El contenido del mensaje a enviar |
+| `username` | string | No | Sobrescribir el nombre de usuario predeterminado del webhook |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Mensaje enviado a través del webhook |
+
+### `discord_get_webhook`
+
+Obtener información sobre un webhook de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `webhookId` | string | Sí | El ID del webhook a recuperar |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Datos del webhook |
+
+### `discord_delete_webhook`
+
+Eliminar un webhook de Discord
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Sí | El token del bot para autenticación |
+| `webhookId` | string | Sí | El ID del webhook a eliminar |
+| `serverId` | string | Sí | El ID del servidor de Discord \(ID del guild\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `discord`

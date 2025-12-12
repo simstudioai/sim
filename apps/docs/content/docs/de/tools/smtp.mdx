@@ -1,0 +1,73 @@
+---
+title: SMTP
+description: E-Mails über jeden SMTP-Mailserver versenden
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="smtp"
+  color="#2D3748"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SMTP (Simple Mail Transfer Protocol)](https://en.wikipedia.org/wiki/Simple_Mail_Transfer_Protocol) ist der grundlegende Standard für die E-Mail-Übertragung im Internet. Durch die Verbindung mit einem SMTP-kompatiblen Server – wie Gmail, Outlook oder der eigenen Mail-Infrastruktur Ihrer Organisation – können Sie E-Mails programmatisch versenden und Ihre ausgehende Kommunikation automatisieren.
+
+Die SMTP-Integration ermöglicht es Ihnen, den E-Mail-Versand durch direkte Serververbindung vollständig anzupassen und unterstützt sowohl einfache als auch fortgeschrittene E-Mail-Anwendungsfälle. Mit SMTP können Sie jeden Aspekt der Nachrichtenzustellung, des Empfängermanagements und der Inhaltsformatierung kontrollieren, was es ideal für transaktionale Benachrichtigungen, Massenmailings und jeden automatisierten Workflow macht, der eine robuste ausgehende E-Mail-Zustellung erfordert.
+
+**Zu den wichtigsten Funktionen der SMTP-Integration gehören:**
+
+- **Universeller E-Mail-Versand:** Senden Sie E-Mails über jeden SMTP-Server durch Konfiguration standardmäßiger Serververbindungsparameter.
+- **Anpassbare Absender und Empfänger:** Legen Sie Absenderadresse, Anzeigename, Hauptempfänger sowie CC- und BCC-Felder fest.
+- **Unterstützung für umfangreiche Inhalte:** Senden Sie Nur-Text- oder reich formatierte HTML-E-Mails entsprechend Ihren Anforderungen.
+- **Anhänge:** Fügen Sie ausgehenden E-Mails mehrere Dateien als Anhänge hinzu.
+- **Flexible Sicherheit:** Verbinden Sie sich über TLS, SSL oder Standardprotokolle (unverschlüsselt), je nach Unterstützung Ihres SMTP-Anbieters.
+- **Erweiterte Header:** Setzen Sie Antwort-an-Header und andere erweiterte E-Mail-Optionen, um komplexe Mailflows und Benutzerinteraktionen zu ermöglichen.
+
+Durch die Integration von SMTP mit Sim können Agenten und Workflows programmatisch E-Mails als Teil jedes automatisierten Prozesses versenden – von Benachrichtigungen und Bestätigungen bis hin zur Automatisierung externer Kommunikation, Berichterstattung und Dokumentenzustellung. Dies bietet einen hochflexiblen, anbieterunabhängigen Ansatz zur Verwaltung von E-Mails direkt innerhalb Ihrer KI-gesteuerten Prozesse.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Senden Sie E-Mails über jeden SMTP-Server (Gmail, Outlook, benutzerdefinierte Server usw.). Konfigurieren Sie SMTP-Verbindungseinstellungen und senden Sie E-Mails mit voller Kontrolle über Inhalt, Empfänger und Anhänge.
+
+## Tools
+
+### `smtp_send_mail`
+
+E-Mails über SMTP-Server senden
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `smtpHost` | string | Ja | SMTP-Server-Hostname \(z.B. smtp.gmail.com\) |
+| `smtpPort` | number | Ja | SMTP-Server-Port \(587 für TLS, 465 für SSL\) |
+| `smtpUsername` | string | Ja | SMTP-Authentifizierungsbenutzername |
+| `smtpPassword` | string | Ja | SMTP-Authentifizierungspasswort |
+| `smtpSecure` | string | Ja | Sicherheitsprotokoll \(TLS, SSL oder None\) |
+| `from` | string | Ja | Absender-E-Mail-Adresse |
+| `to` | string | Ja | Empfänger-E-Mail-Adresse |
+| `subject` | string | Ja | E-Mail-Betreff |
+| `body` | string | Ja | E-Mail-Inhalt |
+| `contentType` | string | Nein | Inhaltstyp \(text oder html\) |
+| `fromName` | string | Nein | Anzeigename für Absender |
+| `cc` | string | Nein | CC-Empfänger \(durch Komma getrennt\) |
+| `bcc` | string | Nein | BCC-Empfänger \(durch Komma getrennt\) |
+| `replyTo` | string | Nein | Antwort-an E-Mail-Adresse |
+| `attachments` | file[] | Nein | Dateien, die der E-Mail angehängt werden sollen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die E-Mail erfolgreich gesendet wurde |
+| `messageId` | string | Nachrichten-ID vom SMTP-Server |
+| `to` | string | Empfänger-E-Mail-Adresse |
+| `subject` | string | E-Mail-Betreff |
+| `error` | string | Fehlermeldung, wenn das Senden fehlgeschlagen ist |
+
+## Notizen
+
+- Kategorie: `tools`
+- Typ: `smtp`

@@ -1,0 +1,110 @@
+---
+title: Qdrant
+description: 使用 Qdrant 向量数据库
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="qdrant"
+  color="#1A223F"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Qdrant](https://qdrant.tech) 是一个开源的向量数据库，专为高维向量嵌入的高效存储、管理和检索而设计。Qdrant 支持快速且可扩展的语义搜索，非常适合需要相似性搜索、推荐系统和上下文信息检索的 AI 应用。
+
+使用 Qdrant，您可以：
+
+- **存储向量嵌入**：高效管理和持久化大规模高维向量
+- **执行语义相似性搜索**：实时查找与查询向量最相似的向量
+- **过滤和组织数据**：使用高级过滤功能根据元数据或负载缩小搜索结果范围
+- **获取特定点**：通过 ID 检索向量及其关联的负载
+- **无缝扩展**：处理大型集合和高吞吐量工作负载
+
+在 Sim 中，Qdrant 集成使您的代理能够以编程方式将 Qdrant 作为其工作流程的一部分进行交互。支持的操作包括：
+
+- **插入或更新（Upsert）**：在 Qdrant 集合中插入或更新点（向量和负载）
+- **搜索（Search）**：执行相似性搜索，以找到与给定查询向量最相似的向量，并可选择过滤和自定义结果
+- **获取（Fetch）**：通过 ID 从集合中检索特定点，并可选择包括负载和向量
+
+此集成使您的代理能够利用强大的向量搜索和管理功能，从而实现高级自动化场景，例如语义搜索、推荐和上下文检索。通过将 Sim 与 Qdrant 连接，您可以构建能够理解上下文、从大型数据集中检索相关信息并提供更智能、更个性化响应的代理——而无需管理复杂的基础设施。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Qdrant 集成到工作流程中。可以插入、搜索和获取点。需要 API 密钥。
+
+## 工具
+
+### `qdrant_upsert_points`
+
+在 Qdrant 集合中插入或更新点
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | 是 | Qdrant 基础 URL |
+| `apiKey` | string | 否 | Qdrant API 密钥（可选）|
+| `collection` | string | 是 | 集合名称 |
+| `points` | array | 是 | 要插入或更新的点数组 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `status` | string | 插入或更新操作的状态 |
+| `data` | object | 插入或更新操作的结果数据 |
+
+### `qdrant_search_vector`
+
+在 Qdrant 集合中搜索相似向量
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | 是 | Qdrant 基础 URL |
+| `apiKey` | string | 否 | Qdrant API 密钥（可选）|
+| `collection` | string | 是 | 集合名称 |
+| `vector` | array | 是 | 要搜索的向量 |
+| `limit` | number | 否 | 要返回的结果数量 |
+| `filter` | object | 否 | 要应用于搜索的过滤器 |
+| `search_return_data` | string | 否 | 搜索中要返回的数据 |
+| `with_payload` | boolean | 否 | 在响应中包含有效负载 |
+| `with_vector` | boolean | 否 | 在响应中包含向量 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `data` | array | 向量搜索结果，包括 ID、分数、有效负载和可选的向量数据 |
+| `status` | string | 搜索操作的状态 |
+
+### `qdrant_fetch_points`
+
+从 Qdrant 集合中通过 ID 获取点
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | 是 | Qdrant 基础 URL |
+| `apiKey` | string | 否 | Qdrant API 密钥（可选）|
+| `collection` | string | 是 | 集合名称 |
+| `ids` | array | 是 | 要获取的点 ID 数组 |
+| `fetch_return_data` | string | 否 | 获取中要返回的数据 |
+| `with_payload` | boolean | 否 | 在响应中包含有效负载 |
+| `with_vector` | boolean | 否 | 在响应中包含向量 |
+
+#### 输出
+
+| 参数       | 类型  | 描述                     |
+| --------- | ---- | ---------------------- |
+| `data` | array | 包含 ID、有效负载和可选向量数据的获取点 |
+| `status` | string | 获取操作的状态             |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`qdrant`

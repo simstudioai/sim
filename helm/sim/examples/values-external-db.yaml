@@ -26,8 +26,15 @@ app:
     NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"
     
     # Security settings (REQUIRED - replace with your own secure secrets)
+    # Generate using: openssl rand -hex 32
     BETTER_AUTH_SECRET: ""  # Set via --set flag or external secret manager
     ENCRYPTION_KEY: ""      # Set via --set flag or external secret manager
+    INTERNAL_API_SECRET: "" # Set via --set flag or external secret manager
+    CRON_SECRET: ""         # Set via --set flag or external secret manager
+
+    # Optional: API Key Encryption (RECOMMENDED for production)
+    # Generate 64-character hex string using: openssl rand -hex 32
+    API_ENCRYPTION_KEY: ""  # Optional but recommended - encrypts API keys at rest
     
     NODE_ENV: "production"
     NEXT_TELEMETRY_DISABLED: "1"
@@ -122,8 +129,9 @@ autoscaling:
 
 podDisruptionBudget:
   enabled: true
-  minAvailable: 1
-
+  minAvailable: null
+  maxUnavailable: 1  
+  unhealthyPodEvictionPolicy: AlwaysAllow 
 monitoring:
   serviceMonitor:
     enabled: true
@@ -149,4 +157,7 @@ networkPolicy:
 #   --set externalDatabase.database="your-db-name" \
 #   --set app.env.BETTER_AUTH_SECRET="$(openssl rand -hex 32)" \
 #   --set app.env.ENCRYPTION_KEY="$(openssl rand -hex 32)" \
+#   --set app.env.INTERNAL_API_SECRET="$(openssl rand -hex 32)" \
+#   --set app.env.CRON_SECRET="$(openssl rand -hex 32)" \
+#   --set app.env.API_ENCRYPTION_KEY="$(openssl rand -hex 32)" \
 #   --set realtime.env.BETTER_AUTH_SECRET="$(openssl rand -hex 32)"

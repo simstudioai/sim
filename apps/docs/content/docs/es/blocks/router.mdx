@@ -1,0 +1,102 @@
+---
+title: Router
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+El bloque Router utiliza IA para dirigir flujos de trabajo de manera inteligente basándose en el análisis de contenido. A diferencia de los bloques de Condición que utilizan reglas simples, los Routers comprenden el contexto y la intención.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/router.png"
+    alt="Bloque Router con múltiples caminos"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Router vs Condición
+
+**Usa Router cuando:**
+- Se necesita análisis de contenido impulsado por IA
+- Trabajas con contenido no estructurado o variable
+- Se requiere enrutamiento basado en intención (p. ej., "dirigir tickets de soporte a departamentos")
+
+**Usa Condición cuando:**
+- Las decisiones simples basadas en reglas son suficientes
+- Trabajas con datos estructurados o comparaciones numéricas
+- Se necesita un enrutamiento rápido y determinista
+
+## Opciones de configuración
+
+### Contenido/Prompt
+
+El contenido o prompt que el Router analizará para tomar decisiones de enrutamiento. Esto puede ser:
+
+- Una consulta o entrada directa del usuario
+- Resultado de un bloque anterior
+- Un mensaje generado por el sistema
+
+### Bloques de destino
+
+Los posibles bloques de destino entre los que el Router puede seleccionar. El Router detectará automáticamente los bloques conectados, pero también puedes:
+
+- Personalizar las descripciones de los bloques de destino para mejorar la precisión del enrutamiento
+- Especificar criterios de enrutamiento para cada bloque de destino
+- Excluir ciertos bloques de ser considerados como destinos de enrutamiento
+
+### Selección de modelo
+
+Elige un modelo de IA para impulsar la decisión de enrutamiento:
+
+- **OpenAI**: GPT-4o, o1, o3, o4-mini, gpt-4.1
+- **Anthropic**: Claude 3.7 Sonnet
+- **Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
+- **Otros proveedores**: Groq, Cerebras, xAI, DeepSeek
+- **Modelos locales**: modelos compatibles con Ollama o VLLM
+
+Utiliza modelos con fuertes capacidades de razonamiento como GPT-4o o Claude 3.7 Sonnet para obtener mejores resultados.
+
+### Clave API
+
+Tu clave API para el proveedor LLM seleccionado. Se almacena de forma segura y se utiliza para la autenticación.
+
+## Salidas
+
+- **`<router.prompt>`**: Resumen del prompt de enrutamiento
+- **`<router.selected_path>`**: Bloque de destino elegido
+- **`<router.tokens>`**: Estadísticas de uso de tokens
+- **`<router.cost>`**: Costo estimado de enrutamiento
+- **`<router.model>`**: Modelo utilizado para la toma de decisiones
+
+## Ejemplos de casos de uso
+
+**Clasificación de soporte al cliente** - Enrutar tickets a departamentos especializados
+
+```
+Input (Ticket) → Router → Agent (Engineering) or Agent (Finance)
+```
+
+**Clasificación de contenido** - Clasificar y enrutar contenido generado por usuarios
+
+```
+Input (Feedback) → Router → Workflow (Product) or Workflow (Technical)
+```
+
+**Calificación de leads** - Enrutar leads según criterios de calificación
+
+```
+Input (Lead) → Router → Agent (Enterprise Sales) or Workflow (Self-serve)
+```
+
+## Mejores prácticas
+
+- **Proporcionar descripciones claras de los objetivos**: Ayuda al Router a entender cuándo seleccionar cada destino con descripciones específicas y detalladas
+- **Usar criterios de enrutamiento específicos**: Define condiciones claras y ejemplos para cada ruta para mejorar la precisión
+- **Implementar rutas alternativas**: Conecta un destino predeterminado para cuando ninguna ruta específica sea apropiada
+- **Probar con entradas diversas**: Asegúrate de que el Router maneja varios tipos de entrada, casos extremos y contenido inesperado
+- **Monitorear el rendimiento del enrutamiento**: Revisa las decisiones de enrutamiento regularmente y refina los criterios basándote en patrones de uso reales
+- **Elegir modelos apropiados**: Usa modelos con fuertes capacidades de razonamiento para decisiones de enrutamiento complejas

@@ -1,0 +1,103 @@
+---
+title: Parallel AI
+description: 使用 Parallel AI 进行网页研究
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="parallel_ai"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Parallel AI](https://parallel.ai/) 是一个先进的网页搜索和内容提取平台，旨在为任何查询提供全面、高质量的结果。通过利用智能处理和大规模数据提取，Parallel AI 使用户和代理能够快速、准确地访问、分析和综合来自网络的信息。
+
+使用 Parallel AI，您可以：
+
+- **智能搜索网络**：从广泛的来源中检索相关的最新信息  
+- **提取和总结内容**：从网页和文档中获取简洁、有意义的摘录  
+- **自定义搜索目标**：根据特定需求或问题定制查询以获得针对性结果  
+- **大规模处理结果**：通过高级处理选项处理大量搜索结果  
+- **与工作流程集成**：在 Sim 中使用 Parallel AI 来自动化研究、内容收集和知识提取  
+- **控制输出粒度**：指定结果数量和每个结果的内容量  
+- **安全的 API 访问**：通过 API 密钥认证保护您的搜索和数据
+
+在 Sim 中，Parallel AI 集成使您的代理能够以编程方式执行网页搜索和内容提取。这使得强大的自动化场景成为可能，例如实时研究、竞争分析、内容监控和知识库创建。通过将 Sim 与 Parallel AI 连接，您可以解锁代理收集、处理和利用网络数据的能力，作为自动化工作流程的一部分。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Parallel AI 集成到工作流程中。可以搜索网页、从 URL 中提取信息并进行深入研究。
+
+## 工具
+
+### `parallel_search`
+
+使用 Parallel AI 搜索网络。提供通过智能处理和内容提取的全面搜索结果。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `objective` | string | 是 | 搜索目标或需要回答的问题 |
+| `search_queries` | string | 否 | 可选的以逗号分隔的搜索查询列表 |
+| `processor` | string | 否 | 处理方法：base 或 pro \(默认值：base\) |
+| `max_results` | number | 否 | 返回的最大结果数量 \(默认值：5\) |
+| `max_chars_per_result` | number | 否 | 每个结果的最大字符数 \(默认值：1500\) |
+| `apiKey` | string | 是 | Parallel AI API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `results` | array | 包含相关页面摘录的搜索结果 |
+
+### `parallel_extract`
+
+使用 Parallel AI 从特定 URL 中提取目标信息。根据您的目标处理提供的 URL，以提取相关内容。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `urls` | string | 是 | 以逗号分隔的 URL 列表，用于提取信息 |
+| `objective` | string | 是 | 从提供的 URL 中提取的信息内容 |
+| `excerpts` | boolean | 是 | 是否包含内容中的相关摘录 |
+| `full_content` | boolean | 是 | 是否包含完整页面内容 |
+| `apiKey` | string | 是 | Parallel AI API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `results` | array | 从提供的 URL 中提取的信息 |
+
+### `parallel_deep_research`
+
+使用 Parallel AI 在整个网络上进行全面深入的研究。从多个来源综合信息并附带引用。可能需要长达 15 分钟完成。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `input` | string | 是 | 研究查询或问题 \(最多 15,000 个字符\) |
+| `processor` | string | 否 | 计算级别：base、lite、pro、ultra、ultra2x、ultra4x、ultra8x \(默认值：base\) |
+| `include_domains` | string | 否 | 限制研究范围的以逗号分隔的域名列表 \(来源策略\) |
+| `exclude_domains` | string | 否 | 从研究中排除的以逗号分隔的域名列表 \(来源策略\) |
+| `apiKey` | string | 是 | Parallel AI API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `status` | string | 任务状态（运行中、已完成、失败） |
+| `run_id` | string | 此研究任务的唯一 ID |
+| `message` | string | 状态消息（针对运行中的任务） |
+| `content` | object | 研究结果（基于 output_schema 结构化） |
+| `basis` | array | 引用和来源，包括摘录和置信度等级 |
+
+## 注意
+
+- 类别：`tools`
+- 类型：`parallel_ai`

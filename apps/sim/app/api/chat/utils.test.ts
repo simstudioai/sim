@@ -5,17 +5,13 @@ import type { NextResponse } from 'next/server'
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
 
-vi.mock('@/db', () => ({
+vi.mock('@sim/db', () => ({
   db: {
     select: vi.fn(),
     update: vi.fn(),
   },
-}))
-
-vi.mock('@/lib/utils', () => ({
-  decryptSecret: vi.fn().mockResolvedValue({ decrypted: 'test-secret' }),
 }))
 
 vi.mock('@/lib/logs/execution/logging-session', () => ({
@@ -38,10 +34,18 @@ vi.mock('@/stores/workflows/server-utils', () => ({
   mergeSubblockState: vi.fn().mockReturnValue({}),
 }))
 
+const mockDecryptSecret = vi.fn()
+
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: mockDecryptSecret,
+}))
+
+vi.mock('@/lib/core/utils/request', () => ({
+  generateRequestId: vi.fn(),
+}))
+
 describe('Chat API Utils', () => {
   beforeEach(() => {
-    vi.resetModules()
-
     vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue({
         info: vi.fn(),
@@ -58,6 +62,11 @@ describe('Chat API Utils', () => {
         NODE_ENV: 'development',
       },
     })
+
+    vi.doMock('@/lib/core/config/environment', () => ({
+      isDev: true,
+      isHosted: false,
+    }))
   })
 
   afterEach(() => {
@@ -65,39 +74,38 @@ describe('Chat API Utils', () => {
   })
 
   describe('Auth token utils', () => {
-    it.concurrent('should encrypt and validate auth tokens', async () => {
-      const { encryptAuthToken, validateAuthToken } = await import('@/app/api/chat/utils')
+    it('should validate auth tokens', async () => {
+      const { validateAuthToken } = await import('@/app/api/chat/utils')
 
-      const subdomainId = 'test-subdomain-id'
+      const chatId = 'test-chat-id'
       const type = 'password'
 
-      const token = encryptAuthToken(subdomainId, type)
+      const token = Buffer.from(`${chatId}:${type}:${Date.now()}`).toString('base64')
       expect(typeof token).toBe('string')
       expect(token.length).toBeGreaterThan(0)
 
-      const isValid = validateAuthToken(token, subdomainId)
+      const isValid = validateAuthToken(token, chatId)
       expect(isValid).toBe(true)
 
-      const isInvalidSubdomain = validateAuthToken(token, 'wrong-subdomain-id')
-      expect(isInvalidSubdomain).toBe(false)
+      const isInvalidChat = validateAuthToken(token, 'wrong-chat-id')
+      expect(isInvalidChat).toBe(false)
     })
 
-    it.concurrent('should reject expired tokens', async () => {
+    it('should reject expired tokens', async () => {
       const { validateAuthToken } = await import('@/app/api/chat/utils')
 
-      const subdomainId = 'test-subdomain-id'
-      // Create an expired token by directly constructing it with an old timestamp
+      const chatId = 'test-chat-id'
       const expiredToken = Buffer.from(
-        `${subdomainId}:password:${Date.now() - 25 * 60 * 60 * 1000}`
+        `${chatId}:password:${Date.now() - 25 * 60 * 60 * 1000}`
       ).toString('base64')
 
-      const isValid = validateAuthToken(expiredToken, subdomainId)
+      const isValid = validateAuthToken(expiredToken, chatId)
       expect(isValid).toBe(false)
     })
   })
 
   describe('Cookie handling', () => {
-    it.concurrent('should set auth cookie correctly', async () => {
+    it('should set auth cookie correctly', async () => {
       const { setChatAuthCookie } = await import('@/app/api/chat/utils')
 
       const mockSet = vi.fn()
@@ -107,13 +115,13 @@ describe('Chat API Utils', () => {
         },
       } as unknown as NextResponse
 
-      const subdomainId = 'test-subdomain-id'
+      const chatId = 'test-chat-id'
       const type = 'password'
 
-      setChatAuthCookie(mockResponse, subdomainId, type)
+      setChatAuthCookie(mockResponse, chatId, type)
 
       expect(mockSet).toHaveBeenCalledWith({
-        name: `chat_auth_${subdomainId}`,
+        name: `chat_auth_${chatId}`,
         value: expect.any(String),
         httpOnly: true,
         secure: false, // Development mode
@@ -126,12 +134,12 @@ describe('Chat API Utils', () => {
   })
 
   describe('CORS handling', () => {
-    it.concurrent('should add CORS headers for localhost in development', async () => {
+    it('should add CORS headers for localhost in development', async () => {
       const { addCorsHeaders } = await import('@/app/api/chat/utils')
 
       const mockRequest = {
         headers: {
-          get: vi.fn().mockReturnValue('http://test.localhost:3000'),
+          get: vi.fn().mockReturnValue('http://localhost:3000'),
         },
       } as any
 
@@ -145,7 +153,7 @@ describe('Chat API Utils', () => {
 
       expect(mockResponse.headers.set).toHaveBeenCalledWith(
         'Access-Control-Allow-Origin',
-        'http://test.localhost:3000'
+        'http://localhost:3000'
       )
       expect(mockResponse.headers.set).toHaveBeenCalledWith(
         'Access-Control-Allow-Credentials',
@@ -160,24 +168,13 @@ describe('Chat API Utils', () => {
         'Content-Type, X-Requested-With'
       )
     })
-
-    it.concurrent('should handle OPTIONS request', async () => {
-      const { OPTIONS } = await import('@/app/api/chat/utils')
-
-      const mockRequest = {
-        headers: {
-          get: vi.fn().mockReturnValue('http://test.localhost:3000'),
-        },
-      } as any
-
-      const response = await OPTIONS(mockRequest)
-
-      expect(response.status).toBe(204)
-    })
   })
 
   describe('Chat auth validation', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
+      vi.clearAllMocks()
+      mockDecryptSecret.mockResolvedValue({ decrypted: 'correct-password' })
+
       vi.doMock('@/app/api/chat/utils', async (importOriginal) => {
         const original = (await importOriginal()) as any
         return {
@@ -190,16 +187,9 @@ describe('Chat API Utils', () => {
           }),
         }
       })
-
-      // Mock decryptSecret globally for all auth tests
-      vi.doMock('@/lib/utils', () => ({
-        decryptSecret: vi.fn((encryptedValue) => {
-          return Promise.resolve({ decrypted: 'correct-password' })
-        }),
-      }))
     })
 
-    it.concurrent('should allow access to public chats', async () => {
+    it('should allow access to public chats', async () => {
       const utils = await import('@/app/api/chat/utils')
       const { validateChatAuth } = utils
 
@@ -219,7 +209,7 @@ describe('Chat API Utils', () => {
       expect(result.authorized).toBe(true)
     })
 
-    it.concurrent('should request password auth for GET requests', async () => {
+    it('should request password auth for GET requests', async () => {
       const { validateChatAuth } = await import('@/app/api/chat/utils')
 
       const deployment = {
@@ -242,7 +232,7 @@ describe('Chat API Utils', () => {
 
     it('should validate password for POST requests', async () => {
       const { validateChatAuth } = await import('@/app/api/chat/utils')
-      const { decryptSecret } = await import('@/lib/utils')
+      const { decryptSecret } = await import('@/lib/core/security/encryption')
 
       const deployment = {
         id: 'chat-id',
@@ -267,7 +257,7 @@ describe('Chat API Utils', () => {
       expect(result.authorized).toBe(true)
     })
 
-    it.concurrent('should reject incorrect password', async () => {
+    it('should reject incorrect password', async () => {
       const { validateChatAuth } = await import('@/app/api/chat/utils')
 
       const deployment = {
@@ -293,7 +283,7 @@ describe('Chat API Utils', () => {
       expect(result.error).toBe('Invalid password')
     })
 
-    it.concurrent('should request email auth for email-protected chats', async () => {
+    it('should request email auth for email-protected chats', async () => {
       const { validateChatAuth } = await import('@/app/api/chat/utils')
 
       const deployment = {
@@ -315,7 +305,7 @@ describe('Chat API Utils', () => {
       expect(result.error).toBe('auth_required_email')
     })
 
-    it.concurrent('should check allowed emails for email auth', async () => {
+    it('should check allowed emails for email auth', async () => {
       const { validateChatAuth } = await import('@/app/api/chat/utils')
 
       const deployment = {
@@ -353,10 +343,8 @@ describe('Chat API Utils', () => {
 
   describe('Execution Result Processing', () => {
     it('should process logs regardless of overall success status', () => {
-      // Test that logs are processed even when overall execution fails
-      // This is key for partial success scenarios
       const executionResult = {
-        success: false, // Overall execution failed
+        success: false,
         output: {},
         logs: [
           {
@@ -381,16 +369,13 @@ describe('Chat API Utils', () => {
         metadata: { duration: 1000 },
       }
 
-      // Test the key logic: logs should be processed regardless of overall success
       expect(executionResult.success).toBe(false)
       expect(executionResult.logs).toBeDefined()
       expect(executionResult.logs).toHaveLength(2)
 
-      // First log should be successful
       expect(executionResult.logs[0].success).toBe(true)
       expect(executionResult.logs[0].output?.content).toBe('Agent 1 succeeded')
 
-      // Second log should be failed
       expect(executionResult.logs[1].success).toBe(false)
       expect(executionResult.logs[1].error).toBe('Agent 2 failed')
     })
@@ -403,18 +388,15 @@ describe('Chat API Utils', () => {
         metadata: { duration: 100 },
       }
 
-      // Test direct ExecutionResult
       const directResult = executionResult
       const extractedDirect = directResult
       expect(extractedDirect).toBe(executionResult)
 
-      // Test StreamingExecution with embedded ExecutionResult
       const streamingResult = {
         stream: new ReadableStream(),
         execution: executionResult,
       }
 
-      // Simulate the type extraction logic from executeWorkflowForChat
       const extractedFromStreaming =
         streamingResult && typeof streamingResult === 'object' && 'execution' in streamingResult
           ? streamingResult.execution

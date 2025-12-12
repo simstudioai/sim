@@ -49,7 +49,7 @@ export const airtableListRecordsTool: ToolConfig<AirtableListParams, AirtableLis
     url: (params) => {
       const url = `https://api.airtable.com/v0/${params.baseId}/${params.tableId}`
       const queryParams = new URLSearchParams()
-      if (params.maxRecords) queryParams.append('maxRecords', params.maxRecords.toString())
+      if (params.maxRecords) queryParams.append('maxRecords', Number(params.maxRecords).toString())
       if (params.filterFormula) {
         // Airtable formulas often contain characters needing encoding,
         // but standard encodeURIComponent might over-encode.

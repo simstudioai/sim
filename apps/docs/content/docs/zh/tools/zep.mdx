@@ -1,0 +1,217 @@
+---
+title: Zep
+description: 为 AI 代理提供长期记忆
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="zep"
+  color="#E8E8E8"
+/>
+
+## 使用说明
+
+集成 Zep 以管理长期记忆。创建线程、添加消息、通过 AI 驱动的摘要和事实提取功能检索上下文。
+
+## 工具
+
+### `zep_create_thread`
+
+在 Zep 中开始一个新的对话线程
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | 是 | 线程的唯一标识符 |
+| `userId` | string | 是 | 与线程关联的用户 ID |
+| `apiKey` | string | 是 | 您的 Zep API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `threadId` | string | 线程 ID |
+| `userId` | string | 用户 ID |
+| `uuid` | string | 内部 UUID |
+| `createdAt` | string | 创建时间戳 |
+| `projectUuid` | string | 项目 UUID |
+
+### `zep_get_threads`
+
+列出所有对话线程
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | 否 | 每页检索的线程数量 |
+| `pageNumber` | number | 否 | 分页的页码 |
+| `orderBy` | string | 否 | 用于排序结果的字段 \(created_at, updated_at, user_id, thread_id\) |
+| `asc` | boolean | 否 | 排序方向：true 表示升序，false 表示降序 |
+| `apiKey` | string | 是 | 您的 Zep API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `threads` | 数组 | 线程对象的数组 |
+| `responseCount` | 数字 | 此响应中的线程数量 |
+| `totalCount` | 数字 | 可用线程的总数 |
+
+### `zep_delete_thread`
+
+从 Zep 中删除会话线程
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | 字符串 | 是 | 要删除的线程 ID |
+| `apiKey` | 字符串 | 是 | 您的 Zep API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `deleted` | 布尔值 | 线程是否已被删除 |
+
+### `zep_get_context`
+
+从线程中检索用户上下文，支持摘要模式或基本模式
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | 字符串 | 是 | 要获取上下文的线程 ID |
+| `mode` | 字符串 | 否 | 上下文模式："summary"（自然语言）或 "basic"（原始事实） |
+| `minRating` | 数字 | 否 | 用于筛选相关事实的最低评分 |
+| `apiKey` | 字符串 | 是 | 您的 Zep API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `context` | 字符串 | 上下文字符串（摘要或基本） |
+| `facts` | 数组 | 提取的事实 |
+| `entities` | 数组 | 提取的实体 |
+| `summary` | 字符串 | 会话摘要 |
+
+### `zep_get_messages`
+
+从线程中检索消息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | 是 | 要从中获取消息的线程 ID |
+| `limit` | number | 否 | 要返回的最大消息数 |
+| `cursor` | string | 否 | 用于分页的游标 |
+| `lastn` | number | 否 | 要返回的最新消息数（覆盖限制和游标） |
+| `apiKey` | string | 是 | 您的 Zep API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `messages` | array | 消息对象数组 |
+| `rowCount` | number | 此响应中的消息数 |
+| `totalCount` | number | 线程中的消息总数 |
+
+### `zep_add_messages`
+
+向现有线程添加消息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | 是 | 要添加消息的线程 ID |
+| `messages` | json | 是 | 包含角色和内容的消息对象数组 |
+| `apiKey` | string | 是 | 您的 Zep API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `context` | string | 添加消息后的更新上下文 |
+| `messageIds` | array | 添加的消息 UUID 数组 |
+| `threadId` | string | 线程 ID |
+
+### `zep_add_user`
+
+在 Zep 中创建新用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | 是 | 用户的唯一标识符 |
+| `email` | string | 否 | 用户的电子邮件地址 |
+| `firstName` | string | 否 | 用户的名字 |
+| `lastName` | string | 否 | 用户的姓氏 |
+| `metadata` | json | 否 | 作为 JSON 对象的附加元数据 |
+| `apiKey` | string | 是 | 您的 Zep API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `userId` | string | 用户 ID |
+| `email` | string | 用户电子邮件 |
+| `firstName` | string | 用户名字 |
+| `lastName` | string | 用户姓氏 |
+| `uuid` | string | 内部 UUID |
+| `createdAt` | string | 创建时间戳 |
+| `metadata` | object | 用户元数据 |
+
+### `zep_get_user`
+
+从 Zep 检索用户信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | 是 | 要检索的用户 ID |
+| `apiKey` | string | 是 | 您的 Zep API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `userId` | string | 用户 ID |
+| `email` | string | 用户电子邮件 |
+| `firstName` | string | 用户名字 |
+| `lastName` | string | 用户姓氏 |
+| `uuid` | string | 内部 UUID |
+| `createdAt` | string | 创建时间戳 |
+| `updatedAt` | string | 最后更新时间戳 |
+| `metadata` | object | 用户元数据 |
+
+### `zep_get_user_threads`
+
+列出特定用户的所有会话线程
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | 是 | 要获取线程的用户 ID |
+| `limit` | number | 否 | 要返回的最大线程数 |
+| `apiKey` | string | 是 | 您的 Zep API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `threads` | array | 此用户的线程对象数组 |
+| `userId` | string | 用户 ID |
+
+## 注意
+
+- 类别：`tools`
+- 类型：`zep`

@@ -1,27 +1,18 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Check, Loader2, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AlertCircle, Check, Loader2, X } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { createLogger } from '@/lib/logs/console/logger'
+import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
+import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 
 const logger = createLogger('UploadModal')
-
-const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
-const ACCEPTED_FILE_TYPES = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/plain',
-  'text/csv',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-]
 
 interface FileWithPreview extends File {
   preview: string
@@ -46,13 +37,16 @@ export function UploadModal({
   chunkingConfig,
   onUploadComplete,
 }: UploadModalProps) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<FileWithPreview[]>([])
 
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
-  const { isUploading, uploadProgress, uploadFiles } = useKnowledgeUpload({
+  const { isUploading, uploadProgress, uploadError, uploadFiles, clearError } = useKnowledgeUpload({
+    workspaceId,
     onUploadComplete: () => {
       logger.info(`Successfully uploaded ${files.length} files`)
       onUploadComplete?.()
@@ -65,18 +59,13 @@ export function UploadModal({
 
     setFiles([])
     setFileError(null)
+    clearError()
     setIsDragging(false)
     onOpenChange(false)
   }
 
   const validateFile = (file: File): string | null => {
-    if (file.size > MAX_FILE_SIZE) {
-      return `File "${file.name}" is too large. Maximum size is 100MB.`
-    }
-    if (!ACCEPTED_FILE_TYPES.includes(file.type)) {
-      return `File "${file.name}" has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, or XLSX files.`
-    }
-    return null
+    return validateKnowledgeBaseFile(file)
   }
 
   const processFiles = (fileList: FileList | File[]) => {
@@ -158,31 +147,16 @@ export function UploadModal({
     return <IconComponent className='h-10 w-8' />
   }
 
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
-  }
-
-  // Calculate progress percentage
-  const progressPercentage =
-    uploadProgress.totalFiles > 0
-      ? Math.round((uploadProgress.filesCompleted / uploadProgress.totalFiles) * 100)
-      : 0
-
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className='flex max-h-[95vh] max-w-2xl flex-col overflow-hidden'>
-        <DialogHeader>
-          <DialogTitle>Upload Documents</DialogTitle>
-        </DialogHeader>
+    <Modal open={open} onOpenChange={handleClose}>
+      <ModalContent className='max-h-[95vh] sm:max-w-[600px]'>
+        <ModalHeader>Upload Documents</ModalHeader>
 
-        <div className='flex-1 space-y-6 overflow-auto'>
-          {/* File Upload Section */}
-          <div className='space-y-3'>
-            <Label>Select Files</Label>
+        <ModalBody>
+          <div className='space-y-[12px]'>
+            <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+              Select Files
+            </Label>
 
             {files.length === 0 ? (
               <div
@@ -190,26 +164,27 @@ export function UploadModal({
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`relative flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
+                className={`relative flex cursor-pointer items-center justify-center rounded-lg border-[1.5px] border-dashed p-8 text-center transition-colors ${
                   isDragging
-                    ? 'border-primary bg-primary/5'
-                    : 'border-muted-foreground/25 hover:border-muted-foreground/40 hover:bg-muted/10'
+                    ? 'border-[var(--brand-primary-hex)] bg-[var(--brand-primary-hex)]/5'
+                    : 'border-[var(--c-575757)] hover:border-[var(--text-secondary)]'
                 }`}
               >
                 <input
                   ref={fileInputRef}
                   type='file'
-                  accept={ACCEPTED_FILE_TYPES.join(',')}
+                  accept={ACCEPT_ATTRIBUTE}
                   onChange={handleFileChange}
                   className='hidden'
                   multiple
                 />
                 <div className='space-y-2'>
-                  <p className='font-medium text-sm'>
+                  <p className='font-medium text-[var(--text-primary)] text-sm'>
                     {isDragging ? 'Drop files here!' : 'Drop files here or click to browse'}
                   </p>
-                  <p className='text-muted-foreground text-xs'>
-                    Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX (max 100MB each)
+                  <p className='text-[var(--text-tertiary)] text-xs'>
+                    Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSON, YAML,
+                    YML (max 100MB each)
                   </p>
                 </div>
               </div>
@@ -222,24 +197,24 @@ export function UploadModal({
                   onClick={() => fileInputRef.current?.click()}
                   className={`cursor-pointer rounded-md border border-dashed p-3 text-center transition-colors ${
                     isDragging
-                      ? 'border-primary bg-primary/5'
-                      : 'border-muted-foreground/25 hover:border-muted-foreground/40'
+                      ? 'border-[var(--brand-primary-hex)] bg-[var(--brand-primary-hex)]/5'
+                      : 'border-[var(--c-575757)] hover:border-[var(--text-secondary)]'
                   }`}
                 >
                   <input
                     ref={fileInputRef}
                     type='file'
-                    accept={ACCEPTED_FILE_TYPES.join(',')}
+                    accept={ACCEPT_ATTRIBUTE}
                     onChange={handleFileChange}
                     className='hidden'
                     multiple
                   />
-                  <p className='text-sm'>
+                  <p className='text-[var(--text-primary)] text-sm'>
                     {isDragging ? 'Drop more files here!' : 'Drop more files or click to browse'}
                   </p>
                 </div>
 
-                <div className='max-h-60 space-y-2 overflow-auto'>
+                <div className='max-h-80 space-y-2 overflow-auto'>
                   {files.map((file, index) => {
                     const fileStatus = uploadProgress.fileStatuses?.[index]
                     const isCurrentlyUploading = fileStatus?.status === 'uploading'
@@ -255,12 +230,16 @@ export function UploadModal({
                               {isCurrentlyUploading && (
                                 <Loader2 className='h-4 w-4 animate-spin text-[var(--brand-primary-hex)]' />
                               )}
-                              {isCompleted && <Check className='h-4 w-4 text-green-500' />}
-                              {isFailed && <X className='h-4 w-4 text-red-500' />}
-                              <p className='truncate font-medium text-sm'>{file.name}</p>
+                              {isCompleted && (
+                                <Check className='h-4 w-4 text-[var(--text-success)]' />
+                              )}
+                              {isFailed && <X className='h-4 w-4 text-[var(--text-error)]' />}
+                              <p className='truncate font-medium text-[var(--text-primary)] text-sm'>
+                                {file.name}
+                              </p>
                             </div>
                             <div className='flex items-center gap-2'>
-                              <p className='text-muted-foreground text-xs'>
+                              <p className='text-[var(--text-tertiary)] text-xs'>
                                 {formatFileSize(file.size)}
                               </p>
                               {isCurrentlyUploading && (
@@ -270,16 +249,17 @@ export function UploadModal({
                               )}
                             </div>
                             {isFailed && fileStatus?.error && (
-                              <p className='mt-1 text-red-500 text-xs'>{fileStatus.error}</p>
+                              <p className='mt-1 text-[var(--text-error)] text-xs'>
+                                {fileStatus.error}
+                              </p>
                             )}
                           </div>
                           <Button
                             type='button'
                             variant='ghost'
-                            size='sm'
                             onClick={() => removeFile(index)}
                             disabled={isUploading}
-                            className='h-8 w-8 p-0 text-muted-foreground hover:text-destructive'
+                            className='h-8 w-8 p-0 text-[var(--text-tertiary)] hover:text-[var(--text-error)]'
                           >
                             <X className='h-4 w-4' />
                           </Button>
@@ -291,19 +271,34 @@ export function UploadModal({
               </div>
             )}
 
-            {fileError && <p className='text-destructive text-sm'>{fileError}</p>}
-          </div>
-        </div>
+            {/* Show upload error first, then file error only if no upload error */}
+            {uploadError && (
+              <div className='rounded-md border border-[var(--text-error)]/50 bg-[var(--text-error)]/10 px-3 py-2'>
+                <div className='flex items-start gap-2'>
+                  <AlertCircle className='mt-0.5 h-4 w-4 shrink-0 text-[var(--text-error)]' />
+                  <div className='flex-1 text-[var(--text-error)] text-sm'>
+                    {uploadError.message}
+                  </div>
+                </div>
+              </div>
+            )}
 
-        {/* Footer */}
-        <div className='flex justify-end gap-3 border-t pt-4'>
-          <Button variant='outline' onClick={handleClose} disabled={isUploading}>
+            {fileError && !uploadError && (
+              <div className='rounded-md border border-[var(--text-error)]/50 bg-[var(--text-error)]/10 px-3 py-2 text-[var(--text-error)] text-sm'>
+                {fileError}
+              </div>
+            )}
+          </div>
+        </ModalBody>
+
+        <ModalFooter>
+          <Button variant='default' onClick={handleClose} disabled={isUploading}>
             Cancel
           </Button>
           <Button
+            variant='primary'
             onClick={handleUpload}
             disabled={files.length === 0 || isUploading}
-            className='bg-[var(--brand-primary-hex)] font-[480] text-primary-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
           >
             {isUploading
               ? uploadProgress.stage === 'uploading'
@@ -313,8 +308,8 @@ export function UploadModal({
                   : 'Uploading...'
               : `Upload ${files.length} file${files.length !== 1 ? 's' : ''}`}
           </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
   )
 }

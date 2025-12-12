@@ -1,0 +1,149 @@
+---
+title: Tavily
+description: 搜索和提取信息
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="tavily"
+  color="#0066FF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Tavily](https://www.tavily.com/) 是一款专为 LLM 应用设计的 AI 驱动搜索 API。它提供可靠的实时信息检索功能，并针对 AI 使用场景优化了功能，包括语义搜索、内容提取和结构化数据检索。
+
+使用 Tavily，您可以：
+
+- **执行上下文搜索**：基于语义理解获取相关结果，而不仅仅是关键词匹配
+- **提取结构化内容**：以干净、可用的格式从网页中提取特定信息
+- **访问实时信息**：从整个网络中检索最新数据
+- **同时处理多个 URL**：在单次请求中从多个网页提取内容
+- **接收 AI 优化结果**：获取专为 AI 系统使用而格式化的搜索结果
+
+在 Sim 中，Tavily 集成使您的代理能够在其工作流程中搜索网络并提取信息。这支持需要从互联网获取最新信息的复杂自动化场景。您的代理可以制定搜索查询，检索相关结果，并从特定网页中提取内容，以支持其决策过程。此集成弥合了您的工作流程自动化与网络上广泛知识之间的差距，使您的代理无需人工干预即可访问实时信息。通过将 Sim 与 Tavily 连接，您可以创建能够跟上最新信息的代理，提供更准确的响应，并为用户带来更多价值。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Tavily 集成到工作流程中。可以搜索网页并从特定 URL 提取内容。需要 API 密钥。
+
+## 工具
+
+### `tavily_search`
+
+使用 Tavily 执行由 AI 驱动的网页搜索
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | 字符串 | 是 | 要执行的搜索查询 |
+| `max_results` | 数字 | 否 | 最大结果数量 \(1-20\) |
+| `topic` | 字符串 | 否 | 类别类型：general、news 或 finance \(默认：general\) |
+| `search_depth` | 字符串 | 否 | 搜索范围：basic \(1 积分\) 或 advanced \(2 积分\) \(默认：basic\) |
+| `include_answer` | 字符串 | 否 | LLM 生成的响应：true/basic 表示快速回答，advanced 表示详细回答 |
+| `include_raw_content` | 字符串 | 否 | 解析的 HTML 内容：true/markdown 或文本格式 |
+| `include_images` | 布尔值 | 否 | 包括图片搜索结果 |
+| `include_image_descriptions` | 布尔值 | 否 | 为图片添加描述性文本 |
+| `include_favicon` | 布尔值 | 否 | 包括 favicon URL |
+| `chunks_per_source` | 数字 | 否 | 每个来源的最大相关块数 \(1-3，默认：3\) |
+| `time_range` | 字符串 | 否 | 按最新时间筛选：day/d、week/w、month/m、year/y |
+| `start_date` | 字符串 | 否 | 最早发布日期 \(YYYY-MM-DD 格式\) |
+| `end_date` | 字符串 | 否 | 最晚发布日期 \(YYYY-MM-DD 格式\) |
+| `include_domains` | 字符串 | 否 | 逗号分隔的白名单域名列表 \(最多 300 个\) |
+| `exclude_domains` | 字符串 | 否 | 逗号分隔的黑名单域名列表 \(最多 150 个\) |
+| `country` | 字符串 | 否 | 提升指定国家的结果 \(仅限 general 主题\) |
+| `auto_parameters` | 布尔值 | 否 | 根据查询意图自动配置参数 |
+| `apiKey` | 字符串 | 是 | Tavily API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `query` | 字符串 | 已执行的搜索查询 |
+| `results` | 数组 | 工具输出的结果 |
+
+### `tavily_extract`
+
+使用 Tavily 同时从多个网页提取原始内容
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `urls` | 字符串 | 是 | 要提取内容的 URL 或 URL 数组 |
+| `extract_depth` | 字符串 | 否 | 提取深度 \(basic=1 积分/5 个 URL，advanced=2 积分/5 个 URL\) |
+| `format` | 字符串 | 否 | 输出格式：markdown 或 text \(默认：markdown\) |
+| `include_images` | 布尔值 | 否 | 在提取输出中包含图像 |
+| `include_favicon` | 布尔值 | 否 | 为每个结果添加 favicon URL |
+| `apiKey` | 字符串 | 是 | Tavily API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `results` | 数组 | 已提取的 URL |
+
+### `tavily_crawl`
+
+使用 Tavily 系统化地爬取并提取网站内容
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `url` | 字符串 | 是 | 开始爬取的根 URL |
+| `instructions` | 字符串 | 否 | 爬取器的自然语言指令 \(每 10 页消耗 2 积分\) |
+| `max_depth` | 数字 | 否 | 从基础 URL 探索的深度 \(1-5，默认：1\) |
+| `max_breadth` | 数字 | 否 | 每个页面级别跟随的链接数量 \(≥1，默认：20\) |
+| `limit` | 数字 | 否 | 停止前处理的总链接数量 \(≥1，默认：50\) |
+| `select_paths` | 字符串 | 否 | 用逗号分隔的正则表达式模式，用于包含特定的 URL 路径 \(例如，/docs/.*\) |
+| `select_domains` | 字符串 | 否 | 用逗号分隔的正则表达式模式，用于限制爬取特定域名 |
+| `exclude_paths` | 字符串 | 否 | 用逗号分隔的正则表达式模式，用于跳过特定的 URL 路径 |
+| `exclude_domains` | 字符串 | 否 | 用逗号分隔的正则表达式模式，用于屏蔽特定域名 |
+| `allow_external` | 布尔值 | 否 | 在结果中包含外部域名链接 \(默认：true\) |
+| `include_images` | 布尔值 | 否 | 在爬取输出中包含图像 |
+| `extract_depth` | 字符串 | 否 | 提取深度：basic \(1 积分/5 页\) 或 advanced \(2 积分/5 页\) |
+| `format` | 字符串 | 否 | 输出格式：markdown 或 text \(默认：markdown\) |
+| `include_favicon` | 布尔值 | 否 | 为每个结果添加 favicon URL |
+| `apiKey` | 字符串 | 是 | Tavily API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `base_url` | 字符串 | 被爬取的基础 URL |
+| `results` | 数组 | 被爬取的页面 URL |
+
+### `tavily_map`
+
+使用 Tavily 探索并可视化网站结构
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `url` | 字符串 | 是 | 开始映射的根 URL |
+| `instructions` | 字符串 | 否 | 用于映射行为的自然语言指导 \(每 10 页消耗 2 积分\) |
+| `max_depth` | 数字 | 否 | 从基础 URL 探索的深度 \(1-5，默认值：1\) |
+| `max_breadth` | 数字 | 否 | 每级要跟随的链接数量 \(默认值：20\) |
+| `limit` | 数字 | 否 | 要处理的总链接数量 \(默认值：50\) |
+| `select_paths` | 字符串 | 否 | 用于 URL 路径过滤的逗号分隔正则表达式模式 \(例如：/docs/.*\) |
+| `select_domains` | 字符串 | 否 | 限制映射到特定域的逗号分隔正则表达式模式 |
+| `exclude_paths` | 字符串 | 否 | 排除特定 URL 路径的逗号分隔正则表达式模式 |
+| `exclude_domains` | 字符串 | 否 | 排除域的逗号分隔正则表达式模式 |
+| `allow_external` | 布尔值 | 否 | 在结果中包含外部域链接 \(默认值：true\) |
+| `apiKey` | 字符串 | 是 | Tavily API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `base_url` | 字符串 | 被映射的基础 URL |
+| `results` | 数组 | 发现的 URL |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`tavily`

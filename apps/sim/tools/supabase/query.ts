@@ -17,7 +17,7 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
     table: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The name of the Supabase table to query',
     },
     filter: {
@@ -41,7 +41,7 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Your Supabase service role secret key',
     },
   },
@@ -58,15 +58,27 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
 
       // Add order by if provided
       if (params.orderBy) {
-        const orderParam = params.orderBy.includes('DESC')
-          ? `${params.orderBy.replace(' DESC', '').replace('DESC', '')}.desc`
-          : `${params.orderBy}.asc`
+        let orderParam = params.orderBy.trim()
+
+        // Check if DESC is specified (case-insensitive)
+        if (/\s+DESC$/i.test(orderParam)) {
+          orderParam = `${orderParam.replace(/\s+DESC$/i, '').trim()}.desc`
+        }
+        // Check if ASC is specified (case-insensitive)
+        else if (/\s+ASC$/i.test(orderParam)) {
+          orderParam = `${orderParam.replace(/\s+ASC$/i, '').trim()}.asc`
+        }
+        // Default to ascending if no direction specified
+        else {
+          orderParam = `${orderParam}.asc`
+        }
+
         url += `&order=${orderParam}`
       }
 
       // Add limit if provided
       if (params.limit) {
-        url += `&limit=${params.limit}`
+        url += `&limit=${Number(params.limit)}`
       }
 
       return url

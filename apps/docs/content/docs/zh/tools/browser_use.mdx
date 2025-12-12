@@ -1,0 +1,59 @@
+---
+title: 浏览器使用
+description: 运行浏览器自动化任务
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="browser_use"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[BrowserUse](https://browser-use.com/) 是一个强大的浏览器自动化平台，能够以编程方式创建和运行浏览器任务。它通过自然语言指令提供了一种自动化网页交互的方式，使您能够浏览网站、填写表单、提取数据以及执行复杂的操作序列，而无需编写代码。
+
+使用 BrowserUse，您可以：
+
+- **自动化网页交互**：浏览网站、点击按钮、填写表单以及执行其他浏览器操作
+- **提取数据**：从网站抓取内容，包括文本、图片和结构化数据
+- **执行复杂工作流**：将多个操作串联在一起，完成复杂的网页任务
+- **监控任务执行**：通过可视化反馈实时观看浏览器任务的运行
+- **以编程方式处理结果**：从网页自动化任务中接收结构化输出
+
+在 Sim 中，BrowserUse 集成允许您的代理像人类用户一样与网页交互。这使得研究、数据收集、表单提交和网页测试等场景成为可能——所有这些都通过简单的自然语言指令实现。您的代理可以从网站收集信息，与网页应用交互，并执行通常需要手动浏览的操作，从而扩展其能力，将整个网络作为资源。{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将浏览器使用集成到工作流程中。可以像真实用户与浏览器交互一样浏览网页并执行操作。需要 API 密钥。
+
+## 工具
+
+### `browser_use_run_task`
+
+使用 BrowserUse 运行浏览器自动化任务
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `task` | string | 是 | 浏览器代理应该执行的操作 |
+| `variables` | json | 否 | 可选变量，用作密钥（格式：\{key: value\}） |
+| `format` | string | 否 | 无描述 |
+| `save_browser_data` | boolean | 否 | 是否保存浏览器数据 |
+| `model` | string | 否 | 使用的 LLM 模型（默认：gpt-4o） |
+| `apiKey` | string | 是 | BrowserUse API 的 API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 任务执行标识符 |
+| `success` | boolean | 任务完成状态 |
+| `output` | json | 任务输出数据 |
+| `steps` | json | 执行步骤 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`browser_use`

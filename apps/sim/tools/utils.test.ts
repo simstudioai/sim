@@ -232,7 +232,7 @@ describe('validateRequiredParametersAfterMerge', () => {
         required1: 'value',
         // required2 is missing
       })
-    }).toThrow('"Required2" is required for Test Tool')
+    }).toThrow('Required2 is required for Test Tool')
   })
 
   it.concurrent('should not throw error when all required parameters are provided', () => {
@@ -260,7 +260,7 @@ describe('validateRequiredParametersAfterMerge', () => {
         required1: null,
         required2: '',
       })
-    }).toThrow('"Required1" is required for Test Tool')
+    }).toThrow('Required1 is required for Test Tool')
   })
 
   it.concurrent(
@@ -317,7 +317,7 @@ describe('validateRequiredParametersAfterMerge', () => {
         // userOrLlmParam missing - should cause error
         // userOnlyParam missing - should NOT cause error (validated earlier)
       })
-    }).toThrow('"User Or Llm Param" is required for')
+    }).toThrow('User Or Llm Param is required for')
   })
 
   it.concurrent('should use parameter description in error messages when available', () => {
@@ -335,7 +335,7 @@ describe('validateRequiredParametersAfterMerge', () => {
 
     expect(() => {
       validateRequiredParametersAfterMerge('test-tool', toolWithDescriptions, {})
-    }).toThrow('"Subreddit" is required for Test Tool')
+    }).toThrow('Subreddit is required for Test Tool')
   })
 
   it.concurrent('should fall back to parameter name when no description available', () => {
@@ -353,7 +353,7 @@ describe('validateRequiredParametersAfterMerge', () => {
 
     expect(() => {
       validateRequiredParametersAfterMerge('test-tool', toolWithoutDescription, {})
-    }).toThrow('"Subreddit" is required for Test Tool')
+    }).toThrow('Subreddit is required for Test Tool')
   })
 
   it.concurrent('should handle undefined values as missing', () => {
@@ -362,7 +362,7 @@ describe('validateRequiredParametersAfterMerge', () => {
         required1: 'value',
         required2: undefined, // Explicitly undefined
       })
-    }).toThrow('"Required2" is required for Test Tool')
+    }).toThrow('Required2 is required for Test Tool')
   })
 
   it.concurrent('should validate all missing parameters at once', () => {
@@ -387,7 +387,7 @@ describe('validateRequiredParametersAfterMerge', () => {
     // Should throw for the first missing parameter it encounters
     expect(() => {
       validateRequiredParametersAfterMerge('test-tool', toolWithMultipleRequired, {})
-    }).toThrow('"Param1" is required for Test Tool')
+    }).toThrow('Param1 is required for Test Tool')
   })
 })
 
@@ -396,11 +396,9 @@ describe('executeRequest', () => {
   let mockFetch: any
 
   beforeEach(() => {
-    // Setup mock for global fetch
     mockFetch = vi.fn()
     global.fetch = mockFetch
 
-    // Create a mock tool config
     mockTool = {
       id: 'test-tool',
       name: 'Test Tool',
@@ -424,7 +422,6 @@ describe('executeRequest', () => {
   })
 
   it('should handle successful requests', async () => {
-    // Setup a successful mock response
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -450,10 +447,8 @@ describe('executeRequest', () => {
   })
 
   it.concurrent('should use default transform response if not provided', async () => {
-    // Remove custom transform response
     mockTool.transformResponse = undefined
 
-    // Setup a successful mock response
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -473,7 +468,6 @@ describe('executeRequest', () => {
   })
 
   it('should handle error responses', async () => {
-    // Setup an error response
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 400,
@@ -481,7 +475,6 @@ describe('executeRequest', () => {
       json: async () => ({ message: 'Invalid input' }),
     })
 
-    // We expect this to return a ToolResponse with success: false
     const result = await executeRequest('test-tool', mockTool, {
       url: 'https://api.example.com',
       method: 'GET',
@@ -496,7 +489,6 @@ describe('executeRequest', () => {
   })
 
   it.concurrent('should handle network errors', async () => {
-    // Setup a network error
     const networkError = new Error('Network error')
     mockFetch.mockRejectedValueOnce(networkError)
 
@@ -514,7 +506,6 @@ describe('executeRequest', () => {
   })
 
   it('should handle JSON parse errors in error response', async () => {
-    // Setup an error response that fails to parse as JSON
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 500,
@@ -534,6 +525,43 @@ describe('executeRequest', () => {
       success: false,
       output: {},
       error: 'Server Error', // Should use statusText in the error message
+    })
+  })
+
+  it('should handle transformResponse with non-JSON response', async () => {
+    const toolWithTransform = {
+      ...mockTool,
+      transformResponse: async (response: Response) => {
+        const xmlText = await response.text()
+        return {
+          success: true,
+          output: {
+            parsedData: 'mocked xml parsing result',
+            originalXml: xmlText,
+          },
+        }
+      },
+    }
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      text: async () => '<xml><test>Mock XML response</test></xml>',
+    })
+
+    const result = await executeRequest('test-tool', toolWithTransform, {
+      url: 'https://api.example.com',
+      method: 'GET',
+      headers: {},
+    })
+
+    expect(result).toEqual({
+      success: true,
+      output: {
+        parsedData: 'mocked xml parsing result',
+        originalXml: '<xml><test>Mock XML response</test></xml>',
+      },
     })
   })
 })
@@ -601,7 +629,6 @@ describe('createParamSchema', () => {
 
 describe('getClientEnvVars', () => {
   it.concurrent('should return environment variables from store in browser environment', () => {
-    // Create a mock store for testing
     const mockStoreGetter = () => ({
       getAllVariables: () => ({
         API_KEY: { value: 'mock-api-key' },
@@ -618,7 +645,6 @@ describe('getClientEnvVars', () => {
   })
 
   it.concurrent('should return empty object in server environment', () => {
-    // Remove window to simulate server environment
     global.window = undefined as any
 
     const result = getClientEnvVars()
@@ -638,7 +664,6 @@ describe('createCustomToolRequestBody', () => {
       },
     }
 
-    // Create a mock store for testing
     const mockStoreGetter = () => ({
       getAllVariables: () => ({
         API_KEY: { value: 'mock-api-key' },
@@ -658,6 +683,9 @@ describe('createCustomToolRequestBody', () => {
         BASE_URL: 'https://example.com',
       },
       workflowId: undefined,
+      workflowVariables: {},
+      blockData: {},
+      blockNameMapping: {},
       isCustomTool: true,
     })
   })
@@ -682,6 +710,9 @@ describe('createCustomToolRequestBody', () => {
       schema: { type: 'object', properties: {} },
       envVars: {},
       workflowId: 'test-workflow-123',
+      workflowVariables: {},
+      blockData: {},
+      blockNameMapping: {},
       isCustomTool: true,
     })
   })

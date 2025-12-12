@@ -1,0 +1,76 @@
+---
+title: Fonction
+---
+
+import { Image } from '@/components/ui/image'
+
+Le bloc Fonction exécute du code JavaScript ou TypeScript personnalisé dans vos flux de travail. Transformez des données, effectuez des calculs ou implémentez une logique personnalisée.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/function.png"
+    alt="Bloc de fonction avec éditeur de code"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Sorties
+
+- **`<function.result>`**: La valeur retournée par votre fonction
+- **`<function.stdout>`**: Sortie console.log() de votre code
+
+## Exemples de cas d'utilisation
+
+**Pipeline de traitement de données** - Transformer une réponse d'API en données structurées
+
+```
+API (Fetch) → Function (Process & Validate) → Function (Calculate Metrics) → Response
+```
+
+**Implémentation de logique métier** - Calculer des scores et niveaux de fidélité
+
+```
+Agent (Get History) → Function (Calculate Score) → Function (Determine Tier) → Condition (Route)
+```
+
+**Validation et assainissement des données** - Valider et nettoyer les entrées utilisateur
+
+```
+Input → Function (Validate & Sanitize) → API (Save to Database)
+```
+
+### Exemple : Calculateur de score de fidélité
+
+```javascript title="loyalty-calculator.js"
+// Process customer data and calculate loyalty score
+const { purchaseHistory, accountAge, supportTickets } = <agent>;
+
+// Calculate metrics
+const totalSpent = purchaseHistory.reduce((sum, purchase) => sum + purchase.amount, 0);
+const purchaseFrequency = purchaseHistory.length / (accountAge / 365);
+const ticketRatio = supportTickets.resolved / supportTickets.total;
+
+// Calculate loyalty score (0-100)
+const spendScore = Math.min(totalSpent / 1000 * 30, 30);
+const frequencyScore = Math.min(purchaseFrequency * 20, 40);
+const supportScore = ticketRatio * 30;
+
+const loyaltyScore = Math.round(spendScore + frequencyScore + supportScore);
+
+return {
+  customer: <agent.name>,
+  loyaltyScore,
+  loyaltyTier: loyaltyScore >= 80 ? "Platinum" : loyaltyScore >= 60 ? "Gold" : "Silver",
+  metrics: { spendScore, frequencyScore, supportScore }
+};
+```
+
+## Bonnes pratiques
+
+- **Gardez les fonctions ciblées** : Écrivez des fonctions qui font bien une seule chose pour améliorer la maintenabilité et le débogage
+- **Gérez les erreurs avec élégance** : Utilisez des blocs try/catch pour gérer les erreurs potentielles et fournir des messages d'erreur significatifs
+- **Testez les cas limites** : Assurez-vous que votre code gère correctement les entrées inhabituelles, les valeurs nulles et les conditions limites
+- **Optimisez pour la performance** : Soyez attentif à la complexité computationnelle et à l'utilisation de la mémoire pour les grands ensembles de données
+- **Utilisez console.log() pour le débogage** : Exploitez la sortie stdout pour déboguer et surveiller l'exécution des fonctions

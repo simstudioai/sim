@@ -1,0 +1,130 @@
+---
+title: Airtable
+description: Airtable lesen, erstellen und aktualisieren
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="airtable"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Airtable](https://airtable.com/) ist eine leistungsstarke cloudbasierte Plattform, die die Funktionalität einer Datenbank mit der Einfachheit einer Tabellenkalkulation verbindet. Sie ermöglicht Benutzern, flexible Datenbanken zur Organisation, Speicherung und Zusammenarbeit an Informationen zu erstellen.
+
+Mit Airtable können Sie:
+
+- **Benutzerdefinierte Datenbanken erstellen**: Maßgeschneiderte Lösungen für Projektmanagement, Content-Kalender, Bestandsverfolgung und mehr entwickeln
+- **Daten visualisieren**: Ihre Informationen als Raster, Kanban-Board, Kalender oder Galerie anzeigen
+- **Arbeitsabläufe automatisieren**: Auslöser und Aktionen einrichten, um wiederkehrende Aufgaben zu automatisieren
+- **Mit anderen Tools integrieren**: Verbindung zu Hunderten anderer Anwendungen durch native Integrationen und APIs herstellen
+
+In Sim ermöglicht die Airtable-Integration Ihren Agenten, programmatisch mit Ihren Airtable-Basen zu interagieren. Dies erlaubt nahtlose Datenoperationen wie das Abrufen von Informationen, Erstellen neuer Datensätze und Aktualisieren vorhandener Daten - alles innerhalb Ihrer Agenten-Workflows. Nutzen Sie Airtable als dynamische Datenquelle oder -ziel für Ihre Agenten, sodass sie im Rahmen ihrer Entscheidungsfindung und Aufgabenausführung auf strukturierte Informationen zugreifen und diese bearbeiten können.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integriert Airtable in den Workflow. Kann Airtable-Datensätze erstellen, abrufen, auflisten oder aktualisieren. Erfordert OAuth. Kann im Trigger-Modus verwendet werden, um einen Workflow auszulösen, wenn eine Aktualisierung an einer Airtable-Tabelle vorgenommen wird.
+
+## Tools
+
+### `airtable_list_records`
+
+Datensätze aus einer Airtable-Tabelle lesen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `baseId` | string | Ja | ID der Airtable-Basis |
+| `tableId` | string | Ja | ID der Tabelle |
+| `maxRecords` | number | Nein | Maximale Anzahl der zurückzugebenden Datensätze |
+| `filterFormula` | string | Nein | Formel zum Filtern von Datensätzen \(z.B. "\(\{Feldname\} = \'Wert\'\)"\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `records` | json | Array der abgerufenen Airtable-Datensätze |
+
+### `airtable_get_record`
+
+Einen einzelnen Datensatz aus einer Airtable-Tabelle anhand seiner ID abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `baseId` | string | Ja | ID der Airtable-Basis |
+| `tableId` | string | Ja | ID oder Name der Tabelle |
+| `recordId` | string | Ja | ID des abzurufenden Datensatzes |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `record` | json | Abgerufener Airtable-Datensatz mit id, createdTime und fields |
+| `metadata` | json | Operationsmetadaten einschließlich Datensatzanzahl |
+
+### `airtable_create_records`
+
+Neue Datensätze in eine Airtable-Tabelle schreiben
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `baseId` | string | Ja | ID der Airtable-Basis |
+| `tableId` | string | Ja | ID oder Name der Tabelle |
+| `records` | json | Ja | Array von zu erstellenden Datensätzen, jeder mit einem `fields` Objekt |
+| `fields` | string | Nein | Keine Beschreibung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `records` | json | Array der erstellten Airtable-Datensätze |
+
+### `airtable_update_record`
+
+Einen vorhandenen Datensatz in einer Airtable-Tabelle nach ID aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `baseId` | string | Ja | ID der Airtable-Basis |
+| `tableId` | string | Ja | ID oder Name der Tabelle |
+| `recordId` | string | Ja | ID des zu aktualisierenden Datensatzes |
+| `fields` | json | Ja | Ein Objekt, das die Feldnamen und ihre neuen Werte enthält |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `record` | json | Aktualisierter Airtable-Datensatz mit ID, Erstellungszeit und Feldern |
+| `metadata` | json | Operationsmetadaten einschließlich Datensatzanzahl und aktualisierter Feldnamen |
+
+### `airtable_update_multiple_records`
+
+Mehrere vorhandene Datensätze in einer Airtable-Tabelle aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `baseId` | string | Ja | ID der Airtable-Basis |
+| `tableId` | string | Ja | ID oder Name der Tabelle |
+| `records` | json | Ja | Array von zu aktualisierenden Datensätzen, jeder mit einer `id` und einem `fields`-Objekt |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `records` | json | Array der aktualisierten Airtable-Datensätze |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `airtable`

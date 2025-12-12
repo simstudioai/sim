@@ -1,13 +1,14 @@
 import { SerperIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { SearchResponse } from '@/tools/serper/types'
 
 export const SerperBlock: BlockConfig<SearchResponse> = {
   type: 'serper',
   name: 'Serper',
   description: 'Search the web using Serper',
-  longDescription:
-    "Access real-time web search results with Serper's Google Search API integration. Retrieve structured search data including web pages, news, images, and places with customizable language and region settings.",
+  authMode: AuthMode.ApiKey,
+  longDescription: 'Integrate Serper into the workflow. Can search the web.',
   docsLink: 'https://docs.sim.ai/tools/serper',
   category: 'tools',
   bgColor: '#2B3543',
@@ -17,7 +18,6 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
       id: 'query',
       title: 'Search Query',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter your search query...',
       required: true,
     },
@@ -25,7 +25,6 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
       id: 'type',
       title: 'Search Type',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'search', id: 'search' },
         { label: 'news', id: 'news' },
@@ -38,7 +37,6 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
       id: 'num',
       title: 'Number of Results',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: '10', id: '10' },
         { label: '20', id: '20' },
@@ -52,7 +50,6 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
       id: 'gl',
       title: 'Country',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'US', id: 'US' },
         { label: 'GB', id: 'GB' },
@@ -66,7 +63,6 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
       id: 'hl',
       title: 'Language',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'en', id: 'en' },
         { label: 'es', id: 'es' },
@@ -79,7 +75,6 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter your Serper API key',
       password: true,
       required: true,

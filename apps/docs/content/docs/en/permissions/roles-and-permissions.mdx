@@ -1,0 +1,161 @@
+---
+title: "Roles and Permissions"
+---
+
+import { Video } from '@/components/ui/video'
+
+When you invite team members to your organization or workspace, you'll need to choose what level of access to give them. This guide explains what each permission level allows users to do, helping you understand team roles and what access each permission level provides.
+
+## How to Invite Someone to a Workspace
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="invitations.mp4" width={700} height={450} />
+</div>
+
+## Workspace Permission Levels
+
+When inviting someone to a workspace, you can assign one of three permission levels:
+
+| Permission | What They Can Do |
+|------------|------------------|
+| **Read** | View workflows, see execution results, but cannot make any changes |
+| **Write** | Create and edit workflows, run workflows, manage environment variables |
+| **Admin** | Everything Write can do, plus invite/remove users and manage workspace settings |
+
+## What Each Permission Level Can Do
+
+Here's a detailed breakdown of what users can do with each permission level:
+
+### Read Permission
+**Perfect for:** Stakeholders, observers, or team members who need visibility but shouldn't make changes
+
+**What they can do:**
+- View all workflows in the workspace
+- See workflow execution results and logs
+- Browse workflow configurations and settings
+- View environment variables (but not edit them)
+
+**What they cannot do:**
+- Create, edit, or delete workflows
+- Run or deploy workflows
+- Change any workspace settings
+- Invite other users
+
+### Write Permission  
+**Perfect for:** Developers, content creators, or team members actively working on automation
+
+**What they can do:**
+- Everything Read users can do, plus:
+- Create, edit, and delete workflows
+- Run and deploy workflows
+- Add, edit, and delete workspace environment variables
+- Use all available tools and integrations
+- Collaborate in real-time on workflow editing
+
+**What they cannot do:**
+- Invite or remove users from the workspace
+- Change workspace settings
+- Delete the workspace
+
+### Admin Permission
+**Perfect for:** Team leads, project managers, or technical leads who need to manage the workspace
+
+**What they can do:**
+- Everything Write users can do, plus:
+- Invite new users to the workspace with any permission level
+- Remove users from the workspace
+- Manage workspace settings and integrations
+- Configure external tool connections
+- Delete workflows created by other users
+
+**What they cannot do:**
+- Delete the workspace (only the workspace owner can do this)
+- Remove the workspace owner from the workspace
+
+---
+
+## Workspace Owner vs Admin
+
+Every workspace has one **Owner** (the person who created it) plus any number of **Admins**.
+
+### Workspace Owner
+- Has all Admin permissions
+- Can delete the workspace
+- Cannot be removed from the workspace
+- Can transfer ownership to another user
+
+### Workspace Admin  
+- Can do everything except delete the workspace or remove the owner
+- Can be removed from the workspace by the owner or other admins
+
+---
+
+## Common Scenarios
+
+### Adding a New Developer to Your Team
+1. **Organization level**: Invite them as an **Organization Member**
+2. **Workspace level**: Give them **Write** permission so they can create and edit workflows
+
+### Adding a Project Manager
+1. **Organization level**: Invite them as an **Organization Member** 
+2. **Workspace level**: Give them **Admin** permission so they can manage the team and see everything
+
+### Adding a Stakeholder or Client
+1. **Organization level**: Invite them as an **Organization Member**
+2. **Workspace level**: Give them **Read** permission so they can see progress but not make changes
+
+---
+
+## Environment Variables
+
+Users can create two types of environment variables:
+
+### Personal Environment Variables
+- Only visible to the individual user
+- Available in all workflows they run
+- Managed in user settings
+
+### Workspace Environment Variables
+- **Read permission**: Can see variable names and values
+- **Write/Admin permission**: Can add, edit, and delete variables
+- Available to all workspace members
+- If a personal variable has the same name as a workspace variable, the personal one takes priority
+
+---
+
+## Best Practices
+
+### Start with Minimal Permissions
+Give users the lowest permission level they need to do their job. You can always increase permissions later.
+
+### Use Organization Structure Wisely
+- Make trusted team leads **Organization Admins**
+- Most team members should be **Organization Members**
+- Reserve workspace **Admin** permissions for people who need to manage users
+
+### Review Permissions Regularly
+Periodically review who has access to what, especially when team members change roles or leave the company.
+
+### Environment Variable Security
+- Use personal environment variables for sensitive API keys
+- Use workspace environment variables for shared configuration
+- Regularly audit who has access to sensitive variables
+
+---
+
+## Organization Roles
+
+When inviting someone to your organization, you can assign one of two roles:
+
+### Organization Admin
+**What they can do:**
+- Invite and remove team members from the organization
+- Create new workspaces
+- Manage billing and subscription settings
+- Access all workspaces within the organization
+
+### Organization Member  
+**What they can do:**
+- Access workspaces they've been specifically invited to
+- View the list of organization members
+- Cannot invite new people or manage organization settings

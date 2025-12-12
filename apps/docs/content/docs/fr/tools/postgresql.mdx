@@ -1,0 +1,160 @@
+---
+title: PostgreSQL
+description: Connexion à la base de données PostgreSQL
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="postgresql"
+  color="#336791"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+L'outil [PostgreSQL](https://www.postgresql.org/) vous permet de vous connecter à n'importe quelle base de données PostgreSQL et d'effectuer un large éventail d'opérations directement au sein de vos workflows d'agents. Avec une gestion sécurisée des connexions et une configuration flexible, vous pouvez facilement gérer et interagir avec vos données.
+
+Avec l'outil PostgreSQL, vous pouvez :
+
+- **Interroger des données** : exécuter des requêtes SELECT pour récupérer des données de vos tables PostgreSQL en utilisant l'opération `postgresql_query`.
+- **Insérer des enregistrements** : ajouter de nouvelles lignes à vos tables avec l'opération `postgresql_insert` en spécifiant la table et les données à insérer.
+- **Mettre à jour des enregistrements** : modifier des données existantes dans vos tables en utilisant l'opération `postgresql_update`, en fournissant la table, les nouvelles données et les conditions WHERE.
+- **Supprimer des enregistrements** : retirer des lignes de vos tables avec l'opération `postgresql_delete`, en spécifiant la table et les conditions WHERE.
+- **Exécuter du SQL brut** : lancer n'importe quelle commande SQL personnalisée en utilisant l'opération `postgresql_execute` pour des cas d'utilisation avancés.
+
+L'outil PostgreSQL est idéal pour les scénarios où vos agents doivent interagir avec des données structurées — comme l'automatisation de rapports, la synchronisation de données entre systèmes ou l'alimentation de workflows basés sur les données. Il simplifie l'accès aux bases de données, facilitant la lecture, l'écriture et la gestion de vos données PostgreSQL de manière programmatique.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrer PostgreSQL dans le flux de travail. Peut interroger, insérer, mettre à jour, supprimer et exécuter du SQL brut.
+
+## Outils
+
+### `postgresql_query`
+
+Exécuter une requête SELECT sur une base de données PostgreSQL
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur PostgreSQL |
+| `port` | number | Oui | Port du serveur PostgreSQL \(par défaut : 5432\) |
+| `database` | string | Oui | Nom de la base de données à laquelle se connecter |
+| `username` | string | Oui | Nom d'utilisateur de la base de données |
+| `password` | string | Oui | Mot de passe de la base de données |
+| `ssl` | string | Non | Mode de connexion SSL \(disabled, required, preferred\) |
+| `query` | string | Oui | Requête SQL SELECT à exécuter |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `rows` | array | Tableau des lignes retournées par la requête |
+| `rowCount` | number | Nombre de lignes retournées |
+
+### `postgresql_insert`
+
+Insérer des données dans une base de données PostgreSQL
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur PostgreSQL |
+| `port` | number | Oui | Port du serveur PostgreSQL \(par défaut : 5432\) |
+| `database` | string | Oui | Nom de la base de données à laquelle se connecter |
+| `username` | string | Oui | Nom d'utilisateur de la base de données |
+| `password` | string | Oui | Mot de passe de la base de données |
+| `ssl` | string | Non | Mode de connexion SSL \(disabled, required, preferred\) |
+| `table` | string | Oui | Nom de la table dans laquelle insérer les données |
+| `data` | object | Oui | Objet de données à insérer \(paires clé-valeur\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `rows` | array | Données insérées \(si la clause RETURNING est utilisée\) |
+| `rowCount` | number | Nombre de lignes insérées |
+
+### `postgresql_update`
+
+Mettre à jour des données dans une base de données PostgreSQL
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur PostgreSQL |
+| `port` | number | Oui | Port du serveur PostgreSQL \(par défaut : 5432\) |
+| `database` | string | Oui | Nom de la base de données à laquelle se connecter |
+| `username` | string | Oui | Nom d'utilisateur de la base de données |
+| `password` | string | Oui | Mot de passe de la base de données |
+| `ssl` | string | Non | Mode de connexion SSL \(disabled, required, preferred\) |
+| `table` | string | Oui | Nom de la table dans laquelle mettre à jour les données |
+| `data` | object | Oui | Objet de données avec les champs à mettre à jour \(paires clé-valeur\) |
+| `where` | string | Oui | Condition de la clause WHERE \(sans le mot-clé WHERE\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `rows` | array | Données mises à jour (si la clause RETURNING est utilisée) |
+| `rowCount` | number | Nombre de lignes mises à jour |
+
+### `postgresql_delete`
+
+Supprimer des données de la base de données PostgreSQL
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur PostgreSQL |
+| `port` | number | Oui | Port du serveur PostgreSQL (par défaut : 5432) |
+| `database` | string | Oui | Nom de la base de données à laquelle se connecter |
+| `username` | string | Oui | Nom d'utilisateur de la base de données |
+| `password` | string | Oui | Mot de passe de la base de données |
+| `ssl` | string | Non | Mode de connexion SSL (disabled, required, preferred) |
+| `table` | string | Oui | Nom de la table d'où supprimer les données |
+| `where` | string | Oui | Condition de la clause WHERE (sans le mot-clé WHERE) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `rows` | array | Données supprimées (si la clause RETURNING est utilisée) |
+| `rowCount` | number | Nombre de lignes supprimées |
+
+### `postgresql_execute`
+
+Exécuter une requête SQL brute sur une base de données PostgreSQL
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur PostgreSQL |
+| `port` | number | Oui | Port du serveur PostgreSQL (par défaut : 5432) |
+| `database` | string | Oui | Nom de la base de données à laquelle se connecter |
+| `username` | string | Oui | Nom d'utilisateur de la base de données |
+| `password` | string | Oui | Mot de passe de la base de données |
+| `ssl` | string | Non | Mode de connexion SSL (disabled, required, preferred) |
+| `query` | string | Oui | Requête SQL brute à exécuter |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `rows` | array | Tableau des lignes retournées par la requête |
+| `rowCount` | number | Nombre de lignes affectées |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `postgresql`

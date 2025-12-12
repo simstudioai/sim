@@ -1,0 +1,176 @@
+import type { SubBlockConfig } from '@/blocks/types'
+import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
+
+export interface SelectorResolution {
+  key: SelectorKey | null
+  context: SelectorContext
+  allowSearch: boolean
+}
+
+export interface SelectorResolutionArgs {
+  workflowId?: string
+  credentialId?: string
+  domain?: string
+  projectId?: string
+  planId?: string
+  teamId?: string
+  knowledgeBaseId?: string
+}
+
+const defaultContext: SelectorContext = {}
+
+export function resolveSelectorForSubBlock(
+  subBlock: SubBlockConfig,
+  args: SelectorResolutionArgs
+): SelectorResolution | null {
+  switch (subBlock.type) {
+    case 'file-selector':
+      return resolveFileSelector(subBlock, args)
+    case 'folder-selector':
+      return resolveFolderSelector(subBlock, args)
+    case 'channel-selector':
+      return resolveChannelSelector(subBlock, args)
+    case 'project-selector':
+      return resolveProjectSelector(subBlock, args)
+    case 'document-selector':
+      return resolveDocumentSelector(subBlock, args)
+    default:
+      return null
+  }
+}
+
+function buildBaseContext(
+  args: SelectorResolutionArgs,
+  extra?: Partial<SelectorContext>
+): SelectorContext {
+  return {
+    ...defaultContext,
+    workflowId: args.workflowId,
+    credentialId: args.credentialId,
+    domain: args.domain,
+    projectId: args.projectId,
+    planId: args.planId,
+    teamId: args.teamId,
+    knowledgeBaseId: args.knowledgeBaseId,
+    ...extra,
+  }
+}
+
+function resolveFileSelector(
+  subBlock: SubBlockConfig,
+  args: SelectorResolutionArgs
+): SelectorResolution {
+  const context = buildBaseContext(args, {
+    mimeType: subBlock.mimeType,
+  })
+
+  // Use serviceId as the canonical identifier
+  const serviceId = subBlock.serviceId || ''
+
+  switch (serviceId) {
+    case 'google-calendar':
+      return { key: 'google.calendar', context, allowSearch: false }
+    case 'confluence':
+      return { key: 'confluence.pages', context, allowSearch: true }
+    case 'jira':
+      return { key: 'jira.issues', context, allowSearch: true }
+    case 'microsoft-teams':
+      // Route to the correct selector based on what type of resource is being selected
+      if (subBlock.id === 'chatId') {
+        return { key: 'microsoft.chats', context, allowSearch: false }
+      }
+      if (subBlock.id === 'channelId') {
+        return { key: 'microsoft.channels', context, allowSearch: false }
+      }
+      // Default to teams selector for teamId
+      return { key: 'microsoft.teams', context, allowSearch: false }
+    case 'wealthbox':
+      return { key: 'wealthbox.contacts', context, allowSearch: true }
+    case 'microsoft-planner':
+      return { key: 'microsoft.planner', context, allowSearch: true }
+    case 'microsoft-excel':
+      return { key: 'microsoft.excel', context, allowSearch: true }
+    case 'microsoft-word':
+      return { key: 'microsoft.word', context, allowSearch: true }
+    case 'google-drive':
+      return { key: 'google.drive', context, allowSearch: true }
+    case 'google-sheets':
+      return { key: 'google.drive', context, allowSearch: true }
+    case 'google-docs':
+      return { key: 'google.drive', context, allowSearch: true }
+    case 'google-slides':
+      return { key: 'google.drive', context, allowSearch: true }
+    case 'onedrive': {
+      const key: SelectorKey = subBlock.mimeType === 'file' ? 'onedrive.files' : 'onedrive.folders'
+      return { key, context, allowSearch: true }
+    }
+    case 'sharepoint':
+      return { key: 'sharepoint.sites', context, allowSearch: true }
+    default:
+      return { key: null, context, allowSearch: true }
+  }
+}
+
+function resolveFolderSelector(
+  subBlock: SubBlockConfig,
+  args: SelectorResolutionArgs
+): SelectorResolution {
+  const serviceId = subBlock.serviceId?.toLowerCase()
+  if (!serviceId) {
+    return { key: null, context: buildBaseContext(args), allowSearch: true }
+  }
+
+  switch (serviceId) {
+    case 'gmail':
+      return { key: 'gmail.labels', context: buildBaseContext(args), allowSearch: true }
+    case 'outlook':
+      return { key: 'outlook.folders', context: buildBaseContext(args), allowSearch: true }
+    default:
+      return { key: null, context: buildBaseContext(args), allowSearch: true }
+  }
+}
+
+function resolveChannelSelector(
+  subBlock: SubBlockConfig,
+  args: SelectorResolutionArgs
+): SelectorResolution {
+  const serviceId = subBlock.serviceId
+  if (serviceId !== 'slack') {
+    return { key: null, context: buildBaseContext(args), allowSearch: true }
+  }
+  return {
+    key: 'slack.channels',
+    context: buildBaseContext(args),
+    allowSearch: true,
+  }
+}
+
+function resolveProjectSelector(
+  subBlock: SubBlockConfig,
+  args: SelectorResolutionArgs
+): SelectorResolution {
+  const serviceId = subBlock.serviceId
+  const context = buildBaseContext(args)
+
+  switch (serviceId) {
+    case 'linear': {
+      const key: SelectorKey = subBlock.id === 'teamId' ? 'linear.teams' : 'linear.projects'
+      return { key, context, allowSearch: true }
+    }
+    case 'jira':
+      return { key: 'jira.projects', context, allowSearch: true }
+    default:
+      return { key: null, context, allowSearch: true }
+  }
+}
+
+function resolveDocumentSelector(
+  _subBlock: SubBlockConfig,
+  args: SelectorResolutionArgs
+): SelectorResolution {
+  return {
+    key: 'knowledge.documents',
+    context: buildBaseContext(args),
+    allowSearch: true,
+  }
+}

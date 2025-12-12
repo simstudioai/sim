@@ -1,0 +1,99 @@
+---
+title: Wikipedia
+description: Suche und rufe Inhalte von Wikipedia ab
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="wikipedia"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Wikipedia](https://www.wikipedia.org/) ist die größte kostenlose Online-Enzyklopädie der Welt, die Millionen von Artikeln zu einer Vielzahl von Themen bietet, die gemeinschaftlich von Freiwilligen geschrieben und gepflegt werden.
+
+Mit Wikipedia kannst du:
+
+- **Nach Artikeln suchen**: Finde relevante Wikipedia-Seiten durch die Suche nach Schlüsselwörtern oder Themen
+- **Artikelzusammenfassungen erhalten**: Rufe prägnante Zusammenfassungen von Wikipedia-Seiten für schnelle Referenzen ab
+- **Auf vollständige Inhalte zugreifen**: Erhalte den kompletten Inhalt von Wikipedia-Artikeln für tiefgehende Informationen
+- **Zufällige Artikel entdecken**: Erkunde neue Themen durch das Abrufen zufälliger Wikipedia-Seiten
+
+In Sim ermöglicht die Wikipedia-Integration deinen Agenten, programmatisch auf Wikipedia-Inhalte zuzugreifen und mit ihnen zu interagieren, als Teil ihrer Arbeitsabläufe. Agenten können nach Artikeln suchen, Zusammenfassungen abrufen, vollständige Seiteninhalte erhalten und zufällige Artikel entdecken, wodurch deine Automatisierungen mit aktuellen, zuverlässigen Informationen aus der größten Enzyklopädie der Welt ausgestattet werden. Diese Integration ist ideal für Szenarien wie Recherche, Content-Anreicherung, Faktenprüfung und Wissensentdeckung und ermöglicht es deinen Agenten, Wikipedia-Daten nahtlos in ihre Entscheidungsfindung und Aufgabenausführung zu integrieren.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Integriere Wikipedia in den Workflow. Kann Seitenzusammenfassungen abrufen, Seiten durchsuchen, Seiteninhalt abrufen und zufällige Seiten anzeigen.
+
+## Tools
+
+### `wikipedia_summary`
+
+Erhalte eine Zusammenfassung und Metadaten für eine bestimmte Wikipedia-Seite.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `pageTitle` | string | Ja | Titel der Wikipedia-Seite, für die eine Zusammenfassung abgerufen werden soll |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `summary` | object | Wikipedia-Seitenzusammenfassung und Metadaten |
+
+### `wikipedia_search`
+
+Suche nach Wikipedia-Seiten nach Titel oder Inhalt.
+
+#### Input
+
+| Parameter | Type | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Ja | Suchanfrage zum Finden von Wikipedia-Seiten |
+| `searchLimit` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse \(Standard: 10, max: 50\) |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `searchResults` | array | Array übereinstimmender Wikipedia-Seiten |
+
+### `wikipedia_content`
+
+Holen Sie den vollständigen HTML-Inhalt einer Wikipedia-Seite.
+
+#### Input
+
+| Parameter | Type | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `pageTitle` | string | Ja | Titel der Wikipedia-Seite, für die der Inhalt abgerufen werden soll |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | object | Vollständiger HTML-Inhalt und Metadaten der Wikipedia-Seite |
+
+### `wikipedia_random`
+
+Erhalten Sie eine zufällige Wikipedia-Seite.
+
+#### Input
+
+| Parameter | Type | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `randomPage` | object | Daten einer zufälligen Wikipedia-Seite |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `wikipedia`

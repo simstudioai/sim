@@ -1,0 +1,145 @@
+---
+title: API
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Le bloc API connecte votre flux de travail à des services externes via des requêtes HTTP. Il prend en charge les méthodes GET, POST, PUT, DELETE et PATCH pour interagir avec les API REST.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/api.png"
+    alt="Bloc API"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Options de configuration
+
+### URL
+
+L'URL du point de terminaison pour la requête API. Cela peut être :
+
+- Une URL statique saisie directement dans le bloc
+- Une URL dynamique connectée à partir de la sortie d'un autre bloc
+- Une URL avec des paramètres de chemin
+
+### Méthode
+
+Sélectionnez la méthode HTTP pour votre requête :
+
+- **GET** : récupérer des données du serveur
+- **POST** : envoyer des données au serveur pour créer une ressource
+- **PUT** : mettre à jour une ressource existante sur le serveur
+- **DELETE** : supprimer une ressource du serveur
+- **PATCH** : mettre à jour partiellement une ressource existante
+
+### Paramètres de requête
+
+Définissez des paires clé-valeur qui seront ajoutées à l'URL en tant que paramètres de requête. Par exemple :
+
+```
+Key: apiKey
+Value: your_api_key_here
+
+Key: limit
+Value: 10
+```
+
+Ceux-ci seraient ajoutés à l'URL sous la forme `?apiKey=your_api_key_here&limit=10`.
+
+### En-têtes
+
+Configurez les en-têtes HTTP pour votre requête. Les en-têtes courants incluent :
+
+```
+Key: Content-Type
+Value: application/json
+
+Key: Authorization
+Value: Bearer your_token_here
+```
+
+### Corps de la requête
+
+Pour les méthodes qui prennent en charge un corps de requête (POST, PUT, PATCH), vous pouvez définir les données à envoyer. Le corps peut être :
+
+- Des données JSON saisies directement dans le bloc
+- Des données connectées à partir de la sortie d'un autre bloc
+- Générées dynamiquement pendant l'exécution du flux de travail
+
+### Accès aux résultats
+
+Une fois qu'une requête API est terminée, vous pouvez accéder à ses sorties :
+
+- **`<api.data>`** : les données du corps de la réponse de l'API
+- **`<api.status>`** : code de statut HTTP (200, 404, 500, etc.)
+- **`<api.headers>`** : en-têtes de réponse du serveur
+- **`<api.error>`** : détails de l'erreur si la requête a échoué
+
+## Fonctionnalités avancées
+
+### Construction dynamique d'URL
+
+Construisez des URL dynamiquement en utilisant des variables provenant de blocs précédents :
+
+```javascript
+// In a Function block before the API
+const userId = <start.userId>;
+const apiUrl = `https://api.example.com/users/${userId}/profile`;
+```
+
+### Nouvelles tentatives de requêtes
+
+Le bloc API gère automatiquement :
+- Les délais d'attente réseau avec backoff exponentiel
+- Les réponses de limite de débit (codes d'état 429)
+- Les erreurs serveur (codes d'état 5xx) avec logique de nouvelle tentative
+- Les échecs de connexion avec tentatives de reconnexion
+
+### Validation des réponses
+
+Validez les réponses API avant de les traiter :
+
+```javascript
+// In a Function block after the API
+if (<api.status> === 200) {
+  const data = <api.data>;
+  // Process successful response
+} else {
+  // Handle error response
+  console.error(`API Error: ${<api.status>}`);
+}
+```
+
+## Sorties
+
+- **`<api.data>`** : Données du corps de la réponse de l'API
+- **`<api.status>`** : Code d'état HTTP
+- **`<api.headers>`** : En-têtes de réponse
+- **`<api.error>`** : Détails de l'erreur si la requête a échoué
+
+## Exemples de cas d'utilisation
+
+**Récupération des données de profil utilisateur** - Récupérer les informations utilisateur depuis un service externe
+
+```
+Function (Build ID) → API (GET /users/{id}) → Function (Format) → Response
+```
+
+**Traitement des paiements** - Traiter un paiement via l'API Stripe
+
+```
+Function (Validate) → API (Stripe) → Condition (Success) → Supabase (Update)
+```
+
+## Bonnes pratiques
+
+- **Utilisez des variables d'environnement pour les données sensibles** : Ne codez pas en dur les clés API ou les identifiants
+- **Gérez les erreurs avec élégance** : Connectez une logique de gestion des erreurs pour les requêtes échouées
+- **Validez les réponses** : Vérifiez les codes d'état et les formats de réponse avant de traiter les données
+- **Respectez les limites de débit** : Soyez attentif aux limites de débit des API et implémentez un throttling approprié

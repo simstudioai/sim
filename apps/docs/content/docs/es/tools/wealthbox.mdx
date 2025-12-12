@@ -1,0 +1,146 @@
+---
+title: Wealthbox
+description: Interactúa con Wealthbox
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="wealthbox"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Wealthbox](https://www.wealthbox.com/) es una plataforma CRM completa diseñada específicamente para asesores financieros y profesionales de gestión patrimonial. Proporciona un sistema centralizado para gestionar relaciones con clientes, seguimiento de interacciones y organización de flujos de trabajo empresariales en la industria de servicios financieros.
+
+Con Wealthbox, puedes:
+
+- **Gestionar relaciones con clientes**: Almacenar información detallada de contactos, datos de antecedentes e historiales de relaciones para todos tus clientes
+- **Seguimiento de interacciones**: Crear y mantener notas sobre reuniones, llamadas y otros puntos de contacto con clientes
+- **Organizar tareas**: Programar y gestionar actividades de seguimiento, fechas límite y elementos de acción importantes
+- **Documentar flujos de trabajo**: Mantener registros completos de comunicaciones con clientes y procesos de negocio
+- **Acceder a datos de clientes**: Recuperar información rápidamente con gestión organizada de contactos y capacidades de búsqueda
+- **Automatizar seguimientos**: Establecer recordatorios y programar tareas para asegurar un compromiso constante con el cliente
+
+En Sim, la integración de Wealthbox permite a tus agentes interactuar sin problemas con tus datos de CRM mediante autenticación OAuth. Esto permite potentes escenarios de automatización como la creación automática de notas de clientes a partir de transcripciones de reuniones, actualización de información de contacto, programación de tareas de seguimiento y recuperación de detalles de clientes para comunicaciones personalizadas. Tus agentes pueden leer notas existentes, contactos y tareas para entender el historial del cliente, mientras también crean nuevas entradas para mantener registros actualizados. Esta integración cierra la brecha entre tus flujos de trabajo de IA y la gestión de relaciones con clientes, permitiendo la entrada automatizada de datos, información inteligente sobre clientes y procesos administrativos optimizados que liberan tiempo para actividades más valiosas orientadas al cliente.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Wealthbox en el flujo de trabajo. Puede leer y escribir notas, leer y escribir contactos, y leer y escribir tareas. Requiere OAuth.
+
+## Herramientas
+
+### `wealthbox_read_note`
+
+Leer contenido de una nota de Wealthbox
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `noteId` | string | No | El ID de la nota a leer |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de la nota |
+
+### `wealthbox_write_note`
+
+Crear o actualizar una nota de Wealthbox
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `content` | string | Sí | El cuerpo principal de la nota |
+| `contactId` | string | No | ID del contacto para vincular a esta nota |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de la nota creada o actualizada |
+
+### `wealthbox_read_contact`
+
+Leer contenido de un contacto de Wealthbox
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `contactId` | string | No | El ID del contacto a leer |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos del contacto |
+
+### `wealthbox_write_contact`
+
+Crear un nuevo contacto en Wealthbox
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `firstName` | string | Sí | El nombre del contacto |
+| `lastName` | string | Sí | El apellido del contacto |
+| `emailAddress` | string | No | La dirección de correo electrónico del contacto |
+| `backgroundInformation` | string | No | Información de antecedentes sobre el contacto |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos del contacto creado o actualizado |
+
+### `wealthbox_read_task`
+
+Leer contenido de una tarea de Wealthbox
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | No | El ID de la tarea a leer |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de la tarea |
+
+### `wealthbox_write_task`
+
+Crear o actualizar una tarea de Wealthbox
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Sí | El nombre/título de la tarea |
+| `dueDate` | string | Sí | La fecha y hora de vencimiento de la tarea \(formato: "AAAA-MM-DD HH:MM AM/PM -HHMM", p. ej., "2015-05-24 11:00 AM -0400"\) |
+| `contactId` | string | No | ID del contacto para vincular a esta tarea |
+| `description` | string | No | Descripción o notas sobre la tarea |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos y metadatos de la tarea creada o actualizada |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `wealthbox`

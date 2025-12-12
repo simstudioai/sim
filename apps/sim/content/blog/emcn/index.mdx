@@ -1,0 +1,97 @@
+---
+slug: emcn
+title: 'Introducing Emcn — Sim’s new design system'
+description: Emcn is the heart of our new design language at Sim. Here’s the scaffolding of the system—principles, tokens, components, and roadmap—as we prepare the full launch.
+date: 2025-11-08
+updated: 2025-11-08
+authors:
+  - emir
+readingTime: 6
+tags: [Design, Emcn, UI, UX, Components, Sim]
+ogImage: /studio/emcn/cover.png
+ogAlt: 'Emcn design system cover'
+about: ['Design Systems', 'Component Libraries', 'Design Tokens', 'Accessibility']
+timeRequired: PT6M
+canonical: https://sim.ai/studio/emcn
+featured: false
+draft: true
+---
+
+> This post is the scaffolding for Emcn, our new design system. We’ll fill it in as we publish the full documentation and component gallery.
+
+![Emcn cover placeholder](/studio/emcn/cover.png)
+
+## What is Emcn?
+
+Emcn is the design system that powers Sim’s product and brand. It aims to give us:
+
+- Consistent, accessible UI across web surfaces  
+- A fast path from Figma to code with strongly‑typed tokens  
+- A composable component library that scales with product complexity  
+
+## Principles
+
+1. Opinionated but flexible  
+2. Accessible by default (WCAG AA+)  
+3. Strongly‑typed, themeable tokens (light/dark + brand accents)  
+4. Composable components over one‑off variants  
+5. Performance first (minimal runtime, zero layout shift)  
+
+## Foundations (Tokens)
+
+- Color: semantic palettes (bg, fg, muted, accent, destructive) with on‑colors  
+- Typography: scale + weights mapped to roles (display, title, body, code)  
+- Spacing: 2/4 grid, container and gutter rules  
+- Radius: component tiers (base, interactive, card, sheet)  
+- Shadows: subtle elevation scale for surfaces and overlays  
+- Motion: duration/easing tokens for affordances (not decoration)  
+
+## Components (Initial Set)
+
+- Primitives: Button, Input, Select, Checkbox, Radio, Switch, Slider, Badge, Tooltip  
+- Navigation: NavBar, SideBar, Tabs, Breadcrumbs  
+- Feedback: Toast, Banner, Alert, Dialog, Drawer, Popover  
+- Layout: Grid, Stack, Container, Card, Sheet  
+- Content: CodeBlock, Markdown, Table, EmptyState  
+
+> Each component will include: anatomy, a11y contract, variants/slots, and code examples.
+
+## Theming
+
+- Light + Dark, with brand accent tokens  
+- Per‑workspace theming hooks for enterprise deployments  
+- SSR‑safe color mode with no flash (hydration‑safe)  
+
+## Accessibility
+
+- Focus outlines and target sizes audited  
+- Color contrast tracked at token level  
+- Keyboard and screen reader interactions defined per component  
+
+## Tooling
+
+- Tokens exported as TypeScript + CSS variables  
+- Figma library mapped 1:1 to code components  
+- Lint rules for token usage and a11y checks  
+
+## Roadmap
+
+- v0: Foundations + Core components (internal)  
+- v1: Public docs and examples site  
+- v1.x: Data display, advanced forms, charts bridge  
+
+## FAQ
+
+- What does “Emcn” mean?  
+  A short, crisp name we liked—easy to type and remember.  
+
+- Will Emcn be open‑sourced?  
+  We plan to share the foundations and many components as part of our commitment to open source.  
+
+## We’re hiring
+
+We’re hiring designers and engineers who care deeply about craft and DX. If you want to help shape Emcn and Sim’s product, we’d love to talk.
+
+— Team Sim
+
+

@@ -1,5 +1,6 @@
-export * from './checkpoint-panel/checkpoint-panel'
 export * from './copilot-message/copilot-message'
+export * from './plan-mode-section/plan-mode-section'
 export * from './todo-list/todo-list'
+export * from './tool-call/tool-call'
 export * from './user-input/user-input'
 export * from './welcome/welcome'

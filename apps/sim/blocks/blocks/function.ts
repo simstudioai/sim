@@ -1,4 +1,5 @@
 import { CodeIcon } from '@/components/icons'
+import { CodeLanguage, getLanguageDisplayName } from '@/lib/execution/languages'
 import type { BlockConfig } from '@/blocks/types'
 import type { CodeExecutionOutput } from '@/tools/function/types'
 
@@ -7,21 +8,38 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
   name: 'Function',
   description: 'Run custom logic',
   longDescription:
-    'Execute custom JavaScript or TypeScript code within your workflow to transform data or implement complex logic. Create reusable functions to process inputs and generate outputs for other blocks.',
+    'This is a core workflow block. Execute custom JavaScript or Python code within your workflow. JavaScript without imports runs locally for fast execution, while code with imports or Python uses E2B sandbox.',
+  bestPractices: `
+  - JavaScript code without external imports runs in a local VM for fastest execution.
+  - JavaScript code with import/require statements requires E2B and runs in a secure sandbox.
+  - Python code always requires E2B and runs in a secure sandbox.
+  - Can reference workflow variables using <blockName.output> syntax as usual within code. Avoid XML/HTML tags.
+  `,
   docsLink: 'https://docs.sim.ai/blocks/function',
   category: 'blocks',
   bgColor: '#FF402F',
   icon: CodeIcon,
   subBlocks: [
     {
+      id: 'language',
+      type: 'dropdown',
+      options: [
+        { label: getLanguageDisplayName(CodeLanguage.JavaScript), id: CodeLanguage.JavaScript },
+        { label: getLanguageDisplayName(CodeLanguage.Python), id: CodeLanguage.Python },
+      ],
+      placeholder: 'Select language',
+      value: () => CodeLanguage.JavaScript,
+      requiresFeature: 'NEXT_PUBLIC_E2B_ENABLED',
+    },
+    {
       id: 'code',
+      title: 'Code',
       type: 'code',
-      layout: 'full',
       wandConfig: {
         enabled: true,
         maintainHistory: true,
         prompt: `You are an expert JavaScript programmer.
-Generate ONLY the raw body of a JavaScript function based on the user's request.
+Generate ONLY the raw body of a JavaScript function based on the user's request. Never wrap in markdown formatting.
 The code should be executable within an 'async function(params, environmentVariables) {...}' context.
 - 'params' (object): Contains input parameters derived from the JSON schema. Access these directly using the parameter name wrapped in angle brackets, e.g., '<paramName>'. Do NOT use 'params.paramName'.
 - 'environmentVariables' (object): Contains environment variables. Reference these using the double curly brace syntax: '{{ENV_VAR_NAME}}'. Do NOT use 'environmentVariables.VAR_NAME' or env.
@@ -76,7 +94,8 @@ try {
     access: ['function_execute'],
   },
   inputs: {
-    code: { type: 'string', description: 'JavaScript/TypeScript code to execute' },
+    code: { type: 'string', description: 'JavaScript or Python code to execute' },
+    language: { type: 'string', description: 'Language (javascript or python)' },
     timeout: { type: 'number', description: 'Execution timeout' },
   },
   outputs: {

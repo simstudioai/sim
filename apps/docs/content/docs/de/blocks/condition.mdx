@@ -1,0 +1,149 @@
+---
+title: Bedingung
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Der Bedingungsblock verzweigt die Workflow-Ausführung basierend auf booleschen Ausdrücken. Bewerten Sie Bedingungen anhand vorheriger Block-Ausgaben und leiten Sie zu verschiedenen Pfaden weiter, ohne dass ein LLM erforderlich ist.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/condition.png"
+    alt="Bedingungsblock"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Konfigurationsoptionen
+
+### Bedingungen
+
+Definieren Sie eine oder mehrere Bedingungen, die ausgewertet werden. Jede Bedingung umfasst:
+
+- **Ausdruck**: Ein JavaScript/TypeScript-Ausdruck, der zu wahr oder falsch ausgewertet wird
+- **Pfad**: Der Zielblock, zu dem weitergeleitet werden soll, wenn die Bedingung wahr ist
+- **Beschreibung**: Optionale Erklärung, was die Bedingung prüft
+
+Sie können mehrere Bedingungen erstellen, die der Reihe nach ausgewertet werden, wobei die erste übereinstimmende Bedingung den Ausführungspfad bestimmt.
+
+### Format für Bedingungsausdrücke
+
+Bedingungen verwenden JavaScript-Syntax und können auf Eingabewerte aus vorherigen Blöcken verweisen.
+
+<Tabs items={['Schwellenwert', 'Textanalyse', 'Mehrere Bedingungen']}>
+  <Tab>
+
+    ```javascript
+    // Check if a score is above a threshold
+    <agent.score> > 75
+    ```
+
+  </Tab>
+  <Tab>
+
+    ```javascript
+    // Check if a text contains specific keywords
+    <agent.text>.includes('urgent') || <agent.text>.includes('emergency')
+    ```
+
+  </Tab>
+  <Tab>
+
+    ```javascript
+    // Check multiple conditions
+    <agent.age> >= 18 && <agent.country> === 'US'
+    ```
+
+  </Tab>
+</Tabs>
+
+### Zugriff auf Ergebnisse
+
+Nach der Auswertung einer Bedingung können Sie auf folgende Ausgaben zugreifen:
+
+- **condition.result**: Boolesches Ergebnis der Bedingungsauswertung
+- **condition.matched_condition**: ID der übereinstimmenden Bedingung
+- **condition.content**: Beschreibung des Auswertungsergebnisses
+- **condition.path**: Details zum gewählten Routing-Ziel
+
+## Erweiterte Funktionen
+
+### Komplexe Ausdrücke
+
+Verwenden Sie JavaScript-Operatoren und -Funktionen in Bedingungen:
+
+```javascript
+// String operations
+<user.email>.endsWith('@company.com')
+
+// Array operations
+<api.tags>.includes('urgent')
+
+// Mathematical operations
+<agent.confidence> * 100 > 85
+
+// Date comparisons
+new Date(<api.created_at>) > new Date('2024-01-01')
+```
+
+### Auswertung mehrerer Bedingungen
+
+Bedingungen werden der Reihe nach ausgewertet, bis eine übereinstimmt:
+
+```javascript
+// Condition 1: Check for high priority
+<ticket.priority> === 'high'
+
+// Condition 2: Check for urgent keywords
+<ticket.subject>.toLowerCase().includes('urgent')
+
+// Condition 3: Default fallback
+true
+```
+
+### Fehlerbehandlung
+
+Bedingungen behandeln automatisch:
+- Undefinierte oder Null-Werte mit sicherer Auswertung
+- Typabweichungen mit geeigneten Fallbacks
+- Ungültige Ausdrücke mit Fehlerprotokollierung
+- Fehlende Variablen mit Standardwerten
+
+## Ausgaben
+
+- **`<condition.result>`**: Boolesches Ergebnis der Auswertung
+- **`<condition.matched_condition>`**: ID der übereinstimmenden Bedingung
+- **`<condition.content>`**: Beschreibung des Auswertungsergebnisses
+- **`<condition.path>`**: Details zum gewählten Routing-Ziel
+
+## Beispielanwendungsfälle
+
+**Kundenservice-Routing** - Tickets basierend auf Priorität weiterleiten
+
+```
+API (Ticket) → Condition (priority === 'high') → Agent (Escalation) or Agent (Standard)
+```
+
+**Inhaltsmoderation** - Inhalte basierend auf Analysen filtern
+
+```
+Agent (Analyze) → Condition (toxicity > 0.7) → Moderation or Publish
+```
+
+**Benutzer-Onboarding-Ablauf** - Onboarding basierend auf Benutzertyp personalisieren
+
+```
+Function (Process) → Condition (account_type === 'enterprise') → Advanced or Simple
+```
+
+## Bewährte Praktiken
+
+- **Bedingungen korrekt anordnen**: Platzieren Sie spezifischere Bedingungen vor allgemeinen, um sicherzustellen, dass spezifische Logik Vorrang vor Fallbacks hat
+- **Verwenden Sie den Else-Zweig bei Bedarf**: Wenn keine Bedingungen übereinstimmen und der Else-Zweig nicht verbunden ist, endet der Workflow-Zweig ordnungsgemäß. Verbinden Sie den Else-Zweig, wenn Sie einen Fallback-Pfad für nicht übereinstimmende Fälle benötigen
+- **Halten Sie Ausdrücke einfach**: Verwenden Sie klare, unkomplizierte boolesche Ausdrücke für bessere Lesbarkeit und einfachere Fehlersuche
+- **Dokumentieren Sie Ihre Bedingungen**: Fügen Sie Beschreibungen hinzu, um den Zweck jeder Bedingung für bessere Teamzusammenarbeit und Wartung zu erklären
+- **Testen Sie Grenzfälle**: Überprüfen Sie, ob Bedingungen Grenzwerte korrekt behandeln, indem Sie mit Werten an den Grenzen Ihrer Bedingungsbereiche testen

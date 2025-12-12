@@ -1,10 +1,12 @@
+import { additionalPackages } from '@trigger.dev/build/extensions/core'
 import { defineConfig } from '@trigger.dev/sdk'
+import { env } from './lib/core/config/env'
 
 export default defineConfig({
-  project: 'proj_kufttkwzywcydwtccqhx',
+  project: env.TRIGGER_PROJECT_ID!,
   runtime: 'node',
   logLevel: 'log',
-  maxDuration: 180,
+  maxDuration: 600,
   retries: {
     enabledInDev: false,
     default: {
@@ -12,4 +14,11 @@ export default defineConfig({
     },
   },
   dirs: ['./background'],
+  build: {
+    extensions: [
+      additionalPackages({
+        packages: ['unpdf'],
+      }),
+    ],
+  },
 })

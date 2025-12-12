@@ -1,0 +1,160 @@
+---
+title: MySQL
+description: Conectar a la base de datos MySQL
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mysql"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+La herramienta [MySQL](https://www.mysql.com/) te permite conectarte a cualquier base de datos MySQL y realizar una amplia gama de operaciones directamente dentro de tus flujos de trabajo agénticos. Con manejo seguro de conexiones y configuración flexible, puedes gestionar e interactuar fácilmente con tus datos.
+
+Con la herramienta MySQL, puedes:
+
+- **Consultar datos**: Ejecutar consultas SELECT para recuperar datos de tus tablas MySQL usando la operación `mysql_query`.
+- **Insertar registros**: Añadir nuevas filas a tus tablas con la operación `mysql_insert` especificando la tabla y los datos a insertar.
+- **Actualizar registros**: Modificar datos existentes en tus tablas usando la operación `mysql_update`, proporcionando la tabla, los nuevos datos y las condiciones WHERE.
+- **Eliminar registros**: Borrar filas de tus tablas con la operación `mysql_delete`, especificando la tabla y las condiciones WHERE.
+- **Ejecutar SQL directo**: Ejecutar cualquier comando SQL personalizado usando la operación `mysql_execute` para casos de uso avanzados.
+
+La herramienta MySQL es ideal para escenarios donde tus agentes necesitan interactuar con datos estructurados—como automatizar informes, sincronizar datos entre sistemas o impulsar flujos de trabajo basados en datos. Simplifica el acceso a bases de datos, facilitando la lectura, escritura y gestión de tus datos MySQL de forma programática.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra MySQL en el flujo de trabajo. Puede consultar, insertar, actualizar, eliminar y ejecutar SQL sin procesar.
+
+## Herramientas
+
+### `mysql_query`
+
+Ejecutar consulta SELECT en base de datos MySQL
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `host` | string | Sí | Nombre de host o dirección IP del servidor MySQL |
+| `port` | number | Sí | Puerto del servidor MySQL \(predeterminado: 3306\) |
+| `database` | string | Sí | Nombre de la base de datos a la que conectarse |
+| `username` | string | Sí | Nombre de usuario de la base de datos |
+| `password` | string | Sí | Contraseña de la base de datos |
+| `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
+| `query` | string | Sí | Consulta SQL SELECT a ejecutar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `rows` | array | Array de filas devueltas por la consulta |
+| `rowCount` | number | Número de filas devueltas |
+
+### `mysql_insert`
+
+Insertar nuevo registro en base de datos MySQL
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `host` | string | Sí | Nombre de host o dirección IP del servidor MySQL |
+| `port` | number | Sí | Puerto del servidor MySQL \(predeterminado: 3306\) |
+| `database` | string | Sí | Nombre de la base de datos a la que conectarse |
+| `username` | string | Sí | Nombre de usuario de la base de datos |
+| `password` | string | Sí | Contraseña de la base de datos |
+| `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
+| `table` | string | Sí | Nombre de la tabla donde insertar |
+| `data` | object | Sí | Datos a insertar como pares clave-valor |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `rows` | array | Array de filas insertadas |
+| `rowCount` | number | Número de filas insertadas |
+
+### `mysql_update`
+
+Actualizar registros existentes en la base de datos MySQL
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Sí | Nombre de host o dirección IP del servidor MySQL |
+| `port` | number | Sí | Puerto del servidor MySQL \(predeterminado: 3306\) |
+| `database` | string | Sí | Nombre de la base de datos a la que conectarse |
+| `username` | string | Sí | Nombre de usuario de la base de datos |
+| `password` | string | Sí | Contraseña de la base de datos |
+| `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
+| `table` | string | Sí | Nombre de la tabla a actualizar |
+| `data` | object | Sí | Datos a actualizar como pares clave-valor |
+| `where` | string | Sí | Condición de la cláusula WHERE \(sin la palabra clave WHERE\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `rows` | array | Array de filas actualizadas |
+| `rowCount` | number | Número de filas actualizadas |
+
+### `mysql_delete`
+
+Eliminar registros de la base de datos MySQL
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Sí | Nombre de host o dirección IP del servidor MySQL |
+| `port` | number | Sí | Puerto del servidor MySQL \(predeterminado: 3306\) |
+| `database` | string | Sí | Nombre de la base de datos a la que conectarse |
+| `username` | string | Sí | Nombre de usuario de la base de datos |
+| `password` | string | Sí | Contraseña de la base de datos |
+| `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
+| `table` | string | Sí | Nombre de la tabla de la que eliminar |
+| `where` | string | Sí | Condición de la cláusula WHERE \(sin la palabra clave WHERE\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `rows` | array | Array de filas eliminadas |
+| `rowCount` | number | Número de filas eliminadas |
+
+### `mysql_execute`
+
+Ejecutar consulta SQL en bruto en base de datos MySQL
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `host` | string | Sí | Nombre de host o dirección IP del servidor MySQL |
+| `port` | number | Sí | Puerto del servidor MySQL \(predeterminado: 3306\) |
+| `database` | string | Sí | Nombre de la base de datos a la que conectarse |
+| `username` | string | Sí | Nombre de usuario de la base de datos |
+| `password` | string | Sí | Contraseña de la base de datos |
+| `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
+| `query` | string | Sí | Consulta SQL en bruto para ejecutar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `rows` | array | Array de filas devueltas por la consulta |
+| `rowCount` | number | Número de filas afectadas |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `mysql`

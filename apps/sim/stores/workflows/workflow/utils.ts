@@ -16,7 +16,19 @@ export function convertLoopBlockToLoop(
   const loopBlock = blocks[loopBlockId]
   if (!loopBlock || loopBlock.type !== 'loop') return undefined
 
-  // Parse collection if it's a string representation of an array/object
+  const loopType = loopBlock.data?.loopType || 'for'
+
+  const loop: Loop = {
+    id: loopBlockId,
+    nodes: findChildNodes(loopBlockId, blocks),
+    iterations: loopBlock.data?.count || DEFAULT_LOOP_ITERATIONS,
+    loopType,
+  }
+
+  // Load ALL fields regardless of current loop type
+  // This allows switching between loop types without losing data
+
+  // For for/forEach loops, read from collection (block data) and map to forEachItems (loops store)
   let forEachItems: any = loopBlock.data?.collection || ''
   if (typeof forEachItems === 'string' && forEachItems.trim()) {
     const trimmed = forEachItems.trim()
@@ -29,14 +41,15 @@ export function convertLoopBlockToLoop(
       }
     }
   }
+  loop.forEachItems = forEachItems
 
-  return {
-    id: loopBlockId,
-    nodes: findChildNodes(loopBlockId, blocks),
-    iterations: loopBlock.data?.count || DEFAULT_LOOP_ITERATIONS,
-    loopType: loopBlock.data?.loopType || 'for',
-    forEachItems,
-  }
+  // For while loops, use whileCondition
+  loop.whileCondition = loopBlock.data?.whileCondition || ''
+
+  // For do-while loops, use doWhileCondition
+  loop.doWhileCondition = loopBlock.data?.doWhileCondition || ''
+
+  return loop
 }
 
 /**

@@ -1,0 +1,100 @@
+---
+title: 开始
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+“开始”模块是 Sim 中构建工作流的默认触发器。它收集结构化输入，并将其分发到您的图表的其余部分，用于编辑器测试、API 部署和聊天体验。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/start.png"
+    alt="带有输入格式字段的开始模块"
+    width={360}
+    height={380}
+    className="my-6"
+  />
+</div>
+
+<Callout type="info">
+“开始”模块在您创建工作流时位于起始位置。当您希望同一个入口点服务于编辑器运行、API 部署请求和聊天会话时，请将其保留在那里。如果只需要事件驱动的执行，可以将其替换为 Webhook 或 Schedule 触发器。
+</Callout>
+
+## 开始模块暴露的字段
+
+“开始”模块根据执行环境发出不同的数据：
+
+- **输入格式字段** — 您添加的每个字段都会作为 <code>&lt;start.fieldName&gt;</code> 提供。例如，`customerId` 字段会在下游模块和模板中显示为 <code>&lt;start.customerId&gt;</code>。
+- **仅限聊天的字段** — 当工作流从聊天侧边栏或已部署的聊天体验中运行时，Sim 还会提供 <code>&lt;start.input&gt;</code>（最新用户消息）、<code>&lt;start.conversationId&gt;</code>（活动会话 ID）和 <code>&lt;start.files&gt;</code>（聊天附件）。
+
+请将输入格式字段限定为您期望稍后引用的名称——这些值是编辑器、API 和聊天运行中唯一共享的结构化字段。
+
+## 配置输入格式
+
+使用输入格式子模块定义适用于所有执行模式的架构：
+
+1. 为您想要收集的每个值添加一个字段。
+2. 选择一个类型（`string`、`number`、`boolean`、`object`、`array` 或 `files`）。文件字段接受来自聊天和 API 调用者的上传。
+3. 当您希望手动运行模式自动填充测试数据时，提供默认值。这些默认值在已部署的执行中会被忽略。
+4. 重新排序字段以控制它们在编辑器表单中的显示顺序。
+
+根据您连接的模块，通过类似 <code>&lt;start.customerId&gt;</code> 的表达式引用结构化值。
+
+## 每个入口点的行为
+
+<Tabs items={['编辑器运行', '部署到 API', '部署到聊天']}>
+  <Tab>
+    <div className="space-y-3">
+      <p>
+        当您在编辑器中点击 <strong>运行</strong> 时，开始模块会将输入格式呈现为一个表单。默认值使您无需重新输入数据即可轻松重新测试。提交表单会立即触发工作流，这些值将可用在 <code>&lt;start.fieldName&gt;</code>（例如 <code>&lt;start.sampleField&gt;</code>）中。
+      </p>
+      <p>
+        表单中的文件字段会直接上传到相应的 <code>&lt;start.fieldName&gt;</code>；使用这些值为下游工具或存储步骤提供数据。
+      </p>
+    </div>
+  </Tab>
+  <Tab>
+    <div className="space-y-3">
+      <p>
+        部署到 API 会将输入格式转换为客户端的 JSON 合约。每个字段都会成为请求体的一部分，Sim 在接收时会强制转换基本类型。文件字段需要引用已上传文件的对象；在调用工作流之前，请使用执行文件上传端点。
+      </p>
+      <p>
+        API 调用者可以包含其他可选属性。这些属性会保存在 <code>&lt;start.fieldName&gt;</code> 输出中，因此您可以在不立即重新部署的情况下进行实验。
+      </p>
+    </div>
+  </Tab>
+  <Tab>
+    <div className="space-y-3">
+      <p>
+        在聊天部署中，开始模块绑定到活动会话。最新消息填充 <code>&lt;start.input&gt;</code>，会话标识符可通过 <code>&lt;start.conversationId&gt;</code> 获取，用户附件会出现在 <code>&lt;start.files&gt;</code> 中，以及任何范围为 <code>&lt;start.fieldName&gt;</code> 的输入格式字段。
+      </p>
+      <p>
+        如果您通过附加结构化上下文（例如嵌入）启动聊天，它会合并到相应的 <code>&lt;start.fieldName&gt;</code> 输出中，确保下游模块与 API 和手动运行保持一致。
+      </p>
+    </div>
+  </Tab>
+</Tabs>
+
+## 在下游引用 Start 数据
+
+- 将 <code>&lt;start.fieldName&gt;</code> 直接连接到需要结构化负载的代理、工具或函数中。
+- 在提示字段中使用模板语法，例如 <code>&lt;start.sampleField&gt;</code> 或 <code>&lt;start.files[0].url&gt;</code>（仅限聊天）。
+- 当需要对输出进行分组、更新会话历史记录或回调到聊天 API 时，请随时使用 <code>&lt;start.conversationId&gt;</code>。
+
+## 最佳实践
+
+- 当您希望同时支持 API 和聊天调用者时，将 Start 块视为单一入口点。
+- 优先使用命名的输入格式字段，而不是在下游节点中解析原始 JSON；类型强制会自动发生。
+- 如果您的工作流需要某些字段才能成功，请在 Start 之后立即添加验证或路由。
+
+- 将 <code>&lt;start.fieldName&gt;</code> 直接连接到需要结构化负载的代理、工具或函数。
+- 在提示字段中使用模板语法，例如 <code>&lt;start.sampleField&gt;</code> 或 <code>&lt;start.files[0].url&gt;</code>（仅限聊天）。
+- 当需要对输出进行分组、更新会话历史记录或回调到聊天 API 时，请随时使用 <code>&lt;start.conversationId&gt;</code>。
+
+## 最佳实践
+
+- 当您希望同时支持 API 和聊天调用者时，将 Start 块视为单一入口点。
+- 优先使用命名的输入格式字段，而不是在下游节点中解析原始 JSON；类型强制会自动发生。
+- 如果某些字段是工作流成功所必需的，请在 Start 之后立即添加验证或路由。

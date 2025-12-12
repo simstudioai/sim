@@ -1,20 +1,18 @@
+import { db } from '@sim/db'
+import { settings } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { settings } from '@/db/schema'
 
 const logger = createLogger('UserSettingsAPI')
 
 const SettingsSchema = z.object({
   theme: z.enum(['system', 'light', 'dark']).optional(),
   autoConnect: z.boolean().optional(),
-  autoFillEnvVars: z.boolean().optional(), // DEPRECATED: kept for backwards compatibility
-  autoPan: z.boolean().optional(),
-  consoleExpandedByDefault: z.boolean().optional(),
   telemetryEnabled: z.boolean().optional(),
   emailPreferences: z
     .object({
@@ -24,21 +22,26 @@ const SettingsSchema = z.object({
       unsubscribeNotifications: z.boolean().optional(),
     })
     .optional(),
+  billingUsageNotificationsEnabled: z.boolean().optional(),
+  showTrainingControls: z.boolean().optional(),
+  superUserModeEnabled: z.boolean().optional(),
+  errorNotificationsEnabled: z.boolean().optional(),
 })
 
 // Default settings values
 const defaultSettings = {
   theme: 'system',
   autoConnect: true,
-  autoFillEnvVars: true, // DEPRECATED: kept for backwards compatibility, always true
-  autoPan: true,
-  consoleExpandedByDefault: true,
   telemetryEnabled: true,
   emailPreferences: {},
+  billingUsageNotificationsEnabled: true,
+  showTrainingControls: false,
+  superUserModeEnabled: false,
+  errorNotificationsEnabled: true,
 }
 
 export async function GET() {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const session = await getSession()
@@ -63,11 +66,12 @@ export async function GET() {
         data: {
           theme: userSettings.theme,
           autoConnect: userSettings.autoConnect,
-          autoFillEnvVars: userSettings.autoFillEnvVars, // DEPRECATED: kept for backwards compatibility
-          autoPan: userSettings.autoPan,
-          consoleExpandedByDefault: userSettings.consoleExpandedByDefault,
           telemetryEnabled: userSettings.telemetryEnabled,
           emailPreferences: userSettings.emailPreferences ?? {},
+          billingUsageNotificationsEnabled: userSettings.billingUsageNotificationsEnabled ?? true,
+          showTrainingControls: userSettings.showTrainingControls ?? false,
+          superUserModeEnabled: userSettings.superUserModeEnabled ?? true,
+          errorNotificationsEnabled: userSettings.errorNotificationsEnabled ?? true,
         },
       },
       { status: 200 }
@@ -80,7 +84,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const session = await getSession()

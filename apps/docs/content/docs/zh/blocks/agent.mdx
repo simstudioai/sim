@@ -1,0 +1,158 @@
+---
+title: Agent
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+代理模块将您的工作流连接到大型语言模型 (LLM)。它处理自然语言输入，调用外部工具，并生成结构化或非结构化的输出。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/agent.png"
+    alt="代理模块配置"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div> 
+
+## 配置选项
+
+### 系统提示
+
+系统提示建立代理的操作参数和行为约束。此配置定义了代理的角色、响应方法以及处理所有传入请求的边界。
+
+```markdown
+You are a helpful assistant that specializes in financial analysis.
+Always provide clear explanations and cite sources when possible.
+When responding to questions about investments, include risk disclaimers.
+```
+
+### 用户提示
+
+用户提示是推理处理的主要输入数据。此参数接受代理将分析和响应的自然语言文本或结构化数据。输入来源包括：
+
+- **静态配置**：在模块配置中指定的直接文本输入
+- **动态输入**：通过连接接口从上游模块传递的数据
+- **运行时生成**：在工作流执行期间以编程方式生成的内容
+
+### 模型选择
+
+代理模块通过统一的推理接口支持多个 LLM 提供商。可用模型包括：
+
+- **OpenAI**: GPT-5.1、GPT-5、GPT-4o、o1、o3、o4-mini、gpt-4.1
+- **Anthropic**: Claude 4.5 Sonnet、Claude Opus 4.1
+- **Google**: Gemini 2.5 Pro、Gemini 2.0 Flash
+- **其他提供商**: Groq、Cerebras、xAI、Azure OpenAI、OpenRouter
+- **本地模型**: 兼容 Ollama 或 VLLM 的模型
+
+### 温度
+
+控制响应的随机性和创造性：
+
+- **低 (0-0.3)**：确定性和专注性强。适合事实性任务和高准确性。
+- **中 (0.3-0.7)**：创造性与专注性平衡。适合一般用途。
+- **高 (0.7-2.0)**：富有创造性和多样性。适合头脑风暴和内容生成。
+
+### API 密钥
+
+您选择的 LLM 提供商的 API 密钥。此密钥会被安全存储并用于身份验证。
+
+### 工具
+
+通过外部集成扩展代理的功能。从 60 多种预构建工具中选择，或定义自定义功能。
+
+**可用类别：**
+- **通信**：Gmail、Slack、Telegram、WhatsApp、Microsoft Teams
+- **数据源**：Notion、Google Sheets、Airtable、Supabase、Pinecone
+- **网络服务**：Firecrawl、Google Search、Exa AI、浏览器自动化
+- **开发**：GitHub、Jira、Linear
+- **AI 服务**：OpenAI、Perplexity、Hugging Face、ElevenLabs
+
+**执行模式：**
+- **自动**：模型根据上下文决定何时使用工具
+- **必需**：每次请求必须调用工具
+- **无**：工具可用但不建议模型使用
+
+### 响应格式
+
+响应格式参数通过 JSON Schema 验证强制执行结构化输出生成。这确保了符合预定义数据结构的一致、机器可读的响应：
+
+```json
+{
+  "name": "user_analysis",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "sentiment": {
+        "type": "string",
+        "enum": ["positive", "negative", "neutral"]
+      },
+      "confidence": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "required": ["sentiment", "confidence"]
+  }
+}
+```
+
+此配置限制模型的输出以符合指定的模式，防止生成自由格式的文本响应，并确保生成结构化数据。
+
+### 访问结果
+
+代理完成后，您可以访问其输出：
+
+- **`<agent.content>`**：代理的响应文本或结构化数据
+- **`<agent.tokens>`**：令牌使用统计信息（提示、完成、总计）
+- **`<agent.tool_calls>`**：代理在执行过程中使用的任何工具的详细信息
+- **`<agent.cost>`**：API 调用的估计成本（如果可用）
+
+## 高级功能
+
+### 内存 + 代理：对话历史
+
+使用一个 `Memory` 块和一个一致的 `id`（例如，`chat`）在运行之间持久化消息，并将该历史记录包含在代理的提示中。
+
+- 在代理之前添加用户消息
+- 读取对话历史以获取上下文
+- 在代理运行后附加其回复
+
+有关详细信息，请参阅[`Memory`](/tools/memory)模块参考。
+
+## 输出
+
+- **`<agent.content>`**：代理的响应文本
+- **`<agent.tokens>`**：令牌使用统计
+- **`<agent.tool_calls>`**：工具执行详情
+- **`<agent.cost>`**：API 调用的估算成本
+
+## 示例用例
+
+**客户支持自动化** - 通过数据库和工具访问处理查询
+
+```
+API (Ticket) → Agent (Postgres, KB, Linear) → Gmail (Reply) → Memory (Save)
+```
+
+**多模型内容分析** - 使用不同的 AI 模型分析内容
+
+```
+Function (Process) → Agent (GPT-4o Technical) → Agent (Claude Sentiment) → Function (Report)
+```
+
+**工具驱动的研究助手** - 通过网络搜索和文档访问进行研究
+
+```
+Input → Agent (Google Search, Notion) → Function (Compile Report)
+```
+
+## 最佳实践
+
+- **在系统提示中具体说明**：清晰定义代理的角色、语气和限制。指令越具体，代理越能更好地实现其预期目的。
+- **选择合适的温度设置**：当准确性很重要时，使用较低的温度设置（0-0.3）；当需要更具创意或多样化的响应时，提高温度（0.7-2.0）。
+- **有效利用工具**：集成能补充代理目的并增强其能力的工具。选择性地提供工具，避免让代理不堪重负。对于重叠较少的任务，使用另一个代理模块以获得最佳效果。

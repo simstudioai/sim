@@ -1,0 +1,141 @@
+---
+title: Google Kalender
+description: Google Kalender-Ereignisse verwalten
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_calendar"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Kalender](https://calendar.google.com) ist Googles leistungsstarker Kalender- und Planungsdienst, der eine umfassende Plattform für die Verwaltung von Ereignissen, Meetings und Terminen bietet. Mit nahtloser Integration in Googles Ökosystem und weitverbreiteter Nutzung bietet Google Kalender robuste Funktionen für persönliche und berufliche Planungsbedürfnisse.
+
+Mit Google Kalender können Sie:
+
+- **Ereignisse erstellen und verwalten**: Planen Sie Meetings, Termine und Erinnerungen mit detaillierten Informationen
+- **Kalendereinladungen versenden**: Benachrichtigen und koordinieren Sie automatisch mit Teilnehmern durch E-Mail-Einladungen
+- **Ereigniserstellung mit natürlicher Sprache**: Fügen Sie schnell Ereignisse mit Umgangssprache hinzu, wie "Meeting mit John morgen um 15 Uhr"
+- **Ereignisse anzeigen und suchen**: Finden und greifen Sie einfach auf Ihre geplanten Ereignisse über mehrere Kalender hinweg zu
+- **Mehrere Kalender verwalten**: Organisieren Sie verschiedene Arten von Ereignissen über verschiedene Kalender hinweg
+
+In Sim ermöglicht die Google Kalender-Integration Ihren Agenten, Kalenderereignisse programmatisch zu erstellen, zu lesen und zu verwalten. Dies ermöglicht leistungsstarke Automatisierungsszenarien wie das Planen von Meetings, das Versenden von Kalendereinladungen, das Überprüfen der Verfügbarkeit und das Verwalten von Ereignisdetails. Ihre Agenten können Ereignisse mit natürlichsprachlicher Eingabe erstellen, automatisierte Kalendereinladungen an Teilnehmer senden, Ereignisinformationen abrufen und bevorstehende Ereignisse auflisten. Diese Integration überbrückt die Lücke zwischen Ihren KI-Workflows und der Kalenderverwaltung und ermöglicht eine nahtlose Planungsautomatisierung und Koordination mit einer der weltweit am häufigsten genutzten Kalenderplattformen.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integriert Google Kalender in den Workflow. Kann Kalenderereignisse erstellen, lesen, aktualisieren und auflisten. Erfordert OAuth.
+
+## Tools
+
+### `google_calendar_create`
+
+Erstellt ein neues Ereignis in Google Kalender
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | Nein | Kalender-ID (standardmäßig primary) |
+| `summary` | string | Ja | Ereignistitel/Zusammenfassung |
+| `description` | string | Nein | Ereignisbeschreibung |
+| `location` | string | Nein | Ereignisort |
+| `startDateTime` | string | Ja | Startdatum und -uhrzeit. MUSS Zeitzonen-Offset enthalten (z.B. 2025-06-03T10:00:00-08:00) ODER timeZone-Parameter bereitstellen |
+| `endDateTime` | string | Ja | Enddatum und -uhrzeit. MUSS Zeitzonen-Offset enthalten (z.B. 2025-06-03T11:00:00-08:00) ODER timeZone-Parameter bereitstellen |
+| `timeZone` | string | Nein | Zeitzone (z.B. America/Los_Angeles). Erforderlich, wenn datetime keinen Offset enthält. Standardmäßig America/Los_Angeles, wenn nicht angegeben. |
+| `attendees` | array | Nein | Array von E-Mail-Adressen der Teilnehmer |
+| `sendUpdates` | string | Nein | Wie Updates an Teilnehmer gesendet werden: all, externalOnly oder none |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Bestätigungsnachricht zur Ereigniserstellung |
+| `metadata` | json | Metadaten des erstellten Ereignisses einschließlich ID, Status und Details |
+
+### `google_calendar_list`
+
+Ereignisse aus Google Kalender auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | Nein | Kalender-ID \(standardmäßig primary\) |
+| `timeMin` | string | Nein | Untere Grenze für Ereignisse \(RFC3339-Zeitstempel, z.B. 2025-06-03T00:00:00Z\) |
+| `timeMax` | string | Nein | Obere Grenze für Ereignisse \(RFC3339-Zeitstempel, z.B. 2025-06-04T00:00:00Z\) |
+| `orderBy` | string | Nein | Reihenfolge der zurückgegebenen Ereignisse \(startTime oder updated\) |
+| `showDeleted` | boolean | Nein | Gelöschte Ereignisse einbeziehen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Zusammenfassung der gefundenen Ereignisanzahl |
+| `metadata` | json | Liste der Ereignisse mit Paginierungstoken und Ereignisdetails |
+
+### `google_calendar_get`
+
+Ein bestimmtes Ereignis aus Google Kalender abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | Nein | Kalender-ID (standardmäßig primary) |
+| `eventId` | string | Ja | Ereignis-ID zum Abrufen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Bestätigungsnachricht zum Abrufen des Ereignisses |
+| `metadata` | json | Ereignisdetails einschließlich ID, Status, Zeiten und Teilnehmer |
+
+### `google_calendar_quick_add`
+
+Ereignisse aus natürlichsprachlichem Text erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | Nein | Kalender-ID (standardmäßig primary) |
+| `text` | string | Ja | Natürlichsprachlicher Text, der das Ereignis beschreibt (z.B. "Meeting mit John morgen um 15 Uhr") |
+| `attendees` | array | Nein | Array von E-Mail-Adressen der Teilnehmer (auch durch Komma getrennte Zeichenfolge akzeptiert) |
+| `sendUpdates` | string | Nein | Wie Updates an Teilnehmer gesendet werden: all, externalOnly oder none |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Bestätigungsnachricht zur Ereigniserstellung aus natürlicher Sprache |
+| `metadata` | json | Metadaten des erstellten Ereignisses einschließlich analysierter Details |
+
+### `google_calendar_invite`
+
+Teilnehmer zu einem bestehenden Google Kalender-Ereignis einladen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | Nein | Kalender-ID (standardmäßig primär) |
+| `eventId` | string | Ja | Ereignis-ID, zu der Teilnehmer eingeladen werden sollen |
+| `attendees` | array | Ja | Array von E-Mail-Adressen der einzuladenden Teilnehmer |
+| `sendUpdates` | string | Nein | Wie Updates an Teilnehmer gesendet werden: all, externalOnly oder none |
+| `replaceExisting` | boolean | Nein | Ob bestehende Teilnehmer ersetzt oder hinzugefügt werden sollen (standardmäßig false) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Bestätigungsnachricht für die Teilnehmereinladung mit E-Mail-Zustellungsstatus |
+| `metadata` | json | Aktualisierte Ereignismetadaten einschließlich Teilnehmerliste und Details |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `google_calendar`

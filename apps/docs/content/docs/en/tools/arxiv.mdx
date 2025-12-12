@@ -1,0 +1,94 @@
+---
+title: ArXiv
+description: Search and retrieve academic papers from ArXiv
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="arxiv"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ArXiv](https://arxiv.org/) is a free, open-access repository of scientific research papers in fields such as physics, mathematics, computer science, quantitative biology, quantitative finance, statistics, electrical engineering, systems science, and economics. ArXiv provides a vast collection of preprints and published articles, making it a primary resource for researchers and practitioners worldwide.
+
+With ArXiv, you can:
+
+- **Search for academic papers**: Find research by keywords, author names, titles, categories, and more
+- **Retrieve paper metadata**: Access abstracts, author lists, publication dates, and other bibliographic information
+- **Download full-text PDFs**: Obtain the complete text of most papers for in-depth study
+- **Explore author contributions**: View all papers by a specific author
+- **Stay up-to-date**: Discover the latest submissions and trending topics in your field
+
+In Sim, the ArXiv integration enables your agents to programmatically search, retrieve, and analyze scientific papers from ArXiv. This allows you to automate literature reviews, build research assistants, or incorporate up-to-date scientific knowledge into your agentic workflows. Use ArXiv as a dynamic data source for research, discovery, and knowledge extraction within your Sim projects.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrates ArXiv into the workflow. Can search for papers, get paper details, and get author papers. Does not require OAuth or an API key.
+
+
+
+## Tools
+
+### `arxiv_search`
+
+Search for academic papers on ArXiv by keywords, authors, titles, or other fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `searchQuery` | string | Yes | The search query to execute |
+| `searchField` | string | No | Field to search in: all, ti \(title\), au \(author\), abs \(abstract\), co \(comment\), jr \(journal\), cat \(category\), rn \(report number\) |
+| `maxResults` | number | No | Maximum number of results to return \(default: 10, max: 2000\) |
+| `sortBy` | string | No | Sort by: relevance, lastUpdatedDate, submittedDate \(default: relevance\) |
+| `sortOrder` | string | No | Sort order: ascending, descending \(default: descending\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `papers` | json | Array of papers matching the search query |
+
+### `arxiv_get_paper`
+
+Get detailed information about a specific ArXiv paper by its ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `paperId` | string | Yes | ArXiv paper ID \(e.g., "1706.03762"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `paper` | json | Detailed information about the requested ArXiv paper |
+
+### `arxiv_get_author_papers`
+
+Search for papers by a specific author on ArXiv.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authorName` | string | Yes | Author name to search for |
+| `maxResults` | number | No | Maximum number of results to return \(default: 10, max: 2000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `authorPapers` | json | Array of papers authored by the specified author |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `arxiv`

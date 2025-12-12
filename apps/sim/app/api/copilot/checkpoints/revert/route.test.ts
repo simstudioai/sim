@@ -23,18 +23,25 @@ describe('Copilot Checkpoints Revert API Route', () => {
     setupCommonApiMocks()
     mockCryptoUuid()
 
+    // Mock getBaseUrl to return localhost for tests
+    vi.doMock('@/lib/core/utils/urls', () => ({
+      getBaseUrl: vi.fn(() => 'http://localhost:3000'),
+      getBaseDomain: vi.fn(() => 'localhost:3000'),
+      getEmailDomain: vi.fn(() => 'localhost:3000'),
+    }))
+
     mockSelect.mockReturnValue({ from: mockFrom })
     mockFrom.mockReturnValue({ where: mockWhere })
     mockWhere.mockReturnValue({ then: mockThen })
     mockThen.mockResolvedValue(null) // Default: no data found
 
-    vi.doMock('@/db', () => ({
+    vi.doMock('@sim/db', () => ({
       db: {
         select: mockSelect,
       },
     }))
 
-    vi.doMock('@/db/schema', () => ({
+    vi.doMock('@sim/db/schema', () => ({
       workflowCheckpoints: {
         id: 'id',
         userId: 'userId',
@@ -168,7 +175,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
       // Mock checkpoint found but workflow not found
       const mockCheckpoint = {
         id: 'checkpoint-123',
-        workflowId: 'workflow-456',
+        workflowId: 'a1b2c3d4-e5f6-4a78-b9c0-d1e2f3a4b5c6',
         userId: 'user-123',
         workflowState: { blocks: {}, edges: [] },
       }
@@ -196,13 +203,13 @@ describe('Copilot Checkpoints Revert API Route', () => {
       // Mock checkpoint found but workflow belongs to different user
       const mockCheckpoint = {
         id: 'checkpoint-123',
-        workflowId: 'workflow-456',
+        workflowId: 'b2c3d4e5-f6a7-4b89-a0d1-e2f3a4b5c6d7',
         userId: 'user-123',
         workflowState: { blocks: {}, edges: [] },
       }
 
       const mockWorkflow = {
-        id: 'workflow-456',
+        id: 'b2c3d4e5-f6a7-4b89-a0d1-e2f3a4b5c6d7',
         userId: 'different-user',
       }
 
@@ -228,7 +235,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
 
       const mockCheckpoint = {
         id: 'checkpoint-123',
-        workflowId: 'workflow-456',
+        workflowId: 'c3d4e5f6-a7b8-4c09-a1e2-f3a4b5c6d7e8',
         userId: 'user-123',
         workflowState: {
           blocks: { block1: { type: 'start' } },
@@ -237,12 +244,11 @@ describe('Copilot Checkpoints Revert API Route', () => {
           parallels: {},
           isDeployed: true,
           deploymentStatuses: { production: 'deployed' },
-          hasActiveWebhook: false,
         },
       }
 
       const mockWorkflow = {
-        id: 'workflow-456',
+        id: 'c3d4e5f6-a7b8-4c09-a1e2-f3a4b5c6d7e8',
         userId: 'user-123',
       }
 
@@ -275,7 +281,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
       const responseData = await response.json()
       expect(responseData).toEqual({
         success: true,
-        workflowId: 'workflow-456',
+        workflowId: 'c3d4e5f6-a7b8-4c09-a1e2-f3a4b5c6d7e8',
         checkpointId: 'checkpoint-123',
         revertedAt: '2024-01-01T00:00:00.000Z',
         checkpoint: {
@@ -287,7 +293,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
             parallels: {},
             isDeployed: true,
             deploymentStatuses: { production: 'deployed' },
-            hasActiveWebhook: false,
             lastSaved: 1640995200000,
           },
         },
@@ -295,7 +300,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
 
       // Verify fetch was called with correct parameters
       expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:3000/api/workflows/workflow-456/state',
+        'http://localhost:3000/api/workflows/c3d4e5f6-a7b8-4c09-a1e2-f3a4b5c6d7e8/state',
         {
           method: 'PUT',
           headers: {
@@ -309,7 +314,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
             parallels: {},
             isDeployed: true,
             deploymentStatuses: { production: 'deployed' },
-            hasActiveWebhook: false,
             lastSaved: 1640995200000,
           }),
         }
@@ -322,7 +326,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
 
       const mockCheckpoint = {
         id: 'checkpoint-with-date',
-        workflowId: 'workflow-456',
+        workflowId: 'd4e5f6a7-b8c9-4d10-a2e3-a4b5c6d7e8f9',
         userId: 'user-123',
         workflowState: {
           blocks: {},
@@ -333,7 +337,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
       }
 
       const mockWorkflow = {
-        id: 'workflow-456',
+        id: 'd4e5f6a7-b8c9-4d10-a2e3-a4b5c6d7e8f9',
         userId: 'user-123',
       }
 
@@ -363,7 +367,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
 
       const mockCheckpoint = {
         id: 'checkpoint-invalid-date',
-        workflowId: 'workflow-456',
+        workflowId: 'e5f6a7b8-c9d0-4e11-a3f4-b5c6d7e8f9a0',
         userId: 'user-123',
         workflowState: {
           blocks: {},
@@ -374,7 +378,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
       }
 
       const mockWorkflow = {
-        id: 'workflow-456',
+        id: 'e5f6a7b8-c9d0-4e11-a3f4-b5c6d7e8f9a0',
         userId: 'user-123',
       }
 
@@ -404,7 +408,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
 
       const mockCheckpoint = {
         id: 'checkpoint-null-values',
-        workflowId: 'workflow-456',
+        workflowId: 'f6a7b8c9-d0e1-4f23-a4b5-c6d7e8f9a0b1',
         userId: 'user-123',
         workflowState: {
           blocks: null,
@@ -416,7 +420,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
       }
 
       const mockWorkflow = {
-        id: 'workflow-456',
+        id: 'f6a7b8c9-d0e1-4f23-a4b5-c6d7e8f9a0b1',
         userId: 'user-123',
       }
 
@@ -445,7 +449,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
         parallels: {},
         isDeployed: false,
         deploymentStatuses: {},
-        hasActiveWebhook: false,
         lastSaved: 1640995200000,
       })
     })
@@ -456,13 +459,13 @@ describe('Copilot Checkpoints Revert API Route', () => {
 
       const mockCheckpoint = {
         id: 'checkpoint-123',
-        workflowId: 'workflow-456',
+        workflowId: 'a7b8c9d0-e1f2-4a34-b5c6-d7e8f9a0b1c2',
         userId: 'user-123',
         workflowState: { blocks: {}, edges: [] },
       }
 
       const mockWorkflow = {
-        id: 'workflow-456',
+        id: 'a7b8c9d0-e1f2-4a34-b5c6-d7e8f9a0b1c2',
         userId: 'user-123',
       }
 
@@ -514,7 +517,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
 
       const mockCheckpoint = {
         id: 'checkpoint-123',
-        workflowId: 'workflow-456',
+        workflowId: 'b8c9d0e1-f2a3-4b45-a6d7-e8f9a0b1c2d3',
         userId: 'user-123',
         workflowState: { blocks: {}, edges: [] },
       }
@@ -541,13 +544,13 @@ describe('Copilot Checkpoints Revert API Route', () => {
 
       const mockCheckpoint = {
         id: 'checkpoint-123',
-        workflowId: 'workflow-456',
+        workflowId: 'c9d0e1f2-a3b4-4c56-a7e8-f9a0b1c2d3e4',
         userId: 'user-123',
         workflowState: { blocks: {}, edges: [] },
       }
 
       const mockWorkflow = {
-        id: 'workflow-456',
+        id: 'c9d0e1f2-a3b4-4c56-a7e8-f9a0b1c2d3e4',
         userId: 'user-123',
       }
 
@@ -598,13 +601,13 @@ describe('Copilot Checkpoints Revert API Route', () => {
 
       const mockCheckpoint = {
         id: 'checkpoint-123',
-        workflowId: 'workflow-456',
+        workflowId: 'd0e1f2a3-b4c5-4d67-a8f9-a0b1c2d3e4f5',
         userId: 'user-123',
         workflowState: { blocks: {}, edges: [] },
       }
 
       const mockWorkflow = {
-        id: 'workflow-456',
+        id: 'd0e1f2a3-b4c5-4d67-a8f9-a0b1c2d3e4f5',
         userId: 'user-123',
       }
 
@@ -630,7 +633,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
       await POST(req)
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:3000/api/workflows/workflow-456/state',
+        'http://localhost:3000/api/workflows/d0e1f2a3-b4c5-4d67-a8f9-a0b1c2d3e4f5/state',
         {
           method: 'PUT',
           headers: {
@@ -648,13 +651,13 @@ describe('Copilot Checkpoints Revert API Route', () => {
 
       const mockCheckpoint = {
         id: 'checkpoint-123',
-        workflowId: 'workflow-456',
+        workflowId: 'e1f2a3b4-c5d6-4e78-a9a0-b1c2d3e4f5a6',
         userId: 'user-123',
         workflowState: { blocks: {}, edges: [] },
       }
 
       const mockWorkflow = {
-        id: 'workflow-456',
+        id: 'e1f2a3b4-c5d6-4e78-a9a0-b1c2d3e4f5a6',
         userId: 'user-123',
       }
 
@@ -681,7 +684,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
 
       expect(response.status).toBe(200)
       expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:3000/api/workflows/workflow-456/state',
+        'http://localhost:3000/api/workflows/e1f2a3b4-c5d6-4e78-a9a0-b1c2d3e4f5a6/state',
         {
           method: 'PUT',
           headers: {
@@ -699,7 +702,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
 
       const mockCheckpoint = {
         id: 'checkpoint-complex',
-        workflowId: 'workflow-456',
+        workflowId: 'f2a3b4c5-d6e7-4f89-a0b1-c2d3e4f5a6b7',
         userId: 'user-123',
         workflowState: {
           blocks: {
@@ -722,13 +725,12 @@ describe('Copilot Checkpoints Revert API Route', () => {
             production: 'deployed',
             staging: 'pending',
           },
-          hasActiveWebhook: true,
           deployedAt: '2024-01-01T10:00:00.000Z',
         },
       }
 
       const mockWorkflow = {
-        id: 'workflow-456',
+        id: 'f2a3b4c5-d6e7-4f89-a0b1-c2d3e4f5a6b7',
         userId: 'user-123',
       }
 
@@ -769,7 +771,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
           production: 'deployed',
           staging: 'pending',
         },
-        hasActiveWebhook: true,
         deployedAt: '2024-01-01T10:00:00.000Z',
         lastSaved: 1640995200000,
       })

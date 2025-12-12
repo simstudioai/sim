@@ -1,0 +1,83 @@
+---
+title: Variables
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+The Variables block updates workflow variables during execution. Variables must first be initialized in your workflow's Variables section, then you can use this block to update their values as your workflow runs.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/variables.png"
+    alt="Variables Block"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout>
+  Access variables anywhere in your workflow using `<variable.variableName>` syntax.
+</Callout>
+
+## How to Use Variables
+
+### 1. Initialize in Workflow Variables
+
+First, create your variables in the workflow's Variables section (accessible from the workflow settings):
+
+```
+customerEmail = ""
+retryCount = 0
+currentStatus = "pending"
+```
+
+### 2. Update with Variables Block
+
+Use the Variables block to update these values during execution:
+
+```
+customerEmail = <api.email>
+retryCount = <variable.retryCount> + 1
+currentStatus = "processing"
+```
+
+### 3. Access Anywhere
+
+Reference variables in any block:
+
+```
+Agent prompt: "Send email to <variable.customerEmail>"
+Condition: <variable.retryCount> < 5
+API body: {"status": "<variable.currentStatus>"}
+```
+
+## Example Use Cases
+
+**Loop Counter and State** - Track progress through iterations
+```
+Loop → Agent (Process) → Variables (itemsProcessed + 1) → Variables (Store lastResult)
+```
+
+**Retry Logic** - Track API retry attempts
+```
+API (Try) → Variables (retryCount + 1) → Condition (retryCount < 3)
+```
+
+**Dynamic Configuration** - Store user context for workflow
+```
+API (Fetch Profile) → Variables (userId, userTier) → Agent (Personalize)
+```
+
+## Outputs
+
+- **`<variables.assignments>`**: JSON object with all variable assignments from this block
+
+## Best Practices
+
+- **Initialize in workflow settings**: Always create variables in the workflow Variables section before using them
+- **Update dynamically**: Use Variables blocks to update values based on block outputs or calculations
+- **Use in loops**: Perfect for tracking state across iterations
+- **Name descriptively**: Use clear names like `currentIndex`, `totalProcessed`, or `lastError`

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -17,7 +18,7 @@ interface SlackChannel {
 
 export async function POST(request: Request) {
   try {
-    const requestId = crypto.randomUUID().slice(0, 8)
+    const requestId = generateRequestId()
     const body = await request.json()
     const { credential, workflowId } = body
 

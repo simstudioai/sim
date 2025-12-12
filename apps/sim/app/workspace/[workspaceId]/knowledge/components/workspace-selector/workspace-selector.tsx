@@ -1,16 +1,18 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertTriangle, Check, ChevronDown } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { AlertTriangle, ChevronDown } from 'lucide-react'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+  Button,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverTrigger,
+  Tooltip,
+} from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
+import { filterButtonClass } from '@/app/workspace/[workspaceId]/knowledge/components/shared'
+import { useKnowledgeStore } from '@/stores/knowledge/store'
 
 const logger = createLogger('WorkspaceSelector')
 
@@ -33,9 +35,11 @@ export function WorkspaceSelector({
   onWorkspaceChange,
   disabled = false,
 }: WorkspaceSelectorProps) {
+  const { updateKnowledgeBase } = useKnowledgeStore()
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false)
 
   // Fetch available workspaces
   useEffect(() => {
@@ -75,6 +79,7 @@ export function WorkspaceSelector({
 
     try {
       setIsUpdating(true)
+      setIsPopoverOpen(false)
 
       const response = await fetch(`/api/knowledge/${knowledgeBaseId}`, {
         method: 'PUT',
@@ -95,7 +100,12 @@ export function WorkspaceSelector({
 
       if (result.success) {
         logger.info(`Knowledge base workspace updated: ${knowledgeBaseId} -> ${workspaceId}`)
-        onWorkspaceChange?.(workspaceId)
+
+        // Notify parent component of the change to refresh data
+        await onWorkspaceChange?.(workspaceId)
+
+        // Update the store after refresh to ensure consistency
+        updateKnowledgeBase(knowledgeBaseId, { workspaceId: workspaceId || undefined })
       } else {
         throw new Error(result.error || 'Failed to update workspace')
       }
@@ -113,67 +123,61 @@ export function WorkspaceSelector({
     <div className='flex items-center gap-2'>
       {/* Warning icon for unassigned knowledge bases */}
       {!hasWorkspace && (
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <AlertTriangle className='h-4 w-4 text-amber-500' />
-          </TooltipTrigger>
-          <TooltipContent side='top'>Not assigned to workspace</TooltipContent>
-        </Tooltip>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='top'>Not assigned to workspace</Tooltip.Content>
+        </Tooltip.Root>
       )}
 
       {/* Workspace selector dropdown */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+      <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+        <PopoverTrigger asChild>
           <Button
-            variant='ghost'
-            size='sm'
+            variant='outline'
             disabled={disabled || isLoading || isUpdating}
-            className='h-8 gap-1 px-2 text-muted-foreground text-xs hover:text-foreground'
+            className={filterButtonClass}
           >
-            <span className='max-w-[120px] truncate'>
+            <span className='truncate'>
               {isLoading
                 ? 'Loading...'
                 : isUpdating
                   ? 'Updating...'
                   : currentWorkspace?.name || 'No workspace'}
             </span>
-            <ChevronDown className='h-3 w-3' />
+            <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align='end' className='w-48'>
+        </PopoverTrigger>
+        <PopoverContent align='end' side='bottom' sideOffset={4}>
           {/* No workspace option */}
-          <DropdownMenuItem
+          <PopoverItem
+            active={!currentWorkspaceId}
+            showCheck
             onClick={() => handleWorkspaceChange(null)}
-            className='flex items-center justify-between'
           >
             <span className='text-muted-foreground'>No workspace</span>
-            {!currentWorkspaceId && <Check className='h-4 w-4' />}
-          </DropdownMenuItem>
+          </PopoverItem>
 
           {/* Available workspaces */}
           {workspaces.map((workspace) => (
-            <DropdownMenuItem
+            <PopoverItem
               key={workspace.id}
+              active={currentWorkspaceId === workspace.id}
+              showCheck
               onClick={() => handleWorkspaceChange(workspace.id)}
-              className='flex items-center justify-between'
             >
-              <div className='flex flex-col'>
-                <span>{workspace.name}</span>
-                <span className='text-muted-foreground text-xs capitalize'>
-                  {workspace.permissions}
-                </span>
-              </div>
-              {currentWorkspaceId === workspace.id && <Check className='h-4 w-4' />}
-            </DropdownMenuItem>
+              {workspace.name}
+            </PopoverItem>
           ))}
 
           {workspaces.length === 0 && !isLoading && (
-            <DropdownMenuItem disabled>
+            <PopoverItem disabled>
               <span className='text-muted-foreground text-xs'>No workspaces with write access</span>
-            </DropdownMenuItem>
+            </PopoverItem>
           )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }

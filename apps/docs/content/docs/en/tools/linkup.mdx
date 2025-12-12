@@ -1,0 +1,67 @@
+---
+title: Linkup
+description: Search the web with Linkup
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="linkup"
+  color="#D6D3C7"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Linkup](https://linkup.so) is a powerful web search tool that integrates seamlessly with Sim, allowing your AI agents to access up-to-date information from the web with proper source attribution.
+
+Linkup enhances your AI agents by providing them with the ability to search the web for current information. When integrated into your agent's toolkit:
+
+- **Real-time Information Access**: Agents can retrieve the latest information from the web, keeping responses current and relevant.
+- **Source Attribution**: All information comes with proper citations, ensuring transparency and credibility.
+- **Simple Implementation**: Add Linkup to your agents toolset with minimal configuration.
+- **Contextual Awareness**: Agents can use web information while maintaining their personality and conversational style.
+
+To implement Linkup in your agent, simply add the tool to your agent's configuration. Your agent will then be able to search the web whenever they need to answer questions requiring current information.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Linkup into the workflow. Can search the web.
+
+
+
+## Tools
+
+### `linkup_search`
+
+Search the web for information using Linkup
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Yes | The search query |
+| `depth` | string | Yes | Search depth \(has to either be "standard" or "deep"\) |
+| `outputType` | string | Yes | Type of output to return \(has to be "sourcedAnswer" or "searchResults"\) |
+| `apiKey` | string | Yes | Enter your Linkup API key |
+| `includeImages` | boolean | No | Whether to include images in search results |
+| `fromDate` | string | No | Start date for filtering results \(YYYY-MM-DD format\) |
+| `toDate` | string | No | End date for filtering results \(YYYY-MM-DD format\) |
+| `excludeDomains` | string | No | Comma-separated list of domain names to exclude from search results |
+| `includeDomains` | string | No | Comma-separated list of domain names to restrict search results to |
+| `includeInlineCitations` | boolean | No | Add inline citations to answers \(only applies when outputType is "sourcedAnswer"\) |
+| `includeSources` | boolean | No | Include sources in response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `answer` | string | The sourced answer to the search query |
+| `sources` | array | Array of sources used to compile the answer, each containing name, url, and snippet |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `linkup`

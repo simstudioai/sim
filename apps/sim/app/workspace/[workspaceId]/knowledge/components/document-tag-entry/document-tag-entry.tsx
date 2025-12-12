@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ChevronDown, Info, Plus, X } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import {
   Badge,
   Button,
@@ -20,12 +21,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
 } from '@/components/ui'
-import { MAX_TAG_SLOTS, type TagSlot } from '@/lib/constants/knowledge'
+import { MAX_TAG_SLOTS, type TagSlot } from '@/lib/knowledge/constants'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
 import { useNextAvailableSlot } from '@/hooks/use-next-available-slot'
@@ -342,19 +339,17 @@ export function DocumentTagEntry({
               <div className='flex items-center gap-2'>
                 <Label htmlFor='tag-name'>Tag Name</Label>
                 {editingTagIndex !== null && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className='h-4 w-4 cursor-help text-muted-foreground' />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p className='text-sm'>
-                          Changing this tag name will update it for all documents in this knowledge
-                          base
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <Info className='h-4 w-4 cursor-help text-muted-foreground' />
+                    </Tooltip.Trigger>
+                    <Tooltip.Content>
+                      <p className='text-sm'>
+                        Changing this tag name will update it for all documents in this knowledge
+                        base
+                      </p>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
                 )}
               </div>
               <div className='flex gap-2'>

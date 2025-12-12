@@ -9,7 +9,6 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
   oauth: {
     required: true,
     provider: 'google-docs',
-    additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
   params: {
     accessToken: {

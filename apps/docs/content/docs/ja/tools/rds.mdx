@@ -1,0 +1,168 @@
+---
+title: Amazon RDS
+description: Data APIを通じてAmazon RDSに接続
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="rds"
+  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon RDS Aurora Serverless](https://aws.amazon.com/rds/aurora/serverless/)は、アプリケーションのニーズに基づいて自動的に起動、シャットダウン、容量のスケーリングを行う完全マネージド型のリレーショナルデータベースです。データベースサーバーを管理することなく、クラウドでSQLデータベースを実行できます。
+
+RDS Aurora Serverlessでは、以下のことが可能です：
+
+- **データのクエリ**: テーブル間で柔軟なSQLクエリを実行
+- **新しいレコードの挿入**: データベースに自動的にデータを追加
+- **既存レコードの更新**: カスタムフィルターを使用してテーブル内のデータを変更
+- **レコードの削除**: 正確な条件を使用して不要なデータを削除
+- **生のSQLの実行**: Auroraでサポートされている有効なSQLコマンドを実行
+
+Simでは、RDS統合により、エージェントがAmazon Aurora Serverlessデータベースを安全かつプログラム的に操作できるようになります。サポートされている操作には以下が含まれます：
+
+- **クエリ**: SELECTやその他のSQLクエリを実行してデータベースから行を取得
+- **挿入**: 構造化データを使用してテーブルに新しいレコードを挿入
+- **更新**: 指定した条件に一致する行のデータを変更
+- **削除**: カスタムフィルターや条件によってテーブルからレコードを削除
+- **実行**: 高度なシナリオ向けに生のSQLを実行
+
+この統合により、エージェントは手動介入なしに幅広いデータベース操作を自動化できます。SimとAmazon RDSを接続することで、ワークフロー内でリレーショナルデータを管理、更新、取得するエージェントを構築できます—すべてデータベースインフラストラクチャや接続を扱うことなく実現できます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用手順
+
+Data APIを使用してAmazon RDS Aurora Serverlessをワークフローに統合します。データベース接続を管理することなく、クエリ、挿入、更新、削除、生のSQLの実行が可能です。
+
+## ツール
+
+### `rds_query`
+
+Data APIを使用してAmazon RDSでSELECTクエリを実行する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | はい | AWSリージョン（例：us-east-1） |
+| `accessKeyId` | string | はい | AWSアクセスキーID |
+| `secretAccessKey` | string | はい | AWSシークレットアクセスキー |
+| `resourceArn` | string | はい | Aurora DBクラスターのARN |
+| `secretArn` | string | はい | DB認証情報を含むSecrets ManagerシークレットのARN |
+| `database` | string | いいえ | データベース名（オプション） |
+| `query` | string | はい | 実行するSQL SELECTクエリ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `rows` | array | クエリから返された行の配列 |
+| `rowCount` | number | 返された行数 |
+
+### `rds_insert`
+
+Data APIを使用してAmazon RDSテーブルにデータを挿入する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | はい | AWSリージョン（例：us-east-1） |
+| `accessKeyId` | string | はい | AWSアクセスキーID |
+| `secretAccessKey` | string | はい | AWSシークレットアクセスキー |
+| `resourceArn` | string | はい | Aurora DBクラスターのARN |
+| `secretArn` | string | はい | DB認証情報を含むSecrets ManagerシークレットのARN |
+| `database` | string | いいえ | データベース名（オプション） |
+| `table` | string | はい | 挿入先のテーブル名 |
+| `data` | object | はい | キーと値のペアとして挿入するデータ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `rows` | array | 挿入された行の配列 |
+| `rowCount` | number | 挿入された行数 |
+
+### `rds_update`
+
+Data APIを使用してAmazon RDSテーブルのデータを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | はい | AWSリージョン（例：us-east-1） |
+| `accessKeyId` | string | はい | AWSアクセスキーID |
+| `secretAccessKey` | string | はい | AWSシークレットアクセスキー |
+| `resourceArn` | string | はい | Aurora DBクラスターのARN |
+| `secretArn` | string | はい | DB認証情報を含むSecrets ManagerシークレットのARN |
+| `database` | string | いいえ | データベース名（オプション） |
+| `table` | string | はい | 更新するテーブル名 |
+| `data` | object | はい | キーと値のペアとして更新するデータ |
+| `conditions` | object | はい | 更新の条件（例：`{"id": 1}`) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `rows` | array | 更新された行の配列 |
+| `rowCount` | number | 更新された行数 |
+
+### `rds_delete`
+
+Data APIを使用してAmazon RDSテーブルからデータを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | はい | AWS リージョン（例：us-east-1） |
+| `accessKeyId` | string | はい | AWS アクセスキーID |
+| `secretAccessKey` | string | はい | AWS シークレットアクセスキー |
+| `resourceArn` | string | はい | Aurora DBクラスターのARN |
+| `secretArn` | string | はい | DB認証情報を含むSecrets ManagerシークレットのARN |
+| `database` | string | いいえ | データベース名（オプション） |
+| `table` | string | はい | 削除対象のテーブル名 |
+| `conditions` | object | はい | 削除条件（例：`{"id": 1}`) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `rows` | array | 削除された行の配列 |
+| `rowCount` | number | 削除された行数 |
+
+### `rds_execute`
+
+Data APIを使用してAmazon RDSで生のSQLを実行する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | はい | AWS リージョン（例：us-east-1） |
+| `accessKeyId` | string | はい | AWS アクセスキーID |
+| `secretAccessKey` | string | はい | AWS シークレットアクセスキー |
+| `resourceArn` | string | はい | Aurora DBクラスターのARN |
+| `secretArn` | string | はい | DB認証情報を含むSecrets ManagerシークレットのARN |
+| `database` | string | いいえ | データベース名（オプション） |
+| `query` | string | はい | 実行する生のSQLクエリ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `rows` | array | 返却または影響を受けた行の配列 |
+| `rowCount` | number | 影響を受けた行数 |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `rds`

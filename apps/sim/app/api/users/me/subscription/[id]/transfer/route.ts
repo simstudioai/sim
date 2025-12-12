@@ -1,10 +1,10 @@
+import { db } from '@sim/db'
+import { member, organization, subscription } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { member, organization, subscription } from '@/db/schema'
 
 const logger = createLogger('SubscriptionTransferAPI')
 
@@ -81,9 +81,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .where(and(eq(member.userId, session.user.id), eq(member.organizationId, organizationId)))
       .then((rows) => rows[0])
 
-    const isPersonalTransfer = sub.referenceId === session.user.id
-
-    if (!isPersonalTransfer && (!mem || (mem.role !== 'owner' && mem.role !== 'admin'))) {
+    if (!mem || (mem.role !== 'owner' && mem.role !== 'admin')) {
       return NextResponse.json(
         { error: 'Unauthorized - user is not admin of organization' },
         { status: 403 }

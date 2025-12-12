@@ -4,31 +4,31 @@ import { useCallback, useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import {
   AlertCircle,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Circle,
   CircleOff,
   FileText,
   Loader2,
   Plus,
   RotateCcw,
-  Trash2,
 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
+  Button,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  Tooltip,
+} from '@/components/emcn'
+import { Trash } from '@/components/emcn/icons/trash'
 import { Checkbox } from '@/components/ui/checkbox'
 import { SearchHighlight } from '@/components/ui/search-highlight'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   ActionBar,
@@ -38,16 +38,18 @@ import {
 import {
   getDocumentIcon,
   KnowledgeHeader,
-  PrimaryButton,
   SearchInput,
 } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/use-knowledge'
-import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
+import {
+  useKnowledgeBase,
+  useKnowledgeBaseDocuments,
+  useKnowledgeBasesList,
+} from '@/hooks/use-knowledge'
+import type { DocumentData } from '@/stores/knowledge/store'
 
 const logger = createLogger('KnowledgeBase')
 
-// Constants
 const DOCUMENTS_PER_PAGE = 50
 
 interface KnowledgeBaseProps {
@@ -124,10 +126,10 @@ export function KnowledgeBase({
   id,
   knowledgeBaseName: passedKnowledgeBaseName,
 }: KnowledgeBaseProps) {
-  const { removeKnowledgeBase } = useKnowledgeStore()
-  const userPermissions = useUserPermissionsContext()
   const params = useParams()
   const workspaceId = params.workspaceId as string
+  const { removeKnowledgeBase } = useKnowledgeBasesList(workspaceId, { enabled: false })
+  const userPermissions = useUserPermissionsContext()
 
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -143,11 +145,14 @@ export function KnowledgeBase({
   const [isDeleting, setIsDeleting] = useState(false)
   const [isBulkOperating, setIsBulkOperating] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
+  const [sortBy, setSortBy] = useState<DocumentSortField>('uploadedAt')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
 
   const {
     knowledgeBase,
     isLoading: isLoadingKnowledgeBase,
     error: knowledgeBaseError,
+    refresh: refreshKnowledgeBase,
   } = useKnowledgeBase(id)
   const {
     documents,
@@ -160,6 +165,8 @@ export function KnowledgeBase({
     search: searchQuery || undefined,
     limit: DOCUMENTS_PER_PAGE,
     offset: (currentPage - 1) * DOCUMENTS_PER_PAGE,
+    sortBy,
+    sortOrder,
   })
 
   const router = useRouter()
@@ -167,12 +174,10 @@ export function KnowledgeBase({
   const knowledgeBaseName = knowledgeBase?.name || passedKnowledgeBaseName || 'Knowledge Base'
   const error = knowledgeBaseError || documentsError
 
-  // Pagination calculations
   const totalPages = Math.ceil(pagination.total / pagination.limit)
   const hasNextPage = currentPage < totalPages
   const hasPrevPage = currentPage > 1
 
-  // Navigation functions
   const goToPage = useCallback(
     (page: number) => {
       if (page >= 1 && page <= totalPages) {
@@ -194,7 +199,37 @@ export function KnowledgeBase({
     }
   }, [hasPrevPage])
 
-  // Auto-refresh documents when there are processing documents
+  const handleSort = useCallback(
+    (field: DocumentSortField) => {
+      if (sortBy === field) {
+        setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+      } else {
+        setSortBy(field)
+        setSortOrder('desc')
+      }
+      setCurrentPage(1)
+    },
+    [sortBy, sortOrder]
+  )
+
+  const renderSortableHeader = (field: DocumentSortField, label: string, className = '') => (
+    <th className={`px-4 pt-2 pb-3 text-left font-medium ${className}`}>
+      <button
+        type='button'
+        onClick={() => handleSort(field)}
+        className='flex items-center gap-1 text-muted-foreground text-xs leading-none transition-colors hover:text-foreground'
+      >
+        <span>{label}</span>
+        {sortBy === field &&
+          (sortOrder === 'asc' ? (
+            <ChevronUp className='h-3 w-3' />
+          ) : (
+            <ChevronDown className='h-3 w-3' />
+          ))}
+      </button>
+    </th>
+  )
+
   useEffect(() => {
     const hasProcessingDocuments = documents.some(
       (doc) => doc.processingStatus === 'pending' || doc.processingStatus === 'processing'
@@ -204,9 +239,7 @@ export function KnowledgeBase({
 
     const refreshInterval = setInterval(async () => {
       try {
-        // Only refresh if we're not in the middle of other operations
         if (!isDeleting) {
-          // Check for dead processes before refreshing
           await checkForDeadProcesses()
           await refreshDocuments()
         }
@@ -218,7 +251,6 @@ export function KnowledgeBase({
     return () => clearInterval(refreshInterval)
   }, [documents, refreshDocuments, isDeleting])
 
-  // Check for documents stuck in processing due to dead processes
   const checkForDeadProcesses = async () => {
     const now = new Date()
     const DEAD_PROCESS_THRESHOLD_MS = 150 * 1000 // 150 seconds (2.5 minutes)
@@ -236,7 +268,6 @@ export function KnowledgeBase({
 
     logger.warn(`Found ${staleDocuments.length} documents with dead processes`)
 
-    // Mark stale documents as failed via API to sync with database
     const markFailedPromises = staleDocuments.map(async (doc) => {
       try {
         const response = await fetch(`/api/knowledge/${id}/documents/${doc.id}`, {
@@ -250,7 +281,6 @@ export function KnowledgeBase({
         })
 
         if (!response.ok) {
-          // If API call fails, log but don't throw to avoid stopping other recoveries
           const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
           logger.error(`Failed to mark document ${doc.id} as failed: ${errorData.error}`)
           return
@@ -268,7 +298,6 @@ export function KnowledgeBase({
     await Promise.allSettled(markFailedPromises)
   }
 
-  // Calculate pagination info for display
   const totalItems = pagination?.total || 0
 
   const handleToggleEnabled = async (docId: string) => {
@@ -657,10 +686,7 @@ export function KnowledgeBase({
         options={{
           knowledgeBaseId: id,
           currentWorkspaceId: knowledgeBase?.workspaceId || null,
-          onWorkspaceChange: () => {
-            // Refresh the page to reflect the workspace change
-            window.location.reload()
-          },
+          onWorkspaceChange: refreshKnowledgeBase,
           onDeleteKnowledgeBase: () => setShowDeleteDialog(true),
         }}
       />
@@ -671,31 +697,32 @@ export function KnowledgeBase({
           <div className='flex-1 overflow-auto'>
             <div className='px-6 pb-6'>
               {/* Search and Filters Section */}
-              <div className='mb-4 space-y-3 pt-1'>
-                <div className='flex items-center justify-between'>
-                  <SearchInput
-                    value={searchQuery}
-                    onChange={handleSearchChange}
-                    placeholder='Search documents...'
-                  />
+              <div className='mb-4 flex items-center justify-between pt-1'>
+                <SearchInput
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  placeholder='Search documents...'
+                  isLoading={isLoadingDocuments}
+                />
 
-                  <div className='flex items-center gap-3'>
-                    {/* Add Documents Button */}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <PrimaryButton
-                          onClick={handleAddDocuments}
-                          disabled={userPermissions.canEdit !== true}
-                        >
-                          <Plus className='h-3.5 w-3.5' />
-                          Add Documents
-                        </PrimaryButton>
-                      </TooltipTrigger>
-                      {userPermissions.canEdit !== true && (
-                        <TooltipContent>Write permission required to add documents</TooltipContent>
-                      )}
-                    </Tooltip>
-                  </div>
+                <div className='flex items-center gap-2'>
+                  {/* Add Documents Button */}
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <Button
+                        onClick={handleAddDocuments}
+                        disabled={userPermissions.canEdit !== true}
+                        variant='primary'
+                        className='flex items-center gap-1'
+                      >
+                        <Plus className='h-3.5 w-3.5' />
+                        Add Documents
+                      </Button>
+                    </Tooltip.Trigger>
+                    {userPermissions.canEdit !== true && (
+                      <Tooltip.Content>Write permission required to add documents</Tooltip.Content>
+                    )}
+                  </Tooltip.Root>
                 </div>
               </div>
 
@@ -732,26 +759,12 @@ export function KnowledgeBase({
                             className='h-3.5 w-3.5 border-gray-300 focus-visible:ring-[var(--brand-primary-hex)]/20 data-[state=checked]:border-[var(--brand-primary-hex)] data-[state=checked]:bg-[var(--brand-primary-hex)] [&>*]:h-3 [&>*]:w-3'
                           />
                         </th>
-                        <th className='px-4 pt-2 pb-3 text-left font-medium'>
-                          <span className='text-muted-foreground text-xs leading-none'>Name</span>
-                        </th>
-                        <th className='px-4 pt-2 pb-3 text-left font-medium'>
-                          <span className='text-muted-foreground text-xs leading-none'>Size</span>
-                        </th>
-                        <th className='px-4 pt-2 pb-3 text-left font-medium'>
-                          <span className='text-muted-foreground text-xs leading-none'>Tokens</span>
-                        </th>
-                        <th className='hidden px-4 pt-2 pb-3 text-left font-medium lg:table-cell'>
-                          <span className='text-muted-foreground text-xs leading-none'>Chunks</span>
-                        </th>
-                        <th className='px-4 pt-2 pb-3 text-left font-medium'>
-                          <span className='text-muted-foreground text-xs leading-none'>
-                            Uploaded
-                          </span>
-                        </th>
-                        <th className='px-4 pt-2 pb-3 text-left font-medium'>
-                          <span className='text-muted-foreground text-xs leading-none'>Status</span>
-                        </th>
+                        {renderSortableHeader('filename', 'Name')}
+                        {renderSortableHeader('fileSize', 'Size')}
+                        {renderSortableHeader('tokenCount', 'Tokens')}
+                        {renderSortableHeader('chunkCount', 'Chunks', 'hidden lg:table-cell')}
+                        {renderSortableHeader('uploadedAt', 'Uploaded')}
+                        {renderSortableHeader('processingStatus', 'Status')}
                         <th className='px-4 pt-2 pb-3 text-left font-medium'>
                           <span className='text-muted-foreground text-xs leading-none'>
                             Actions
@@ -865,11 +878,7 @@ export function KnowledgeBase({
                               key={doc.id}
                               className={`border-b transition-colors hover:bg-accent/30 ${
                                 isSelected ? 'bg-accent/30' : ''
-                              } ${
-                                doc.processingStatus === 'completed'
-                                  ? 'cursor-pointer'
-                                  : 'cursor-default'
-                              }`}
+                              } ${doc.processingStatus === 'completed' ? 'cursor-pointer' : 'cursor-default'}`}
                               onClick={() => {
                                 if (doc.processingStatus === 'completed') {
                                   handleDocumentClick(doc.id)
@@ -894,17 +903,17 @@ export function KnowledgeBase({
                               <td className='px-4 py-3'>
                                 <div className='flex items-center gap-2'>
                                   {getFileIcon(doc.mimeType, doc.filename)}
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
+                                  <Tooltip.Root>
+                                    <Tooltip.Trigger asChild>
                                       <span className='block truncate text-sm' title={doc.filename}>
                                         <SearchHighlight
                                           text={doc.filename}
                                           searchQuery={searchQuery}
                                         />
                                       </span>
-                                    </TooltipTrigger>
-                                    <TooltipContent side='top'>{doc.filename}</TooltipContent>
-                                  </Tooltip>
+                                    </Tooltip.Trigger>
+                                    <Tooltip.Content side='top'>{doc.filename}</Tooltip.Content>
+                                  </Tooltip.Root>
                                 </div>
                               </td>
 
@@ -960,19 +969,19 @@ export function KnowledgeBase({
                               {/* Status column */}
                               <td className='px-4 py-3'>
                                 {doc.processingStatus === 'failed' && doc.processingError ? (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
+                                  <Tooltip.Root>
+                                    <Tooltip.Trigger asChild>
                                       <div
                                         className={statusDisplay.className}
                                         style={{ cursor: 'help' }}
                                       >
                                         {statusDisplay.text}
                                       </div>
-                                    </TooltipTrigger>
-                                    <TooltipContent side='top' className='max-w-xs'>
+                                    </Tooltip.Trigger>
+                                    <Tooltip.Content side='top' className='max-w-xs'>
                                       {doc.processingError}
-                                    </TooltipContent>
-                                  </Tooltip>
+                                    </Tooltip.Content>
+                                  </Tooltip.Root>
                                 ) : (
                                   <div className={statusDisplay.className}>
                                     {statusDisplay.text}
@@ -984,11 +993,10 @@ export function KnowledgeBase({
                               <td className='px-4 py-3'>
                                 <div className='flex items-center gap-1'>
                                   {doc.processingStatus === 'failed' && (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
+                                    <Tooltip.Root>
+                                      <Tooltip.Trigger asChild>
                                         <Button
                                           variant='ghost'
-                                          size='sm'
                                           onClick={(e) => {
                                             e.stopPropagation()
                                             handleRetryDocument(doc.id)
@@ -997,16 +1005,15 @@ export function KnowledgeBase({
                                         >
                                           <RotateCcw className='h-4 w-4' />
                                         </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent side='top'>Retry processing</TooltipContent>
-                                    </Tooltip>
+                                      </Tooltip.Trigger>
+                                      <Tooltip.Content side='top'>Retry processing</Tooltip.Content>
+                                    </Tooltip.Root>
                                   )}
 
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
+                                  <Tooltip.Root>
+                                    <Tooltip.Trigger asChild>
                                       <Button
                                         variant='ghost'
-                                        size='sm'
                                         onClick={(e) => {
                                           e.stopPropagation()
                                           handleToggleEnabled(doc.id)
@@ -1024,8 +1031,8 @@ export function KnowledgeBase({
                                           <CircleOff className='h-4 w-4' />
                                         )}
                                       </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side='top'>
+                                    </Tooltip.Trigger>
+                                    <Tooltip.Content side='top'>
                                       {doc.processingStatus === 'processing' ||
                                       doc.processingStatus === 'pending'
                                         ? 'Cannot modify while processing'
@@ -1034,14 +1041,13 @@ export function KnowledgeBase({
                                           : doc.enabled
                                             ? 'Disable Document'
                                             : 'Enable Document'}
-                                    </TooltipContent>
-                                  </Tooltip>
+                                    </Tooltip.Content>
+                                  </Tooltip.Root>
 
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
+                                  <Tooltip.Root>
+                                    <Tooltip.Trigger asChild>
                                       <Button
                                         variant='ghost'
-                                        size='sm'
                                         onClick={(e) => {
                                           e.stopPropagation()
                                           handleDeleteDocument(doc.id)
@@ -1052,17 +1058,17 @@ export function KnowledgeBase({
                                         }
                                         className='h-8 w-8 p-0 text-gray-500 hover:text-red-600 disabled:opacity-50'
                                       >
-                                        <Trash2 className='h-4 w-4' />
+                                        <Trash className='h-[14px] w-[14px]' />
                                       </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side='top'>
+                                    </Tooltip.Trigger>
+                                    <Tooltip.Content side='top'>
                                       {doc.processingStatus === 'processing'
                                         ? 'Cannot delete while processing'
                                         : !userPermissions.canEdit
                                           ? 'Write permission required to delete documents'
                                           : 'Delete Document'}
-                                    </TooltipContent>
-                                  </Tooltip>
+                                    </Tooltip.Content>
+                                  </Tooltip.Root>
                                 </div>
                               </td>
                             </tr>
@@ -1079,7 +1085,6 @@ export function KnowledgeBase({
                     <div className='flex items-center gap-1'>
                       <Button
                         variant='ghost'
-                        size='sm'
                         onClick={prevPage}
                         disabled={!hasPrevPage || isLoadingDocuments}
                         className='h-8 w-8 p-0'
@@ -1120,7 +1125,6 @@ export function KnowledgeBase({
 
                       <Button
                         variant='ghost'
-                        size='sm'
                         onClick={nextPage}
                         disabled={!hasNextPage || isLoadingDocuments}
                         className='h-8 w-8 p-0'
@@ -1137,28 +1141,36 @@ export function KnowledgeBase({
       </div>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Knowledge Base</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Delete Knowledge Base</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
               Are you sure you want to delete "{knowledgeBaseName}"? This will permanently delete
               the knowledge base and all {totalItems} document
-              {totalItems === 1 ? '' : 's'} within it. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+              {totalItems === 1 ? '' : 's'} within it.{' '}
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant='active'
+              onClick={() => setShowDeleteDialog(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant='primary'
               onClick={handleDeleteKnowledgeBase}
               disabled={isDeleting}
-              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {isDeleting ? 'Deleting...' : 'Delete Knowledge Base'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       {/* Upload Modal */}
       <UploadModal

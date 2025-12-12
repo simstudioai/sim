@@ -1,0 +1,175 @@
+---
+title: MongoDB
+description: Conectar a la base de datos MongoDB
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mongodb"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+La herramienta [MongoDB](https://www.mongodb.com/) te permite conectarte a una base de datos MongoDB y realizar una amplia gama de operaciones orientadas a documentos directamente dentro de tus flujos de trabajo con agentes. Con una configuración flexible y una gestión segura de conexiones, puedes interactuar fácilmente con tus datos y manipularlos.
+
+Con la herramienta MongoDB, puedes:
+
+- **Encontrar documentos**: Consultar colecciones y recuperar documentos con la operación `mongodb_query` utilizando filtros de consulta avanzados.
+- **Insertar documentos**: Añadir uno o varios documentos a una colección utilizando la operación `mongodb_insert`.
+- **Actualizar documentos**: Modificar documentos existentes con la operación `mongodb_update` especificando criterios de filtro y acciones de actualización.
+- **Eliminar documentos**: Eliminar documentos de una colección utilizando la operación `mongodb_delete`, especificando filtros y opciones de eliminación.
+- **Agregar datos**: Ejecutar pipelines de agregación complejos con la operación `mongodb_execute` para transformar y analizar tus datos.
+
+La herramienta MongoDB es ideal para flujos de trabajo donde tus agentes necesitan gestionar o analizar datos estructurados basados en documentos. Ya sea procesando contenido generado por usuarios, gestionando datos de aplicaciones o impulsando análisis, la herramienta MongoDB simplifica el acceso y la manipulación de tus datos de manera segura y programática.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra MongoDB en el flujo de trabajo. Puede encontrar, insertar, actualizar, eliminar y agregar datos.
+
+## Herramientas
+
+### `mongodb_query`
+
+Ejecutar operación de búsqueda en colección de MongoDB
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Sí | Nombre de host o dirección IP del servidor MongoDB |
+| `port` | number | Sí | Puerto del servidor MongoDB \(predeterminado: 27017\) |
+| `database` | string | Sí | Nombre de la base de datos a la que conectarse |
+| `username` | string | No | Nombre de usuario de MongoDB |
+| `password` | string | No | Contraseña de MongoDB |
+| `authSource` | string | No | Base de datos de autenticación |
+| `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
+| `collection` | string | Sí | Nombre de la colección a consultar |
+| `query` | string | No | Filtro de consulta MongoDB como cadena JSON |
+| `limit` | number | No | Número máximo de documentos a devolver |
+| `sort` | string | No | Criterios de ordenación como cadena JSON |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `documents` | array | Array de documentos devueltos por la consulta |
+| `documentCount` | number | Número de documentos devueltos |
+
+### `mongodb_insert`
+
+Insertar documentos en colección de MongoDB
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Sí | Nombre de host o dirección IP del servidor MongoDB |
+| `port` | number | Sí | Puerto del servidor MongoDB \(predeterminado: 27017\) |
+| `database` | string | Sí | Nombre de la base de datos a la que conectarse |
+| `username` | string | No | Nombre de usuario de MongoDB |
+| `password` | string | No | Contraseña de MongoDB |
+| `authSource` | string | No | Base de datos de autenticación |
+| `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
+| `collection` | string | Sí | Nombre de la colección en la que insertar |
+| `documents` | array | Sí | Array de documentos a insertar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `documentCount` | number | Número de documentos insertados |
+| `insertedId` | string | ID del documento insertado \(inserción única\) |
+| `insertedIds` | array | Array de IDs de documentos insertados \(inserción múltiple\) |
+
+### `mongodb_update`
+
+Actualizar documentos en colección de MongoDB
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `host` | string | Sí | Nombre de host o dirección IP del servidor MongoDB |
+| `port` | number | Sí | Puerto del servidor MongoDB \(predeterminado: 27017\) |
+| `database` | string | Sí | Nombre de la base de datos a la que conectarse |
+| `username` | string | No | Nombre de usuario de MongoDB |
+| `password` | string | No | Contraseña de MongoDB |
+| `authSource` | string | No | Base de datos de autenticación |
+| `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
+| `collection` | string | Sí | Nombre de la colección a actualizar |
+| `filter` | string | Sí | Criterios de filtro como cadena JSON |
+| `update` | string | Sí | Operaciones de actualización como cadena JSON |
+| `upsert` | boolean | No | Crear documento si no se encuentra |
+| `multi` | boolean | No | Actualizar múltiples documentos |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `matchedCount` | number | Número de documentos que coinciden con el filtro |
+| `modifiedCount` | number | Número de documentos modificados |
+| `documentCount` | number | Número total de documentos afectados |
+| `insertedId` | string | ID del documento insertado \(si hay upsert\) |
+
+### `mongodb_delete`
+
+Eliminar documentos de una colección de MongoDB
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `host` | string | Sí | Nombre de host o dirección IP del servidor MongoDB |
+| `port` | number | Sí | Puerto del servidor MongoDB \(predeterminado: 27017\) |
+| `database` | string | Sí | Nombre de la base de datos a la que conectarse |
+| `username` | string | No | Nombre de usuario de MongoDB |
+| `password` | string | No | Contraseña de MongoDB |
+| `authSource` | string | No | Base de datos de autenticación |
+| `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
+| `collection` | string | Sí | Nombre de la colección de donde eliminar |
+| `filter` | string | Sí | Criterios de filtro como cadena JSON |
+| `multi` | boolean | No | Eliminar múltiples documentos |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `deletedCount` | number | Número de documentos eliminados |
+| `documentCount` | number | Número total de documentos afectados |
+
+### `mongodb_execute`
+
+Ejecutar pipeline de agregación de MongoDB
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `host` | string | Sí | Nombre de host o dirección IP del servidor MongoDB |
+| `port` | number | Sí | Puerto del servidor MongoDB \(predeterminado: 27017\) |
+| `database` | string | Sí | Nombre de la base de datos a la que conectarse |
+| `username` | string | No | Nombre de usuario de MongoDB |
+| `password` | string | No | Contraseña de MongoDB |
+| `authSource` | string | No | Base de datos de autenticación |
+| `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
+| `collection` | string | Sí | Nombre de la colección donde ejecutar el pipeline |
+| `pipeline` | string | Sí | Pipeline de agregación como cadena JSON |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `documents` | array | Array de documentos devueltos por la agregación |
+| `documentCount` | number | Número de documentos devueltos |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `mongodb`

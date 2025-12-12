@@ -1,0 +1,145 @@
+---
+title: Pinecone
+description: Verwende die Pinecone Vektordatenbank
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="pinecone"
+  color="#0D1117"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Pinecone](https://www.pinecone.io) ist eine Vektordatenbank, die für die Entwicklung von hochleistungsfähigen Vektorsuchanwendungen konzipiert wurde. Sie ermöglicht die effiziente Speicherung, Verwaltung und Ähnlichkeitssuche von hochdimensionalen Vektoreinbettungen und ist damit ideal für KI-Anwendungen, die semantische Suchfunktionen erfordern.
+
+Mit Pinecone können Sie:
+
+- **Vektoreinbettungen speichern**: Effiziente Verwaltung hochdimensionaler Vektoren im großen Maßstab
+- **Ähnlichkeitssuche durchführen**: Finden Sie die ähnlichsten Vektoren zu einem Abfragevektor in Millisekunden
+- **Semantische Suche aufbauen**: Erstellen Sie Sucherlebnisse, die auf Bedeutung statt auf Schlüsselwörtern basieren
+- **Empfehlungssysteme implementieren**: Generieren Sie personalisierte Empfehlungen basierend auf Inhaltsähnlichkeit
+- **Machine-Learning-Modelle bereitstellen**: Operationalisieren Sie ML-Modelle, die auf Vektorähnlichkeit basieren
+- **Nahtlos skalieren**: Verarbeiten Sie Milliarden von Vektoren mit konstanter Leistung
+- **Echtzeit-Indizes pflegen**: Aktualisieren Sie Ihre Vektordatenbank in Echtzeit, wenn neue Daten eintreffen
+
+In Sim ermöglicht die Pinecone-Integration Ihren Agenten, Vektorsuchfunktionen programmatisch als Teil ihrer Workflows zu nutzen. Dies erlaubt anspruchsvolle Automatisierungsszenarien, die natürliche Sprachverarbeitung mit semantischer Suche und Abruf kombinieren. Ihre Agenten können Embeddings aus Text generieren, diese Vektoren in Pinecone-Indizes speichern und Ähnlichkeitssuchen durchführen, um die relevantesten Informationen zu finden. Diese Integration überbrückt die Lücke zwischen Ihren KI-Workflows und der Vektorsuchinfrastruktur und ermöglicht eine intelligentere Informationsgewinnung basierend auf semantischer Bedeutung statt exakter Schlüsselwortübereinstimmung. Durch die Verbindung von Sim mit Pinecone können Sie Agenten erstellen, die Kontext verstehen, relevante Informationen aus großen Datensätzen abrufen und genauere sowie personalisierte Antworten an Benutzer liefern - alles ohne komplexes Infrastrukturmanagement oder spezialisiertes Wissen über Vektordatenbanken.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Integrieren Sie Pinecone in den Workflow. Kann Embeddings generieren, Text einfügen, mit Text suchen, Vektoren abrufen und mit Vektoren suchen. Erfordert API-Schlüssel.
+
+## Tools
+
+### `pinecone_generate_embeddings`
+
+Generieren von Embeddings aus Text mit Pinecone
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `model` | string | Ja | Modell zur Generierung von Embeddings |
+| `inputs` | array | Ja | Array von Texteingaben, für die Embeddings generiert werden sollen |
+| `apiKey` | string | Ja | Pinecone API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `data` | array | Generierte Embedding-Daten mit Werten und Vektortyp |
+| `model` | string | Für die Generierung von Embeddings verwendetes Modell |
+| `vector_type` | string | Typ des generierten Vektors \(dicht/spärlich\) |
+| `usage` | object | Nutzungsstatistiken für die Embedding-Generierung |
+
+### `pinecone_upsert_text`
+
+Text-Datensätze in einen Pinecone-Index einfügen oder aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `indexHost` | string | Ja | Vollständige Pinecone-Index-Host-URL |
+| `namespace` | string | Ja | Namespace, in den Datensätze eingefügt werden sollen |
+| `records` | array | Ja | Datensatz oder Array von Datensätzen zum Einfügen, jeder enthält _id, Text und optionale Metadaten |
+| `apiKey` | string | Ja | Pinecone API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `statusText` | string | Status des Einfügevorgangs |
+| `upsertedCount` | number | Anzahl der erfolgreich eingefügten Datensätze |
+
+### `pinecone_search_text`
+
+Nach ähnlichem Text in einem Pinecone-Index suchen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `indexHost` | string | Ja | Vollständige Pinecone-Index-Host-URL |
+| `namespace` | string | Nein | Namespace, in dem gesucht werden soll |
+| `searchQuery` | string | Ja | Text, nach dem gesucht werden soll |
+| `topK` | string | Nein | Anzahl der zurückzugebenden Ergebnisse |
+| `fields` | array | Nein | Felder, die in den Ergebnissen zurückgegeben werden sollen |
+| `filter` | object | Nein | Filter, der auf die Suche angewendet werden soll |
+| `rerank` | object | Nein | Parameter für die Neusortierung |
+| `apiKey` | string | Ja | Pinecone API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `matches` | array | Suchergebnisse mit ID, Bewertung und Metadaten |
+
+### `pinecone_search_vector`
+
+Suche nach ähnlichen Vektoren in einem Pinecone-Index
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `indexHost` | string | Ja | Vollständige Pinecone-Index-Host-URL |
+| `namespace` | string | Nein | Namespace, in dem gesucht werden soll |
+| `vector` | array | Ja | Zu suchender Vektor |
+| `topK` | number | Nein | Anzahl der zurückzugebenden Ergebnisse |
+| `filter` | object | Nein | Filter für die Suche |
+| `includeValues` | boolean | Nein | Vektorwerte in der Antwort einschließen |
+| `includeMetadata` | boolean | Nein | Metadaten in der Antwort einschließen |
+| `apiKey` | string | Ja | Pinecone API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `matches` | array | Vektorsuchergebnisse mit ID, Bewertung, Werten und Metadaten |
+| `namespace` | string | Namespace, in dem die Suche durchgeführt wurde |
+
+### `pinecone_fetch`
+
+Vektoren nach ID aus einem Pinecone-Index abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `indexHost` | string | Ja | Vollständige Pinecone-Index-Host-URL |
+| `ids` | array | Ja | Array von Vektor-IDs zum Abrufen |
+| `namespace` | string | Nein | Namespace, aus dem Vektoren abgerufen werden sollen |
+| `apiKey` | string | Ja | Pinecone API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `matches` | Array | Abgerufene Vektoren mit ID, Werten, Metadaten und Bewertung |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `pinecone`

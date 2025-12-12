@@ -1,0 +1,61 @@
+---
+title: Mistral Parser
+description: 从 PDF 文档中提取文本
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mistral_parse"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Mistral Parse 工具提供了一种强大的方式，通过 [Mistral 的 OCR API](https://mistral.ai/) 从 PDF 文档中提取和处理内容。该工具利用先进的光学字符识别技术，能够准确提取 PDF 文件中的文本和结构，使文档数据轻松融入您的代理工作流程。
+
+使用 Mistral Parse 工具，您可以：
+
+- **从 PDF 中提取文本**：将 PDF 内容准确转换为文本、Markdown 或 JSON 格式
+- **处理来自 URL 的 PDF**：通过提供在线托管的 PDF 的 URL，直接提取内容
+- **保留文档结构**：保留原始 PDF 的格式、表格和布局
+- **提取图像**：可选地包含 PDF 中嵌入的图像
+- **选择特定页面**：仅处理多页文档中您需要的页面
+
+Mistral Parse 工具在需要处理 PDF 内容的场景中特别有用，例如分析报告、从表单中提取数据或处理扫描文档中的文本。它简化了将 PDF 内容提供给代理的过程，使他们能够像处理直接文本输入一样轻松地处理存储在 PDF 中的信息。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Mistral Parse 集成到工作流程中。可以从上传的 PDF 文档或 URL 中提取文本。需要 API 密钥。
+
+## 工具
+
+### `mistral_parser`
+
+使用 Mistral OCR API 解析 PDF 文档
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `filePath` | 字符串 | 是 | 要处理的 PDF 文档的 URL |
+| `fileUpload` | 对象 | 否 | 来自文件上传组件的文件上传数据 |
+| `resultType` | 字符串 | 否 | 解析结果的类型（markdown、text 或 json）。默认为 markdown。 |
+| `includeImageBase64` | 布尔值 | 否 | 在响应中包含 base64 编码的图像 |
+| `pages` | 数组 | 否 | 要处理的特定页面（页面编号数组，从 0 开始） |
+| `imageLimit` | 数字 | 否 | 从 PDF 中提取的最大图像数量 |
+| `imageMinSize` | 数字 | 否 | 从 PDF 中提取的图像的最小高度和宽度 |
+| `apiKey` | 字符串 | 是 | Mistral API 密钥（MISTRAL_API_KEY） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | PDF 是否成功解析 |
+| `content` | string | 按请求格式提取的内容（markdown、text 或 JSON） |
+| `metadata` | object | 包括 jobId、fileType、pageCount 和使用信息的处理元数据 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`mistral_parse`

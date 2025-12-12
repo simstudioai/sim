@@ -1,0 +1,494 @@
+---
+title: Grafana
+description: 与 Grafana 仪表板、警报和注释交互
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="grafana"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Grafana](https://grafana.com/) 是一个领先的开源平台，用于监控、可观测性和可视化。它允许用户从各种数据源查询、可视化、警报和分析数据，是基础设施和应用程序监控的重要工具。
+
+使用 Grafana，您可以：
+
+- **可视化数据**：构建和自定义仪表板，以实时显示指标、日志和跟踪
+- **监控健康和状态**：检查 Grafana 实例和连接的数据源的健康状况
+- **管理警报和注释**：设置警报规则，管理通知，并使用重要事件注释仪表板
+- **组织内容**：将仪表板和数据源组织到文件夹中，以便更好地进行访问管理
+
+在 Sim 中，Grafana 集成使您的代理能够通过 API 直接与您的 Grafana 实例交互，实现以下操作：
+
+- 检查 Grafana 服务器、数据库和数据源的健康状态
+- 检索、列出和管理仪表板、警报规则、注释、数据源和文件夹
+- 通过将 Grafana 数据和警报集成到您的工作流自动化中，实现基础设施监控的自动化
+
+这些功能使 Sim 代理能够监控系统，主动响应警报，并帮助确保服务的可靠性和可见性——所有这些都作为您自动化工作流的一部分。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Grafana 集成到工作流中。管理仪表板、警报、注释、数据源、文件夹，并监控健康状态。
+
+## 工具
+
+### `grafana_get_dashboard`
+
+通过其 UID 获取仪表板
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grafana 服务账户令牌 |
+| `baseUrl` | string | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
+| `organizationId` | string | 否 | 多组织 Grafana 实例的组织 ID |
+| `dashboardUid` | string | 是 | 要检索的仪表板的 UID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `dashboard` | json | 完整的仪表板 JSON 对象 |
+| `meta` | json | 仪表板元数据（版本、权限等） |
+
+### `grafana_list_dashboards`
+
+搜索并列出所有仪表板
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grafana 服务账户令牌 |
+| `baseUrl` | string | 是 | Grafana 实例 URL（例如：https://your-grafana.com） |
+| `organizationId` | string | 否 | 多组织 Grafana 实例的组织 ID |
+| `query` | string | 否 | 按标题过滤仪表板的搜索查询 |
+| `tag` | string | 否 | 按标签过滤（多个标签用逗号分隔） |
+| `folderIds` | string | 否 | 按文件夹 ID 过滤（用逗号分隔） |
+| `starred` | boolean | 否 | 仅返回加星标的仪表板 |
+| `limit` | number | 否 | 返回的仪表板最大数量 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `dashboards` | array | 仪表板搜索结果列表 |
+
+### `grafana_create_dashboard`
+
+创建新仪表板
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grafana 服务账户令牌 |
+| `baseUrl` | string | 是 | Grafana 实例 URL（例如：https://your-grafana.com） |
+| `organizationId` | string | 否 | 多组织 Grafana 实例的组织 ID |
+| `title` | string | 是 | 新仪表板的标题 |
+| `folderUid` | string | 否 | 创建仪表板的文件夹 UID |
+| `tags` | string | 否 | 逗号分隔的标签列表 |
+| `timezone` | string | 否 | 仪表板时区（例如：browser, utc） |
+| `refresh` | string | 否 | 自动刷新间隔（例如：5s, 1m, 5m） |
+| `panels` | string | 否 | 面板配置的 JSON 数组 |
+| `overwrite` | boolean | 否 | 覆盖具有相同标题的现有仪表板 |
+| `message` | string | 否 | 仪表板版本的提交消息 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | number | 创建的仪表板的数字 ID |
+| `uid` | string | 创建的仪表板的 UID |
+| `url` | string | 仪表板的 URL 路径 |
+| `status` | string | 操作状态 \(成功\) |
+| `version` | number | 仪表板的版本号 |
+| `slug` | string | 仪表板的 URL 友好型 slug |
+
+### `grafana_update_dashboard`
+
+更新现有的仪表板。获取当前仪表板并合并您的更改。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grafana 服务账户令牌 |
+| `baseUrl` | string | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
+| `organizationId` | string | 否 | 多组织 Grafana 实例的组织 ID |
+| `dashboardUid` | string | 是 | 要更新的仪表板的 UID |
+| `title` | string | 否 | 仪表板的新标题 |
+| `folderUid` | string | 否 | 要移动仪表板的新文件夹 UID |
+| `tags` | string | 否 | 新标签的逗号分隔列表 |
+| `timezone` | string | 否 | 仪表板时区 \(例如：browser, utc\) |
+| `refresh` | string | 否 | 自动刷新间隔 \(例如：5s, 1m, 5m\) |
+| `panels` | string | 否 | 面板配置的 JSON 数组 |
+| `overwrite` | boolean | 否 | 即使存在版本冲突也覆盖 |
+| `message` | string | 否 | 此版本的提交消息 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | number | 更新后的仪表盘的数字 ID |
+| `uid` | string | 更新后的仪表盘的 UID |
+| `url` | string | 仪表盘的 URL 路径 |
+| `status` | string | 操作状态 \(成功\) |
+| `version` | number | 仪表盘的新版本号 |
+| `slug` | string | 仪表盘的 URL 友好型 slug |
+
+### `grafana_delete_dashboard`
+
+通过其 UID 删除仪表盘
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grafana 服务账户令牌 |
+| `baseUrl` | string | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
+| `organizationId` | string | 否 | 多组织 Grafana 实例的组织 ID |
+| `dashboardUid` | string | 是 | 要删除的仪表盘的 UID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `title` | string | 已删除仪表盘的标题 |
+| `message` | string | 确认消息 |
+| `id` | number | 已删除仪表盘的 ID |
+
+### `grafana_list_alert_rules`
+
+列出 Grafana 实例中的所有警报规则
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grafana 服务账户令牌 |
+| `baseUrl` | string | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
+| `organizationId` | string | 否 | 多组织 Grafana 实例的组织 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `rules` | 数组 | 警报规则列表 |
+
+### `grafana_get_alert_rule`
+
+通过其 UID 获取特定的警报规则
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | 字符串 | 是 | Grafana 服务账户令牌 |
+| `baseUrl` | 字符串 | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
+| `organizationId` | 字符串 | 否 | 多组织 Grafana 实例的组织 ID |
+| `alertRuleUid` | 字符串 | 是 | 要检索的警报规则的 UID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `uid` | 字符串 | 警报规则 UID |
+| `title` | 字符串 | 警报规则标题 |
+| `condition` | 字符串 | 警报条件 |
+| `data` | JSON | 警报规则查询数据 |
+| `folderUID` | 字符串 | 父文件夹 UID |
+| `ruleGroup` | 字符串 | 规则组名称 |
+| `noDataState` | 字符串 | 无数据返回时的状态 |
+| `execErrState` | 字符串 | 执行错误时的状态 |
+| `annotations` | JSON | 警报注释 |
+| `labels` | JSON | 警报标签 |
+
+### `grafana_create_alert_rule`
+
+创建新的警报规则
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | 字符串 | 是 | Grafana 服务账户令牌 |
+| `baseUrl` | 字符串 | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
+| `organizationId` | 字符串 | 否 | 多组织 Grafana 实例的组织 ID |
+| `title` | 字符串 | 是 | 警报规则的标题 |
+| `folderUid` | 字符串 | 是 | 创建警报的文件夹 UID |
+| `ruleGroup` | 字符串 | 是 | 规则组名称 |
+| `condition` | 字符串 | 是 | 用作警报条件的查询或表达式的 refId |
+| `data` | 字符串 | 是 | 查询/表达式数据对象的 JSON 数组 |
+| `forDuration` | 字符串 | 否 | 触发前的等待时间 \(例如：5m, 1h\) |
+| `noDataState` | 字符串 | 否 | 无数据返回时的状态 \(NoData, Alerting, OK\) |
+| `execErrState` | 字符串 | 否 | 执行错误时的状态 \(Alerting, OK\) |
+| `annotations` | 字符串 | 否 | 注释的 JSON 对象 |
+| `labels` | 字符串 | 否 | 标签的 JSON 对象 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `uid` | string | 创建的警报规则的 UID |
+| `title` | string | 警报规则标题 |
+| `folderUID` | string | 父文件夹 UID |
+| `ruleGroup` | string | 规则组名称 |
+
+### `grafana_update_alert_rule`
+
+更新现有的警报规则。获取当前规则并合并您的更改。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grafana 服务账户令牌 |
+| `baseUrl` | string | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
+| `organizationId` | string | 否 | 多组织 Grafana 实例的组织 ID |
+| `alertRuleUid` | string | 是 | 要更新的警报规则的 UID |
+| `title` | string | 否 | 警报规则的新标题 |
+| `folderUid` | string | 否 | 移动警报到的新文件夹 UID |
+| `ruleGroup` | string | 否 | 新规则组名称 |
+| `condition` | string | 否 | 新条件 refId |
+| `data` | string | 否 | 查询/表达式数据对象的新 JSON 数组 |
+| `forDuration` | string | 否 | 触发前的等待时长 \(例如：5m, 1h\) |
+| `noDataState` | string | 否 | 无数据返回时的状态 \(NoData, Alerting, OK\) |
+| `execErrState` | string | 否 | 执行错误时的状态 \(Alerting, OK\) |
+| `annotations` | string | 否 | 注释的 JSON 对象 |
+| `labels` | string | 否 | 标签的 JSON 对象 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `uid` | string | 更新的警报规则的 UID |
+| `title` | string | 警报规则标题 |
+| `folderUID` | string | 父文件夹 UID |
+| `ruleGroup` | string | 规则组名称 |
+
+### `grafana_delete_alert_rule`
+
+通过其 UID 删除警报规则
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grafana 服务账户令牌 |
+| `baseUrl` | string | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
+| `organizationId` | string | 否 | 多组织 Grafana 实例的组织 ID |
+| `alertRuleUid` | string | 是 | 要删除的警报规则的 UID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 确认消息 |
+
+### `grafana_list_contact_points`
+
+列出所有警报通知联系点
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grafana 服务账户令牌 |
+| `baseUrl` | string | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
+| `organizationId` | string | 否 | 多组织 Grafana 实例的组织 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `contactPoints` | array | 联系点列表 |
+
+### `grafana_create_annotation`
+
+在仪表板上或作为全局注释创建注释
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grafana 服务账户令牌 |
+| `baseUrl` | string | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
+| `organizationId` | string | 否 | 多组织 Grafana 实例的组织 ID |
+| `text` | string | 是 | 注释的文本内容 |
+| `tags` | string | 否 | 以逗号分隔的标签列表 |
+| `dashboardUid` | string | 否 | 要添加注释的仪表板 UID \(全局注释可选\) |
+| `panelId` | number | 否 | 要添加注释的面板 ID |
+| `time` | number | 否 | 起始时间（以 epoch 毫秒为单位，默认为当前时间） |
+| `timeEnd` | number | 否 | 结束时间（以 epoch 毫秒为单位，用于范围注释） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | number | 创建的注释的 ID |
+| `message` | string | 确认消息 |
+
+### `grafana_list_annotations`
+
+按时间范围、仪表板或标签查询注释
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grafana 服务账户令牌 |
+| ---INLINE-CODE-PLACEHOLDER-42355e89d407292dbef683bcc5a4fc3e--- | string | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
+| `organizationId` | string | 否 | 多组织 Grafana 实例的组织 ID |
+| `from` | number | 否 | 起始时间（以 epoch 毫秒为单位） |
+| `to` | number | 否 | 结束时间（以 epoch 毫秒为单位） |
+| `dashboardUid` | string | 否 | 按仪表板 UID 过滤 |
+| `panelId` | number | 否 | 按面板 ID 过滤 |
+| `tags` | string | 否 | 按逗号分隔的标签列表过滤 |
+| `type` | string | 否 | 按类型过滤 \(警报或注释\) |
+| `limit` | number | 否 | 返回的最大注释数 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `annotations` | array | 注释列表 |
+
+### `grafana_update_annotation`
+
+更新现有注释
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grafana 服务账户令牌 |
+| `baseUrl` | string | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
+| `organizationId` | string | 否 | 多组织 Grafana 实例的组织 ID |
+| `annotationId` | number | 是 | 要更新的注释 ID |
+| `text` | string | 是 | 注释的新文本内容 |
+| `tags` | string | 否 | 以逗号分隔的新标签列表 |
+| `time` | number | 否 | 新的开始时间（以纪元毫秒为单位） |
+| `timeEnd` | number | 否 | 新的结束时间（以纪元毫秒为单位） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | number | 更新后的注释 ID |
+| `message` | string | 确认消息 |
+
+### `grafana_delete_annotation`
+
+通过 ID 删除注释
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grafana 服务账户令牌 |
+| `baseUrl` | string | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
+| `organizationId` | string | 否 | 多组织 Grafana 实例的组织 ID |
+| `annotationId` | number | 是 | 要删除的注释 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 确认消息 |
+
+### `grafana_list_data_sources`
+
+列出 Grafana 中配置的所有数据源
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grafana 服务账户令牌 |
+| `baseUrl` | string | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
+| `organizationId` | string | 否 | 多组织 Grafana 实例的组织 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `dataSources` | array | 数据源列表 |
+
+### `grafana_get_data_source`
+
+通过其 ID 或 UID 获取数据源
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grafana 服务账户令牌 |
+| `baseUrl` | string | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
+| `organizationId` | string | 否 | 多组织 Grafana 实例的组织 ID |
+| `dataSourceId` | string | 是 | 要检索的数据源的 ID 或 UID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | number | 数据源 ID |
+| `uid` | string | 数据源 UID |
+| `name` | string | 数据源名称 |
+| `type` | string | 数据源类型 |
+| `url` | string | 数据源连接 URL |
+| `database` | string | 数据库名称 \(如果适用\) |
+| `isDefault` | boolean | 是否为默认数据源 |
+| `jsonData` | json | 其他数据源配置 |
+
+### `grafana_list_folders`
+
+列出 Grafana 中的所有文件夹
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grafana 服务账户令牌 |
+| `baseUrl` | string | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
+| `organizationId` | string | 否 | 多组织 Grafana 实例的组织 ID |
+| `limit` | number | 否 | 要返回的最大文件夹数量 |
+| `page` | number | 否 | 分页的页码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `folders` | array | 文件夹列表 |
+
+### `grafana_create_folder`
+
+在 Grafana 中创建一个新文件夹
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grafana 服务账户令牌 |
+| `baseUrl` | string | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
+| `organizationId` | string | 否 | 多组织 Grafana 实例的组织 ID |
+| `title` | string | 是 | 新文件夹的标题 |
+| `uid` | string | 否 | 文件夹的可选 UID \(如果未提供，将自动生成\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | number | 创建的文件夹的数字 ID |
+| `uid` | string | 创建的文件夹的 UID |
+| `title` | string | 创建的文件夹的标题 |
+| `url` | string | 文件夹的 URL 路径 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`grafana`

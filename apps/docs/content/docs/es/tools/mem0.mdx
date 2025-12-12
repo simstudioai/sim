@@ -1,0 +1,98 @@
+---
+title: Mem0
+description: Gestión de memoria del agente
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mem0"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Mem0](https://mem0.ai) es un potente sistema de gestión de memoria diseñado específicamente para agentes de IA. Proporciona un almacén de memoria persistente y con capacidad de búsqueda que permite a los agentes recordar interacciones pasadas, aprender de experiencias y mantener el contexto a través de conversaciones y ejecuciones de flujos de trabajo.
+
+Con Mem0, puedes:
+
+- **Almacenar memorias del agente**: Guardar historial de conversaciones, preferencias de usuario y contexto importante
+- **Recuperar información relevante**: Usar búsqueda semántica para encontrar las interacciones pasadas más relevantes
+- **Construir agentes conscientes del contexto**: Permitir que tus agentes hagan referencia a conversaciones pasadas y mantengan la continuidad
+- **Personalizar interacciones**: Adaptar respuestas basadas en el historial y preferencias del usuario
+- **Implementar memoria a largo plazo**: Crear agentes que aprenden y se adaptan con el tiempo
+- **Escalar la gestión de memoria**: Manejar necesidades de memoria para múltiples usuarios y flujos de trabajo complejos
+
+En Sim, la integración con Mem0 permite a tus agentes mantener una memoria persistente a través de las ejecuciones de flujos de trabajo. Esto permite interacciones más naturales y conscientes del contexto donde los agentes pueden recordar conversaciones pasadas, recordar preferencias de usuario y construir sobre interacciones previas. Al conectar Sim con Mem0, puedes crear agentes que se sienten más humanos en su capacidad para recordar y aprender de experiencias pasadas. La integración permite añadir nuevas memorias, buscar memorias existentes semánticamente y recuperar registros específicos de memoria. Esta capacidad de gestión de memoria es esencial para construir agentes sofisticados que puedan mantener el contexto a lo largo del tiempo, personalizar interacciones basadas en el historial del usuario y mejorar continuamente su rendimiento a través del conocimiento acumulado.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Mem0 en el flujo de trabajo. Puede añadir, buscar y recuperar memorias. Requiere clave API.
+
+## Herramientas
+
+### `mem0_add_memories`
+
+Añade recuerdos a Mem0 para almacenamiento persistente y recuperación
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Sí | ID de usuario asociado con el recuerdo |
+| `messages` | json | Sí | Array de objetos de mensaje con rol y contenido |
+| `apiKey` | string | Sí | Tu clave API de Mem0 |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `ids` | array | Array de IDs de recuerdos que fueron creados |
+| `memories` | array | Array de objetos de recuerdos que fueron creados |
+
+### `mem0_search_memories`
+
+Busca recuerdos en Mem0 usando búsqueda semántica
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Sí | ID de usuario para buscar recuerdos |
+| `query` | string | Sí | Consulta de búsqueda para encontrar recuerdos relevantes |
+| `limit` | number | No | Número máximo de resultados a devolver |
+| `apiKey` | string | Sí | Tu clave API de Mem0 |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `searchResults` | array | Array de resultados de búsqueda con datos de recuerdos, cada uno contiene id, datos y puntuación |
+| `ids` | array | Array de IDs de recuerdos encontrados en los resultados de búsqueda |
+
+### `mem0_get_memories`
+
+Recuperar recuerdos de Mem0 por ID o criterios de filtro
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `userId` | string | Sí | ID de usuario para recuperar recuerdos |
+| `memoryId` | string | No | ID específico del recuerdo a recuperar |
+| `startDate` | string | No | Fecha de inicio para filtrar por created_at \(formato: AAAA-MM-DD\) |
+| `endDate` | string | No | Fecha de fin para filtrar por created_at \(formato: AAAA-MM-DD\) |
+| `limit` | number | No | Número máximo de resultados a devolver |
+| `apiKey` | string | Sí | Tu clave API de Mem0 |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `memories` | array | Array de objetos de recuerdos recuperados |
+| `ids` | array | Array de IDs de recuerdos que fueron recuperados |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `mem0`

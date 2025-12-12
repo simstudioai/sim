@@ -1,0 +1,192 @@
+---
+title: Hunter io
+description: プロフェッショナルなメールアドレスを検索・検証
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="hunter"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Hunter.io](https://hunter.io/)は、プロフェッショナルなメールアドレスの検索・検証、企業の発見、連絡先データの充実化を提供する主要プラットフォームです。Hunter.ioは、ドメイン検索、メール検索、検証、企業発見のための堅牢なAPIを提供し、営業、採用、ビジネス開発に不可欠なツールとなっています。
+
+Hunter.ioでできること：
+
+- **ドメインからメールアドレスを検索：** 特定の企業ドメインに関連する公開されているすべてのメールアドレスを検索できます。
+- **企業を発見：** 高度なフィルターとAI搭載の検索機能を使用して、条件に合った企業を見つけられます。
+- **特定のメールアドレスを検索：** 名前とドメインを使用して、企業における個人の最も可能性の高いメールアドレスを特定できます。
+- **メールアドレスを検証：** あらゆるメールアドレスの配信可能性と有効性を確認できます。
+- **企業データを充実：** 企業規模、使用技術など、企業に関する詳細情報を取得できます。
+
+Simでは、Hunter.io統合により、エージェントがHunter.ioのAPIを使用してプログラム的にメールアドレスの検索と検証、企業の発見、連絡先データの充実化を行うことができます。これにより、リード生成、連絡先情報の充実化、メール検証をワークフロー内で直接自動化できます。エージェントはHunter.ioのツールを活用して、アウトリーチの効率化、CRMの最新状態の維持、営業、採用などのインテリジェントな自動化シナリオの実現が可能になります。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Hunterをワークフローに統合します。ドメインの検索、メールアドレスの検索、メールアドレスの検証、企業の発見、企業の検索、メールアドレスのカウントが可能です。APIキーが必要です。
+
+## ツール
+
+### `hunter_discover`
+
+Hunter.ioのAI搭載検索を使用して、一連の条件に一致する企業を返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | いいえ | 企業の自然言語検索クエリ |
+| `domain` | string | いいえ | フィルタリングする企業ドメイン名 |
+| `headcount` | string | いいえ | 企業規模フィルター（例："1-10"、"11-50"） |
+| `company_type` | string | いいえ | 組織のタイプ |
+| `technology` | string | いいえ | 企業が使用しているテクノロジー |
+| `apiKey` | string | はい | Hunter.io APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `results` | array | 検索条件に一致する企業の配列。各企業にはドメイン、名前、従業員数、テクノロジー、メールカウントが含まれます |
+
+### `hunter_domain_search`
+
+指定されたドメイン名を使用して見つかったすべてのメールアドレスを、ソース情報と共に返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | メールアドレスを検索するドメイン名 |
+| `limit` | number | いいえ | 返すメールアドレスの最大数（デフォルト：10） |
+| `offset` | number | いいえ | スキップするメールアドレスの数 |
+| `type` | string | いいえ | 個人用または一般的なメールのフィルター |
+| `seniority` | string | いいえ | 役職レベルによるフィルター：junior、senior、またはexecutive |
+| `department` | string | いいえ | 特定の部門によるフィルター（例：sales、marketing） |
+| `apiKey` | string | はい | Hunter.io APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `domain` | string | 検索されたドメイン名 |
+| `disposable` | boolean | ドメインが使い捨てメールアドレスを受け入れるかどうか |
+| `webmail` | boolean | ドメインがウェブメールプロバイダーかどうか |
+| `accept_all` | boolean | ドメインがすべてのメールアドレスを受け入れるかどうか |
+| `pattern` | string | 組織が使用するメールパターン |
+| `organization` | string | 組織名 |
+| `description` | string | 組織の説明 |
+| `industry` | string | 組織の業種 |
+| `twitter` | string | 組織のTwitterプロフィール |
+| `facebook` | string | 組織のFacebookプロフィール |
+| `linkedin` | string | 組織のLinkedInプロフィール |
+| `instagram` | string | 組織のInstagramプロフィール |
+| `youtube` | string | 組織のYouTubeチャンネル |
+| `technologies` | array | 組織が使用するテクノロジーの配列 |
+| `country` | string | 組織が所在する国 |
+| `state` | string | 組織が所在する州 |
+| `city` | string | 組織が所在する市 |
+| `postal_code` | string | 組織の郵便番号 |
+| `street` | string | 組織の住所 |
+| `emails` | array | ドメインで見つかったメールアドレスの配列（各メールアドレスには値、タイプ、信頼度、ソース、個人の詳細が含まれる） |
+
+### `hunter_email_finder`
+
+名前と会社ドメインから、その人の最も可能性の高いメールアドレスを見つけます。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | 会社ドメイン名 |
+| `first_name` | string | はい | 人の名（ファーストネーム） |
+| `last_name` | string | はい | 人の姓（ラストネーム） |
+| `company` | string | いいえ | 会社名 |
+| `apiKey` | string | はい | Hunter.io APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `email` | string | 見つかったメールアドレス |
+| `score` | number | 見つかったメールアドレスの信頼度スコア |
+| `sources` | array | メールが見つかったソースの配列。各ソースにはdomain、uri、extracted_on、last_seen_on、still_on_pageが含まれます |
+| `verification` | object | 日付とステータスを含む検証情報 |
+
+### `hunter_email_verifier`
+
+メールアドレスの配信可能性を検証し、詳細な検証ステータスを提供します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | はい | 検証するメールアドレス |
+| `apiKey` | string | はい | Hunter.io APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `result` | string | 配信可能性の結果：deliverable（配信可能）、undeliverable（配信不可）、またはrisky（リスクあり） |
+| `score` | number | 検証結果の信頼度スコア |
+| `email` | string | 検証されたメールアドレス |
+| `regexp` | boolean | メールが有効な正規表現パターンに従っているかどうか |
+| `gibberish` | boolean | メールが無意味な文字列に見えるかどうか |
+| `disposable` | boolean | メールが使い捨てメールプロバイダーからのものかどうか |
+| `webmail` | boolean | メールがウェブメールプロバイダーからのものかどうか |
+| `mx_records` | boolean | ドメインにMXレコードが存在するかどうか |
+| `smtp_server` | boolean | SMTPサーバーに到達可能かどうか |
+| `smtp_check` | boolean | SMTPチェックが成功したかどうか |
+| `accept_all` | boolean | ドメインがすべてのメールアドレスを受け入れるかどうか |
+| `block` | boolean | メールがブロックされているかどうか |
+| `status` | string | 検証ステータス：valid（有効）、invalid（無効）、accept_all（すべて受け入れ）、webmail（ウェブメール）、disposable（使い捨て）、またはunknown（不明） |
+| `sources` | array | メールが見つかったソースの配列 |
+
+### `hunter_companies_find`
+
+ドメイン名を使用して企業データを充実させます。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | 企業データを検索するドメイン |
+| `apiKey` | string | はい | Hunter.io APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `person` | object | 個人情報（companies_findツールでは未定義） |
+| `company` | object | 企業情報（名前、ドメイン、業種、規模、国、LinkedIn、Twitterを含む） |
+
+### `hunter_email_count`
+
+ドメインまたは企業に対して見つかったメールアドレスの総数を返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | いいえ | メールをカウントするドメイン（会社名が提供されていない場合は必須） |
+| `company` | string | いいえ | メールをカウントする会社名（ドメインが提供されていない場合は必須） |
+| `type` | string | いいえ | 個人用または一般用メールのみをフィルタリング |
+| `apiKey` | string | はい | Hunter.io APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `total` | number | 見つかったメールアドレスの総数 |
+| `personal_emails` | number | 見つかった個人メールアドレスの数 |
+| `generic_emails` | number | 見つかった一般メールアドレスの数 |
+| `department` | object | 部門別のメールアドレスの内訳（経営陣、IT、財務、管理、営業、法務、サポート、人事、マーケティング、広報） |
+| `seniority` | object | 職位レベル別のメールアドレスの内訳（ジュニア、シニア、エグゼクティブ） |
+
+## メモ
+
+- カテゴリー: `tools`
+- タイプ: `hunter`

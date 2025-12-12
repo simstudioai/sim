@@ -1,7 +1,7 @@
 import { Stagehand } from '@browserbasehq/stagehand'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { ensureZodObject, normalizeUrl } from '@/app/api/tools/stagehand/utils'
 
@@ -170,7 +170,7 @@ async function processSecureActions(
   return { modifiedMessage, executedActions }
 }
 
-// New helper function for direct login attempt
+// Helper function for direct login attempt
 async function attemptDirectLogin(
   stagehand: Stagehand,
   variables: Record<string, string> | undefined
@@ -958,7 +958,6 @@ The system will substitute actual values when these placeholders are used, keepi
             try {
               logger.info('Attempting to extract structured data using Stagehand extract')
               const schemaObj = getSchemaObject(outputSchema)
-              // Use ensureZodObject to get a proper ZodObject instance
               const zodSchema = ensureZodObject(logger, schemaObj)
 
               // Use the extract API to get structured data from whatever page we ended up on
@@ -966,7 +965,7 @@ The system will substitute actual values when these placeholders are used, keepi
                 instruction:
                   'Extract the requested information from this page according to the schema',
                 schema: zodSchema,
-              })
+              } as any)
 
               logger.info('Successfully extracted structured data as fallback', {
                 keys: structuredOutput ? Object.keys(structuredOutput) : [],

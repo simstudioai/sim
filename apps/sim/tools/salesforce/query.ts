@@ -1,0 +1,124 @@
+import { createLogger } from '@/lib/logs/console/logger'
+import type { ToolConfig } from '@/tools/types'
+import { extractErrorMessage, getInstanceUrl } from './utils'
+
+const logger = createLogger('SalesforceQuery')
+
+export interface SalesforceQueryParams {
+  accessToken: string
+  idToken?: string
+  instanceUrl?: string
+  query: string
+}
+
+export interface SalesforceQueryResponse {
+  success: boolean
+  output: {
+    records: any[]
+    totalSize: number
+    done: boolean
+    nextRecordsUrl?: string
+    query: string
+    metadata: {
+      operation: 'query'
+      totalReturned: number
+      hasMore: boolean
+    }
+    success: boolean
+  }
+}
+
+/**
+ * Execute a custom SOQL query
+ * @see https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_query.htm
+ */
+export const salesforceQueryTool: ToolConfig<SalesforceQueryParams, SalesforceQueryResponse> = {
+  id: 'salesforce_query',
+  name: 'Run SOQL Query in Salesforce',
+  description: 'Execute a custom SOQL query to retrieve data from Salesforce',
+  version: '1.0.0',
+
+  oauth: {
+    required: true,
+    provider: 'salesforce',
+  },
+
+  params: {
+    accessToken: { type: 'string', required: true, visibility: 'hidden' },
+    idToken: { type: 'string', required: false, visibility: 'hidden' },
+    instanceUrl: { type: 'string', required: false, visibility: 'hidden' },
+    query: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'SOQL query to execute (e.g., SELECT Id, Name FROM Account LIMIT 10)',
+    },
+  },
+
+  request: {
+    url: (params) => {
+      if (!params.query || params.query.trim() === '') {
+        throw new Error(
+          'SOQL Query is required. Please provide a valid SOQL query (e.g., SELECT Id, Name FROM Account LIMIT 10).'
+        )
+      }
+      const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
+      const encodedQuery = encodeURIComponent(params.query)
+      return `${instanceUrl}/services/data/v59.0/query?q=${encodedQuery}`
+    },
+    method: 'GET',
+    headers: (params) => ({
+      Authorization: `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json',
+    }),
+  },
+
+  transformResponse: async (response, params?) => {
+    const data = await response.json()
+    if (!response.ok) {
+      const errorMessage = extractErrorMessage(
+        data,
+        response.status,
+        'Failed to execute SOQL query'
+      )
+      logger.error('Failed to execute SOQL query', { data, status: response.status })
+      throw new Error(errorMessage)
+    }
+
+    const records = data.records || []
+
+    return {
+      success: true,
+      output: {
+        records,
+        totalSize: data.totalSize || records.length,
+        done: data.done !== false,
+        nextRecordsUrl: data.nextRecordsUrl,
+        query: params?.query || '',
+        metadata: {
+          operation: 'query',
+          totalReturned: records.length,
+          hasMore: !data.done,
+        },
+        success: true,
+      },
+    }
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Success status' },
+    output: {
+      type: 'object',
+      description: 'Query results',
+      properties: {
+        records: { type: 'array', description: 'Array of record objects' },
+        totalSize: { type: 'number', description: 'Total number of records matching query' },
+        done: { type: 'boolean', description: 'Whether all records have been returned' },
+        nextRecordsUrl: { type: 'string', description: 'URL to fetch next batch of records' },
+        query: { type: 'string', description: 'The executed SOQL query' },
+        metadata: { type: 'object', description: 'Operation metadata' },
+        success: { type: 'boolean', description: 'Operation success status' },
+      },
+    },
+  },
+}

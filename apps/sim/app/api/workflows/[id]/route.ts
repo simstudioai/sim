@@ -1,14 +1,16 @@
+import { db } from '@sim/db'
+import { templates, webhook, workflow } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { getSession } from '@/lib/auth'
 import { verifyInternalToken } from '@/lib/auth/internal'
-import { env } from '@/lib/env'
+import { env } from '@/lib/core/config/env'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getUserEntityPermissions, hasAdminPermission } from '@/lib/permissions/utils'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
-import { db } from '@/db'
-import { apiKey as apiKeyTable, templates, workflow } from '@/db/schema'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { getWorkflowAccessContext, getWorkflowById } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowByIdAPI')
 
@@ -25,43 +27,42 @@ const UpdateWorkflowSchema = z.object({
  * Uses hybrid approach: try normalized tables first, fallback to JSON blob
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const startTime = Date.now()
   const { id: workflowId } = await params
 
   try {
-    // Check for internal JWT token for server-side calls
     const authHeader = request.headers.get('authorization')
     let isInternalCall = false
 
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1]
-      isInternalCall = await verifyInternalToken(token)
+      const verification = await verifyInternalToken(token)
+      isInternalCall = verification.valid
     }
 
     let userId: string | null = null
 
     if (isInternalCall) {
-      // For internal calls, we'll skip user-specific access checks
       logger.info(`[${requestId}] Internal API call for workflow ${workflowId}`)
     } else {
-      // Try session auth first (for web UI)
       const session = await getSession()
       let authenticatedUserId: string | null = session?.user?.id || null
 
-      // If no session, check for API key auth
       if (!authenticatedUserId) {
         const apiKeyHeader = request.headers.get('x-api-key')
         if (apiKeyHeader) {
-          // Verify API key
-          const [apiKeyRecord] = await db
-            .select({ userId: apiKeyTable.userId })
-            .from(apiKeyTable)
-            .where(eq(apiKeyTable.key, apiKeyHeader))
-            .limit(1)
-
-          if (apiKeyRecord) {
-            authenticatedUserId = apiKeyRecord.userId
+          const authResult = await authenticateApiKeyFromHeader(apiKeyHeader)
+          if (authResult.success && authResult.userId) {
+            authenticatedUserId = authResult.userId
+            if (authResult.keyId) {
+              await updateApiKeyLastUsed(authResult.keyId).catch((error) => {
+                logger.warn(`[${requestId}] Failed to update API key last used timestamp:`, {
+                  keyId: authResult.keyId,
+                  error,
+                })
+              })
+            }
           }
         }
       }
@@ -74,12 +75,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       userId = authenticatedUserId
     }
 
-    // Fetch the workflow
-    const workflowData = await db
-      .select()
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .then((rows) => rows[0])
+    let accessContext = null
+    let workflowData = await getWorkflowById(workflowId)
 
     if (!workflowData) {
       logger.warn(`[${requestId}] Workflow ${workflowId} not found`)
@@ -94,18 +91,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       hasAccess = true
     } else {
       // Case 1: User owns the workflow
-      if (workflowData.userId === userId) {
-        hasAccess = true
-      }
+      if (workflowData) {
+        accessContext = await getWorkflowAccessContext(workflowId, userId ?? undefined)
 
-      // Case 2: Workflow belongs to a workspace the user has permissions for
-      if (!hasAccess && workflowData.workspaceId && userId) {
-        const userPermission = await getUserEntityPermissions(
-          userId,
-          'workspace',
-          workflowData.workspaceId
-        )
-        if (userPermission !== null) {
+        if (!accessContext) {
+          logger.warn(`[${requestId}] Workflow ${workflowId} not found`)
+          return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+        }
+
+        workflowData = accessContext.workflow
+
+        if (accessContext.isOwner) {
+          hasAccess = true
+        }
+
+        if (!hasAccess && workflowData.workspaceId && accessContext.workspacePermission) {
           hasAccess = true
         }
       }
@@ -116,7 +116,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    // Try to load from normalized tables first
     logger.debug(`[${requestId}] Attempting to load workflow ${workflowId} from normalized tables`)
     const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
 
@@ -129,13 +128,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         loops: normalizedData.loops,
       })
 
-      // Construct response object with workflow data and state from normalized tables
       const finalWorkflowData = {
         ...workflowData,
         state: {
           // Default values for expected properties
           deploymentStatuses: {},
-          hasActiveWebhook: false,
           // Data from normalized tables
           blocks: normalizedData.blocks,
           edges: normalizedData.edges,
@@ -145,6 +142,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           isDeployed: workflowData.isDeployed || false,
           deployedAt: workflowData.deployedAt,
         },
+        // Include workflow variables
+        variables: workflowData.variables || {},
       }
 
       logger.info(`[${requestId}] Loaded workflow ${workflowId} from normalized tables`)
@@ -153,7 +152,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
       return NextResponse.json({ data: finalWorkflowData }, { status: 200 })
     }
-    return NextResponse.json({ error: 'Workflow has no normalized data' }, { status: 400 })
+
+    const emptyWorkflowData = {
+      ...workflowData,
+      state: {
+        deploymentStatuses: {},
+        blocks: {},
+        edges: [],
+        loops: {},
+        parallels: {},
+        lastSaved: Date.now(),
+        isDeployed: workflowData.isDeployed || false,
+        deployedAt: workflowData.deployedAt,
+      },
+      variables: workflowData.variables || {},
+    }
+
+    return NextResponse.json({ data: emptyWorkflowData }, { status: 200 })
   } catch (error: any) {
     const elapsed = Date.now() - startTime
     logger.error(`[${requestId}] Error fetching workflow ${workflowId} after ${elapsed}ms`, error)
@@ -169,12 +184,11 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const startTime = Date.now()
   const { id: workflowId } = await params
 
   try {
-    // Get the session
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized deletion attempt for workflow ${workflowId}`)
@@ -183,12 +197,8 @@ export async function DELETE(
 
     const userId = session.user.id
 
-    // Fetch the workflow to check ownership/access
-    const workflowData = await db
-      .select()
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .then((rows) => rows[0])
+    const accessContext = await getWorkflowAccessContext(workflowId, userId)
+    const workflowData = accessContext?.workflow || (await getWorkflowById(workflowId))
 
     if (!workflowData) {
       logger.warn(`[${requestId}] Workflow ${workflowId} not found for deletion`)
@@ -205,8 +215,8 @@ export async function DELETE(
 
     // Case 2: Workflow belongs to a workspace and user has admin permission
     if (!canDelete && workflowData.workspaceId) {
-      const hasAdmin = await hasAdminPermission(userId, workflowData.workspaceId)
-      if (hasAdmin) {
+      const context = accessContext || (await getWorkflowAccessContext(workflowId, userId))
+      if (context?.workspacePermission === 'admin') {
         canDelete = true
       }
     }
@@ -226,7 +236,13 @@ export async function DELETE(
     if (checkTemplates) {
       // Return template information for frontend to handle
       const publishedTemplates = await db
-        .select()
+        .select({
+          id: templates.id,
+          name: templates.name,
+          views: templates.views,
+          stars: templates.stars,
+          status: templates.status,
+        })
         .from(templates)
         .where(eq(templates.workflowId, workflowId))
 
@@ -258,6 +274,48 @@ export async function DELETE(
           .where(eq(templates.workflowId, workflowId))
         logger.info(`[${requestId}] Orphaned templates for workflow ${workflowId}`)
       }
+    }
+
+    // Clean up external webhooks before deleting workflow
+    try {
+      const { cleanupExternalWebhook } = await import('@/lib/webhooks/provider-subscriptions')
+      const webhooksToCleanup = await db
+        .select({
+          webhook: webhook,
+          workflow: {
+            id: workflow.id,
+            userId: workflow.userId,
+            workspaceId: workflow.workspaceId,
+          },
+        })
+        .from(webhook)
+        .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
+        .where(eq(webhook.workflowId, workflowId))
+
+      if (webhooksToCleanup.length > 0) {
+        logger.info(
+          `[${requestId}] Found ${webhooksToCleanup.length} webhook(s) to cleanup for workflow ${workflowId}`
+        )
+
+        // Clean up each webhook (don't fail if cleanup fails)
+        for (const webhookData of webhooksToCleanup) {
+          try {
+            await cleanupExternalWebhook(webhookData.webhook, webhookData.workflow, requestId)
+          } catch (cleanupError) {
+            logger.warn(
+              `[${requestId}] Failed to cleanup external webhook ${webhookData.webhook.id} during workflow deletion`,
+              cleanupError
+            )
+            // Continue with deletion even if cleanup fails
+          }
+        }
+      }
+    } catch (webhookCleanupError) {
+      logger.warn(
+        `[${requestId}] Error during webhook cleanup for workflow deletion (continuing with deletion)`,
+        webhookCleanupError
+      )
+      // Continue with workflow deletion even if webhook cleanup fails
     }
 
     await db.delete(workflow).where(eq(workflow.id, workflowId))
@@ -306,7 +364,7 @@ export async function DELETE(
  * Update workflow metadata (name, description, color, folderId)
  */
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const startTime = Date.now()
   const { id: workflowId } = await params
 
@@ -320,16 +378,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const userId = session.user.id
 
-    // Parse and validate request body
     const body = await request.json()
     const updates = UpdateWorkflowSchema.parse(body)
 
     // Fetch the workflow to check ownership/access
-    const workflowData = await db
-      .select()
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .then((rows) => rows[0])
+    const accessContext = await getWorkflowAccessContext(workflowId, userId)
+    const workflowData = accessContext?.workflow || (await getWorkflowById(workflowId))
 
     if (!workflowData) {
       logger.warn(`[${requestId}] Workflow ${workflowId} not found for update`)
@@ -346,12 +400,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Case 2: Workflow belongs to a workspace and user has write or admin permission
     if (!canUpdate && workflowData.workspaceId) {
-      const userPermission = await getUserEntityPermissions(
-        userId,
-        'workspace',
-        workflowData.workspaceId
-      )
-      if (userPermission === 'write' || userPermission === 'admin') {
+      const context = accessContext || (await getWorkflowAccessContext(workflowId, userId))
+      if (context?.workspacePermission === 'write' || context?.workspacePermission === 'admin') {
         canUpdate = true
       }
     }

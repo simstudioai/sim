@@ -1,0 +1,19 @@
+{
+  "pages": [
+    "index",
+    "agent",
+    "api",
+    "condition",
+    "evaluator",
+    "function",
+    "guardrails",
+    "human-in-the-loop",
+    "loop",
+    "parallel",
+    "response",
+    "router",
+    "variables",
+    "wait",
+    "workflow"
+  ]
+}

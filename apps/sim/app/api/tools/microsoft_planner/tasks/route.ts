@@ -1,11 +1,12 @@
 import { randomUUID } from 'crypto'
+import { db } from '@sim/db'
+import { account } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { db } from '@/db'
-import { account } from '@/db/schema'
 import type { PlannerTask } from '@/tools/microsoft_planner/types'
 
 const logger = createLogger('MicrosoftPlannerTasksAPI')
@@ -35,7 +36,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Plan ID is required' }, { status: 400 })
     }
 
-    // Get the credential from the database
+    const planIdValidation = validateMicrosoftGraphId(planId, 'planId')
+    if (!planIdValidation.isValid) {
+      logger.error(`[${requestId}] Invalid planId: ${planIdValidation.error}`)
+      return NextResponse.json({ error: planIdValidation.error }, { status: 400 })
+    }
+
     const credentials = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
 
     if (!credentials.length) {
@@ -45,7 +51,6 @@ export async function GET(request: NextRequest) {
 
     const credential = credentials[0]
 
-    // Check if the credential belongs to the user
     if (credential.userId !== session.user.id) {
       logger.warn(`[${requestId}] Unauthorized credential access attempt`, {
         credentialUserId: credential.userId,
@@ -54,7 +59,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    // Refresh access token if needed
     const accessToken = await refreshAccessTokenIfNeeded(credentialId, session.user.id, requestId)
 
     if (!accessToken) {
@@ -62,7 +66,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
-    // Fetch tasks directly from Microsoft Graph API
     const response = await fetch(`https://graph.microsoft.com/v1.0/planner/plans/${planId}/tasks`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -81,7 +84,6 @@ export async function GET(request: NextRequest) {
     const data = await response.json()
     const tasks = data.value || []
 
-    // Filter tasks to only include useful fields (matching our read_task tool)
     const filteredTasks = tasks.map((task: PlannerTask) => ({
       id: task.id,
       title: task.title,

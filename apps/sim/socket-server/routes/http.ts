@@ -16,7 +16,6 @@ interface Logger {
  */
 export function createHttpHandler(roomManager: RoomManager, logger: Logger) {
   return (req: IncomingMessage, res: ServerResponse) => {
-    // Handle health check for Railway
     if (req.method === 'GET' && req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(

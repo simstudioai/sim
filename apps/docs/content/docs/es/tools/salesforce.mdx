@@ -1,0 +1,820 @@
+---
+title: Salesforce
+description: Interactúa con Salesforce CRM
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="salesforce"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+La herramienta [Salesforce](https://www.salesforce.com/) te permite conectarte directamente a tu CRM de Salesforce y realizar una amplia gama de operaciones de gestión de relaciones con clientes dentro de tus flujos de trabajo con agentes. Con una integración fluida y segura, puedes acceder y automatizar eficientemente procesos empresariales clave en tus datos de ventas, soporte y marketing.
+
+Con la herramienta Salesforce, puedes:
+
+- **Recuperar cuentas**: Usa la operación `salesforce_get_accounts` para obtener Cuentas de Salesforce con filtros personalizados, ordenación y selección de campos.
+- **Crear cuentas**: Añade automáticamente nuevas Cuentas a Salesforce usando la operación `salesforce_create_account`, especificando detalles como nombre, industria y dirección de facturación.
+- **Gestionar contactos**: (Si se proporciona, hay herramientas similares disponibles para Contactos—añadir, actualizar o recuperar contactos según sea necesario.)
+- **Manejar leads y oportunidades**: Integra la gestión de leads y oportunidades en tu flujo de trabajo, permitiendo a tus agentes capturar, calificar y actualizar datos del pipeline de ventas.
+- **Seguimiento de casos y tareas**: Automatiza el soporte al cliente y las actividades de seguimiento interactuando con Casos y Tareas dentro de Salesforce.
+
+La herramienta Salesforce es ideal para flujos de trabajo donde tus agentes necesitan agilizar las operaciones de ventas, gestión de cuentas, generación de leads y soporte. Ya sea que tus agentes estén sincronizando datos entre plataformas, proporcionando información de clientes en tiempo real o automatizando actualizaciones rutinarias de CRM, la herramienta Salesforce incorpora todo el poder y la extensibilidad de Salesforce en tus procesos programáticos impulsados por agentes.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Salesforce en tu flujo de trabajo. Gestiona cuentas, contactos, leads, oportunidades, casos y tareas con potentes capacidades de automatización.
+
+## Herramientas
+
+### `salesforce_get_accounts`
+
+Recuperar cuentas del CRM de Salesforce
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | --------- | ----------- |
+| `idToken` | string | No | El token ID de OAuth de Salesforce \(contiene URL de instancia\) |
+| `instanceUrl` | string | No | La URL de instancia de Salesforce |
+| `limit` | string | No | Número de resultados a devolver \(predeterminado: 100, máximo: 2000\) |
+| `fields` | string | No | Lista separada por comas de campos a devolver \(p. ej., "Id,Name,Industry,Phone"\) |
+| `orderBy` | string | No | Campo para ordenar \(p. ej., "Name ASC" o "CreatedDate DESC"\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de las cuentas |
+
+### `salesforce_create_account`
+
+Crear una nueva cuenta en Salesforce CRM
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `name` | string | Sí | Nombre de la cuenta \(obligatorio\) |
+| `type` | string | No | Tipo de cuenta \(p. ej., Cliente, Socio, Prospecto\) |
+| `industry` | string | No | Industria \(p. ej., Tecnología, Salud, Finanzas\) |
+| `phone` | string | No | Número de teléfono |
+| `website` | string | No | URL del sitio web |
+| `billingStreet` | string | No | Dirección de facturación |
+| `billingCity` | string | No | Ciudad de facturación |
+| `billingState` | string | No | Estado/provincia de facturación |
+| `billingPostalCode` | string | No | Código postal de facturación |
+| `billingCountry` | string | No | País de facturación |
+| `description` | string | No | Descripción de la cuenta |
+| `annualRevenue` | string | No | Ingresos anuales \(número\) |
+| `numberOfEmployees` | string | No | Número de empleados \(número\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la cuenta creada |
+
+### `salesforce_update_account`
+
+Actualizar una cuenta existente en Salesforce CRM
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `accountId` | string | Sí | ID de la cuenta a actualizar \(obligatorio\) |
+| `name` | string | No | Nombre de la cuenta |
+| `type` | string | No | Tipo de cuenta |
+| `industry` | string | No | Industria |
+| `phone` | string | No | Número de teléfono |
+| `website` | string | No | URL del sitio web |
+| `billingStreet` | string | No | Dirección de facturación |
+| `billingCity` | string | No | Ciudad de facturación |
+| `billingState` | string | No | Estado/provincia de facturación |
+| `billingPostalCode` | string | No | Código postal de facturación |
+| `billingCountry` | string | No | País de facturación |
+| `description` | string | No | Descripción de la cuenta |
+| `annualRevenue` | string | No | Ingresos anuales \(número\) |
+| `numberOfEmployees` | string | No | Número de empleados \(número\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la cuenta actualizada |
+
+### `salesforce_delete_account`
+
+Eliminar una cuenta de Salesforce CRM
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `accountId` | string | Sí | ID de la cuenta a eliminar \(obligatorio\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la cuenta eliminada |
+
+### `salesforce_get_contacts`
+
+Obtener contacto(s) de Salesforce - un solo contacto si se proporciona ID, o lista si no
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `contactId` | string | No | ID de contacto \(si se proporciona, devuelve un solo contacto\) |
+| `limit` | string | No | Número de resultados \(predeterminado: 100, máximo: 2000\). Solo para consulta de lista. |
+| `fields` | string | No | Campos separados por comas \(p. ej., "Id,FirstName,LastName,Email,Phone"\) |
+| `orderBy` | string | No | Campo para ordenar \(p. ej., "LastName ASC"\). Solo para consulta de lista. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de contacto(s) |
+
+### `salesforce_create_contact`
+
+Crear un nuevo contacto en Salesforce CRM
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `lastName` | string | Sí | Apellido \(obligatorio\) |
+| `firstName` | string | No | Nombre |
+| `email` | string | No | Dirección de correo electrónico |
+| `phone` | string | No | Número de teléfono |
+| `accountId` | string | No | ID de cuenta para asociar con el contacto |
+| `title` | string | No | Sin descripción |
+| `department` | string | No | Departamento |
+| `mailingStreet` | string | No | Calle de correo |
+| `mailingCity` | string | No | Ciudad de correo |
+| `mailingState` | string | No | Estado de correo |
+| `mailingPostalCode` | string | No | Código postal de correo |
+| `mailingCountry` | string | No | País de correo |
+| `description` | string | No | Descripción del contacto |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del contacto creado |
+
+### `salesforce_update_contact`
+
+Actualizar un contacto existente en Salesforce CRM
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `contactId` | string | Sí | ID del contacto a actualizar (obligatorio) |
+| `lastName` | string | No | Apellido |
+| `firstName` | string | No | Nombre |
+| `email` | string | No | Dirección de correo electrónico |
+| `phone` | string | No | Número de teléfono |
+| `accountId` | string | No | ID de la cuenta para asociar |
+| `title` | string | No | Sin descripción |
+| `department` | string | No | Departamento |
+| `mailingStreet` | string | No | Calle de correo |
+| `mailingCity` | string | No | Ciudad de correo |
+| `mailingState` | string | No | Estado de correo |
+| `mailingPostalCode` | string | No | Código postal de correo |
+| `mailingCountry` | string | No | País de correo |
+| `description` | string | No | Descripción |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del contacto actualizado |
+
+### `salesforce_delete_contact`
+
+Eliminar un contacto de Salesforce CRM
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `contactId` | string | Sí | ID del contacto a eliminar \(obligatorio\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos del contacto eliminado |
+
+### `salesforce_get_leads`
+
+Obtener candidato(s) de Salesforce
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `leadId` | string | No | ID del candidato \(opcional\) |
+| `limit` | string | No | Máximo de resultados \(predeterminado: 100\) |
+| `fields` | string | No | Campos separados por comas |
+| `orderBy` | string | No | Campo para ordenar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Datos del candidato |
+
+### `salesforce_create_lead`
+
+Crear un nuevo candidato
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `lastName` | string | Sí | Apellido \(obligatorio\) |
+| `company` | string | Sí | Empresa \(obligatorio\) |
+| `firstName` | string | No | Nombre |
+| `email` | string | No | Sin descripción |
+| `phone` | string | No | Sin descripción |
+| `status` | string | No | Estado del candidato |
+| `leadSource` | string | No | Origen del candidato |
+| `title` | string | No | Sin descripción |
+| `description` | string | No | Descripción |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Cliente potencial creado |
+
+### `salesforce_update_lead`
+
+Actualizar un cliente potencial existente
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `leadId` | string | Sí | ID del cliente potencial (obligatorio) |
+| `lastName` | string | No | Apellido |
+| `company` | string | No | Sin descripción |
+| `firstName` | string | No | Nombre |
+| `email` | string | No | Sin descripción |
+| `phone` | string | No | Sin descripción |
+| `status` | string | No | Estado del cliente potencial |
+| `leadSource` | string | No | Origen del cliente potencial |
+| `title` | string | No | Sin descripción |
+| `description` | string | No | Descripción |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Cliente potencial actualizado |
+
+### `salesforce_delete_lead`
+
+Eliminar un cliente potencial
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `leadId` | string | Sí | ID del cliente potencial (obligatorio) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Cliente potencial eliminado |
+
+### `salesforce_get_opportunities`
+
+Obtener oportunidad(es) de Salesforce
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `opportunityId` | string | No | ID de oportunidad (opcional) |
+| `limit` | string | No | Máximo de resultados (predeterminado: 100) |
+| `fields` | string | No | Campos separados por comas |
+| `orderBy` | string | No | Campo para ordenar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Datos de la oportunidad |
+
+### `salesforce_create_opportunity`
+
+Crear una nueva oportunidad
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `name` | string | Sí | Nombre de la oportunidad (obligatorio) |
+| `stageName` | string | Sí | Nombre de la etapa (obligatorio) |
+| `closeDate` | string | Sí | Fecha de cierre AAAA-MM-DD (obligatorio) |
+| `accountId` | string | No | ID de la cuenta |
+| `amount` | string | No | Importe (número) |
+| `probability` | string | No | Probabilidad (0-100) |
+| `description` | string | No | Descripción |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Oportunidad creada |
+
+### `salesforce_update_opportunity`
+
+Actualizar una oportunidad existente
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `opportunityId` | string | Sí | ID de la oportunidad \(obligatorio\) |
+| `name` | string | No | Nombre de la oportunidad |
+| `stageName` | string | No | Nombre de la etapa |
+| `closeDate` | string | No | Fecha de cierre AAAA-MM-DD |
+| `accountId` | string | No | ID de la cuenta |
+| `amount` | string | No | Sin descripción |
+| `probability` | string | No | Probabilidad \(0-100\) |
+| `description` | string | No | Descripción |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Oportunidad actualizada |
+
+### `salesforce_delete_opportunity`
+
+Eliminar una oportunidad
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `opportunityId` | string | Sí | ID de la oportunidad \(obligatorio\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Oportunidad eliminada |
+
+### `salesforce_get_cases`
+
+Obtener caso(s) de Salesforce
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `caseId` | string | No | ID del caso \(opcional\) |
+| `limit` | string | No | Resultados máximos \(predeterminado: 100\) |
+| `fields` | string | No | Campos separados por comas |
+| `orderBy` | string | No | Campo para ordenar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Éxito |
+| `output` | object | Datos del caso |
+
+### `salesforce_create_case`
+
+Crear un nuevo caso
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `subject` | string | Sí | Asunto del caso \(obligatorio\) |
+| `status` | string | No | Estado \(p. ej., Nuevo, En proceso, Escalado\) |
+| `priority` | string | No | Prioridad \(p. ej., Baja, Media, Alta\) |
+| `origin` | string | No | Origen \(p. ej., Teléfono, Email, Web\) |
+| `contactId` | string | No | ID del contacto |
+| `accountId` | string | No | ID de la cuenta |
+| `description` | string | No | Descripción |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Éxito |
+| `output` | object | Caso creado |
+
+### `salesforce_update_case`
+
+Actualizar un caso existente
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `caseId` | string | Sí | ID del caso \(obligatorio\) |
+| `subject` | string | No | Asunto del caso |
+| `status` | string | No | Estado |
+| `priority` | string | No | Prioridad |
+| `description` | string | No | Descripción |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Éxito |
+| `output` | object | Caso actualizado |
+
+### `salesforce_delete_case`
+
+Eliminar un caso
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `caseId` | string | Sí | ID del caso \(obligatorio\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Éxito |
+| `output` | object | Caso eliminado |
+
+### `salesforce_get_tasks`
+
+Obtener tarea(s) de Salesforce
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `taskId` | string | No | ID de la tarea \(opcional\) |
+| `limit` | string | No | Máximo de resultados \(predeterminado: 100\) |
+| `fields` | string | No | Campos separados por comas |
+| `orderBy` | string | No | Campo para ordenar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la tarea |
+
+### `salesforce_create_task`
+
+Crear una nueva tarea
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `subject` | string | Sí | Asunto de la tarea \(obligatorio\) |
+| `status` | string | No | Estado \(p. ej., No iniciada, En progreso, Completada\) |
+| `priority` | string | No | Prioridad \(p. ej., Baja, Normal, Alta\) |
+| `activityDate` | string | No | Fecha de vencimiento AAAA-MM-DD |
+| `whoId` | string | No | ID de contacto/cliente potencial relacionado |
+| `whatId` | string | No | ID de cuenta/oportunidad relacionada |
+| `description` | string | No | Descripción |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Tarea creada |
+
+### `salesforce_update_task`
+
+Actualizar una tarea existente
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `taskId` | string | Sí | ID de la tarea \(obligatorio\) |
+| `subject` | string | No | Asunto de la tarea |
+| `status` | string | No | Estado |
+| `priority` | string | No | Prioridad |
+| `activityDate` | string | No | Fecha de vencimiento AAAA-MM-DD |
+| `description` | string | No | Descripción |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Tarea actualizada |
+
+### `salesforce_delete_task`
+
+Eliminar una tarea
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `taskId` | string | Sí | ID de la tarea (obligatorio) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Tarea eliminada |
+
+### `salesforce_list_reports`
+
+Obtener una lista de informes accesibles por el usuario actual
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `folderName` | string | No | Filtrar por nombre de carpeta |
+| `searchTerm` | string | No | Término de búsqueda para filtrar informes por nombre |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Datos de los informes |
+
+### `salesforce_get_report`
+
+Obtener metadatos e información descriptiva para un informe específico
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `reportId` | string | Sí | ID del informe (obligatorio) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Metadatos del informe |
+
+### `salesforce_run_report`
+
+Ejecutar un informe y obtener los resultados
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `reportId` | string | Sí | ID del informe \(obligatorio\) |
+| `includeDetails` | string | No | Incluir filas detalladas \(true/false, predeterminado: true\) |
+| `filters` | string | No | Cadena JSON de filtros de informe para aplicar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Resultados del informe |
+
+### `salesforce_list_report_types`
+
+Obtener una lista de tipos de informes disponibles
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Datos de tipos de informes |
+
+### `salesforce_list_dashboards`
+
+Obtener una lista de paneles accesibles por el usuario actual
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `folderName` | string | No | Filtrar por nombre de carpeta |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Datos de los paneles |
+
+### `salesforce_get_dashboard`
+
+Obtener detalles y resultados de un panel específico
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `dashboardId` | string | Sí | ID del panel \(obligatorio\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Datos del panel |
+
+### `salesforce_refresh_dashboard`
+
+Actualizar un panel para obtener los datos más recientes
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `dashboardId` | string | Sí | ID del panel \(obligatorio\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Datos del panel actualizado |
+
+### `salesforce_query`
+
+Ejecutar una consulta SOQL personalizada para recuperar datos de Salesforce
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `query` | string | Sí | Consulta SOQL a ejecutar \(p. ej., SELECT Id, Name FROM Account LIMIT 10\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Resultados de la consulta |
+
+### `salesforce_query_more`
+
+Recuperar resultados adicionales de consulta utilizando el nextRecordsUrl de una consulta anterior
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `nextRecordsUrl` | string | Sí | El nextRecordsUrl de una respuesta de consulta anterior |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Resultados de la consulta |
+
+### `salesforce_describe_object`
+
+Obtener metadatos e información de campos para un objeto de Salesforce
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+| `objectName` | string | Sí | Nombre API del objeto \(p. ej., Account, Contact, Lead, Custom_Object__c\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Metadatos del objeto |
+
+### `salesforce_list_objects`
+
+Obtener una lista de todos los objetos disponibles de Salesforce
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | Sin descripción |
+| `instanceUrl` | string | No | Sin descripción |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito |
+| `output` | object | Lista de objetos |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `salesforce`

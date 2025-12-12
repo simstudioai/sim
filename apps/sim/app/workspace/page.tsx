@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect } from 'react'
+import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { LoadingAgent } from '@/components/ui/loading-agent'
-import { useSession } from '@/lib/auth-client'
+import { useSession } from '@/lib/auth/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('WorkspacePage')
@@ -119,7 +119,7 @@ export default function WorkspacePage() {
     return (
       <div className='flex h-screen w-full items-center justify-center'>
         <div className='flex flex-col items-center justify-center text-center align-middle'>
-          <LoadingAgent size='lg' />
+          <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
         </div>
       </div>
     )

@@ -20,11 +20,11 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
       visibility: 'user-or-llm',
       description: 'Research query or topic',
     },
-    includeText: {
-      type: 'boolean',
+    model: {
+      type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Include full text content in results',
+      description: 'Research model: exa-research-fast, exa-research (default), or exa-research-pro',
     },
     apiKey: {
       type: 'string',
@@ -35,7 +35,7 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
   },
 
   request: {
-    url: 'https://api.exa.ai/research/v0/tasks',
+    url: 'https://api.exa.ai/research/v1',
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -44,30 +44,11 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
     body: (params) => {
       const body: any = {
         instructions: params.query,
-        model: 'exa-research',
-        output: {
-          schema: {
-            type: 'object',
-            properties: {
-              results: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    title: { type: 'string' },
-                    url: { type: 'string' },
-                    summary: { type: 'string' },
-                    text: { type: 'string' },
-                    publishedDate: { type: 'string' },
-                    author: { type: 'string' },
-                    score: { type: 'number' },
-                  },
-                },
-              },
-            },
-            required: ['results'],
-          },
-        },
+      }
+
+      // Add model if specified, otherwise use default
+      if (params.model) {
+        body.model = params.model
       }
 
       return body
@@ -80,7 +61,7 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
     return {
       success: true,
       output: {
-        taskId: data.id,
+        taskId: data.researchId,
         research: [],
       },
     }
@@ -97,10 +78,11 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
 
     while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
-        const statusResponse = await fetch(`https://api.exa.ai/research/v0/tasks/${taskId}`, {
+        const statusResponse = await fetch(`https://api.exa.ai/research/v1/${taskId}`, {
           method: 'GET',
           headers: {
             'x-api-key': params.apiKey,
+            'Content-Type': 'application/json',
           },
         })
 
@@ -112,13 +94,17 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
         logger.info(`Exa research task ${taskId} status: ${taskData.status}`)
 
         if (taskData.status === 'completed') {
+          // The completed response contains output.content (text) and output.parsed (structured data)
+          const content =
+            taskData.output?.content || taskData.output?.parsed || 'Research completed successfully'
+
           result.output = {
-            research: taskData.data?.results || [
+            research: [
               {
                 title: 'Research Complete',
                 url: '',
-                summary: taskData.data || 'Research completed successfully',
-                text: undefined,
+                summary: typeof content === 'string' ? content : JSON.stringify(content, null, 2),
+                text: typeof content === 'string' ? content : JSON.stringify(content, null, 2),
                 publishedDate: undefined,
                 author: undefined,
                 score: 1.0,
@@ -128,11 +114,11 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
           return result
         }
 
-        if (taskData.status === 'failed') {
+        if (taskData.status === 'failed' || taskData.status === 'canceled') {
           return {
             ...result,
             success: false,
-            error: `Research task failed: ${taskData.error || 'Unknown error'}`,
+            error: `Research task ${taskData.status}: ${taskData.error || 'Unknown error'}`,
           }
         }
 

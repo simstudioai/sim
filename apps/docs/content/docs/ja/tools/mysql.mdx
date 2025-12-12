@@ -1,0 +1,160 @@
+---
+title: MySQL
+description: MySQLデータベースに接続する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mysql"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[MySQL](https://www.mysql.com/)ツールを使用すると、任意のMySQLデータベースに接続し、エージェントワークフロー内で直接幅広いデータベース操作を実行できます。安全な接続処理と柔軟な設定により、データの管理やインタラクションが簡単に行えます。
+
+MySQLツールでできること：
+
+- **データのクエリ**: `mysql_query`操作を使用して、MySQLテーブルからデータを取得するSELECTクエリを実行できます。
+- **レコードの挿入**: `mysql_insert`操作を使用して、テーブルと挿入するデータを指定することで、テーブルに新しい行を追加できます。
+- **レコードの更新**: `mysql_update`操作を使用して、テーブル、新しいデータ、WHERE条件を指定することで、テーブル内の既存データを変更できます。
+- **レコードの削除**: `mysql_delete`操作を使用して、テーブルとWHERE条件を指定することで、テーブルから行を削除できます。
+- **生のSQL実行**: 高度なユースケース向けに、`mysql_execute`操作を使用して任意のカスタムSQLコマンドを実行できます。
+
+MySQL ツールは、エージェントが構造化データとやり取りする必要があるシナリオに最適です。例えば、レポートの自動化、システム間のデータ同期、データ駆動型ワークフローの実現などに役立ちます。データベースアクセスを効率化し、MySQL データをプログラムで簡単に読み取り、書き込み、管理することができます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+MySQL をワークフローに統合します。クエリ、挿入、更新、削除、および生の SQL の実行が可能です。
+
+## ツール
+
+### `mysql_query`
+
+MySQL データベースで SELECT クエリを実行する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | MySQL サーバーのホスト名または IP アドレス |
+| `port` | number | はい | MySQL サーバーのポート（デフォルト: 3306） |
+| `database` | string | はい | 接続するデータベース名 |
+| `username` | string | はい | データベースのユーザー名 |
+| `password` | string | はい | データベースのパスワード |
+| `ssl` | string | いいえ | SSL 接続モード（disabled, required, preferred） |
+| `query` | string | はい | 実行する SQL SELECT クエリ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作のステータスメッセージ |
+| `rows` | array | クエリから返された行の配列 |
+| `rowCount` | number | 返された行数 |
+
+### `mysql_insert`
+
+MySQL データベースに新しいレコードを挿入する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | MySQL サーバーのホスト名または IP アドレス |
+| `port` | number | はい | MySQL サーバーのポート（デフォルト: 3306） |
+| `database` | string | はい | 接続するデータベース名 |
+| `username` | string | はい | データベースのユーザー名 |
+| `password` | string | はい | データベースのパスワード |
+| `ssl` | string | いいえ | SSL 接続モード（disabled, required, preferred） |
+| `table` | string | はい | 挿入先のテーブル名 |
+| `data` | object | はい | キーと値のペアとして挿入するデータ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `rows` | array | 挿入された行の配列 |
+| `rowCount` | number | 挿入された行数 |
+
+### `mysql_update`
+
+MySQLデータベースの既存レコードを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | MySQLサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | MySQLサーバーのポート（デフォルト：3306） |
+| `database` | string | はい | 接続先のデータベース名 |
+| `username` | string | はい | データベースのユーザー名 |
+| `password` | string | はい | データベースのパスワード |
+| `ssl` | string | いいえ | SSL接続モード（disabled、required、preferred） |
+| `table` | string | はい | 更新するテーブル名 |
+| `data` | object | はい | キーと値のペアとして更新するデータ |
+| `where` | string | はい | WHERE句の条件（WHEREキーワードなし） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `rows` | array | 更新された行の配列 |
+| `rowCount` | number | 更新された行数 |
+
+### `mysql_delete`
+
+MySQLデータベースからレコードを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | MySQLサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | MySQLサーバーのポート（デフォルト：3306） |
+| `database` | string | はい | 接続先のデータベース名 |
+| `username` | string | はい | データベースのユーザー名 |
+| `password` | string | はい | データベースのパスワード |
+| `ssl` | string | いいえ | SSL接続モード（disabled、required、preferred） |
+| `table` | string | はい | 削除元のテーブル名 |
+| `where` | string | はい | WHERE句の条件（WHEREキーワードなし） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `rows` | array | 削除された行の配列 |
+| `rowCount` | number | 削除された行数 |
+
+### `mysql_execute`
+
+MySQLデータベースで生のSQLクエリを実行する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | MySQLサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | MySQLサーバーのポート（デフォルト：3306） |
+| `database` | string | はい | 接続先のデータベース名 |
+| `username` | string | はい | データベースのユーザー名 |
+| `password` | string | はい | データベースのパスワード |
+| `ssl` | string | いいえ | SSL接続モード（disabled、required、preferred） |
+| `query` | string | はい | 実行する生のSQLクエリ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `rows` | array | クエリから返された行の配列 |
+| `rowCount` | number | 影響を受けた行数 |
+
+## 注意事項
+
+- カテゴリ: `tools`
+- タイプ: `mysql`

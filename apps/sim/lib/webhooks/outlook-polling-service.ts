@@ -1,13 +1,63 @@
-import { and, eq } from 'drizzle-orm'
+import { db } from '@sim/db'
+import { account, webhook, workflow } from '@sim/db/schema'
+import { and, eq, sql } from 'drizzle-orm'
+import { htmlToText } from 'html-to-text'
 import { nanoid } from 'nanoid'
+import { pollingIdempotency } from '@/lib/core/idempotency'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
-import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
-import { getBaseUrl } from '@/lib/urls/utils'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { db } from '@/db'
-import { account, webhook } from '@/db/schema'
 
 const logger = createLogger('OutlookPollingService')
+
+const MAX_CONSECUTIVE_FAILURES = 10
+
+async function markWebhookFailed(webhookId: string) {
+  try {
+    const result = await db
+      .update(webhook)
+      .set({
+        failedCount: sql`COALESCE(${webhook.failedCount}, 0) + 1`,
+        lastFailedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(webhook.id, webhookId))
+      .returning({ failedCount: webhook.failedCount })
+
+    const newFailedCount = result[0]?.failedCount || 0
+    const shouldDisable = newFailedCount >= MAX_CONSECUTIVE_FAILURES
+
+    if (shouldDisable) {
+      await db
+        .update(webhook)
+        .set({
+          isActive: false,
+          updatedAt: new Date(),
+        })
+        .where(eq(webhook.id, webhookId))
+
+      logger.warn(
+        `Webhook ${webhookId} auto-disabled after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`
+      )
+    }
+  } catch (err) {
+    logger.error(`Failed to mark webhook ${webhookId} as failed:`, err)
+  }
+}
+
+async function markWebhookSuccess(webhookId: string) {
+  try {
+    await db
+      .update(webhook)
+      .set({
+        failedCount: 0, // Reset on success
+        updatedAt: new Date(),
+      })
+      .where(eq(webhook.id, webhookId))
+  } catch (err) {
+    logger.error(`Failed to mark webhook ${webhookId} as successful:`, err)
+  }
+}
 
 interface OutlookWebhookConfig {
   credentialId: string
@@ -16,8 +66,7 @@ interface OutlookWebhookConfig {
   markAsRead?: boolean
   maxEmailsPerPoll?: number
   lastCheckedTimestamp?: string
-  processedEmailIds?: string[]
-  pollingInterval?: number
+  includeAttachments?: boolean
   includeRawEmail?: boolean
 }
 
@@ -55,6 +104,13 @@ interface OutlookEmail {
   parentFolderId: string
 }
 
+export interface OutlookAttachment {
+  name: string
+  data: Buffer
+  contentType: string
+  size: number
+}
+
 export interface SimplifiedOutlookEmail {
   id: string
   conversationId: string
@@ -66,28 +122,54 @@ export interface SimplifiedOutlookEmail {
   bodyText: string
   bodyHtml: string
   hasAttachments: boolean
+  attachments: OutlookAttachment[]
   isRead: boolean
   folderId: string
-  // Thread support fields
-  messageId: string // Same as id, but explicit for threading
-  threadId: string // Same as conversationId, but explicit for threading
+  messageId: string
+  threadId: string
 }
 
 export interface OutlookWebhookPayload {
   email: SimplifiedOutlookEmail
   timestamp: string
-  rawEmail?: OutlookEmail // Only included when includeRawEmail is true
+  rawEmail?: OutlookEmail
+}
+
+/**
+ * Convert HTML content to a readable plain-text representation.
+ * Keeps reasonable newlines and decodes common HTML entities.
+ */
+function convertHtmlToPlainText(html: string): string {
+  if (!html) return ''
+  return htmlToText(html, {
+    wordwrap: false,
+    selectors: [
+      { selector: 'a', options: { hideLinkHrefIfSameAsText: true, noAnchorUrl: true } },
+      { selector: 'img', format: 'skip' },
+      { selector: 'script', format: 'skip' },
+      { selector: 'style', format: 'skip' },
+    ],
+    preserveNewlines: true,
+  })
 }
 
 export async function pollOutlookWebhooks() {
   logger.info('Starting Outlook webhook polling')
 
   try {
-    // Get all active Outlook webhooks
-    const activeWebhooks = await db
-      .select()
+    const activeWebhooksResult = await db
+      .select({ webhook })
       .from(webhook)
-      .where(and(eq(webhook.provider, 'outlook'), eq(webhook.isActive, true)))
+      .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
+      .where(
+        and(
+          eq(webhook.provider, 'outlook'),
+          eq(webhook.isActive, true),
+          eq(workflow.isDeployed, true)
+        )
+      )
+
+    const activeWebhooks = activeWebhooksResult.map((r) => r.webhook)
 
     if (!activeWebhooks.length) {
       logger.info('No active Outlook webhooks found')
@@ -96,10 +178,10 @@ export async function pollOutlookWebhooks() {
 
     logger.info(`Found ${activeWebhooks.length} active Outlook webhooks`)
 
-    // Limit concurrency to avoid exhausting connections
     const CONCURRENCY = 10
-    const running: Promise<any>[] = []
-    const results: any[] = []
+    const running: Promise<void>[] = []
+    let successCount = 0
+    let failureCount = 0
 
     const enqueue = async (webhookData: (typeof activeWebhooks)[number]) => {
       const webhookId = webhookData.id
@@ -108,17 +190,17 @@ export async function pollOutlookWebhooks() {
       try {
         logger.info(`[${requestId}] Processing Outlook webhook: ${webhookId}`)
 
-        // Extract credentialId and/or userId
         const metadata = webhookData.providerConfig as any
         const credentialId: string | undefined = metadata?.credentialId
         const userId: string | undefined = metadata?.userId
 
         if (!credentialId && !userId) {
           logger.error(`[${requestId}] Missing credentialId and userId for webhook ${webhookId}`)
-          return { success: false, webhookId, error: 'Missing credentialId and userId' }
+          await markWebhookFailed(webhookId)
+          failureCount++
+          return
         }
 
-        // Resolve access token
         let accessToken: string | null = null
         if (credentialId) {
           const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
@@ -126,12 +208,13 @@ export async function pollOutlookWebhooks() {
             logger.error(
               `[${requestId}] Credential ${credentialId} not found for webhook ${webhookId}`
             )
-            return { success: false, webhookId, error: 'Credential not found' }
+            await markWebhookFailed(webhookId)
+            failureCount++
+            return
           }
           const ownerUserId = rows[0].userId
           accessToken = await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)
         } else if (userId) {
-          // Backward-compat fallback to workflow owner token
           accessToken = await getOAuthToken(userId, 'outlook')
         }
 
@@ -139,99 +222,85 @@ export async function pollOutlookWebhooks() {
           logger.error(
             `[${requestId}] Failed to get Outlook access token for webhook ${webhookId} (cred or fallback)`
           )
-          return { success: false, webhookId, error: 'No access token' }
+          await markWebhookFailed(webhookId)
+          failureCount++
+          return
         }
 
-        // Get webhook configuration
         const config = webhookData.providerConfig as unknown as OutlookWebhookConfig
 
         const now = new Date()
 
-        // Fetch new emails
         const fetchResult = await fetchNewOutlookEmails(accessToken, config, requestId)
         const { emails } = fetchResult
 
         if (!emails || !emails.length) {
-          // Update last checked timestamp
           await updateWebhookLastChecked(webhookId, now.toISOString())
+          await markWebhookSuccess(webhookId)
           logger.info(`[${requestId}] No new emails found for webhook ${webhookId}`)
-          return { success: true, webhookId, status: 'no_emails' }
+          successCount++
+          return
         }
 
         logger.info(`[${requestId}] Found ${emails.length} emails for webhook ${webhookId}`)
 
-        // Filter out already processed emails
-        const processedEmailIds = config.processedEmailIds || []
-        const newEmails = emails.filter((email) => !processedEmailIds.includes(email.id))
+        logger.info(`[${requestId}] Processing ${emails.length} emails for webhook ${webhookId}`)
 
-        if (!newEmails.length) {
-          logger.info(`[${requestId}] All emails already processed for webhook ${webhookId}`)
-          await updateWebhookLastChecked(webhookId, now.toISOString())
-          return { success: true, webhookId, status: 'all_processed' }
-        }
-
-        logger.info(
-          `[${requestId}] Processing ${newEmails.length} new emails for webhook ${webhookId}`
-        )
-
-        // Process emails
-        const processed = await processOutlookEmails(
-          newEmails,
+        const { processedCount, failedCount } = await processOutlookEmails(
+          emails,
           webhookData,
           config,
           accessToken,
           requestId
         )
 
-        // Record which email IDs have been processed
-        const newProcessedIds = [...processedEmailIds, ...newEmails.map((email) => email.id)]
-        // Keep only the most recent 100 IDs to prevent the list from growing too large
-        const trimmedProcessedIds = newProcessedIds.slice(-100)
+        await updateWebhookLastChecked(webhookId, now.toISOString())
 
-        // Update webhook with latest timestamp and processed email IDs
-        await updateWebhookData(webhookId, now.toISOString(), trimmedProcessedIds)
-
-        return {
-          success: true,
-          webhookId,
-          emailsFound: emails.length,
-          newEmails: newEmails.length,
-          emailsProcessed: processed,
+        if (failedCount > 0 && processedCount === 0) {
+          await markWebhookFailed(webhookId)
+          failureCount++
+          logger.warn(
+            `[${requestId}] All ${failedCount} emails failed to process for webhook ${webhookId}`
+          )
+        } else {
+          await markWebhookSuccess(webhookId)
+          successCount++
+          logger.info(
+            `[${requestId}] Successfully processed ${processedCount} emails for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
+          )
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         logger.error(`[${requestId}] Error processing Outlook webhook ${webhookId}:`, error)
-        return { success: false, webhookId, error: errorMessage }
+        await markWebhookFailed(webhookId)
+        failureCount++
       }
     }
 
     for (const webhookData of activeWebhooks) {
-      running.push(enqueue(webhookData))
+      const promise = enqueue(webhookData)
+        .then(() => {})
+        .catch((err) => {
+          logger.error('Unexpected error in webhook processing:', err)
+          failureCount++
+        })
+
+      running.push(promise)
 
       if (running.length >= CONCURRENCY) {
-        const result = await Promise.race(running)
-        running.splice(running.indexOf(result), 1)
-        results.push(result)
+        const completedIdx = await Promise.race(running.map((p, i) => p.then(() => i)))
+        running.splice(completedIdx, 1)
       }
     }
 
-    while (running.length) {
-      const result = await Promise.race(running)
-      running.splice(running.indexOf(result), 1)
-      results.push(result)
-    }
+    await Promise.allSettled(running)
 
-    // Calculate summary
-    const successful = results.filter((r) => r.success).length
-    const failed = results.filter((r) => !r.success).length
-
-    logger.info(`Outlook polling completed: ${successful} successful, ${failed} failed`)
+    logger.info(`Outlook polling completed: ${successCount} successful, ${failureCount} failed`)
 
     return {
       total: activeWebhooks.length,
-      successful,
-      failed,
-      details: results,
+      successful: successCount,
+      failed: failureCount,
+      details: [],
     }
   } catch (error) {
     logger.error('Error during Outlook webhook polling:', error)
@@ -245,27 +314,21 @@ async function fetchNewOutlookEmails(
   requestId: string
 ) {
   try {
-    // Build the Microsoft Graph API URL
     const apiUrl = 'https://graph.microsoft.com/v1.0/me/messages'
     const params = new URLSearchParams()
 
-    // Add select parameters to get the fields we need
     params.append(
       '$select',
       'id,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,isRead,parentFolderId'
     )
 
-    // Add ordering (newest first)
     params.append('$orderby', 'receivedDateTime desc')
 
-    // Limit results
     params.append('$top', (config.maxEmailsPerPoll || 25).toString())
 
-    // Add time filter if we have a last checked timestamp
     if (config.lastCheckedTimestamp) {
       const lastChecked = new Date(config.lastCheckedTimestamp)
-      // Add a small buffer to avoid missing emails due to clock differences
-      const bufferTime = new Date(lastChecked.getTime() - 60000) // 1 minute buffer
+      const bufferTime = new Date(lastChecked.getTime() - 60000)
       params.append('$filter', `receivedDateTime gt ${bufferTime.toISOString()}`)
     }
 
@@ -287,13 +350,14 @@ async function fetchNewOutlookEmails(
         statusText: response.statusText,
         error: errorData,
       })
-      return { emails: [] }
+      throw new Error(
+        `Microsoft Graph API error: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`
+      )
     }
 
     const data = await response.json()
     const emails = data.value || []
 
-    // Filter by folder if configured
     const filteredEmails = filterEmailsByFolder(emails, config)
 
     logger.info(
@@ -304,7 +368,7 @@ async function fetchNewOutlookEmails(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     logger.error(`[${requestId}] Error fetching new Outlook emails:`, errorMessage)
-    return { emails: [] }
+    throw error
   }
 }
 
@@ -322,9 +386,7 @@ function filterEmailsByFolder(
       emailFolderId.toLowerCase().includes(configFolder.toLowerCase())
     )
 
-    return config.folderFilterBehavior === 'INCLUDE'
-      ? hasMatchingFolder // Include emails from matching folders
-      : !hasMatchingFolder // Exclude emails from matching folders
+    return config.folderFilterBehavior === 'INCLUDE' ? hasMatchingFolder : !hasMatchingFolder
   })
 }
 
@@ -336,90 +398,170 @@ async function processOutlookEmails(
   requestId: string
 ) {
   let processedCount = 0
+  let failedCount = 0
 
   for (const email of emails) {
     try {
-      // Check if we've already processed this email (Redis-based deduplication)
-      const redisKey = `outlook-email-${email.id}`
-      const alreadyProcessed = await hasProcessedMessage(redisKey)
+      await pollingIdempotency.executeWithIdempotency(
+        'outlook',
+        `${webhookData.id}:${email.id}`,
+        async () => {
+          let attachments: OutlookAttachment[] = []
+          if (config.includeAttachments && email.hasAttachments) {
+            try {
+              attachments = await downloadOutlookAttachments(accessToken, email.id, requestId)
+            } catch (error) {
+              logger.error(
+                `[${requestId}] Error downloading attachments for email ${email.id}:`,
+                error
+              )
+            }
+          }
 
-      if (alreadyProcessed) {
-        logger.debug(`[${requestId}] Email ${email.id} already processed, skipping`)
-        continue
-      }
+          const simplifiedEmail: SimplifiedOutlookEmail = {
+            id: email.id,
+            conversationId: email.conversationId,
+            subject: email.subject || '',
+            from: email.from?.emailAddress?.address || '',
+            to: email.toRecipients?.map((r) => r.emailAddress.address).join(', ') || '',
+            cc: email.ccRecipients?.map((r) => r.emailAddress.address).join(', ') || '',
+            date: email.receivedDateTime,
+            bodyText: (() => {
+              const content = email.body?.content || ''
+              const type = (email.body?.contentType || '').toLowerCase()
+              if (!content) {
+                return email.bodyPreview || ''
+              }
+              if (type === 'text' || type === 'text/plain') {
+                return content
+              }
+              return convertHtmlToPlainText(content)
+            })(),
+            bodyHtml: email.body?.content || '',
+            hasAttachments: email.hasAttachments,
+            attachments,
+            isRead: email.isRead,
+            folderId: email.parentFolderId,
+            messageId: email.id,
+            threadId: email.conversationId,
+          }
 
-      // Convert to simplified format
-      const simplifiedEmail: SimplifiedOutlookEmail = {
-        id: email.id,
-        conversationId: email.conversationId,
-        subject: email.subject || '(No Subject)',
-        from: email.from?.emailAddress?.address || '',
-        to: email.toRecipients?.map((r) => r.emailAddress.address).join(', ') || '',
-        cc: email.ccRecipients?.map((r) => r.emailAddress.address).join(', ') || '',
-        date: email.receivedDateTime,
-        bodyText: email.bodyPreview || '',
-        bodyHtml: email.body?.content || '',
-        hasAttachments: email.hasAttachments,
-        isRead: email.isRead,
-        folderId: email.parentFolderId,
-        // Thread support fields
-        messageId: email.id,
-        threadId: email.conversationId,
-      }
+          const payload: OutlookWebhookPayload = {
+            email: simplifiedEmail,
+            timestamp: new Date().toISOString(),
+          }
 
-      // Create webhook payload
-      const payload: OutlookWebhookPayload = {
-        email: simplifiedEmail,
-        timestamp: new Date().toISOString(),
-      }
+          if (config.includeRawEmail) {
+            payload.rawEmail = email
+          }
 
-      // Include raw email if configured
-      if (config.includeRawEmail) {
-        payload.rawEmail = email
-      }
+          logger.info(
+            `[${requestId}] Processing email: ${email.subject} from ${email.from?.emailAddress?.address}`
+          )
 
-      logger.info(
-        `[${requestId}] Processing email: ${email.subject} from ${email.from?.emailAddress?.address}`
+          const webhookUrl = `${getBaseUrl()}/api/webhooks/trigger/${webhookData.path}`
+
+          const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Webhook-Secret': webhookData.secret || '',
+              'User-Agent': 'SimStudio/1.0',
+            },
+            body: JSON.stringify(payload),
+          })
+
+          if (!response.ok) {
+            const errorText = await response.text()
+            logger.error(
+              `[${requestId}] Failed to trigger webhook for email ${email.id}:`,
+              response.status,
+              errorText
+            )
+            throw new Error(`Webhook request failed: ${response.status} - ${errorText}`)
+          }
+
+          if (config.markAsRead) {
+            await markOutlookEmailAsRead(accessToken, email.id)
+          }
+
+          return {
+            emailId: email.id,
+            webhookStatus: response.status,
+            processed: true,
+          }
+        }
       )
 
-      // Trigger the webhook
-      const webhookUrl = `${getBaseUrl()}/api/webhooks/trigger/${webhookData.path}`
-
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Webhook-Secret': webhookData.secret || '',
-          'User-Agent': 'SimStudio/1.0',
-        },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        logger.error(
-          `[${requestId}] Failed to trigger webhook for email ${email.id}:`,
-          response.status,
-          await response.text()
-        )
-        continue
-      }
-
-      // Mark email as read if configured
-      if (config.markAsRead) {
-        await markOutlookEmailAsRead(accessToken, email.id)
-      }
-
-      // Mark as processed in Redis (expires after 7 days)
-      await markMessageAsProcessed(redisKey, 7 * 24 * 60 * 60)
-
+      logger.info(
+        `[${requestId}] Successfully processed email ${email.id} for webhook ${webhookData.id}`
+      )
       processedCount++
-      logger.info(`[${requestId}] Successfully processed email ${email.id}`)
     } catch (error) {
       logger.error(`[${requestId}] Error processing email ${email.id}:`, error)
+      failedCount++
     }
   }
 
-  return processedCount
+  return { processedCount, failedCount }
+}
+
+async function downloadOutlookAttachments(
+  accessToken: string,
+  messageId: string,
+  requestId: string
+): Promise<OutlookAttachment[]> {
+  const attachments: OutlookAttachment[] = []
+
+  try {
+    const response = await fetch(
+      `https://graph.microsoft.com/v1.0/me/messages/${messageId}/attachments`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    )
+
+    if (!response.ok) {
+      logger.error(`[${requestId}] Failed to fetch attachments for message ${messageId}`)
+      return attachments
+    }
+
+    const data = await response.json()
+    const attachmentsList = data.value || []
+
+    for (const attachment of attachmentsList) {
+      try {
+        if (attachment['@odata.type'] === '#microsoft.graph.fileAttachment') {
+          const contentBytes = attachment.contentBytes
+          if (contentBytes) {
+            const buffer = Buffer.from(contentBytes, 'base64')
+            attachments.push({
+              name: attachment.name,
+              data: buffer,
+              contentType: attachment.contentType,
+              size: attachment.size,
+            })
+          }
+        }
+      } catch (error) {
+        logger.error(
+          `[${requestId}] Error processing attachment ${attachment.id} for message ${messageId}:`,
+          error
+        )
+      }
+    }
+
+    logger.info(
+      `[${requestId}] Downloaded ${attachments.length} attachments for message ${messageId}`
+    )
+  } catch (error) {
+    logger.error(`[${requestId}] Error downloading attachments for message ${messageId}:`, error)
+  }
+
+  return attachments
 }
 
 async function markOutlookEmailAsRead(accessToken: string, messageId: string) {
@@ -449,7 +591,6 @@ async function markOutlookEmailAsRead(accessToken: string, messageId: string) {
 
 async function updateWebhookLastChecked(webhookId: string, timestamp: string) {
   try {
-    // Get current config first
     const currentWebhook = await db
       .select({ providerConfig: webhook.providerConfig })
       .from(webhook)
@@ -463,7 +604,7 @@ async function updateWebhookLastChecked(webhookId: string, timestamp: string) {
 
     const currentConfig = (currentWebhook[0].providerConfig as any) || {}
     const updatedConfig = {
-      ...currentConfig, // Preserve ALL existing config including userId
+      ...currentConfig,
       lastCheckedTimestamp: timestamp,
     }
 
@@ -476,41 +617,5 @@ async function updateWebhookLastChecked(webhookId: string, timestamp: string) {
       .where(eq(webhook.id, webhookId))
   } catch (error) {
     logger.error(`Error updating webhook ${webhookId} last checked timestamp:`, error)
-  }
-}
-
-async function updateWebhookData(
-  webhookId: string,
-  timestamp: string,
-  processedEmailIds: string[]
-) {
-  try {
-    const currentWebhook = await db
-      .select({ providerConfig: webhook.providerConfig })
-      .from(webhook)
-      .where(eq(webhook.id, webhookId))
-      .limit(1)
-
-    if (!currentWebhook.length) {
-      logger.error(`Webhook ${webhookId} not found`)
-      return
-    }
-
-    const currentConfig = (currentWebhook[0].providerConfig as any) || {}
-    const updatedConfig = {
-      ...currentConfig, // Preserve ALL existing config including userId
-      lastCheckedTimestamp: timestamp,
-      processedEmailIds,
-    }
-
-    await db
-      .update(webhook)
-      .set({
-        providerConfig: updatedConfig,
-        updatedAt: new Date(),
-      })
-      .where(eq(webhook.id, webhookId))
-  } catch (error) {
-    logger.error(`Error updating webhook ${webhookId} data:`, error)
   }
 }

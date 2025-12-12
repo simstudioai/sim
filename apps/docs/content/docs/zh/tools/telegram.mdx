@@ -1,0 +1,200 @@
+---
+title: Telegram
+description: 通过 Telegram 发送消息或从 Telegram 事件触发工作流
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="telegram"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Telegram](https://telegram.org) 是一个安全的云端消息平台，能够在多个设备和平台上实现快速可靠的通信。Telegram 拥有超过 7 亿的月活跃用户，已成为全球领先的消息服务之一，以其安全性、速度和强大的 API 功能而闻名。
+
+Telegram 的 Bot API 提供了一个强大的框架，用于创建自动化消息解决方案并将通信功能集成到应用程序中。通过支持丰富的媒体、内联键盘和自定义命令，Telegram 机器人可以实现复杂的交互模式和自动化工作流。
+
+了解如何在 Sim 中创建一个 webhook 触发器，从 Telegram 消息中无缝启动工作流。本教程将指导您设置 webhook，使用 Telegram 的 Bot API 进行配置，并实时触发自动化操作。非常适合直接从聊天中简化任务！
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/9oKcJtQ0_IM"
+  title="Use Telegram with Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+了解如何在 Sim 中使用 Telegram 工具，将消息无缝自动发送到任何 Telegram 群组。本教程将指导您将该工具集成到工作流中，配置群组消息，并实时触发自动更新。非常适合直接从工作空间中增强通信！
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/AG55LpUreGI"
+  title="Use Telegram with Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Telegram 的主要功能包括：
+
+- 安全通信：端到端加密和安全的云存储，用于消息和媒体
+- 机器人平台：强大的机器人 API，可用于创建自动化消息解决方案和交互式体验
+- 丰富的媒体支持：发送和接收带有文本格式、图片、文件和交互元素的消息
+- 全球覆盖：支持多种语言和平台，与全球用户连接
+
+在 Sim 中，Telegram 集成使您的代理能够将这些强大的消息功能融入到他们的工作流程中。这为通过 Telegram 的安全消息平台实现自动通知、警报和交互式对话创造了机会。该集成允许代理以编程方式向个人或频道发送消息，从而实现及时的沟通和更新。通过将 Sim 与 Telegram 连接，您可以构建智能代理，通过一个安全且被广泛采用的消息平台与用户互动，非常适合发送通知、更新和交互式通信。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Telegram 集成到工作流程中。可以发送消息。可以在触发模式下使用，当消息发送到聊天时触发工作流程。
+
+## 工具
+
+### `telegram_message`
+
+通过 Telegram Bot API 向 Telegram 频道或用户发送消息。支持直接通信和通知，并提供消息跟踪和聊天确认功能。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | 字符串 | 是 | 您的 Telegram Bot API 令牌 |
+| `chatId` | 字符串 | 是 | 目标 Telegram 聊天 ID |
+| `text` | 字符串 | 是 | 要发送的消息文本 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | 字符串 | 成功或错误消息 |
+| `data` | 对象 | Telegram 消息数据 |
+
+## 注意
+
+- 类别：`tools`
+- 类型：`telegram`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | 字符串 | 是 | 您的 Telegram Bot API 令牌 |
+| `chatId` | 字符串 | 是 | 目标 Telegram 聊天 ID |
+| `messageId` | 字符串 | 是 | 要删除的消息 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | 字符串 | 成功或错误信息 |
+| `data` | 对象 | 删除操作结果 |
+
+### `telegram_send_photo`
+
+通过 Telegram Bot API 向 Telegram 频道或用户发送照片。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | 字符串 | 是 | 您的 Telegram Bot API 令牌 |
+| `chatId` | 字符串 | 是 | 目标 Telegram 聊天 ID |
+| `photo` | 字符串 | 是 | 要发送的照片。传递 file_id 或 HTTP URL |
+| `caption` | 字符串 | 否 | 照片标题（可选） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | 字符串 | 成功或错误信息 |
+| `data` | 对象 | 包含可选照片的 Telegram 消息数据 |
+
+### `telegram_send_video`
+
+通过 Telegram Bot API 向 Telegram 频道或用户发送视频。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | 字符串 | 是 | 您的 Telegram Bot API 令牌 |
+| `chatId` | 字符串 | 是 | 目标 Telegram 聊天 ID |
+| `video` | 字符串 | 是 | 要发送的视频。传递 file_id 或 HTTP URL |
+| `caption` | 字符串 | 否 | 视频标题（可选） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 包含可选媒体的 Telegram 消息数据 |
+
+### `telegram_send_audio`
+
+通过 Telegram Bot API 向 Telegram 频道或用户发送音频文件。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 您的 Telegram Bot API 令牌 |
+| `chatId` | string | 是 | 目标 Telegram 聊天 ID |
+| `audio` | string | 是 | 要发送的音频文件。传递 file_id 或 HTTP URL |
+| `caption` | string | 否 | 音频标题（可选） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 包含语音/音频信息的 Telegram 消息数据 |
+
+### `telegram_send_animation`
+
+通过 Telegram Bot API 向 Telegram 频道或用户发送动画（GIF）。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 您的 Telegram Bot API 令牌 |
+| `chatId` | string | 是 | 目标 Telegram 聊天 ID |
+| `animation` | string | 是 | 要发送的动画。传递 file_id 或 HTTP URL |
+| `caption` | string | 否 | 动画标题（可选） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | 字符串 | 成功或错误消息 |
+| `data` | 对象 | 包含可选媒体的 Telegram 消息数据 |
+
+### `telegram_send_document`
+
+通过 Telegram Bot API 将文档（PDF、ZIP、DOC 等）发送到 Telegram 频道或用户。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 您的 Telegram Bot API 令牌 |
+| `chatId` | string | 是 | 目标 Telegram 聊天 ID |
+| `files` | file[] | 否 | 要发送的文档文件（PDF、ZIP、DOC 等）。最大大小：50MB |
+| `caption` | string | 否 | 文档标题（可选） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 包含文档的 Telegram 消息数据 |
+
+## 注意
+
+- 类别：`tools`
+- 类型：`telegram`

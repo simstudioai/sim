@@ -1,0 +1,141 @@
+---
+title: Asana
+description: Mit Asana interagieren
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="asana"
+  color="#E0E0E0"
+/>
+
+## Nutzungsanleitung
+
+Integriere Asana in den Workflow. Kann Aufgaben lesen, schreiben und aktualisieren.
+
+## Tools
+
+### `asana_get_task`
+
+Eine einzelne Aufgabe anhand der GID abrufen oder mehrere Aufgaben mit Filtern erhalten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `taskGid` | string | Nein | Die global eindeutige Kennung \(GID\) der Aufgabe. Wenn nicht angegeben, werden mehrere Aufgaben abgerufen. |
+| `workspace` | string | Nein | Workspace-GID zum Filtern von Aufgaben \(erforderlich, wenn taskGid nicht verwendet wird\) |
+| `project` | string | Nein | Projekt-GID zum Filtern von Aufgaben |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Aufgaben \(Standard: 50\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Details einer einzelnen Aufgabe oder Array von Aufgaben, abhängig davon, ob taskGid angegeben wurde |
+
+### `asana_create_task`
+
+Eine neue Aufgabe in Asana erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `workspace` | string | Ja | Workspace-GID, in dem die Aufgabe erstellt wird |
+| `name` | string | Ja | Name der Aufgabe |
+| `notes` | string | Nein | Notizen oder Beschreibung für die Aufgabe |
+| `assignee` | string | Nein | Benutzer-GID, dem die Aufgabe zugewiesen werden soll |
+| `due_on` | string | Nein | Fälligkeitsdatum im Format JJJJ-MM-TT |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | object | Details der erstellten Aufgabe mit Zeitstempel, GID, Name, Notizen und Permalink |
+
+### `asana_update_task`
+
+Eine bestehende Aufgabe in Asana aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `taskGid` | string | Ja | Die global eindeutige Kennung (GID) der zu aktualisierenden Aufgabe |
+| `name` | string | Nein | Aktualisierter Name für die Aufgabe |
+| `notes` | string | Nein | Aktualisierte Notizen oder Beschreibung für die Aufgabe |
+| `assignee` | string | Nein | Aktualisierte Benutzer-GID des Zugewiesenen |
+| `completed` | boolean | Nein | Aufgabe als abgeschlossen oder nicht abgeschlossen markieren |
+| `due_on` | string | Nein | Aktualisiertes Fälligkeitsdatum im Format JJJJ-MM-TT |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Aktualisierte Aufgabendetails mit Zeitstempel, GID, Name, Notizen und Änderungszeitstempel |
+
+### `asana_get_projects`
+
+Alle Projekte aus einem Asana-Workspace abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `workspace` | string | Ja | Workspace-GID, aus der Projekte abgerufen werden sollen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Liste der Projekte mit ihrer GID, Name und Ressourcentyp |
+
+### `asana_search_tasks`
+
+Nach Aufgaben in einem Asana-Workspace suchen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `workspace` | string | Ja | Workspace-GID, in der nach Aufgaben gesucht werden soll |
+| `text` | string | Nein | Text, nach dem in Aufgabennamen gesucht werden soll |
+| `assignee` | string | Nein | Aufgaben nach Bearbeiter-GID filtern |
+| `projects` | array | Nein | Array von Projekt-GIDs, nach denen Aufgaben gefiltert werden sollen |
+| `completed` | boolean | Nein | Nach Abschlussstatus filtern |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Liste der Aufgaben, die den Suchkriterien entsprechen |
+
+### `asana_add_comment`
+
+Einen Kommentar (Story) zu einer Asana-Aufgabe hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `taskGid` | string | Ja | Die global eindeutige Kennung \(GID\) der Aufgabe |
+| `text` | string | Ja | Der Textinhalt des Kommentars |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Kommentardetails einschließlich gid, Text, Erstellungszeitstempel und Autor |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `asana`

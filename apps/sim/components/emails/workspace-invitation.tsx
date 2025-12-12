@@ -11,11 +11,13 @@ import {
   Section,
   Text,
 } from '@react-email/components'
+import { baseStyles } from '@/components/emails/base-styles'
+import EmailFooter from '@/components/emails/footer'
 import { getBrandConfig } from '@/lib/branding/branding'
-import { env } from '@/lib/env'
-import { getAssetUrl } from '@/lib/utils'
-import { baseStyles } from './base-styles'
-import EmailFooter from './footer'
+import { getBaseUrl } from '@/lib/core/utils/urls'
+import { createLogger } from '@/lib/logs/console/logger'
+
+const logger = createLogger('WorkspaceInvitationEmail')
 
 interface WorkspaceInvitationEmailProps {
   workspaceName?: string
@@ -23,21 +25,23 @@ interface WorkspaceInvitationEmailProps {
   invitationLink?: string
 }
 
-const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
-
 export const WorkspaceInvitationEmail = ({
   workspaceName = 'Workspace',
   inviterName = 'Someone',
   invitationLink = '',
 }: WorkspaceInvitationEmailProps) => {
   const brand = getBrandConfig()
+  const baseUrl = getBaseUrl()
 
   // Extract token from the link to ensure we're using the correct format
   let enhancedLink = invitationLink
 
   try {
-    // If the link is pointing to the API endpoint directly, update it to use the client route
-    if (invitationLink.includes('/api/workspaces/invitations/accept')) {
+    // If the link is pointing to any API endpoint directly, update it to use the client route
+    if (
+      invitationLink.includes('/api/workspaces/invitations/accept') ||
+      invitationLink.match(/\/api\/workspaces\/invitations\/[^?]+\?token=/)
+    ) {
       const url = new URL(invitationLink)
       const token = url.searchParams.get('token')
       if (token) {
@@ -45,7 +49,7 @@ export const WorkspaceInvitationEmail = ({
       }
     }
   } catch (e) {
-    console.error('Error enhancing invitation link:', e)
+    logger.error('Error enhancing invitation link:', e)
   }
 
   return (
@@ -58,7 +62,7 @@ export const WorkspaceInvitationEmail = ({
             <Row>
               <Column style={{ textAlign: 'center' }}>
                 <Img
-                  src={brand.logoUrl || getAssetUrl('static/sim.png')}
+                  src={brand.logoUrl || `${baseUrl}/logo/reverse/text/medium.png`}
                   width='114'
                   alt={brand.name}
                   style={{

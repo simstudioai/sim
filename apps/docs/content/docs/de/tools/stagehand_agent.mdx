@@ -1,0 +1,59 @@
+---
+title: Stagehand Agent
+description: Autonomous web browsing agent
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="stagehand_agent"
+  color="#FFC83C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Stagehand](https://www.stagehand.dev/) is an autonomous web agent platform that enables AI systems to navigate and interact with websites just like a human would. It provides a powerful solution for automating complex web tasks without requiring custom code or browser automation scripts.
+
+With Stagehand, you can:
+
+- **Automate web navigation**: Enable AI to browse websites, click links, fill forms, and interact with web elements
+- **Extract structured data**: Collect specific information from websites in a structured, usable format
+- **Complete complex workflows**: Perform multi-step tasks across different websites and web applications
+- **Handle authentication**: Navigate login processes and maintain sessions across websites
+- **Process dynamic content**: Interact with JavaScript-heavy sites and single-page applications
+- **Maintain context awareness**: Keep track of the current state and history while navigating
+- **Generate detailed reports**: Receive comprehensive logs of actions taken and data collected
+
+In Sim, the Stagehand integration enables your agents to seamlessly interact with web-based systems as part of their workflows. This allows for sophisticated automation scenarios that bridge the gap between your AI agents and the vast information and functionality available on the web. Your agents can search for information, interact with web applications, extract data from websites, and incorporate these capabilities into their decision-making processes. By connecting Sim with Stagehand, you can create agents that extend beyond API-based integrations to navigate the web just as a human would - filling forms, clicking buttons, reading content, and extracting valuable information to complete their tasks more effectively.
+{/* MANUAL-CONTENT-END */}
+
+## Usage Instructions
+
+Integrate Stagehand Agent into the workflow. Can navigate the web and perform tasks.
+
+## Tools
+
+### `stagehand_agent`
+
+Run an autonomous web agent to complete tasks and extract structured data
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startUrl` | string | Yes | URL of the webpage to start the agent on |
+| `task` | string | Yes | The task to complete or goal to achieve on the website |
+| `variables` | json | No | Optional variables to substitute in the task \(format: \{key: value\}\). Reference in task using %key% |
+| `format` | string | No | No description |
+| `apiKey` | string | Yes | OpenAI API key for agent execution \(required by Stagehand\) |
+| `outputSchema` | json | No | Optional JSON schema defining the structure of data the agent should return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `agentResult` | object | Result from the Stagehand agent execution |
+
+## Notes
+
+- Category: `tools`
+- Type: `stagehand_agent`

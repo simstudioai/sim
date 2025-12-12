@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
@@ -6,6 +7,7 @@ const logger = createLogger('ConfluencePagesAPI')
 
 export const dynamic = 'force-dynamic'
 
+// List pages or search pages
 export async function POST(request: Request) {
   try {
     const {
@@ -26,6 +28,11 @@ export async function POST(request: Request) {
 
     // Use provided cloudId or fetch it if not provided
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
+
+    const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
+    if (!cloudIdValidation.isValid) {
+      return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
+    }
 
     // Build the URL with query parameters
     const baseUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages`

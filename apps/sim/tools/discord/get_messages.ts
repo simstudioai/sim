@@ -33,8 +33,8 @@ export const discordGetMessagesTool: ToolConfig<
 
   request: {
     url: (params: DiscordGetMessagesParams) => {
-      const limit = Math.min(params.limit || 10, 100)
-      return `https://discord.com/api/v10/channels/${params.channelId}/messages?limit=${limit}`
+      const limit = params.limit ? Number(params.limit) : 10
+      return `https://discord.com/api/v10/channels/${params.channelId}/messages?limit=${Math.min(limit, 100)}`
     },
     method: 'GET',
     headers: (params) => {
@@ -66,33 +66,43 @@ export const discordGetMessagesTool: ToolConfig<
 
   outputs: {
     message: { type: 'string', description: 'Success or error message' },
-    messages: {
-      type: 'array',
-      description: 'Array of Discord messages with full metadata',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Message ID' },
-          content: { type: 'string', description: 'Message content' },
-          channel_id: { type: 'string', description: 'Channel ID' },
-          author: {
+    data: {
+      type: 'object',
+      description: 'Container for messages data',
+      properties: {
+        messages: {
+          type: 'array',
+          description: 'Array of Discord messages with full metadata',
+          items: {
             type: 'object',
-            description: 'Message author information',
             properties: {
-              id: { type: 'string', description: 'Author user ID' },
-              username: { type: 'string', description: 'Author username' },
-              avatar: { type: 'string', description: 'Author avatar hash' },
-              bot: { type: 'boolean', description: 'Whether author is a bot' },
+              id: { type: 'string', description: 'Message ID' },
+              content: { type: 'string', description: 'Message content' },
+              channel_id: { type: 'string', description: 'Channel ID' },
+              author: {
+                type: 'object',
+                description: 'Message author information',
+                properties: {
+                  id: { type: 'string', description: 'Author user ID' },
+                  username: { type: 'string', description: 'Author username' },
+                  avatar: { type: 'string', description: 'Author avatar hash' },
+                  bot: { type: 'boolean', description: 'Whether author is a bot' },
+                },
+              },
+              timestamp: { type: 'string', description: 'Message timestamp' },
+              edited_timestamp: { type: 'string', description: 'Message edited timestamp' },
+              embeds: { type: 'array', description: 'Message embeds' },
+              attachments: { type: 'array', description: 'Message attachments' },
+              mentions: { type: 'array', description: 'User mentions in message' },
+              mention_roles: { type: 'array', description: 'Role mentions in message' },
+              mention_everyone: {
+                type: 'boolean',
+                description: 'Whether message mentions everyone',
+              },
             },
           },
-          timestamp: { type: 'string', description: 'Message timestamp' },
-          edited_timestamp: { type: 'string', description: 'Message edited timestamp' },
-          embeds: { type: 'array', description: 'Message embeds' },
-          attachments: { type: 'array', description: 'Message attachments' },
-          mentions: { type: 'array', description: 'User mentions in message' },
-          mention_roles: { type: 'array', description: 'Role mentions in message' },
-          mention_everyone: { type: 'boolean', description: 'Whether message mentions everyone' },
         },
+        channel_id: { type: 'string', description: 'Channel ID' },
       },
     },
   },

@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ThinkingToolParams, ThinkingToolResponse } from '@/tools/thinking/types'
 
@@ -11,7 +12,7 @@ export const dynamic = 'force-dynamic'
  * Simply acknowledges the thought by returning it in the output
  */
 export async function POST(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const body: ThinkingToolParams = await request.json()

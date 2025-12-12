@@ -1,0 +1,1 @@
+export { googleFormsWebhookTrigger } from './webhook'

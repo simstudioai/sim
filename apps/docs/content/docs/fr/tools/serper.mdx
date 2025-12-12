@@ -1,0 +1,57 @@
+---
+title: Serper
+description: Rechercher sur le web avec Serper
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="serper"
+  color="#2B3543"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Serper](https://www.serper.com/) est une API de recherche Google qui offre aux développeurs un accès programmatique aux résultats de recherche Google. Elle propose un moyen fiable et performant d'intégrer les capacités de recherche Google dans les applications sans la complexité du web scraping ou les limitations d'autres API de recherche.
+
+Avec Serper, vous pouvez :
+
+- **Accéder aux résultats de recherche Google** : obtenir des données structurées des résultats de recherche Google de manière programmatique
+- **Effectuer différents types de recherche** : lancer des recherches web, d'images, d'actualités et plus encore
+- **Récupérer des métadonnées riches** : obtenir des titres, des extraits, des URL et d'autres informations pertinentes des résultats de recherche
+- **Faire évoluer vos applications** : créer des fonctionnalités basées sur la recherche avec une API fiable et rapide
+- **Éviter les limitations de taux** : obtenir un accès constant aux résultats de recherche sans vous soucier des blocages d'IP
+
+Dans Sim, l'intégration de Serper permet à vos agents d'exploiter la puissance de la recherche web dans leurs flux de travail. Cela permet des scénarios d'automatisation sophistiqués qui nécessitent des informations à jour provenant d'internet. Vos agents peuvent formuler des requêtes de recherche, récupérer des résultats pertinents et utiliser ces informations pour prendre des décisions ou fournir des réponses. Cette intégration comble le fossé entre votre automatisation de flux de travail et les vastes connaissances disponibles sur le web, permettant à vos agents d'accéder à des informations en temps réel sans intervention manuelle. En connectant Sim avec Serper, vous pouvez créer des agents qui restent à jour avec les dernières informations, fournissent des réponses plus précises et apportent plus de valeur aux utilisateurs.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrer Serper dans le flux de travail. Peut effectuer des recherches sur le web. Nécessite une clé API.
+
+## Outils
+
+### `serper_search`
+
+Un puissant outil de recherche web qui donne accès aux résultats de recherche Google via l'API Serper.dev. Prend en charge différents types de recherches, notamment la recherche web classique, les actualités, les lieux et les images, chaque résultat contenant des métadonnées pertinentes comme les titres, les URL, les extraits et des informations spécifiques au type.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `query` | chaîne | Oui | La requête de recherche |
+| `num` | nombre | Non | Nombre de résultats à retourner |
+| `gl` | chaîne | Non | Code pays pour les résultats de recherche |
+| `hl` | chaîne | Non | Code langue pour les résultats de recherche |
+| `type` | chaîne | Non | Type de recherche à effectuer |
+| `apiKey` | chaîne | Oui | Clé API Serper |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `searchResults` | tableau | Résultats de recherche avec titres, liens, extraits et métadonnées spécifiques au type \(date pour les actualités, évaluation pour les lieux, imageUrl pour les images\) |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `serper`

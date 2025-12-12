@@ -1,0 +1,160 @@
+---
+title: PostgreSQL
+description: 连接到 PostgreSQL 数据库
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="postgresql"
+  color="#336791"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[PostgreSQL](https://www.postgresql.org/) 工具使您能够连接到任何 PostgreSQL 数据库，并直接在您的智能工作流中执行各种数据库操作。通过安全的连接处理和灵活的配置，您可以轻松管理和与您的数据交互。
+
+使用 PostgreSQL 工具，您可以：
+
+- **查询数据**：使用 `postgresql_query` 操作执行 SELECT 查询，从 PostgreSQL 表中检索数据。
+- **插入记录**：通过 `postgresql_insert` 操作，指定表和要插入的数据，向表中添加新行。
+- **更新记录**：使用 `postgresql_update` 操作修改表中的现有数据，提供表名、新数据和 WHERE 条件。
+- **删除记录**：通过 `postgresql_delete` 操作删除表中的行，指定表名和 WHERE 条件。
+- **执行原始 SQL**：使用 `postgresql_execute` 操作运行任何自定义 SQL 命令，以满足高级用例。
+
+PostgreSQL 工具非常适合需要与结构化数据交互的场景，例如自动化报告、系统间数据同步或驱动数据工作流。它简化了数据库访问，使您能够以编程方式轻松读取、写入和管理 PostgreSQL 数据。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 PostgreSQL 集成到工作流程中。可以查询、插入、更新、删除以及执行原生 SQL。
+
+## 工具
+
+### `postgresql_query`
+
+在 PostgreSQL 数据库上执行 SELECT 查询
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | 字符串 | 是 | PostgreSQL 服务器主机名或 IP 地址 |
+| `port` | 数字 | 是 | PostgreSQL 服务器端口 \(默认：5432\) |
+| `database` | 字符串 | 是 | 要连接的数据库名称 |
+| `username` | 字符串 | 是 | 数据库用户名 |
+| `password` | 字符串 | 是 | 数据库密码 |
+| `ssl` | 字符串 | 否 | SSL 连接模式 \(禁用、必需、优先\) |
+| `query` | 字符串 | 是 | 要执行的 SQL SELECT 查询 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `rows` | array | 查询返回的行数组 |
+| `rowCount` | number | 返回的行数 |
+
+### `postgresql_insert`
+
+向 PostgreSQL 数据库插入数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | PostgreSQL 服务器主机名或 IP 地址 |
+| `port` | number | 是 | PostgreSQL 服务器端口 \(默认值: 5432\) |
+| `database` | string | 是 | 要连接的数据库名称 |
+| `username` | string | 是 | 数据库用户名 |
+| `password` | string | 是 | 数据库密码 |
+| `ssl` | string | 否 | SSL 连接模式 \(禁用、必需、优先\) |
+| `table` | string | 是 | 要插入数据的表名 |
+| `data` | object | 是 | 要插入的数据对象 \(键值对\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `rows` | array | 插入的数据 \(如果使用了 RETURNING 子句\) |
+| `rowCount` | number | 插入的行数 |
+
+### `postgresql_update`
+
+更新 PostgreSQL 数据库中的数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | PostgreSQL 服务器主机名或 IP 地址 |
+| `port` | number | 是 | PostgreSQL 服务器端口 \(默认值: 5432\) |
+| `database` | string | 是 | 要连接的数据库名称 |
+| `username` | string | 是 | 数据库用户名 |
+| `password` | string | 是 | 数据库密码 |
+| `ssl` | string | 否 | SSL 连接模式 \(禁用、必需、优先\) |
+| `table` | string | 是 | 要更新数据的表名 |
+| `data` | object | 是 | 包含要更新字段的数据对象 \(键值对\) |
+| `where` | string | 是 | WHERE 子句条件 \(不包括 WHERE 关键字\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `rows` | array | 更新的数据（如果使用了 RETURNING 子句） |
+| `rowCount` | number | 更新的行数 |
+
+### `postgresql_delete`
+
+从 PostgreSQL 数据库中删除数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | PostgreSQL 服务器主机名或 IP 地址 |
+| `port` | number | 是 | PostgreSQL 服务器端口（默认：5432） |
+| `database` | string | 是 | 要连接的数据库名称 |
+| `username` | string | 是 | 数据库用户名 |
+| `password` | string | 是 | 数据库密码 |
+| `ssl` | string | 否 | SSL 连接模式（禁用、必需、首选） |
+| `table` | string | 是 | 要删除数据的表名 |
+| `where` | string | 是 | WHERE 子句条件（不包括 WHERE 关键字） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `rows` | array | 删除的数据（如果使用了 RETURNING 子句） |
+| `rowCount` | number | 删除的行数 |
+
+### `postgresql_execute`
+
+在 PostgreSQL 数据库上执行原始 SQL 查询
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | PostgreSQL 服务器主机名或 IP 地址 |
+| `port` | number | 是 | PostgreSQL 服务器端口（默认：5432） |
+| `database` | string | 是 | 要连接的数据库名称 |
+| `username` | string | 是 | 数据库用户名 |
+| `password` | string | 是 | 数据库密码 |
+| `ssl` | string | 否 | SSL 连接模式（禁用、必需、首选） |
+| `query` | string | 是 | 要执行的原始 SQL 查询 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `rows` | array | 查询返回的行数组 |
+| `rowCount` | number | 受影响的行数 |
+
+## 注意
+
+- 类别：`tools`
+- 类型：`postgresql`

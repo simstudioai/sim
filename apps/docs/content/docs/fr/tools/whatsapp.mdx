@@ -1,0 +1,57 @@
+---
+title: WhatsApp
+description: Envoyer des messages WhatsApp
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="whatsapp"
+  color="#25D366"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[WhatsApp](https://www.whatsapp.com/) est une plateforme de messagerie mondialement populaire qui permet une communication sécurisée et fiable entre les individus et les entreprises.
+
+L'API WhatsApp Business offre aux organisations de puissantes capacités pour :
+
+- **Engager les clients** : envoyer des messages personnalisés, des notifications et des mises à jour directement sur l'application de messagerie préférée des clients
+- **Automatiser les conversations** : créer des chatbots interactifs et des systèmes de réponse automatisés pour les demandes courantes
+- **Améliorer le support** : fournir un service client en temps réel via une interface familière avec prise en charge de médias riches
+- **Générer des conversions** : faciliter les transactions et les suivis avec les clients dans un environnement sécurisé et conforme
+
+Dans Sim, l'intégration WhatsApp permet à vos agents d'exploiter ces capacités de messagerie dans le cadre de leurs flux de travail. Cela crée des opportunités pour des scénarios sophistiqués d'engagement client comme les rappels de rendez-vous, les codes de vérification, les alertes et les conversations interactives. L'intégration comble le fossé entre vos flux de travail IA et les canaux de communication client, permettant à vos agents de délivrer des informations opportunes et pertinentes directement sur les appareils mobiles des utilisateurs. En connectant Sim avec WhatsApp, vous pouvez construire des agents intelligents qui engagent les clients via leur plateforme de messagerie préférée, améliorant l'expérience utilisateur tout en automatisant les tâches de messagerie routinières.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrer WhatsApp dans le flux de travail. Peut envoyer des messages.
+
+## Outils
+
+### `whatsapp_send_message`
+
+Envoyer des messages WhatsApp
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `phoneNumber` | chaîne | Oui | Numéro de téléphone du destinataire avec l'indicatif du pays |
+| `message` | chaîne | Oui | Contenu du message à envoyer |
+| `phoneNumberId` | chaîne | Oui | ID du numéro de téléphone WhatsApp Business |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Statut de réussite d'envoi du message WhatsApp |
+| `messageId` | chaîne | Identifiant unique du message WhatsApp |
+| `phoneNumber` | chaîne | Numéro de téléphone du destinataire |
+| `status` | chaîne | Statut de livraison du message |
+| `timestamp` | chaîne | Horodatage d'envoi du message |
+
+## Remarques
+
+- Catégorie : `tools`
+- Type : `whatsapp`

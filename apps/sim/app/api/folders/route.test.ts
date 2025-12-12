@@ -75,7 +75,7 @@ describe('Folders API Route', () => {
 
     mockGetUserEntityPermissions.mockResolvedValue('admin')
 
-    vi.doMock('@/db', () => ({
+    vi.doMock('@sim/db', () => ({
       db: {
         select: mockSelect,
         insert: mockInsert,
@@ -83,7 +83,7 @@ describe('Folders API Route', () => {
       },
     }))
 
-    vi.doMock('@/lib/permissions/utils', () => ({
+    vi.doMock('@/lib/workspaces/permissions/utils', () => ({
       getUserEntityPermissions: mockGetUserEntityPermissions,
     }))
   })

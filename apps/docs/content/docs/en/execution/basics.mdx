@@ -1,0 +1,107 @@
+---
+title: Basics
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+
+Understanding how workflows execute in Sim is key to building efficient and reliable automations. The execution engine automatically handles dependencies, concurrency, and data flow to ensure your workflows run smoothly and predictably.
+
+## How Workflows Execute
+
+Sim's execution engine processes workflows intelligently by analyzing dependencies and running blocks in the most efficient order possible.
+
+### Concurrent Execution by Default
+
+Multiple blocks run concurrently when they don't depend on each other. This parallel execution dramatically improves performance without requiring manual configuration.
+
+<Image
+  src="/static/execution/concurrency.png"
+  alt="Multiple blocks running concurrently after the Start block"
+  width={800}
+  height={500}
+/>
+
+In this example, both the Customer Support and Deep Researcher agent blocks execute simultaneously after the Start block, maximizing efficiency.
+
+### Automatic Output Combination
+
+When blocks have multiple dependencies, the execution engine automatically waits for all dependencies to complete, then provides their combined outputs to the next block. No manual combining required.
+
+<Image
+  src="/static/execution/combination.png"
+  alt="Function block automatically receiving outputs from multiple previous blocks"
+  width={800}
+  height={500}
+/>
+
+The Function block receives outputs from both agent blocks as soon as they complete, allowing you to process the combined results.
+
+### Smart Routing
+
+Workflows can branch in multiple directions using routing blocks. The execution engine supports both deterministic routing (with Condition blocks) and AI-powered routing (with Router blocks).
+
+<Image
+  src="/static/execution/routing.png"
+  alt="Workflow showing both conditional and router-based branching"
+  width={800}
+  height={500}
+/>
+
+This workflow demonstrates how execution can follow different paths based on conditions or AI decisions, with each path executing independently.
+
+## Block Types
+
+Sim provides different types of blocks that serve specific purposes in your workflows:
+
+<Cards>
+  <Card title="Triggers" href="/triggers">
+    **Starter blocks** initiate workflows and **Webhook blocks** respond to external events. Every workflow needs a trigger to begin execution.
+  </Card>
+  
+  <Card title="Processing Blocks" href="/blocks">
+    **Agent blocks** interact with AI models, **Function blocks** run custom code, and **API blocks** connect to external services. These blocks transform and process your data.
+  </Card>
+  
+  <Card title="Control Flow" href="/blocks">
+    **Router blocks** use AI to choose paths, **Condition blocks** branch based on logic, and **Loop/Parallel blocks** handle iterations and concurrency.
+  </Card>
+  
+  <Card title="Output & Response" href="/blocks">
+    **Response blocks** format final outputs for APIs and chat interfaces, returning structured results from your workflows.
+  </Card>
+</Cards>
+
+All blocks execute automatically based on their dependencies - you don't need to manually manage execution order or timing.
+
+## Execution Monitoring
+
+When workflows run, Sim provides real-time visibility into the execution process:
+
+- **Live Block States**: See which blocks are currently executing, completed, or failed
+- **Execution Logs**: Detailed logs appear in real-time showing inputs, outputs, and any errors
+- **Performance Metrics**: Track execution time and costs for each block
+- **Path Visualization**: Understand which execution paths were taken through your workflow
+
+<Callout type="info">
+  All execution details are captured and available for review even after workflows complete, helping with debugging and optimization.
+</Callout>
+
+## Key Execution Principles
+
+Understanding these core principles will help you build better workflows:
+
+1. **Dependency-Based Execution**: Blocks only run when all their dependencies have completed
+2. **Automatic Parallelization**: Independent blocks run concurrently without configuration
+3. **Smart Data Flow**: Outputs flow automatically to connected blocks
+4. **Error Handling**: Failed blocks stop their execution path but don't affect independent paths
+5. **State Persistence**: All block outputs and execution details are preserved for debugging
+
+## Next Steps
+
+Now that you understand execution basics, explore:
+- **[Block Types](/blocks)** - Learn about specific block capabilities
+- **[Logging](/execution/logging)** - Monitor workflow executions and debug issues
+- **[Cost Calculation](/execution/costs)** - Understand and optimize workflow costs
+- **[Triggers](/triggers)** - Set up different ways to run your workflows

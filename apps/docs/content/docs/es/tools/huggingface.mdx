@@ -1,0 +1,58 @@
+---
+title: Hugging Face
+description: Usa la API de Inferencia de Hugging Face
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="huggingface"
+  color="#0B0F19"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[HuggingFace](https://huggingface.co/) es una plataforma líder de IA que proporciona acceso a miles de modelos de aprendizaje automático preentrenados y potentes capacidades de inferencia. Con su extenso centro de modelos y una API robusta, HuggingFace ofrece herramientas completas tanto para investigación como para aplicaciones de IA en producción.
+Con HuggingFace, puedes:
+
+Acceder a modelos preentrenados: Utiliza modelos para generación de texto, traducción, procesamiento de imágenes y más
+Generar completados de IA: Crea contenido utilizando modelos de lenguaje de última generación a través de la API de Inferencia
+Procesamiento de lenguaje natural: Procesa y analiza texto con modelos especializados de PLN
+Implementar a escala: Aloja y sirve modelos para aplicaciones en producción
+Personalizar modelos: Ajusta modelos existentes para casos de uso específicos
+
+En Sim, la integración con HuggingFace permite a tus agentes generar completados programáticamente utilizando la API de Inferencia de HuggingFace. Esto permite potentes escenarios de automatización como generación de contenido, análisis de texto, completado de código y escritura creativa. Tus agentes pueden generar completados con indicaciones en lenguaje natural, acceder a modelos especializados para diferentes tareas e integrar contenido generado por IA en flujos de trabajo. Esta integración cierra la brecha entre tus flujos de trabajo de IA y las capacidades de aprendizaje automático, permitiendo una automatización fluida impulsada por IA con una de las plataformas de ML más completas del mundo.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Hugging Face en el flujo de trabajo. Puede generar completados utilizando la API de Inferencia de Hugging Face. Requiere clave API.
+
+## Herramientas
+
+### `huggingface_chat`
+
+Genera completados utilizando la API de Inferencia de Hugging Face
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `systemPrompt` | string | No | Indicación del sistema para guiar el comportamiento del modelo |
+| `content` | string | Sí | El contenido del mensaje del usuario para enviar al modelo |
+| `provider` | string | Sí | El proveedor a utilizar para la solicitud de API \(p. ej., novita, cerebras, etc.\) |
+| `model` | string | Sí | Modelo a utilizar para completados de chat \(p. ej., deepseek/deepseek-v3-0324\) |
+| `maxTokens` | number | No | Número máximo de tokens a generar |
+| `temperature` | number | No | Temperatura de muestreo \(0-2\). Valores más altos hacen que la salida sea más aleatoria |
+| `apiKey` | string | Sí | Token de API de Hugging Face |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultados del completado del chat |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `huggingface`

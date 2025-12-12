@@ -1,0 +1,65 @@
+---
+title: Clay
+description: Remplir un classeur Clay
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="clay"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Clay](https://www.clay.com/) est une plateforme d'enrichissement de données et d'automatisation de flux de travail qui aide les équipes à rationaliser la génération de leads, la recherche et les opérations de données grâce à des intégrations puissantes et des entrées flexibles.
+
+Découvrez comment utiliser l'outil Clay dans Sim pour insérer facilement des données dans un classeur Clay via des déclencheurs webhook. Ce tutoriel vous guide à travers la configuration d'un webhook, le mappage des données et l'automatisation des mises à jour en temps réel de vos classeurs Clay. Parfait pour rationaliser la génération de leads et l'enrichissement des données directement depuis votre flux de travail !
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/cx_75X5sI_s"
+  title="Intégration de Clay avec Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Avec Clay, vous pouvez :
+
+- **Enrichir les sorties des agents** : alimenter automatiquement vos données d'agent Sim dans les tableaux Clay pour un suivi et une analyse structurés
+- **Déclencher des flux de travail via webhooks** : utiliser la prise en charge des webhooks de Clay pour initier des tâches d'agent Sim depuis Clay
+- **Exploiter des boucles de données** : itérer facilement sur des lignes de données enrichies avec des agents qui opèrent sur des ensembles de données dynamiques
+
+Dans Sim, l'intégration Clay permet à vos agents de pousser des données structurées dans les tableaux Clay via des webhooks. Cela facilite la collecte, l'enrichissement et la gestion des sorties dynamiques telles que les leads, les résumés de recherche ou les éléments d'action, le tout dans une interface collaborative de type tableur. Vos agents peuvent remplir des lignes en temps réel, permettant des flux de travail asynchrones où les informations générées par l'IA sont capturées, examinées et utilisées par votre équipe. Que vous automatisiez la recherche, enrichissiez les données CRM ou suiviez les résultats opérationnels, Clay devient une couche de données vivante qui interagit intelligemment avec vos agents. En connectant Sim à Clay, vous obtenez un moyen puissant d'opérationnaliser les résultats des agents, de parcourir des ensembles de données avec précision et de maintenir un enregistrement propre et vérifiable du travail piloté par l'IA.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Clay dans le flux de travail. Peut remplir un tableau avec des données. Nécessite une clé API.
+
+## Outils
+
+### `clay_populate`
+
+Remplir Clay avec des données provenant d'un fichier JSON. Permet une communication directe et des notifications avec suivi des horodatages et confirmation de canal.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `webhookURL` | string | Oui | L'URL du webhook à remplir |
+| `data` | json | Oui | Les données à remplir |
+| `authToken` | string | Non | Jeton d'authentification optionnel pour l'authentification du webhook Clay \(la plupart des webhooks ne nécessitent pas cela\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Données de réponse du webhook Clay |
+| `metadata` | object | Métadonnées de réponse du webhook |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `clay`

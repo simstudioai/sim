@@ -1,15 +1,16 @@
 import { randomUUID } from 'crypto'
+import { db } from '@sim/db'
+import { invitation, member, organization, user, userStats } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getEmailSubject, renderInvitationEmail } from '@/components/emails/render-email'
 import { getSession } from '@/lib/auth'
+import { getUserUsageData } from '@/lib/billing/core/usage'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
-import { sendEmail } from '@/lib/email/mailer'
-import { quickValidateEmail } from '@/lib/email/validation'
-import { env } from '@/lib/env'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { invitation, member, organization, user, userStats } from '@/db/schema'
+import { sendEmail } from '@/lib/messaging/email/mailer'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
 const logger = createLogger('OrganizationMembersAPI')
 
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Include usage data if requested and user has admin access
     if (includeUsage && hasAdminAccess) {
-      const membersWithUsage = await db
+      const base = await db
         .select({
           id: member.id,
           userId: member.userId,
@@ -74,15 +75,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           userEmail: user.email,
           currentPeriodCost: userStats.currentPeriodCost,
           currentUsageLimit: userStats.currentUsageLimit,
-          billingPeriodStart: userStats.billingPeriodStart,
-          billingPeriodEnd: userStats.billingPeriodEnd,
-          usageLimitSetBy: userStats.usageLimitSetBy,
           usageLimitUpdatedAt: userStats.usageLimitUpdatedAt,
         })
         .from(member)
         .innerJoin(user, eq(member.userId, user.id))
         .leftJoin(userStats, eq(user.id, userStats.userId))
         .where(eq(member.organizationId, organizationId))
+
+      const membersWithUsage = await Promise.all(
+        base.map(async (row) => {
+          const usage = await getUserUsageData(row.userId)
+          return {
+            ...row,
+            billingPeriodStart: usage.billingPeriodStart,
+            billingPeriodEnd: usage.billingPeriodEnd,
+          }
+        })
+      )
 
       return NextResponse.json({
         success: true,
@@ -251,7 +260,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const emailHtml = await renderInvitationEmail(
       inviter[0]?.name || 'Someone',
       organizationEntry[0]?.name || 'organization',
-      `${env.NEXT_PUBLIC_APP_URL}/api/organizations/invitations/accept?id=${invitationId}`,
+      `${getBaseUrl()}/invite/organization?id=${invitationId}`,
       normalizedEmail
     )
 

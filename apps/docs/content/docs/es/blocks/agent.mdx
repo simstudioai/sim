@@ -1,0 +1,158 @@
+---
+title: Agente
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+El bloque Agente conecta tu flujo de trabajo con Modelos de Lenguaje Grandes (LLMs). Procesa entradas en lenguaje natural, llama a herramientas externas y genera salidas estructuradas o no estructuradas.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/agent.png"
+    alt="Configuración del bloque Agente"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div> 
+
+## Opciones de configuración
+
+### Prompt del sistema
+
+El prompt del sistema establece los parámetros operativos y las restricciones de comportamiento del agente. Esta configuración define el rol del agente, la metodología de respuesta y los límites de procesamiento para todas las solicitudes entrantes.
+
+```markdown
+You are a helpful assistant that specializes in financial analysis.
+Always provide clear explanations and cite sources when possible.
+When responding to questions about investments, include risk disclaimers.
+```
+
+### Prompt del usuario
+
+El prompt del usuario representa los datos de entrada principales para el procesamiento de inferencia. Este parámetro acepta texto en lenguaje natural o datos estructurados que el agente analizará y a los que responderá. Las fuentes de entrada incluyen:
+
+- **Configuración estática**: Entrada de texto directa especificada en la configuración del bloque
+- **Entrada dinámica**: Datos pasados desde bloques anteriores a través de interfaces de conexión
+- **Generación en tiempo de ejecución**: Contenido generado programáticamente durante la ejecución del flujo de trabajo
+
+### Selección de modelo
+
+El bloque Agente admite múltiples proveedores de LLM a través de una interfaz de inferencia unificada. Los modelos disponibles incluyen:
+
+- **OpenAI**: GPT-5.1, GPT-5, GPT-4o, o1, o3, o4-mini, gpt-4.1
+- **Anthropic**: Claude 4.5 Sonnet, Claude Opus 4.1
+- **Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
+- **Otros proveedores**: Groq, Cerebras, xAI, Azure OpenAI, OpenRouter
+- **Modelos locales**: modelos compatibles con Ollama o VLLM
+
+### Temperatura
+
+Controla la aleatoriedad y creatividad de la respuesta:
+
+- **Baja (0-0.3)**: Determinista y enfocada. Mejor para tareas factuales y precisión.
+- **Media (0.3-0.7)**: Equilibrio entre creatividad y enfoque. Buena para uso general.
+- **Alta (0.7-2.0)**: Creativa y variada. Ideal para lluvia de ideas y generación de contenido.
+
+### Clave API
+
+Tu clave API para el proveedor LLM seleccionado. Se almacena de forma segura y se utiliza para la autenticación.
+
+### Herramientas
+
+Amplía las capacidades del agente con integraciones externas. Selecciona entre más de 60 herramientas predefinidas o define funciones personalizadas.
+
+**Categorías disponibles:**
+- **Comunicación**: Gmail, Slack, Telegram, WhatsApp, Microsoft Teams
+- **Fuentes de datos**: Notion, Google Sheets, Airtable, Supabase, Pinecone
+- **Servicios web**: Firecrawl, Google Search, Exa AI, automatización de navegador
+- **Desarrollo**: GitHub, Jira, Linear
+- **Servicios de IA**: OpenAI, Perplexity, Hugging Face, ElevenLabs
+
+**Modos de ejecución:**
+- **Auto**: El modelo decide cuándo usar herramientas según el contexto
+- **Requerido**: La herramienta debe ser llamada en cada solicitud
+- **Ninguno**: Herramienta disponible pero no sugerida al modelo
+
+### Formato de respuesta
+
+El parámetro de formato de respuesta impone la generación de salidas estructuradas mediante la validación de esquemas JSON. Esto asegura respuestas consistentes y legibles por máquina que se ajustan a estructuras de datos predefinidas:
+
+```json
+{
+  "name": "user_analysis",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "sentiment": {
+        "type": "string",
+        "enum": ["positive", "negative", "neutral"]
+      },
+      "confidence": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "required": ["sentiment", "confidence"]
+  }
+}
+```
+
+Esta configuración restringe la salida del modelo para que cumpla con el esquema especificado, evitando respuestas de texto libre y asegurando la generación de datos estructurados.
+
+### Acceso a los resultados
+
+Después de que un agente completa su tarea, puedes acceder a sus salidas:
+
+- **`<agent.content>`**: El texto de respuesta del agente o datos estructurados
+- **`<agent.tokens>`**: Estadísticas de uso de tokens (prompt, completion, total)
+- **`<agent.tool_calls>`**: Detalles de cualquier herramienta que el agente utilizó durante la ejecución
+- **`<agent.cost>`**: Costo estimado de la llamada a la API (si está disponible)
+
+## Funciones avanzadas
+
+### Memoria + Agente: Historial de conversación
+
+Utiliza un bloque `Memory` con un `id` consistente (por ejemplo, `chat`) para persistir mensajes entre ejecuciones, e incluir ese historial en el prompt del Agente.
+
+- Añade el mensaje del usuario antes del Agente
+- Lee el historial de conversación para contexto
+- Añade la respuesta del Agente después de que se ejecute
+
+Consulta la referencia del bloque [`Memory`](/tools/memory) para más detalles.
+
+## Salidas
+
+- **`<agent.content>`**: Texto de respuesta del agente
+- **`<agent.tokens>`**: Estadísticas de uso de tokens
+- **`<agent.tool_calls>`**: Detalles de ejecución de herramientas
+- **`<agent.cost>`**: Costo estimado de la llamada a la API
+
+## Ejemplos de casos de uso
+
+**Automatización de atención al cliente** - Gestiona consultas con acceso a base de datos y herramientas
+
+```
+API (Ticket) → Agent (Postgres, KB, Linear) → Gmail (Reply) → Memory (Save)
+```
+
+**Análisis de contenido multi-modelo** - Analiza contenido con diferentes modelos de IA
+
+```
+Function (Process) → Agent (GPT-4o Technical) → Agent (Claude Sentiment) → Function (Report)
+```
+
+**Asistente de investigación con herramientas** - Investiga con búsqueda web y acceso a documentos
+
+```
+Input → Agent (Google Search, Notion) → Function (Compile Report)
+```
+
+## Mejores prácticas
+
+- **Sé específico en los prompts del sistema**: Define claramente el rol, tono y limitaciones del agente. Cuanto más específicas sean tus instrucciones, mejor podrá el agente cumplir con su propósito.
+- **Elige la configuración de temperatura adecuada**: Usa configuraciones de temperatura más bajas (0-0.3) cuando la precisión sea importante, o aumenta la temperatura (0.7-2.0) para respuestas más creativas o variadas.
+- **Aprovecha las herramientas eficazmente**: Integra herramientas que complementen el propósito del agente y mejoren sus capacidades. Sé selectivo con las herramientas que proporcionas para evitar sobrecargar al agente. Para tareas con poco solapamiento, usa otro bloque de Agente para obtener mejores resultados.

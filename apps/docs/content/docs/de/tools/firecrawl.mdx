@@ -1,0 +1,153 @@
+---
+title: Firecrawl
+description: Scrapen, suchen, crawlen, mappen und extrahieren von Webdaten
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="firecrawl"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Firecrawl](https://firecrawl.dev/) ist eine leistungsstarke Web-Scraping- und Content-Extraktions-API, die sich nahtlos in Sim integriert und Entwicklern ermöglicht, saubere, strukturierte Inhalte von jeder Website zu extrahieren. Diese Integration bietet eine einfache Möglichkeit, Webseiten in nutzbare Datenformate wie Markdown und HTML umzuwandeln und dabei die wesentlichen Inhalte zu bewahren.
+
+Mit Firecrawl in Sim können Sie:
+
+- **Saubere Inhalte extrahieren**: Entfernen Sie Werbung, Navigationselemente und andere Ablenkungen, um nur den Hauptinhalt zu erhalten
+- **In strukturierte Formate umwandeln**: Transformieren Sie Webseiten in Markdown, HTML oder JSON
+- **Metadaten erfassen**: Extrahieren Sie SEO-Metadaten, Open Graph-Tags und andere Seiteninformationen
+- **JavaScript-lastige Seiten verarbeiten**: Verarbeiten Sie Inhalte von modernen Webanwendungen, die auf JavaScript basieren
+- **Inhalte filtern**: Konzentrieren Sie sich auf bestimmte Teile einer Seite mit CSS-Selektoren
+- **Skalierbar verarbeiten**: Bewältigen Sie umfangreiche Scraping-Anforderungen mit einer zuverlässigen API
+- **Im Web suchen**: Führen Sie intelligente Websuchen durch und erhalten Sie strukturierte Ergebnisse
+- **Ganze Websites crawlen**: Durchsuchen Sie mehrere Seiten einer Website und aggregieren Sie deren Inhalte
+
+In Sim ermöglicht die Firecrawl-Integration Ihren Agenten, programmatisch auf Webinhalte zuzugreifen und diese als Teil ihrer Workflows zu verarbeiten. Unterstützte Operationen umfassen:
+
+- **Scrape**: Extrahieren Sie strukturierte Inhalte (Markdown, HTML, Metadaten) von einer einzelnen Webseite.
+- **Search**: Durchsuchen Sie das Web nach Informationen mit Firecrawls intelligenten Suchfunktionen.
+- **Crawl**: Durchsuchen Sie mehrere Seiten einer Website und erhalten Sie strukturierte Inhalte und Metadaten für jede Seite.
+
+Dies ermöglicht Ihren Agenten, Informationen von Websites zu sammeln, strukturierte Daten zu extrahieren und diese Informationen zu nutzen, um Entscheidungen zu treffen oder Erkenntnisse zu gewinnen – ohne sich mit den Komplexitäten des rohen HTML-Parsings oder der Browser-Automatisierung auseinandersetzen zu müssen. Konfigurieren Sie einfach den Firecrawl-Block mit Ihrem API-Schlüssel, wählen Sie die Operation (Scrape, Search oder Crawl) und geben Sie die relevanten Parameter an. Ihre Agenten können sofort mit Webinhalten in einem sauberen, strukturierten Format arbeiten.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integrieren Sie Firecrawl in den Workflow. Scrapen Sie Seiten, durchsuchen Sie das Web, crawlen Sie ganze Websites, erfassen Sie URL-Strukturen und extrahieren Sie strukturierte Daten mit KI.
+
+## Tools
+
+### `firecrawl_scrape`
+
+Extrahieren Sie strukturierte Inhalte von Webseiten mit umfassender Metadaten-Unterstützung. Konvertiert Inhalte in Markdown oder HTML und erfasst dabei SEO-Metadaten, Open Graph-Tags und Seiteninformationen.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Ja | Die URL, von der Inhalte gescrapt werden sollen |
+| `scrapeOptions` | json | Nein | Optionen für das Content-Scraping |
+| `apiKey` | string | Ja | Firecrawl API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `markdown` | string | Seiteninhalt im Markdown-Format |
+| `html` | string | Roher HTML-Inhalt der Seite |
+| `metadata` | object | Seiten-Metadaten einschließlich SEO- und Open Graph-Informationen |
+
+### `firecrawl_search`
+
+Suche nach Informationen im Web mit Firecrawl
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Ja | Die zu verwendende Suchanfrage |
+| `apiKey` | string | Ja | Firecrawl API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `data` | array | Suchergebnisdaten |
+
+### `firecrawl_crawl`
+
+Crawlen Sie ganze Websites und extrahieren Sie strukturierte Inhalte von allen zugänglichen Seiten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Ja | Die zu crawlende Website-URL |
+| `limit` | number | Nein | Maximale Anzahl der zu crawlenden Seiten \(Standard: 100\) |
+| `onlyMainContent` | boolean | Nein | Nur Hauptinhalt von Seiten extrahieren |
+| `apiKey` | string | Ja | Firecrawl API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `pages` | array | Array von gecrawlten Seiten mit ihrem Inhalt und Metadaten |
+
+### `firecrawl_map`
+
+Erhalten Sie schnell und zuverlässig eine vollständige Liste aller URLs einer Website. Nützlich, um alle Seiten einer Website zu entdecken, ohne sie zu crawlen.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Ja | Die Basis-URL, von der Links erfasst und entdeckt werden sollen |
+| `search` | string | Nein | Filtert Ergebnisse nach Relevanz zu einem Suchbegriff \(z.B. "blog"\) |
+| `sitemap` | string | Nein | Steuert die Sitemap-Nutzung: "skip", "include" \(Standard\) oder "only" |
+| `includeSubdomains` | boolean | Nein | Ob URLs von Subdomains einbezogen werden sollen \(Standard: true\) |
+| `ignoreQueryParameters` | boolean | Nein | URLs mit Query-Strings ausschließen \(Standard: true\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Links \(max: 100.000, Standard: 5.000\) |
+| `timeout` | number | Nein | Timeout der Anfrage in Millisekunden |
+| `location` | json | Nein | Geografischer Kontext für Proxying \(Land, Sprachen\) |
+| `apiKey` | string | Ja | Firecrawl API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Mapping-Vorgang erfolgreich war |
+| `links` | array | Array der entdeckten URLs von der Website |
+
+### `firecrawl_extract`
+
+Extrahieren Sie strukturierte Daten aus vollständigen Webseiten mithilfe von natürlichsprachlichen Anweisungen und JSON-Schema. Leistungsstarke Agenten-Funktion für intelligente Datenextraktion.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `urls` | json | Ja | Array von URLs, aus denen Daten extrahiert werden sollen \(unterstützt Glob-Format\) |
+| `prompt` | string | Nein | Natürlichsprachliche Anleitung für den Extraktionsprozess |
+| `schema` | json | Nein | JSON-Schema, das die Struktur der zu extrahierenden Daten definiert |
+| `enableWebSearch` | boolean | Nein | Websuche aktivieren, um ergänzende Informationen zu finden \(Standard: false\) |
+| `ignoreSitemap` | boolean | Nein | Sitemap.xml-Dateien beim Scannen ignorieren \(Standard: false\) |
+| `includeSubdomains` | boolean | Nein | Scanning auf Subdomains erweitern \(Standard: true\) |
+| `showSources` | boolean | Nein | Datenquellen in der Antwort zurückgeben \(Standard: false\) |
+| `ignoreInvalidURLs` | boolean | Nein | Ungültige URLs im Array überspringen \(Standard: true\) |
+| `scrapeOptions` | json | Nein | Erweiterte Scraping-Konfigurationsoptionen |
+| `apiKey` | string | Ja | Firecrawl API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Extraktionsvorgang erfolgreich war |
+| `data` | object | Extrahierte strukturierte Daten gemäß dem Schema oder Prompt |
+| `sources` | array | Datenquellen \(nur wenn showSources aktiviert ist\) |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `firecrawl`

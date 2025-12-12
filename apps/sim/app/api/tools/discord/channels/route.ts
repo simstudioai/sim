@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { validateNumericId } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
 
 interface DiscordChannel {
@@ -26,11 +27,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Server ID is required' }, { status: 400 })
     }
 
-    // If channelId is provided, we'll fetch just that specific channel
+    const serverIdValidation = validateNumericId(serverId, 'serverId')
+    if (!serverIdValidation.isValid) {
+      logger.error(`Invalid server ID: ${serverIdValidation.error}`)
+      return NextResponse.json({ error: serverIdValidation.error }, { status: 400 })
+    }
+
     if (channelId) {
+      const channelIdValidation = validateNumericId(channelId, 'channelId')
+      if (!channelIdValidation.isValid) {
+        logger.error(`Invalid channel ID: ${channelIdValidation.error}`)
+        return NextResponse.json({ error: channelIdValidation.error }, { status: 400 })
+      }
+
       logger.info(`Fetching single Discord channel: ${channelId}`)
 
-      // Fetch a specific channel by ID
       const response = await fetch(`https://discord.com/api/v10/channels/${channelId}`, {
         method: 'GET',
         headers: {
@@ -58,7 +69,6 @@ export async function POST(request: Request) {
 
       const channel = (await response.json()) as DiscordChannel
 
-      // Verify this is a text channel and belongs to the requested server
       if (channel.guild_id !== serverId) {
         logger.error('Channel does not belong to the specified server')
         return NextResponse.json(
@@ -85,7 +95,6 @@ export async function POST(request: Request) {
 
     logger.info(`Fetching all Discord channels for server: ${serverId}`)
 
-    // Fetch all channels from Discord API
     const response = await fetch(`https://discord.com/api/v10/guilds/${serverId}/channels`, {
       method: 'GET',
       headers: {
@@ -95,25 +104,18 @@ export async function POST(request: Request) {
     })
 
     if (!response.ok) {
-      logger.error('Discord API error:', {
-        status: response.status,
-        statusText: response.statusText,
-      })
-
-      let errorMessage
-      try {
-        const errorData = await response.json()
-        logger.error('Error details:', errorData)
-        errorMessage = errorData.message || `Failed to fetch channels (${response.status})`
-      } catch (_e) {
-        errorMessage = `Failed to fetch channels: ${response.status} ${response.statusText}`
-      }
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+      logger.warn(
+        'Discord API returned non-OK for channels; returning empty list to avoid UX break',
+        {
+          status: response.status,
+          statusText: response.statusText,
+        }
+      )
+      return NextResponse.json({ channels: [] })
     }
 
     const channels = (await response.json()) as DiscordChannel[]
 
-    // Filter to just text channels (type 0)
     const textChannels = channels.filter((channel: DiscordChannel) => channel.type === 0)
 
     logger.info(`Successfully fetched ${textChannels.length} text channels`)

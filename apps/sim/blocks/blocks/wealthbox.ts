@@ -1,13 +1,15 @@
 import { WealthboxIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { WealthboxResponse } from '@/tools/wealthbox/types'
 
 export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
   type: 'wealthbox',
   name: 'Wealthbox',
   description: 'Interact with Wealthbox',
+  authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Wealthbox functionality to manage notes, contacts, and tasks. Read content from existing notes, contacts, and tasks and write to them using OAuth authentication. Supports text content manipulation for note creation and editing.',
+    'Integrate Wealthbox into the workflow. Can read and write notes, read and write contacts, and read and write tasks.',
   docsLink: 'https://docs.sim.ai/tools/wealthbox',
   category: 'tools',
   bgColor: '#E0E0E0',
@@ -17,7 +19,6 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Read Note', id: 'read_note' },
         { label: 'Write Note', id: 'write_note' },
@@ -32,8 +33,6 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       id: 'credential',
       title: 'Wealthbox Account',
       type: 'oauth-input',
-      layout: 'full',
-      provider: 'wealthbox',
       serviceId: 'wealthbox',
       requiredScopes: ['login', 'data'],
       placeholder: 'Select Wealthbox account',
@@ -43,7 +42,6 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       id: 'noteId',
       title: 'Note ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter Note ID (optional)',
       condition: { field: 'operation', value: ['read_note'] },
     },
@@ -51,19 +49,18 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       id: 'contactId',
       title: 'Select Contact',
       type: 'file-selector',
-      provider: 'wealthbox',
       serviceId: 'wealthbox',
       requiredScopes: ['login', 'data'],
-      layout: 'full',
       placeholder: 'Enter Contact ID',
       mode: 'basic',
+      canonicalParamId: 'contactId',
       condition: { field: 'operation', value: ['read_contact', 'write_task', 'write_note'] },
     },
     {
       id: 'manualContactId',
       title: 'Contact ID',
       type: 'short-input',
-      layout: 'full',
+      canonicalParamId: 'contactId',
       placeholder: 'Enter Contact ID',
       mode: 'advanced',
       condition: { field: 'operation', value: ['read_contact', 'write_task', 'write_note'] },
@@ -72,16 +69,16 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       id: 'taskId',
       title: 'Task ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter Task ID',
       mode: 'basic',
+      canonicalParamId: 'taskId',
       condition: { field: 'operation', value: ['read_task'] },
     },
     {
       id: 'manualTaskId',
       title: 'Task ID',
       type: 'short-input',
-      layout: 'full',
+      canonicalParamId: 'taskId',
       placeholder: 'Enter Task ID',
       mode: 'advanced',
       condition: { field: 'operation', value: ['read_task'] },
@@ -90,7 +87,6 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       id: 'title',
       title: 'Title',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter Title',
       condition: { field: 'operation', value: ['write_task'] },
       required: true,
@@ -99,7 +95,6 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       id: 'dueDate',
       title: 'Due Date',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter due date (e.g., 2015-05-24 11:00 AM -0400)',
       condition: { field: 'operation', value: ['write_task'] },
       required: true,
@@ -108,7 +103,6 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       id: 'firstName',
       title: 'First Name',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter First Name',
       condition: { field: 'operation', value: ['write_contact'] },
       required: true,
@@ -117,7 +111,6 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       id: 'lastName',
       title: 'Last Name',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter Last Name',
       condition: { field: 'operation', value: ['write_contact'] },
       required: true,
@@ -126,7 +119,6 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       id: 'emailAddress',
       title: 'Email Address',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter Email Address',
       condition: { field: 'operation', value: ['write_contact'] },
     },
@@ -134,7 +126,6 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       id: 'content',
       title: 'Content',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter Content',
       condition: { field: 'operation', value: ['write_note', 'write_event', 'write_task'] },
       required: true,
@@ -143,7 +134,6 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       id: 'backgroundInformation',
       title: 'Background Information',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter Background Information',
       condition: { field: 'operation', value: ['write_contact'] },
     },
@@ -180,19 +170,15 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
         const { credential, operation, contactId, manualContactId, taskId, manualTaskId, ...rest } =
           params
 
-        // Handle contact ID input (selector or manual)
+        // Handle both selector and manual inputs
         const effectiveContactId = (contactId || manualContactId || '').trim()
-
-        // Handle task ID input (selector or manual)
         const effectiveTaskId = (taskId || manualTaskId || '').trim()
 
-        // Build the parameters based on operation type
         const baseParams = {
           ...rest,
           credential,
         }
 
-        // For note operations, we need noteId
         if (operation === 'read_note' || operation === 'write_note') {
           return {
             ...baseParams,
@@ -200,8 +186,6 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
             contactId: effectiveContactId,
           }
         }
-
-        // For contact operations, we need contactId
         if (operation === 'read_contact') {
           if (!effectiveContactId) {
             throw new Error('Contact ID is required for contact operations')
@@ -211,26 +195,22 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
             contactId: effectiveContactId,
           }
         }
-
-        // For task operations, we need taskId
         if (operation === 'read_task') {
-          if (!effectiveTaskId) {
+          if (!taskId?.trim()) {
             throw new Error('Task ID is required for task operations')
           }
           return {
             ...baseParams,
-            taskId: effectiveTaskId,
+            taskId: taskId.trim(),
           }
         }
-
-        // For write_task and write_note operations, we need contactId
         if (operation === 'write_task' || operation === 'write_note') {
-          if (!effectiveContactId) {
+          if (!contactId?.trim()) {
             throw new Error('Contact ID is required for this operation')
           }
           return {
             ...baseParams,
-            contactId: effectiveContactId,
+            contactId: contactId.trim(),
           }
         }
 

@@ -1,17 +1,88 @@
-import { eq } from 'drizzle-orm'
+import { db } from '@sim/db'
+import { permissions, workflow as workflowTable, workspace } from '@sim/db/schema'
+import type { InferSelectModel } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { getEnv } from '@/lib/env'
+import { getSession } from '@/lib/auth'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { userStats, workflow as workflowTable } from '@/db/schema'
+import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import type { ExecutionResult } from '@/executor/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowUtils')
 
+type WorkflowSelection = InferSelectModel<typeof workflowTable>
+
 export async function getWorkflowById(id: string) {
-  const workflows = await db.select().from(workflowTable).where(eq(workflowTable.id, id)).limit(1)
-  return workflows[0]
+  const rows = await db.select().from(workflowTable).where(eq(workflowTable.id, id)).limit(1)
+
+  return rows[0]
+}
+
+type WorkflowRecord = ReturnType<typeof getWorkflowById> extends Promise<infer R>
+  ? NonNullable<R>
+  : never
+
+export interface WorkflowAccessContext {
+  workflow: WorkflowRecord
+  workspaceOwnerId: string | null
+  workspacePermission: PermissionType | null
+  isOwner: boolean
+  isWorkspaceOwner: boolean
+}
+
+export async function getWorkflowAccessContext(
+  workflowId: string,
+  userId?: string
+): Promise<WorkflowAccessContext | null> {
+  const workflow = await getWorkflowById(workflowId)
+
+  if (!workflow) {
+    return null
+  }
+
+  let workspaceOwnerId: string | null = null
+  let workspacePermission: PermissionType | null = null
+
+  if (workflow.workspaceId) {
+    const [workspaceRow] = await db
+      .select({ ownerId: workspace.ownerId })
+      .from(workspace)
+      .where(eq(workspace.id, workflow.workspaceId))
+      .limit(1)
+
+    workspaceOwnerId = workspaceRow?.ownerId ?? null
+
+    if (userId) {
+      const [permissionRow] = await db
+        .select({ permissionType: permissions.permissionType })
+        .from(permissions)
+        .where(
+          and(
+            eq(permissions.userId, userId),
+            eq(permissions.entityType, 'workspace'),
+            eq(permissions.entityId, workflow.workspaceId)
+          )
+        )
+        .limit(1)
+
+      workspacePermission = permissionRow?.permissionType ?? null
+    }
+  }
+
+  const resolvedUserId = userId ?? null
+
+  const isOwner = resolvedUserId ? workflow.userId === resolvedUserId : false
+  const isWorkspaceOwner = resolvedUserId ? workspaceOwnerId === resolvedUserId : false
+
+  return {
+    workflow,
+    workspaceOwnerId,
+    workspacePermission,
+    isOwner,
+    isWorkspaceOwner,
+  }
 }
 
 export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
@@ -22,73 +93,55 @@ export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
       throw new Error(`Workflow ${workflowId} not found`)
     }
 
-    // Get the origin from the environment or use direct DB update as fallback
-    const origin =
-      getEnv('NEXT_PUBLIC_APP_URL') || (typeof window !== 'undefined' ? window.location.origin : '')
+    // Use the API to update stats
+    const response = await fetch(`${getBaseUrl()}/api/workflows/${workflowId}/stats?runs=${runs}`, {
+      method: 'POST',
+    })
 
-    if (origin) {
-      // Use absolute URL with origin
-      const response = await fetch(`${origin}/api/workflows/${workflowId}/stats?runs=${runs}`, {
-        method: 'POST',
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to update workflow stats')
-      }
-
-      return response.json()
-    }
-    logger.warn('No origin available, updating workflow stats directly via DB')
-
-    // Update workflow directly through database
-    await db
-      .update(workflowTable)
-      .set({
-        runCount: workflow.runCount + runs,
-        lastRunAt: new Date(),
-      })
-      .where(eq(workflowTable.id, workflowId))
-
-    // Update user stats if needed
-    if (workflow.userId) {
-      const userStatsRecord = await db
-        .select()
-        .from(userStats)
-        .where(eq(userStats.userId, workflow.userId))
-        .limit(1)
-
-      if (userStatsRecord.length === 0) {
-        // Create new record
-        await db.insert(userStats).values({
-          id: crypto.randomUUID(),
-          userId: workflow.userId,
-          totalManualExecutions: runs,
-          totalApiCalls: 0,
-          totalWebhookTriggers: 0,
-          totalScheduledExecutions: 0,
-          totalChatExecutions: 0,
-          totalTokensUsed: 0,
-          totalCost: '0.00',
-          lastActive: new Date(),
-        })
-      } else {
-        // Update existing record
-        await db
-          .update(userStats)
-          .set({
-            totalManualExecutions: userStatsRecord[0].totalManualExecutions + runs,
-            lastActive: new Date(),
-          })
-          .where(eq(userStats.userId, workflow.userId))
-      }
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to update workflow stats')
     }
 
-    return { success: true, runsAdded: runs }
+    return response.json()
   } catch (error) {
-    logger.error('Error updating workflow run counts:', error)
+    logger.error(`Error updating workflow stats for ${workflowId}`, error)
     throw error
   }
+}
+
+/**
+ * Sanitize tools array by removing UI-only fields
+ * @param tools - The tools array to sanitize
+ * @returns A sanitized tools array
+ */
+function sanitizeToolsForComparison(tools: any[] | undefined): any[] {
+  if (!Array.isArray(tools)) {
+    return []
+  }
+
+  return tools.map((tool) => {
+    // Remove UI-only field: isExpanded
+    const { isExpanded, ...cleanTool } = tool
+    return cleanTool
+  })
+}
+
+/**
+ * Sanitize inputFormat array by removing test-only value fields
+ * @param inputFormat - The inputFormat array to sanitize
+ * @returns A sanitized inputFormat array without test values
+ */
+function sanitizeInputFormatForComparison(inputFormat: any[] | undefined): any[] {
+  if (!Array.isArray(inputFormat)) {
+    return []
+  }
+
+  return inputFormat.map((field) => {
+    // Remove test-only field: value (used only for manual testing)
+    const { value, collapsed, ...cleanField } = field
+    return cleanField
+  })
 }
 
 /**
@@ -202,28 +255,24 @@ export function hasWorkflowChanged(
     const currentBlock = currentState.blocks[blockId]
     const deployedBlock = deployedState.blocks[blockId]
 
-    // Skip position as it doesn't affect functionality
-    const { position: currentPosition, ...currentBlockProps } = currentBlock
-    const { position: deployedPosition, ...deployedBlockProps } = deployedBlock
+    // Destructure and exclude non-functional fields
+    const { position: _currentPos, subBlocks: currentSubBlocks = {}, ...currentRest } = currentBlock
 
-    // Extract and normalize subBlocks separately for cleaner comparison
-    const currentSubBlocks = currentBlockProps.subBlocks || {}
-    const deployedSubBlocks = deployedBlockProps.subBlocks || {}
+    const {
+      position: _deployedPos,
+      subBlocks: deployedSubBlocks = {},
+      ...deployedRest
+    } = deployedBlock
 
-    // Create normalized block representations without position or subBlocks
     normalizedCurrentBlocks[blockId] = {
-      ...currentBlockProps,
+      ...currentRest,
       subBlocks: undefined,
     }
 
     normalizedDeployedBlocks[blockId] = {
-      ...deployedBlockProps,
+      ...deployedRest,
       subBlocks: undefined,
     }
-
-    // Handle subBlocks separately
-    const _normalizedCurrentSubBlocks: Record<string, any> = {}
-    const _normalizedDeployedSubBlocks: Record<string, any> = {}
 
     // Get all subBlock IDs from both states
     const allSubBlockIds = [
@@ -243,8 +292,24 @@ export function hasWorkflowChanged(
       }
 
       // Get values with special handling for null/undefined
-      const currentValue = currentSubBlocks[subBlockId].value ?? null
-      const deployedValue = deployedSubBlocks[subBlockId].value ?? null
+      let currentValue = currentSubBlocks[subBlockId].value ?? null
+      let deployedValue = deployedSubBlocks[subBlockId].value ?? null
+
+      // Special handling for 'tools' subBlock - sanitize UI-only fields
+      if (subBlockId === 'tools' && Array.isArray(currentValue) && Array.isArray(deployedValue)) {
+        currentValue = sanitizeToolsForComparison(currentValue)
+        deployedValue = sanitizeToolsForComparison(deployedValue)
+      }
+
+      // Special handling for 'inputFormat' subBlock - sanitize UI-only fields (collapsed state)
+      if (
+        subBlockId === 'inputFormat' &&
+        Array.isArray(currentValue) &&
+        Array.isArray(deployedValue)
+      ) {
+        currentValue = sanitizeInputFormatForComparison(currentValue)
+        deployedValue = sanitizeInputFormatForComparison(deployedValue)
+      }
 
       // For string values, compare directly to catch even small text changes
       if (typeof currentValue === 'string' && typeof deployedValue === 'string') {
@@ -378,4 +443,85 @@ export const createHttpResponseFromBlock = (executionResult: ExecutionResult): N
     status: status,
     headers: responseHeaders,
   })
+}
+
+/**
+ * Validates that the current user has permission to access/modify a workflow
+ * Returns session and workflow info if authorized, or error response if not
+ */
+export async function validateWorkflowPermissions(
+  workflowId: string,
+  requestId: string,
+  action: 'read' | 'write' | 'admin' = 'read'
+) {
+  const session = await getSession()
+  if (!session?.user?.id) {
+    logger.warn(`[${requestId}] No authenticated user session for workflow ${action}`)
+    return {
+      error: { message: 'Unauthorized', status: 401 },
+      session: null,
+      workflow: null,
+    }
+  }
+
+  const accessContext = await getWorkflowAccessContext(workflowId, session.user.id)
+  if (!accessContext) {
+    logger.warn(`[${requestId}] Workflow ${workflowId} not found`)
+    return {
+      error: { message: 'Workflow not found', status: 404 },
+      session: null,
+      workflow: null,
+    }
+  }
+
+  const { workflow, workspacePermission, isOwner } = accessContext
+
+  if (isOwner) {
+    return {
+      error: null,
+      session,
+      workflow,
+    }
+  }
+
+  if (workflow.workspaceId) {
+    let hasPermission = false
+
+    if (action === 'read') {
+      // Any workspace permission allows read
+      hasPermission = workspacePermission !== null
+    } else if (action === 'write') {
+      // Write or admin permission allows write
+      hasPermission = workspacePermission === 'write' || workspacePermission === 'admin'
+    } else if (action === 'admin') {
+      // Only admin permission allows admin actions
+      hasPermission = workspacePermission === 'admin'
+    }
+
+    if (!hasPermission) {
+      logger.warn(
+        `[${requestId}] User ${session.user.id} unauthorized to ${action} workflow ${workflowId} in workspace ${workflow.workspaceId}`
+      )
+      return {
+        error: { message: `Unauthorized: Access denied to ${action} this workflow`, status: 403 },
+        session: null,
+        workflow: null,
+      }
+    }
+  } else {
+    logger.warn(
+      `[${requestId}] User ${session.user.id} unauthorized to ${action} workflow ${workflowId} owned by ${workflow.userId}`
+    )
+    return {
+      error: { message: `Unauthorized: Access denied to ${action} this workflow`, status: 403 },
+      session: null,
+      workflow: null,
+    }
+  }
+
+  return {
+    error: null,
+    session,
+    workflow,
+  }
 }

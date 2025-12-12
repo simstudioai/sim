@@ -1,0 +1,57 @@
+---
+title: WhatsApp
+description: 发送 WhatsApp 消息
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="whatsapp"
+  color="#25D366"
+/>
+
+【手动内容开始：简介】
+[WhatsApp](https://www.whatsapp.com/) 是一个全球流行的消息平台，能够在个人和企业之间实现安全、可靠的通信。
+
+WhatsApp Business API 为组织提供了强大的功能，可以：
+
+- **吸引客户**：直接向客户首选的消息应用发送个性化消息、通知和更新
+- **自动化对话**：为常见问题创建交互式聊天机器人和自动响应系统
+- **增强支持**：通过支持丰富媒体的熟悉界面提供实时客户服务
+- **推动转化**：在安全、合规的环境中促进交易和跟进客户
+
+在 Sim 中，WhatsApp 集成使您的代理能够将这些消息功能作为其工作流程的一部分。这为复杂的客户参与场景创造了机会，例如预约提醒、验证码、警报和交互式对话。该集成弥合了您的 AI 工作流程与客户通信渠道之间的差距，使您的代理能够直接向用户的移动设备传递及时、相关的信息。通过将 Sim 与 WhatsApp 连接，您可以构建智能代理，通过客户首选的消息平台与他们互动，在自动化常规消息任务的同时提升用户体验。
+【手动内容结束】
+
+## 使用说明
+
+将 WhatsApp 集成到工作流程中。可以发送消息。
+
+## 工具
+
+### `whatsapp_send_message`
+
+发送 WhatsApp 消息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `phoneNumber` | string | 是 | 带国家代码的接收者电话号码 |
+| `message` | string | 是 | 要发送的消息内容 |
+| `phoneNumberId` | string | 是 | WhatsApp Business 电话号码 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | WhatsApp 消息发送成功状态 |
+| `messageId` | string | 唯一的 WhatsApp 消息标识符 |
+| `phoneNumber` | string | 接收者电话号码 |
+| `status` | string | 消息传递状态 |
+| `timestamp` | string | 消息发送时间戳 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`whatsapp`

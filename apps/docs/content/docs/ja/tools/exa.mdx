@@ -1,0 +1,151 @@
+---
+title: Exa
+description: Exa AIで検索
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="exa"
+  color="#1F40ED"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Exa](https://exa.ai/)は、開発者や研究者向けに特別に設計されたAI搭載の検索エンジンで、ウェブ全体から高い関連性と最新の情報を提供します。高度なセマンティック検索機能とAI理解を組み合わせることで、従来の検索エンジンよりも正確で文脈に関連した結果を提供します。
+
+Exaでは、以下のことができます：
+
+- **自然言語で検索**: 会話形式のクエリや質問を使用して情報を見つける
+- **正確な結果を取得**: セマンティック理解による高い関連性のある検索結果を受け取る
+- **最新情報にアクセス**: ウェブ全体から最新の情報を取得する
+- **類似コンテンツを見つける**: コンテンツの類似性に基づいて関連リソースを発見する
+- **ウェブページの内容を抽出**: ウェブページの全文を取得して処理する
+- **引用付きで質問に回答**: 質問をして、情報源を示した直接的な回答を受け取る
+- **研究タスクを実行**: 情報の収集、統合、要約のための複数ステップの研究ワークフローを自動化する
+
+Simでは、Exa統合によりエージェントがウェブ上の情報を検索したり、特定のURLからコンテンツを取得したり、類似リソースを見つけたり、引用付きで質問に回答したり、研究タスクを実行したりすることが可能になります—すべてAPIコールを通じてプログラム的に行えます。これにより、エージェントはインターネットからリアルタイムの情報にアクセスでき、正確で最新かつ関連性の高い回答を提供する能力が向上します。この統合は特に研究タスク、情報収集、コンテンツ発見、ウェブ全体から最新情報を必要とする質問への回答に価値があります。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Exaをワークフローに統合します。検索、コンテンツ取得、類似リンクの検索、質問への回答、研究の実行が可能です。APIキーが必要です。
+
+## ツール
+
+### `exa_search`
+
+Exa AIを使用してウェブを検索します。タイトル、URL、テキストスニペットを含む関連性の高い検索結果を返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | はい | 実行する検索クエリ |
+| `numResults` | number | いいえ | 返す結果の数（デフォルト：10、最大：25） |
+| `useAutoprompt` | boolean | いいえ | クエリを改善するためにオートプロンプトを使用するかどうか（デフォルト：false） |
+| `type` | string | いいえ | 検索タイプ：neural、keyword、auto、またはfast（デフォルト：auto） |
+| `includeDomains` | string | いいえ | 結果に含めるドメインのカンマ区切りリスト |
+| `excludeDomains` | string | いいえ | 結果から除外するドメインのカンマ区切りリスト |
+| `category` | string | いいえ | カテゴリによるフィルタリング：company、research_paper、news_article、pdf、github、tweet、movie、song、personal_site |
+| `text` | boolean | いいえ | 結果に全文コンテンツを含める（デフォルト：false） |
+| `highlights` | boolean | いいえ | 結果にハイライトされたスニペットを含める（デフォルト：false） |
+| `summary` | boolean | いいえ | 結果にAI生成の要約を含める（デフォルト：false） |
+| `livecrawl` | string | いいえ | ライブクロールモード：always、fallback、またはnever（デフォルト：never） |
+| `apiKey` | string | はい | Exa AI APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `results` | array | タイトル、URL、テキストスニペットを含む検索結果 |
+
+### `exa_get_contents`
+
+Exa AIを使用してウェブページのコンテンツを取得します。各URLのタイトル、テキストコンテンツ、およびオプションの要約を返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `urls` | string | はい | コンテンツを取得するURLのカンマ区切りリスト |
+| `text` | boolean | いいえ | trueの場合、デフォルト設定でページ全文を返します。falseの場合、テキスト返却を無効にします。 |
+| `summaryQuery` | string | いいえ | 要約生成をガイドするクエリ |
+| `subpages` | number | いいえ | 提供されたURLからクロールするサブページの数 |
+| `subpageTarget` | string | いいえ | 特定のサブページを対象とするカンマ区切りのキーワード（例："docs,tutorial,about"） |
+| `highlights` | boolean | いいえ | 結果にハイライトされたスニペットを含める（デフォルト：false） |
+| `livecrawl` | string | いいえ | ライブクロールモード：always、fallback、またはnever（デフォルト：never） |
+| `apiKey` | string | はい | Exa AI APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `results` | array | タイトル、テキスト、要約を含むURLから取得したコンテンツ |
+
+### `exa_find_similar_links`
+
+Exa AIを使用して、指定されたURLに類似したウェブページを検索します。タイトルとテキストスニペットを含む類似リンクのリストを返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | はい | 類似リンクを検索するURL |
+| `numResults` | number | いいえ | 返す類似リンクの数（デフォルト：10、最大：25） |
+| `text` | boolean | いいえ | 類似ページの全文を含めるかどうか |
+| `includeDomains` | string | いいえ | 結果に含めるドメインのカンマ区切りリスト |
+| `excludeDomains` | string | いいえ | 結果から除外するドメインのカンマ区切りリスト |
+| `excludeSourceDomain` | boolean | いいえ | 結果からソースドメインを除外する（デフォルト：false） |
+| `category` | string | いいえ | カテゴリによるフィルタリング：company、research_paper、news_article、pdf、github、tweet、movie、song、personal_site |
+| `highlights` | boolean | いいえ | 結果にハイライトされたスニペットを含める（デフォルト：false） |
+| `summary` | boolean | いいえ | 結果にAI生成の要約を含める（デフォルト：false） |
+| `livecrawl` | string | いいえ | ライブクロールモード：always、fallback、またはnever（デフォルト：never） |
+| `apiKey` | string | はい | Exa AI APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `similarLinks` | array | タイトル、URL、テキストスニペットを含む類似リンク |
+
+### `exa_answer`
+
+Exa AIを使用してウェブからの引用付きでAIが生成した質問への回答を取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | はい | 回答する質問 |
+| `text` | boolean | いいえ | 回答の全文を含めるかどうか |
+| `apiKey` | string | はい | Exa AI APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `answer` | string | 質問に対するAI生成の回答 |
+| `citations` | array | 回答の情報源と引用 |
+
+### `exa_research`
+
+AIを使用して包括的な調査を行い、引用付きの詳細なレポートを生成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | はい | 調査クエリまたはトピック |
+| `model` | string | いいえ | 調査モデル: exa-research-fast、exa-research（デフォルト）、または exa-research-pro |
+| `apiKey` | string | はい | Exa AI APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `research` | array | 引用と要約を含む包括的な調査結果 |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `exa`

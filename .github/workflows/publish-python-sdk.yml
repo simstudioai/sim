@@ -8,7 +8,7 @@ on:
 
 jobs:
   publish-pypi:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -84,6 +84,6 @@ jobs:
             ```
             
             ### Documentation
-            See the [README](https://github.com/simstudio/sim/tree/main/packages/python-sdk) for usage instructions.
+            See the [README](https://github.com/simstudioai/sim/tree/main/packages/python-sdk) or the [docs](https://docs.sim.ai/sdks/python) for more information.
           draft: false
           prerelease: false 

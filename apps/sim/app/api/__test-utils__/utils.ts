@@ -97,7 +97,6 @@ export const sampleWorkflowState = {
       },
       enabled: true,
       horizontalHandles: true,
-      isWide: false,
       advancedMode: false,
       triggerMode: false,
       height: 95,
@@ -126,7 +125,6 @@ export const sampleWorkflowState = {
       },
       enabled: true,
       horizontalHandles: true,
-      isWide: false,
       advancedMode: false,
       triggerMode: false,
       height: 680,
@@ -147,20 +145,63 @@ export const sampleWorkflowState = {
   isDeployed: false,
 }
 
+// Global mock data that can be configured by tests
+export const globalMockData = {
+  webhooks: [] as any[],
+  workflows: [] as any[],
+  schedules: [] as any[],
+  shouldThrowError: false,
+  errorMessage: 'Database error',
+}
+
 export const mockDb = {
-  select: vi.fn().mockImplementation(() => ({
-    from: vi.fn().mockImplementation(() => ({
-      where: vi.fn().mockImplementation(() => ({
-        limit: vi.fn().mockImplementation(() => [
-          {
-            id: 'workflow-id',
-            userId: 'user-id',
-            state: sampleWorkflowState,
-          },
-        ]),
+  select: vi.fn().mockImplementation(() => {
+    if (globalMockData.shouldThrowError) {
+      throw new Error(globalMockData.errorMessage)
+    }
+    return {
+      from: vi.fn().mockImplementation(() => ({
+        innerJoin: vi.fn().mockImplementation(() => ({
+          where: vi.fn().mockImplementation(() => ({
+            limit: vi.fn().mockImplementation(() => {
+              // Return webhook/workflow join data if available
+              if (globalMockData.webhooks.length > 0) {
+                return [
+                  {
+                    webhook: globalMockData.webhooks[0],
+                    workflow: globalMockData.workflows[0] || {
+                      id: 'test-workflow',
+                      userId: 'test-user',
+                    },
+                  },
+                ]
+              }
+              return []
+            }),
+          })),
+        })),
+        where: vi.fn().mockImplementation(() => ({
+          limit: vi.fn().mockImplementation(() => {
+            // Return schedules if available
+            if (globalMockData.schedules.length > 0) {
+              return globalMockData.schedules
+            }
+            // Return simple workflow data
+            if (globalMockData.workflows.length > 0) {
+              return globalMockData.workflows
+            }
+            return [
+              {
+                id: 'workflow-id',
+                userId: 'user-id',
+                state: sampleWorkflowState,
+              },
+            ]
+          }),
+        })),
       })),
-    })),
-  })),
+    }
+  }),
   update: vi.fn().mockImplementation(() => ({
     set: vi.fn().mockImplementation(() => ({
       where: vi.fn().mockResolvedValue([]),
@@ -264,24 +305,20 @@ export function createMockRequest(
 }
 
 export function mockExecutionDependencies() {
-  vi.mock('@/lib/utils', async () => {
-    const actual = await vi.importActual('@/lib/utils')
-    return {
-      ...(actual as any),
-      decryptSecret: vi.fn().mockImplementation((encrypted: string) => {
-        const entries = Object.entries(mockEnvironmentVars)
-        const found = entries.find(([_, val]) => val === encrypted)
-        const key = found ? found[0] : null
+  vi.mock('@/lib/core/security/encryption', () => ({
+    decryptSecret: vi.fn().mockImplementation((encrypted: string) => {
+      const entries = Object.entries(mockEnvironmentVars)
+      const found = entries.find(([_, val]) => val === encrypted)
+      const key = found ? found[0] : null
 
-        return Promise.resolve({
-          decrypted:
-            key && key in mockDecryptedEnvVars
-              ? mockDecryptedEnvVars[key as keyof typeof mockDecryptedEnvVars]
-              : 'decrypted-value',
-        })
-      }),
-    }
-  })
+      return Promise.resolve({
+        decrypted:
+          key && key in mockDecryptedEnvVars
+            ? mockDecryptedEnvVars[key as keyof typeof mockDecryptedEnvVars]
+            : 'decrypted-value',
+      })
+    }),
+  }))
 
   vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
     buildTraceSpans: vi.fn().mockReturnValue({
@@ -349,8 +386,44 @@ export function mockExecutionDependencies() {
     })),
   }))
 
-  vi.mock('@/db', () => ({
+  vi.mock('@sim/db', () => ({
     db: mockDb,
+    // Add common schema exports that tests might need
+    webhook: {
+      id: 'id',
+      path: 'path',
+      workflowId: 'workflowId',
+      isActive: 'isActive',
+      provider: 'provider',
+      providerConfig: 'providerConfig',
+    },
+    workflow: {
+      id: 'id',
+      userId: 'userId',
+    },
+    workflowSchedule: {
+      id: 'id',
+      workflowId: 'workflowId',
+      nextRunAt: 'nextRunAt',
+      status: 'status',
+    },
+    userStats: {
+      userId: 'userId',
+      totalScheduledExecutions: 'totalScheduledExecutions',
+      lastActive: 'lastActive',
+    },
+  }))
+}
+
+/**
+ * Mock Trigger.dev SDK (tasks.trigger and task factory) for tests that import background modules
+ */
+export function mockTriggerDevSdk() {
+  vi.mock('@trigger.dev/sdk', () => ({
+    tasks: {
+      trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }),
+    },
+    task: vi.fn().mockReturnValue({}),
   }))
 }
 
@@ -378,15 +451,15 @@ export function mockWorkflowAccessValidation(shouldSucceed = true) {
 }
 
 export async function getMockedDependencies() {
-  const utilsModule = await import('@/lib/utils')
+  const encryptionModule = await import('@/lib/core/security/encryption')
   const traceSpansModule = await import('@/lib/logs/execution/trace-spans/trace-spans')
   const workflowUtilsModule = await import('@/lib/workflows/utils')
   const executorModule = await import('@/executor')
   const serializerModule = await import('@/serializer')
-  const dbModule = await import('@/db')
+  const dbModule = await import('@sim/db')
 
   return {
-    decryptSecret: utilsModule.decryptSecret,
+    decryptSecret: encryptionModule.decryptSecret,
     buildTraceSpans: traceSpansModule.buildTraceSpans,
     updateWorkflowRunCounts: workflowUtilsModule.updateWorkflowRunCounts,
     Executor: executorModule.Executor,
@@ -416,7 +489,7 @@ export function mockScheduleStatusDb({
   schedule?: any[]
   workflow?: any[]
 } = {}) {
-  vi.doMock('@/db', () => {
+  vi.doMock('@sim/db', () => {
     let callCount = 0
 
     const select = vi.fn().mockImplementation(() => ({
@@ -457,7 +530,7 @@ export function mockScheduleExecuteDb({
   workflowRecord?: any
   envRecord?: any
 }): void {
-  vi.doMock('@/db', () => {
+  vi.doMock('@sim/db', () => {
     const select = vi.fn().mockImplementation(() => ({
       from: vi.fn().mockImplementation((table: any) => {
         const tbl = String(table)
@@ -532,7 +605,7 @@ export function mockAuth(user: MockUser = mockUser): MockAuthResult {
  * Mock common schema patterns
  */
 export function mockCommonSchemas() {
-  vi.doMock('@/db/schema', () => ({
+  vi.doMock('@sim/db/schema', () => ({
     workflowFolder: {
       id: 'id',
       userId: 'userId',
@@ -585,7 +658,7 @@ export function mockDrizzleOrm() {
  * Mock knowledge-related database schemas
  */
 export function mockKnowledgeSchemas() {
-  vi.doMock('@/db/schema', () => ({
+  vi.doMock('@sim/db/schema', () => ({
     knowledgeBase: {
       id: 'kb_id',
       userId: 'user_id',
@@ -724,7 +797,7 @@ export function mockFileSystem(
 export function mockEncryption(options: { encryptedValue?: string; decryptedValue?: string } = {}) {
   const { encryptedValue = 'encrypted-value', decryptedValue = 'decrypted-value' } = options
 
-  vi.doMock('@/lib/utils', () => ({
+  vi.doMock('@/lib/core/security/encryption', () => ({
     encryptSecret: vi.fn().mockResolvedValue({ encrypted: encryptedValue }),
     decryptSecret: vi.fn().mockResolvedValue({ decrypted: decryptedValue }),
   }))
@@ -755,62 +828,121 @@ export function createStorageProviderMocks(options: StorageProviderMockOptions =
     uploadHeaders = {},
   } = options
 
-  // Ensure UUID is mocked
   mockUuid('mock-uuid-1234')
   mockCryptoUuid('mock-uuid-1234-5678')
 
-  // Base upload utilities
+  const uploadFileMock = vi.fn().mockResolvedValue({
+    path: '/api/files/serve/test-key.txt',
+    key: 'test-key.txt',
+    name: 'test.txt',
+    size: 100,
+    type: 'text/plain',
+  })
+  const downloadFileMock = vi.fn().mockResolvedValue(Buffer.from('test content'))
+  const deleteFileMock = vi.fn().mockResolvedValue(undefined)
+  const hasCloudStorageMock = vi.fn().mockReturnValue(isCloudEnabled)
+
+  const generatePresignedUploadUrlMock = vi.fn().mockImplementation((params: any) => {
+    const { fileName, context } = params
+    const timestamp = Date.now()
+    const random = Math.random().toString(36).substring(2, 9)
+
+    let key = ''
+    if (context === 'knowledge-base') {
+      key = `kb/${timestamp}-${random}-${fileName}`
+    } else if (context === 'chat') {
+      key = `chat/${timestamp}-${random}-${fileName}`
+    } else if (context === 'copilot') {
+      key = `copilot/${timestamp}-${random}-${fileName}`
+    } else if (context === 'workspace') {
+      key = `workspace/${timestamp}-${random}-${fileName}`
+    } else {
+      key = `${timestamp}-${random}-${fileName}`
+    }
+
+    return Promise.resolve({
+      url: presignedUrl,
+      key,
+      uploadHeaders: uploadHeaders,
+    })
+  })
+
+  const generatePresignedDownloadUrlMock = vi.fn().mockResolvedValue(presignedUrl)
+
   vi.doMock('@/lib/uploads', () => ({
     getStorageProvider: vi.fn().mockReturnValue(provider),
     isUsingCloudStorage: vi.fn().mockReturnValue(isCloudEnabled),
-    uploadFile: vi.fn().mockResolvedValue({
-      path: '/api/files/serve/test-key.txt',
-      key: 'test-key.txt',
-      name: 'test.txt',
-      size: 100,
-      type: 'text/plain',
-    }),
-    downloadFile: vi.fn().mockResolvedValue(Buffer.from('test content')),
-    deleteFile: vi.fn().mockResolvedValue(undefined),
+    StorageService: {
+      uploadFile: uploadFileMock,
+      downloadFile: downloadFileMock,
+      deleteFile: deleteFileMock,
+      hasCloudStorage: hasCloudStorageMock,
+      generatePresignedUploadUrl: generatePresignedUploadUrlMock,
+      generatePresignedDownloadUrl: generatePresignedDownloadUrlMock,
+    },
+    uploadFile: uploadFileMock,
+    downloadFile: downloadFileMock,
+    deleteFile: deleteFileMock,
     getPresignedUrl: vi.fn().mockResolvedValue(presignedUrl),
+    hasCloudStorage: hasCloudStorageMock,
+    generatePresignedDownloadUrl: generatePresignedDownloadUrlMock,
+  }))
+
+  vi.doMock('@/lib/uploads/core/storage-service', () => ({
+    uploadFile: uploadFileMock,
+    downloadFile: downloadFileMock,
+    deleteFile: deleteFileMock,
+    hasCloudStorage: hasCloudStorageMock,
+    generatePresignedUploadUrl: generatePresignedUploadUrlMock,
+    generatePresignedDownloadUrl: generatePresignedDownloadUrlMock,
+    StorageService: {
+      uploadFile: uploadFileMock,
+      downloadFile: downloadFileMock,
+      deleteFile: deleteFileMock,
+      hasCloudStorage: hasCloudStorageMock,
+      generatePresignedUploadUrl: generatePresignedUploadUrlMock,
+      generatePresignedDownloadUrl: generatePresignedDownloadUrlMock,
+    },
+  }))
+
+  vi.doMock('@/lib/uploads/config', () => ({
+    USE_S3_STORAGE: provider === 's3',
+    USE_BLOB_STORAGE: provider === 'blob',
+    USE_LOCAL_STORAGE: provider === 'local',
+    getStorageProvider: vi.fn().mockReturnValue(provider),
+    S3_CONFIG: {
+      bucket: 'test-s3-bucket',
+      region: 'us-east-1',
+    },
+    S3_KB_CONFIG: {
+      bucket: 'test-s3-kb-bucket',
+      region: 'us-east-1',
+    },
+    S3_CHAT_CONFIG: {
+      bucket: 'test-s3-chat-bucket',
+      region: 'us-east-1',
+    },
+    BLOB_CONFIG: {
+      accountName: 'testaccount',
+      accountKey: 'testkey',
+      containerName: 'test-container',
+    },
+    BLOB_KB_CONFIG: {
+      accountName: 'testaccount',
+      accountKey: 'testkey',
+      containerName: 'test-kb-container',
+    },
+    BLOB_CHAT_CONFIG: {
+      accountName: 'testaccount',
+      accountKey: 'testkey',
+      containerName: 'test-chat-container',
+    },
   }))
 
   if (provider === 's3') {
-    vi.doMock('@/lib/uploads/s3/s3-client', () => ({
+    vi.doMock('@/lib/uploads/providers/s3/client', () => ({
       getS3Client: vi.fn().mockReturnValue({}),
-      sanitizeFilenameForMetadata: vi.fn((filename) => filename),
     }))
-
-    vi.doMock('@/lib/uploads/setup', () => ({
-      S3_CONFIG: {
-        bucket: 'test-s3-bucket',
-        region: 'us-east-1',
-      },
-      S3_KB_CONFIG: {
-        bucket: 'test-s3-kb-bucket',
-        region: 'us-east-1',
-      },
-      S3_CHAT_CONFIG: {
-        bucket: 'test-s3-chat-bucket',
-        region: 'us-east-1',
-      },
-      BLOB_CONFIG: {
-        accountName: 'testaccount',
-        accountKey: 'testkey',
-        containerName: 'test-container',
-      },
-      BLOB_KB_CONFIG: {
-        accountName: 'testaccount',
-        accountKey: 'testkey',
-        containerName: 'test-kb-container',
-      },
-      BLOB_CHAT_CONFIG: {
-        accountName: 'testaccount',
-        accountKey: 'testkey',
-        containerName: 'test-chat-container',
-      },
-    }))
-
     vi.doMock('@aws-sdk/client-s3', () => ({
       PutObjectCommand: vi.fn(),
     }))
@@ -840,29 +972,9 @@ export function createStorageProviderMocks(options: StorageProviderMockOptions =
       }),
     }
 
-    vi.doMock('@/lib/uploads/blob/blob-client', () => ({
+    vi.doMock('@/lib/uploads/providers/blob/client', () => ({
       getBlobServiceClient: vi.fn().mockReturnValue(mockBlobServiceClient),
-      sanitizeFilenameForMetadata: vi.fn((filename) => filename),
     }))
-
-    vi.doMock('@/lib/uploads/setup', () => ({
-      BLOB_CONFIG: {
-        accountName: 'testaccount',
-        accountKey: 'testkey',
-        containerName: 'test-container',
-      },
-      BLOB_KB_CONFIG: {
-        accountName: 'testaccount',
-        accountKey: 'testkey',
-        containerName: 'test-kb-container',
-      },
-      BLOB_CHAT_CONFIG: {
-        accountName: 'testaccount',
-        accountKey: 'testkey',
-        containerName: 'test-chat-container',
-      },
-    }))
-
     vi.doMock('@azure/storage-blob', () => ({
       BlobSASPermissions: {
         parse: vi.fn(() => 'w'),
@@ -932,12 +1044,10 @@ export interface TestSetupOptions {
 export function setupComprehensiveTestMocks(options: TestSetupOptions = {}) {
   const { auth = { authenticated: true }, database = {}, storage, authApi, features = {} } = options
 
-  // Setup basic infrastructure mocks
   setupCommonApiMocks()
   mockUuid()
   mockCryptoUuid()
 
-  // Setup authentication
   const authMocks = mockAuth(auth.user)
   if (auth.authenticated) {
     authMocks.setAuthenticated(auth.user)
@@ -945,22 +1055,18 @@ export function setupComprehensiveTestMocks(options: TestSetupOptions = {}) {
     authMocks.setUnauthenticated()
   }
 
-  // Setup database
   const dbMocks = createMockDatabase(database)
 
-  // Setup storage if needed
   let storageMocks
   if (storage) {
     storageMocks = createStorageProviderMocks(storage)
   }
 
-  // Setup auth API if needed
   let authApiMocks
   if (authApi) {
     authApiMocks = createAuthApiMocks(authApi)
   }
 
-  // Setup feature-specific mocks
   const featureMocks: any = {}
   if (features.workflowUtils) {
     featureMocks.workflowUtils = mockWorkflowUtils()
@@ -996,12 +1102,10 @@ export function createMockDatabase(options: MockDatabaseOptions = {}) {
 
   let selectCallCount = 0
 
-  // Helper to create error
   const createDbError = (operation: string, message?: string) => {
     return new Error(message || `Database ${operation} error`)
   }
 
-  // Create chainable select mock
   const createSelectChain = () => ({
     from: vi.fn().mockReturnThis(),
     leftJoin: vi.fn().mockReturnThis(),
@@ -1026,7 +1130,6 @@ export function createMockDatabase(options: MockDatabaseOptions = {}) {
     }),
   })
 
-  // Create insert chain
   const createInsertChain = () => ({
     values: vi.fn().mockImplementation(() => ({
       returning: vi.fn().mockImplementation(() => {
@@ -1044,19 +1147,25 @@ export function createMockDatabase(options: MockDatabaseOptions = {}) {
     })),
   })
 
-  // Create update chain
   const createUpdateChain = () => ({
     set: vi.fn().mockImplementation(() => ({
-      where: vi.fn().mockImplementation(() => {
-        if (updateOptions.throwError) {
-          return Promise.reject(createDbError('update', updateOptions.errorMessage))
-        }
-        return Promise.resolve(updateOptions.results)
-      }),
+      where: vi.fn().mockImplementation(() => ({
+        returning: vi.fn().mockImplementation(() => {
+          if (updateOptions.throwError) {
+            return Promise.reject(createDbError('update', updateOptions.errorMessage))
+          }
+          return Promise.resolve(updateOptions.results)
+        }),
+        then: vi.fn().mockImplementation((resolve) => {
+          if (updateOptions.throwError) {
+            return Promise.reject(createDbError('update', updateOptions.errorMessage))
+          }
+          return Promise.resolve(updateOptions.results).then(resolve)
+        }),
+      })),
     })),
   })
 
-  // Create delete chain
   const createDeleteChain = () => ({
     where: vi.fn().mockImplementation(() => {
       if (deleteOptions.throwError) {
@@ -1066,7 +1175,6 @@ export function createMockDatabase(options: MockDatabaseOptions = {}) {
     }),
   })
 
-  // Create transaction mock
   const createTransactionMock = () => {
     return vi.fn().mockImplementation(async (callback: any) => {
       if (transactionOptions.throwError) {
@@ -1091,7 +1199,7 @@ export function createMockDatabase(options: MockDatabaseOptions = {}) {
     transaction: createTransactionMock(),
   }
 
-  vi.doMock('@/db', () => ({ db: mockDb }))
+  vi.doMock('@sim/db', () => ({ db: mockDb }))
 
   return {
     mockDb,
@@ -1188,7 +1296,6 @@ export function setupKnowledgeMocks(
     mocks.generateEmbedding = vi.fn().mockResolvedValue([0.1, 0.2, 0.3])
   }
 
-  // Mock the knowledge utilities
   vi.doMock('@/app/api/knowledge/utils', () => mocks)
 
   return mocks
@@ -1206,12 +1313,10 @@ export function setupFileApiMocks(
 ) {
   const { authenticated = true, storageProvider = 's3', cloudEnabled = true } = options
 
-  // Setup basic mocks
   setupCommonApiMocks()
   mockUuid()
   mockCryptoUuid()
 
-  // Setup auth
   const authMocks = mockAuth()
   if (authenticated) {
     authMocks.setAuthenticated()
@@ -1219,14 +1324,44 @@ export function setupFileApiMocks(
     authMocks.setUnauthenticated()
   }
 
-  // Setup file system mocks
+  vi.doMock('@/lib/auth/hybrid', () => ({
+    checkHybridAuth: vi.fn().mockResolvedValue({
+      success: authenticated,
+      userId: authenticated ? 'test-user-id' : undefined,
+      error: authenticated ? undefined : 'Unauthorized',
+    }),
+  }))
+
+  vi.doMock('@/app/api/files/authorization', () => ({
+    verifyFileAccess: vi.fn().mockResolvedValue(true),
+    verifyWorkspaceFileAccess: vi.fn().mockResolvedValue(true),
+    verifyKBFileAccess: vi.fn().mockResolvedValue(true),
+    verifyCopilotFileAccess: vi.fn().mockResolvedValue(true),
+    lookupWorkspaceFileByKey: vi.fn().mockResolvedValue({
+      workspaceId: 'test-workspace-id',
+      uploadedBy: 'test-user-id',
+    }),
+  }))
+
+  vi.doMock('@/lib/uploads/contexts/workspace', () => ({
+    uploadWorkspaceFile: vi.fn().mockResolvedValue({
+      id: 'test-file-id',
+      name: 'test.txt',
+      url: '/api/files/serve/workspace/test-workspace-id/test-file.txt',
+      size: 100,
+      type: 'text/plain',
+      key: 'workspace/test-workspace-id/1234567890-test.txt',
+      uploadedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    }),
+  }))
+
   mockFileSystem({
     writeFileSuccess: true,
     readFileContent: 'test content',
     existsResult: true,
   })
 
-  // Setup storage provider mocks (this will mock @/lib/uploads)
   let storageMocks
   if (storageProvider) {
     storageMocks = createStorageProviderMocks({
@@ -1234,20 +1369,38 @@ export function setupFileApiMocks(
       isCloudEnabled: cloudEnabled,
     })
   } else {
-    // If no storage provider specified, just mock the base functions
+    const uploadFileMock = vi.fn().mockResolvedValue({
+      path: '/api/files/serve/test-key.txt',
+      key: 'test-key.txt',
+      name: 'test.txt',
+      size: 100,
+      type: 'text/plain',
+    })
+    const downloadFileMock = vi.fn().mockResolvedValue(Buffer.from('test content'))
+    const deleteFileMock = vi.fn().mockResolvedValue(undefined)
+    const hasCloudStorageMock = vi.fn().mockReturnValue(cloudEnabled)
+
     vi.doMock('@/lib/uploads', () => ({
       getStorageProvider: vi.fn().mockReturnValue('local'),
       isUsingCloudStorage: vi.fn().mockReturnValue(cloudEnabled),
-      uploadFile: vi.fn().mockResolvedValue({
-        path: '/api/files/serve/test-key.txt',
-        key: 'test-key.txt',
-        name: 'test.txt',
-        size: 100,
-        type: 'text/plain',
-      }),
-      downloadFile: vi.fn().mockResolvedValue(Buffer.from('test content')),
-      deleteFile: vi.fn().mockResolvedValue(undefined),
+      StorageService: {
+        uploadFile: uploadFileMock,
+        downloadFile: downloadFileMock,
+        deleteFile: deleteFileMock,
+        hasCloudStorage: hasCloudStorageMock,
+        generatePresignedUploadUrl: vi.fn().mockResolvedValue({
+          presignedUrl: 'https://example.com/presigned-url',
+          key: 'test-key.txt',
+        }),
+        generatePresignedDownloadUrl: vi
+          .fn()
+          .mockResolvedValue('https://example.com/presigned-url'),
+      },
+      uploadFile: uploadFileMock,
+      downloadFile: downloadFileMock,
+      deleteFile: deleteFileMock,
       getPresignedUrl: vi.fn().mockResolvedValue('https://example.com/presigned-url'),
+      hasCloudStorage: hasCloudStorageMock,
     }))
   }
 
@@ -1295,24 +1448,6 @@ export function setupKnowledgeApiMocks(
   }
 }
 
-// Legacy functions for backward compatibility (DO NOT REMOVE - still used in tests)
-
-/**
- * @deprecated Use mockAuth instead - provides same functionality with improved interface
- */
-export function mockAuthSession(isAuthenticated = true, user: MockUser = mockUser) {
-  const authMocks = mockAuth(user)
-  if (isAuthenticated) {
-    authMocks.setAuthenticated(user)
-  } else {
-    authMocks.setUnauthenticated()
-  }
-  return authMocks
-}
-
-/**
- * @deprecated Use setupComprehensiveTestMocks instead - provides better organization and features
- */
 export function setupApiTestMocks(
   options: {
     authenticated?: boolean
@@ -1343,9 +1478,6 @@ export function setupApiTestMocks(
   })
 }
 
-/**
- * @deprecated Use createStorageProviderMocks instead
- */
 export function mockUploadUtils(
   options: { isCloudStorage?: boolean; uploadResult?: any; uploadError?: boolean } = {}
 ) {
@@ -1361,21 +1493,28 @@ export function mockUploadUtils(
     uploadError = false,
   } = options
 
+  const uploadFileMock = vi.fn().mockImplementation(() => {
+    if (uploadError) {
+      return Promise.reject(new Error('Upload failed'))
+    }
+    return Promise.resolve(uploadResult)
+  })
+
   vi.doMock('@/lib/uploads', () => ({
-    uploadFile: vi.fn().mockImplementation(() => {
-      if (uploadError) {
-        return Promise.reject(new Error('Upload failed'))
-      }
-      return Promise.resolve(uploadResult)
-    }),
+    StorageService: {
+      uploadFile: uploadFileMock,
+      downloadFile: vi.fn().mockResolvedValue(Buffer.from('test content')),
+      deleteFile: vi.fn().mockResolvedValue(undefined),
+      hasCloudStorage: vi.fn().mockReturnValue(isCloudStorage),
+    },
+    uploadFile: uploadFileMock,
     isUsingCloudStorage: vi.fn().mockReturnValue(isCloudStorage),
   }))
 
-  vi.doMock('@/lib/uploads/setup', () => ({
+  vi.doMock('@/lib/uploads/config', () => ({
     UPLOAD_DIR: '/test/uploads',
     USE_S3_STORAGE: isCloudStorage,
     USE_BLOB_STORAGE: false,
-    ensureUploadsDirectory: vi.fn().mockResolvedValue(true),
     S3_CONFIG: {
       bucket: 'test-bucket',
       region: 'test-region',
@@ -1383,10 +1522,6 @@ export function mockUploadUtils(
   }))
 }
 
-/**
- * Create a mock transaction function for database testing
- * @deprecated Use createMockDatabase instead
- */
 export function createMockTransaction(
   mockData: {
     selectData?: DatabaseSelectResult[]

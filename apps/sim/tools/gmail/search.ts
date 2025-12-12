@@ -1,3 +1,4 @@
+import { createLogger } from '@/lib/logs/console/logger'
 import type { GmailSearchParams, GmailToolResponse } from '@/tools/gmail/types'
 import {
   createMessagesSummary,
@@ -5,6 +6,8 @@ import {
   processMessageForSummary,
 } from '@/tools/gmail/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('GmailSearchTool')
 
 export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> = {
   id: 'gmail_search',
@@ -15,7 +18,6 @@ export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> =
   oauth: {
     required: true,
     provider: 'google-email',
-    additionalScopes: ['https://www.googleapis.com/auth/gmail.labels'],
   },
 
   params: {
@@ -44,7 +46,7 @@ export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> =
       const searchParams = new URLSearchParams()
       searchParams.append('q', params.query)
       if (params.maxResults) {
-        searchParams.append('maxResults', params.maxResults.toString())
+        searchParams.append('maxResults', Number(params.maxResults).toString())
       }
       return `${GMAIL_API_BASE}/messages?${searchParams.toString()}`
     },
@@ -109,7 +111,7 @@ export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> =
         },
       }
     } catch (error: any) {
-      console.error('Error fetching message details:', error)
+      logger.error('Error fetching message details:', error)
       return {
         success: true,
         output: {

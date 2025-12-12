@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { validateNumericId } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
 
 interface DiscordServer {
@@ -20,11 +21,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Bot token is required' }, { status: 400 })
     }
 
-    // If serverId is provided, we'll fetch just that server
     if (serverId) {
+      const serverIdValidation = validateNumericId(serverId, 'serverId')
+      if (!serverIdValidation.isValid) {
+        logger.error(`Invalid server ID: ${serverIdValidation.error}`)
+        return NextResponse.json({ error: serverIdValidation.error }, { status: 400 })
+      }
+
       logger.info(`Fetching single Discord server: ${serverId}`)
 
-      // Fetch a specific server by ID
       const response = await fetch(`https://discord.com/api/v10/guilds/${serverId}`, {
         method: 'GET',
         headers: {
@@ -64,46 +69,10 @@ export async function POST(request: Request) {
       })
     }
 
-    // Otherwise, fetch all servers the bot is in
-    logger.info('Fetching all Discord servers')
-
-    const response = await fetch('https://discord.com/api/v10/users/@me/guilds', {
-      method: 'GET',
-      headers: {
-        Authorization: `Bot ${botToken}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      logger.error('Discord API error:', {
-        status: response.status,
-        statusText: response.statusText,
-      })
-
-      let errorMessage
-      try {
-        const errorData = await response.json()
-        logger.error('Error details:', errorData)
-        errorMessage = errorData.message || `Failed to fetch servers (${response.status})`
-      } catch (_e) {
-        errorMessage = `Failed to fetch servers: ${response.status} ${response.statusText}`
-      }
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
-    }
-
-    const servers = (await response.json()) as DiscordServer[]
-    logger.info(`Successfully fetched ${servers.length} servers`)
-
-    return NextResponse.json({
-      servers: servers.map((server: DiscordServer) => ({
-        id: server.id,
-        name: server.name,
-        icon: server.icon
-          ? `https://cdn.discordapp.com/icons/${server.id}/${server.icon}.png`
-          : null,
-      })),
-    })
+    logger.info(
+      'Skipping guild listing: bot token cannot list /users/@me/guilds; returning empty list'
+    )
+    return NextResponse.json({ servers: [] })
   } catch (error) {
     logger.error('Error processing request:', error)
     return NextResponse.json(

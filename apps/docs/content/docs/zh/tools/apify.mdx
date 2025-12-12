@@ -1,0 +1,89 @@
+---
+title: Apify
+description: 运行 Apify actor 并获取结果
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="apify"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Apify](https://apify.com/) 是一个强大的平台，用于大规模构建、部署和运行网页自动化和网页抓取 actor。Apify 使您能够从任何网站提取有用的数据，自动化工作流程，并无缝连接您的数据管道。
+
+使用 Apify，您可以：
+
+- **运行现成或自定义的 actor**：集成公共 actor 或开发您自己的，自动化各种网页数据提取和浏览器任务。
+- **获取数据集**：实时访问和管理由 actor 收集的结构化数据集。
+- **扩展网页自动化**：利用云基础设施可靠地运行任务，可以异步或同步运行，并具有强大的错误处理能力。
+
+在 Sim 中，Apify 集成允许您的代理以编程方式执行核心 Apify 操作：
+
+- **运行 Actor（同步）**：使用 `apify_run_actor_sync` 启动一个 Apify actor 并等待其完成，在运行结束后立即获取结果。
+- **运行 Actor（异步）**：使用 `apify_run_actor_async` 在后台启动一个 actor 并定期轮询结果，适用于较长或复杂的任务。
+
+这些操作使您的代理能够直接在工作流程中自动化、抓取和协调数据收集或浏览器自动化任务——所有这些都具有灵活的配置和结果处理，无需手动运行或外部工具。将 Apify 集成为一个动态的自动化和数据提取引擎，以编程方式为您的代理提供网页规模的工作流程支持。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Apify 集成到您的工作流程中。使用自定义输入运行任何 Apify actor 并获取结果。支持同步和异步执行，并自动获取数据集。
+
+## 工具
+
+### `apify_run_actor_sync`
+
+同步运行 APIFY actor 并获取结果（最长 5 分钟）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | 来自 console.apify.com/account#/integrations 的 APIFY API 令牌 |
+| `actorId` | string | 是 | Actor ID 或用户名/actor 名称 \(例如："janedoe/my-actor" 或 actor ID\) |
+| `input` | string | 否 | 作为 JSON 字符串的 actor 输入。请参阅 actor 文档以了解所需字段。 |
+| `timeout` | number | 否 | 超时时间（秒）\(默认：actor 默认值\) |
+| `build` | string | 否 | 要运行的 actor 构建版本 \(例如："latest"、"beta" 或构建标签/编号\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | actor 运行是否成功 |
+| `runId` | string | APIFY 运行 ID |
+| `status` | string | 运行状态 \(SUCCEEDED, FAILED 等\) |
+| `datasetId` | string | 包含结果的数据集 ID |
+| `items` | array | 数据集条目 \(如果已完成\) |
+
+### `apify_run_actor_async`
+
+异步运行 APIFY actor 并轮询长时间运行的任务
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | 来自 console.apify.com/account#/integrations 的 APIFY API 令牌 |
+| `actorId` | string | 是 | Actor ID 或用户名/actor 名称 \(例如："janedoe/my-actor" 或 actor ID\) |
+| `input` | string | 否 | 作为 JSON 字符串的 actor 输入 |
+| `waitForFinish` | number | 否 | 轮询开始前的初始等待时间（秒）\(0-60\) |
+| `itemLimit` | number | 否 | 要获取的最大数据集条目数 \(1-250000，默认 100\) |
+| `timeout` | number | 否 | 超时时间（秒）\(默认：actor 默认值\) |
+| `build` | string | 否 | 要运行的 actor 构建版本 \(例如："latest"、"beta" 或构建标签/编号\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | actor 运行是否成功 |
+| `runId` | string | APIFY 运行 ID |
+| `status` | string | 运行状态 \(SUCCEEDED, FAILED 等\) |
+| `datasetId` | string | 包含结果的数据集 ID |
+| `items` | array | 数据集条目 \(如果已完成\) |
+
+## 注意
+
+- 类别: `tools`
+- 类型: `apify`

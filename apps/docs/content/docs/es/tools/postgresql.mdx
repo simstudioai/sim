@@ -1,0 +1,160 @@
+---
+title: PostgreSQL
+description: Conectar a base de datos PostgreSQL
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="postgresql"
+  color="#336791"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+La herramienta [PostgreSQL](https://www.postgresql.org/) te permite conectarte a cualquier base de datos PostgreSQL y realizar una amplia gama de operaciones directamente dentro de tus flujos de trabajo con agentes. Con manejo seguro de conexiones y configuración flexible, puedes gestionar e interactuar fácilmente con tus datos.
+
+Con la herramienta PostgreSQL, puedes:
+
+- **Consultar datos**: Ejecutar consultas SELECT para recuperar datos de tus tablas PostgreSQL usando la operación `postgresql_query`.
+- **Insertar registros**: Añadir nuevas filas a tus tablas con la operación `postgresql_insert` especificando la tabla y los datos a insertar.
+- **Actualizar registros**: Modificar datos existentes en tus tablas usando la operación `postgresql_update`, proporcionando la tabla, los nuevos datos y las condiciones WHERE.
+- **Eliminar registros**: Eliminar filas de tus tablas con la operación `postgresql_delete`, especificando la tabla y las condiciones WHERE.
+- **Ejecutar SQL personalizado**: Ejecutar cualquier comando SQL personalizado usando la operación `postgresql_execute` para casos de uso avanzados.
+
+La herramienta PostgreSQL es ideal para escenarios donde tus agentes necesitan interactuar con datos estructurados, como automatizar informes, sincronizar datos entre sistemas o potenciar flujos de trabajo basados en datos. Simplifica el acceso a la base de datos, facilitando la lectura, escritura y gestión de tus datos PostgreSQL de forma programática.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra PostgreSQL en el flujo de trabajo. Puede consultar, insertar, actualizar, eliminar y ejecutar SQL sin procesar.
+
+## Herramientas
+
+### `postgresql_query`
+
+Ejecutar una consulta SELECT en la base de datos PostgreSQL
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `host` | string | Sí | Nombre de host o dirección IP del servidor PostgreSQL |
+| `port` | number | Sí | Puerto del servidor PostgreSQL \(predeterminado: 5432\) |
+| `database` | string | Sí | Nombre de la base de datos a la que conectarse |
+| `username` | string | Sí | Nombre de usuario de la base de datos |
+| `password` | string | Sí | Contraseña de la base de datos |
+| `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
+| `query` | string | Sí | Consulta SQL SELECT a ejecutar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `rows` | array | Array de filas devueltas por la consulta |
+| `rowCount` | number | Número de filas devueltas |
+
+### `postgresql_insert`
+
+Insertar datos en la base de datos PostgreSQL
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Sí | Nombre de host o dirección IP del servidor PostgreSQL |
+| `port` | number | Sí | Puerto del servidor PostgreSQL \(predeterminado: 5432\) |
+| `database` | string | Sí | Nombre de la base de datos a la que conectarse |
+| `username` | string | Sí | Nombre de usuario de la base de datos |
+| `password` | string | Sí | Contraseña de la base de datos |
+| `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
+| `table` | string | Sí | Nombre de la tabla donde insertar datos |
+| `data` | object | Sí | Objeto de datos a insertar \(pares clave-valor\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `rows` | array | Datos insertados \(si se usa la cláusula RETURNING\) |
+| `rowCount` | number | Número de filas insertadas |
+
+### `postgresql_update`
+
+Actualizar datos en la base de datos PostgreSQL
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Sí | Nombre de host o dirección IP del servidor PostgreSQL |
+| `port` | number | Sí | Puerto del servidor PostgreSQL \(predeterminado: 5432\) |
+| `database` | string | Sí | Nombre de la base de datos a la que conectarse |
+| `username` | string | Sí | Nombre de usuario de la base de datos |
+| `password` | string | Sí | Contraseña de la base de datos |
+| `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
+| `table` | string | Sí | Nombre de la tabla donde actualizar datos |
+| `data` | object | Sí | Objeto de datos con campos a actualizar \(pares clave-valor\) |
+| `where` | string | Sí | Condición de la cláusula WHERE \(sin la palabra clave WHERE\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `rows` | array | Datos actualizados \(si se usa la cláusula RETURNING\) |
+| `rowCount` | number | Número de filas actualizadas |
+
+### `postgresql_delete`
+
+Eliminar datos de la base de datos PostgreSQL
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Sí | Nombre de host o dirección IP del servidor PostgreSQL |
+| `port` | number | Sí | Puerto del servidor PostgreSQL \(predeterminado: 5432\) |
+| `database` | string | Sí | Nombre de la base de datos a la que conectarse |
+| `username` | string | Sí | Nombre de usuario de la base de datos |
+| `password` | string | Sí | Contraseña de la base de datos |
+| `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
+| `table` | string | Sí | Nombre de la tabla de la que eliminar datos |
+| `where` | string | Sí | Condición de la cláusula WHERE \(sin la palabra clave WHERE\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `rows` | array | Datos eliminados \(si se usa la cláusula RETURNING\) |
+| `rowCount` | number | Número de filas eliminadas |
+
+### `postgresql_execute`
+
+Ejecutar consulta SQL en bruto en la base de datos PostgreSQL
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Sí | Nombre de host o dirección IP del servidor PostgreSQL |
+| `port` | number | Sí | Puerto del servidor PostgreSQL \(predeterminado: 5432\) |
+| `database` | string | Sí | Nombre de la base de datos a la que conectarse |
+| `username` | string | Sí | Nombre de usuario de la base de datos |
+| `password` | string | Sí | Contraseña de la base de datos |
+| `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
+| `query` | string | Sí | Consulta SQL en bruto para ejecutar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `rows` | array | Array de filas devueltas por la consulta |
+| `rowCount` | number | Número de filas afectadas |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `postgresql`

@@ -1,0 +1,394 @@
+---
+title: SSH
+description: 通过 SSH 连接到远程服务器
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="ssh"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SSH（安全外壳协议）](https://en.wikipedia.org/wiki/Secure_Shell) 是一种广泛使用的协议，用于安全地连接到远程服务器，允许您通过加密通道执行命令、传输文件和管理系统。
+
+在 Sim 中支持 SSH 后，您的代理可以：
+
+- **执行远程命令**：在任何可通过 SSH 访问的服务器上运行 shell 命令
+- **上传并运行脚本**：轻松传输和执行多行脚本以实现高级自动化
+- **安全传输文件**：作为工作流的一部分上传和下载文件（即将推出或通过命令实现）
+- **自动化服务器管理**：以编程方式执行更新、维护、监控、部署和配置任务
+- **使用灵活的身份验证**：通过密码或私钥身份验证连接，包括对加密密钥的支持
+
+以下 Sim SSH 工具使您的代理能够作为更大自动化的一部分与服务器交互：
+
+- `ssh_execute_command`：远程运行任何单个 shell 命令并捕获输出、状态和错误。
+- `ssh_execute_script`：在远程系统上上传并执行完整的多行脚本。
+- （即将推出其他工具，例如文件传输。）
+
+通过将 SSH 集成到您的代理工作流中，您可以自动化安全访问、远程操作和服务器编排——简化 DevOps、IT 自动化和自定义远程管理，所有操作均可在 Sim 中完成。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+通过 SSH 执行命令、传输文件和管理远程服务器。支持密码和私钥身份验证以实现安全的服务器访问。
+
+## 工具
+
+### `ssh_execute_command`
+
+在远程 SSH 服务器上执行 shell 命令
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | SSH 服务器主机名或 IP 地址 |
+| `port` | number | 是 | SSH 服务器端口 \(默认：22\) |
+| `username` | string | 是 | SSH 用户名 |
+| `password` | string | 否 | 用于身份验证的密码 \(如果未使用私钥\) |
+| `privateKey` | string | 否 | 用于身份验证的私钥 \(OpenSSH 格式\) |
+| `passphrase` | string | 否 | 加密私钥的密码短语 |
+| `command` | string | 是 | 要在远程服务器上执行的 shell 命令 |
+| `workingDirectory` | string | 否 | 命令执行的工作目录 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `stdout` | string | 命令的标准输出 |
+| `stderr` | string | 标准错误输出 |
+| `exitCode` | number | 命令退出代码 |
+| `success` | boolean | 命令是否成功 \(退出代码为 0\) |
+| `message` | string | 操作状态消息 |
+
+### `ssh_execute_script`
+
+在远程 SSH 服务器上上传并执行多行脚本
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | SSH 服务器主机名或 IP 地址 |
+| `port` | number | 是 | SSH 服务器端口 \(默认值: 22\) |
+| `username` | string | 是 | SSH 用户名 |
+| `password` | string | 否 | 用于身份验证的密码 \(如果未使用私钥\) |
+| `privateKey` | string | 否 | 用于身份验证的私钥 \(OpenSSH 格式\) |
+| `passphrase` | string | 否 | 加密私钥的密码短语 |
+| `script` | string | 是 | 要执行的脚本内容 \(bash、python 等\) |
+| `interpreter` | string | 否 | 脚本解释器 \(默认值: /bin/bash\) |
+| `workingDirectory` | string | 否 | 脚本执行的工作目录 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `stdout` | string | 脚本的标准输出 |
+| `stderr` | string | 标准错误输出 |
+| `exitCode` | number | 脚本退出代码 |
+| `success` | boolean | 脚本是否成功 \(退出代码为 0\) |
+| `scriptPath` | string | 脚本上传的临时路径 |
+| `message` | string | 操作状态消息 |
+
+### `ssh_check_command_exists`
+
+检查远程 SSH 服务器上是否存在命令/程序
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | SSH 服务器主机名或 IP 地址 |
+| `port` | number | 是 | SSH 服务器端口 \(默认值: 22\) |
+| `username` | string | 是 | SSH 用户名 |
+| `password` | string | 否 | 用于身份验证的密码 \(如果未使用私钥\) |
+| `privateKey` | string | 否 | 用于身份验证的私钥 \(OpenSSH 格式\) |
+| `passphrase` | string | 否 | 加密私钥的密码短语 |
+| `commandName` | string | 是 | 要检查的命令名称 \(例如：docker, git, python3\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `commandExists` | boolean | 命令是否存在 |
+| `commandPath` | string | 命令的完整路径 \(如果找到\) |
+| `version` | string | 命令版本输出 \(如果适用\) |
+| `message` | string | 操作状态消息 |
+
+### `ssh_upload_file`
+
+上传文件到远程 SSH 服务器
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | SSH 服务器主机名或 IP 地址 |
+| `port` | number | 是 | SSH 服务器端口 \(默认值: 22\) |
+| `username` | string | 是 | SSH 用户名 |
+| `password` | string | 否 | 用于身份验证的密码 \(如果未使用私钥\) |
+| `privateKey` | string | 否 | 用于身份验证的私钥 \(OpenSSH 格式\) |
+| `passphrase` | string | 否 | 加密私钥的密码短语 |
+| `fileContent` | string | 是 | 要上传的文件内容 \(二进制文件需进行 base64 编码\) |
+| `fileName` | string | 是 | 上传文件的名称 |
+| `remotePath` | string | 是 | 远程服务器上的目标路径 |
+| `permissions` | string | 否 | 文件权限 \(例如：0644\) |
+| `overwrite` | boolean | 否 | 是否覆盖现有文件 \(默认值: true\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `uploaded` | boolean | 文件是否成功上传 |
+| `remotePath` | string | 远程服务器上的最终路径 |
+| `size` | number | 文件大小（以字节为单位） |
+| `message` | string | 操作状态消息 |
+
+### `ssh_download_file`
+
+从远程 SSH 服务器下载文件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | SSH 服务器主机名或 IP 地址 |
+| `port` | number | 是 | SSH 服务器端口 \(默认值: 22\) |
+| `username` | string | 是 | SSH 用户名 |
+| `password` | string | 否 | 用于身份验证的密码 \(如果未使用私钥\) |
+| `privateKey` | string | 否 | 用于身份验证的私钥 \(OpenSSH 格式\) |
+| `passphrase` | string | 否 | 加密私钥的密码短语 |
+| `remotePath` | string | 是 | 远程服务器上文件的路径 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `downloaded` | boolean | 文件是否成功下载 |
+| `fileContent` | string | 文件内容 \(二进制文件为 base64 编码\) |
+| `fileName` | string | 下载的文件名 |
+| `remotePath` | string | 远程服务器上的源路径 |
+| `size` | number | 文件大小（以字节为单位） |
+| `message` | string | 操作状态消息 |
+
+### `ssh_list_directory`
+
+列出远程目录中的文件和目录
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | SSH 服务器主机名或 IP 地址 |
+| `port` | number | 是 | SSH 服务器端口（默认值：22） |
+| `username` | string | 是 | SSH 用户名 |
+| `password` | string | 否 | 用于身份验证的密码（如果未使用私钥） |
+| `privateKey` | string | 否 | 用于身份验证的私钥（OpenSSH 格式） |
+| `passphrase` | string | 否 | 加密私钥的密码短语 |
+| `path` | string | 是 | 要列出的远程目录路径 |
+| `detailed` | boolean | 否 | 包括文件详细信息（大小、权限、修改日期） |
+| `recursive` | boolean | 否 | 递归列出子目录（默认值：false） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `entries` | array | 文件和目录条目的数组 |
+
+### `ssh_check_file_exists`
+
+检查远程 SSH 服务器上的文件或目录是否存在
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | SSH 服务器主机名或 IP 地址 |
+| `port` | number | 是 | SSH 服务器端口（默认值：22） |
+| `username` | string | 是 | SSH 用户名 |
+| `password` | string | 否 | 用于身份验证的密码（如果未使用私钥） |
+| `privateKey` | string | 否 | 用于身份验证的私钥（OpenSSH 格式） |
+| `passphrase` | string | 否 | 加密私钥的密码短语 |
+| `path` | string | 是 | 要检查的远程文件或目录路径 |
+| `type` | string | 否 | 预期类型：文件、目录或任意（默认值：任意） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `exists` | boolean | 路径是否存在 |
+| `type` | string | 路径类型 \(文件、目录、符号链接、未找到\) |
+| `size` | number | 如果是文件，则为文件大小 |
+| `permissions` | string | 文件权限 \(例如：0755\) |
+| `modified` | string | 最后修改的时间戳 |
+| `message` | string | 操作状态消息 |
+
+### `ssh_create_directory`
+
+在远程 SSH 服务器上创建一个目录
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | SSH 服务器主机名或 IP 地址 |
+| `port` | number | 是 | SSH 服务器端口 \(默认：22\) |
+| `username` | string | 是 | SSH 用户名 |
+| `password` | string | 否 | 用于身份验证的密码 \(如果未使用私钥\) |
+| `privateKey` | string | 否 | 用于身份验证的私钥 \(OpenSSH 格式\) |
+| `passphrase` | string | 否 | 加密私钥的密码短语 |
+| `path` | string | 是 | 要创建的目录路径 |
+| `recursive` | boolean | 否 | 如果父目录不存在，则创建父目录 \(默认：true\) |
+| `permissions` | string | 否 | 目录权限 \(默认：0755\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `created` | boolean | 目录是否成功创建 |
+| `remotePath` | string | 创建的目录路径 |
+| `alreadyExists` | boolean | 目录是否已存在 |
+| `message` | string | 操作状态消息 |
+
+### `ssh_delete_file`
+
+从远程 SSH 服务器删除文件或目录
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | SSH 服务器主机名或 IP 地址 |
+| `port` | number | 是 | SSH 服务器端口 \(默认: 22\) |
+| `username` | string | 是 | SSH 用户名 |
+| `password` | string | 否 | 用于身份验证的密码 \(如果未使用私钥\) |
+| `privateKey` | string | 否 | 用于身份验证的私钥 \(OpenSSH 格式\) |
+| `passphrase` | string | 否 | 加密私钥的密码短语 |
+| `path` | string | 是 | 要删除的路径 |
+| `recursive` | boolean | 否 | 递归删除目录 \(默认: false\) |
+| `force` | boolean | 否 | 强制删除而无需确认 \(默认: false\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 路径是否成功删除 |
+| `remotePath` | string | 已删除的路径 |
+| `message` | string | 操作状态消息 |
+
+### `ssh_move_rename`
+
+在远程 SSH 服务器上移动或重命名文件或目录
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | SSH 服务器主机名或 IP 地址 |
+| `port` | number | 是 | SSH 服务器端口 \(默认: 22\) |
+| `username` | string | 是 | SSH 用户名 |
+| `password` | string | 否 | 用于身份验证的密码 \(如果未使用私钥\) |
+| `privateKey` | string | 否 | 用于身份验证的私钥 \(OpenSSH 格式\) |
+| `passphrase` | string | 否 | 加密私钥的密码短语 |
+| `sourcePath` | string | 是 | 文件或目录的当前路径 |
+| `destinationPath` | string | 是 | 文件或目录的新路径 |
+| `overwrite` | boolean | 否 | 如果目标存在则覆盖 \(默认: false\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `moved` | 布尔值 | 操作是否成功 |
+| `sourcePath` | 字符串 | 原始路径 |
+| `destinationPath` | 字符串 | 新路径 |
+| `message` | 字符串 | 操作状态消息 |
+
+### `ssh_get_system_info`
+
+从远程 SSH 服务器检索系统信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | 字符串 | 是 | SSH 服务器主机名或 IP 地址 |
+| `port` | 数字 | 是 | SSH 服务器端口 \(默认值: 22\) |
+| `username` | 字符串 | 是 | SSH 用户名 |
+| `password` | 字符串 | 否 | 用于身份验证的密码 \(如果未使用私钥\) |
+| `privateKey` | 字符串 | 否 | 用于身份验证的私钥 \(OpenSSH 格式\) |
+| `passphrase` | 字符串 | 否 | 加密私钥的密码短语 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `hostname` | 字符串 | 服务器主机名 |
+| `os` | 字符串 | 操作系统 \(例如: Linux, Darwin\) |
+| `architecture` | 字符串 | CPU 架构 \(例如: x64, arm64\) |
+| `uptime` | 数字 | 系统运行时间（以秒为单位） |
+| `memory` | JSON | 内存信息 \(总量, 空闲, 已用\) |
+| `diskSpace` | JSON | 磁盘空间信息 \(总量, 空闲, 已用\) |
+| `message` | 字符串 | 操作状态消息 |
+
+### `ssh_read_file_content`
+
+读取远程文件的内容
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | SSH 服务器主机名或 IP 地址 |
+| `port` | number | 是 | SSH 服务器端口 \(默认值: 22\) |
+| `username` | string | 是 | SSH 用户名 |
+| `password` | string | 否 | 用于身份验证的密码 \(如果未使用私钥\) |
+| `privateKey` | string | 否 | 用于身份验证的私钥 \(OpenSSH 格式\) |
+| `passphrase` | string | 否 | 加密私钥的密码短语 |
+| `path` | string | 是 | 要读取的远程文件路径 |
+| `encoding` | string | 否 | 文件编码 \(默认值: utf-8\) |
+| `maxSize` | number | 否 | 要读取的最大文件大小（以 MB 为单位）\(默认值: 10\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 文件内容（字符串形式） |
+| `size` | number | 文件大小（以字节为单位） |
+| `lines` | number | 文件中的行数 |
+| `remotePath` | string | 远程文件路径 |
+| `message` | string | 操作状态消息 |
+
+### `ssh_write_file_content`
+
+写入或追加内容到远程文件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | SSH 服务器主机名或 IP 地址 |
+| `port` | number | 是 | SSH 服务器端口 \(默认值: 22\) |
+| `username` | string | 是 | SSH 用户名 |
+| `password` | string | 否 | 用于身份验证的密码 \(如果未使用私钥\) |
+| `privateKey` | string | 否 | 用于身份验证的私钥 \(OpenSSH 格式\) |
+| `passphrase` | string | 否 | 加密私钥的密码短语 |
+| `path` | string | 是 | 要写入的远程文件路径 |
+| `content` | string | 是 | 要写入文件的内容 |
+| `mode` | string | 否 | 写入模式：覆盖、追加或创建 \(默认值: 覆盖\) |
+| `permissions` | string | 否 | 文件权限 \(例如: 0644\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `written` | boolean | 文件是否成功写入 |
+| `remotePath` | string | 文件路径 |
+| `size` | number | 最终文件大小（以字节为单位） |
+| `message` | string | 操作状态消息 |
+
+## 注意
+
+- 类别: `tools`
+- 类型: `ssh`

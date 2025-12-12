@@ -1,0 +1,175 @@
+---
+title: Notion
+description: Notion-Seiten verwalten
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="notion"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Notion](https://www.notion.so) ist ein All-in-One-Arbeitsbereich, der Notizen, Dokumente, Wikis und Projektmanagement-Tools auf einer einzigen Plattform vereint. Es bietet eine flexible und anpassbare Umgebung, in der Benutzer Inhalte in verschiedenen Formaten erstellen, organisieren und gemeinsam daran arbeiten können.
+
+Mit Notion können Sie:
+
+- **Vielseitige Inhalte erstellen**: Dokumente, Wikis, Datenbanken, Kanban-Boards, Kalender und mehr erstellen
+- **Informationen organisieren**: Inhalte hierarchisch mit verschachtelten Seiten und leistungsstarken Datenbanken strukturieren
+- **Nahtlos zusammenarbeiten**: Arbeitsbereiche und Seiten mit Teammitgliedern für Echtzeit-Zusammenarbeit teilen
+- **Ihren Arbeitsbereich anpassen**: Gestalten Sie Ihren idealen Arbeitsablauf mit flexiblen Vorlagen und Bausteinen
+- **Informationen verknüpfen**: Verlinken Sie Seiten und Datenbanken, um ein Wissensnetzwerk zu erstellen
+- **Überall zugreifen**: Nutzen Sie Notion über Web-, Desktop- und mobile Plattformen mit automatischer Synchronisierung
+
+In Sim ermöglicht die Notion-Integration Ihren Agenten, direkt programmatisch mit Ihrem Notion-Arbeitsbereich zu interagieren. Dies ermöglicht leistungsstarke Automatisierungsszenarien wie Wissensmanagement, Inhaltserstellung und Informationsabruf. Ihre Agenten können:
+
+- **Notion-Seiten lesen**: Inhalte und Metadaten von jeder Notion-Seite extrahieren.
+- **Notion-Datenbanken lesen**: Datenbankstruktur und -informationen abrufen.
+- **In Seiten schreiben**: Neue Inhalte zu bestehenden Notion-Seiten hinzufügen.
+- **Neue Seiten erstellen**: Neue Notion-Seiten unter einer übergeordneten Seite mit benutzerdefinierten Titeln und Inhalten generieren.
+- **Datenbanken abfragen**: Datenbankeinträge mit erweiterten Filter- und Sortierkriterien suchen und filtern.
+- **Arbeitsbereich durchsuchen**: Den gesamten Notion-Arbeitsbereich nach Seiten oder Datenbanken durchsuchen, die bestimmten Abfragen entsprechen.
+- **Neue Datenbanken erstellen**: Programmatisch neue Datenbanken mit benutzerdefinierten Eigenschaften und Struktur erstellen.
+
+Diese Integration überbrückt die Lücke zwischen Ihren KI-Workflows und Ihrer Wissensbasis und ermöglicht ein nahtloses Dokumenten- und Informationsmanagement. Durch die Verbindung von Sim mit Notion können Sie Dokumentationsprozesse automatisieren, aktuelle Informationsrepositorien pflegen, Berichte generieren und Informationen intelligent organisieren – alles durch Ihre intelligenten Agenten.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integration mit Notion in den Arbeitsablauf. Kann Seiten lesen, Datenbanken lesen, Seiten erstellen, Datenbanken erstellen, Inhalte anhängen, Datenbanken abfragen und Workspace durchsuchen. Erfordert OAuth.
+
+## Tools
+
+### `notion_read`
+
+Inhalte von einer Notion-Seite lesen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `pageId` | string | Ja | Die ID der zu lesenden Notion-Seite |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Seiteninhalt im Markdown-Format mit Überschriften, Absätzen, Listen und Aufgaben |
+| `metadata` | object | Seiten-Metadaten einschließlich Titel, URL und Zeitstempeln |
+
+### `notion_read_database`
+
+Datenbankinformationen und -struktur aus Notion lesen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `databaseId` | string | Ja | Die ID der zu lesenden Notion-Datenbank |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Datenbankinformationen einschließlich Titel, Eigenschaften-Schema und Metadaten |
+| `metadata` | object | Datenbank-Metadaten einschließlich Titel, ID, URL, Zeitstempeln und Eigenschaften-Schema |
+
+### `notion_write`
+
+Inhalte zu einer Notion-Seite hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `pageId` | string | Ja | Die ID der Notion-Seite, zu der Inhalte hinzugefügt werden sollen |
+| `content` | string | Ja | Der Inhalt, der zur Seite hinzugefügt werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Erfolgsmeldung, die bestätigt, dass der Inhalt zur Seite hinzugefügt wurde |
+
+### `notion_create_page`
+
+Eine neue Seite in Notion erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `parentId` | string | Ja | ID der übergeordneten Seite |
+| `title` | string | Nein | Titel der neuen Seite |
+| `content` | string | Nein | Optionaler Inhalt, der bei der Erstellung zur Seite hinzugefügt wird |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Erfolgsmeldung, die die Seitenerstellung bestätigt |
+| `metadata` | object | Seiten-Metadaten einschließlich Titel, Seiten-ID, URL und Zeitstempel |
+
+### `notion_query_database`
+
+Notion-Datenbankeinträge mit erweiterter Filterung abfragen und filtern
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `databaseId` | string | Ja | Die ID der abzufragenden Datenbank |
+| `filter` | string | Nein | Filterbedingungen als JSON \(optional\) |
+| `sorts` | string | Nein | Sortierkriterien als JSON-Array \(optional\) |
+| `pageSize` | number | Nein | Anzahl der zurückzugebenden Ergebnisse \(Standard: 100, max: 100\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Formatierte Liste von Datenbankeinträgen mit ihren Eigenschaften |
+| `metadata` | object | Abfrage-Metadaten einschließlich Gesamtergebnisanzahl, Paginierungsinformationen und Array mit Rohergebnissen |
+
+### `notion_search`
+
+Durchsuche alle Seiten und Datenbanken im Notion-Workspace
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Nein | Suchbegriffe \(leer lassen, um alle Seiten zu erhalten\) |
+| `filterType` | string | Nein | Nach Objekttyp filtern: page, database oder leer lassen für alle |
+| `pageSize` | number | Nein | Anzahl der zurückzugebenden Ergebnisse \(Standard: 100, max: 100\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Formatierte Liste der Suchergebnisse mit Seiten und Datenbanken |
+| `metadata` | object | Suchdaten einschließlich Gesamtanzahl der Ergebnisse, Paginierungsinformationen und Array der Rohergebnisse |
+
+### `notion_create_database`
+
+Erstelle eine neue Datenbank in Notion mit benutzerdefinierten Eigenschaften
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `parentId` | string | Ja | ID der übergeordneten Seite, auf der die Datenbank erstellt wird |
+| `title` | string | Ja | Titel für die neue Datenbank |
+| `properties` | string | Nein | Datenbankeigenschaften als JSON-Objekt \(optional, erstellt eine Standard-"Name"-Eigenschaft, wenn leer\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Erfolgsmeldung mit Datenbankdetails und Eigenschaftsliste |
+| `metadata` | object | Datenbankmetadaten einschließlich ID, Titel, URL, Erstellungszeit und Eigenschaftsschema |
+
+## Notizen
+
+- Kategorie: `tools`
+- Typ: `notion`

@@ -1,6 +1,10 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { GoogleDriveToolParams, GoogleDriveUploadResponse } from '@/tools/google_drive/types'
-import { GOOGLE_WORKSPACE_MIME_TYPES, SOURCE_MIME_TYPES } from '@/tools/google_drive/utils'
+import {
+  GOOGLE_WORKSPACE_MIME_TYPES,
+  handleSheetsFormat,
+  SOURCE_MIME_TYPES,
+} from '@/tools/google_drive/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('GoogleDriveUploadTool')
@@ -14,7 +18,6 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
   oauth: {
     required: true,
     provider: 'google-drive',
-    additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
 
   params: {
@@ -30,17 +33,23 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
       visibility: 'user-or-llm',
       description: 'The name of the file to upload',
     },
+    file: {
+      type: 'file',
+      required: false,
+      visibility: 'user-only',
+      description: 'Binary file to upload (UserFile object)',
+    },
     content: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'The content of the file to upload',
+      description: 'Text content to upload (use this OR file, not both)',
     },
     mimeType: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description: 'The MIME type of the file to upload',
+      description: 'The MIME type of the file to upload (auto-detected from file if not provided)',
     },
     folderSelector: {
       type: 'string',
@@ -57,13 +66,37 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
   },
 
   request: {
-    url: 'https://www.googleapis.com/drive/v3/files?supportsAllDrives=true',
+    url: (params) => {
+      // Use custom API route if file is provided, otherwise use Google Drive API directly
+      if (params.file) {
+        return '/api/tools/google_drive/upload'
+      }
+      return 'https://www.googleapis.com/drive/v3/files?supportsAllDrives=true'
+    },
     method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.accessToken}`,
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      // Google Drive API for text-only uploads needs Authorization
+      if (!params.file) {
+        headers.Authorization = `Bearer ${params.accessToken}`
+      }
+      return headers
+    },
     body: (params) => {
+      // Custom route handles file uploads
+      if (params.file) {
+        return {
+          accessToken: params.accessToken,
+          fileName: params.fileName,
+          file: params.file,
+          mimeType: params.mimeType,
+          folderId: params.folderSelector || params.folderId,
+        }
+      }
+
+      // Original text-only upload logic
       const metadata: {
         name: string | undefined
         mimeType: string
@@ -87,6 +120,23 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
     try {
       const data = await response.json()
 
+      // Handle custom API route response (for file uploads)
+      if (params?.file && data.success !== undefined) {
+        if (!data.success) {
+          logger.error('Failed to upload file via custom API route', {
+            error: data.error,
+          })
+          throw new Error(data.error || 'Failed to upload file to Google Drive')
+        }
+        return {
+          success: true,
+          output: {
+            file: data.output.file,
+          },
+        }
+      }
+
+      // Handle Google Drive API response (for text-only uploads)
       if (!response.ok) {
         logger.error('Failed to create file in Google Drive', {
           status: response.status,
@@ -96,13 +146,27 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
         throw new Error(data.error?.message || 'Failed to create file in Google Drive')
       }
 
-      // Now upload content to the created file
       const fileId = data.id
       const requestedMimeType = params?.mimeType || 'text/plain'
       const authHeader =
         response.headers.get('Authorization') || `Bearer ${params?.accessToken || ''}`
 
-      // For Google Workspace formats, use the appropriate source MIME type for content upload
+      let preparedContent: string | undefined =
+        typeof params?.content === 'string' ? (params?.content as string) : undefined
+
+      if (requestedMimeType === 'application/vnd.google-apps.spreadsheet' && params?.content) {
+        const { csv, rowCount, columnCount } = handleSheetsFormat(params.content as unknown)
+        if (csv !== undefined) {
+          preparedContent = csv
+          logger.info('Prepared CSV content for Google Sheets upload', {
+            fileId,
+            fileName: params?.fileName,
+            rowCount,
+            columnCount,
+          })
+        }
+      }
+
       const uploadMimeType = GOOGLE_WORKSPACE_MIME_TYPES.includes(requestedMimeType)
         ? SOURCE_MIME_TYPES[requestedMimeType] || 'text/plain'
         : requestedMimeType
@@ -122,7 +186,7 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
             Authorization: authHeader,
             'Content-Type': uploadMimeType,
           },
-          body: params?.content || '',
+          body: preparedContent !== undefined ? preparedContent : params?.content || '',
         }
       )
 
@@ -136,7 +200,6 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
         throw new Error(uploadError.error?.message || 'Failed to upload content to file')
       }
 
-      // For Google Workspace documents, update the name again to ensure it sticks after conversion
       if (GOOGLE_WORKSPACE_MIME_TYPES.includes(requestedMimeType)) {
         logger.info('Updating file name to ensure it persists after conversion', {
           fileId,
@@ -165,7 +228,6 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
         }
       }
 
-      // Get the final file data
       const finalFileResponse = await fetch(
         `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true&fields=id,name,mimeType,webViewLink,webContentLink,size,createdTime,modifiedTime,parents`,
         {

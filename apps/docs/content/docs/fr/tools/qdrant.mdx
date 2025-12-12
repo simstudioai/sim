@@ -1,0 +1,110 @@
+---
+title: Qdrant
+description: Utilisez la base de données vectorielle Qdrant
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="qdrant"
+  color="#1A223F"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Qdrant](https://qdrant.tech) est une base de données vectorielle open-source conçue pour le stockage, la gestion et la récupération efficaces d'embeddings vectoriels de haute dimension. Qdrant permet une recherche sémantique rapide et évolutive, ce qui en fait un choix idéal pour les applications d'IA nécessitant une recherche par similarité, des systèmes de recommandation et une récupération d'informations contextuelles.
+
+Avec Qdrant, vous pouvez :
+
+- **Stocker des embeddings vectoriels** : gérer et persister efficacement des vecteurs de haute dimension à grande échelle
+- **Effectuer une recherche de similarité sémantique** : trouver en temps réel les vecteurs les plus similaires à un vecteur de requête
+- **Filtrer et organiser les données** : utiliser un filtrage avancé pour affiner les résultats de recherche en fonction des métadonnées ou des charges utiles
+- **Récupérer des points spécifiques** : extraire des vecteurs et leurs charges utiles associées par ID
+- **Évoluer en toute transparence** : gérer de grandes collections et des charges de travail à haut débit
+
+Dans Sim, l'intégration de Qdrant permet à vos agents d'interagir avec Qdrant de manière programmatique dans le cadre de leurs flux de travail. Les opérations prises en charge comprennent :
+
+- **Upsert** : Insérer ou mettre à jour des points (vecteurs et charges utiles) dans une collection Qdrant
+- **Search** : Effectuer une recherche de similarité pour trouver les vecteurs les plus similaires à un vecteur de requête donné, avec filtrage optionnel et personnalisation des résultats
+- **Fetch** : Récupérer des points spécifiques d'une collection par leurs identifiants, avec options pour inclure les charges utiles et les vecteurs
+
+Cette intégration permet à vos agents d'exploiter de puissantes capacités de recherche et de gestion vectorielles, permettant des scénarios d'automatisation avancés tels que la recherche sémantique, la recommandation et la récupération contextuelle. En connectant Sim avec Qdrant, vous pouvez créer des agents qui comprennent le contexte, récupèrent des informations pertinentes à partir de grands ensembles de données et fournissent des réponses plus intelligentes et personnalisées, le tout sans gérer une infrastructure complexe.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Qdrant dans le flux de travail. Peut insérer, rechercher et récupérer des points. Nécessite une clé API.
+
+## Outils
+
+### `qdrant_upsert_points`
+
+Insérer ou mettre à jour des points dans une collection Qdrant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `url` | string | Oui | URL de base de Qdrant |
+| `apiKey` | string | Non | Clé API Qdrant \(facultative\) |
+| `collection` | string | Oui | Nom de la collection |
+| `points` | array | Oui | Tableau de points à upsert |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de l'opération d'upsert |
+| `data` | object | Données de résultat de l'opération d'upsert |
+
+### `qdrant_search_vector`
+
+Rechercher des vecteurs similaires dans une collection Qdrant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `url` | chaîne | Oui | URL de base de Qdrant |
+| `apiKey` | chaîne | Non | Clé API Qdrant \(facultative\) |
+| `collection` | chaîne | Oui | Nom de la collection |
+| `vector` | tableau | Oui | Vecteur à rechercher |
+| `limit` | nombre | Non | Nombre de résultats à retourner |
+| `filter` | objet | Non | Filtre à appliquer à la recherche |
+| `search_return_data` | chaîne | Non | Données à retourner de la recherche |
+| `with_payload` | booléen | Non | Inclure la charge utile dans la réponse |
+| `with_vector` | booléen | Non | Inclure le vecteur dans la réponse |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | tableau | Résultats de recherche de vecteurs avec ID, score, charge utile et données vectorielles optionnelles |
+| `status` | chaîne | Statut de l'opération de recherche |
+
+### `qdrant_fetch_points`
+
+Récupérer des points par ID depuis une collection Qdrant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `url` | chaîne | Oui | URL de base de Qdrant |
+| `apiKey` | chaîne | Non | Clé API Qdrant \(facultative\) |
+| `collection` | chaîne | Oui | Nom de la collection |
+| `ids` | tableau | Oui | Tableau d'identifiants de points à récupérer |
+| `fetch_return_data` | chaîne | Non | Données à retourner de la récupération |
+| `with_payload` | booléen | Non | Inclure la charge utile dans la réponse |
+| `with_vector` | booléen | Non | Inclure le vecteur dans la réponse |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | tableau | Points récupérés avec ID, charge utile et données vectorielles optionnelles |
+| `status` | chaîne | Statut de l'opération de récupération |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `qdrant`

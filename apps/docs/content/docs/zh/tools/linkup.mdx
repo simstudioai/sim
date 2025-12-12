@@ -1,0 +1,62 @@
+---
+title: Linkup
+description: 使用 Linkup 搜索网络
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="linkup"
+  color="#D6D3C7"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Linkup](https://linkup.so) 是一个强大的网络搜索工具，可以与 Sim 无缝集成，让您的 AI 代理能够从网络中获取最新信息，并附上正确的来源说明。
+
+Linkup 通过为您的 AI 代理提供搜索网络最新信息的能力来增强其功能。当将其集成到代理工具集中时：
+
+- **实时信息访问**：代理可以从网络中检索最新信息，确保响应及时且相关。
+- **来源说明**：所有信息都附有正确的引用，确保透明性和可信度。
+- **简单实现**：通过最少的配置将 Linkup 添加到您的代理工具集中。
+- **上下文感知**：代理在使用网络信息时，能够保持其个性和对话风格。
+
+要在您的代理中实现 Linkup，只需将该工具添加到代理的配置中。您的代理随后将能够在需要回答涉及最新信息的问题时搜索网络。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Linkup 集成到工作流程中。可以搜索网页。需要 API 密钥。
+
+## 工具
+
+### `linkup_search`
+
+使用 Linkup 在网络上搜索信息
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | 是 | 搜索查询 |
+| `depth` | string | 是 | 搜索深度 \(必须是 "standard" 或 "deep"\) |
+| `outputType` | string | 是 | 返回的输出类型 \(必须是 "sourcedAnswer" 或 "searchResults"\) |
+| `apiKey` | string | 是 | 输入您的 Linkup API 密钥 |
+| `includeImages` | boolean | 否 | 是否在搜索结果中包含图片 |
+| `fromDate` | string | 否 | 过滤结果的开始日期 \(YYYY-MM-DD 格式\) |
+| `toDate` | string | 否 | 过滤结果的结束日期 \(YYYY-MM-DD 格式\) |
+| `excludeDomains` | string | 否 | 要从搜索结果中排除的域名列表（以逗号分隔） |
+| `includeDomains` | string | 否 | 限制搜索结果的域名列表（以逗号分隔） |
+| `includeInlineCitations` | boolean | 否 | 在答案中添加内联引用 \(仅当 outputType 为 "sourcedAnswer" 时适用\) |
+| `includeSources` | boolean | 否 | 在响应中包含来源 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `answer` | string | 搜索查询的来源答案 |
+| `sources` | array | 用于编写答案的来源数组，每个包含名称、网址和摘要 |
+
+## 注意
+
+- 类别：`tools`
+- 类型：`linkup`

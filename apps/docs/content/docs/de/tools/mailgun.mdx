@@ -1,0 +1,216 @@
+---
+title: Mailgun
+description: E-Mails versenden und Mailinglisten mit Mailgun verwalten
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mailgun"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Mailgun](https://www.mailgun.com) ist ein leistungsstarker E-Mail-Zustelldienst, der für Entwickler und Unternehmen konzipiert wurde, um E-Mails mühelos zu versenden, zu empfangen und zu verfolgen. Mailgun ermöglicht es Ihnen, robuste APIs für zuverlässige Transaktions- und Marketing-E-Mails, flexible Mailinglisten-Verwaltung und fortschrittliches Event-Tracking zu nutzen.
+
+Mit Mailguns umfassendem Funktionsumfang können Sie wichtige E-Mail-Operationen automatisieren und die Zustellbarkeit sowie das Engagement der Empfänger genau überwachen. Dies macht es zu einer idealen Lösung für Workflow-Automatisierung, bei der Kommunikation, Benachrichtigungen und Kampagnen-Mails zentrale Bestandteile Ihrer Prozesse sind.
+
+Zu den wichtigsten Funktionen von Mailgun gehören:
+
+- **Versand von Transaktions-E-Mails:** Zustellung von E-Mails mit hohem Volumen wie Kontobenachrichtigungen, Quittungen, Warnmeldungen und Passwort-Zurücksetzungen.
+- **Reichhaltige E-Mail-Inhalte:** Versenden Sie sowohl Nur-Text- als auch HTML-E-Mails und verwenden Sie Tags zur Kategorisierung und Verfolgung Ihrer Nachrichten.
+- **Mailinglisten-Verwaltung:** Erstellen, aktualisieren und verwalten Sie Mailinglisten und Mitglieder, um Gruppenkommunikation effizient zu versenden.
+- **Domain-Informationen:** Rufen Sie Details zu Ihren Sende-Domains ab, um Konfiguration und Zustand zu überwachen.
+- **Event-Tracking:** Analysieren Sie die Zustellbarkeit von E-Mails und das Engagement mit detaillierten Ereignisdaten zu gesendeten Nachrichten.
+- **Nachrichtenabruf:** Greifen Sie auf gespeicherte Nachrichten für Compliance-, Analyse- oder Fehlerbehebungszwecke zu.
+
+Durch die Integration von Mailgun in Sim können Ihre Agenten programmatisch E-Mails versenden, E-Mail-Listen verwalten, auf Domain-Informationen zugreifen und Ereignisse in Echtzeit überwachen – als Teil automatisierter Workflows. Dies ermöglicht eine intelligente, datengesteuerte Interaktion mit Ihren Nutzern direkt aus Ihren KI-gestützten Prozessen heraus.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Integrieren Sie Mailgun in Ihren Workflow. Senden Sie Transaktions-E-Mails, verwalten Sie Mailinglisten und Mitglieder, sehen Sie Domain-Informationen ein und verfolgen Sie E-Mail-Ereignisse. Unterstützt Text- und HTML-E-Mails, Tags für Tracking und umfassende Listenverwaltung.
+
+## Tools
+
+### `mailgun_send_message`
+
+E-Mail über die Mailgun API versenden
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Mailgun API-Schlüssel |
+| `domain` | string | Ja | Mailgun-Domain \(z.B. mg.example.com\) |
+| `from` | string | Ja | E-Mail-Adresse des Absenders |
+| `to` | string | Ja | E-Mail-Adresse des Empfängers \(durch Komma getrennt für mehrere\) |
+| `subject` | string | Ja | Betreff der E-Mail |
+| `text` | string | Nein | Nur-Text-Inhalt der E-Mail |
+| `html` | string | Nein | HTML-Inhalt der E-Mail |
+| `cc` | string | Nein | CC-E-Mail-Adresse \(durch Komma getrennt für mehrere\) |
+| `bcc` | string | Nein | BCC-E-Mail-Adresse \(durch Komma getrennt für mehrere\) |
+| `tags` | string | Nein | Tags für die E-Mail \(durch Komma getrennt\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Nachricht erfolgreich gesendet wurde |
+| `id` | string | Nachrichten-ID |
+| `message` | string | Antwortnachricht von Mailgun |
+
+### `mailgun_get_message`
+
+Eine gespeicherte Nachricht anhand ihres Schlüssels abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Mailgun API-Schlüssel |
+| `domain` | string | Ja | Mailgun-Domain |
+| `messageKey` | string | Ja | Speicherschlüssel der Nachricht |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Anfrage erfolgreich war |
+| `recipients` | string | Nachrichtenempfänger |
+| `from` | string | Absender-E-Mail |
+| `subject` | string | Nachrichtenbetreff |
+| `bodyPlain` | string | Nur-Text-Inhalt |
+| `strippedText` | string | Bereinigter Text |
+| `strippedSignature` | string | Bereinigte Signatur |
+| `bodyHtml` | string | HTML-Inhalt |
+| `strippedHtml` | string | Bereinigtes HTML |
+| `attachmentCount` | number | Anzahl der Anhänge |
+| `timestamp` | number | Nachrichtenzeitstempel |
+| `messageHeaders` | json | Nachrichtenheader |
+| `contentIdMap` | json | Content-ID-Zuordnung |
+
+### `mailgun_list_messages`
+
+Ereignisse (Logs) für über Mailgun gesendete Nachrichten auflisten
+
+#### Input
+
+| Parameter | Type | Required | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Mailgun API-Schlüssel |
+| `domain` | string | Ja | Mailgun-Domain |
+| `event` | string | Nein | Nach Ereignistyp filtern \(accepted, delivered, failed, opened, clicked, usw.\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Ereignisse \(Standard: 100\) |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Anfrage erfolgreich war |
+| `items` | json | Array von Ereigniselementen |
+| `paging` | json | Paginierungsinformationen |
+
+### `mailgun_create_mailing_list`
+
+Eine neue Mailingliste erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Mailgun API-Schlüssel |
+| `address` | string | Ja | Mailinglisten-Adresse \(z.B. liste@beispiel.com\) |
+| `name` | string | Nein | Name der Mailingliste |
+| `description` | string | Nein | Beschreibung der Mailingliste |
+| `accessLevel` | string | Nein | Zugriffsebene: readonly, members oder everyone |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Liste erfolgreich erstellt wurde |
+| `message` | string | Antwortnachricht |
+| `list` | json | Details der erstellten Mailingliste |
+
+### `mailgun_get_mailing_list`
+
+Details einer Mailingliste abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Mailgun API-Schlüssel |
+| `address` | string | Ja | Mailinglisten-Adresse |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Anfrage erfolgreich war |
+| `list` | json | Details der Mailingliste |
+
+### `mailgun_add_list_member`
+
+Ein Mitglied zu einer Mailingliste hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Mailgun API-Schlüssel |
+| `listAddress` | string | Ja | Mailinglisten-Adresse |
+| `address` | string | Ja | E-Mail-Adresse des Mitglieds |
+| `name` | string | Nein | Name des Mitglieds |
+| `vars` | string | Nein | JSON-String mit benutzerdefinierten Variablen |
+| `subscribed` | boolean | Nein | Ob das Mitglied abonniert ist |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob das Mitglied erfolgreich hinzugefügt wurde |
+| `message` | string | Antwortnachricht |
+| `member` | json | Details des hinzugefügten Mitglieds |
+
+### `mailgun_list_domains`
+
+Alle Domains für Ihr Mailgun-Konto auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Mailgun API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Anfrage erfolgreich war |
+| `totalCount` | number | Gesamtanzahl der Domains |
+| `items` | json | Array von Domain-Objekten |
+
+### `mailgun_get_domain`
+
+Details einer bestimmten Domain abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Mailgun API-Schlüssel |
+| `domain` | string | Ja | Domainname |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Anfrage erfolgreich war |
+| `domain` | json | Domain-Details |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `mailgun`

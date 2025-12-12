@@ -1,16 +1,32 @@
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/emcn'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useFolderStore } from '@/stores/folders/store'
+import { createLogger } from '@/lib/logs/console/logger'
+import {
+  commandListClass,
+  dropdownContentClass,
+  filterButtonClass,
+  folderDropdownListStyle,
+} from '@/app/workspace/[workspaceId]/logs/components/filters/components/shared'
+import { useFolders } from '@/hooks/queries/folders'
+import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
 import { useFilterStore } from '@/stores/logs/filters/store'
+
+const logger = createLogger('LogsFolderFilter')
 
 interface FolderOption {
   id: string
@@ -21,55 +37,37 @@ interface FolderOption {
 
 export default function FolderFilter() {
   const { folderIds, toggleFolderId, setFolderIds } = useFilterStore()
-  const { getFolderTree, getFolderPath, fetchFolders } = useFolderStore()
+  const { getFolderTree } = useFolderStore()
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const [folders, setFolders] = useState<FolderOption[]>([])
-  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const { isLoading: foldersLoading } = useFolders(workspaceId)
 
-  // Fetch all available folders from the API
-  useEffect(() => {
-    const fetchFoldersData = async () => {
-      try {
-        setLoading(true)
-        if (workspaceId) {
-          await fetchFolders(workspaceId)
-          const folderTree = getFolderTree(workspaceId)
+  const folderTree = workspaceId ? getFolderTree(workspaceId) : []
 
-          // Flatten the folder tree and create options with full paths
-          const flattenFolders = (nodes: any[], parentPath = ''): FolderOption[] => {
-            const result: FolderOption[] = []
+  const folders: FolderOption[] = useMemo(() => {
+    const flattenFolders = (nodes: FolderTreeNode[], parentPath = ''): FolderOption[] => {
+      const result: FolderOption[] = []
 
-            for (const node of nodes) {
-              const currentPath = parentPath ? `${parentPath} / ${node.name}` : node.name
-              result.push({
-                id: node.id,
-                name: node.name,
-                color: node.color || '#6B7280',
-                path: currentPath,
-              })
+      for (const node of nodes) {
+        const currentPath = parentPath ? `${parentPath} / ${node.name}` : node.name
+        result.push({
+          id: node.id,
+          name: node.name,
+          color: node.color || '#6B7280',
+          path: currentPath,
+        })
 
-              // Add children recursively
-              if (node.children && node.children.length > 0) {
-                result.push(...flattenFolders(node.children, currentPath))
-              }
-            }
-
-            return result
-          }
-
-          const folderOptions = flattenFolders(folderTree)
-          setFolders(folderOptions)
+        if (node.children && node.children.length > 0) {
+          result.push(...flattenFolders(node.children, currentPath))
         }
-      } catch (error) {
-        console.error('Failed to fetch folders:', error)
-      } finally {
-        setLoading(false)
       }
+
+      return result
     }
 
-    fetchFoldersData()
-  }, [workspaceId, fetchFolders, getFolderTree])
+    return flattenFolders(folderTree)
+  }, [folderTree])
 
   // Get display text for the dropdown button
   const getSelectedFoldersText = () => {
@@ -94,60 +92,65 @@ export default function FolderFilter() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant='outline'
-          size='sm'
-          className='w-full justify-between rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] font-normal text-sm dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
-        >
-          {loading ? 'Loading folders...' : getSelectedFoldersText()}
+        <Button variant='outline' className={filterButtonClass}>
+          {foldersLoading ? 'Loading folders...' : getSelectedFoldersText()}
           <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align='start'
-        className='max-h-[300px] w-[200px] overflow-y-auto rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+        side='bottom'
+        avoidCollisions={false}
+        sideOffset={4}
+        className={dropdownContentClass}
       >
-        <DropdownMenuItem
-          key='all'
-          onSelect={(e) => {
-            e.preventDefault()
-            clearSelections()
-          }}
-          className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
-        >
-          <span>All folders</span>
-          {folderIds.length === 0 && <Check className='h-4 w-4 text-primary' />}
-        </DropdownMenuItem>
-
-        {!loading && folders.length > 0 && <DropdownMenuSeparator />}
-
-        {!loading &&
-          folders.map((folder) => (
-            <DropdownMenuItem
-              key={folder.id}
-              onSelect={(e) => {
-                e.preventDefault()
-                toggleFolderId(folder.id)
-              }}
-              className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
-            >
-              <div className='flex items-center'>
-                <span className='truncate' title={folder.path}>
-                  {folder.path}
-                </span>
-              </div>
-              {isFolderSelected(folder.id) && <Check className='h-4 w-4 text-primary' />}
-            </DropdownMenuItem>
-          ))}
-
-        {loading && (
-          <DropdownMenuItem
-            disabled
-            className='rounded-md px-3 py-2 font-[380] text-muted-foreground text-sm'
-          >
-            Loading folders...
-          </DropdownMenuItem>
-        )}
+        <Command>
+          <CommandInput placeholder='Search folders...' onValueChange={(v) => setSearch(v)} />
+          <CommandList className={commandListClass} style={folderDropdownListStyle}>
+            <CommandEmpty>
+              {foldersLoading ? 'Loading folders...' : 'No folders found.'}
+            </CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value='all-folders'
+                onSelect={() => {
+                  clearSelections()
+                }}
+                className='cursor-pointer'
+              >
+                <span>All folders</span>
+                {folderIds.length === 0 && (
+                  <Check className='ml-auto h-4 w-4 text-muted-foreground' />
+                )}
+              </CommandItem>
+              {useMemo(() => {
+                const q = search.trim().toLowerCase()
+                const filtered = q
+                  ? folders.filter((f) => (f.path || f.name).toLowerCase().includes(q))
+                  : folders
+                return filtered.map((folder) => (
+                  <CommandItem
+                    key={folder.id}
+                    value={`${folder.path || folder.name}`}
+                    onSelect={() => {
+                      toggleFolderId(folder.id)
+                    }}
+                    className='cursor-pointer'
+                  >
+                    <div className='flex items-center'>
+                      <span className='truncate' title={folder.path}>
+                        {folder.path}
+                      </span>
+                    </div>
+                    {isFolderSelected(folder.id) && (
+                      <Check className='ml-auto h-4 w-4 text-muted-foreground' />
+                    )}
+                  </CommandItem>
+                ))
+              }, [folders, search, folderIds])}
+            </CommandGroup>
+          </CommandList>
+        </Command>
       </DropdownMenuContent>
     </DropdownMenu>
   )

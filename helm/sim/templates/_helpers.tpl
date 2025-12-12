@@ -301,3 +301,68 @@ affinity:
   {{- toYaml .affinity | nindent 2 }}
 {{- end }}
 {{- end }}
+
+{{/*
+Copilot environment secret name
+*/}}
+{{- define "sim.copilot.envSecretName" -}}
+{{- if and .Values.copilot.server.secret.name (ne .Values.copilot.server.secret.name "") -}}
+{{- .Values.copilot.server.secret.name -}}
+{{- else -}}
+{{- printf "%s-copilot-env" (include "sim.fullname" .) -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Copilot database secret name
+*/}}
+{{- define "sim.copilot.databaseSecretName" -}}
+{{- if .Values.copilot.postgresql.enabled -}}
+{{- printf "%s-copilot-postgresql-secret" (include "sim.fullname" .) -}}
+{{- else if and .Values.copilot.database.existingSecretName (ne .Values.copilot.database.existingSecretName "") -}}
+{{- .Values.copilot.database.existingSecretName -}}
+{{- else -}}
+{{- printf "%s-copilot-database-secret" (include "sim.fullname" .) -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Copilot database secret key
+*/}}
+{{- define "sim.copilot.databaseSecretKey" -}}
+{{- default "DATABASE_URL" .Values.copilot.database.secretKey -}}
+{{- end }}
+
+{{/*
+Validate Copilot configuration
+*/}}
+{{- define "sim.copilot.validate" -}}
+{{- if .Values.copilot.enabled -}}
+  {{- if and (not .Values.copilot.server.secret.create) (or (not .Values.copilot.server.secret.name) (eq .Values.copilot.server.secret.name "")) -}}
+    {{- fail "copilot.server.secret.name must be provided when copilot.server.secret.create=false" -}}
+  {{- end -}}
+  {{- if .Values.copilot.server.secret.create -}}
+    {{- $env := .Values.copilot.server.env -}}
+    {{- $required := list "AGENT_API_DB_ENCRYPTION_KEY" "INTERNAL_API_SECRET" "LICENSE_KEY" "SIM_BASE_URL" "SIM_AGENT_API_KEY" "REDIS_URL" -}}
+    {{- range $key := $required -}}
+      {{- if not (and $env (index $env $key) (ne (index $env $key) "")) -}}
+        {{- fail (printf "copilot.server.env.%s is required when copilot is enabled" $key) -}}
+      {{- end -}}
+    {{- end -}}
+    {{- $hasOpenAI := and $env (ne (default "" (index $env "OPENAI_API_KEY_1")) "") -}}
+    {{- $hasAnthropic := and $env (ne (default "" (index $env "ANTHROPIC_API_KEY_1")) "") -}}
+    {{- if not (or $hasOpenAI $hasAnthropic) -}}
+      {{- fail "Set at least one of copilot.server.env.OPENAI_API_KEY_1 or copilot.server.env.ANTHROPIC_API_KEY_1" -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if .Values.copilot.postgresql.enabled -}}
+    {{- if or (not .Values.copilot.postgresql.auth.password) (eq .Values.copilot.postgresql.auth.password "") -}}
+      {{- fail "copilot.postgresql.auth.password is required when copilot.postgresql.enabled=true" -}}
+    {{- end -}}
+  {{- else -}}
+    {{- if and (or (not .Values.copilot.database.existingSecretName) (eq .Values.copilot.database.existingSecretName "")) (or (not .Values.copilot.database.url) (eq .Values.copilot.database.url "")) -}}
+      {{- fail "Provide copilot.database.existingSecretName or copilot.database.url when copilot.postgresql.enabled=false" -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- end }}

@@ -1,0 +1,151 @@
+---
+title: Exa
+description: Busca con Exa AI
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="exa"
+  color="#1F40ED"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Exa](https://exa.ai/) es un motor de búsqueda impulsado por IA diseñado específicamente para desarrolladores e investigadores, que proporciona información altamente relevante y actualizada de toda la web. Combina capacidades avanzadas de búsqueda semántica con comprensión de IA para ofrecer resultados más precisos y contextualmente relevantes que los motores de búsqueda tradicionales.
+
+Con Exa, puedes:
+
+- **Buscar con lenguaje natural**: Encuentra información utilizando consultas y preguntas conversacionales
+- **Obtener resultados precisos**: Recibe resultados de búsqueda altamente relevantes con comprensión semántica
+- **Acceder a información actualizada**: Obtén información actual de toda la web
+- **Encontrar contenido similar**: Descubre recursos relacionados basados en similitud de contenido
+- **Extraer contenidos de páginas web**: Recupera y procesa el texto completo de páginas web
+- **Responder preguntas con citas**: Haz preguntas y recibe respuestas directas con fuentes de apoyo
+- **Realizar tareas de investigación**: Automatiza flujos de trabajo de investigación de múltiples pasos para recopilar, sintetizar y resumir información
+
+En Sim, la integración de Exa permite a tus agentes buscar información en la web, recuperar contenido de URLs específicas, encontrar recursos similares, responder preguntas con citas y realizar tareas de investigación, todo de forma programática a través de llamadas a la API. Esto permite a tus agentes acceder a información en tiempo real desde internet, mejorando su capacidad para proporcionar respuestas precisas, actuales y relevantes. La integración es particularmente valiosa para tareas de investigación, recopilación de información, descubrimiento de contenido y respuesta a preguntas que requieren información actualizada de toda la web.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Exa en el flujo de trabajo. Puede buscar, obtener contenidos, encontrar enlaces similares, responder a preguntas y realizar investigaciones. Requiere clave API.
+
+## Herramientas
+
+### `exa_search`
+
+Busca en la web usando Exa AI. Devuelve resultados de búsqueda relevantes con títulos, URLs y fragmentos de texto.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `query` | string | Sí | La consulta de búsqueda a ejecutar |
+| `numResults` | number | No | Número de resultados a devolver \(predeterminado: 10, máximo: 25\) |
+| `useAutoprompt` | boolean | No | Si se debe usar autoprompt para mejorar la consulta \(predeterminado: false\) |
+| `type` | string | No | Tipo de búsqueda: neural, keyword, auto o fast \(predeterminado: auto\) |
+| `includeDomains` | string | No | Lista separada por comas de dominios a incluir en los resultados |
+| `excludeDomains` | string | No | Lista separada por comas de dominios a excluir de los resultados |
+| `category` | string | No | Filtrar por categoría: company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
+| `text` | boolean | No | Incluir contenido de texto completo en los resultados \(predeterminado: false\) |
+| `highlights` | boolean | No | Incluir fragmentos destacados en los resultados \(predeterminado: false\) |
+| `summary` | boolean | No | Incluir resúmenes generados por IA en los resultados \(predeterminado: false\) |
+| `livecrawl` | string | No | Modo de rastreo en vivo: always, fallback o never \(predeterminado: never\) |
+| `apiKey` | string | Sí | Clave API de Exa AI |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `results` | array | Resultados de búsqueda con títulos, URLs y fragmentos de texto |
+
+### `exa_get_contents`
+
+Recupera el contenido de páginas web usando Exa AI. Devuelve el título, contenido de texto y resúmenes opcionales para cada URL.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `urls` | string | Sí | Lista separada por comas de URLs de las que recuperar contenido |
+| `text` | boolean | No | Si es true, devuelve el texto completo de la página con la configuración predeterminada. Si es false, desactiva la devolución de texto. |
+| `summaryQuery` | string | No | Consulta para guiar la generación del resumen |
+| `subpages` | number | No | Número de subpáginas a rastrear desde las URLs proporcionadas |
+| `subpageTarget` | string | No | Palabras clave separadas por comas para dirigirse a subpáginas específicas \(por ejemplo, "docs,tutorial,about"\) |
+| `highlights` | boolean | No | Incluir fragmentos destacados en los resultados \(predeterminado: false\) |
+| `livecrawl` | string | No | Modo de rastreo en vivo: always, fallback o never \(predeterminado: never\) |
+| `apiKey` | string | Sí | Clave API de Exa AI |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `results` | array | Contenido recuperado de URLs con título, texto y resúmenes |
+
+### `exa_find_similar_links`
+
+Encuentra páginas web similares a una URL determinada utilizando Exa AI. Devuelve una lista de enlaces similares con títulos y fragmentos de texto.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `url` | string | Sí | La URL para encontrar enlaces similares |
+| `numResults` | number | No | Número de enlaces similares a devolver \(predeterminado: 10, máximo: 25\) |
+| `text` | boolean | No | Si se debe incluir el texto completo de las páginas similares |
+| `includeDomains` | string | No | Lista separada por comas de dominios a incluir en los resultados |
+| `excludeDomains` | string | No | Lista separada por comas de dominios a excluir de los resultados |
+| `excludeSourceDomain` | boolean | No | Excluir el dominio de origen de los resultados \(predeterminado: false\) |
+| `category` | string | No | Filtrar por categoría: company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
+| `highlights` | boolean | No | Incluir fragmentos destacados en los resultados \(predeterminado: false\) |
+| `summary` | boolean | No | Incluir resúmenes generados por IA en los resultados \(predeterminado: false\) |
+| `livecrawl` | string | No | Modo de rastreo en vivo: always, fallback o never \(predeterminado: never\) |
+| `apiKey` | string | Sí | Clave API de Exa AI |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `similarLinks` | array | Enlaces similares encontrados con títulos, URLs y fragmentos de texto |
+
+### `exa_answer`
+
+Obtén una respuesta generada por IA a una pregunta con citas de la web utilizando Exa AI.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Sí | La pregunta a responder |
+| `text` | boolean | No | Si se debe incluir el texto completo de la respuesta |
+| `apiKey` | string | Sí | Clave API de Exa AI |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `answer` | string | Respuesta generada por IA a la pregunta |
+| `citations` | array | Fuentes y citas para la respuesta |
+
+### `exa_research`
+
+Realiza investigaciones exhaustivas utilizando IA para generar informes detallados con citas
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Sí | Consulta o tema de investigación |
+| `model` | string | No | Modelo de investigación: exa-research-fast, exa-research \(predeterminado\), o exa-research-pro |
+| `apiKey` | string | Sí | Clave API de Exa AI |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `research` | array | Hallazgos de investigación exhaustivos con citas y resúmenes |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `exa`

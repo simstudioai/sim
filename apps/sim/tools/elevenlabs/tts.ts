@@ -40,26 +40,45 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
     headers: (params) => ({
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({
+    body: (
+      params: ElevenLabsTtsParams & {
+        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
+      }
+    ) => ({
       apiKey: params.apiKey,
       text: params.text,
       voiceId: params.voiceId,
       modelId: params.modelId || 'eleven_monolingual_v1',
+      workspaceId: params._context?.workspaceId,
+      workflowId: params._context?.workflowId,
+      executionId: params._context?.executionId,
     }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
+    if (!response.ok || data.error) {
+      return {
+        success: false,
+        error: data.error || 'Unknown error occurred',
+        output: {
+          audioUrl: '',
+        },
+      }
+    }
+
     return {
       success: true,
       output: {
         audioUrl: data.audioUrl,
+        audioFile: data.audioFile,
       },
     }
   },
 
   outputs: {
     audioUrl: { type: 'string', description: 'The URL of the generated audio' },
+    audioFile: { type: 'file', description: 'The generated audio file' },
   },
 }

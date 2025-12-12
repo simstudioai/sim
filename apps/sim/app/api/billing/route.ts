@@ -1,11 +1,81 @@
+import { db } from '@sim/db'
+import { member, userStats } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getSimplifiedBillingSummary } from '@/lib/billing/core/billing'
-import { getOrganizationBillingData } from '@/lib/billing/core/organization-billing'
+import { getOrganizationBillingData } from '@/lib/billing/core/organization'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { member } from '@/db/schema'
+
+/**
+ * Gets the effective billing blocked status for a user.
+ * If user is in an org, also checks if the org owner is blocked.
+ */
+async function getEffectiveBillingStatus(userId: string): Promise<{
+  billingBlocked: boolean
+  billingBlockedReason: 'payment_failed' | 'dispute' | null
+  blockedByOrgOwner: boolean
+}> {
+  // Check user's own status
+  const userStatsRows = await db
+    .select({
+      blocked: userStats.billingBlocked,
+      blockedReason: userStats.billingBlockedReason,
+    })
+    .from(userStats)
+    .where(eq(userStats.userId, userId))
+    .limit(1)
+
+  const userBlocked = userStatsRows.length > 0 ? !!userStatsRows[0].blocked : false
+  const userBlockedReason = userStatsRows.length > 0 ? userStatsRows[0].blockedReason : null
+
+  if (userBlocked) {
+    return {
+      billingBlocked: true,
+      billingBlockedReason: userBlockedReason,
+      blockedByOrgOwner: false,
+    }
+  }
+
+  // Check if user is in an org where owner is blocked
+  const memberships = await db
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, userId))
+
+  for (const m of memberships) {
+    const owners = await db
+      .select({ userId: member.userId })
+      .from(member)
+      .where(and(eq(member.organizationId, m.organizationId), eq(member.role, 'owner')))
+      .limit(1)
+
+    if (owners.length > 0 && owners[0].userId !== userId) {
+      const ownerStats = await db
+        .select({
+          blocked: userStats.billingBlocked,
+          blockedReason: userStats.billingBlockedReason,
+        })
+        .from(userStats)
+        .where(eq(userStats.userId, owners[0].userId))
+        .limit(1)
+
+      if (ownerStats.length > 0 && ownerStats[0].blocked) {
+        return {
+          billingBlocked: true,
+          billingBlockedReason: ownerStats[0].blockedReason,
+          blockedByOrgOwner: true,
+        }
+      }
+    }
+  }
+
+  return {
+    billingBlocked: false,
+    billingBlockedReason: null,
+    blockedByOrgOwner: false,
+  }
+}
 
 const logger = createLogger('UnifiedBillingAPI')
 
@@ -45,6 +115,14 @@ export async function GET(request: NextRequest) {
     if (context === 'user') {
       // Get user billing (may include organization if they're part of one)
       billingData = await getSimplifiedBillingSummary(session.user.id, contextId || undefined)
+      // Attach effective billing blocked status (includes org owner check)
+      const billingStatus = await getEffectiveBillingStatus(session.user.id)
+      billingData = {
+        ...billingData,
+        billingBlocked: billingStatus.billingBlocked,
+        billingBlockedReason: billingStatus.billingBlockedReason,
+        blockedByOrgOwner: billingStatus.blockedByOrgOwner,
+      }
     } else {
       // Get user role in organization for permission checks first
       const memberRecord = await db
@@ -78,8 +156,10 @@ export async function GET(request: NextRequest) {
         subscriptionStatus: rawBillingData.subscriptionStatus,
         totalSeats: rawBillingData.totalSeats,
         usedSeats: rawBillingData.usedSeats,
+        seatsCount: rawBillingData.seatsCount,
         totalCurrentUsage: rawBillingData.totalCurrentUsage,
         totalUsageLimit: rawBillingData.totalUsageLimit,
+        minimumBillingAmount: rawBillingData.minimumBillingAmount,
         averageUsagePerMember: rawBillingData.averageUsagePerMember,
         billingPeriodStart: rawBillingData.billingPeriodStart?.toISOString() || null,
         billingPeriodEnd: rawBillingData.billingPeriodEnd?.toISOString() || null,
@@ -92,11 +172,25 @@ export async function GET(request: NextRequest) {
 
       const userRole = memberRecord[0].role
 
+      // Get effective billing blocked status (includes org owner check)
+      const billingStatus = await getEffectiveBillingStatus(session.user.id)
+
+      // Merge blocked flag into data for convenience
+      billingData = {
+        ...billingData,
+        billingBlocked: billingStatus.billingBlocked,
+        billingBlockedReason: billingStatus.billingBlockedReason,
+        blockedByOrgOwner: billingStatus.blockedByOrgOwner,
+      }
+
       return NextResponse.json({
         success: true,
         context,
         data: billingData,
         userRole,
+        billingBlocked: billingData.billingBlocked,
+        billingBlockedReason: billingData.billingBlockedReason,
+        blockedByOrgOwner: billingData.blockedByOrgOwner,
       })
     }
 

@@ -1,13 +1,14 @@
 import { GoogleIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { GoogleSearchResponse } from '@/tools/google/types'
 
 export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
   type: 'google_search',
   name: 'Google Search',
   description: 'Search the web',
-  longDescription:
-    'Searches the web using the Google Custom Search API, which provides high-quality search results from the entire internet or a specific site defined by a custom search engine ID.',
+  authMode: AuthMode.ApiKey,
+  longDescription: 'Integrate Google Search into the workflow. Can search the web.',
   docsLink: 'https://docs.sim.ai/tools/google_search',
   category: 'tools',
   bgColor: '#E0E0E0',
@@ -18,7 +19,6 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
       id: 'query',
       title: 'Search Query',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter your search query',
       required: true,
     },
@@ -26,7 +26,6 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
       id: 'searchEngineId',
       title: 'Custom Search Engine ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter your Custom Search Engine ID',
       required: true,
     },
@@ -34,7 +33,6 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter your Google API key',
       password: true,
       required: true,
@@ -43,7 +41,6 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
       id: 'num',
       title: 'Number of Results',
       type: 'short-input',
-      layout: 'half',
       placeholder: '10',
       required: true,
     },

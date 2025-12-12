@@ -1,0 +1,160 @@
+---
+title: Google Vault
+description: Vaultの案件に関する検索、エクスポート、保留/エクスポートの管理
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_vault"
+  color="#E8F0FE"
+/>
+
+## 使用方法
+
+Google Vaultに接続して、案件内のエクスポートの作成、エクスポートの一覧表示、保留の管理を行います。
+
+## ツール
+
+### `google_vault_create_matters_export`
+
+案件内でエクスポートを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | はい | 説明なし |
+| `exportName` | string | はい | 説明なし |
+| `corpus` | string | はい | エクスポートするデータコーパス（MAIL、DRIVE、GROUPS、HANGOUTS_CHAT、VOICE） |
+| `accountEmails` | string | いいえ | エクスポート範囲を指定するユーザーメールのカンマ区切りリスト |
+| `orgUnitId` | string | いいえ | エクスポート範囲を指定する組織単位ID（メールの代替） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `output` | json | Vault APIレスポンスデータ |
+| `file` | json | 実行ファイルからダウンロードしたエクスポートファイル（UserFile） |
+
+### `google_vault_list_matters_export`
+
+案件のエクスポート一覧を表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | はい | 説明なし |
+| `pageSize` | number | いいえ | 説明なし |
+| `pageToken` | string | いいえ | 説明なし |
+| `exportId` | string | いいえ | 説明なし |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `output` | json | Vault APIレスポンスデータ |
+| `file` | json | 実行ファイルからダウンロードしたエクスポートファイル（UserFile） |
+
+### `google_vault_download_export_file`
+
+Google Vaultエクスポート（GCSオブジェクト）から単一ファイルをダウンロードする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | はい | 説明なし |
+| `bucketName` | string | はい | 説明なし |
+| `objectName` | string | はい | 説明なし |
+| `fileName` | string | いいえ | 説明なし |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `file` | file | 実行ファイルに保存されたVaultエクスポートファイルのダウンロード |
+
+### `google_vault_create_matters_holds`
+
+案件内に保留を作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | はい | 説明なし |
+| `holdName` | string | はい | 説明なし |
+| `corpus` | string | はい | 保留するデータコーパス（MAIL、DRIVE、GROUPS、HANGOUTS_CHAT、VOICE） |
+| `accountEmails` | string | いいえ | 保留するユーザーメールのカンマ区切りリスト |
+| `orgUnitId` | string | いいえ | 保留する組織単位ID（アカウントの代替） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `output` | json | Vault APIレスポンスデータ |
+| `file` | json | 実行ファイルからダウンロードしたエクスポートファイル（UserFile） |
+
+### `google_vault_list_matters_holds`
+
+案件の保留リストを表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | はい | 説明なし |
+| `pageSize` | number | いいえ | 説明なし |
+| `pageToken` | string | いいえ | 説明なし |
+| `holdId` | string | いいえ | 説明なし |
+
+#### 出力
+
+| パラメータ | タイプ | 説明 |
+| --------- | ---- | ----------- |
+| `output` | json | Vault APIレスポンスデータ |
+| `file` | json | 実行ファイルからダウンロードされたエクスポートファイル（UserFile） |
+
+### `google_vault_create_matters`
+
+Google Vaultで新しい案件を作成する
+
+#### 入力
+
+| パラメータ | タイプ | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | はい | 説明なし |
+| `description` | string | いいえ | 説明なし |
+
+#### 出力
+
+| パラメータ | タイプ | 説明 |
+| --------- | ---- | ----------- |
+| `output` | json | Vault APIレスポンスデータ |
+| `file` | json | 実行ファイルからダウンロードされたエクスポートファイル（UserFile） |
+
+### `google_vault_list_matters`
+
+案件一覧を表示、またはmatterIdが提供されている場合は特定の案件を取得
+
+#### 入力
+
+| パラメータ | タイプ | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | いいえ | 説明なし |
+| `pageToken` | string | いいえ | 説明なし |
+| `matterId` | string | いいえ | 説明なし |
+
+#### 出力
+
+| パラメータ | タイプ | 説明 |
+| --------- | ---- | ----------- |
+| `output` | json | Vault APIレスポンスデータ |
+| `file` | json | 実行ファイルからダウンロードされたエクスポートファイル（UserFile） |
+
+## 注意事項
+
+- カテゴリ: `tools`
+- タイプ: `google_vault`

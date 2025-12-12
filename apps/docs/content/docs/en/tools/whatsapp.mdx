@@ -1,0 +1,62 @@
+---
+title: WhatsApp
+description: Send WhatsApp messages
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="whatsapp"
+  color="#25D366"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[WhatsApp](https://www.whatsapp.com/) is a globally popular messaging platform that enables secure, reliable communication between individuals and businesses.
+
+WhatsApp Business API provides organizations with powerful capabilities to:
+
+- **Engage customers**: Send personalized messages, notifications, and updates directly to customers' preferred messaging app
+- **Automate conversations**: Create interactive chatbots and automated response systems for common inquiries
+- **Enhance support**: Provide real-time customer service through a familiar interface with rich media support
+- **Drive conversions**: Facilitate transactions and follow-ups with customers in a secure, compliant environment
+
+In Sim, the WhatsApp integration enables your agents to leverage these messaging capabilities as part of their workflows. This creates opportunities for sophisticated customer engagement scenarios like appointment reminders, verification codes, alerts, and interactive conversations. The integration bridges the gap between your AI workflows and customer communication channels, allowing your agents to deliver timely, relevant information directly to users' mobile devices. By connecting Sim with WhatsApp, you can build intelligent agents that engage customers through their preferred messaging platform, enhancing user experience while automating routine messaging tasks.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate WhatsApp into the workflow. Can send messages.
+
+
+
+## Tools
+
+### `whatsapp_send_message`
+
+Send WhatsApp messages
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `phoneNumber` | string | Yes | Recipient phone number with country code |
+| `message` | string | Yes | Message content to send |
+| `phoneNumberId` | string | Yes | WhatsApp Business Phone Number ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | WhatsApp message send success status |
+| `messageId` | string | Unique WhatsApp message identifier |
+| `phoneNumber` | string | Recipient phone number |
+| `status` | string | Message delivery status |
+| `timestamp` | string | Message send timestamp |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `whatsapp`

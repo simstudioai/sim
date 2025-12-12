@@ -1,23 +1,23 @@
+import { db } from '@sim/db'
+import { account } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { db } from '@/db'
-import { account } from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GmailLabelAPI')
 
 export async function GET(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
-    // Get the session
     const session = await getSession()
 
-    // Check if the user is authenticated
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthenticated label request rejected`)
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
@@ -35,7 +35,12 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get the credential from the database
+    const labelIdValidation = validateAlphanumericId(labelId, 'labelId', 255)
+    if (!labelIdValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid label ID: ${labelIdValidation.error}`)
+      return NextResponse.json({ error: labelIdValidation.error }, { status: 400 })
+    }
+
     const credentials = await db
       .select()
       .from(account)
@@ -49,19 +54,16 @@ export async function GET(request: NextRequest) {
 
     const credential = credentials[0]
 
-    // Log the credential info (without exposing sensitive data)
     logger.info(
       `[${requestId}] Using credential: ${credential.id}, provider: ${credential.providerId}`
     )
 
-    // Refresh access token if needed using the utility function
     const accessToken = await refreshAccessTokenIfNeeded(credentialId, session.user.id, requestId)
 
     if (!accessToken) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
-    // Fetch specific label from Gmail API
     logger.info(`[${requestId}] Fetching label ${labelId} from Gmail API`)
     const response = await fetch(
       `https://gmail.googleapis.com/gmail/v1/users/me/labels/${labelId}`,
@@ -72,7 +74,6 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    // Log the response status
     logger.info(`[${requestId}] Gmail API response status: ${response.status}`)
 
     if (!response.ok) {
@@ -89,13 +90,9 @@ export async function GET(request: NextRequest) {
 
     const label = await response.json()
 
-    // Transform the label to a more usable format
-    // Format the label name with proper capitalization
     let formattedName = label.name
 
-    // Handle system labels (INBOX, SENT, etc.)
     if (label.type === 'system') {
-      // Convert to title case (first letter uppercase, rest lowercase)
       formattedName = label.name.charAt(0).toUpperCase() + label.name.slice(1).toLowerCase()
     }
 

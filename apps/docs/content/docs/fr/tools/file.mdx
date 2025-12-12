@@ -1,0 +1,54 @@
+---
+title: Fichier
+description: Lire et analyser plusieurs fichiers
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="file"
+  color="#40916C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+L'outil d'analyse de fichiers offre un moyen puissant d'extraire et de traiter le contenu de différents formats de fichiers, facilitant l'intégration des données documentaires dans vos flux de travail d'agent. Cet outil prend en charge plusieurs formats de fichiers et peut gérer des fichiers jusqu'à 200 Mo.
+
+Avec l'analyseur de fichiers, vous pouvez :
+
+- **Traiter plusieurs formats de fichiers** : extraire du texte à partir de PDF, CSV, documents Word (DOCX), fichiers texte, et plus encore
+- **Gérer des fichiers volumineux** : traiter des documents jusqu'à 200 Mo
+- **Analyser des fichiers à partir d'URL** : extraire directement le contenu de fichiers hébergés en ligne en fournissant leurs URL
+- **Traiter plusieurs fichiers à la fois** : télécharger et analyser plusieurs fichiers en une seule opération
+- **Extraire des données structurées** : conserver la mise en forme et la structure des documents originaux lorsque c'est possible
+
+L'outil d'analyse de fichiers est particulièrement utile dans les scénarios où vos agents doivent travailler avec du contenu documentaire, comme l'analyse de rapports, l'extraction de données à partir de feuilles de calcul ou le traitement de texte provenant de diverses sources documentaires. Il simplifie le processus de mise à disposition du contenu documentaire pour vos agents, leur permettant de travailler avec des informations stockées dans des fichiers aussi facilement qu'avec une saisie de texte directe.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrer un fichier dans le flux de travail. Possibilité de télécharger un fichier manuellement ou d'insérer une URL de fichier.
+
+## Outils
+
+### `file_parser`
+
+Analysez un ou plusieurs fichiers téléchargés ou des fichiers à partir d'URL (texte, PDF, CSV, images, etc.)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `filePath` | chaîne | Oui | Chemin vers le(s) fichier(s). Peut être un chemin unique, une URL ou un tableau de chemins. |
+| `fileType` | chaîne | Non | Type de fichier à analyser (détecté automatiquement si non spécifié) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | tableau | Tableau des fichiers analysés |
+| `combinedContent` | chaîne | Contenu combiné de tous les fichiers analysés |
+
+## Remarques
+
+- Catégorie : `tools`
+- Type : `file`

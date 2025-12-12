@@ -17,7 +17,6 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
   oauth: {
     required: true,
     provider: 'sharepoint',
-    additionalScopes: ['openid', 'profile', 'email', 'Sites.ReadWrite.All', 'offline_access'],
   },
 
   params: {

@@ -1,0 +1,102 @@
+---
+title: Routeur
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Le bloc Routeur utilise l'IA pour diriger intelligemment les flux de travail en fonction de l'analyse du contenu. Contrairement aux blocs Condition qui utilisent des règles simples, les Routeurs comprennent le contexte et l'intention.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/router.png"
+    alt="Bloc Routeur avec chemins multiples"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Routeur vs Condition
+
+**Utilisez le Routeur quand :**
+- Une analyse de contenu basée sur l'IA est nécessaire
+- Vous travaillez avec du contenu non structuré ou variable
+- Un routage basé sur l'intention est requis (par ex., "acheminer les tickets d'assistance vers les départements")
+
+**Utilisez la Condition quand :**
+- Des décisions simples basées sur des règles sont suffisantes
+- Vous travaillez avec des données structurées ou des comparaisons numériques
+- Un routage rapide et déterministe est nécessaire
+
+## Options de configuration
+
+### Contenu/Prompt
+
+Le contenu ou prompt que le Routeur analysera pour prendre des décisions de routage. Cela peut être :
+
+- Une requête ou saisie directe de l'utilisateur
+- La sortie d'un bloc précédent
+- Un message généré par le système
+
+### Blocs cibles
+
+Les blocs de destination possibles que le Routeur peut sélectionner. Le Routeur détectera automatiquement les blocs connectés, mais vous pouvez également :
+
+- Personnaliser les descriptions des blocs cibles pour améliorer la précision du routage
+- Spécifier des critères de routage pour chaque bloc cible
+- Exclure certains blocs d'être considérés comme cibles de routage
+
+### Sélection du modèle
+
+Choisissez un modèle d'IA pour alimenter la décision de routage :
+
+- **OpenAI** : GPT-4o, o1, o3, o4-mini, gpt-4.1
+- **Anthropic** : Claude 3.7 Sonnet
+- **Google** : Gemini 2.5 Pro, Gemini 2.0 Flash
+- **Autres fournisseurs** : Groq, Cerebras, xAI, DeepSeek
+- **Modèles locaux** : modèles compatibles avec Ollama ou VLLM
+
+Utilisez des modèles avec de fortes capacités de raisonnement comme GPT-4o ou Claude 3.7 Sonnet pour de meilleurs résultats.
+
+### Clé API
+
+Votre clé API pour le fournisseur LLM sélectionné. Elle est stockée en toute sécurité et utilisée pour l'authentification.
+
+## Sorties
+
+- **`<router.prompt>`** : Résumé de l'invite de routage
+- **`<router.selected_path>`** : Bloc de destination choisi
+- **`<router.tokens>`** : Statistiques d'utilisation des tokens
+- **`<router.cost>`** : Coût estimé du routage
+- **`<router.model>`** : Modèle utilisé pour la prise de décision
+
+## Exemples de cas d'utilisation
+
+**Triage du support client** - Acheminer les tickets vers des départements spécialisés
+
+```
+Input (Ticket) → Router → Agent (Engineering) or Agent (Finance)
+```
+
+**Classification de contenu** - Classer et acheminer le contenu généré par les utilisateurs
+
+```
+Input (Feedback) → Router → Workflow (Product) or Workflow (Technical)
+```
+
+**Qualification des prospects** - Acheminer les prospects selon les critères de qualification
+
+```
+Input (Lead) → Router → Agent (Enterprise Sales) or Workflow (Self-serve)
+```
+
+## Bonnes pratiques
+
+- **Fournir des descriptions claires des cibles** : Aidez le Routeur à comprendre quand sélectionner chaque destination avec des descriptions spécifiques et détaillées
+- **Utiliser des critères de routage spécifiques** : Définissez des conditions claires et des exemples pour chaque chemin afin d'améliorer la précision
+- **Implémenter des chemins de repli** : Connectez une destination par défaut pour les cas où aucun chemin spécifique n'est approprié
+- **Tester avec diverses entrées** : Assurez-vous que le Routeur gère différents types d'entrées, cas limites et contenus inattendus
+- **Surveiller les performances de routage** : Examinez régulièrement les décisions de routage et affinez les critères en fonction des modèles d'utilisation réels
+- **Choisir des modèles appropriés** : Utilisez des modèles avec de fortes capacités de raisonnement pour les décisions de routage complexes

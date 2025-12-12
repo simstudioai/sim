@@ -1,0 +1,53 @@
+---
+title: Stagehand Extract
+description: 从网站提取数据
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="stagehand"
+  color="#FFC83C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Stagehand](https://stagehand.com) 是一款工具，可通过 Browserbase 和 OpenAI 从网页中提取结构化数据。
+
+使用 Stagehand，您可以：
+
+- **提取结构化数据**：通过 Browserbase 和 OpenAI 从网页中提取结构化数据
+- **将数据保存到数据库**：将提取的数据保存到数据库中
+- **自动化工作流程**：自动化工作流程以从网页中提取数据
+
+在 Sim 中，Stagehand 集成使您的代理能够通过 Browserbase 和 OpenAI 从网页中提取结构化数据。这为数据提取、数据分析和数据集成等强大的自动化场景提供了可能。您的代理可以从网页中提取结构化数据，将提取的数据保存到数据库中，并自动化工作流程以提取数据。此集成弥合了 AI 工作流程与数据管理系统之间的差距，实现了无缝的数据提取和集成。通过将 Sim 与 Stagehand 连接，您可以自动化数据提取流程，维护最新的信息库，生成报告，并智能地组织信息——这一切都通过您的智能代理完成。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Stagehand 集成到工作流程中。可以从网页中提取结构化数据。需要 API 密钥。
+
+## 工具
+
+### `stagehand_extract`
+
+使用 Stagehand 从网页中提取结构化数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | 是 | 要提取数据的网页 URL |
+| `instruction` | string | 是 | 提取的指令 |
+| `apiKey` | string | 是 | 用于提取的 OpenAI API 密钥 \(Stagehand 所需\) |
+| `schema` | json | 是 | 定义要提取数据结构的 JSON 架构 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `data` | object | 提取的与提供的模式匹配的结构化数据 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`stagehand`

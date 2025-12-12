@@ -19,7 +19,6 @@ export const ThinkingBlock: BlockConfig<ThinkingToolResponse> = {
       id: 'thought',
       title: 'Thought Process / Instruction',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Describe the step-by-step thinking process here...',
       hidden: true,
       required: true,

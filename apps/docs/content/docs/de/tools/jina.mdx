@@ -1,0 +1,97 @@
+---
+title: Jina
+description: Durchsuche das Web oder extrahiere Inhalte aus URLs
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="jina"
+  color="#333333"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Jina AI](https://jina.ai/) ist ein leistungsstarkes Content-Extraktionstool, das sich nahtlos in Sim integriert, um Webinhalte in sauberen, lesbaren Text umzuwandeln. Diese Integration ermöglicht es Entwicklern, Webinhaltsverarbeitungsfunktionen einfach in ihre agentischen Workflows einzubinden.
+
+Jina AI Reader ist darauf spezialisiert, die relevantesten Inhalte von Webseiten zu extrahieren, indem Unordnung, Werbung und Formatierungsprobleme entfernt werden, um sauberen, strukturierten Text zu erzeugen, der für Sprachmodelle und andere Textverarbeitungsaufgaben optimiert ist.
+
+Mit der Jina AI-Integration in Sim können Sie:
+
+- **Saubere Inhalte extrahieren** von jeder Webseite, indem Sie einfach eine URL angeben
+- **Komplexe Web-Layouts** in strukturierten, lesbaren Text verarbeiten
+- **Wichtigen Kontext beibehalten**, während unnötige Elemente entfernt werden
+- **Webinhalte vorbereiten** für die weitere Verarbeitung in Ihren Agenten-Workflows
+- **Rechercheaufgaben optimieren**, indem Webinformationen schnell in nutzbare Daten umgewandelt werden
+
+Diese Integration ist besonders wertvoll für die Erstellung von Agenten, die Informationen aus dem Web sammeln und verarbeiten, Recherchen durchführen oder Online-Inhalte als Teil ihres Workflows analysieren müssen.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integriere Jina AI in den Workflow. Durchsuche das Web und erhalte LLM-freundliche Ergebnisse oder extrahiere saubere Inhalte aus bestimmten URLs mit erweiterten Parsing-Optionen.
+
+## Tools
+
+### `jina_read_url`
+
+Extrahieren und verarbeiten Sie Webinhalte in sauberen, LLM-freundlichen Text mit Jina AI Reader. Unterstützt fortschrittliches Content-Parsing, Link-Sammlung und mehrere Ausgabeformate mit konfigurierbaren Verarbeitungsoptionen.
+
+#### Eingabe
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Die URL, die gelesen und in Markdown konvertiert werden soll |
+| `useReaderLMv2` | boolean | No | Ob ReaderLM-v2 für bessere Qualität verwendet werden soll \(3-fache Token-Kosten\) |
+| `gatherLinks` | boolean | No | Ob alle Links am Ende gesammelt werden sollen |
+| `jsonResponse` | boolean | No | Ob die Antwort im JSON-Format zurückgegeben werden soll |
+| `apiKey` | string | Yes | Ihr Jina AI API-Schlüssel |
+| `withImagesummary` | boolean | No | Alle Bilder von der Seite mit Metadaten sammeln |
+| `retainImages` | string | No | Steuerung der Bildeinbindung: "none" entfernt alle, "all" behält alle bei |
+| `returnFormat` | string | No | Ausgabeformat: markdown, html, text, screenshot oder pageshot |
+| `withIframe` | boolean | No | Iframe-Inhalte in die Extraktion einbeziehen |
+| `withShadowDom` | boolean | No | Shadow-DOM-Inhalte extrahieren |
+| `noCache` | boolean | No | Zwischengespeicherte Inhalte umgehen für Echtzeit-Abruf |
+| `withGeneratedAlt` | boolean | No | Alt-Text für Bilder mit VLM generieren |
+| `robotsTxt` | string | No | Bot User-Agent für robots.txt-Prüfung |
+| `dnt` | boolean | No | Do Not Track - verhindert Caching/Tracking |
+| `noGfm` | boolean | No | GitHub Flavored Markdown deaktivieren |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Der extrahierte Inhalt von der URL, verarbeitet zu sauberem, LLM-freundlichem Text |
+| `links` | array | Liste der auf der Seite gefundenen Links (wenn gatherLinks oder withLinksummary aktiviert ist) |
+| `images` | array | Liste der auf der Seite gefundenen Bilder (wenn withImagesummary aktiviert ist) |
+
+### `jina_search`
+
+Durchsucht das Web und gibt die Top 5 Ergebnisse mit LLM-freundlichem Inhalt zurück. Jedes Ergebnis wird automatisch über die Jina Reader API verarbeitet. Unterstützt geografische Filterung, Website-Einschränkungen und Paginierung.
+
+#### Eingabe
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Yes | Suchanfrage-String |
+| `apiKey` | string | Yes | Ihr Jina AI API-Schlüssel |
+| `num` | number | No | Maximale Anzahl von Ergebnissen pro Seite \(Standard: 5\) |
+| `site` | string | No | Ergebnisse auf bestimmte Domain\(s\) beschränken. Kann durch Kommas getrennt für mehrere Seiten sein \(z.B. "jina.ai,github.com"\) |
+| `withFavicon` | boolean | No | Website-Favicons in Ergebnissen einbeziehen |
+| `withImagesummary` | boolean | No | Alle Bilder von Ergebnisseiten mit Metadaten sammeln |
+| `withLinksummary` | boolean | No | Alle Links von Ergebnisseiten sammeln |
+| `retainImages` | string | No | Steuerung der Bildeinbindung: "none" entfernt alle, "all" behält alle bei |
+| `noCache` | boolean | No | Zwischengespeicherte Inhalte umgehen für Echtzeit-Abruf |
+| `withGeneratedAlt` | boolean | No | Alt-Text für Bilder mit VLM generieren |
+| `respondWith` | string | No | Auf "no-content" setzen, um nur Metadaten ohne Seiteninhalt zu erhalten |
+| `returnFormat` | string | No | Ausgabeformat: markdown, html, text, screenshot oder pageshot |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `results` | array | Array von Suchergebnissen, die jeweils Titel, Beschreibung, URL und LLM-freundlichen Inhalt enthalten |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `jina`

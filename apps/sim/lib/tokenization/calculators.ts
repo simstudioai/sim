@@ -41,16 +41,6 @@ export function calculateStreamingCost(
 
     const providerId = getProviderForTokenization(model)
 
-    logger.debug('Starting streaming cost calculation', {
-      model,
-      providerId,
-      inputLength: inputText.length,
-      outputLength: outputText.length,
-      hasSystemPrompt: !!systemPrompt,
-      hasContext: !!context,
-      hasMessages: !!messages?.length,
-    })
-
     // Estimate input tokens (combine all input sources)
     const inputEstimate = estimateInputTokens(systemPrompt, context, messages, providerId)
 

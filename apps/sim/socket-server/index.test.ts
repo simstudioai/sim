@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { createServer } from 'http'
+import { createServer, request as httpRequest } from 'http'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLogger } from '@/lib/logs/console/logger'
 import { createSocketIOServer } from '@/socket-server/config/socket'
@@ -18,7 +18,7 @@ vi.mock('@/lib/auth', () => ({
   },
 }))
 
-vi.mock('@/db', () => ({
+vi.mock('@sim/db', () => ({
   db: {
     select: vi.fn(),
     insert: vi.fn(),
@@ -40,9 +40,9 @@ vi.mock('@/socket-server/middleware/auth', () => ({
 vi.mock('@/socket-server/middleware/permissions', () => ({
   verifyWorkflowAccess: vi.fn().mockResolvedValue({
     hasAccess: true,
-    role: 'owner',
+    role: 'admin',
   }),
-  verifyOperationPermission: vi.fn().mockResolvedValue({
+  checkRolePermission: vi.fn().mockReturnValue({
     allowed: true,
   }),
 }))
@@ -68,23 +68,17 @@ describe('Socket Server Index Integration', () => {
   })
 
   beforeEach(async () => {
-    // Use a random port for each test to avoid conflicts
     PORT = 3333 + Math.floor(Math.random() * 1000)
 
-    // Create HTTP server
     httpServer = createServer()
 
-    // Create Socket.IO server using extracted config
     io = createSocketIOServer(httpServer)
 
-    // Initialize room manager after io is created
     roomManager = new RoomManager(io)
 
-    // Configure HTTP request handler
     const httpHandler = createHttpHandler(roomManager, logger)
     httpServer.on('request', httpHandler)
 
-    // Start server with timeout handling
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error(`Server failed to start on port ${PORT} within 15 seconds`))
@@ -98,7 +92,6 @@ describe('Socket Server Index Integration', () => {
       httpServer.on('error', (err: any) => {
         clearTimeout(timeout)
         if (err.code === 'EADDRINUSE') {
-          // Try a different port
           PORT = 3333 + Math.floor(Math.random() * 1000)
           httpServer.listen(PORT, '0.0.0.0', () => {
             resolve()
@@ -111,7 +104,6 @@ describe('Socket Server Index Integration', () => {
   }, 20000)
 
   afterEach(async () => {
-    // Properly close servers and wait for them to fully close
     if (io) {
       await new Promise<void>((resolve) => {
         io.close(() => resolve())
@@ -132,18 +124,40 @@ describe('Socket Server Index Integration', () => {
     })
 
     it('should handle health check endpoint', async () => {
-      try {
-        const response = await fetch(`http://localhost:${PORT}/health`)
-        expect(response.status).toBe(200)
+      const data = await new Promise<{ status: string; timestamp: number; connections: number }>(
+        (resolve, reject) => {
+          const req = httpRequest(
+            {
+              hostname: 'localhost',
+              port: PORT,
+              path: '/health',
+              method: 'GET',
+            },
+            (res) => {
+              expect(res.statusCode).toBe(200)
 
-        const data = await response.json()
-        expect(data).toHaveProperty('status', 'ok')
-        expect(data).toHaveProperty('timestamp')
-        expect(data).toHaveProperty('connections')
-      } catch (error) {
-        // Skip this test if fetch fails (likely due to test environment)
-        console.warn('Health check test skipped due to fetch error:', error)
-      }
+              let body = ''
+              res.on('data', (chunk) => {
+                body += chunk
+              })
+              res.on('end', () => {
+                try {
+                  resolve(JSON.parse(body))
+                } catch (e) {
+                  reject(e)
+                }
+              })
+            }
+          )
+
+          req.on('error', reject)
+          req.end()
+        }
+      )
+
+      expect(data).toHaveProperty('status', 'ok')
+      expect(data).toHaveProperty('timestamp')
+      expect(data).toHaveProperty('connections')
     })
   })
 
@@ -212,6 +226,7 @@ describe('Socket Server Index Integration', () => {
         socketId,
         joinedAt: Date.now(),
         lastActivity: Date.now(),
+        role: 'admin',
       })
       room.activeConnections = 1
 
@@ -227,7 +242,6 @@ describe('Socket Server Index Integration', () => {
 
   describe('Module Integration', () => {
     it.concurrent('should properly import all extracted modules', async () => {
-      // Test that all modules can be imported without errors
       const { createSocketIOServer } = await import('@/socket-server/config/socket')
       const { createHttpHandler } = await import('@/socket-server/routes/http')
       const { RoomManager } = await import('@/socket-server/rooms/manager')
@@ -246,12 +260,10 @@ describe('Socket Server Index Integration', () => {
     })
 
     it.concurrent('should maintain all original functionality after refactoring', () => {
-      // Verify that the main components are properly instantiated
       expect(httpServer).toBeDefined()
       expect(io).toBeDefined()
       expect(roomManager).toBeDefined()
 
-      // Verify core methods exist and are callable
       expect(typeof roomManager.createWorkflowRoom).toBe('function')
       expect(typeof roomManager.cleanupUserFromRoom).toBe('function')
       expect(typeof roomManager.handleWorkflowDeletion).toBe('function')

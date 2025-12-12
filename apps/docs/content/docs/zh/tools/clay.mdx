@@ -1,0 +1,65 @@
+---
+title: Clay
+description: 填充 Clay 工作簿
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="clay"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Clay](https://www.clay.com/) 是一个数据增强和工作流自动化平台，通过强大的集成和灵活的输入，帮助团队简化潜在客户生成、研究和数据操作。
+
+了解如何在 Sim 中使用 Clay 工具，通过 webhook 触发器无缝地将数据插入到 Clay 工作簿中。本教程将指导您设置 webhook、配置数据映射，并实现对 Clay 工作簿的实时更新自动化。非常适合直接从您的工作流中简化潜在客户生成和数据增强！
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/cx_75X5sI_s"
+  title="Clay Integration with Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+使用 Clay，您可以：
+
+- **增强代理输出**：自动将您的 Sim 代理数据输入到 Clay 表格中，以便进行结构化跟踪和分析
+- **通过 webhook 触发工作流**：利用 Clay 的 webhook 支持，从 Clay 内部启动 Sim 代理任务
+- **利用数据循环**：通过在动态数据集上运行的代理，无缝迭代增强的数据行
+
+在 Sim 中，Clay 集成允许您的代理通过 webhook 将结构化数据推送到 Clay 表格中。这使得收集、增强和管理动态输出（如潜在客户、研究摘要或行动项）变得轻而易举——所有这些都在一个协作的、类似电子表格的界面中完成。您的代理可以实时填充行，从而实现异步工作流，在其中 AI 生成的洞察被捕获、审查并由您的团队使用。无论您是在自动化研究、增强 CRM 数据，还是跟踪运营结果，Clay 都成为一个动态的数据层，与您的代理智能交互。通过将 Sim 与 Clay 连接，您可以获得一种强大的方式来使代理结果操作化，精确地循环数据集，并维护 AI 驱动工作的清晰、可审计记录。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Clay 集成到工作流程中。可以用数据填充表格。需要 API 密钥。
+
+## 工具
+
+### `clay_populate`
+
+从 JSON 文件中将数据填充到 Clay 中。支持直接通信和带有时间戳跟踪及频道确认的通知功能。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `webhookURL` | string | 是 | 要填充的 webhook URL |
+| `data` | json | 是 | 要填充的数据 |
+| `authToken` | string | 否 | 用于 Clay webhook 认证的可选身份验证令牌（大多数 webhook 不需要此令牌） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `data` | json | 来自 Clay webhook 的响应数据 |
+| `metadata` | object | webhook 响应元数据 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`clay`

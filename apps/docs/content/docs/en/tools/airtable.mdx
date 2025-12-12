@@ -1,0 +1,135 @@
+---
+title: Airtable
+description: Read, create, and update Airtable
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="airtable"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Airtable](https://airtable.com/) is a powerful cloud-based platform that combines the functionality of a database with the simplicity of a spreadsheet. It allows users to create flexible databases for organizing, storing, and collaborating on information.
+
+With Airtable, you can:
+
+- **Create custom databases**: Build tailored solutions for project management, content calendars, inventory tracking, and more
+- **Visualize data**: View your information as a grid, kanban board, calendar, or gallery
+- **Automate workflows**: Set up triggers and actions to automate repetitive tasks
+- **Integrate with other tools**: Connect with hundreds of other applications through native integrations and APIs
+
+In Sim, the Airtable integration enables your agents to interact with your Airtable bases programmatically. This allows for seamless data operations like retrieving information, creating new records, and updating existing data - all within your agent workflows. Use Airtable as a dynamic data source or destination for your agents, enabling them to access and manipulate structured information as part of their decision-making and task execution processes.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrates Airtable into the workflow. Can create, get, list, or update Airtable records. Can be used in trigger mode to trigger a workflow when an update is made to an Airtable table.
+
+
+
+## Tools
+
+### `airtable_list_records`
+
+Read records from an Airtable table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseId` | string | Yes | ID of the Airtable base |
+| `tableId` | string | Yes | ID of the table |
+| `maxRecords` | number | No | Maximum number of records to return |
+| `filterFormula` | string | No | Formula to filter records \(e.g., "\(\{Field Name\} = \'Value\'\)"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | json | Array of retrieved Airtable records |
+
+### `airtable_get_record`
+
+Retrieve a single record from an Airtable table by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseId` | string | Yes | ID of the Airtable base |
+| `tableId` | string | Yes | ID or name of the table |
+| `recordId` | string | Yes | ID of the record to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Retrieved Airtable record with id, createdTime, and fields |
+| `metadata` | json | Operation metadata including record count |
+
+### `airtable_create_records`
+
+Write new records to an Airtable table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseId` | string | Yes | ID of the Airtable base |
+| `tableId` | string | Yes | ID or name of the table |
+| `records` | json | Yes | Array of records to create, each with a `fields` object |
+| `fields` | string | No | No description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | json | Array of created Airtable records |
+
+### `airtable_update_record`
+
+Update an existing record in an Airtable table by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseId` | string | Yes | ID of the Airtable base |
+| `tableId` | string | Yes | ID or name of the table |
+| `recordId` | string | Yes | ID of the record to update |
+| `fields` | json | Yes | An object containing the field names and their new values |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Updated Airtable record with id, createdTime, and fields |
+| `metadata` | json | Operation metadata including record count and updated field names |
+
+### `airtable_update_multiple_records`
+
+Update multiple existing records in an Airtable table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseId` | string | Yes | ID of the Airtable base |
+| `tableId` | string | Yes | ID or name of the table |
+| `records` | json | Yes | Array of records to update, each with an `id` and a `fields` object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | json | Array of updated Airtable records |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `airtable`

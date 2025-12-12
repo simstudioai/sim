@@ -1,30 +1,34 @@
 import type { ReactNode } from 'react'
-import { RootProvider } from 'fumadocs-ui/provider'
-import { Inter } from 'next/font/google'
-import './global.css'
-import { Analytics } from '@vercel/analytics/next'
 
-const inter = Inter({
-  subsets: ['latin'],
-})
-
-export default function Layout({ children }: { children: ReactNode }) {
-  return (
-    <html lang='en' className={inter.className} suppressHydrationWarning>
-      <body className='flex min-h-screen flex-col'>
-        <RootProvider>
-          {children}
-          <Analytics />
-        </RootProvider>
-      </body>
-    </html>
-  )
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return children
 }
 
 export const metadata = {
   title: 'P2 Agents',
   description:
-    'Build agents in seconds with a drag and drop workflow builder. Access comprehensive documentation to help you create efficient workflows and maximize your automation capabilities.',
+    'Comprehensive documentation for Sim - the visual workflow builder for AI applications. Create powerful AI agents, automation workflows, and data processing pipelines by connecting blocks on a canvas—no coding required.',
+  keywords: [
+    'AI workflow builder',
+    'visual workflow editor',
+    'AI automation',
+    'workflow automation',
+    'AI agents',
+    'no-code AI',
+    'drag and drop workflows',
+    'AI integrations',
+    'workflow canvas',
+    'AI Agent Workflow Builder',
+    'workflow orchestration',
+    'agent builder',
+    'AI workflow automation',
+    'visual programming',
+  ],
+  authors: [{ name: 'Sim Team', url: 'https://sim.ai' }],
+  creator: 'Sim',
+  publisher: 'Sim',
+  category: 'Developer Tools',
+  classification: 'Developer Documentation',
   manifest: '/favicon/site.webmanifest',
   icons: {
     icon: [
@@ -38,5 +42,47 @@ export const metadata = {
     capable: true,
     statusBarStyle: 'default',
     title: 'P2 Agents Docs',
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    alternateLocale: ['es_ES', 'fr_FR', 'de_DE', 'ja_JP', 'zh_CN'],
+    url: 'https://docs.sim.ai',
+    siteName: 'Sim Documentation',
+    title: 'Sim Documentation - Visual Workflow Builder for AI Applications',
+    description:
+      'Comprehensive documentation for Sim - the visual workflow builder for AI applications. Create powerful AI agents, automation workflows, and data processing pipelines.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Sim Documentation - Visual Workflow Builder for AI Applications',
+    description:
+      'Comprehensive documentation for Sim - the visual workflow builder for AI applications.',
+    creator: '@simdotai',
+    site: '@simdotai',
+    images: ['/og-image.png'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  alternates: {
+    canonical: 'https://docs.sim.ai',
+    languages: {
+      'x-default': 'https://docs.sim.ai',
+      en: 'https://docs.sim.ai',
+      es: 'https://docs.sim.ai/es',
+      fr: 'https://docs.sim.ai/fr',
+      de: 'https://docs.sim.ai/de',
+      ja: 'https://docs.sim.ai/ja',
+      zh: 'https://docs.sim.ai/zh',
+    },
   },
 }

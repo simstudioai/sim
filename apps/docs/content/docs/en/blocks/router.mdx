@@ -1,0 +1,100 @@
+---
+title: Router
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+The Router block uses AI to intelligently route workflows based on content analysis. Unlike Condition blocks that use simple rules, Routers understand context and intent.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/router.png"
+    alt="Router Block with Multiple Paths"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Router vs Condition
+
+**Use Router when:**
+- AI-powered content analysis is needed
+- Working with unstructured or varying content
+- Intent-based routing is required (e.g., "route support tickets to departments")
+
+**Use Condition when:**
+- Simple rule-based decisions are sufficient
+- Working with structured data or numeric comparisons
+- Fast, deterministic routing is needed
+
+## Configuration Options
+
+### Content/Prompt
+
+The content or prompt that the Router will analyze to make routing decisions. This can be:
+
+- A direct user query or input
+- Output from a previous block
+- A system-generated message
+
+### Target Blocks
+
+The possible destination blocks that the Router can select from. The Router will automatically detect connected blocks, but you can also:
+
+- Customize the descriptions of target blocks to improve routing accuracy
+- Specify routing criteria for each target block
+- Exclude certain blocks from being considered as routing targets
+
+### Model Selection
+
+Choose an AI model to power the routing decision:
+
+- **OpenAI**: GPT-4o, o1, o3, o4-mini, gpt-4.1
+- **Anthropic**: Claude 3.7 Sonnet
+- **Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
+- **Other Providers**: Groq, Cerebras, xAI, DeepSeek
+- **Local Models**: Ollama or VLLM compatible models
+
+Use models with strong reasoning capabilities like GPT-4o or Claude 3.7 Sonnet for best results.
+
+### API Key
+
+Your API key for the selected LLM provider. This is securely stored and used for authentication.
+
+## Outputs
+
+- **`<router.prompt>`**: Summary of the routing prompt
+- **`<router.selected_path>`**: Chosen destination block
+- **`<router.tokens>`**: Token usage statistics
+- **`<router.cost>`**: Estimated routing cost
+- **`<router.model>`**: Model used for decision-making
+
+## Example Use Cases
+
+**Customer Support Triage** - Route tickets to specialized departments
+```
+Input (Ticket) → Router → Agent (Engineering) or Agent (Finance)
+```
+
+**Content Classification** - Classify and route user-generated content
+```
+Input (Feedback) → Router → Workflow (Product) or Workflow (Technical)
+```
+
+**Lead Qualification** - Route leads based on qualification criteria
+```
+Input (Lead) → Router → Agent (Enterprise Sales) or Workflow (Self-serve)
+```
+
+
+## Best Practices
+
+- **Provide clear target descriptions**: Help the Router understand when to select each destination with specific, detailed descriptions
+- **Use specific routing criteria**: Define clear conditions and examples for each path to improve accuracy
+- **Implement fallback paths**: Connect a default destination for when no specific path is appropriate
+- **Test with diverse inputs**: Ensure the Router handles various input types, edge cases, and unexpected content
+- **Monitor routing performance**: Review routing decisions regularly and refine criteria based on actual usage patterns
+- **Choose appropriate models**: Use models with strong reasoning capabilities for complex routing decisions

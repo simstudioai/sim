@@ -1,13 +1,15 @@
 import { xIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { XResponse } from '@/tools/x/types'
 
 export const XBlock: BlockConfig<XResponse> = {
   type: 'x',
   name: 'X',
   description: 'Interact with X',
+  authMode: AuthMode.OAuth,
   longDescription:
-    'Connect with X to post tweets, read content, search for information, and access user profiles. Integrate social media capabilities into your workflow with comprehensive X platform access.',
+    'Integrate X into the workflow. Can post a new tweet, get tweet details, search tweets, and get user profile.',
   docsLink: 'https://docs.sim.ai/tools/x',
   category: 'tools',
   bgColor: '#000000', // X's black color
@@ -17,7 +19,6 @@ export const XBlock: BlockConfig<XResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Post a New Tweet', id: 'x_write' },
         { label: 'Get Tweet Details', id: 'x_read' },
@@ -30,17 +31,14 @@ export const XBlock: BlockConfig<XResponse> = {
       id: 'credential',
       title: 'X Account',
       type: 'oauth-input',
-      layout: 'full',
-      provider: 'x',
       serviceId: 'x',
-      requiredScopes: ['tweet.read', 'tweet.write', 'users.read'],
+      requiredScopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
       placeholder: 'Select X account',
     },
     {
       id: 'text',
       title: 'Tweet Text',
       type: 'long-input',
-      layout: 'full',
       placeholder: "What's happening?",
       condition: { field: 'operation', value: 'x_write' },
       required: true,
@@ -49,7 +47,6 @@ export const XBlock: BlockConfig<XResponse> = {
       id: 'replyTo',
       title: 'Reply To (Tweet ID)',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter tweet ID to reply to',
       condition: { field: 'operation', value: 'x_write' },
     },
@@ -57,7 +54,6 @@ export const XBlock: BlockConfig<XResponse> = {
       id: 'mediaIds',
       title: 'Media IDs',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter comma-separated media IDs',
       condition: { field: 'operation', value: 'x_write' },
     },
@@ -65,7 +61,6 @@ export const XBlock: BlockConfig<XResponse> = {
       id: 'tweetId',
       title: 'Tweet ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter tweet ID to read',
       condition: { field: 'operation', value: 'x_read' },
       required: true,
@@ -74,7 +69,6 @@ export const XBlock: BlockConfig<XResponse> = {
       id: 'includeReplies',
       title: 'Include Replies',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'true', id: 'true' },
         { label: 'false', id: 'false' },
@@ -86,7 +80,6 @@ export const XBlock: BlockConfig<XResponse> = {
       id: 'query',
       title: 'Search Query',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter search terms (supports X search operators)',
       condition: { field: 'operation', value: 'x_search' },
       required: true,
@@ -95,7 +88,6 @@ export const XBlock: BlockConfig<XResponse> = {
       id: 'maxResults',
       title: 'Max Results',
       type: 'short-input',
-      layout: 'full',
       placeholder: '10',
       condition: { field: 'operation', value: 'x_search' },
     },
@@ -103,7 +95,6 @@ export const XBlock: BlockConfig<XResponse> = {
       id: 'sortOrder',
       title: 'Sort Order',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'recency', id: 'recency' },
         { label: 'relevancy', id: 'relevancy' },
@@ -115,7 +106,6 @@ export const XBlock: BlockConfig<XResponse> = {
       id: 'startTime',
       title: 'Start Time',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'YYYY-MM-DDTHH:mm:ssZ',
       condition: { field: 'operation', value: 'x_search' },
     },
@@ -123,7 +113,6 @@ export const XBlock: BlockConfig<XResponse> = {
       id: 'endTime',
       title: 'End Time',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'YYYY-MM-DDTHH:mm:ssZ',
       condition: { field: 'operation', value: 'x_search' },
     },
@@ -131,7 +120,6 @@ export const XBlock: BlockConfig<XResponse> = {
       id: 'username',
       title: 'Username',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter username (without @)',
       condition: { field: 'operation', value: 'x_user' },
       required: true,

@@ -1,0 +1,151 @@
+---
+title: Exa
+description: 使用 Exa AI 搜索
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="exa"
+  color="#1F40ED"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Exa](https://exa.ai/) 是一款专为开发者和研究人员设计的 AI 驱动搜索引擎，能够从网络中提供高度相关且最新的信息。它结合了先进的语义搜索功能和 AI 理解能力，比传统搜索引擎提供更准确且更具上下文相关性的结果。
+
+使用 Exa，您可以：
+
+- **使用自然语言搜索**：通过对话式查询和问题查找信息
+- **获取精准结果**：通过语义理解获得高度相关的搜索结果
+- **访问最新信息**：从网络中检索最新信息
+- **发现相似内容**：根据内容相似性发现相关资源
+- **提取网页内容**：检索并处理网页的全文内容
+- **带引用回答问题**：提出问题并获得带有支持来源的直接答案
+- **执行研究任务**：自动化多步骤研究工作流以收集、综合和总结信息
+
+在 Sim 中，Exa 集成允许您的代理通过 API 调用以编程方式搜索网络信息、从特定 URL 检索内容、查找相似资源、带引用回答问题以及执行研究任务。这使您的代理能够从互联网上获取实时信息，增强其提供准确、最新且相关响应的能力。该集成对于研究任务、信息收集、内容发现以及需要从网络中获取最新信息的问题解答尤为有价值。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Exa 集成到工作流程中。可以搜索、获取内容、查找相似链接、回答问题并进行研究。需要 API 密钥。
+
+## 工具
+
+### `exa_search`
+
+使用 Exa AI 搜索网络。返回包含标题、URL 和文本摘要的相关搜索结果。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | 是 | 要执行的搜索查询 |
+| `numResults` | number | 否 | 要返回的结果数量 \(默认值: 10，最大值: 25\) |
+| `useAutoprompt` | boolean | 否 | 是否使用自动提示来优化查询 \(默认值: false\) |
+| `type` | string | 否 | 搜索类型：neural、keyword、auto 或 fast \(默认值: auto\) |
+| `includeDomains` | string | 否 | 用逗号分隔的域名列表，包含在结果中 |
+| `excludeDomains` | string | 否 | 用逗号分隔的域名列表，从结果中排除 |
+| `category` | string | 否 | 按类别筛选：company、research_paper、news_article、pdf、github、tweet、movie、song、personal_site |
+| `text` | boolean | 否 | 在结果中包含完整文本内容 \(默认值: false\) |
+| `highlights` | boolean | 否 | 在结果中包含高亮片段 \(默认值: false\) |
+| `summary` | boolean | 否 | 在结果中包含 AI 生成的摘要 \(默认值: false\) |
+| `livecrawl` | string | 否 | 实时爬取模式：always、fallback 或 never \(默认值: never\) |
+| `apiKey` | string | 是 | Exa AI API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `results` | array | 包含标题、URL 和文本片段的搜索结果 |
+
+### `exa_get_contents`
+
+使用 Exa AI 检索网页内容。返回每个 URL 的标题、文本内容以及可选的摘要。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `urls` | string | 是 | 用逗号分隔的 URL 列表，用于获取内容 |
+| `text` | boolean | 否 | 如果为 true，则返回默认设置的完整页面文本。如果为 false，则禁用文本返回。 |
+| `summaryQuery` | string | 否 | 用于指导摘要生成的查询 |
+| `subpages` | number | 否 | 从提供的 URL 爬取的子页面数量 |
+| `subpageTarget` | string | 否 | 用逗号分隔的关键字，用于定位特定子页面 \(例如："docs,tutorial,about"\) |
+| `highlights` | boolean | 否 | 在结果中包含高亮片段 \(默认值: false\) |
+| `livecrawl` | string | 否 | 实时爬取模式：always、fallback 或 never \(默认值: never\) |
+| `apiKey` | string | 是 | Exa AI API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `results` | array | 从 URL 检索的内容，包括标题、文本和摘要 |
+
+### `exa_find_similar_links`
+
+使用 Exa AI 查找与给定 URL 类似的网页。返回包含标题和文本摘要的类似链接列表。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | 是 | 要查找相似链接的 URL |
+| `numResults` | number | 否 | 要返回的相似链接数量 \(默认值: 10，最大值: 25\) |
+| `text` | boolean | 否 | 是否包含相似页面的完整文本 |
+| `includeDomains` | string | 否 | 用逗号分隔的域名列表，包含在结果中 |
+| `excludeDomains` | string | 否 | 用逗号分隔的域名列表，从结果中排除 |
+| `excludeSourceDomain` | boolean | 否 | 从结果中排除源域名 \(默认值: false\) |
+| `category` | string | 否 | 按类别筛选：company、research_paper、news_article、pdf、github、tweet、movie、song、personal_site |
+| `highlights` | boolean | 否 | 在结果中包含高亮片段 \(默认值: false\) |
+| `summary` | boolean | 否 | 在结果中包含 AI 生成的摘要 \(默认值: false\) |
+| `livecrawl` | string | 否 | 实时爬取模式：always、fallback 或 never \(默认值: never\) |
+| `apiKey` | string | 是 | Exa AI API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `similarLinks` | array | 找到的类似链接，包含标题、URL 和文本摘要 |
+
+### `exa_answer`
+
+使用 Exa AI 获取带有网络引用的 AI 生成答案。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | 是 | 要回答的问题 |
+| `text` | boolean | 否 | 是否包含答案的完整文本 |
+| `apiKey` | string | 是 | Exa AI API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `answer` | string | AI 生成的答案 |
+| `citations` | array | 答案的来源和引用 |
+
+### `exa_research`
+
+使用 AI 进行全面研究，生成带有引用的详细报告
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | 是 | 研究查询或主题 |
+| `model` | string | 否 | 研究模型：exa-research-fast、exa-research（默认）或 exa-research-pro |
+| `apiKey` | string | 是 | Exa AI API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `research` | array | 带有引用和摘要的全面研究结果 |
+
+## 注意
+
+- 类别：`tools`
+- 类型：`exa`

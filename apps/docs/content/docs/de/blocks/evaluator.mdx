@@ -1,0 +1,96 @@
+---
+title: Evaluator
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Der Evaluator-Block nutzt KI, um die Inhaltsqualität anhand benutzerdefinierter Metriken zu bewerten. Perfekt für Qualitätskontrolle, A/B-Tests und um sicherzustellen, dass KI-Ausgaben bestimmte Standards erfüllen.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/evaluator.png"
+    alt="Evaluator-Block-Konfiguration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Konfigurationsoptionen
+
+### Bewertungsmetriken
+
+Definieren Sie benutzerdefinierte Metriken, anhand derer Inhalte bewertet werden. Jede Metrik umfasst:
+
+- **Name**: Eine kurze Bezeichnung für die Metrik
+- **Beschreibung**: Eine detaillierte Erklärung, was die Metrik misst
+- **Bereich**: Der numerische Bereich für die Bewertung (z.B. 1-5, 0-10)
+
+Beispielmetriken:
+
+```
+Accuracy (1-5): How factually accurate is the content?
+Clarity (1-5): How clear and understandable is the content?
+Relevance (1-5): How relevant is the content to the original query?
+```
+
+### Inhalt
+
+Der zu bewertende Inhalt. Dies kann sein:
+
+- Direkt in der Blockkonfiguration bereitgestellt
+- Verbunden mit der Ausgabe eines anderen Blocks (typischerweise ein Agent-Block)
+- Dynamisch während der Workflow-Ausführung generiert
+
+### Modellauswahl
+
+Wählen Sie ein KI-Modell für die Durchführung der Bewertung:
+
+- **OpenAI**: GPT-4o, o1, o3, o4-mini, gpt-4.1
+- **Anthropic**: Claude 3.7 Sonnet
+- **Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
+- **Andere Anbieter**: Groq, Cerebras, xAI, DeepSeek
+- **Lokale Modelle**: Ollama oder VLLM-kompatible Modelle
+
+Verwenden Sie Modelle mit starken Argumentationsfähigkeiten wie GPT-4o oder Claude 3.7 Sonnet für beste Ergebnisse.
+
+### API-Schlüssel
+
+Ihr API-Schlüssel für den ausgewählten LLM-Anbieter. Dieser wird sicher gespeichert und für die Authentifizierung verwendet.
+
+## Beispielanwendungsfälle
+
+**Bewertung der Inhaltsqualität** - Inhalte vor der Veröffentlichung bewerten
+
+```
+Agent (Generate) → Evaluator (Score) → Condition (Check threshold) → Publish or Revise
+```
+
+**A/B-Tests von Inhalten** - Vergleich mehrerer KI-generierter Antworten
+
+```
+Parallel (Variations) → Evaluator (Score Each) → Function (Select Best) → Response
+```
+
+**Qualitätskontrolle im Kundenservice** - Sicherstellen, dass Antworten Qualitätsstandards erfüllen
+
+```
+Agent (Support Response) → Evaluator (Score) → Function (Log) → Condition (Review if Low)
+```
+
+## Ausgaben
+
+- **`<evaluator.content>`**: Zusammenfassung der Bewertung mit Punktzahlen
+- **`<evaluator.model>`**: Für die Bewertung verwendetes Modell
+- **`<evaluator.tokens>`**: Statistik zur Token-Nutzung
+- **`<evaluator.cost>`**: Geschätzte Bewertungskosten
+
+## Best Practices
+
+- **Verwenden Sie spezifische Metrikbeschreibungen**: Definieren Sie klar, was jede Metrik misst, um genauere Bewertungen zu erhalten
+- **Wählen Sie geeignete Bereiche**: Wählen Sie Bewertungsbereiche, die ausreichend Granularität bieten, ohne zu komplex zu sein
+- **Verbinden Sie mit Agent-Blöcken**: Verwenden Sie Evaluator-Blöcke, um die Ausgaben von Agent-Blöcken zu bewerten und Feedback-Schleifen zu erstellen
+- **Verwenden Sie konsistente Metriken**: Für vergleichende Analysen sollten Sie konsistente Metriken über ähnliche Bewertungen hinweg beibehalten
+- **Kombinieren Sie mehrere Metriken**: Verwenden Sie verschiedene Metriken, um eine umfassende Bewertung zu erhalten

@@ -1,0 +1,97 @@
+---
+title: Jina
+description: ウェブを検索またはURLからコンテンツを抽出
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="jina"
+  color="#333333"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Jina AI](https://jina.ai/)は、Simとシームレスに統合して、ウェブコンテンツをクリーンで読みやすいテキストに変換する強力なコンテンツ抽出ツールです。この統合により、開発者はウェブコンテンツ処理機能をエージェントワークフローに簡単に組み込むことができます。
+
+Jina AI Readerは、ウェブページから最も関連性の高いコンテンツを抽出し、雑然としたもの、広告、フォーマットの問題を取り除いて、言語モデルやその他のテキスト処理タスクに最適化されたクリーンで構造化されたテキストを生成することを専門としています。
+
+SimのJina AI統合により、以下のことが可能になります：
+
+- URLを提供するだけで、任意のウェブページから**クリーンなコンテンツを抽出**
+- 複雑なウェブレイアウトを構造化された読みやすい**テキストに処理**
+- 不要な要素を削除しながら**重要なコンテキストを維持**
+- エージェントワークフローでのさらなる処理のために**ウェブコンテンツを準備**
+- ウェブ情報を使用可能なデータに素早く変換することで**研究タスクを効率化**
+
+この統合は、ウェブから情報を収集して処理したり、研究を行ったり、ワークフローの一部としてオンラインコンテンツを分析したりする必要があるエージェントを構築する際に特に価値があります。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Jina AIをワークフローに統合します。ウェブを検索してLLMに適した結果を取得するか、高度な解析オプションを使用して特定のURLからクリーンなコンテンツを抽出します。
+
+## ツール
+
+### `jina_read_url`
+
+Jina AI Readerを使用してウェブコンテンツを抽出し、LLMフレンドリーなクリーンテキストに処理します。高度なコンテンツ解析、リンク収集、および設定可能な処理オプションによる複数の出力形式をサポートします。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | はい | 読み込んでマークダウンに変換するURL |
+| `useReaderLMv2` | boolean | いいえ | より高品質のためにReaderLM-v2を使用するかどうか（トークンコストが3倍） |
+| `gatherLinks` | boolean | いいえ | すべてのリンクを最後にまとめるかどうか |
+| `jsonResponse` | boolean | いいえ | レスポンスをJSON形式で返すかどうか |
+| `apiKey` | string | はい | あなたのJina AI APIキー |
+| `withImagesummary` | boolean | いいえ | ページからメタデータ付きですべての画像を収集する |
+| `retainImages` | string | いいえ | 画像の含め方の制御：「none」はすべて削除、「all」はすべて保持 |
+| `returnFormat` | string | いいえ | 出力形式：markdown、html、text、screenshot、またはpageshot |
+| `withIframe` | boolean | いいえ | 抽出にiframeコンテンツを含めるかどうか |
+| `withShadowDom` | boolean | いいえ | Shadow DOMコンテンツを抽出する |
+| `noCache` | boolean | いいえ | リアルタイム取得のためにキャッシュされたコンテンツをバイパスする |
+| `withGeneratedAlt` | boolean | いいえ | VLMを使用して画像の代替テキストを生成する |
+| `robotsTxt` | string | いいえ | robots.txtチェック用のボットユーザーエージェント |
+| `dnt` | boolean | いいえ | Do Not Track - キャッシュ/トラッキングを防止する |
+| `noGfm` | boolean | いいえ | GitHub Flavored Markdownを無効にする |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `content` | string | URLから抽出されたコンテンツで、クリーンでLLMフレンドリーなテキストに処理されたもの |
+| `links` | array | ページで見つかったリンクのリスト（gatherLinksまたはwithLinksummaryが有効な場合） |
+| `images` | array | ページで見つかった画像のリスト（withImagesummaryが有効な場合） |
+
+### `jina_search`
+
+ウェブを検索し、LLMフレンドリーなコンテンツを含むトップ5の結果を返します。各結果は自動的にJina Reader APIを通じて処理されます。地理的フィルタリング、サイト制限、ページネーションをサポートしています。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | はい | 検索クエリ文字列 |
+| `apiKey` | string | はい | あなたのJina AI APIキー |
+| `num` | number | いいえ | ページあたりの最大結果数（デフォルト：5） |
+| `site` | string | いいえ | 特定のドメインに結果を制限する。複数のサイトの場合はカンマ区切りで指定可能（例："jina.ai,github.com"） |
+| `withFavicon` | boolean | いいえ | 結果にウェブサイトのファビコンを含める |
+| `withImagesummary` | boolean | いいえ | 結果ページからメタデータ付きですべての画像を収集する |
+| `withLinksummary` | boolean | いいえ | 結果ページからすべてのリンクを収集する |
+| `retainImages` | string | いいえ | 画像の含め方の制御：「none」はすべて削除、「all」はすべて保持 |
+| `noCache` | boolean | いいえ | リアルタイム取得のためにキャッシュされたコンテンツをバイパスする |
+| `withGeneratedAlt` | boolean | いいえ | VLMを使用して画像の代替テキストを生成する |
+| `respondWith` | string | いいえ | ページコンテンツなしでメタデータのみを取得するには「no-content」に設定 |
+| `returnFormat` | string | いいえ | 出力形式：markdown、html、text、screenshot、またはpageshot |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `results` | array | 検索結果の配列。各結果にはタイトル、説明、URL、LLMフレンドリーなコンテンツが含まれます |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `jina`

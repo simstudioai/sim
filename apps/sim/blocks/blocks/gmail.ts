@@ -1,29 +1,40 @@
 import { GmailIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { GmailToolResponse } from '@/tools/gmail/types'
+import { getTrigger } from '@/triggers'
 
 export const GmailBlock: BlockConfig<GmailToolResponse> = {
   type: 'gmail',
   name: 'Gmail',
-  description: 'Send Gmail or trigger workflows from Gmail events',
+  description: 'Send, read, search, and move Gmail messages or trigger workflows from Gmail events',
+  authMode: AuthMode.OAuth,
   longDescription:
-    'Comprehensive Gmail integration with OAuth authentication. Send email messages, read email content, and trigger workflows from Gmail events like new emails and label changes.',
+    'Integrate Gmail into the workflow. Can send, read, search, and move emails. Can be used in trigger mode to trigger a workflow when a new email is received.',
   docsLink: 'https://docs.sim.ai/tools/gmail',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: GmailIcon,
+  triggerAllowed: true,
   subBlocks: [
     // Operation selector
     {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Send Email', id: 'send_gmail' },
         { label: 'Read Email', id: 'read_gmail' },
         { label: 'Draft Email', id: 'draft_gmail' },
         { label: 'Search Email', id: 'search_gmail' },
+        { label: 'Move Email', id: 'move_gmail' },
+        { label: 'Mark as Read', id: 'mark_read_gmail' },
+        { label: 'Mark as Unread', id: 'mark_unread_gmail' },
+        { label: 'Archive Email', id: 'archive_gmail' },
+        { label: 'Unarchive Email', id: 'unarchive_gmail' },
+        { label: 'Delete Email', id: 'delete_gmail' },
+        { label: 'Add Label', id: 'add_label_gmail' },
+        { label: 'Remove Label', id: 'remove_label_gmail' },
       ],
       value: () => 'send_gmail',
     },
@@ -32,13 +43,10 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       id: 'credential',
       title: 'Gmail Account',
       type: 'oauth-input',
-      layout: 'full',
-      provider: 'google-email',
       serviceId: 'gmail',
       requiredScopes: [
         'https://www.googleapis.com/auth/gmail.send',
         'https://www.googleapis.com/auth/gmail.modify',
-        'https://www.googleapis.com/auth/gmail.readonly',
         'https://www.googleapis.com/auth/gmail.labels',
       ],
       placeholder: 'Select Gmail account',
@@ -49,7 +57,6 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       id: 'to',
       title: 'To',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Recipient email address',
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
       required: true,
@@ -58,26 +65,77 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       id: 'subject',
       title: 'Subject',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Email subject',
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
-      required: true,
+      required: false,
     },
     {
       id: 'body',
       title: 'Body',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Email content',
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
       required: true,
+    },
+    {
+      id: 'contentType',
+      title: 'Content Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Plain Text', id: 'text' },
+        { label: 'HTML', id: 'html' },
+      ],
+      condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
+      value: () => 'text',
+      required: false,
+    },
+    // File upload (basic mode)
+    {
+      id: 'attachmentFiles',
+      title: 'Attachments',
+      type: 'file-upload',
+      canonicalParamId: 'attachments',
+      placeholder: 'Upload files to attach',
+      condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
+      mode: 'basic',
+      multiple: true,
+      required: false,
+    },
+    // Variable reference (advanced mode)
+    {
+      id: 'attachments',
+      title: 'Attachments',
+      type: 'short-input',
+      canonicalParamId: 'attachments',
+      placeholder: 'Reference files from previous blocks',
+      condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
+      mode: 'advanced',
+      required: false,
+    },
+    // Advanced Settings - Threading
+    {
+      id: 'threadId',
+      title: 'Thread ID',
+      type: 'short-input',
+      placeholder: 'Thread ID to reply to (for threading)',
+      condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
+      mode: 'advanced',
+      required: false,
+    },
+    {
+      id: 'replyToMessageId',
+      title: 'Reply to Message ID',
+      type: 'short-input',
+      placeholder: 'Gmail message ID (not RFC Message-ID) - use the "id" field from results',
+      condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
+      mode: 'advanced',
+      required: false,
     },
     // Advanced Settings - Additional Recipients
     {
       id: 'cc',
       title: 'CC',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'CC recipients (comma-separated)',
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
       mode: 'advanced',
@@ -87,7 +145,6 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       id: 'bcc',
       title: 'BCC',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'BCC recipients (comma-separated)',
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
       mode: 'advanced',
@@ -98,13 +155,9 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       id: 'folder',
       title: 'Label',
       type: 'folder-selector',
-      layout: 'full',
-      provider: 'google-email',
+      canonicalParamId: 'folder',
       serviceId: 'gmail',
-      requiredScopes: [
-        'https://www.googleapis.com/auth/gmail.readonly',
-        'https://www.googleapis.com/auth/gmail.labels',
-      ],
+      requiredScopes: ['https://www.googleapis.com/auth/gmail.labels'],
       placeholder: 'Select Gmail label/folder',
       dependsOn: ['credential'],
       mode: 'basic',
@@ -115,7 +168,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       id: 'manualFolder',
       title: 'Label/Folder',
       type: 'short-input',
-      layout: 'full',
+      canonicalParamId: 'folder',
       placeholder: 'Enter Gmail label name (e.g., INBOX, SENT, or custom label)',
       mode: 'advanced',
       condition: { field: 'operation', value: 'read_gmail' },
@@ -124,21 +177,18 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       id: 'unreadOnly',
       title: 'Unread Only',
       type: 'switch',
-      layout: 'full',
       condition: { field: 'operation', value: 'read_gmail' },
     },
     {
       id: 'includeAttachments',
       title: 'Include Attachments',
       type: 'switch',
-      layout: 'full',
       condition: { field: 'operation', value: 'read_gmail' },
     },
     {
       id: 'messageId',
       title: 'Message ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter message ID to read (optional)',
       condition: {
         field: 'operation',
@@ -154,7 +204,6 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       id: 'query',
       title: 'Search Query',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter search terms',
       condition: { field: 'operation', value: 'search_gmail' },
       required: true,
@@ -163,22 +212,137 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       id: 'maxResults',
       title: 'Max Results',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Maximum number of results (default: 10)',
       condition: { field: 'operation', value: ['search_gmail', 'read_gmail'] },
     },
-    // TRIGGER MODE: Trigger configuration (only shown when trigger mode is active)
+    // Move Email Fields
     {
-      id: 'triggerConfig',
-      title: 'Trigger Configuration',
-      type: 'trigger-config',
-      layout: 'full',
-      triggerProvider: 'gmail',
-      availableTriggers: ['gmail_poller'],
+      id: 'moveMessageId',
+      title: 'Message ID',
+      type: 'short-input',
+      placeholder: 'ID of the email to move',
+      condition: { field: 'operation', value: 'move_gmail' },
+      required: true,
     },
+    // Destination label selector (basic mode)
+    {
+      id: 'destinationLabel',
+      title: 'Move To Label',
+      type: 'folder-selector',
+      canonicalParamId: 'addLabelIds',
+      serviceId: 'gmail',
+      requiredScopes: ['https://www.googleapis.com/auth/gmail.labels'],
+      placeholder: 'Select destination label',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: 'move_gmail' },
+      required: true,
+    },
+    // Manual destination label input (advanced mode)
+    {
+      id: 'manualDestinationLabel',
+      title: 'Move To Label',
+      type: 'short-input',
+      canonicalParamId: 'addLabelIds',
+      placeholder: 'Enter label ID (e.g., INBOX, Label_123)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'move_gmail' },
+      required: true,
+    },
+    // Source label selector (basic mode)
+    {
+      id: 'sourceLabel',
+      title: 'Remove From Label',
+      type: 'folder-selector',
+      canonicalParamId: 'removeLabelIds',
+      serviceId: 'gmail',
+      requiredScopes: ['https://www.googleapis.com/auth/gmail.labels'],
+      placeholder: 'Select label to remove',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: 'move_gmail' },
+      required: false,
+    },
+    // Manual source label input (advanced mode)
+    {
+      id: 'manualSourceLabel',
+      title: 'Remove From Label',
+      type: 'short-input',
+      canonicalParamId: 'removeLabelIds',
+      placeholder: 'Enter label ID to remove (e.g., INBOX)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'move_gmail' },
+      required: false,
+    },
+    // Mark as Read/Unread, Archive/Unarchive, Delete - Message ID field
+    {
+      id: 'actionMessageId',
+      title: 'Message ID',
+      type: 'short-input',
+      placeholder: 'ID of the email',
+      condition: {
+        field: 'operation',
+        value: [
+          'mark_read_gmail',
+          'mark_unread_gmail',
+          'archive_gmail',
+          'unarchive_gmail',
+          'delete_gmail',
+        ],
+      },
+      required: true,
+    },
+    // Add/Remove Label - Message ID field
+    {
+      id: 'labelActionMessageId',
+      title: 'Message ID',
+      type: 'short-input',
+      placeholder: 'ID of the email',
+      condition: { field: 'operation', value: ['add_label_gmail', 'remove_label_gmail'] },
+      required: true,
+    },
+    // Add/Remove Label - Label selector (basic mode)
+    {
+      id: 'labelManagement',
+      title: 'Label',
+      type: 'folder-selector',
+      canonicalParamId: 'labelIds',
+      serviceId: 'gmail',
+      requiredScopes: ['https://www.googleapis.com/auth/gmail.labels'],
+      placeholder: 'Select label',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: ['add_label_gmail', 'remove_label_gmail'] },
+      required: true,
+    },
+    // Add/Remove Label - Manual label input (advanced mode)
+    {
+      id: 'manualLabelManagement',
+      title: 'Label',
+      type: 'short-input',
+      canonicalParamId: 'labelIds',
+      placeholder: 'Enter label ID (e.g., INBOX, Label_123)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['add_label_gmail', 'remove_label_gmail'] },
+      required: true,
+    },
+    ...getTrigger('gmail_poller').subBlocks,
   ],
   tools: {
-    access: ['gmail_send', 'gmail_draft', 'gmail_read', 'gmail_search'],
+    access: [
+      'gmail_send',
+      'gmail_draft',
+      'gmail_read',
+      'gmail_search',
+      'gmail_move',
+      'gmail_mark_read',
+      'gmail_mark_unread',
+      'gmail_archive',
+      'gmail_unarchive',
+      'gmail_delete',
+      'gmail_add_label',
+      'gmail_remove_label',
+    ],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -190,20 +354,85 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
             return 'gmail_search'
           case 'read_gmail':
             return 'gmail_read'
+          case 'move_gmail':
+            return 'gmail_move'
+          case 'mark_read_gmail':
+            return 'gmail_mark_read'
+          case 'mark_unread_gmail':
+            return 'gmail_mark_unread'
+          case 'archive_gmail':
+            return 'gmail_archive'
+          case 'unarchive_gmail':
+            return 'gmail_unarchive'
+          case 'delete_gmail':
+            return 'gmail_delete'
+          case 'add_label_gmail':
+            return 'gmail_add_label'
+          case 'remove_label_gmail':
+            return 'gmail_remove_label'
           default:
             throw new Error(`Invalid Gmail operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        // Pass the credential directly from the credential field
-        const { credential, folder, manualFolder, ...rest } = params
+        const {
+          credential,
+          folder,
+          manualFolder,
+          destinationLabel,
+          manualDestinationLabel,
+          sourceLabel,
+          manualSourceLabel,
+          moveMessageId,
+          actionMessageId,
+          labelActionMessageId,
+          labelManagement,
+          manualLabelManagement,
+          ...rest
+        } = params
 
-        // Handle folder input (selector or manual)
+        // Handle both selector and manual folder input
         const effectiveFolder = (folder || manualFolder || '').trim()
 
-        // Ensure folder is always provided for read_gmail operation
         if (rest.operation === 'read_gmail') {
           rest.folder = effectiveFolder || 'INBOX'
+        }
+
+        // Handle move operation
+        if (rest.operation === 'move_gmail') {
+          if (moveMessageId) {
+            rest.messageId = moveMessageId
+          }
+          if (!rest.addLabelIds) {
+            rest.addLabelIds = (destinationLabel || manualDestinationLabel || '').trim()
+          }
+          if (!rest.removeLabelIds) {
+            rest.removeLabelIds = (sourceLabel || manualSourceLabel || '').trim()
+          }
+        }
+
+        // Handle simple message ID operations
+        if (
+          [
+            'mark_read_gmail',
+            'mark_unread_gmail',
+            'archive_gmail',
+            'unarchive_gmail',
+            'delete_gmail',
+          ].includes(rest.operation)
+        ) {
+          if (actionMessageId) {
+            rest.messageId = actionMessageId
+          }
+        }
+
+        if (['add_label_gmail', 'remove_label_gmail'].includes(rest.operation)) {
+          if (labelActionMessageId) {
+            rest.messageId = labelActionMessageId
+          }
+          if (!rest.labelIds) {
+            rest.labelIds = (labelManagement || manualLabelManagement || '').trim()
+          }
         }
 
         return {
@@ -220,17 +449,38 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     to: { type: 'string', description: 'Recipient email address' },
     subject: { type: 'string', description: 'Email subject' },
     body: { type: 'string', description: 'Email content' },
+    contentType: { type: 'string', description: 'Content type (text or html)' },
+    threadId: { type: 'string', description: 'Thread ID to reply to (for threading)' },
+    replyToMessageId: {
+      type: 'string',
+      description: 'Gmail message ID to reply to (use "id" field from results, not "messageId")',
+    },
     cc: { type: 'string', description: 'CC recipients (comma-separated)' },
     bcc: { type: 'string', description: 'BCC recipients (comma-separated)' },
+    attachments: { type: 'array', description: 'Files to attach (UserFile array)' },
     // Read operation inputs
     folder: { type: 'string', description: 'Gmail folder' },
     manualFolder: { type: 'string', description: 'Manual folder name' },
-    messageId: { type: 'string', description: 'Message identifier' },
+    readMessageId: { type: 'string', description: 'Message identifier for reading specific email' },
     unreadOnly: { type: 'boolean', description: 'Unread messages only' },
     includeAttachments: { type: 'boolean', description: 'Include email attachments' },
     // Search operation inputs
     query: { type: 'string', description: 'Search query' },
     maxResults: { type: 'number', description: 'Maximum results' },
+    // Move operation inputs
+    moveMessageId: { type: 'string', description: 'Message ID to move' },
+    destinationLabel: { type: 'string', description: 'Destination label ID' },
+    manualDestinationLabel: { type: 'string', description: 'Manual destination label ID' },
+    sourceLabel: { type: 'string', description: 'Source label ID to remove' },
+    manualSourceLabel: { type: 'string', description: 'Manual source label ID' },
+    addLabelIds: { type: 'string', description: 'Label IDs to add' },
+    removeLabelIds: { type: 'string', description: 'Label IDs to remove' },
+    // Action operation inputs
+    actionMessageId: { type: 'string', description: 'Message ID for actions' },
+    labelActionMessageId: { type: 'string', description: 'Message ID for label actions' },
+    labelManagement: { type: 'string', description: 'Label ID for management' },
+    manualLabelManagement: { type: 'string', description: 'Manual label ID' },
+    labelIds: { type: 'string', description: 'Label IDs for add/remove operations' },
   },
   outputs: {
     // Tool outputs

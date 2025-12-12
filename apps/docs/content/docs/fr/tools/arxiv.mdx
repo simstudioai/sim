@@ -1,0 +1,89 @@
+---
+title: ArXiv
+description: Rechercher et récupérer des articles académiques depuis ArXiv
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="arxiv"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ArXiv](https://arxiv.org/) est un dépôt gratuit et en libre accès d'articles de recherche scientifique dans des domaines tels que la physique, les mathématiques, l'informatique, la biologie quantitative, la finance quantitative, les statistiques, le génie électrique, les sciences des systèmes et l'économie. ArXiv fournit une vaste collection de prépublications et d'articles publiés, ce qui en fait une ressource essentielle pour les chercheurs et les praticiens du monde entier.
+
+Avec ArXiv, vous pouvez :
+
+- **Rechercher des articles académiques** : trouvez des recherches par mots-clés, noms d'auteurs, titres, catégories, et plus encore
+- **Récupérer les métadonnées des articles** : accédez aux résumés, listes d'auteurs, dates de publication et autres informations bibliographiques
+- **Télécharger des PDF en texte intégral** : obtenez le texte complet de la plupart des articles pour une étude approfondie
+- **Explorer les contributions des auteurs** : consultez tous les articles d'un auteur spécifique
+- **Rester à jour** : découvrez les dernières soumissions et les sujets tendance dans votre domaine
+
+Dans Sim, l'intégration d'ArXiv permet à vos agents de rechercher, récupérer et analyser programmatiquement des articles scientifiques depuis ArXiv. Cela vous permet d'automatiser les revues de littérature, de créer des assistants de recherche ou d'incorporer des connaissances scientifiques à jour dans vos flux de travail agentiques. Utilisez ArXiv comme source dynamique de données pour la recherche, la découverte et l'extraction de connaissances au sein de vos projets Sim.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intègre ArXiv dans le flux de travail. Permet de rechercher des articles, d'obtenir les détails des articles et les publications des auteurs. Ne nécessite pas d'OAuth ou de clé API.
+
+## Outils
+
+### `arxiv_search`
+
+Recherchez des articles académiques sur ArXiv par mots-clés, auteurs, titres ou autres champs.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `searchQuery` | string | Oui | La requête de recherche à exécuter |
+| `searchField` | string | Non | Champ dans lequel rechercher : all, ti \(titre\), au \(auteur\), abs \(résumé\), co \(commentaire\), jr \(journal\), cat \(catégorie\), rn \(numéro de rapport\) |
+| `maxResults` | number | Non | Nombre maximum de résultats à retourner \(par défaut : 10, max : 2000\) |
+| `sortBy` | string | Non | Trier par : relevance, lastUpdatedDate, submittedDate \(par défaut : relevance\) |
+| `sortOrder` | string | Non | Ordre de tri : ascending, descending \(par défaut : descending\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `papers` | json | Tableau d'articles correspondant à la requête de recherche |
+
+### `arxiv_get_paper`
+
+Obtenez des informations détaillées sur un article spécifique d'ArXiv par son identifiant.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `paperId` | string | Oui | Identifiant de l'article ArXiv \(ex. : "1706.03762"\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `paper` | json | Informations détaillées sur l'article ArXiv demandé |
+
+### `arxiv_get_author_papers`
+
+Recherchez des articles d'un auteur spécifique sur ArXiv.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `authorName` | string | Oui | Nom de l'auteur à rechercher |
+| `maxResults` | number | Non | Nombre maximum de résultats à retourner \(par défaut : 10, max : 2000\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `authorPapers` | json | Tableau des articles rédigés par l'auteur spécifié |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `arxiv`

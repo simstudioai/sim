@@ -1,0 +1,67 @@
+---
+title: Recherche Google
+description: Rechercher sur le web
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_search"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Search](https://www.google.com) est le moteur de recherche le plus utilisé au monde, donnant accès à des milliards de pages web et de sources d'information. Google Search utilise des algorithmes sophistiqués pour fournir des résultats de recherche pertinents basés sur les requêtes des utilisateurs, ce qui en fait un outil essentiel pour trouver des informations sur internet.
+
+Apprenez à intégrer l'outil Google Search dans Sim pour récupérer sans effort des résultats de recherche en temps réel à travers vos flux de travail. Ce tutoriel vous guide dans la connexion à Google Search, la configuration des requêtes de recherche et l'utilisation de données en direct pour améliorer l'automatisation. Parfait pour alimenter vos agents avec des informations à jour et une prise de décision plus intelligente.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/1B7hV9b5UMQ"
+  title="Utiliser l'outil Google Search dans Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Avec Google Search, vous pouvez :
+
+- **Trouver des informations pertinentes** : accéder à des milliards de pages web grâce aux puissants algorithmes de recherche de Google
+- **Obtenir des résultats spécifiques** : utiliser des opérateurs de recherche pour affiner et cibler vos requêtes
+- **Découvrir des contenus variés** : trouver du texte, des images, des vidéos, des actualités et d'autres types de contenu
+- **Accéder aux graphes de connaissances** : obtenir des informations structurées sur les personnes, les lieux et les choses
+- **Utiliser des fonctionnalités de recherche** : profiter d'outils de recherche spécialisés comme les calculatrices, les convertisseurs d'unités, et plus encore
+
+Dans Sim, l'intégration de Google Search permet à vos agents de rechercher sur le web de manière programmatique et d'incorporer les résultats de recherche dans leurs flux de travail. Cela permet des scénarios d'automatisation puissants tels que la recherche, la vérification des faits, la collecte de données et la synthèse d'informations. Vos agents peuvent formuler des requêtes de recherche, récupérer des résultats pertinents et extraire des informations de ces résultats pour prendre des décisions ou générer des insights. Cette intégration comble le fossé entre vos flux de travail IA et la vaste quantité d'informations disponibles sur le web, permettant à vos agents d'accéder à des informations actualisées provenant de l'internet. En connectant Sim avec Google Search, vous pouvez créer des agents qui restent informés avec les dernières informations, vérifient les faits, mènent des recherches et fournissent aux utilisateurs du contenu web pertinent - le tout sans quitter votre flux de travail.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Google Search dans le flux de travail. Peut effectuer des recherches sur le web. Nécessite une clé API.
+
+## Outils
+
+### `google_search`
+
+Rechercher sur le web avec l'API Custom Search
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `query` | chaîne | Oui | La requête de recherche à exécuter |
+| `searchEngineId` | chaîne | Oui | Identifiant du moteur de recherche personnalisé |
+| `num` | chaîne | Non | Nombre de résultats à retourner \(par défaut : 10, max : 10\) |
+| `apiKey` | chaîne | Oui | Clé API Google |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | tableau | Tableau des résultats de recherche de Google |
+
+## Remarques
+
+- Catégorie : `tools`
+- Type : `google_search`

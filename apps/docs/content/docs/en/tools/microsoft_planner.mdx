@@ -1,0 +1,301 @@
+---
+title: Microsoft Planner
+description: Manage tasks, plans, and buckets in Microsoft Planner
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="microsoft_planner"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Microsoft Planner](https://www.microsoft.com/en-us/microsoft-365/planner) is a task management tool that helps teams organize work visually using boards, tasks, and buckets. Integrated with Microsoft 365, it offers a simple, intuitive way to manage team projects, assign responsibilities, and track progress.
+
+With Microsoft Planner, you can:
+
+- **Create and manage tasks**: Add new tasks with due dates, priorities, and assigned users
+- **Organize with buckets**: Group tasks by phase, status, or category to reflect your team’s workflow
+- **Visualize project status**: Use boards, charts, and filters to monitor workload and track progress
+- **Stay integrated with Microsoft 365**: Seamlessly connect tasks with Teams, Outlook, and other Microsoft tools
+
+In Sim, the Microsoft Planner integration allows your agents to programmatically create, read, and manage tasks as part of their workflows. Agents can generate new tasks based on incoming requests, retrieve task details to drive decisions, and track status across projects — all without human intervention. Whether you're building workflows for client onboarding, internal project tracking, or follow-up task generation, integrating Microsoft Planner with Sim gives your agents a structured way to coordinate work, automate task creation, and keep teams aligned.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Microsoft Planner into the workflow. Manage tasks, plans, buckets, and task details including checklists and references.
+
+
+
+## Tools
+
+### `microsoft_planner_read_task`
+
+Read tasks from Microsoft Planner - get all user tasks or all tasks from a specific plan
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | No | The ID of the plan to get tasks from \(if not provided, gets all user tasks\) |
+| `taskId` | string | No | The ID of the task to get |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether tasks were retrieved successfully |
+| `tasks` | array | Array of task objects with filtered properties |
+| `metadata` | object | Metadata including planId, userId, and planUrl |
+
+### `microsoft_planner_create_task`
+
+Create a new task in Microsoft Planner
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | Yes | The ID of the plan where the task will be created |
+| `title` | string | Yes | The title of the task |
+| `description` | string | No | The description of the task |
+| `dueDateTime` | string | No | The due date and time for the task \(ISO 8601 format\) |
+| `assigneeUserId` | string | No | The user ID to assign the task to |
+| `bucketId` | string | No | The bucket ID to place the task in |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the task was created successfully |
+| `task` | object | The created task object with all properties |
+| `metadata` | object | Metadata including planId, taskId, and taskUrl |
+
+### `microsoft_planner_update_task`
+
+Update a task in Microsoft Planner
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | The ID of the task to update |
+| `etag` | string | Yes | The ETag value from the task to update \(If-Match header\) |
+| `title` | string | No | The new title of the task |
+| `bucketId` | string | No | The bucket ID to move the task to |
+| `dueDateTime` | string | No | The due date and time for the task \(ISO 8601 format\) |
+| `startDateTime` | string | No | The start date and time for the task \(ISO 8601 format\) |
+| `percentComplete` | number | No | The percentage of task completion \(0-100\) |
+| `priority` | number | No | The priority of the task \(0-10\) |
+| `assigneeUserId` | string | No | The user ID to assign the task to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the task was updated successfully |
+| `message` | string | Success message when task is updated |
+| `task` | object | The updated task object with all properties |
+| `taskId` | string | ID of the updated task |
+| `etag` | string | New ETag after update - use this for subsequent operations |
+| `metadata` | object | Metadata including taskId, planId, and taskUrl |
+
+### `microsoft_planner_delete_task`
+
+Delete a task from Microsoft Planner
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | The ID of the task to delete |
+| `etag` | string | Yes | The ETag value from the task to delete \(If-Match header\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the task was deleted successfully |
+| `deleted` | boolean | Confirmation of deletion |
+| `metadata` | object | Additional metadata |
+
+### `microsoft_planner_list_plans`
+
+List all plans shared with the current user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether plans were retrieved successfully |
+| `plans` | array | Array of plan objects shared with the current user |
+| `metadata` | object | Metadata including userId and count |
+
+### `microsoft_planner_read_plan`
+
+Get details of a specific Microsoft Planner plan
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | Yes | The ID of the plan to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the plan was retrieved successfully |
+| `plan` | object | The plan object with all properties |
+| `metadata` | object | Metadata including planId and planUrl |
+
+### `microsoft_planner_list_buckets`
+
+List all buckets in a Microsoft Planner plan
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | Yes | The ID of the plan |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether buckets were retrieved successfully |
+| `buckets` | array | Array of bucket objects |
+| `metadata` | object | Metadata including planId and count |
+
+### `microsoft_planner_read_bucket`
+
+Get details of a specific bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `bucketId` | string | Yes | The ID of the bucket to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the bucket was retrieved successfully |
+| `bucket` | object | The bucket object with all properties |
+| `metadata` | object | Metadata including bucketId and planId |
+
+### `microsoft_planner_create_bucket`
+
+Create a new bucket in a Microsoft Planner plan
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | Yes | The ID of the plan where the bucket will be created |
+| `name` | string | Yes | The name of the bucket |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the bucket was created successfully |
+| `bucket` | object | The created bucket object with all properties |
+| `metadata` | object | Metadata including bucketId and planId |
+
+### `microsoft_planner_update_bucket`
+
+Update a bucket in Microsoft Planner
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `bucketId` | string | Yes | The ID of the bucket to update |
+| `name` | string | No | The new name of the bucket |
+| `etag` | string | Yes | The ETag value from the bucket to update \(If-Match header\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the bucket was updated successfully |
+| `bucket` | object | The updated bucket object with all properties |
+| `metadata` | object | Metadata including bucketId and planId |
+
+### `microsoft_planner_delete_bucket`
+
+Delete a bucket from Microsoft Planner
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `bucketId` | string | Yes | The ID of the bucket to delete |
+| `etag` | string | Yes | The ETag value from the bucket to delete \(If-Match header\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the bucket was deleted successfully |
+| `deleted` | boolean | Confirmation of deletion |
+| `metadata` | object | Additional metadata |
+
+### `microsoft_planner_get_task_details`
+
+Get detailed information about a task including checklist and references
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | The ID of the task |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the task details were retrieved successfully |
+| `taskDetails` | object | The task details including description, checklist, and references |
+| `etag` | string | The ETag value for this task details - use this for update operations |
+| `metadata` | object | Metadata including taskId |
+
+### `microsoft_planner_update_task_details`
+
+Update task details including description, checklist items, and references in Microsoft Planner
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | The ID of the task |
+| `etag` | string | Yes | The ETag value from the task details to update \(If-Match header\) |
+| `description` | string | No | The description of the task |
+| `checklist` | object | No | Checklist items as a JSON object |
+| `references` | object | No | References as a JSON object |
+| `previewType` | string | No | Preview type: automatic, noPreview, checklist, description, or reference |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the task details were updated successfully |
+| `taskDetails` | object | The updated task details object with all properties |
+| `metadata` | object | Metadata including taskId |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `microsoft_planner`

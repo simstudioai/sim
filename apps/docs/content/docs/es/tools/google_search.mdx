@@ -1,0 +1,67 @@
+---
+title: Búsqueda de Google
+description: Buscar en la web
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_search"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Search](https://www.google.com) es el motor de búsqueda más utilizado del mundo, que proporciona acceso a miles de millones de páginas web y fuentes de información. Google Search utiliza algoritmos sofisticados para ofrecer resultados de búsqueda relevantes basados en las consultas de los usuarios, lo que lo convierte en una herramienta esencial para encontrar información en internet.
+
+Aprende cómo integrar la herramienta de Google Search en Sim para obtener sin esfuerzo resultados de búsqueda en tiempo real a través de tus flujos de trabajo. Este tutorial te guía a través de la conexión con Google Search, la configuración de consultas de búsqueda y el uso de datos en vivo para mejorar la automatización. Perfecto para potenciar tus agentes con información actualizada y toma de decisiones más inteligente.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/1B7hV9b5UMQ"
+  title="Usa la herramienta de Google Search en Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Con Google Search, puedes:
+
+- **Encontrar información relevante**: Accede a miles de millones de páginas web con los potentes algoritmos de búsqueda de Google
+- **Obtener resultados específicos**: Utiliza operadores de búsqueda para refinar y dirigir tus consultas
+- **Descubrir contenido diverso**: Encuentra texto, imágenes, videos, noticias y otros tipos de contenido
+- **Acceder a gráficos de conocimiento**: Obtén información estructurada sobre personas, lugares y cosas
+- **Utilizar funciones de búsqueda**: Aprovecha herramientas de búsqueda especializadas como calculadoras, convertidores de unidades y más
+
+En Sim, la integración de Google Search permite a tus agentes buscar en la web de forma programática e incorporar resultados de búsqueda en sus flujos de trabajo. Esto permite escenarios de automatización potentes como investigación, verificación de hechos, recopilación de datos y síntesis de información. Tus agentes pueden formular consultas de búsqueda, recuperar resultados relevantes y extraer información de esos resultados para tomar decisiones o generar ideas. Esta integración cierra la brecha entre tus flujos de trabajo de IA y la vasta información disponible en la web, permitiendo a tus agentes acceder a información actualizada de toda internet. Al conectar Sim con Google Search, puedes crear agentes que se mantengan informados con la información más reciente, verifiquen hechos, realicen investigaciones y proporcionen a los usuarios contenido web relevante, todo sin salir de tu flujo de trabajo.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra la Búsqueda de Google en el flujo de trabajo. Puede buscar en la web. Requiere clave API.
+
+## Herramientas
+
+### `google_search`
+
+Buscar en la web con la API de Custom Search
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `query` | string | Sí | La consulta de búsqueda a ejecutar |
+| `searchEngineId` | string | Sí | ID del motor de búsqueda personalizado |
+| `num` | string | No | Número de resultados a devolver \(predeterminado: 10, máximo: 10\) |
+| `apiKey` | string | Sí | Clave de API de Google |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `items` | array | Array de resultados de búsqueda de Google |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `google_search`

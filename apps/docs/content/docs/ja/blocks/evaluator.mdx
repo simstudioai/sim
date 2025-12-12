@@ -1,0 +1,96 @@
+---
+title: 評価者
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+評価ブロックはAIを使用してコンテンツの品質をカスタムメトリクスに対してスコア化し評価します。品質管理、A/Bテスト、AIの出力が特定の基準を満たしているかの確認に最適です。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/evaluator.png"
+    alt="評価者ブロックの設定画面"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## 設定オプション
+
+### 評価メトリクス
+
+コンテンツを評価するためのカスタムメトリクスを定義します。各メトリクスには以下が含まれます：
+
+- **名前**：メトリクスの短い識別子
+- **説明**：メトリクスが測定する内容の詳細な説明
+- **範囲**：スコアリングの数値範囲（例：1-5、0-10）
+
+メトリクスの例：
+
+```
+Accuracy (1-5): How factually accurate is the content?
+Clarity (1-5): How clear and understandable is the content?
+Relevance (1-5): How relevant is the content to the original query?
+```
+
+### コンテンツ
+
+評価されるコンテンツ。これは以下のいずれかです：
+
+- ブロック設定で直接提供される
+- 別のブロックの出力（通常はエージェントブロック）から接続される
+- ワークフロー実行中に動的に生成される
+
+### モデル選択
+
+評価を実行するAIモデルを選択します：
+
+- **OpenAI**: GPT-4o、o1、o3、o4-mini、gpt-4.1
+- **Anthropic**: Claude 3.7 Sonnet
+- **Google**: Gemini 2.5 Pro、Gemini 2.0 Flash
+- **Other Providers**: Groq、Cerebras、xAI、DeepSeek
+- **Local Models**: OllamaまたはVLLM互換モデル
+
+最良の結果を得るには、GPT-4oやClaude 3.7 Sonnetなど、強力な推論能力を持つモデルを使用してください。
+
+### APIキー
+
+選択したLLMプロバイダーのAPIキー。これは安全に保存され、認証に使用されます。
+
+## 使用例
+
+**コンテンツ品質評価** - 公開前にコンテンツを評価する
+
+```
+Agent (Generate) → Evaluator (Score) → Condition (Check threshold) → Publish or Revise
+```
+
+**A/Bテストコンテンツ** - 複数のAI生成レスポンスを比較する
+
+```
+Parallel (Variations) → Evaluator (Score Each) → Function (Select Best) → Response
+```
+
+**カスタマーサポート品質管理** - 応答が品質基準を満たしていることを確認する
+
+```
+Agent (Support Response) → Evaluator (Score) → Function (Log) → Condition (Review if Low)
+```
+
+## 出力
+
+- **`<evaluator.content>`**: 評価のスコア付きサマリー
+- **`<evaluator.model>`**: 評価に使用されたモデル
+- **`<evaluator.tokens>`**: トークン使用統計
+- **`<evaluator.cost>`**: 推定評価コスト
+
+## ベストプラクティス
+
+- **具体的な指標の説明を使用する**: 各指標が何を測定するかを明確に定義し、より正確な評価を得る
+- **適切な範囲を選択する**: 過度に複雑にならない程度に十分な粒度を提供するスコアリング範囲を選択する
+- **エージェントブロックと連携する**: 評価ブロックを使用してエージェントブロックの出力を評価し、フィードバックループを作成する
+- **一貫した指標を使用する**: 比較分析のために、類似の評価間で一貫した指標を維持する
+- **複数の指標を組み合わせる**: 包括的な評価を得るために複数の指標を使用する

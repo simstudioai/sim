@@ -1,0 +1,89 @@
+---
+title: ArXiv
+description: Busca y recupera artículos académicos de ArXiv
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="arxiv"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ArXiv](https://arxiv.org/) es un repositorio gratuito de acceso abierto de artículos científicos en campos como física, matemáticas, informática, biología cuantitativa, finanzas cuantitativas, estadística, ingeniería eléctrica, ciencias de sistemas y economía. ArXiv proporciona una amplia colección de preprints y artículos publicados, convirtiéndolo en un recurso primario para investigadores y profesionales de todo el mundo.
+
+Con ArXiv, puedes:
+
+- **Buscar artículos académicos**: Encuentra investigaciones por palabras clave, nombres de autores, títulos, categorías y más
+- **Recuperar metadatos de artículos**: Accede a resúmenes, listas de autores, fechas de publicación y otra información bibliográfica
+- **Descargar PDFs completos**: Obtén el texto completo de la mayoría de los artículos para un estudio en profundidad
+- **Explorar contribuciones de autores**: Visualiza todos los artículos de un autor específico
+- **Mantenerte actualizado**: Descubre las últimas publicaciones y temas tendencia en tu campo
+
+En Sim, la integración con ArXiv permite a tus agentes buscar, recuperar y analizar artículos científicos de ArXiv de forma programática. Esto te permite automatizar revisiones de literatura, crear asistentes de investigación o incorporar conocimiento científico actualizado en tus flujos de trabajo con agentes. Utiliza ArXiv como una fuente dinámica de datos para investigación, descubrimiento y extracción de conocimiento dentro de tus proyectos de Sim.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra ArXiv en el flujo de trabajo. Puede buscar artículos, obtener detalles de artículos y obtener artículos de autores. No requiere OAuth ni una clave API.
+
+## Herramientas
+
+### `arxiv_search`
+
+Busca artículos académicos en ArXiv por palabras clave, autores, títulos u otros campos.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `searchQuery` | string | Sí | La consulta de búsqueda a ejecutar |
+| `searchField` | string | No | Campo en el que buscar: all (todos), ti (título), au (autor), abs (resumen), co (comentario), jr (revista), cat (categoría), rn (número de informe) |
+| `maxResults` | number | No | Número máximo de resultados a devolver (predeterminado: 10, máximo: 2000) |
+| `sortBy` | string | No | Ordenar por: relevance (relevancia), lastUpdatedDate (fecha de última actualización), submittedDate (fecha de envío) (predeterminado: relevance) |
+| `sortOrder` | string | No | Orden de clasificación: ascending (ascendente), descending (descendente) (predeterminado: descending) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `papers` | json | Array de artículos que coinciden con la consulta de búsqueda |
+
+### `arxiv_get_paper`
+
+Obtén información detallada sobre un artículo específico de ArXiv mediante su ID.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `paperId` | string | Sí | ID del artículo de ArXiv (p. ej., "1706.03762") |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `paper` | json | Información detallada sobre el artículo de ArXiv solicitado |
+
+### `arxiv_get_author_papers`
+
+Busca artículos de un autor específico en ArXiv.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `authorName` | string | Sí | Nombre del autor a buscar |
+| `maxResults` | number | No | Número máximo de resultados a devolver (predeterminado: 10, máximo: 2000) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `authorPapers` | json | Array de artículos escritos por el autor especificado |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `arxiv`

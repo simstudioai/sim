@@ -13,7 +13,6 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
   oauth: {
     required: true,
     provider: 'google-sheets',
-    additionalScopes: [],
   },
 
   params: {
@@ -26,20 +25,21 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
     spreadsheetId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The ID of the spreadsheet to append to',
     },
     range: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'The range of cells to append after',
+      description: 'The A1 notation range to append after (e.g. "Sheet1", "Sheet1!A:D")',
     },
     values: {
       type: 'array',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The data to append to the spreadsheet',
+      description:
+        'The data to append as a 2D array (e.g. [["Alice", 30], ["Bob", 25]]) or array of objects.',
     },
     valueInputOption: {
       type: 'string',
@@ -107,8 +107,6 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
               .replace(/\n/g, '\\n')
               .replace(/\r/g, '\\r')
               .replace(/\t/g, '\\t')
-              // Fix any double backslashes that might occur
-              .replace(/\\\\/g, '\\')
 
             // Try to parse again with sanitized input
             processedValues = JSON.parse(sanitizedInput)

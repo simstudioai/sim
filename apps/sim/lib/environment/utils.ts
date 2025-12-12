@@ -1,7 +1,8 @@
+import { db } from '@sim/db'
+import { environment, workspaceEnvironment } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
+import { decryptSecret } from '@/lib/core/security/encryption'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { environment } from '@/db/schema'
 
 const logger = createLogger('EnvironmentUtils')
 
@@ -39,4 +40,70 @@ export async function getEnvironmentVariableKeys(userId: string): Promise<{
     logger.error('Error getting environment variable keys:', error)
     throw new Error('Failed to get environment variables')
   }
+}
+
+export async function getPersonalAndWorkspaceEnv(
+  userId: string,
+  workspaceId?: string
+): Promise<{
+  personalEncrypted: Record<string, string>
+  workspaceEncrypted: Record<string, string>
+  personalDecrypted: Record<string, string>
+  workspaceDecrypted: Record<string, string>
+  conflicts: string[]
+}> {
+  const [personalRows, workspaceRows] = await Promise.all([
+    db.select().from(environment).where(eq(environment.userId, userId)).limit(1),
+    workspaceId
+      ? db
+          .select()
+          .from(workspaceEnvironment)
+          .where(eq(workspaceEnvironment.workspaceId, workspaceId))
+          .limit(1)
+      : Promise.resolve([] as any[]),
+  ])
+
+  const personalEncrypted: Record<string, string> = (personalRows[0]?.variables as any) || {}
+  const workspaceEncrypted: Record<string, string> = (workspaceRows[0]?.variables as any) || {}
+
+  const decryptAll = async (src: Record<string, string>) => {
+    const entries = Object.entries(src)
+    const results = await Promise.all(
+      entries.map(async ([k, v]) => {
+        try {
+          const { decrypted } = await decryptSecret(v)
+          return [k, decrypted] as const
+        } catch {
+          return [k, ''] as const
+        }
+      })
+    )
+    return Object.fromEntries(results)
+  }
+
+  const [personalDecrypted, workspaceDecrypted] = await Promise.all([
+    decryptAll(personalEncrypted),
+    decryptAll(workspaceEncrypted),
+  ])
+
+  const conflicts = Object.keys(personalEncrypted).filter((k) => k in workspaceEncrypted)
+
+  return {
+    personalEncrypted,
+    workspaceEncrypted,
+    personalDecrypted,
+    workspaceDecrypted,
+    conflicts,
+  }
+}
+
+export async function getEffectiveDecryptedEnv(
+  userId: string,
+  workspaceId?: string
+): Promise<Record<string, string>> {
+  const { personalDecrypted, workspaceDecrypted } = await getPersonalAndWorkspaceEnv(
+    userId,
+    workspaceId
+  )
+  return { ...personalDecrypted, ...workspaceDecrypted }
 }

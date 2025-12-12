@@ -1,0 +1,134 @@
+---
+title: Twilio Voice
+description: 进行和管理电话通话
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="twilio_voice"
+  color="#F22F46"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Twilio Voice](https://www.twilio.com/en-us/voice) 是一个强大的云通信平台，企业可以通过简单的 API 编程实现拨打、接听和管理电话通话。
+
+Twilio Voice 提供了一个强大的 API，用于构建具有全球覆盖范围的复杂语音应用程序。凭借覆盖 100 多个国家/地区的服务、运营商级的可靠性以及 99.95% 的正常运行时间 SLA，Twilio 已成为可编程语音通信领域的行业领导者。
+
+Twilio Voice 的主要功能包括：
+
+- **全球语音网络**：通过多个国家的本地电话号码拨打和接听全球电话
+- **可编程呼叫控制**：使用 TwiML 控制呼叫流程、录制对话、收集 DTMF 输入并实现 IVR 系统
+- **高级功能**：语音识别、文本转语音、呼叫转接、会议和语音信箱检测
+- **实时分析**：跟踪通话质量、时长、成本，并优化语音应用程序
+
+在 Sim 中，Twilio Voice 集成使您的代理能够将这些强大的语音功能作为其工作流程的一部分。这为复杂的客户参与场景创造了机会，例如预约提醒、验证电话、自动支持热线和交互式语音响应系统。该集成弥合了您的 AI 工作流程与语音通信渠道之间的差距，使您的代理能够通过电话直接传递及时、相关的信息。通过将 Sim 与 Twilio Voice 连接，您可以创建智能代理，通过客户首选的通信渠道与他们互动，在自动化日常呼叫任务的同时提升用户体验。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Twilio Voice 集成到工作流程中。进行外呼并获取通话录音。
+
+## 工具
+
+### `twilio_voice_make_call`
+
+使用 Twilio Voice API 进行外呼。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `to` | string | 是 | 要拨打的电话号码 \(E.164 格式，例如：+14155551234\) |
+| `from` | string | 是 | 您的 Twilio 电话号码（作为呼出号码）\(E.164 格式\) |
+| `url` | string | 否 | 返回通话 TwiML 指令的 URL |
+| `twiml` | string | 否 | 要执行的 TwiML 指令（URL 的替代选项）。使用方括号代替尖括号，例如：\[Response\]\[Say\]Hello\[/Say\]\[/Response\] |
+| `statusCallback` | string | 否 | 通话状态更新的 Webhook URL |
+| `statusCallbackMethod` | string | 否 | 状态回调的 HTTP 方法 \(GET 或 POST\) |
+| `accountSid` | string | 是 | Twilio 账户 SID |
+| `authToken` | string | 是 | Twilio 授权令牌 |
+| `record` | boolean | 否 | 是否录制通话 |
+| `recordingStatusCallback` | string | 否 | 录音状态更新的 Webhook URL |
+| `timeout` | number | 否 | 等待接听的时间（秒，默认：60） |
+| `machineDetection` | string | 否 | 应答机检测：启用或检测消息结束 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 通话是否成功发起 |
+| `callSid` | string | 通话的唯一标识符 |
+| `status` | string | 通话状态 \(排队中、响铃中、进行中、已完成等\) |
+| `direction` | string | 通话方向 \(outbound-api\) |
+| `from` | string | 通话的发起号码 |
+| `to` | string | 通话的接收号码 |
+| `duration` | number | 通话时长（秒） |
+| `price` | string | 通话费用 |
+| `priceUnit` | string | 费用的货币单位 |
+| `error` | string | 如果通话失败的错误信息 |
+
+### `twilio_voice_list_calls`
+
+检索与账户相关的呼叫列表。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `accountSid` | string | 是 | Twilio 账户 SID |
+| `authToken` | string | 是 | Twilio 验证令牌 |
+| `to` | string | 否 | 按此电话号码筛选呼叫 |
+| `from` | string | 否 | 按此电话号码筛选呼叫 |
+| `status` | string | 否 | 按呼叫状态筛选（排队中、响铃中、进行中、已完成等） |
+| `startTimeAfter` | string | 否 | 筛选从此日期开始的呼叫（YYYY-MM-DD） |
+| `startTimeBefore` | string | 否 | 筛选在此日期之前的呼叫（YYYY-MM-DD） |
+| `pageSize` | number | 否 | 返回的记录数（最大 1000，默认 50） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功检索到呼叫 |
+| `calls` | array | 呼叫对象数组 |
+| `total` | number | 返回的呼叫总数 |
+| `page` | number | 当前页码 |
+| `pageSize` | number | 每页的呼叫数 |
+| `error` | string | 如果检索失败，显示错误信息 |
+
+### `twilio_voice_get_recording`
+
+检索呼叫录音信息及转录（如果通过 TwiML 启用）。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `recordingSid` | string | 是 | 要检索的录音 SID |
+| `accountSid` | string | 是 | Twilio 账户 SID |
+| `authToken` | string | 是 | Twilio 验证令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功检索到录音 |
+| `recordingSid` | string | 录音的唯一标识符 |
+| `callSid` | string | 此录音所属的通话 SID |
+| `duration` | number | 录音的时长（以秒为单位） |
+| `status` | string | 录音状态（已完成、处理中等） |
+| `channels` | number | 通道数量（1 表示单声道，2 表示双声道） |
+| `source` | string | 录音的创建方式 |
+| `mediaUrl` | string | 下载录音媒体文件的 URL |
+| `price` | string | 录音的费用 |
+| `priceUnit` | string | 费用的货币类型 |
+| `uri` | string | 录音资源的相对 URI |
+| `transcriptionText` | string | 录音的转录文本（如果可用） |
+| `transcriptionStatus` | string | 转录状态（已完成、进行中、失败） |
+| `transcriptionPrice` | string | 转录的费用 |
+| `transcriptionPriceUnit` | string | 转录费用的货币类型 |
+| `error` | string | 如果检索失败的错误信息 |
+
+## 注意事项
+
+- 类别: `tools`
+- 类型: `twilio_voice`

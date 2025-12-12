@@ -30,8 +30,15 @@ app:
     NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"
     
     # Security settings (REQUIRED - replace with your own secure secrets)
+    # Generate using: openssl rand -hex 32
     BETTER_AUTH_SECRET: "your-secure-production-auth-secret-here"
     ENCRYPTION_KEY: "your-secure-production-encryption-key-here"
+    INTERNAL_API_SECRET: "your-secure-production-internal-api-secret-here"
+    CRON_SECRET: "your-secure-production-cron-secret-here"
+
+    # Optional: API Key Encryption (RECOMMENDED for production)
+    # Generate 64-character hex string using: openssl rand -hex 32
+    API_ENCRYPTION_KEY: "your-64-char-hex-api-encryption-key-here"  # Optional but recommended
     
     NODE_ENV: "production"
     NEXT_TELEMETRY_DISABLED: "1"

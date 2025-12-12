@@ -1,0 +1,64 @@
+---
+title: Wait
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+The Wait block pauses your workflow for a specified amount of time before continuing to the next block. Use it to add delays between actions, respect API rate limits, or space out operations.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/wait.png"
+    alt="Wait Block"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Configuration
+
+### Wait Amount
+
+Enter the duration to pause execution:
+- **Input**: Positive number
+- **Maximum**: 600 seconds (10 minutes) or 10 minutes
+
+### Unit
+
+Choose the time unit:
+- **Seconds**: For short, precise delays
+- **Minutes**: For longer pauses
+
+<Callout type="info">
+  Wait blocks can be cancelled by stopping the workflow. The maximum wait time is 10 minutes.
+</Callout>
+
+## Outputs
+
+- **`<wait.waitDuration>`**: The wait duration in milliseconds
+- **`<wait.status>`**: Status of the wait ('waiting', 'completed', or 'cancelled')
+
+## Example Use Cases
+
+**API Rate Limiting** - Stay within API rate limits between requests
+```
+API (Request 1) → Wait (2s) → API (Request 2)
+```
+
+**Timed Notifications** - Send follow-up messages after a delay
+```
+Function (Send Email) → Wait (5min) → Function (Follow-up)
+```
+
+**Processing Delays** - Wait for external system to complete processing
+```
+API (Trigger Job) → Wait (30s) → API (Check Status)
+```
+
+## Best Practices
+
+- **Keep waits reasonable**: Use Wait for delays up to 10 minutes. For longer delays, consider scheduled workflows
+- **Monitor execution time**: Remember that waits extend total workflow duration

@@ -1,4 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { validateImageUrl } from '@/lib/core/security/input-validation'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('ImageProxyAPI')
@@ -10,17 +13,31 @@ const logger = createLogger('ImageProxyAPI')
 export async function GET(request: NextRequest) {
   const url = new URL(request.url)
   const imageUrl = url.searchParams.get('url')
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
+
+  const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+  if (!authResult.success) {
+    logger.error(`[${requestId}] Authentication failed for image proxy:`, authResult.error)
+    return new NextResponse('Unauthorized', { status: 401 })
+  }
 
   if (!imageUrl) {
     logger.error(`[${requestId}] Missing 'url' parameter`)
     return new NextResponse('Missing URL parameter', { status: 400 })
   }
 
+  const urlValidation = validateImageUrl(imageUrl)
+  if (!urlValidation.isValid) {
+    logger.warn(`[${requestId}] Blocked image proxy request`, {
+      url: imageUrl.substring(0, 100),
+      error: urlValidation.error,
+    })
+    return new NextResponse(urlValidation.error || 'Invalid image URL', { status: 403 })
+  }
+
   logger.info(`[${requestId}] Proxying image request for: ${imageUrl}`)
 
   try {
-    // Use fetch with custom headers that appear more browser-like
     const imageResponse = await fetch(imageUrl, {
       headers: {
         'User-Agent':
@@ -45,10 +62,8 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Get image content type from response headers
     const contentType = imageResponse.headers.get('content-type') || 'image/jpeg'
 
-    // Get the image as a blob
     const imageBlob = await imageResponse.blob()
 
     if (imageBlob.size === 0) {
@@ -56,7 +71,6 @@ export async function GET(request: NextRequest) {
       return new NextResponse('Empty image received', { status: 404 })
     }
 
-    // Return the image with appropriate headers
     return new NextResponse(imageBlob, {
       headers: {
         'Content-Type': contentType,

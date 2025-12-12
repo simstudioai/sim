@@ -1,0 +1,110 @@
+---
+title: Qdrant
+description: Verwenden Sie die Qdrant-Vektordatenbank
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="qdrant"
+  color="#1A223F"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Qdrant](https://qdrant.tech) ist eine Open-Source-Vektordatenbank, die für die effiziente Speicherung, Verwaltung und Abfrage hochdimensionaler Vektoreinbettungen entwickelt wurde. Qdrant ermöglicht schnelle und skalierbare semantische Suche und ist damit ideal für KI-Anwendungen, die Ähnlichkeitssuche, Empfehlungssysteme und kontextbezogene Informationsabfrage erfordern.
+
+Mit Qdrant können Sie:
+
+- **Vektoreinbettungen speichern**: Effiziente Verwaltung und Persistierung hochdimensionaler Vektoren im großen Maßstab
+- **Semantische Ähnlichkeitssuche durchführen**: Finden Sie in Echtzeit die ähnlichsten Vektoren zu einem Abfragevektor
+- **Daten filtern und organisieren**: Verwenden Sie fortschrittliche Filterung, um Suchergebnisse basierend auf Metadaten oder Payload einzugrenzen
+- **Bestimmte Punkte abrufen**: Rufen Sie Vektoren und ihre zugehörigen Payloads per ID ab
+- **Nahtlos skalieren**: Bewältigen Sie große Sammlungen und Workloads mit hohem Durchsatz
+
+In Sim ermöglicht die Qdrant-Integration Ihren Agenten, programmatisch mit Qdrant als Teil ihrer Workflows zu interagieren. Unterstützte Operationen umfassen:
+
+- **Upsert**: Einfügen oder Aktualisieren von Punkten (Vektoren und Payloads) in einer Qdrant-Sammlung
+- **Search**: Durchführung einer Ähnlichkeitssuche, um Vektoren zu finden, die einem gegebenen Abfragevektor am ähnlichsten sind, mit optionaler Filterung und Anpassung der Ergebnisse
+- **Fetch**: Abrufen bestimmter Punkte aus einer Sammlung anhand ihrer IDs, mit Optionen zum Einbeziehen von Payloads und Vektoren
+
+Diese Integration ermöglicht es Ihren Agenten, leistungsstarke Vektorsuch- und Verwaltungsfunktionen zu nutzen und fortschrittliche Automatisierungsszenarien wie semantische Suche, Empfehlungen und kontextbezogenen Abruf zu ermöglichen. Durch die Verbindung von Sim mit Qdrant können Sie Agenten erstellen, die Kontext verstehen, relevante Informationen aus großen Datensätzen abrufen und intelligentere und personalisierte Antworten liefern – alles ohne komplexe Infrastruktur verwalten zu müssen.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Integrieren Sie Qdrant in den Workflow. Kann Punkte einfügen, suchen und abrufen. Benötigt API-Schlüssel.
+
+## Tools
+
+### `qdrant_upsert_points`
+
+Punkte in einer Qdrant-Sammlung einfügen oder aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Ja | Qdrant-Basis-URL |
+| `apiKey` | string | Nein | Qdrant-API-Schlüssel \(optional\) |
+| `collection` | string | Ja | Sammlungsname |
+| `points` | array | Ja | Array von Punkten zum Einfügen/Aktualisieren |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Status der Upsert-Operation |
+| `data` | object | Ergebnisdaten der Upsert-Operation |
+
+### `qdrant_search_vector`
+
+Suche nach ähnlichen Vektoren in einer Qdrant-Sammlung
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Ja | Qdrant-Basis-URL |
+| `apiKey` | string | Nein | Qdrant-API-Schlüssel \(optional\) |
+| `collection` | string | Ja | Sammlungsname |
+| `vector` | array | Ja | Zu suchender Vektor |
+| `limit` | number | Nein | Anzahl der zurückzugebenden Ergebnisse |
+| `filter` | object | Nein | Auf die Suche anzuwendender Filter |
+| `search_return_data` | string | Nein | Aus der Suche zurückzugebende Daten |
+| `with_payload` | boolean | Nein | Payload in Antwort einschließen |
+| `with_vector` | boolean | Nein | Vektor in Antwort einschließen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `data` | array | Vektorsuchergebnisse mit ID, Bewertung, Payload und optionalen Vektordaten |
+| `status` | string | Status des Suchvorgangs |
+
+### `qdrant_fetch_points`
+
+Punkte anhand der ID aus einer Qdrant-Sammlung abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Ja | Qdrant-Basis-URL |
+| `apiKey` | string | Nein | Qdrant-API-Schlüssel \(optional\) |
+| `collection` | string | Ja | Sammlungsname |
+| `ids` | array | Ja | Array von Punkt-IDs zum Abrufen |
+| `fetch_return_data` | string | Nein | Aus dem Abruf zurückzugebende Daten |
+| `with_payload` | boolean | Nein | Payload in Antwort einschließen |
+| `with_vector` | boolean | Nein | Vektor in Antwort einschließen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `data` | array | Abgerufene Punkte mit ID, Payload und optionalen Vektordaten |
+| `status` | string | Status des Abrufvorgangs |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `qdrant`

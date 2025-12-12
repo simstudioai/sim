@@ -1,0 +1,494 @@
+---
+title: Grafana
+description: Grafanaダッシュボード、アラート、アノテーションを操作する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="grafana"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Grafana](https://grafana.com/)は、モニタリング、可観測性、視覚化のための主要なオープンソースプラットフォームです。さまざまなソースからのデータのクエリ、視覚化、アラート、分析を可能にし、インフラストラクチャとアプリケーションのモニタリングに不可欠なツールとなっています。
+
+Grafanaでは以下のことができます：
+
+- **データの視覚化**：メトリクス、ログ、トレースをリアルタイムで表示するためのダッシュボードを構築・カスタマイズ
+- **健全性とステータスの監視**：Grafanaインスタンスと接続されたデータソースの健全性をチェック
+- **アラートとアノテーションの管理**：アラートルールの設定、通知の管理、重要なイベントでダッシュボードにアノテーションを付ける
+- **コンテンツの整理**：より良いアクセス管理のためにダッシュボードとデータソースをフォルダに整理
+
+Simでは、Grafana統合によりエージェントがAPI経由でGrafanaインスタンスと直接やり取りできるようになり、以下のようなアクションが可能になります：
+
+- Grafanaサーバー、データベース、データソースの健全性ステータスの確認
+- ダッシュボード、アラートルール、アノテーション、データソース、フォルダの取得、一覧表示、管理
+- Grafanaデータとアラートをワークフロー自動化に統合することによるインフラストラクチャのモニタリングの自動化
+
+これらの機能により、Simエージェントはシステムを監視し、アラートに積極的に対応し、自動化されたワークフローの一部として、サービスの信頼性と可視性を確保するのに役立ちます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Grafanaをワークフローに統合します。ダッシュボード、アラート、アノテーション、データソース、フォルダを管理し、健全性ステータスを監視します。
+
+## ツール
+
+### `grafana_get_dashboard`
+
+UIDでダッシュボードを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grafanaサービスアカウントトークン |
+| `baseUrl` | string | はい | GrafanaインスタンスURL（例：https://your-grafana.com） |
+| `organizationId` | string | いいえ | マルチ組織Grafanaインスタンスの組織ID |
+| `dashboardUid` | string | はい | 取得するダッシュボードのUID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `dashboard` | json | 完全なダッシュボードJSONオブジェクト |
+| `meta` | json | ダッシュボードのメタデータ（バージョン、権限など） |
+
+### `grafana_list_dashboards`
+
+すべてのダッシュボードを検索およびリスト表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grafanaサービスアカウントトークン |
+| `baseUrl` | string | はい | GrafanaインスタンスURL（例：https://your-grafana.com） |
+| `organizationId` | string | いいえ | マルチ組織Grafanaインスタンス用の組織ID |
+| `query` | string | いいえ | タイトルでダッシュボードをフィルタリングする検索クエリ |
+| `tag` | string | いいえ | タグでフィルタリング（複数のタグはカンマ区切り） |
+| `folderIds` | string | いいえ | フォルダIDでフィルタリング（カンマ区切り） |
+| `starred` | boolean | いいえ | スター付きダッシュボードのみを返す |
+| `limit` | number | いいえ | 返すダッシュボードの最大数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `dashboards` | array | ダッシュボード検索結果のリスト |
+
+### `grafana_create_dashboard`
+
+新しいダッシュボードを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grafanaサービスアカウントトークン |
+| `baseUrl` | string | はい | GrafanaインスタンスURL（例：https://your-grafana.com） |
+| `organizationId` | string | いいえ | マルチ組織Grafanaインスタンス用の組織ID |
+| `title` | string | はい | 新しいダッシュボードのタイトル |
+| `folderUid` | string | いいえ | ダッシュボードを作成するフォルダのUID |
+| `tags` | string | いいえ | カンマ区切りのタグリスト |
+| `timezone` | string | いいえ | ダッシュボードのタイムゾーン（例：browser、utc） |
+| `refresh` | string | いいえ | 自動更新間隔（例：5s、1m、5m） |
+| `panels` | string | いいえ | パネル設定のJSON配列 |
+| `overwrite` | boolean | いいえ | 同じタイトルの既存ダッシュボードを上書きする |
+| `message` | string | いいえ | ダッシュボードバージョンのコミットメッセージ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | number | 作成されたダッシュボードの数値ID |
+| `uid` | string | 作成されたダッシュボードのUID |
+| `url` | string | ダッシュボードへのURLパス |
+| `status` | string | 操作のステータス（success） |
+| `version` | number | ダッシュボードのバージョン番号 |
+| `slug` | string | ダッシュボードのURL用スラッグ |
+
+### `grafana_update_dashboard`
+
+既存のダッシュボードを更新します。現在のダッシュボードを取得し、変更内容をマージします。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grafanaサービスアカウントトークン |
+| `baseUrl` | string | はい | GrafanaインスタンスのURL（例：https://your-grafana.com） |
+| `organizationId` | string | いいえ | マルチ組織Grafanaインスタンス用の組織ID |
+| `dashboardUid` | string | はい | 更新するダッシュボードのUID |
+| `title` | string | いいえ | ダッシュボードの新しいタイトル |
+| `folderUid` | string | いいえ | ダッシュボードを移動する新しいフォルダのUID |
+| `tags` | string | いいえ | 新しいタグのカンマ区切りリスト |
+| `timezone` | string | いいえ | ダッシュボードのタイムゾーン（例：browser、utc） |
+| `refresh` | string | いいえ | 自動更新間隔（例：5s、1m、5m） |
+| `panels` | string | いいえ | パネル設定のJSON配列 |
+| `overwrite` | boolean | いいえ | バージョンの競合があっても上書きする |
+| `message` | string | いいえ | このバージョンのコミットメッセージ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | number | 更新されたダッシュボードの数値ID |
+| `uid` | string | 更新されたダッシュボードのUID |
+| `url` | string | ダッシュボードへのURLパス |
+| `status` | string | 操作のステータス（success） |
+| `version` | number | ダッシュボードの新しいバージョン番号 |
+| `slug` | string | ダッシュボードのURL用スラッグ |
+
+### `grafana_delete_dashboard`
+
+UIDでダッシュボードを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grafanaサービスアカウントトークン |
+| `baseUrl` | string | はい | GrafanaインスタンスURL（例：https://your-grafana.com） |
+| `organizationId` | string | いいえ | マルチ組織Grafanaインスタンス用の組織ID |
+| `dashboardUid` | string | はい | 削除するダッシュボードのUID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `title` | string | 削除されたダッシュボードのタイトル |
+| `message` | string | 確認メッセージ |
+| `id` | number | 削除されたダッシュボードのID |
+
+### `grafana_list_alert_rules`
+
+Grafanaインスタンス内のすべてのアラートルールを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grafanaサービスアカウントトークン |
+| `baseUrl` | string | はい | GrafanaインスタンスURL（例：https://your-grafana.com） |
+| `organizationId` | string | いいえ | マルチ組織Grafanaインスタンス用の組織ID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `rules` | array | アラートルールのリスト |
+
+### `grafana_get_alert_rule`
+
+UIDによって特定のアラートルールを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grafanaサービスアカウントトークン |
+| `baseUrl` | string | はい | GrafanaインスタンスURL（例：https://your-grafana.com） |
+| `organizationId` | string | いいえ | マルチ組織Grafanaインスタンス用の組織ID |
+| `alertRuleUid` | string | はい | 取得するアラートルールのUID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `uid` | string | アラートルールUID |
+| `title` | string | アラートルールタイトル |
+| `condition` | string | アラート条件 |
+| `data` | json | アラートルールクエリデータ |
+| `folderUID` | string | 親フォルダUID |
+| `ruleGroup` | string | ルールグループ名 |
+| `noDataState` | string | データが返されない場合の状態 |
+| `execErrState` | string | 実行エラー時の状態 |
+| `annotations` | json | アラート注釈 |
+| `labels` | json | アラートラベル |
+
+### `grafana_create_alert_rule`
+
+新しいアラートルールを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grafanaサービスアカウントトークン |
+| `baseUrl` | string | はい | GrafanaインスタンスURL（例：https://your-grafana.com） |
+| `organizationId` | string | いいえ | マルチ組織Grafanaインスタンス用の組織ID |
+| `title` | string | はい | アラートルールのタイトル |
+| `folderUid` | string | はい | アラートを作成するフォルダのUID |
+| `ruleGroup` | string | はい | ルールグループの名前 |
+| `condition` | string | はい | アラート条件として使用するクエリまたは式のrefId |
+| `data` | string | はい | クエリ/式データオブジェクトのJSON配列 |
+| `forDuration` | string | いいえ | 発火前の待機時間（例：5m、1h） |
+| `noDataState` | string | いいえ | データが返されない場合の状態（NoData、Alerting、OK） |
+| `execErrState` | string | いいえ | 実行エラー時の状態（Alerting、OK） |
+| `annotations` | string | いいえ | 注釈のJSONオブジェクト |
+| `labels` | string | いいえ | ラベルのJSONオブジェクト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `uid` | string | 作成されたアラートルールのUID |
+| `title` | string | アラートルールのタイトル |
+| `folderUID` | string | 親フォルダのUID |
+| `ruleGroup` | string | ルールグループ名 |
+
+### `grafana_update_alert_rule`
+
+既存のアラートルールを更新します。現在のルールを取得し、変更内容をマージします。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grafanaサービスアカウントトークン |
+| `baseUrl` | string | はい | GrafanaインスタンスのURL（例：https://your-grafana.com） |
+| `organizationId` | string | いいえ | マルチ組織Grafanaインスタンスの組織ID |
+| `alertRuleUid` | string | はい | 更新するアラートルールのUID |
+| `title` | string | いいえ | アラートルールの新しいタイトル |
+| `folderUid` | string | いいえ | アラートを移動する新しいフォルダのUID |
+| `ruleGroup` | string | いいえ | 新しいルールグループ名 |
+| `condition` | string | いいえ | 新しい条件のrefId |
+| `data` | string | いいえ | クエリ/式データオブジェクトの新しいJSON配列 |
+| `forDuration` | string | いいえ | アラートを発生させるまでの待機時間（例：5m、1h） |
+| `noDataState` | string | いいえ | データが返されない場合の状態（NoData、Alerting、OK） |
+| `execErrState` | string | いいえ | 実行エラー時の状態（Alerting、OK） |
+| `annotations` | string | いいえ | アノテーションのJSONオブジェクト |
+| `labels` | string | いいえ | ラベルのJSONオブジェクト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `uid` | string | 更新されたアラートルールのUID |
+| `title` | string | アラートルールのタイトル |
+| `folderUID` | string | 親フォルダのUID |
+| `ruleGroup` | string | ルールグループ名 |
+
+### `grafana_delete_alert_rule`
+
+UIDによるアラートルールの削除
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grafanaサービスアカウントトークン |
+| `baseUrl` | string | はい | GrafanaインスタンスURL（例：https://your-grafana.com） |
+| `organizationId` | string | いいえ | マルチ組織Grafanaインスタンスの組織ID |
+| `alertRuleUid` | string | はい | 削除するアラートルールのUID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 確認メッセージ |
+
+### `grafana_list_contact_points`
+
+すべてのアラート通知コンタクトポイントの一覧表示
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grafanaサービスアカウントトークン |
+| `baseUrl` | string | はい | GrafanaインスタンスURL（例：https://your-grafana.com） |
+| `organizationId` | string | いいえ | マルチ組織Grafanaインスタンスの組織ID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `contactPoints` | array | コンタクトポイントのリスト |
+
+### `grafana_create_annotation`
+
+ダッシュボード上または全体的なアノテーションとしてアノテーションを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grafanaサービスアカウントトークン |
+| `baseUrl` | string | はい | GrafanaインスタンスURL（例：https://your-grafana.com） |
+| `organizationId` | string | いいえ | マルチ組織Grafanaインスタンス用の組織ID |
+| `text` | string | はい | アノテーションのテキスト内容 |
+| `tags` | string | いいえ | カンマ区切りのタグリスト |
+| `dashboardUid` | string | いいえ | アノテーションを追加するダッシュボードのUID（全体的なアノテーションの場合はオプション） |
+| `panelId` | number | いいえ | アノテーションを追加するパネルのID |
+| `time` | number | いいえ | エポックミリ秒での開始時間（デフォルトは現在） |
+| `timeEnd` | number | いいえ | エポックミリ秒での終了時間（範囲アノテーション用） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | number | 作成されたアノテーションのID |
+| `message` | string | 確認メッセージ |
+
+### `grafana_list_annotations`
+
+時間範囲、ダッシュボード、またはタグでアノテーションを検索する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grafanaサービスアカウントトークン |
+| `baseUrl` | string | はい | GrafanaインスタンスURL（例：https://your-grafana.com） |
+| `organizationId` | string | いいえ | マルチ組織Grafanaインスタンス用の組織ID |
+| `from` | number | いいえ | エポックミリ秒での開始時間 |
+| `to` | number | いいえ | エポックミリ秒での終了時間 |
+| `dashboardUid` | string | いいえ | ダッシュボードUIDでフィルタリング |
+| `panelId` | number | いいえ | パネルIDでフィルタリング |
+| `tags` | string | いいえ | フィルタリングするタグのカンマ区切りリスト |
+| `type` | string | いいえ | タイプでフィルタリング（アラートまたはアノテーション） |
+| `limit` | number | いいえ | 返すアノテーションの最大数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `annotations` | array | アノテーションのリスト |
+
+### `grafana_update_annotation`
+
+既存のアノテーションを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grafanaサービスアカウントトークン |
+| `baseUrl` | string | はい | GrafanaインスタンスURL（例：https://your-grafana.com） |
+| `organizationId` | string | いいえ | マルチ組織Grafanaインスタンス用の組織ID |
+| `annotationId` | number | はい | 更新するアノテーションのID |
+| `text` | string | はい | アノテーションの新しいテキスト内容 |
+| `tags` | string | いいえ | 新しいタグのカンマ区切りリスト |
+| `time` | number | いいえ | エポックミリ秒での新しい開始時間 |
+| `timeEnd` | number | いいえ | エポックミリ秒での新しい終了時間 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | number | 更新されたアノテーションのID |
+| `message` | string | 確認メッセージ |
+
+### `grafana_delete_annotation`
+
+IDでアノテーションを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grafanaサービスアカウントトークン |
+| `baseUrl` | string | はい | GrafanaインスタンスURL（例：https://your-grafana.com） |
+| `organizationId` | string | いいえ | マルチ組織Grafanaインスタンス用の組織ID |
+| `annotationId` | number | はい | 削除するアノテーションのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 確認メッセージ |
+
+### `grafana_list_data_sources`
+
+Grafanaで設定されているすべてのデータソースを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grafanaサービスアカウントトークン |
+| `baseUrl` | string | はい | GrafanaインスタンスURL（例：https://your-grafana.com） |
+| `organizationId` | string | いいえ | マルチ組織Grafanaインスタンス用の組織ID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `dataSources` | array | データソースのリスト |
+
+### `grafana_get_data_source`
+
+IDまたはUIDでデータソースを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grafanaサービスアカウントトークン |
+| `baseUrl` | string | はい | GrafanaインスタンスURL（例：https://your-grafana.com） |
+| `organizationId` | string | いいえ | マルチ組織Grafanaインスタンス用の組織ID |
+| `dataSourceId` | string | はい | 取得するデータソースのIDまたはUID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | number | データソースID |
+| `uid` | string | データソースUID |
+| `name` | string | データソース名 |
+| `type` | string | データソースタイプ |
+| `url` | string | データソース接続URL |
+| `database` | string | データベース名（該当する場合） |
+| `isDefault` | boolean | これがデフォルトのデータソースかどうか |
+| `jsonData` | json | 追加のデータソース設定 |
+
+### `grafana_list_folders`
+
+Grafanaのすべてのフォルダを一覧表示
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grafanaサービスアカウントトークン |
+| `baseUrl` | string | はい | GrafanaインスタンスURL（例：https://your-grafana.com） |
+| `organizationId` | string | いいえ | マルチ組織Grafanaインスタンス用の組織ID |
+| `limit` | number | いいえ | 返すフォルダの最大数 |
+| `page` | number | いいえ | ページネーション用のページ番号 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `folders` | array | フォルダのリスト |
+
+### `grafana_create_folder`
+
+Grafanaに新しいフォルダを作成
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grafanaサービスアカウントトークン |
+| `baseUrl` | string | はい | GrafanaインスタンスURL（例：https://your-grafana.com） |
+| `organizationId` | string | いいえ | マルチ組織Grafanaインスタンス用の組織ID |
+| `title` | string | はい | 新しいフォルダのタイトル |
+| `uid` | string | いいえ | フォルダのオプションUID（提供されない場合は自動生成） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | number | 作成されたフォルダの数値ID |
+| `uid` | string | 作成されたフォルダのUID |
+| `title` | string | 作成されたフォルダのタイトル |
+| `url` | string | フォルダへのURLパス |
+
+## メモ
+
+- カテゴリー: `tools`
+- タイプ: `grafana`

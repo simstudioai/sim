@@ -1,535 +1,162 @@
 'use client'
 
-import { type FC, memo, useEffect, useMemo, useRef, useState } from 'react'
+import { type FC, memo, useMemo, useState } from 'react'
+import { Check, Copy, RotateCcw, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { Button } from '@/components/emcn'
+import { ToolCall } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
 import {
-  Check,
-  Clipboard,
-  FileText,
-  Image,
-  Loader2,
-  RotateCcw,
-  ThumbsDown,
-  ThumbsUp,
-  X,
-} from 'lucide-react'
-import { InlineToolCall } from '@/lib/copilot/tools/inline-tool-call'
-import { createLogger } from '@/lib/logs/console/logger'
-import { usePreviewStore } from '@/stores/copilot/preview-store'
-import { useCopilotStore } from '@/stores/copilot/store'
-import type { CopilotMessage as CopilotMessageType } from '@/stores/copilot/types'
-import CopilotMarkdownRenderer from './components/markdown-renderer'
-import { ThinkingBlock } from './components/thinking-block'
+  FileAttachmentDisplay,
+  SmoothStreamingText,
+  StreamingIndicator,
+  ThinkingBlock,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components'
+import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
+import {
+  useCheckpointManagement,
+  useMessageEditing,
+  useMessageFeedback,
+  useSuccessTimers,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/hooks'
+import { UserInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
+import { useCopilotStore } from '@/stores/panel/copilot/store'
+import type { CopilotMessage as CopilotMessageType } from '@/stores/panel/copilot/types'
 
-const logger = createLogger('CopilotMessage')
-
+/**
+ * Props for the CopilotMessage component
+ */
 interface CopilotMessageProps {
+  /** Message object containing content and metadata */
   message: CopilotMessageType
+  /** Whether the message is currently streaming */
   isStreaming?: boolean
+  /** Width of the panel in pixels */
+  panelWidth?: number
+  /** Whether the message should appear dimmed */
+  isDimmed?: boolean
+  /** Number of checkpoints for this message */
+  checkpointCount?: number
+  /** Callback when edit mode changes */
+  onEditModeChange?: (isEditing: boolean, cancelCallback?: () => void) => void
+  /** Callback when revert mode changes */
+  onRevertModeChange?: (isReverting: boolean) => void
 }
 
-// Memoized streaming indicator component for better performance
-const StreamingIndicator = memo(() => (
-  <div className='flex items-center py-1 text-muted-foreground transition-opacity duration-200 ease-in-out'>
-    <div className='flex space-x-0.5'>
-      <div
-        className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
-        style={{ animationDelay: '0ms', animationDuration: '1.2s' }}
-      />
-      <div
-        className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
-        style={{ animationDelay: '0.15s', animationDuration: '1.2s' }}
-      />
-      <div
-        className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
-        style={{ animationDelay: '0.3s', animationDuration: '1.2s' }}
-      />
-    </div>
-  </div>
-))
-
-StreamingIndicator.displayName = 'StreamingIndicator'
-
-// File attachment display component
-interface FileAttachmentDisplayProps {
-  fileAttachments: any[]
-}
-
-const FileAttachmentDisplay = memo(({ fileAttachments }: FileAttachmentDisplayProps) => {
-  // Cache for file URLs to avoid re-fetching on every render
-  const [fileUrls, setFileUrls] = useState<Record<string, string>>({})
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${Math.round((bytes / k ** i) * 10) / 10} ${sizes[i]}`
-  }
-
-  const getFileIcon = (mediaType: string) => {
-    if (mediaType.startsWith('image/')) {
-      return <Image className='h-5 w-5 text-muted-foreground' />
-    }
-    if (mediaType.includes('pdf')) {
-      return <FileText className='h-5 w-5 text-red-500' />
-    }
-    if (mediaType.includes('text') || mediaType.includes('json') || mediaType.includes('xml')) {
-      return <FileText className='h-5 w-5 text-blue-500' />
-    }
-    return <FileText className='h-5 w-5 text-muted-foreground' />
-  }
-
-  const getFileUrl = (file: any) => {
-    const cacheKey = file.s3_key
-    if (fileUrls[cacheKey]) {
-      return fileUrls[cacheKey]
-    }
-
-    // Generate URL only once and cache it
-    const url = `/api/files/serve/s3/${encodeURIComponent(file.s3_key)}?bucket=copilot`
-    setFileUrls((prev) => ({ ...prev, [cacheKey]: url }))
-    return url
-  }
-
-  const handleFileClick = (file: any) => {
-    // Use cached URL or generate it
-    const serveUrl = getFileUrl(file)
-
-    // Open the file in a new tab
-    window.open(serveUrl, '_blank')
-  }
-
-  const isImageFile = (mediaType: string) => {
-    return mediaType.startsWith('image/')
-  }
-
-  return (
-    <>
-      {fileAttachments.map((file) => (
-        <div
-          key={file.id}
-          className='group relative h-16 w-16 cursor-pointer overflow-hidden rounded-md border border-border/50 bg-muted/20 transition-all hover:bg-muted/40'
-          onClick={() => handleFileClick(file)}
-          title={`${file.filename} (${formatFileSize(file.size)})`}
-        >
-          {isImageFile(file.media_type) ? (
-            // For images, show actual thumbnail
-            <img
-              src={getFileUrl(file)}
-              alt={file.filename}
-              className='h-full w-full object-cover'
-              onError={(e) => {
-                // If image fails to load, replace with icon
-                const target = e.target as HTMLImageElement
-                target.style.display = 'none'
-                const parent = target.parentElement
-                if (parent) {
-                  const iconContainer = document.createElement('div')
-                  iconContainer.className =
-                    'flex items-center justify-center w-full h-full bg-background/50'
-                  iconContainer.innerHTML =
-                    '<svg class="h-5 w-5 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>'
-                  parent.appendChild(iconContainer)
-                }
-              }}
-            />
-          ) : (
-            // For other files, show icon centered
-            <div className='flex h-full w-full items-center justify-center bg-background/50'>
-              {getFileIcon(file.media_type)}
-            </div>
-          )}
-
-          {/* Hover overlay effect */}
-          <div className='pointer-events-none absolute inset-0 bg-black/10 opacity-0 transition-opacity group-hover:opacity-100' />
-        </div>
-      ))}
-    </>
-  )
-})
-
-FileAttachmentDisplay.displayName = 'FileAttachmentDisplay'
-
-// Smooth streaming text component with typewriter effect
-interface SmoothStreamingTextProps {
-  content: string
-  isStreaming: boolean
-}
-
-const SmoothStreamingText = memo(
-  ({ content, isStreaming }: SmoothStreamingTextProps) => {
-    const [displayedContent, setDisplayedContent] = useState('')
-    const contentRef = useRef(content)
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null)
-    const indexRef = useRef(0)
-    const streamingStartTimeRef = useRef<number | null>(null)
-    const isAnimatingRef = useRef(false)
-
-    useEffect(() => {
-      // Update content reference
-      contentRef.current = content
-
-      if (content.length === 0) {
-        setDisplayedContent('')
-        indexRef.current = 0
-        streamingStartTimeRef.current = null
-        return
-      }
-
-      if (isStreaming) {
-        // Start timing when streaming begins
-        if (streamingStartTimeRef.current === null) {
-          streamingStartTimeRef.current = Date.now()
-        }
-
-        // Continue animation if there's more content to show
-        if (indexRef.current < content.length) {
-          const animateText = () => {
-            const currentContent = contentRef.current
-            const currentIndex = indexRef.current
-
-            if (currentIndex < currentContent.length) {
-              // Add characters one by one for true character-by-character streaming
-              const chunkSize = 1
-              const newDisplayed = currentContent.slice(0, currentIndex + chunkSize)
-
-              setDisplayedContent(newDisplayed)
-              indexRef.current = currentIndex + chunkSize
-
-              // Consistent fast speed for all characters
-              const delay = 3 // Consistent fast delay in ms for all characters
-
-              timeoutRef.current = setTimeout(animateText, delay)
-            } else {
-              // Animation complete
-              isAnimatingRef.current = false
-            }
-          }
-
-          // Only start new animation if not already animating
-          if (!isAnimatingRef.current) {
-            // Clear any existing animation
-            if (timeoutRef.current) {
-              clearTimeout(timeoutRef.current)
-            }
-
-            isAnimatingRef.current = true
-            // Continue animation from current position
-            animateText()
-          }
-        }
-      } else {
-        // Not streaming, show all content immediately and reset timing
-        setDisplayedContent(content)
-        indexRef.current = content.length
-        isAnimatingRef.current = false
-        streamingStartTimeRef.current = null
-      }
-
-      // Cleanup on unmount
-      return () => {
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current)
-        }
-        isAnimatingRef.current = false
-      }
-    }, [content, isStreaming])
-
-    return (
-      <div className='relative max-w-full overflow-hidden' style={{ minHeight: '1.25rem' }}>
-        <CopilotMarkdownRenderer content={displayedContent} />
-      </div>
-    )
-  },
-  (prevProps, nextProps) => {
-    // Prevent re-renders during streaming unless content actually changed
-    return (
-      prevProps.content === nextProps.content && prevProps.isStreaming === nextProps.isStreaming
-      // markdownComponents is now memoized so no need to compare
-    )
-  }
-)
-
-SmoothStreamingText.displayName = 'SmoothStreamingText'
-
-// Maximum character length for a word before it's broken up
-const MAX_WORD_LENGTH = 25
-
-const WordWrap = ({ text }: { text: string }) => {
-  if (!text) return null
-
-  // Split text into words, keeping spaces and punctuation
-  const parts = text.split(/(\s+)/g)
-
-  return (
-    <>
-      {parts.map((part, index) => {
-        // If the part is whitespace or shorter than the max length, render it as is
-        if (part.match(/\s+/) || part.length <= MAX_WORD_LENGTH) {
-          return <span key={index}>{part}</span>
-        }
-
-        // For long words, break them up into chunks
-        const chunks = []
-        for (let i = 0; i < part.length; i += MAX_WORD_LENGTH) {
-          chunks.push(part.substring(i, i + MAX_WORD_LENGTH))
-        }
-
-        return (
-          <span key={index} className='break-all'>
-            {chunks.map((chunk, chunkIndex) => (
-              <span key={chunkIndex}>{chunk}</span>
-            ))}
-          </span>
-        )
-      })}
-    </>
-  )
-}
-
+/**
+ * CopilotMessage component displays individual chat messages
+ * Handles both user and assistant messages with different rendering and interactions
+ * Supports editing, checkpoints, feedback, and file attachments
+ *
+ * @param props - Component props
+ * @returns Message component with appropriate role-based rendering
+ */
 const CopilotMessage: FC<CopilotMessageProps> = memo(
-  ({ message, isStreaming }) => {
+  ({
+    message,
+    isStreaming,
+    panelWidth = 308,
+    isDimmed = false,
+    checkpointCount = 0,
+    onEditModeChange,
+    onRevertModeChange,
+  }) => {
     const isUser = message.role === 'user'
     const isAssistant = message.role === 'assistant'
-    const [showCopySuccess, setShowCopySuccess] = useState(false)
-    const [showUpvoteSuccess, setShowUpvoteSuccess] = useState(false)
-    const [showDownvoteSuccess, setShowDownvoteSuccess] = useState(false)
-    const [showRestoreConfirmation, setShowRestoreConfirmation] = useState(false)
 
-    // Get checkpoint functionality from copilot store
+    // Store state
     const {
       messageCheckpoints: allMessageCheckpoints,
-      revertToCheckpoint,
-      isRevertingCheckpoint,
-      currentChat,
       messages,
-      workflowId,
+      isSendingMessage,
+      abortMessage,
+      mode,
+      setMode,
+      isAborting,
     } = useCopilotStore()
-
-    // Get preview store for accessing workflow YAML after rejection
-    const { getPreviewByToolCall, getLatestPendingPreview } = usePreviewStore()
-
-    // Import COPILOT_TOOL_IDS - placing it here since it's needed in multiple functions
-    const WORKFLOW_TOOL_NAMES = ['build_workflow', 'edit_workflow']
 
     // Get checkpoints for this message if it's a user message
     const messageCheckpoints = isUser ? allMessageCheckpoints[message.id] || [] : []
-    const hasCheckpoints = messageCheckpoints.length > 0
+    const hasCheckpoints = messageCheckpoints.length > 0 && messageCheckpoints.some((cp) => cp?.id)
 
+    // Check if this is the last user message (for showing abort button)
+    const isLastUserMessage = useMemo(() => {
+      if (!isUser) return false
+      const userMessages = messages.filter((m) => m.role === 'user')
+      return userMessages.length > 0 && userMessages[userMessages.length - 1]?.id === message.id
+    }, [isUser, messages, message.id])
+
+    // UI state
+    const [isHoveringMessage, setIsHoveringMessage] = useState(false)
+
+    // Success timers hook
+    const {
+      showCopySuccess,
+      showUpvoteSuccess,
+      showDownvoteSuccess,
+      handleCopy,
+      setShowUpvoteSuccess,
+      setShowDownvoteSuccess,
+    } = useSuccessTimers()
+
+    // Message feedback hook
+    const { handleUpvote, handleDownvote } = useMessageFeedback(message, messages, {
+      setShowUpvoteSuccess,
+      setShowDownvoteSuccess,
+    })
+
+    // Checkpoint management hook
+    const {
+      showRestoreConfirmation,
+      showCheckpointDiscardModal,
+      pendingEditRef,
+      setShowCheckpointDiscardModal,
+      handleRevertToCheckpoint,
+      handleConfirmRevert,
+      handleCancelRevert,
+      handleCancelCheckpointDiscard,
+      handleContinueWithoutRevert,
+      handleContinueAndRevert,
+    } = useCheckpointManagement(
+      message,
+      messages,
+      messageCheckpoints,
+      onRevertModeChange,
+      onEditModeChange
+    )
+
+    // Message editing hook
+    const {
+      isEditMode,
+      isExpanded,
+      editedContent,
+      needsExpansion,
+      editContainerRef,
+      messageContentRef,
+      userInputRef,
+      setEditedContent,
+      handleCancelEdit,
+      handleMessageClick,
+      handleSubmitEdit,
+    } = useMessageEditing({
+      message,
+      messages,
+      isLastUserMessage,
+      hasCheckpoints,
+      onEditModeChange: (isEditing) => {
+        onEditModeChange?.(isEditing, handleCancelEdit)
+      },
+      disableDocumentClickOutside: true,
+      showCheckpointDiscardModal,
+      setShowCheckpointDiscardModal,
+      pendingEditRef,
+    })
+
+    /**
+     * Handles copying message content to clipboard
+     * Uses the success timer hook to show feedback
+     */
     const handleCopyContent = () => {
-      // Copy clean text content
-      navigator.clipboard.writeText(message.content)
-      setShowCopySuccess(true)
+      handleCopy(message.content)
     }
-
-    // Helper function to get the full assistant response content
-    const getFullAssistantContent = (message: CopilotMessageType) => {
-      // First try the direct content
-      if (message.content?.trim()) {
-        return message.content
-      }
-
-      // If no direct content, build from content blocks
-      if (message.contentBlocks && message.contentBlocks.length > 0) {
-        return message.contentBlocks
-          .filter((block) => block.type === 'text')
-          .map((block) => block.content)
-          .join('')
-      }
-
-      return message.content || ''
-    }
-
-    // Helper function to find the last user query before this assistant message
-    const getLastUserQuery = () => {
-      const messageIndex = messages.findIndex((msg) => msg.id === message.id)
-      if (messageIndex === -1) return null
-
-      // Look backwards from this message to find the last user message
-      for (let i = messageIndex - 1; i >= 0; i--) {
-        if (messages[i].role === 'user') {
-          return messages[i].content
-        }
-      }
-      return null
-    }
-
-    // Helper function to extract workflow YAML from workflow tool calls
-    const getWorkflowYaml = () => {
-      // Step 1: Check both toolCalls array and contentBlocks for workflow tools
-      const allToolCalls = [
-        ...(message.toolCalls || []),
-        ...(message.contentBlocks || [])
-          .filter((block) => block.type === 'tool_call')
-          .map((block) => (block as any).toolCall),
-      ]
-
-      // Find workflow tools (build_workflow or edit_workflow)
-      const workflowTools = allToolCalls.filter((toolCall) =>
-        WORKFLOW_TOOL_NAMES.includes(toolCall?.name)
-      )
-
-      // Extract YAML content from workflow tools in the current message
-      for (const toolCall of workflowTools) {
-        // Try various locations where YAML content might be stored
-        const yamlContent =
-          toolCall.result?.yamlContent ||
-          toolCall.result?.data?.yamlContent ||
-          toolCall.input?.yamlContent ||
-          toolCall.input?.data?.yamlContent
-
-        if (yamlContent && typeof yamlContent === 'string' && yamlContent.trim()) {
-          return yamlContent
-        }
-      }
-
-      // Step 2: Check copilot store's preview YAML (set when workflow tools execute)
-      if (currentChat?.previewYaml?.trim()) {
-        return currentChat.previewYaml
-      }
-
-      // Step 3: Check preview store for recent workflow tool calls from this message
-      for (const toolCall of workflowTools) {
-        if (toolCall.id) {
-          const preview = getPreviewByToolCall(toolCall.id)
-          if (preview?.yamlContent?.trim()) {
-            return preview.yamlContent
-          }
-        }
-      }
-
-      // Step 4: If this message contains workflow tools but no YAML found yet,
-      // try to get the latest pending preview for this workflow (fallback)
-      if (workflowTools.length > 0 && workflowId) {
-        const latestPreview = getLatestPendingPreview(workflowId, currentChat?.id)
-        if (latestPreview?.yamlContent?.trim()) {
-          return latestPreview.yamlContent
-        }
-      }
-
-      return null
-    }
-
-    // Function to submit feedback
-    const submitFeedback = async (isPositive: boolean) => {
-      // Ensure we have a chat ID
-      if (!currentChat?.id) {
-        logger.error('No current chat ID available for feedback submission')
-        return
-      }
-
-      const userQuery = getLastUserQuery()
-      if (!userQuery) {
-        logger.error('No user query found for feedback submission')
-        return
-      }
-
-      const agentResponse = getFullAssistantContent(message)
-      if (!agentResponse.trim()) {
-        logger.error('No agent response content available for feedback submission')
-        return
-      }
-
-      // Get workflow YAML if this message contains workflow tools
-      const workflowYaml = getWorkflowYaml()
-
-      try {
-        const requestBody: any = {
-          chatId: currentChat.id,
-          userQuery,
-          agentResponse,
-          isPositiveFeedback: isPositive,
-        }
-
-        // Only include workflowYaml if it exists
-        if (workflowYaml) {
-          requestBody.workflowYaml = workflowYaml
-        }
-
-        const response = await fetch('/api/copilot/feedback', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(requestBody),
-        })
-
-        if (!response.ok) {
-          throw new Error(`Failed to submit feedback: ${response.statusText}`)
-        }
-
-        const result = await response.json()
-      } catch (error) {
-        logger.error('Error submitting feedback:', error)
-      }
-    }
-
-    const handleUpvote = async () => {
-      // Reset downvote if it was active
-      setShowDownvoteSuccess(false)
-      setShowUpvoteSuccess(true)
-
-      // Submit positive feedback
-      await submitFeedback(true)
-    }
-
-    const handleDownvote = async () => {
-      // Reset upvote if it was active
-      setShowUpvoteSuccess(false)
-      setShowDownvoteSuccess(true)
-
-      // Submit negative feedback
-      await submitFeedback(false)
-    }
-
-    const handleRevertToCheckpoint = () => {
-      setShowRestoreConfirmation(true)
-    }
-
-    const handleConfirmRevert = async () => {
-      if (messageCheckpoints.length > 0) {
-        // Use the most recent checkpoint for this message
-        const latestCheckpoint = messageCheckpoints[0]
-        try {
-          await revertToCheckpoint(latestCheckpoint.id)
-          setShowRestoreConfirmation(false)
-        } catch (error) {
-          logger.error('Failed to revert to checkpoint:', error)
-          setShowRestoreConfirmation(false)
-        }
-      }
-    }
-
-    const handleCancelRevert = () => {
-      setShowRestoreConfirmation(false)
-    }
-
-    useEffect(() => {
-      if (showCopySuccess) {
-        const timer = setTimeout(() => {
-          setShowCopySuccess(false)
-        }, 2000)
-        return () => clearTimeout(timer)
-      }
-    }, [showCopySuccess])
-
-    useEffect(() => {
-      if (showUpvoteSuccess) {
-        const timer = setTimeout(() => {
-          setShowUpvoteSuccess(false)
-        }, 2000)
-        return () => clearTimeout(timer)
-      }
-    }, [showUpvoteSuccess])
-
-    useEffect(() => {
-      if (showDownvoteSuccess) {
-        const timer = setTimeout(() => {
-          setShowDownvoteSuccess(false)
-        }, 2000)
-        return () => clearTimeout(timer)
-      }
-    }, [showDownvoteSuccess])
 
     // Get clean text content with double newline parsing
     const cleanTextContent = useMemo(() => {
@@ -558,14 +185,9 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           return (
             <div
               key={`text-${index}-${block.timestamp || index}`}
-              className='w-full max-w-full overflow-hidden transition-opacity duration-200 ease-in-out'
-              style={{
-                opacity: cleanBlockContent.length > 0 ? 1 : 0.7,
-                transform: shouldUseSmoothing ? 'translateY(0)' : undefined,
-                transition: shouldUseSmoothing
-                  ? 'transform 0.1s ease-out, opacity 0.2s ease-in-out'
-                  : 'opacity 0.2s ease-in-out',
-              }}
+              className={`w-full max-w-full overflow-hidden transition-opacity duration-200 ease-in-out ${
+                cleanBlockContent.length > 0 ? 'opacity-100' : 'opacity-70'
+              } ${shouldUseSmoothing ? 'translate-y-0 transition-transform duration-100 ease-out' : ''}`}
             >
               {shouldUseSmoothing ? (
                 <SmoothStreamingText content={cleanBlockContent} isStreaming={isStreaming} />
@@ -594,18 +216,12 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           )
         }
         if (block.type === 'tool_call') {
-          // Skip hidden tools (like checkoff_todo)
-          if (block.toolCall.hidden) {
-            return null
-          }
-
           return (
             <div
               key={`tool-${block.toolCall.id}`}
-              className='transition-opacity duration-300 ease-in-out'
-              style={{ opacity: 1 }}
+              className='opacity-100 transition-opacity duration-300 ease-in-out'
             >
-              <InlineToolCall toolCall={block.toolCall} />
+              <ToolCall toolCallId={block.toolCall.id} toolCall={block.toolCall} />
             </div>
           )
         }
@@ -615,89 +231,218 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
     if (isUser) {
       return (
-        <div className='w-full max-w-full overflow-hidden py-2'>
-          {/* File attachments displayed above the message, completely separate from message box width */}
-          {message.fileAttachments && message.fileAttachments.length > 0 && (
-            <div className='mb-1 flex justify-end'>
-              <div className='flex flex-wrap gap-1.5'>
-                <FileAttachmentDisplay fileAttachments={message.fileAttachments} />
-              </div>
-            </div>
-          )}
-
-          <div className='flex justify-end'>
-            <div className='min-w-0 max-w-[80%]'>
-              {/* Message content in purple box */}
-              <div
-                className='rounded-[10px] px-3 py-2'
-                style={{
-                  backgroundColor:
-                    'color-mix(in srgb, var(--brand-primary-hover-hex) 8%, transparent)',
+        <div
+          className={`w-full max-w-full overflow-hidden transition-opacity duration-200 [max-width:var(--panel-max-width)] ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+          style={{ '--panel-max-width': `${panelWidth - 16}px` } as React.CSSProperties}
+        >
+          {isEditMode ? (
+            <div
+              ref={editContainerRef}
+              data-edit-container
+              data-message-id={message.id}
+              className='relative w-full'
+            >
+              <UserInput
+                ref={userInputRef}
+                onSubmit={handleSubmitEdit}
+                onAbort={() => {
+                  if (isSendingMessage && isLastUserMessage) {
+                    abortMessage()
+                  }
                 }}
-              >
-                <div className='whitespace-pre-wrap break-words font-normal text-base text-foreground leading-relaxed'>
-                  <WordWrap text={message.content} />
-                </div>
-              </div>
+                isLoading={isSendingMessage && isLastUserMessage}
+                isAborting={isAborting}
+                disabled={showCheckpointDiscardModal}
+                value={editedContent}
+                onChange={setEditedContent}
+                placeholder='Edit your message...'
+                mode={mode}
+                onModeChange={setMode}
+                panelWidth={panelWidth}
+                clearOnSubmit={false}
+              />
 
-              {/* Checkpoints below message */}
-              {hasCheckpoints && (
-                <div className='mt-1 flex justify-end'>
-                  <div className='inline-flex items-center gap-0.5 text-muted-foreground text-xs'>
-                    <span className='select-none'>
-                      Restore{showRestoreConfirmation && <span className='ml-0.5'>?</span>}
-                    </span>
-                    <div className='inline-flex w-8 items-center justify-center'>
-                      {showRestoreConfirmation ? (
-                        <div className='inline-flex items-center gap-1'>
-                          <button
-                            onClick={handleConfirmRevert}
-                            disabled={isRevertingCheckpoint}
-                            className='text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
-                            title='Confirm restore'
-                            aria-label='Confirm restore'
-                          >
-                            {isRevertingCheckpoint ? (
-                              <Loader2 className='h-3 w-3 animate-spin' />
-                            ) : (
-                              <Check className='h-3 w-3' />
-                            )}
-                          </button>
-                          <button
-                            onClick={handleCancelRevert}
-                            disabled={isRevertingCheckpoint}
-                            className='text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
-                            title='Cancel restore'
-                            aria-label='Cancel restore'
-                          >
-                            <X className='h-3 w-3' />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={handleRevertToCheckpoint}
-                          disabled={isRevertingCheckpoint}
-                          className='text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
-                          title='Restore workflow to this checkpoint state'
-                          aria-label='Restore'
-                        >
-                          <RotateCcw className='h-3 w-3' />
-                        </button>
-                      )}
-                    </div>
+              {/* Inline Checkpoint Discard Confirmation - shown below input in edit mode */}
+              {showCheckpointDiscardModal && (
+                <div className='mt-[8px] rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] p-[10px] dark:bg-[var(--surface-9)]'>
+                  <p className='mb-[8px] text-[var(--text-primary)] text-sm'>
+                    Continue from a previous message?
+                  </p>
+                  <div className='flex gap-[6px]'>
+                    <Button
+                      onClick={handleCancelCheckpointDiscard}
+                      variant='default'
+                      className='flex flex-1 items-center justify-center gap-[6px] px-[8px] py-[4px] text-xs'
+                    >
+                      <span>Cancel</span>
+                      <span className='text-[10px] text-[var(--text-muted)]'>(Esc)</span>
+                    </Button>
+                    <Button
+                      onClick={handleContinueAndRevert}
+                      variant='outline'
+                      className='flex-1 px-[8px] py-[4px] text-xs'
+                    >
+                      Revert
+                    </Button>
+                    <Button
+                      onClick={handleContinueWithoutRevert}
+                      variant='outline'
+                      className='flex-1 px-[8px] py-[4px] text-xs'
+                    >
+                      Continue
+                    </Button>
                   </div>
                 </div>
               )}
             </div>
-          </div>
+          ) : (
+            <div className='w-full'>
+              {/* File attachments displayed above the message box */}
+              {message.fileAttachments && message.fileAttachments.length > 0 && (
+                <div className='mb-1.5 flex flex-wrap gap-1.5'>
+                  <FileAttachmentDisplay fileAttachments={message.fileAttachments} />
+                </div>
+              )}
+
+              {/* Message box - styled like input, clickable to edit */}
+              <div
+                data-message-box
+                data-message-id={message.id}
+                onClick={handleMessageClick}
+                onMouseEnter={() => setIsHoveringMessage(true)}
+                onMouseLeave={() => setIsHoveringMessage(false)}
+                className='group relative w-full cursor-pointer rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[6px] py-[6px] transition-all duration-200 hover:border-[var(--surface-14)] hover:bg-[var(--surface-9)] dark:bg-[var(--surface-9)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--surface-11)]'
+              >
+                <div
+                  ref={messageContentRef}
+                  className={`relative whitespace-pre-wrap break-words px-[2px] py-1 font-medium font-sans text-[#0D0D0D] text-sm leading-[1.25rem] dark:text-gray-100 ${isSendingMessage && isLastUserMessage && isHoveringMessage ? 'pr-7' : ''} ${!isExpanded && needsExpansion ? 'max-h-[60px] overflow-hidden' : 'overflow-visible'}`}
+                >
+                  {(() => {
+                    const text = message.content || ''
+                    const contexts: any[] = Array.isArray((message as any).contexts)
+                      ? ((message as any).contexts as any[])
+                      : []
+                    const labels = contexts
+                      .filter((c) => c?.kind !== 'current_workflow')
+                      .map((c) => c?.label)
+                      .filter(Boolean) as string[]
+                    if (!labels.length) return text
+
+                    const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                    const pattern = new RegExp(`@(${labels.map(escapeRegex).join('|')})`, 'g')
+
+                    const nodes: React.ReactNode[] = []
+                    let lastIndex = 0
+                    let match: RegExpExecArray | null
+                    while ((match = pattern.exec(text)) !== null) {
+                      const i = match.index
+                      const before = text.slice(lastIndex, i)
+                      if (before) nodes.push(before)
+                      const mention = match[0]
+                      nodes.push(
+                        <span
+                          key={`mention-${i}-${lastIndex}`}
+                          className='rounded-[6px] bg-[rgba(142,76,251,0.65)]'
+                        >
+                          {mention}
+                        </span>
+                      )
+                      lastIndex = i + mention.length
+                    }
+                    const tail = text.slice(lastIndex)
+                    if (tail) nodes.push(tail)
+                    return nodes
+                  })()}
+                </div>
+
+                {/* Gradient fade when truncated - applies to entire message box */}
+                {!isExpanded && needsExpansion && (
+                  <div className='pointer-events-none absolute right-0 bottom-0 left-0 h-6 bg-gradient-to-t from-0% from-[var(--surface-6)] via-40% via-[var(--surface-6)]/70 to-100% to-transparent group-hover:from-[var(--surface-9)] group-hover:via-[var(--surface-9)]/70 dark:from-[var(--surface-9)] dark:via-[var(--surface-9)]/70 dark:group-hover:from-[var(--surface-11)] dark:group-hover:via-[var(--surface-11)]/70' />
+                )}
+
+                {/* Abort button when hovering and response is generating (only on last user message) */}
+                {isSendingMessage && isHoveringMessage && isLastUserMessage && (
+                  <div className='pointer-events-auto absolute right-[6px] bottom-[6px]'>
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        abortMessage()
+                      }}
+                      className='h-[20px] w-[20px] rounded-full bg-[#C0C0C0] p-0 transition-colors hover:bg-[#D0D0D0] dark:bg-[#C0C0C0] dark:hover:bg-[#D0D0D0]'
+                      title='Stop generation'
+                    >
+                      <svg
+                        className='block h-[13px] w-[13px]'
+                        viewBox='0 0 24 24'
+                        fill='black'
+                        xmlns='http://www.w3.org/2000/svg'
+                      >
+                        <rect x='4' y='4' width='16' height='16' rx='3' ry='3' />
+                      </svg>
+                    </Button>
+                  </div>
+                )}
+
+                {/* Revert button on hover (only when has checkpoints and not generating) */}
+                {!isSendingMessage && hasCheckpoints && isHoveringMessage && (
+                  <div className='pointer-events-auto absolute right-[6px] bottom-[6px]'>
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRevertToCheckpoint()
+                      }}
+                      variant='ghost'
+                      className='h-[22px] w-[22px] rounded-full p-0'
+                      title='Revert to checkpoint'
+                    >
+                      <RotateCcw className='h-3.5 w-3.5' />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Inline Restore Checkpoint Confirmation */}
+          {showRestoreConfirmation && (
+            <div className='mt-[8px] rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] p-[10px] dark:bg-[var(--surface-9)]'>
+              <p className='mb-[8px] text-[var(--text-primary)] text-sm'>
+                Revert to checkpoint? This will restore your workflow to the state saved at this
+                checkpoint.{' '}
+                <span className='font-medium text-[var(--text-error)]'>
+                  This action cannot be undone.
+                </span>
+              </p>
+              <div className='flex gap-[6px]'>
+                <Button
+                  onClick={handleCancelRevert}
+                  variant='default'
+                  className='flex flex-1 items-center justify-center gap-[6px] px-[8px] py-[4px] text-xs'
+                >
+                  <span>Cancel</span>
+                  <span className='text-[10px] text-[var(--text-muted)]'>(Esc)</span>
+                </Button>
+                <Button
+                  onClick={handleConfirmRevert}
+                  variant='outline'
+                  className='flex-1 px-[8px] py-[4px] text-xs'
+                >
+                  Revert
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )
     }
 
     if (isAssistant) {
       return (
-        <div className='w-full max-w-full overflow-hidden py-2 pl-[2px]'>
-          <div className='max-w-full space-y-2 transition-all duration-200 ease-in-out'>
+        <div
+          className={`w-full max-w-full overflow-hidden transition-opacity duration-200 [max-width:var(--panel-max-width)] ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+          style={{ '--panel-max-width': `${panelWidth - 16}px` } as React.CSSProperties}
+        >
+          <div className='max-w-full space-y-1.5 px-[2px] transition-all duration-200 ease-in-out'>
             {/* Content blocks in chronological order */}
             {memoizedContentBlocks}
 
@@ -715,40 +460,43 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
             {/* Action buttons for completed messages */}
             {!isStreaming && cleanTextContent && (
-              <div className='flex items-center gap-2'>
-                <button
+              <div className='flex items-center gap-[8px] pt-[8px]'>
+                <Button
                   onClick={handleCopyContent}
-                  className='text-muted-foreground transition-colors hover:bg-muted'
+                  variant='ghost'
                   title='Copy'
+                  className='!h-[14px] !w-[14px] !p-0'
                 >
                   {showCopySuccess ? (
-                    <Check className='h-3 w-3' strokeWidth={2} />
+                    <Check className='h-[14px] w-[14px]' strokeWidth={2} />
                   ) : (
-                    <Clipboard className='h-3 w-3' strokeWidth={2} />
+                    <Copy className='h-[14px] w-[14px]' strokeWidth={2} />
                   )}
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleUpvote}
-                  className='text-muted-foreground transition-colors hover:bg-muted'
+                  variant='ghost'
                   title='Upvote'
+                  className='!h-[14px] !w-[14px] !p-0'
                 >
                   {showUpvoteSuccess ? (
-                    <Check className='h-3 w-3' strokeWidth={2} />
+                    <Check className='h-[14px] w-[14px]' strokeWidth={2} />
                   ) : (
-                    <ThumbsUp className='h-3 w-3' strokeWidth={2} />
+                    <ThumbsUp className='h-[14px] w-[14px]' strokeWidth={2} />
                   )}
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleDownvote}
-                  className='text-muted-foreground transition-colors hover:bg-muted'
+                  variant='ghost'
                   title='Downvote'
+                  className='!h-[14px] !w-[14px] !p-0'
                 >
                   {showDownvoteSuccess ? (
-                    <Check className='h-3 w-3' strokeWidth={2} />
+                    <Check className='h-[14px] w-[14px]' strokeWidth={2} />
                   ) : (
-                    <ThumbsDown className='h-3 w-3' strokeWidth={2} />
+                    <ThumbsDown className='h-[14px] w-[14px]' strokeWidth={2} />
                   )}
-                </button>
+                </Button>
               </div>
             )}
 
@@ -790,6 +538,21 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
     // If streaming state changed, re-render
     if (prevProps.isStreaming !== nextProps.isStreaming) {
+      return false
+    }
+
+    // If dimmed state changed, re-render
+    if (prevProps.isDimmed !== nextProps.isDimmed) {
+      return false
+    }
+
+    // If panel width changed, re-render
+    if (prevProps.panelWidth !== nextProps.panelWidth) {
+      return false
+    }
+
+    // If checkpoint count changed, re-render
+    if (prevProps.checkpointCount !== nextProps.checkpointCount) {
       return false
     }
 

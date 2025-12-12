@@ -1,0 +1,134 @@
+---
+title: Twilio Voice
+description: 電話の発信と管理
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="twilio_voice"
+  color="#F22F46"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Twilio Voice](https://www.twilio.com/en-us/voice)は、シンプルなAPIを通じてプログラムによる電話の発信、受信、管理を可能にする強力なクラウドコミュニケーションプラットフォームです。
+
+Twilio Voiceは、グローバルな展開を持つ高度な音声アプリケーションを構築するための堅牢なAPIを提供しています。100カ国以上をカバーし、キャリアグレードの信頼性と99.95%のアップタイムSLAを持つTwilioは、プログラム可能な音声通信の業界リーダーとしての地位を確立しています。
+
+Twilio Voiceの主な機能には以下が含まれます：
+
+- **グローバル音声ネットワーク**：複数の国のローカル電話番号で世界中で電話の発信と受信が可能
+- **プログラム可能な通話制御**：TwiMLを使用して通話フロー、会話の録音、DTMF入力の収集、IVRシステムの実装を制御
+- **高度な機能**：音声認識、テキスト読み上げ、通話転送、電話会議、留守番電話検出
+- **リアルタイム分析**：通話品質、通話時間、コストを追跡し、音声アプリケーションを最適化
+
+Simでは、Twilio Voice統合によりエージェントがワークフローの一部としてこれらの強力な音声機能を活用できるようになります。これにより、予約リマインダー、確認電話、自動サポートライン、インタラクティブな音声応答システムなどの高度な顧客エンゲージメントシナリオが可能になります。この統合により、AIワークフローと音声通信チャネルの間のギャップが埋められ、エージェントが電話を通じてタイムリーで関連性の高い情報を直接提供できるようになります。SimとTwilio Voiceを接続することで、顧客が好むコミュニケーションチャネルを通じて顧客と関わる知的なエージェントを作成し、ユーザー体験を向上させながら定型的な通話タスクを自動化することができます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Twilio Voiceをワークフローに統合します。発信通話を行い、通話録音を取得します。
+
+## ツール
+
+### `twilio_voice_make_call`
+
+Twilio Voice APIを使用して発信通話を行います。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `to` | string | はい | 発信先電話番号（E.164形式、例：+14155551234） |
+| `from` | string | はい | 発信元のTwilio電話番号（E.164形式） |
+| `url` | string | いいえ | 通話のTwiML指示を返すURL |
+| `twiml` | string | いいえ | 実行するTwiML指示（URLの代わり）。角括弧を山括弧の代わりに使用してください。例：\[Response\]\[Say\]Hello\[/Say\]\[/Response\] |
+| `statusCallback` | string | いいえ | 通話状態更新用のWebhook URL |
+| `statusCallbackMethod` | string | いいえ | ステータスコールバック用のHTTPメソッド（GETまたはPOST） |
+| `accountSid` | string | はい | Twilioアカウント SID |
+| `authToken` | string | はい | Twilio認証トークン |
+| `record` | boolean | いいえ | 通話を録音するかどうか |
+| `recordingStatusCallback` | string | いいえ | 録音状態更新用のWebhook URL |
+| `timeout` | number | いいえ | 応答を待つ時間（秒、デフォルト：60） |
+| `machineDetection` | string | いいえ | 留守番電話検出：EnableまたはDetectMessageEnd |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 通話が正常に開始されたかどうか |
+| `callSid` | string | 通話の一意識別子 |
+| `status` | string | 通話状態（queued、ringing、in-progress、completedなど） |
+| `direction` | string | 通話方向（outbound-api） |
+| `from` | string | 発信元電話番号 |
+| `to` | string | 発信先電話番号 |
+| `duration` | number | 通話時間（秒） |
+| `price` | string | 通話料金 |
+| `priceUnit` | string | 料金の通貨 |
+| `error` | string | 通話失敗時のエラーメッセージ |
+
+### `twilio_voice_list_calls`
+
+アカウントとの間で発信・着信された通話のリストを取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `accountSid` | string | はい | Twilio アカウント SID |
+| `authToken` | string | はい | Twilio 認証トークン |
+| `to` | string | いいえ | この電話番号への通話でフィルタリング |
+| `from` | string | いいえ | この電話番号からの通話でフィルタリング |
+| `status` | string | いいえ | 通話状態でフィルタリング（待機中、呼び出し中、進行中、完了など） |
+| `startTimeAfter` | string | いいえ | この日付以降に開始された通話でフィルタリング（YYYY-MM-DD） |
+| `startTimeBefore` | string | いいえ | この日付以前に開始された通話でフィルタリング（YYYY-MM-DD） |
+| `pageSize` | number | いいえ | 返すレコード数（最大1000、デフォルト50） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 通話が正常に取得されたかどうか |
+| `calls` | array | 通話オブジェクトの配列 |
+| `total` | number | 返された通話の総数 |
+| `page` | number | 現在のページ番号 |
+| `pageSize` | number | ページあたりの通話数 |
+| `error` | string | 取得に失敗した場合のエラーメッセージ |
+
+### `twilio_voice_get_recording`
+
+通話録音情報とトランスクリプション（TwiMLで有効化されている場合）を取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `recordingSid` | string | はい | 取得する録音SID |
+| `accountSid` | string | はい | Twilio アカウント SID |
+| `authToken` | string | はい | Twilio 認証トークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 録音が正常に取得されたかどうか |
+| `recordingSid` | string | 録音の一意識別子 |
+| `callSid` | string | この録音が属する通話SID |
+| `duration` | number | 録音の秒単位の長さ |
+| `status` | string | 録音のステータス（完了、処理中など） |
+| `channels` | number | チャンネル数（モノラルは1、デュアルは2） |
+| `source` | string | 録音の作成方法 |
+| `mediaUrl` | string | 録音メディアファイルをダウンロードするためのURL |
+| `price` | string | 録音の費用 |
+| `priceUnit` | string | 価格の通貨 |
+| `uri` | string | 録音リソースの相対URI |
+| `transcriptionText` | string | 録音から文字起こしされたテキスト（利用可能な場合） |
+| `transcriptionStatus` | string | 文字起こしのステータス（完了、進行中、失敗） |
+| `transcriptionPrice` | string | 文字起こしの費用 |
+| `transcriptionPriceUnit` | string | 文字起こし価格の通貨 |
+| `error` | string | 取得に失敗した場合のエラーメッセージ |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `twilio_voice`

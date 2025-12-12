@@ -37,6 +37,12 @@ export const outlookDraftTool: ToolConfig<OutlookDraftParams, OutlookDraftRespon
       visibility: 'user-or-llm',
       description: 'Email body content',
     },
+    contentType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Content type for the email body (text or html)',
+    },
     cc: {
       type: 'string',
       required: false,
@@ -49,72 +55,49 @@ export const outlookDraftTool: ToolConfig<OutlookDraftParams, OutlookDraftRespon
       visibility: 'user-or-llm',
       description: 'BCC recipients (comma-separated)',
     },
+    attachments: {
+      type: 'file[]',
+      required: false,
+      visibility: 'user-only',
+      description: 'Files to attach to the email draft',
+    },
   },
 
   request: {
-    url: (params) => {
-      return `https://graph.microsoft.com/v1.0/me/messages`
-    },
+    url: '/api/tools/outlook/draft',
     method: 'POST',
-    headers: (params) => {
-      // Validate access token
-      if (!params.accessToken) {
-        throw new Error('Access token is required')
-      }
-
+    headers: () => ({
+      'Content-Type': 'application/json',
+    }),
+    body: (params: OutlookDraftParams) => {
       return {
-        Authorization: `Bearer ${params.accessToken}`,
-        'Content-Type': 'application/json',
-      }
-    },
-    body: (params: OutlookDraftParams): Record<string, any> => {
-      // Helper function to parse comma-separated emails
-      const parseEmails = (emailString?: string) => {
-        if (!emailString) return []
-        return emailString
-          .split(',')
-          .map((email) => email.trim())
-          .filter((email) => email.length > 0)
-          .map((email) => ({ emailAddress: { address: email } }))
-      }
-
-      const message: any = {
+        accessToken: params.accessToken,
+        to: params.to,
         subject: params.subject,
-        body: {
-          contentType: 'Text',
-          content: params.body,
-        },
-        toRecipients: parseEmails(params.to),
+        body: params.body,
+        contentType: params.contentType || 'text',
+        cc: params.cc || null,
+        bcc: params.bcc || null,
+        attachments: params.attachments || null,
       }
-
-      // Add CC if provided
-      const ccRecipients = parseEmails(params.cc)
-      if (ccRecipients.length > 0) {
-        message.ccRecipients = ccRecipients
-      }
-
-      // Add BCC if provided
-      const bccRecipients = parseEmails(params.bcc)
-      if (bccRecipients.length > 0) {
-        message.bccRecipients = bccRecipients
-      }
-
-      return message
     },
   },
-  transformResponse: async (response) => {
-    // Outlook draft API returns the created message object
-    const data = await response.json()
 
+  transformResponse: async (response) => {
+    const data = await response.json()
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to create Outlook draft')
+    }
     return {
       success: true,
       output: {
-        message: 'Email drafted successfully',
+        message: data.output.message,
         results: {
-          id: data.id,
-          subject: data.subject,
+          id: data.output.messageId,
+          subject: data.output.subject,
           status: 'drafted',
           timestamp: new Date().toISOString(),
+          attachmentCount: data.output.attachmentCount || 0,
         },
       },
     }

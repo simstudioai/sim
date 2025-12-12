@@ -1,0 +1,99 @@
+---
+title: Wikipedia
+description: 搜索并检索 Wikipedia 的内容
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="wikipedia"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Wikipedia](https://www.wikipedia.org/) 是全球最大的免费在线百科全书，提供数百万篇涵盖广泛主题的文章，由志愿者协作撰写和维护。
+
+使用 Wikipedia，您可以：
+
+- **搜索文章**：通过关键词或主题查找相关的 Wikipedia 页面
+- **获取文章摘要**：检索 Wikipedia 页面简明扼要的摘要以供快速参考
+- **访问完整内容**：获取 Wikipedia 文章的完整内容以深入了解信息
+- **发现随机文章**：通过检索随机的 Wikipedia 页面探索新主题
+
+在 Sim 中，Wikipedia 集成使您的代理能够以编程方式访问和交互 Wikipedia 内容，作为其工作流程的一部分。代理可以搜索文章、获取摘要、检索完整页面内容以及发现随机文章，为您的自动化提供来自全球最大百科全书的最新可靠信息。此集成非常适合研究、内容丰富、事实核查和知识发现等场景，使您的代理能够无缝地将 Wikipedia 数据整合到决策和任务执行过程中。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Wikipedia 集成到工作流程中。可以获取页面摘要、搜索页面、获取页面内容以及获取随机页面。
+
+## 工具
+
+### `wikipedia_summary`
+
+获取特定 Wikipedia 页面摘要和元数据。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `pageTitle` | string | 是 | 要获取摘要的 Wikipedia 页面标题 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `summary` | object | Wikipedia 页面摘要和元数据 |
+
+### `wikipedia_search`
+
+按标题或内容搜索 Wikipedia 页面。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | 是 | 用于查找 Wikipedia 页面的搜索查询 |
+| `searchLimit` | number | 否 | 返回结果的最大数量 \(默认值: 10, 最大值: 50\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `searchResults` | array | 匹配的 Wikipedia 页面数组 |
+
+### `wikipedia_content`
+
+获取 Wikipedia 页面完整的 HTML 内容。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `pageTitle` | string | 是 | 要获取内容的 Wikipedia 页面标题 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | object | Wikipedia 页面完整的 HTML 内容和元数据 |
+
+### `wikipedia_random`
+
+获取一个随机的 Wikipedia 页面。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `randomPage` | object | 随机 Wikipedia 页面数据 |
+
+## 注意
+
+- 分类: `tools`
+- 类型: `wikipedia`

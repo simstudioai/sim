@@ -1,0 +1,61 @@
+---
+title: Mistral Parser
+description: Extraer texto de documentos PDF
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mistral_parse"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+La herramienta Mistral Parse proporciona una forma potente de extraer y procesar contenido de documentos PDF utilizando la [API de OCR de Mistral](https://mistral.ai/). Esta herramienta aprovecha el reconocimiento óptico de caracteres avanzado para extraer con precisión texto y estructura de archivos PDF, facilitando la incorporación de datos de documentos en los flujos de trabajo de tus agentes.
+
+Con la herramienta Mistral Parse, puedes:
+
+- **Extraer texto de PDFs**: Convertir con precisión el contenido de PDF a formatos de texto, markdown o JSON
+- **Procesar PDFs desde URLs**: Extraer directamente contenido de PDFs alojados en línea proporcionando sus URLs
+- **Mantener la estructura del documento**: Preservar el formato, tablas y diseño de los PDFs originales
+- **Extraer imágenes**: Incluir opcionalmente imágenes incrustadas de los PDFs
+- **Seleccionar páginas específicas**: Procesar solo las páginas que necesitas de documentos de múltiples páginas
+
+La herramienta Mistral Parse es particularmente útil para escenarios donde tus agentes necesitan trabajar con contenido PDF, como analizar informes, extraer datos de formularios o procesar texto de documentos escaneados. Simplifica el proceso de hacer que el contenido PDF esté disponible para tus agentes, permitiéndoles trabajar con información almacenada en PDFs tan fácilmente como con entrada de texto directa.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Mistral Parse en el flujo de trabajo. Puede extraer texto de documentos PDF cargados o de una URL. Requiere clave API.
+
+## Herramientas
+
+### `mistral_parser`
+
+Analizar documentos PDF utilizando la API de OCR de Mistral
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `filePath` | string | Sí | URL a un documento PDF para ser procesado |
+| `fileUpload` | object | No | Datos de carga de archivo desde el componente de carga de archivos |
+| `resultType` | string | No | Tipo de resultado analizado \(markdown, texto o json\). Por defecto es markdown. |
+| `includeImageBase64` | boolean | No | Incluir imágenes codificadas en base64 en la respuesta |
+| `pages` | array | No | Páginas específicas para procesar \(array de números de página, comenzando desde 0\) |
+| `imageLimit` | number | No | Número máximo de imágenes para extraer del PDF |
+| `imageMinSize` | number | No | Altura y anchura mínimas de las imágenes para extraer del PDF |
+| `apiKey` | string | Sí | Clave API de Mistral \(MISTRAL_API_KEY\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si el PDF se analizó correctamente |
+| `content` | string | Contenido extraído en el formato solicitado \(markdown, texto o JSON\) |
+| `metadata` | object | Metadatos de procesamiento que incluyen jobId, fileType, pageCount e información de uso |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `mistral_parse`

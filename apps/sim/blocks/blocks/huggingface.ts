@@ -1,13 +1,15 @@
 import { HuggingFaceIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { HuggingFaceChatResponse } from '@/tools/huggingface/types'
 
 export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
   type: 'huggingface',
   name: 'Hugging Face',
   description: 'Use Hugging Face Inference API',
+  authMode: AuthMode.ApiKey,
   longDescription:
-    'Generate completions using Hugging Face Inference API with access to various open-source models. Leverage cutting-edge AI models for chat completions, content generation, and AI-powered conversations with customizable parameters.',
+    'Integrate Hugging Face into the workflow. Can generate completions using the Hugging Face Inference API.',
   docsLink: 'https://docs.sim.ai/tools/huggingface',
   category: 'tools',
   bgColor: '#0B0F19',
@@ -17,7 +19,6 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
       id: 'systemPrompt',
       title: 'System Prompt',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter system prompt to guide the model behavior...',
       rows: 3,
     },
@@ -25,7 +26,6 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
       id: 'content',
       title: 'User Prompt',
       type: 'long-input',
-      layout: 'full',
       required: true,
       placeholder: 'Enter your message here...',
       rows: 3,
@@ -34,7 +34,6 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
       id: 'provider',
       title: 'Provider',
       type: 'dropdown',
-      layout: 'half',
       required: true,
       options: [
         { label: 'Novita', id: 'novita' },
@@ -56,7 +55,6 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
       id: 'model',
       title: 'Model',
       type: 'short-input',
-      layout: 'full',
       required: true,
       placeholder:
         'e.g., deepseek/deepseek-v3-0324, llama3.1-8b, meta-llama/Llama-3.2-3B-Instruct-Turbo',
@@ -66,7 +64,6 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
       id: 'temperature',
       title: 'Temperature',
       type: 'slider',
-      layout: 'half',
       min: 0,
       max: 2,
       value: () => '0.7',
@@ -75,14 +72,12 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
       id: 'maxTokens',
       title: 'Max Tokens',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'e.g., 1000',
     },
     {
       id: 'apiKey',
       title: 'API Token',
       type: 'short-input',
-      layout: 'full',
       required: true,
       placeholder: 'Enter your Hugging Face API token',
       password: true,

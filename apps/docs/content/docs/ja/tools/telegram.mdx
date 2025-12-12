@@ -1,0 +1,200 @@
+---
+title: Telegram
+description: Telegramを通じてメッセージを送信したり、Telegramイベントからワークフローをトリガーしたりする
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="telegram"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Telegram](https://telegram.org)は、デバイスやプラットフォーム間で迅速かつ信頼性の高いコミュニケーションを可能にする、安全なクラウドベースのメッセージングプラットフォームです。月間アクティブユーザー数が7億人を超えるTelegramは、セキュリティ、スピード、強力なAPI機能で知られる世界有数のメッセージングサービスとして確立されています。
+
+TelegramのBot APIは、自動化されたメッセージングソリューションを作成し、アプリケーションにコミュニケーション機能を統合するための堅牢なフレームワークを提供します。リッチメディア、インラインキーボード、カスタムコマンドのサポートにより、Telegramボットは高度なインタラクションパターンと自動化されたワークフローを実現できます。
+
+Simでウェブフックトリガーを作成し、Telegramメッセージからシームレスにワークフローを開始する方法を学びましょう。このチュートリアルでは、ウェブフックの設定、TelegramのボットAPIとの連携、リアルタイムでの自動アクションのトリガー方法について説明します。チャットから直接タスクを効率化するのに最適です！
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/9oKcJtQ0_IM"
+  title="SimでTelegramを使用する"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+SimのTelegramツールを使用して、任意のTelegramグループへのメッセージ配信をシームレスに自動化する方法を学びましょう。このチュートリアルでは、ツールをワークフローに統合する方法、グループメッセージングの設定方法、リアルタイムでの自動更新のトリガー方法について説明します。ワークスペースから直接コミュニケーションを強化するのに最適です！
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/AG55LpUreGI"
+  title="SimでTelegramを使用する"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Telegramの主な機能：
+
+- 安全な通信：メッセージやメディアのためのエンドツーエンドの暗号化と安全なクラウドストレージ
+- ボットプラットフォーム：自動メッセージングソリューションやインタラクティブな体験を作成するための強力なボットAPI
+- リッチメディアサポート：テキスト書式、画像、ファイル、インタラクティブ要素を含むメッセージの送受信
+- グローバルリーチ：複数の言語とプラットフォームをサポートし、世界中のユーザーとつながる
+
+Simでは、Telegramの統合により、エージェントがワークフローの一部としてこれらの強力なメッセージング機能を活用できるようになります。これにより、Telegramの安全なメッセージングプラットフォームを通じて、自動通知、アラート、インタラクティブな会話の機会が生まれます。この統合により、エージェントはプログラムによって個人やチャンネルにメッセージを送信でき、タイムリーなコミュニケーションと更新を可能にします。SimとTelegramを接続することで、安全で広く採用されているメッセージングプラットフォームを通じてユーザーと関わるインテリジェントなエージェントを構築でき、通知、更新、インタラクティブなコミュニケーションの配信に最適です。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Telegramをワークフローに統合します。メッセージを送信できます。チャットにメッセージが送信されたときにワークフローをトリガーするトリガーモードでも使用できます。
+
+## ツール
+
+### `telegram_message`
+
+Telegram Bot APIを通じてTelegramチャンネルまたはユーザーにメッセージを送信します。メッセージの追跡とチャット確認機能を備えた直接的なコミュニケーションと通知を可能にします。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | あなたのTelegram Bot APIトークン |
+| `chatId` | string | はい | 対象のTelegramチャットID |
+| `text` | string | はい | 送信するメッセージテキスト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | Telegramメッセージデータ |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `telegram`
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | あなたのTelegram Bot APIトークン |
+| `chatId` | string | はい | 対象のTelegramチャットID |
+| `messageId` | string | はい | 削除するメッセージID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 削除操作の結果 |
+
+### `telegram_send_photo`
+
+Telegram Bot APIを通じてTelegramチャンネルまたはユーザーに写真を送信します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | あなたのTelegram Bot APIトークン |
+| `chatId` | string | はい | 対象のTelegramチャットID |
+| `photo` | string | はい | 送信する写真。file_idまたはHTTP URLを指定 |
+| `caption` | string | いいえ | 写真のキャプション（任意） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 写真（任意）を含むTelegramメッセージデータ |
+
+### `telegram_send_video`
+
+Telegram Bot APIを通じてTelegramチャンネルまたはユーザーに動画を送信します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | あなたのTelegram Bot APIトークン |
+| `chatId` | string | はい | 対象のTelegramチャットID |
+| `video` | string | はい | 送信する動画。file_idまたはHTTP URLを指定 |
+| `caption` | string | いいえ | 動画のキャプション（任意） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | オプションのメディアを含むTelegramメッセージデータ |
+
+### `telegram_send_audio`
+
+Telegram Bot APIを通じてTelegramチャンネルまたはユーザーに音声ファイルを送信します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | あなたのTelegram Bot APIトークン |
+| `chatId` | string | はい | 対象のTelegramチャットID |
+| `audio` | string | はい | 送信する音声ファイル。file_idまたはHTTP URLを渡してください |
+| `caption` | string | いいえ | 音声のキャプション（オプション） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 音声/オーディオ情報を含むTelegramメッセージデータ |
+
+### `telegram_send_animation`
+
+Telegram Bot APIを通じてTelegramチャンネルまたはユーザーにアニメーション（GIF）を送信します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | あなたのTelegram Bot APIトークン |
+| `chatId` | string | はい | 対象のTelegramチャットID |
+| `animation` | string | はい | 送信するアニメーション。file_idまたはHTTP URLを渡してください |
+| `caption` | string | いいえ | アニメーションのキャプション（オプション） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | オプションのメディアを含むTelegramメッセージデータ |
+
+### `telegram_send_document`
+
+Telegram Bot APIを通じて、Telegramチャンネルやユーザーにドキュメント（PDF、ZIP、DOCなど）を送信します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | あなたのTelegram Bot APIトークン |
+| `chatId` | string | はい | 対象のTelegramチャットID |
+| `files` | file[] | いいえ | 送信するドキュメントファイル（PDF、ZIP、DOCなど）。最大サイズ：50MB |
+| `caption` | string | いいえ | ドキュメントのキャプション（任意） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | ドキュメントを含むTelegramメッセージデータ |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `telegram`

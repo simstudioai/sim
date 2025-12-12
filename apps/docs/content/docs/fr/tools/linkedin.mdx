@@ -1,0 +1,83 @@
+---
+title: LinkedIn
+description: Partagez des publications et gérez votre présence LinkedIn
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="linkedin"
+  color="#0072B1"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[LinkedIn](https://www.linkedin.com) est la plus grande plateforme de réseautage professionnel au monde, permettant aux utilisateurs de développer leur carrière, de se connecter avec leur réseau et de partager du contenu professionnel. LinkedIn est largement utilisé par des professionnels de tous secteurs pour le développement de leur marque personnelle, le recrutement, la recherche d'emploi et le développement commercial.
+
+Avec LinkedIn, vous pouvez facilement partager des publications sur votre fil personnel pour interagir avec votre réseau et accéder aux informations de votre profil pour mettre en valeur vos réalisations professionnelles. L'intégration automatisée avec Sim vous permet d'exploiter les fonctionnalités de LinkedIn de manière programmatique, permettant aux agents et aux flux de travail de publier des mises à jour, de générer des rapports sur votre présence professionnelle et de maintenir votre fil d'actualité actif sans effort manuel.
+
+Les principales fonctionnalités de LinkedIn disponibles via cette intégration comprennent :
+
+- **Partage de publications :** Publiez automatiquement des mises à jour professionnelles, des articles ou des annonces sur votre fil personnel LinkedIn.
+- **Informations de profil :** Récupérez des informations détaillées sur votre profil LinkedIn pour les surveiller ou les utiliser dans des tâches en aval au sein de vos flux de travail.
+
+Ces capacités facilitent l'engagement de votre réseau LinkedIn et l'extension efficace de votre portée professionnelle dans le cadre de votre stratégie d'automatisation IA ou de flux de travail.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez LinkedIn dans vos flux de travail. Partagez des publications sur votre fil personnel et accédez aux informations de votre profil LinkedIn.
+
+## Outils
+
+### `linkedin_share_post`
+
+Partager une publication sur votre fil personnel LinkedIn
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `text` | string | Oui | Le contenu textuel de votre publication LinkedIn |
+| `visibility` | string | Non | Qui peut voir cette publication : "PUBLIC" ou "CONNECTIONS" \(par défaut : "PUBLIC"\) |
+| `request` | string | Non | Pas de description |
+| `output` | string | Non | Pas de description |
+| `output` | string | Non | Pas de description |
+| `specificContent` | string | Non | Pas de description |
+| `shareCommentary` | string | Non | Pas de description |
+| `visibility` | string | Non | Pas de description |
+| `headers` | string | Non | Pas de description |
+| `output` | string | Non | Pas de description |
+| `output` | string | Non | Pas de description |
+| `output` | string | Non | Pas de description |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `postId` | string | ID du post créé |
+| `profile` | json | Informations du profil LinkedIn |
+| `error` | string | Message d'erreur si l'opération a échoué |
+
+### `linkedin_get_profile`
+
+Récupérer les informations de votre profil LinkedIn
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `postId` | string | ID du post créé |
+| `profile` | json | Informations du profil LinkedIn |
+| `error` | string | Message d'erreur si l'opération a échoué |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `linkedin`

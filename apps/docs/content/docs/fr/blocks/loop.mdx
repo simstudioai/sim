@@ -1,0 +1,257 @@
+---
+title: Loop
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Le bloc Boucle est un conteneur qui exécute des blocs de façon répétée. Itérez sur des collections, répétez des opérations un nombre fixe de fois, ou continuez tant qu'une condition est remplie.
+
+<Callout type="info">
+  Les blocs de boucle sont des nœuds conteneurs qui contiennent d'autres blocs. Les blocs contenus s'exécutent plusieurs fois selon votre configuration.
+</Callout>
+
+## Options de configuration
+
+### Type de boucle
+
+Choisissez entre quatre types de boucles :
+
+<Tabs items={['Boucle For', 'Boucle ForEach', 'Boucle While', 'Boucle Do-While']}>
+  <Tab>
+    **Boucle For (Itérations)** - Une boucle numérique qui s'exécute un nombre fixe de fois :
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-1.png"
+        alt="Boucle For avec itérations"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Utilisez cette option lorsque vous devez répéter une opération un nombre spécifique de fois.
+    
+
+    ```
+    Example: Run 5 times
+    - Iteration 1
+    - Iteration 2
+    - Iteration 3
+    - Iteration 4
+    - Iteration 5
+    ```
+
+  </Tab>
+  <Tab>
+    **Boucle ForEach (Collection)** - Une boucle basée sur une collection qui itère sur chaque élément d'un tableau ou d'un objet :
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-2.png"
+        alt="Boucle ForEach avec collection"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Utilisez cette option lorsque vous devez traiter une collection d'éléments.
+    
+
+    ```
+    Example: Process ["apple", "banana", "orange"]
+    - Iteration 1: Process "apple"
+    - Iteration 2: Process "banana"
+    - Iteration 3: Process "orange"
+    ```
+
+  </Tab>
+  <Tab>
+    **Boucle While (Basée sur une condition)** - Continue à s'exécuter tant qu'une condition est évaluée comme vraie :
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-3.png"
+        alt="Boucle While avec condition"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Utilisez cette option lorsque vous devez boucler jusqu'à ce qu'une condition spécifique soit remplie. La condition est vérifiée **avant** chaque itération.
+
+    ```
+    Example: While {"<variable.i>"} < 10
+    - Check condition → Execute if true
+    - Inside loop: Increment {"<variable.i>"}
+    - Inside loop: Variables assigns i = {"<variable.i>"} + 1
+    - Check condition → Execute if true
+    - Check condition → Exit if false
+    ```
+
+  </Tab>
+  <Tab>
+    **Boucle Do-While (Basée sur une condition)** - S'exécute au moins une fois, puis continue tant qu'une condition est vraie :
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-4.png"
+        alt="Boucle Do-While avec condition"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Utilisez cette option lorsque vous devez exécuter au moins une fois, puis boucler jusqu'à ce qu'une condition soit remplie. La condition est vérifiée **après** chaque itération.
+
+    ```
+    Example: Do-while {"<variable.i>"} < 10
+    - Execute blocks
+    - Inside loop: Increment {"<variable.i>"}
+    - Inside loop: Variables assigns i = {"<variable.i>"} + 1
+    - Check condition → Continue if true
+    - Check condition → Exit if false
+    ```
+
+  </Tab>
+</Tabs>
+
+## Comment utiliser les boucles
+
+### Création d'une boucle
+
+1. Faites glisser un bloc Boucle depuis la barre d'outils vers votre canevas
+2. Configurez le type de boucle et les paramètres
+3. Faites glisser d'autres blocs à l'intérieur du conteneur de boucle
+4. Connectez les blocs selon vos besoins
+
+### Accès aux résultats
+
+Une fois qu'une boucle est terminée, vous pouvez accéder aux résultats agrégés :
+
+- **loop.results** : Tableau des résultats de toutes les itérations de la boucle
+
+## Exemples de cas d'utilisation
+
+**Traitement des résultats d'API** - La boucle ForEach traite les enregistrements clients provenant d'une API
+
+```javascript
+// Exemple de traitement d'API avec ForEach
+const customers = await api.getCustomers();
+let processedCustomers = [];
+
+forEach(customers, (customer) => {
+  const processedData = processCustomerData(customer);
+  processedCustomers.push(processedData);
+});
+
+return processedCustomers;
+```
+
+**Génération itérative de contenu** - La boucle For génère plusieurs variations de contenu
+
+```javascript
+// Exemple de génération de contenu avec boucle For
+let contentVariations = [];
+
+for (let i = 0; i < 3; i++) {
+  const variation = generateContentVariation(baseContent, {
+    creativity: i * 0.25 + 0.5,
+    length: 100 + (i * 50)
+  });
+  contentVariations.push(variation);
+}
+
+return contentVariations;
+```
+
+**Compteur avec boucle While** - La boucle While traite des éléments avec un compteur
+
+```javascript
+// Exemple de compteur avec boucle While
+let count = 0;
+let results = [];
+
+while (count < 5) {
+  const result = processItem(items[count]);
+  results.push(result);
+  count++;
+}
+
+return results;
+```
+
+## Fonctionnalités avancées
+
+### Limitations
+
+<Callout type="warning">
+  Les blocs conteneurs (Boucles et Parallèles) ne peuvent pas être imbriqués les uns dans les autres. Cela signifie :
+  - Vous ne pouvez pas placer un bloc Boucle à l'intérieur d'un autre bloc Boucle
+  - Vous ne pouvez pas placer un bloc Parallèle à l'intérieur d'un bloc Boucle
+  - Vous ne pouvez pas placer un bloc conteneur à l'intérieur d'un autre bloc conteneur
+  
+  Si vous avez besoin d'une itération multidimensionnelle, envisagez de restructurer votre flux de travail pour utiliser des boucles séquentielles ou traiter les données par étapes.
+</Callout>
+
+<Callout type="info">
+  Les boucles s'exécutent séquentiellement, pas en parallèle. Si vous avez besoin d'une exécution simultanée, utilisez plutôt le bloc Parallèle.
+</Callout>
+
+## Entrées et sorties
+
+<Tabs items={['Configuration', 'Variables', 'Résultats']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Type de boucle</strong> : Choisissez entre 'for', 'forEach', 'while' ou 'doWhile'
+      </li>
+      <li>
+        <strong>Itérations</strong> : Nombre de fois à exécuter (boucles for)
+      </li>
+      <li>
+        <strong>Collection</strong> : Tableau ou objet sur lequel itérer (boucles forEach)
+      </li>
+      <li>
+        <strong>Condition</strong> : Expression booléenne à évaluer (boucles while/do-while)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>loop.currentItem</strong> : Élément en cours de traitement
+      </li>
+      <li>
+        <strong>loop.index</strong> : Numéro d'itération actuel (base 0)
+      </li>
+      <li>
+        <strong>loop.items</strong> : Collection complète (boucles forEach)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>loop.results</strong> : Tableau de tous les résultats d'itération
+      </li>
+      <li>
+        <strong>Structure</strong> : Les résultats conservent l'ordre d'itération
+      </li>
+      <li>
+        <strong>Accès</strong> : Disponible dans les blocs après la boucle
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Bonnes pratiques
+
+- **Définir des limites raisonnables** : Gardez un nombre d'itérations raisonnable pour éviter des temps d'exécution longs
+- **Utilisez ForEach pour les collections** : Lors du traitement de tableaux ou d'objets, utilisez les boucles ForEach plutôt que les boucles For
+- **Gérez les erreurs avec élégance** : Envisagez d'ajouter une gestion des erreurs à l'intérieur des boucles pour des workflows robustes

@@ -5,6 +5,10 @@ const withMDX = createMDX()
 /** @type {import('next').NextConfig} */
 const config = {
   reactStrictMode: true,
+  experimental: {
+    webpackMemoryOptimizations: true,
+    webpackBuildWorker: true,
+  },
   async redirects() {
     return [
       {
@@ -12,10 +16,13 @@ const config = {
         destination: '/introduction',
         permanent: true,
       },
+    ]
+  },
+  async rewrites() {
+    return [
       {
-        source: '/docs/:path*.mdx',
+        source: '/:path*.mdx',
         destination: '/llms.mdx/:path*',
-        permanent: true,
       },
     ]
   },

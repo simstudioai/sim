@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import * as environmentModule from '@/lib/environment'
+import * as environmentModule from '@/lib/core/config/environment'
 import {
   calculateCost,
   extractAndParseJSON,
@@ -24,6 +24,7 @@ import {
   MODELS_WITH_VERBOSITY,
   PROVIDERS_WITH_TOOL_USAGE_CONTROL,
   prepareToolsWithUsageControl,
+  shouldBillModelUsage,
   supportsTemperature,
   supportsToolUsageControl,
   transformCustomTool,
@@ -35,7 +36,6 @@ const mockGetRotatingApiKey = vi.fn().mockReturnValue('rotating-server-key')
 const originalRequire = module.require
 
 describe('getApiKey', () => {
-  // Save original env and reset between tests
   const originalEnv = { ...process.env }
 
   beforeEach(() => {
@@ -81,7 +81,8 @@ describe('getApiKey', () => {
       throw new Error('Rotation failed')
     })
 
-    const key = getApiKey('openai', 'gpt-4', 'user-fallback-key')
+    // Use gpt-4o which IS in the hosted models list
+    const key = getApiKey('openai', 'gpt-4o', 'user-fallback-key')
     expect(key).toBe('user-fallback-key')
   })
 
@@ -92,7 +93,8 @@ describe('getApiKey', () => {
       throw new Error('Rotation failed')
     })
 
-    expect(() => getApiKey('openai', 'gpt-4')).toThrow('No API key available for openai gpt-4')
+    // Use gpt-4o which IS in the hosted models list
+    expect(() => getApiKey('openai', 'gpt-4o')).toThrow('No API key available for openai gpt-4o')
   })
 
   it('should require user key for non-OpenAI/Anthropic providers even in hosted environment', () => {
@@ -103,6 +105,30 @@ describe('getApiKey', () => {
 
     expect(() => getApiKey('other-provider', 'some-model')).toThrow(
       'API key is required for other-provider some-model'
+    )
+  })
+
+  it('should require user key for models NOT in hosted list even if provider matches', () => {
+    isHostedSpy.mockReturnValue(true)
+
+    // Models with version suffixes that are NOT in the hosted list should require user API key
+    // even though they're from anthropic/openai providers
+
+    // User provides their own key - should work
+    const key1 = getApiKey('anthropic', 'claude-sonnet-4-20250514', 'user-key-anthropic')
+    expect(key1).toBe('user-key-anthropic')
+
+    // No user key - should throw, NOT use server key
+    expect(() => getApiKey('anthropic', 'claude-sonnet-4-20250514')).toThrow(
+      'API key is required for anthropic claude-sonnet-4-20250514'
+    )
+
+    // Same for OpenAI versioned models not in list
+    const key2 = getApiKey('openai', 'gpt-4o-2024-08-06', 'user-key-openai')
+    expect(key2).toBe('user-key-openai')
+
+    expect(() => getApiKey('openai', 'gpt-4o-2024-08-06')).toThrow(
+      'API key is required for openai gpt-4o-2024-08-06'
     )
   })
 })
@@ -146,6 +172,12 @@ describe('Model Capabilities', () => {
         'deepseek-chat',
         'azure/gpt-4.1',
         'azure/model-router',
+        // GPT-5.1 models don't support temperature (removed in our implementation)
+        'gpt-5.1',
+        'azure/gpt-5.1',
+        'azure/gpt-5.1-mini',
+        'azure/gpt-5.1-nano',
+        'azure/gpt-5.1-codex',
         // GPT-5 models don't support temperature (removed in our implementation)
         'gpt-5',
         'gpt-5-mini',
@@ -166,6 +198,15 @@ describe('Model Capabilities', () => {
       expect(supportsTemperature('GPT-4O')).toBe(true)
       expect(supportsTemperature('claude-sonnet-4-0')).toBe(true)
     })
+
+    it.concurrent(
+      'should inherit temperature support from provider for dynamically fetched models',
+      () => {
+        // OpenRouter models should inherit temperature support from provider capabilities
+        expect(supportsTemperature('openrouter/anthropic/claude-3.5-sonnet')).toBe(true)
+        expect(supportsTemperature('openrouter/openai/gpt-4')).toBe(true)
+      }
+    )
   })
 
   describe('getMaxTemperature', () => {
@@ -209,7 +250,13 @@ describe('Model Capabilities', () => {
       expect(getMaxTemperature('azure/o3')).toBeUndefined()
       expect(getMaxTemperature('azure/o4-mini')).toBeUndefined()
       expect(getMaxTemperature('deepseek-r1')).toBeUndefined()
-      // GPT-5 models don't support temperature (removed in our implementation)
+      // GPT-5.1 models don't support temperature
+      expect(getMaxTemperature('gpt-5.1')).toBeUndefined()
+      expect(getMaxTemperature('azure/gpt-5.1')).toBeUndefined()
+      expect(getMaxTemperature('azure/gpt-5.1-mini')).toBeUndefined()
+      expect(getMaxTemperature('azure/gpt-5.1-nano')).toBeUndefined()
+      expect(getMaxTemperature('azure/gpt-5.1-codex')).toBeUndefined()
+      // GPT-5 models don't support temperature
       expect(getMaxTemperature('gpt-5')).toBeUndefined()
       expect(getMaxTemperature('gpt-5-mini')).toBeUndefined()
       expect(getMaxTemperature('gpt-5-nano')).toBeUndefined()
@@ -224,6 +271,14 @@ describe('Model Capabilities', () => {
       expect(getMaxTemperature('GPT-4O')).toBe(2)
       expect(getMaxTemperature('CLAUDE-SONNET-4-0')).toBe(1)
     })
+
+    it.concurrent(
+      'should inherit max temperature from provider for dynamically fetched models',
+      () => {
+        expect(getMaxTemperature('openrouter/anthropic/claude-3.5-sonnet')).toBe(2)
+        expect(getMaxTemperature('openrouter/openai/gpt-4')).toBe(2)
+      }
+    )
   })
 
   describe('supportsToolUsageControl', () => {
@@ -231,6 +286,7 @@ describe('Model Capabilities', () => {
       const supportedProviders = [
         'openai',
         'azure-openai',
+        'mistral',
         'anthropic',
         'deepseek',
         'xai',
@@ -245,7 +301,7 @@ describe('Model Capabilities', () => {
     it.concurrent(
       'should return false for providers that do not support tool usage control',
       () => {
-        const unsupportedProviders = ['ollama', 'cerebras', 'groq', 'non-existent-provider']
+        const unsupportedProviders = ['ollama', 'non-existent-provider']
 
         for (const provider of unsupportedProviders) {
           expect(supportsToolUsageControl(provider)).toBe(false)
@@ -288,6 +344,13 @@ describe('Model Capabilities', () => {
     )
 
     it.concurrent('should have correct models in MODELS_WITH_REASONING_EFFORT', () => {
+      // Should contain GPT-5.1 models that support reasoning effort
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.1')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5.1')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5.1-mini')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5.1-nano')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5.1-codex')
+
       // Should contain GPT-5 models that support reasoning effort
       expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5')
       expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5-mini')
@@ -307,6 +370,13 @@ describe('Model Capabilities', () => {
     })
 
     it.concurrent('should have correct models in MODELS_WITH_VERBOSITY', () => {
+      // Should contain GPT-5.1 models that support verbosity
+      expect(MODELS_WITH_VERBOSITY).toContain('gpt-5.1')
+      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5.1')
+      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5.1-mini')
+      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5.1-nano')
+      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5.1-codex')
+
       // Should contain GPT-5 models that support verbosity
       expect(MODELS_WITH_VERBOSITY).toContain('gpt-5')
       expect(MODELS_WITH_VERBOSITY).toContain('gpt-5-mini')
@@ -402,17 +472,24 @@ describe('Cost Calculation', () => {
 })
 
 describe('getHostedModels', () => {
-  it.concurrent('should return OpenAI and Anthropic models as hosted', () => {
+  it.concurrent('should return OpenAI, Anthropic, and Google models as hosted', () => {
     const hostedModels = getHostedModels()
 
+    // OpenAI models
     expect(hostedModels).toContain('gpt-4o')
-    expect(hostedModels).toContain('claude-sonnet-4-0')
     expect(hostedModels).toContain('o1')
+
+    // Anthropic models
+    expect(hostedModels).toContain('claude-sonnet-4-0')
     expect(hostedModels).toContain('claude-opus-4-0')
 
+    // Google models
+    expect(hostedModels).toContain('gemini-2.5-pro')
+    expect(hostedModels).toContain('gemini-2.5-flash')
+
     // Should not contain models from other providers
-    expect(hostedModels).not.toContain('gemini-2.5-pro')
     expect(hostedModels).not.toContain('deepseek-v3')
+    expect(hostedModels).not.toContain('grok-4-latest')
   })
 
   it.concurrent('should return an array of strings', () => {
@@ -423,6 +500,52 @@ describe('getHostedModels', () => {
     hostedModels.forEach((model) => {
       expect(typeof model).toBe('string')
     })
+  })
+})
+
+describe('shouldBillModelUsage', () => {
+  it.concurrent('should return true for exact matches of hosted models', () => {
+    // OpenAI models
+    expect(shouldBillModelUsage('gpt-4o')).toBe(true)
+    expect(shouldBillModelUsage('o1')).toBe(true)
+
+    // Anthropic models
+    expect(shouldBillModelUsage('claude-sonnet-4-0')).toBe(true)
+    expect(shouldBillModelUsage('claude-opus-4-0')).toBe(true)
+
+    // Google models
+    expect(shouldBillModelUsage('gemini-2.5-pro')).toBe(true)
+    expect(shouldBillModelUsage('gemini-2.5-flash')).toBe(true)
+  })
+
+  it.concurrent('should return false for non-hosted models', () => {
+    // Other providers
+    expect(shouldBillModelUsage('deepseek-v3')).toBe(false)
+    expect(shouldBillModelUsage('grok-4-latest')).toBe(false)
+
+    // Unknown models
+    expect(shouldBillModelUsage('unknown-model')).toBe(false)
+  })
+
+  it.concurrent('should return false for versioned model names not in hosted list', () => {
+    // Versioned model names that are NOT in the hosted list
+    // These should NOT be billed (user provides own API key)
+    expect(shouldBillModelUsage('claude-sonnet-4-20250514')).toBe(false)
+    expect(shouldBillModelUsage('gpt-4o-2024-08-06')).toBe(false)
+    expect(shouldBillModelUsage('claude-3-5-sonnet-20241022')).toBe(false)
+  })
+
+  it.concurrent('should be case insensitive', () => {
+    expect(shouldBillModelUsage('GPT-4O')).toBe(true)
+    expect(shouldBillModelUsage('Claude-Sonnet-4-0')).toBe(true)
+    expect(shouldBillModelUsage('GEMINI-2.5-PRO')).toBe(true)
+  })
+
+  it.concurrent('should not match partial model names', () => {
+    // Should not match partial/prefix models
+    expect(shouldBillModelUsage('gpt-4')).toBe(false) // gpt-4o is hosted, not gpt-4
+    expect(shouldBillModelUsage('claude-sonnet')).toBe(false)
+    expect(shouldBillModelUsage('gemini')).toBe(false)
   })
 })
 

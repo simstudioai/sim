@@ -11,57 +11,76 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
     knowledgeBaseId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'ID of the knowledge base containing the document',
     },
     name: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Name of the document',
     },
     content: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Content of the document',
     },
     tag1: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Tag 1 value for the document',
     },
     tag2: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Tag 2 value for the document',
     },
     tag3: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Tag 3 value for the document',
     },
     tag4: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Tag 4 value for the document',
     },
     tag5: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Tag 5 value for the document',
     },
     tag6: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Tag 6 value for the document',
     },
     tag7: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Tag 7 value for the document',
     },
     documentTagsData: {
       type: 'array',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Structured tag data with names, types, and values',
+      items: {
+        type: 'object',
+        properties: {
+          tagName: { type: 'string' },
+          tagValue: { type: 'string' },
+          tagType: { type: 'string' },
+        },
+      },
     },
   },
 
@@ -81,9 +100,6 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
       }
       if (documentName.length > 255) {
         throw new Error('Document name must be 255 characters or less')
-      }
-      if (/[<>:"/\\|?*]/.test(documentName)) {
-        throw new Error('Document name contains invalid characters. Avoid: < > : " / \\ | ? *')
       }
       if (!textContent || textContent.length < 1) {
         throw new Error('Document content cannot be empty')
@@ -160,19 +176,19 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
     return {
       success: true,
       output: {
-        data: {
-          id: firstDocument?.documentId || firstDocument?.id || '',
-          name: uploadCount > 1 ? `${uploadCount} documents` : firstDocument?.filename || 'Unknown',
-          type: 'document',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          enabled: true,
-        },
         message:
           uploadCount > 1
             ? `Successfully created ${uploadCount} documents in knowledge base`
             : `Successfully created document in knowledge base`,
-        documentId: firstDocument?.documentId || firstDocument?.id || '',
+        data: {
+          documentId: firstDocument?.documentId || firstDocument?.id || '',
+          documentName:
+            uploadCount > 1 ? `${uploadCount} documents` : firstDocument?.filename || 'Unknown',
+          type: 'document',
+          enabled: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
       },
     }
   },
@@ -182,8 +198,8 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
       type: 'object',
       description: 'Information about the created document',
       properties: {
-        id: { type: 'string', description: 'Document ID' },
-        name: { type: 'string', description: 'Document name' },
+        documentId: { type: 'string', description: 'Document ID' },
+        documentName: { type: 'string', description: 'Document name' },
         type: { type: 'string', description: 'Document type' },
         enabled: { type: 'boolean', description: 'Whether the document is enabled' },
         createdAt: { type: 'string', description: 'Creation timestamp' },

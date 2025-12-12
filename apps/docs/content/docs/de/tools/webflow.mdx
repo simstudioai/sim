@@ -1,0 +1,129 @@
+---
+title: Webflow
+description: Webflow CMS-Sammlungen verwalten
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="webflow"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Webflow](https://webflow.com/) ist eine leistungsstarke visuelle Webdesign-Plattform, mit der Sie responsive Websites ohne Programmierung erstellen können. Sie kombiniert eine visuelle Design-Oberfläche mit einem robusten CMS (Content Management System), das es Ihnen ermöglicht, dynamische Inhalte für Ihre Websites zu erstellen, zu verwalten und zu veröffentlichen.
+
+Mit Webflow können Sie:
+
+- **Visuell gestalten**: Erstellen Sie benutzerdefinierte Websites mit einem visuellen Editor, der sauberen, semantischen HTML/CSS-Code generiert
+- **Inhalte dynamisch verwalten**: Nutzen Sie das CMS, um Sammlungen strukturierter Inhalte wie Blogbeiträge, Produkte, Teammitglieder oder beliebige benutzerdefinierte Daten zu erstellen
+- **Sofort veröffentlichen**: Stellen Sie Ihre Websites auf Webflows Hosting bereit oder exportieren Sie den Code für benutzerdefiniertes Hosting
+- **Responsive Designs erstellen**: Bauen Sie Websites, die nahtlos auf Desktop, Tablet und Mobilgeräten funktionieren
+- **Sammlungen anpassen**: Definieren Sie benutzerdefinierte Felder und Datenstrukturen für Ihre Inhaltstypen
+- **Inhaltsaktualisierungen automatisieren**: Verwalten Sie Ihre CMS-Inhalte programmgesteuert über APIs
+
+In Sim ermöglicht die Webflow-Integration Ihren Agenten, nahtlos mit Ihren Webflow-CMS-Sammlungen über API-Authentifizierung zu interagieren. Dies ermöglicht leistungsstarke Automatisierungsszenarien wie das automatische Erstellen von Blogbeiträgen aus KI-generierten Inhalten, das Aktualisieren von Produktinformationen, das Verwalten von Teammitgliederprofilen und das Abrufen von CMS-Elementen für die dynamische Inhaltsgenerierung. Ihre Agenten können vorhandene Elemente auflisten, um Ihre Inhalte zu durchsuchen, bestimmte Elemente nach ID abrufen, neue Einträge erstellen, um frische Inhalte hinzuzufügen, bestehende Elemente aktualisieren, um Informationen aktuell zu halten, und veraltete Inhalte löschen. Diese Integration überbrückt die Lücke zwischen Ihren KI-Workflows und Ihrem Webflow-CMS und ermöglicht automatisierte Inhaltsverwaltung, dynamische Website-Aktualisierungen und optimierte Inhalts-Workflows, die Ihre Websites ohne manuelles Eingreifen frisch und aktuell halten.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integriert Webflow CMS in den Workflow. Kann Elemente in Webflow CMS-Sammlungen erstellen, abrufen, auflisten, aktualisieren oder löschen. Verwalten Sie Ihre Webflow-Inhalte programmatisch. Kann im Trigger-Modus verwendet werden, um Workflows auszulösen, wenn sich Sammlungselemente ändern oder Formulare übermittelt werden.
+
+## Tools
+
+### `webflow_list_items`
+
+Alle Elemente aus einer Webflow CMS-Sammlung auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `collectionId` | string | Ja | ID der Sammlung |
+| `offset` | number | Nein | Offset für Paginierung \(optional\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Elemente \(optional, Standard: 100\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | json | Array von Sammlungselementen |
+| `metadata` | json | Metadaten über die Abfrage |
+
+### `webflow_get_item`
+
+Ein einzelnes Element aus einer Webflow CMS-Sammlung abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `collectionId` | string | Ja | ID der Sammlung |
+| `itemId` | string | Ja | ID des abzurufenden Elements |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `item` | json | Das abgerufene Elementobjekt |
+| `metadata` | json | Metadaten über das abgerufene Element |
+
+### `webflow_create_item`
+
+Ein neues Element in einer Webflow CMS-Sammlung erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `collectionId` | string | Ja | ID der Sammlung |
+| `fieldData` | json | Ja | Felddaten für das neue Element als JSON-Objekt. Die Schlüssel sollten mit den Feldnamen der Sammlung übereinstimmen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `item` | json | Das erstellte Element-Objekt |
+| `metadata` | json | Metadaten über das erstellte Element |
+
+### `webflow_update_item`
+
+Ein vorhandenes Element in einer Webflow CMS-Sammlung aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `collectionId` | string | Ja | ID der Sammlung |
+| `itemId` | string | Ja | ID des zu aktualisierenden Elements |
+| `fieldData` | json | Ja | Zu aktualisierende Felddaten als JSON-Objekt. Nur Felder einschließen, die geändert werden sollen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `item` | json | Das aktualisierte Element-Objekt |
+| `metadata` | json | Metadaten über das aktualisierte Element |
+
+### `webflow_delete_item`
+
+Ein Element aus einer Webflow CMS-Sammlung löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `collectionId` | string | Ja | ID der Sammlung |
+| `itemId` | string | Ja | ID des zu löschenden Elements |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Löschung erfolgreich war |
+| `metadata` | json | Metadaten über die Löschung |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `webflow`

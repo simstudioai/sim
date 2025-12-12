@@ -12,11 +12,11 @@ import {
   Text,
 } from '@react-email/components'
 import { format } from 'date-fns'
+import { baseStyles } from '@/components/emails/base-styles'
+import EmailFooter from '@/components/emails/footer'
 import { getBrandConfig } from '@/lib/branding/branding'
-import { env } from '@/lib/env'
-import { getAssetUrl } from '@/lib/utils'
-import { baseStyles } from './base-styles'
-import EmailFooter from './footer'
+import { getBaseUrl } from '@/lib/core/utils/urls'
+import { createLogger } from '@/lib/logs/console/logger'
 
 interface InvitationEmailProps {
   inviterName?: string
@@ -26,7 +26,7 @@ interface InvitationEmailProps {
   updatedDate?: Date
 }
 
-const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+const logger = createLogger('InvitationEmail')
 
 export const InvitationEmail = ({
   inviterName = 'A team member',
@@ -36,6 +36,7 @@ export const InvitationEmail = ({
   updatedDate = new Date(),
 }: InvitationEmailProps) => {
   const brand = getBrandConfig()
+  const baseUrl = getBaseUrl()
 
   // Extract invitation ID or token from inviteLink if present
   let enhancedLink = inviteLink
@@ -49,7 +50,7 @@ export const InvitationEmail = ({
         enhancedLink = `${baseUrl}/invite/${invitationId}?token=${invitationId}`
       }
     } catch (e) {
-      console.error('Error parsing invite link:', e)
+      logger.error('Error parsing invite link:', e)
     }
   }
 
@@ -63,7 +64,7 @@ export const InvitationEmail = ({
             <Row>
               <Column style={{ textAlign: 'center' }}>
                 <Img
-                  src={brand.logoUrl || getAssetUrl('static/sim.png')}
+                  src={brand.logoUrl || `${baseUrl}/logo/reverse/text/medium.png`}
                   width='114'
                   alt={brand.name}
                   style={{

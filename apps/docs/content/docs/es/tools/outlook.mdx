@@ -1,0 +1,238 @@
+---
+title: Outlook
+description: Enviar, leer, redactar borradores, reenviar y mover mensajes de
+  correo electrónico de Outlook
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="outlook"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Microsoft Outlook](https://outlook.office365.com) es una plataforma completa de correo electrónico y calendario que ayuda a los usuarios a gestionar comunicaciones, horarios y tareas de manera eficiente. Como parte del conjunto de productividad de Microsoft, Outlook ofrece herramientas robustas para enviar y organizar correos electrónicos, coordinar reuniones e integrarse perfectamente con las aplicaciones de Microsoft 365, permitiendo a individuos y equipos mantenerse organizados y conectados en todos sus dispositivos.
+
+Con Microsoft Outlook, puedes:
+
+- **Enviar y recibir correos electrónicos**: Comunícate de forma clara y profesional con individuos o listas de distribución  
+- **Gestionar calendarios y eventos**: Programa reuniones, configura recordatorios y visualiza disponibilidad  
+- **Organizar tu bandeja de entrada**: Utiliza carpetas, categorías y reglas para mantener tu correo electrónico optimizado  
+- **Acceder a contactos y tareas**: Mantén un seguimiento de personas clave y elementos de acción en un solo lugar  
+- **Integrar con Microsoft 365**: Trabaja sin problemas con Word, Excel, Teams y otras aplicaciones de Microsoft  
+- **Acceder desde varios dispositivos**: Usa Outlook en escritorio, web y móvil con sincronización en tiempo real  
+- **Mantener privacidad y seguridad**: Aprovecha el cifrado de nivel empresarial y los controles de cumplimiento
+
+En Sim, la integración con Microsoft Outlook permite a tus agentes interactuar directamente con datos de correo electrónico y calendario de forma programática con capacidades completas de gestión de correo electrónico. Esto permite potentes escenarios de automatización en todo tu flujo de trabajo de correo electrónico. Tus agentes pueden:
+
+- **Enviar y redactar borradores**: Componer correos electrónicos profesionales con archivos adjuntos y guardar borradores para más tarde
+- **Leer y reenviar**: Acceder a los mensajes de la bandeja de entrada y reenviar comunicaciones importantes a los miembros del equipo
+- **Organizar eficientemente**: Marcar correos electrónicos como leídos o no leídos, mover mensajes entre carpetas y copiar correos electrónicos para referencia
+- **Limpiar la bandeja de entrada**: Eliminar mensajes no deseados y mantener estructuras de carpetas organizadas
+- **Activar flujos de trabajo**: Reaccionar a nuevos correos electrónicos en tiempo real, permitiendo automatización receptiva basada en mensajes entrantes
+
+Al conectar Sim con Microsoft Outlook, permites que los agentes inteligentes automaticen las comunicaciones, simplifiquen la programación, mantengan visibilidad en la correspondencia organizacional y mantengan las bandejas de entrada organizadas, todo dentro de tu ecosistema de flujo de trabajo. Ya sea que estés gestionando comunicaciones con clientes, procesando facturas, coordinando actualizaciones del equipo o automatizando seguimientos, la integración con Outlook proporciona capacidades de automatización de correo electrónico de nivel empresarial.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Outlook en el flujo de trabajo. Puede leer, redactar borradores, enviar, reenviar y mover mensajes de correo electrónico. Se puede utilizar en modo de activación para iniciar un flujo de trabajo cuando se recibe un nuevo correo electrónico.
+
+## Herramientas
+
+### `outlook_send`
+
+Enviar correos electrónicos usando Outlook
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `to` | string | Sí | Dirección de correo electrónico del destinatario |
+| `subject` | string | Sí | Asunto del correo electrónico |
+| `body` | string | Sí | Contenido del cuerpo del correo electrónico |
+| `contentType` | string | No | Tipo de contenido para el cuerpo del correo electrónico \(texto o html\) |
+| `replyToMessageId` | string | No | ID del mensaje al que se responde \(para el hilo\) |
+| `conversationId` | string | No | ID de conversación para el hilo |
+| `cc` | string | No | Destinatarios en CC \(separados por comas\) |
+| `bcc` | string | No | Destinatarios en CCO \(separados por comas\) |
+| `attachments` | file[] | No | Archivos para adjuntar al correo electrónico |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito del envío del correo electrónico |
+| `status` | string | Estado de entrega del correo electrónico |
+| `timestamp` | string | Marca de tiempo cuando se envió el correo electrónico |
+| `message` | string | Mensaje de éxito o error |
+
+### `outlook_draft`
+
+Crear borradores de correos electrónicos usando Outlook
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `to` | string | Sí | Dirección de correo electrónico del destinatario |
+| `subject` | string | Sí | Asunto del correo electrónico |
+| `body` | string | Sí | Contenido del cuerpo del correo electrónico |
+| `contentType` | string | No | Tipo de contenido para el cuerpo del correo electrónico \(texto o html\) |
+| `cc` | string | No | Destinatarios en CC \(separados por comas\) |
+| `bcc` | string | No | Destinatarios en CCO \(separados por comas\) |
+| `attachments` | file[] | No | Archivos para adjuntar al borrador del correo electrónico |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la creación del borrador |
+| `messageId` | string | Identificador único para el correo electrónico en borrador |
+| `status` | string | Estado del borrador del correo electrónico |
+| `subject` | string | Asunto del correo electrónico en borrador |
+| `timestamp` | string | Marca de tiempo cuando se creó el borrador |
+| `message` | string | Mensaje de éxito o error |
+
+### `outlook_read`
+
+Leer correos electrónicos desde Outlook
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `folder` | string | No | ID de la carpeta desde donde leer los correos electrónicos \(predeterminado: Bandeja de entrada\) |
+| `maxResults` | number | No | Número máximo de correos electrónicos a recuperar \(predeterminado: 1, máximo: 10\) |
+| `includeAttachments` | boolean | No | Descargar e incluir archivos adjuntos de correo electrónico |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o estado |
+| `results` | array | Array de objetos de mensajes de correo electrónico |
+| `attachments` | file[] | Todos los archivos adjuntos de correo electrónico aplanados de todos los correos |
+
+### `outlook_forward`
+
+Reenviar un mensaje existente de Outlook a destinatarios específicos
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Sí | El ID del mensaje a reenviar |
+| `to` | string | Sí | Dirección(es) de correo electrónico del destinatario, separadas por comas |
+| `comment` | string | No | Comentario opcional para incluir con el mensaje reenviado |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `results` | object | Detalles del resultado de entrega |
+
+### `outlook_move`
+
+Mover correos electrónicos entre carpetas de Outlook
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Sí | ID del mensaje a mover |
+| `destinationId` | string | Sí | ID de la carpeta de destino |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito del movimiento del correo electrónico |
+| `message` | string | Mensaje de éxito o error |
+| `messageId` | string | ID del mensaje movido |
+| `newFolderId` | string | ID de la carpeta de destino |
+
+### `outlook_mark_read`
+
+Marcar un mensaje de Outlook como leído
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Sí | ID del mensaje que se marcará como leído |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `message` | string | Mensaje de éxito o error |
+| `messageId` | string | ID del mensaje |
+| `isRead` | boolean | Estado de lectura del mensaje |
+
+### `outlook_mark_unread`
+
+Marcar un mensaje de Outlook como no leído
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Sí | ID del mensaje que se marcará como no leído |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `message` | string | Mensaje de éxito o error |
+| `messageId` | string | ID del mensaje |
+| `isRead` | boolean | Estado de lectura del mensaje |
+
+### `outlook_delete`
+
+Eliminar un mensaje de Outlook (mover a elementos eliminados)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Sí | ID del mensaje a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `message` | string | Mensaje de éxito o error |
+| `messageId` | string | ID del mensaje eliminado |
+| `status` | string | Estado de eliminación |
+
+### `outlook_copy`
+
+Copiar un mensaje de Outlook a otra carpeta
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Sí | ID del mensaje a copiar |
+| `destinationId` | string | Sí | ID de la carpeta de destino |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la copia del correo electrónico |
+| `message` | string | Mensaje de éxito o error |
+| `originalMessageId` | string | ID del mensaje original |
+| `copiedMessageId` | string | ID del mensaje copiado |
+| `destinationFolderId` | string | ID de la carpeta de destino |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `outlook`

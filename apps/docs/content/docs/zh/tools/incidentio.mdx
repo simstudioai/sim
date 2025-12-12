@@ -1,0 +1,843 @@
+---
+title: incidentio
+description: 使用 incident.io 管理事件
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="incidentio"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+通过 [incident.io](https://incident.io) 提升您的事件管理能力 —— 这是一个领先的平台，可用于协调事件、简化响应流程，并在一个地方跟踪行动项。将 incident.io 无缝集成到您的自动化工作流程中，掌控事件创建、实时协作、后续跟进、排程、升级等诸多功能。
+
+使用 incident.io 工具，您可以：
+
+- **列出和搜索事件**：快速检索正在进行或历史事件的列表，包含严重性、状态和时间戳等元数据，使用 `incidentio_incidents_list`。
+- **创建新事件**：通过 `incidentio_incidents_create` 以编程方式触发新事件的创建，指定严重性、名称、类型和自定义详细信息，确保您的响应不会被延误。
+- **自动化事件后续**：利用 incident.io 强大的自动化功能，确保重要的行动项和经验教训不会被遗漏，帮助团队解决问题并改进流程。
+- **自定义工作流程**：集成定制的事件类型、严重性和适合您组织需求的自定义字段。
+- **通过排程和升级实施最佳实践**：通过自动分配、通知和升级来简化值班和事件管理，适应不断变化的情况。
+
+incident.io 赋能现代组织更快响应、协调团队并捕获经验教训以实现持续改进。无论您管理的是 SRE、DevOps、安全还是 IT 事件，incident.io 都能以编程方式将集中化的顶级事件响应集成到您的代理工作流程中。
+
+**可用的关键操作**：
+- `incidentio_incidents_list`：列出、分页和筛选事件，提供完整的详细信息。
+- `incidentio_incidents_create`：以编程方式打开具有自定义属性的新事件，并控制重复（幂等性）。
+- ...更多功能即将推出！
+
+通过将 incident.io 集成到您的工作流程自动化中，提升您的可靠性、责任感和运营卓越性，立即行动吧。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 incident.io 集成到工作流程中。管理事件、操作、后续任务、工作流程、日程安排、升级、自定义字段等。
+
+## 工具
+
+### `incidentio_incidents_list`
+
+从 incident.io 列出事件。返回包含事件详细信息的列表，包括严重性、状态和时间戳。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `page_size` | number | 否 | 每页返回的事件数量 \(默认值：25\) |
+| `after` | string | 否 | 用于获取下一页结果的分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `incidents` | array | 事件列表 |
+
+### `incidentio_incidents_create`
+
+在 incident.io 中创建一个新事件。需要 idempotency_key、severity_id 和 visibility。可选接受名称、摘要、类型和状态。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `idempotency_key` | string | 是 | 用于防止重复创建事件的唯一标识符。使用 UUID 或唯一字符串。 |
+| `name` | string | 否 | 事件名称 \(可选\) |
+| `summary` | string | 否 | 事件的简要摘要 |
+| `severity_id` | string | 是 | 严重性级别的 ID \(必需\) |
+| `incident_type_id` | string | 否 | 事件类型的 ID |
+| `incident_status_id` | string | 否 | 初始事件状态的 ID |
+| `visibility` | string | 是 | 事件的可见性："public" 或 "private" \(必需\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `incident` | object | 创建的事件对象 |
+
+### `incidentio_incidents_show`
+
+从 incident.io 根据其 ID 检索特定事件的详细信息。返回完整的事件详细信息，包括自定义字段和角色分配。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `id` | string | 是 | 要检索的事件 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `incident` | object | 详细的事件信息 |
+
+### `incidentio_incidents_update`
+
+更新 incident.io 中的现有事件。可以更新名称、摘要、严重性、状态或类型。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `id` | string | 是 | 要更新的事件 ID |
+| `name` | string | 否 | 更新后的事件名称 |
+| `summary` | string | 否 | 更新后的事件摘要 |
+| `severity_id` | string | 否 | 更新后的事件严重性 ID |
+| `incident_status_id` | string | 否 | 更新后的事件状态 ID |
+| `incident_type_id` | string | 否 | 更新后的事件类型 ID |
+| `notify_incident_channel` | boolean | 是 | 是否通知事件频道关于此更新 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `incident` | object | 更新后的事件对象 |
+
+### `incidentio_actions_list`
+
+从 incident.io 列出操作。可选择按事件 ID 进行筛选。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `incident_id` | string | 否 | 按事件 ID 筛选操作 |
+| `page_size` | number | 否 | 每页返回的操作数量 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `actions` | array | 操作列表 |
+
+### `incidentio_actions_show`
+
+从 incident.io 获取有关特定操作的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `id` | string | 是 | 操作 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `action` | object | 操作详情 |
+
+### `incidentio_follow_ups_list`
+
+从 incident.io 列出后续操作。可选择按事件 ID 进行筛选。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `incident_id` | string | 否 | 按事件 ID 筛选后续操作 |
+| `page_size` | number | 否 | 每页返回的后续操作数量 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `follow_ups` | 数组 | 跟进列表 |
+
+### `incidentio_follow_ups_show`
+
+获取有关 incident.io 中特定跟进的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | 字符串 | 是 | incident.io API 密钥 |
+| `id` | 字符串 | 是 | 跟进 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `follow_up` | 对象 | 跟进详情 |
+
+### `incidentio_users_list`
+
+列出 Incident.io 工作区中的所有用户。返回的用户详细信息包括 ID、姓名、电子邮件和角色。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | 字符串 | 是 | Incident.io API 密钥 |
+| `page_size` | 数字 | 否 | 每页返回的结果数量 \(默认值: 25\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `users` | 数组 | 工作区中的用户列表 |
+
+### `incidentio_users_show`
+
+通过用户 ID 获取 Incident.io 工作区中特定用户的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | 字符串 | 是 | Incident.io API 密钥 |
+| `id` | 字符串 | 是 | 要检索的用户的唯一标识符 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `user` | object | 请求用户的详细信息 |
+
+### `incidentio_workflows_list`
+
+列出 incident.io 工作区中的所有工作流。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `page_size` | number | 否 | 每页返回的工作流数量 |
+| `after` | string | 否 | 用于获取下一页结果的分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `workflows` | array | 工作流列表 |
+
+### `incidentio_workflows_show`
+
+获取 incident.io 中特定工作流的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `id` | string | 是 | 要检索的工作流 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `workflow` | object | 工作流详细信息 |
+
+### `incidentio_workflows_update`
+
+更新 incident.io 中的现有工作流。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `id` | string | 是 | 要更新的工作流 ID |
+| `name` | string | 否 | 工作流的新名称 |
+| `state` | string | 否 | 工作流的新状态 \(active, draft, 或 disabled\) |
+| `folder` | string | 否 | 工作流的新文件夹 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `workflow` | object | 更新后的工作流 |
+
+### `incidentio_workflows_delete`
+
+删除 incident.io 中的一个工作流。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `id` | string | 是 | 要删除的工作流的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功消息 |
+
+### `incidentio_schedules_list`
+
+列出 incident.io 中的所有日程
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `page_size` | number | 否 | 每页结果数量 \(默认值: 25\) |
+| `after` | string | 否 | 用于获取下一页结果的分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `schedules` | array | 日程列表 |
+
+### `incidentio_schedules_create`
+
+在 incident.io 中创建一个新日程
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `name` | string | 是 | 日程名称 |
+| `timezone` | string | 是 | 日程的时区 \(例如: America/New_York\) |
+| `config` | string | 是 | 以 JSON 字符串形式表示的日程配置，包括轮换。例如: \{"rotations": \[\{"name": "Primary", "users": \[\{"id": "user_id"\}\], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": \[\{"interval": 1, "interval_type": "weekly"\}\]\}\]\} |
+| `Example` | string | 否 | 无描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `schedule` | object | 创建的日程 |
+
+### `incidentio_schedules_show`
+
+获取 incident.io 中特定日程的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `id` | string | 是 | 日程的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `schedule` | object | 日程详情 |
+
+### `incidentio_schedules_update`
+
+更新 incident.io 中的现有日程
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `id` | string | 是 | 要更新的日程 ID |
+| `name` | string | 否 | 日程的新名称 |
+| `timezone` | string | 否 | 日程的新时区 \(例如: America/New_York\) |
+| `config` | string | 否 | 以 JSON 字符串形式表示的日程配置，包括轮换。例如: \{"rotations": \[\{"name": "Primary", "users": \[\{"id": "user_id"\}\], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": \[\{"interval": 1, "interval_type": "weekly"\}\]\}\]\} |
+| `Example` | string | 否 | 无描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `schedule` | object | 更新后的日程 |
+
+### `incidentio_schedules_delete`
+
+删除 incident.io 中的日程
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `id` | string | 是 | 要删除的日程 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功消息 |
+
+### `incidentio_escalations_list`
+
+列出 incident.io 中的所有升级策略
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `page_size` | number | 否 | 每页结果数量 \(默认值: 25\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `escalations` | array | 升级策略列表 |
+
+### `incidentio_escalations_create`
+
+在 incident.io 中创建一个新的升级策略
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `idempotency_key` | string | 是 | 用于防止重复创建升级的唯一标识符。使用 UUID 或唯一字符串。 |
+| `title` | string | 是 | 升级的标题 |
+| `escalation_path_id` | string | 否 | 要使用的升级路径的 ID \(如果未提供 user_ids，则必需\) |
+| `user_ids` | string | 否 | 要通知的用户 ID 的逗号分隔列表 \(如果未提供 escalation_path_id，则必需\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `escalation` | object | 创建的升级策略 |
+
+### `incidentio_escalations_show`
+
+获取 incident.io 中特定升级策略的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `id` | string | 是 | 升级策略的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `escalation` | object | 升级策略详情 |
+
+### `incidentio_custom_fields_list`
+
+列出 incident.io 中的所有自定义字段。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `custom_fields` | array | 自定义字段列表 |
+
+### `incidentio_custom_fields_create`
+
+在 incident.io 中创建一个新的自定义字段。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `name` | string | 是 | 自定义字段的名称 |
+| `description` | string | 是 | 自定义字段的描述 \(必需\) |
+| `field_type` | string | 是 | 自定义字段的类型 \(例如，text, single_select, multi_select, numeric, datetime, link, user, team\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `custom_field` | object | 已创建的自定义字段 |
+
+### `incidentio_custom_fields_show`
+
+获取有关 incident.io 中特定自定义字段的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `id` | string | 是 | 自定义字段 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `custom_field` | object | 自定义字段详情 |
+
+### `incidentio_custom_fields_update`
+
+更新 incident.io 中现有的自定义字段。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `id` | string | 是 | 自定义字段 ID |
+| `name` | string | 是 | 自定义字段的新名称（必填） |
+| `description` | string | 是 | 自定义字段的新描述（必填） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `custom_field` | object | 更新后的自定义字段 |
+
+### `incidentio_custom_fields_delete`
+
+从 incident.io 中删除自定义字段。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `id` | string | 是 | 自定义字段 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功消息 |
+
+### `incidentio_severities_list`
+
+列出在您的 Incident.io 工作区中配置的所有严重性级别。返回的严重性详细信息包括 id、名称、描述和排名。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Incident.io API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `severities` | array | 严重性级别列表 |
+
+### `incidentio_incident_statuses_list`
+
+列出在您的 Incident.io 工作区中配置的所有事件状态。返回的状态详细信息包括 id、名称、描述和类别。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Incident.io API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `incident_statuses` | array | 事件状态列表 |
+
+### `incidentio_incident_types_list`
+
+列出在您的 Incident.io 工作区中配置的所有事件类型。返回的类型详细信息包括 id、名称、描述和默认标志。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Incident.io API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `incident_types` | array | 事件类型列表 |
+
+### `incidentio_incident_roles_list`
+
+列出 Incident.io 中的所有事件角色
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Incident.io API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `incident_roles` | 数组 | 事件角色列表 |
+
+### `incidentio_incident_roles_create`
+
+在 incident.io 中创建一个新的事件角色
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | 字符串 | 是 | incident.io API 密钥 |
+| `name` | 字符串 | 是 | 事件角色的名称 |
+| `description` | 字符串 | 是 | 事件角色的描述 |
+| `instructions` | 字符串 | 是 | 事件角色的指令 |
+| `shortform` | 字符串 | 是 | 角色的缩写 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `incident_role` | 对象 | 创建的事件角色 |
+
+### `incidentio_incident_roles_show`
+
+获取 incident.io 中特定事件角色的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | 字符串 | 是 | incident.io API 密钥 |
+| `id` | 字符串 | 是 | 事件角色的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `incident_role` | 对象 | 事件角色的详细信息 |
+
+### `incidentio_incident_roles_update`
+
+更新 incident.io 中的现有事件角色
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | 字符串 | 是 | incident.io API 密钥 |
+| `id` | 字符串 | 是 | 要更新的事件角色的 ID |
+| `name` | 字符串 | 是 | 事件角色的名称 |
+| `description` | 字符串 | 是 | 事件角色的描述 |
+| `instructions` | 字符串 | 是 | 事件角色的指令 |
+| `shortform` | 字符串 | 是 | 角色的缩写 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `incident_role` | object | 更新的事件角色 |
+
+### `incidentio_incident_roles_delete`
+
+删除 incident.io 中的事件角色
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `id` | string | 是 | 要删除的事件角色的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功消息 |
+
+### `incidentio_incident_timestamps_list`
+
+列出 incident.io 中所有事件时间戳定义
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `incident_timestamps` | array | 事件时间戳定义列表 |
+
+### `incidentio_incident_timestamps_show`
+
+获取 incident.io 中特定事件时间戳定义的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `id` | string | 是 | 事件时间戳的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `incident_timestamp` | object | 事件时间戳详细信息 |
+
+### `incidentio_incident_updates_list`
+
+列出 incident.io 中特定事件的所有更新
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `incident_id` | string | 否 | 要获取更新的事件 ID（可选 - 如果未提供，将返回所有更新） |
+| `page_size` | number | 否 | 每页返回的结果数量 |
+| `after` | string | 否 | 分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `incident_updates` | array | 事件更新列表 |
+
+### `incidentio_schedule_entries_list`
+
+列出 incident.io 中特定日程的所有条目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `schedule_id` | string | 是 | 要获取条目的日程 ID |
+| `entry_window_start` | string | 否 | 用于筛选条目的开始日期/时间（ISO 8601 格式） |
+| `entry_window_end` | string | 否 | 用于筛选条目的结束日期/时间（ISO 8601 格式） |
+| `page_size` | number | 否 | 每页返回的结果数量 |
+| `after` | string | 否 | 分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `schedule_entries` | array | 日程条目列表 |
+
+### `incidentio_schedule_overrides_create`
+
+在 incident.io 中创建一个新的日程覆盖
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `rotation_id` | string | 是 | 要覆盖的轮换 ID |
+| `schedule_id` | string | 是 | 日程 ID |
+| `user_id` | string | 否 | 要分配的用户 ID（提供以下之一：user_id、user_email 或 user_slack_id）|
+| `user_email` | string | 否 | 要分配的用户邮箱（提供以下之一：user_id、user_email 或 user_slack_id）|
+| `user_slack_id` | string | 否 | 要分配的用户 Slack ID（提供以下之一：user_id、user_email 或 user_slack_id）|
+| `start_at` | string | 是 | 覆盖开始时间（ISO 8601 格式）|
+| `end_at` | string | 是 | 覆盖结束时间（ISO 8601 格式）|
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `override` | object | 创建的日程覆盖 |
+
+### `incidentio_escalation_paths_create`
+
+在 incident.io 中创建一个新的升级路径
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `name` | string | 是 | 升级路径名称 |
+| `path` | json | 是 | 包含目标和确认时间（以秒为单位）的升级级别数组。每个级别应包含：targets（\{id, type, schedule_id?, user_id?, urgency\} 的数组）和 time_to_ack_seconds（数字）|
+| `working_hours` | json | 否 | 可选的工作时间配置。\{weekday, start_time, end_time\} 的数组 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `escalation_path` | object | 创建的升级路径 |
+
+### `incidentio_escalation_paths_show`
+
+获取 incident.io 中特定升级路径的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `id` | string | 是 | 升级路径的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `escalation_path` | object | 升级路径详细信息 |
+
+### `incidentio_escalation_paths_update`
+
+更新 incident.io 中现有的升级路径
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `id` | string | 是 | 要更新的升级路径的 ID |
+| `name` | string | 否 | 升级路径的新名称 |
+| `path` | json | 否 | 新的升级路径配置。包含目标和 time_to_ack_seconds 的升级级别数组 |
+| `working_hours` | json | 否 | 新的工作时间配置。包含 \{weekday, start_time, end_time\} 的数组 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `escalation_path` | object | 更新后的升级路径 |
+
+### `incidentio_escalation_paths_delete`
+
+删除 incident.io 中的升级路径
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | incident.io API 密钥 |
+| `id` | string | 是 | 要删除的升级路径的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功消息 |
+
+## 注意事项
+
+- 类别: `tools`
+- 类型: `incidentio`

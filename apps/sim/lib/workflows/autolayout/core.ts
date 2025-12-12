@@ -1,0 +1,348 @@
+import { createLogger } from '@/lib/logs/console/logger'
+import {
+  CONTAINER_LAYOUT_OPTIONS,
+  DEFAULT_LAYOUT_OPTIONS,
+  MAX_OVERLAP_ITERATIONS,
+} from '@/lib/workflows/autolayout/constants'
+import type { Edge, GraphNode, LayoutOptions } from '@/lib/workflows/autolayout/types'
+import {
+  getBlockMetrics,
+  normalizePositions,
+  prepareBlockMetrics,
+} from '@/lib/workflows/autolayout/utils'
+import type { BlockState } from '@/stores/workflows/workflow/types'
+
+const logger = createLogger('AutoLayout:Core')
+
+/** Handle names that indicate edges from subflow end */
+const SUBFLOW_END_HANDLES = new Set(['loop-end-source', 'parallel-end-source'])
+
+/**
+ * Checks if an edge comes from a subflow end handle
+ */
+function isSubflowEndEdge(edge: Edge): boolean {
+  return edge.sourceHandle != null && SUBFLOW_END_HANDLES.has(edge.sourceHandle)
+}
+
+/**
+ * Assigns layers (columns) to blocks using topological sort.
+ * Blocks with no incoming edges are placed in layer 0.
+ * When edges come from subflow end handles, the subflow's internal depth is added.
+ *
+ * @param blocks - The blocks to assign layers to
+ * @param edges - The edges connecting blocks
+ * @param subflowDepths - Optional map of container block IDs to their internal depth (max layers inside)
+ */
+export function assignLayers(
+  blocks: Record<string, BlockState>,
+  edges: Edge[],
+  subflowDepths?: Map<string, number>
+): Map<string, GraphNode> {
+  const nodes = new Map<string, GraphNode>()
+
+  // Initialize nodes
+  for (const [id, block] of Object.entries(blocks)) {
+    nodes.set(id, {
+      id,
+      block,
+      metrics: getBlockMetrics(block),
+      incoming: new Set(),
+      outgoing: new Set(),
+      layer: 0,
+      position: { ...block.position },
+    })
+  }
+
+  // Build a map of target node -> edges coming into it (to check sourceHandle later)
+  const incomingEdgesMap = new Map<string, Edge[]>()
+  for (const edge of edges) {
+    if (!incomingEdgesMap.has(edge.target)) {
+      incomingEdgesMap.set(edge.target, [])
+    }
+    incomingEdgesMap.get(edge.target)!.push(edge)
+  }
+
+  // Build adjacency from edges
+  for (const edge of edges) {
+    const sourceNode = nodes.get(edge.source)
+    const targetNode = nodes.get(edge.target)
+
+    if (sourceNode && targetNode) {
+      sourceNode.outgoing.add(edge.target)
+      targetNode.incoming.add(edge.source)
+    }
+  }
+
+  // Find starter nodes (no incoming edges)
+  const starterNodes = Array.from(nodes.values()).filter((node) => node.incoming.size === 0)
+
+  if (starterNodes.length === 0 && nodes.size > 0) {
+    const firstNode = Array.from(nodes.values())[0]
+    starterNodes.push(firstNode)
+    logger.warn('No starter blocks found, using first block as starter', { blockId: firstNode.id })
+  }
+
+  // Topological sort using Kahn's algorithm
+  const inDegreeCount = new Map<string, number>()
+
+  for (const node of nodes.values()) {
+    inDegreeCount.set(node.id, node.incoming.size)
+    if (starterNodes.includes(node)) {
+      node.layer = 0
+    }
+  }
+
+  const queue: string[] = starterNodes.map((n) => n.id)
+  const processed = new Set<string>()
+
+  while (queue.length > 0) {
+    const nodeId = queue.shift()!
+    const node = nodes.get(nodeId)!
+    processed.add(nodeId)
+
+    // Calculate layer based on max incoming layer + 1
+    // For edges from subflow ends, add the subflow's internal depth (minus 1 to avoid double-counting)
+    if (node.incoming.size > 0) {
+      let maxEffectiveLayer = -1
+      const incomingEdges = incomingEdgesMap.get(nodeId) || []
+
+      for (const incomingId of node.incoming) {
+        const incomingNode = nodes.get(incomingId)
+        if (incomingNode) {
+          // Find edges from this incoming node to check if it's a subflow end edge
+          const edgesFromSource = incomingEdges.filter((e) => e.source === incomingId)
+          let additionalDepth = 0
+
+          // Check if any edge from this source is a subflow end edge
+          const hasSubflowEndEdge = edgesFromSource.some(isSubflowEndEdge)
+          if (hasSubflowEndEdge && subflowDepths) {
+            // Get the internal depth of the subflow
+            // Subtract 1 because the +1 at the end of layer calculation already accounts for one layer
+            // E.g., if subflow has 2 internal layers (depth=2), we add 1 extra so total offset is 2
+            const depth = subflowDepths.get(incomingId) ?? 1
+            additionalDepth = Math.max(0, depth - 1)
+          }
+
+          const effectiveLayer = incomingNode.layer + additionalDepth
+          maxEffectiveLayer = Math.max(maxEffectiveLayer, effectiveLayer)
+        }
+      }
+      node.layer = maxEffectiveLayer + 1
+    }
+
+    // Add outgoing nodes when all dependencies processed
+    for (const targetId of node.outgoing) {
+      const currentCount = inDegreeCount.get(targetId) || 0
+      inDegreeCount.set(targetId, currentCount - 1)
+
+      if (inDegreeCount.get(targetId) === 0 && !processed.has(targetId)) {
+        queue.push(targetId)
+      }
+    }
+  }
+
+  // Handle isolated nodes
+  for (const node of nodes.values()) {
+    if (!processed.has(node.id)) {
+      logger.debug('Isolated node detected, assigning to layer 0', { blockId: node.id })
+      node.layer = 0
+    }
+  }
+
+  return nodes
+}
+
+/**
+ * Groups nodes by their layer number
+ */
+export function groupByLayer(nodes: Map<string, GraphNode>): Map<number, GraphNode[]> {
+  const layers = new Map<number, GraphNode[]>()
+
+  for (const node of nodes.values()) {
+    if (!layers.has(node.layer)) {
+      layers.set(node.layer, [])
+    }
+    layers.get(node.layer)!.push(node)
+  }
+
+  return layers
+}
+
+/**
+ * Resolves vertical overlaps between nodes in the same layer.
+ * X overlaps are prevented by construction via cumulative width-based positioning.
+ */
+function resolveVerticalOverlaps(nodes: GraphNode[], verticalSpacing: number): void {
+  let iteration = 0
+  let hasOverlap = true
+
+  while (hasOverlap && iteration < MAX_OVERLAP_ITERATIONS) {
+    hasOverlap = false
+    iteration++
+
+    // Group nodes by layer for same-layer overlap resolution
+    const nodesByLayer = new Map<number, GraphNode[]>()
+    for (const node of nodes) {
+      if (!nodesByLayer.has(node.layer)) {
+        nodesByLayer.set(node.layer, [])
+      }
+      nodesByLayer.get(node.layer)!.push(node)
+    }
+
+    // Process each layer independently
+    for (const [layer, layerNodes] of nodesByLayer) {
+      if (layerNodes.length < 2) continue
+
+      // Sort by Y position for consistent processing
+      layerNodes.sort((a, b) => a.position.y - b.position.y)
+
+      for (let i = 0; i < layerNodes.length - 1; i++) {
+        const node1 = layerNodes[i]
+        const node2 = layerNodes[i + 1]
+
+        const node1Bottom = node1.position.y + node1.metrics.height
+        const requiredY = node1Bottom + verticalSpacing
+
+        if (node2.position.y < requiredY) {
+          hasOverlap = true
+          node2.position.y = requiredY
+
+          logger.debug('Resolved vertical overlap in layer', {
+            layer,
+            block1: node1.id,
+            block2: node2.id,
+            iteration,
+          })
+        }
+      }
+    }
+  }
+
+  if (hasOverlap) {
+    logger.warn('Could not fully resolve all vertical overlaps after max iterations', {
+      iterations: MAX_OVERLAP_ITERATIONS,
+    })
+  }
+}
+
+/**
+ * Calculates positions for nodes organized by layer.
+ * Uses cumulative width-based X positioning to properly handle containers of varying widths.
+ */
+export function calculatePositions(
+  layers: Map<number, GraphNode[]>,
+  options: LayoutOptions = {}
+): void {
+  const horizontalSpacing = options.horizontalSpacing ?? DEFAULT_LAYOUT_OPTIONS.horizontalSpacing
+  const verticalSpacing = options.verticalSpacing ?? DEFAULT_LAYOUT_OPTIONS.verticalSpacing
+  const padding = options.padding ?? DEFAULT_LAYOUT_OPTIONS.padding
+  const alignment = options.alignment ?? DEFAULT_LAYOUT_OPTIONS.alignment
+
+  const layerNumbers = Array.from(layers.keys()).sort((a, b) => a - b)
+
+  // Calculate max width for each layer
+  const layerWidths = new Map<number, number>()
+  for (const layerNum of layerNumbers) {
+    const nodesInLayer = layers.get(layerNum)!
+    const maxWidth = Math.max(...nodesInLayer.map((n) => n.metrics.width))
+    layerWidths.set(layerNum, maxWidth)
+  }
+
+  // Calculate cumulative X positions for each layer based on actual widths
+  const layerXPositions = new Map<number, number>()
+  let cumulativeX = padding.x
+
+  for (const layerNum of layerNumbers) {
+    layerXPositions.set(layerNum, cumulativeX)
+    cumulativeX += layerWidths.get(layerNum)! + horizontalSpacing
+  }
+
+  // Position nodes using cumulative X
+  for (const layerNum of layerNumbers) {
+    const nodesInLayer = layers.get(layerNum)!
+    const xPosition = layerXPositions.get(layerNum)!
+
+    // Calculate total height for this layer
+    const totalHeight = nodesInLayer.reduce(
+      (sum, node, idx) => sum + node.metrics.height + (idx > 0 ? verticalSpacing : 0),
+      0
+    )
+
+    // Start Y based on alignment
+    let yOffset: number
+    switch (alignment) {
+      case 'start':
+        yOffset = padding.y
+        break
+      case 'center':
+        yOffset = Math.max(padding.y, 300 - totalHeight / 2)
+        break
+      case 'end':
+        yOffset = 600 - totalHeight - padding.y
+        break
+      default:
+        yOffset = padding.y
+        break
+    }
+
+    // Position each node
+    for (const node of nodesInLayer) {
+      node.position = {
+        x: xPosition,
+        y: yOffset,
+      }
+      yOffset += node.metrics.height + verticalSpacing
+    }
+  }
+
+  // Resolve vertical overlaps within layers (X overlaps prevented by cumulative positioning)
+  resolveVerticalOverlaps(Array.from(layers.values()).flat(), verticalSpacing)
+}
+
+/**
+ * Core layout function that performs the complete layout pipeline:
+ * 1. Assign layers using topological sort
+ * 2. Prepare block metrics
+ * 3. Group nodes by layer
+ * 4. Calculate positions
+ * 5. Normalize positions to start from padding
+ *
+ * @param blocks - The blocks to lay out
+ * @param edges - The edges connecting blocks
+ * @param options - Layout options including container flag and subflow depths
+ * @returns The laid-out nodes with updated positions, and bounding dimensions
+ */
+export function layoutBlocksCore(
+  blocks: Record<string, BlockState>,
+  edges: Edge[],
+  options: {
+    isContainer: boolean
+    layoutOptions?: LayoutOptions
+    subflowDepths?: Map<string, number>
+  }
+): { nodes: Map<string, GraphNode>; dimensions: { width: number; height: number } } {
+  if (Object.keys(blocks).length === 0) {
+    return { nodes: new Map(), dimensions: { width: 0, height: 0 } }
+  }
+
+  const layoutOptions =
+    options.layoutOptions ??
+    (options.isContainer ? CONTAINER_LAYOUT_OPTIONS : DEFAULT_LAYOUT_OPTIONS)
+
+  // 1. Assign layers (with subflow depth adjustment for subflow end edges)
+  const nodes = assignLayers(blocks, edges, options.subflowDepths)
+
+  // 2. Prepare metrics
+  prepareBlockMetrics(nodes)
+
+  // 3. Group by layer
+  const layers = groupByLayer(nodes)
+
+  // 4. Calculate positions
+  calculatePositions(layers, layoutOptions)
+
+  // 5. Normalize positions
+  const dimensions = normalizePositions(nodes, { isContainer: options.isContainer })
+
+  return { nodes, dimensions }
+}

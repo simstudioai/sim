@@ -4,7 +4,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
 import { getProviderDefaultModel, getProviderModels } from '../models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
-import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
+import { prepareToolExecution, prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('AnthropicProvider')
 
@@ -456,28 +456,11 @@ ${fieldDescriptions}
                 // Execute the tool
                 const toolCallStartTime = Date.now()
 
-                // Only merge actual tool parameters for logging
-                const toolParams = {
-                  ...tool.params,
-                  ...toolArgs,
-                }
-
-                // Add system parameters for execution
-                const executionParams = {
-                  ...toolParams,
-                  ...(request.workflowId
-                    ? {
-                        _context: {
-                          workflowId: request.workflowId,
-                          ...(request.chatId ? { chatId: request.chatId } : {}),
-                          ...(request.userId ? { userId: request.userId } : {}),
-                        },
-                      }
-                    : {}),
-                  ...(request.environmentVariables
-                    ? { envVars: request.environmentVariables }
-                    : {}),
-                }
+                const { toolParams, executionParams } = prepareToolExecution(
+                  tool,
+                  toolArgs,
+                  request
+                )
 
                 // Use general tool system for requests
                 const result = await executeTool(toolName, executionParams, true)
@@ -827,26 +810,7 @@ ${fieldDescriptions}
               // Execute the tool
               const toolCallStartTime = Date.now()
 
-              // Only merge actual tool parameters for logging
-              const toolParams = {
-                ...tool.params,
-                ...toolArgs,
-              }
-
-              // Add system parameters for execution
-              const executionParams = {
-                ...toolParams,
-                ...(request.workflowId
-                  ? {
-                      _context: {
-                        workflowId: request.workflowId,
-                        ...(request.chatId ? { chatId: request.chatId } : {}),
-                        ...(request.userId ? { userId: request.userId } : {}),
-                      },
-                    }
-                  : {}),
-                ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
-              }
+              const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
 
               // Use general tool system for requests
               const result = await executeTool(toolName, executionParams, true)
@@ -1021,9 +985,9 @@ ${fieldDescriptions}
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
-      if (request.stream && iterationCount > 0) {
-        logger.info('Using streaming for final Anthropic response after tool calls')
+      // After all tool processing complete, if streaming was requested, use streaming for the final response
+      if (request.stream) {
+        logger.info('Using streaming for final Anthropic response after tool processing')
 
         // When streaming after tool calls with forced tools, make sure tool_choice is removed
         // This prevents the API from trying to force tool usage again in the final streaming response

@@ -1,0 +1,172 @@
+---
+title: Copilot
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+import { MessageCircle, Package, Zap, Infinity as InfinityIcon, Brain, BrainCircuit } from 'lucide-react'
+
+Copilot is your in-editor assistant that helps you build and edit workflows with Sim Copilot, as well as understand and improve them. It can:
+
+- **Explain**: Answer questions about Sim and your current workflow
+- **Guide**: Suggest edits and best practices
+- **Edit**: Make changes to blocks, connections, and settings when you approve
+
+<Callout type="info">
+  Copilot is a Sim-managed service. For self-hosted deployments, generate a Copilot API key in the hosted app (sim.ai → Settings → Copilot)
+  1. Go to [sim.ai](https://sim.ai) → Settings → Copilot and generate a Copilot API key
+  2. Set `COPILOT_API_KEY` in your self-hosted environment to that value
+</Callout>
+
+## Context Menu (@)
+
+Use the `@` symbol to reference various resources and give Copilot more context about your workspace:
+
+<Image
+  src="/static/copilot/copilot-menu.png"
+  alt="Copilot context menu showing available reference options"
+  width={600}
+  height={400}
+/>
+
+The `@` menu provides access to:
+- **Chats**: Reference previous copilot conversations
+- **All workflows**: Reference any workflow in your workspace
+- **Workflow Blocks**: Reference specific blocks from workflows
+- **Blocks**: Reference block types and templates
+- **Knowledge**: Reference your uploaded documents and knowledgebase
+- **Docs**: Reference Sim documentation
+- **Templates**: Reference workflow templates
+- **Logs**: Reference execution logs and results
+
+This contextual information helps Copilot provide more accurate and relevant assistance for your specific use case.
+
+## Modes
+
+<Cards>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <MessageCircle className="h-4 w-4 text-muted-foreground" />
+        Ask
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">
+      Q&A mode for explanations, guidance, and suggestions without making changes to your workflow.
+    </div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Package className="h-4 w-4 text-muted-foreground" />
+        Agent
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">
+      Build-and-edit mode. Copilot proposes specific edits (add blocks, wire variables, tweak settings) and applies them when you approve.
+    </div>
+  </Card>
+</Cards>
+
+<div className="flex justify-center">
+  <Image
+    src="/static/copilot/copilot-mode.png"
+    alt="Copilot mode selection interface"
+    width={600}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Depth Levels
+
+<Cards>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Zap className="h-4 w-4 text-muted-foreground" />
+        Fast
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">Quickest and cheapest. Best for small edits, simple workflows, and minor tweaks.</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <InfinityIcon className="h-4 w-4 text-muted-foreground" />
+        Auto
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">Balanced speed and reasoning. Recommended default for most tasks.</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Brain className="h-4 w-4 text-muted-foreground" />
+        Advanced
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">More reasoning for larger workflows and complex edits while staying performant.</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <BrainCircuit className="h-4 w-4 text-muted-foreground" />
+        Behemoth
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">Maximum reasoning for deep planning, debugging, and complex architectural changes.</div>
+  </Card>
+</Cards>
+
+### Mode Selection Interface
+
+You can easily switch between different reasoning modes using the mode selector in the Copilot interface:
+
+<Image
+  src="/static/copilot/copilot-models.png"
+  alt="Copilot mode selection showing Advanced mode with MAX toggle"
+  width={600}
+  height={300}
+/>
+
+The interface allows you to:
+- **Select reasoning level**: Choose from Fast, Auto, Advanced, or Behemoth
+- **Enable MAX mode**: Toggle for maximum reasoning capabilities when you need the most thorough analysis
+- **See mode descriptions**: Understand what each mode is optimized for
+
+Choose your mode based on the complexity of your task - use Fast for simple questions and Behemoth for complex architectural changes.
+
+## Billing and Cost Calculation
+
+### How Costs Are Calculated
+
+Copilot usage is billed per token from the underlying LLM:
+
+- **Input tokens**: billed at the provider's base rate (**at-cost**)
+- **Output tokens**: billed at **1.5×** the provider's base output rate
+
+```javascript
+copilotCost = (inputTokens × inputPrice + outputTokens × (outputPrice × 1.5)) / 1,000,000
+```
+
+| Component | Rate Applied         |
+|----------|----------------------|
+| Input    | inputPrice           |
+| Output   | outputPrice × 1.5    |
+
+<Callout type="warning">
+  Pricing shown reflects rates as of September 4, 2025. Check provider documentation for current pricing.
+</Callout>
+
+<Callout type="info">
+  Model prices are per million tokens. The calculation divides by 1,000,000 to get the actual cost. See <a href="/execution/costs">the Cost Calculation page</a> for background and examples.
+</Callout>
+

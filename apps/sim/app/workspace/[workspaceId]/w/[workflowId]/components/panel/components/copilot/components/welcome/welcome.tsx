@@ -1,58 +1,80 @@
 'use client'
 
-import { Bot } from 'lucide-react'
+import { Button } from '@/components/emcn'
 
-interface CopilotWelcomeProps {
+/**
+ * Props for the CopilotWelcome component
+ */
+interface WelcomeProps {
+  /** Callback when a suggested question is clicked */
   onQuestionClick?: (question: string) => void
-  mode?: 'ask' | 'agent'
+  /** Current copilot mode ('ask' for Q&A, 'plan' for planning, 'build' for workflow building) */
+  mode?: 'ask' | 'build' | 'plan'
 }
 
-export function CopilotWelcome({ onQuestionClick, mode = 'ask' }: CopilotWelcomeProps) {
-  const askQuestions = [
-    'How do I create a workflow?',
-    'What tools are available?',
-    'What does my workflow do?',
-  ]
-
-  const agentQuestions = [
-    'Help me build a workflow',
-    'Help me optimize my workflow',
-    'Help me debug my workflow',
-  ]
-
-  const exampleQuestions = mode === 'ask' ? askQuestions : agentQuestions
-
-  const handleQuestionClick = (question: string) => {
-    onQuestionClick?.(question)
-  }
+/**
+ * Welcome screen component for the copilot
+ * Displays suggested questions and capabilities based on current mode
+ *
+ * @param props - Component props
+ * @returns Welcome screen UI
+ */
+export function Welcome({ onQuestionClick, mode = 'ask' }: WelcomeProps) {
+  const capabilities =
+    mode === 'build'
+      ? [
+          {
+            title: 'Build',
+            question: 'Help me build a workflow',
+          },
+          {
+            title: 'Debug',
+            question: 'Help debug my workflow',
+          },
+          {
+            title: 'Optimize',
+            question: 'Create a fast workflow',
+          },
+        ]
+      : [
+          {
+            title: 'Get started',
+            question: 'Help me get started',
+          },
+          {
+            title: 'Discover tools',
+            question: 'What tools are available?',
+          },
+          {
+            title: 'Create workflow',
+            question: 'How do I create a workflow?',
+          },
+        ]
 
   return (
-    <div className='flex h-full flex-col items-center justify-center px-4 py-10'>
-      <div className='space-y-6 text-center'>
-        <Bot className='mx-auto h-12 w-12 text-muted-foreground' />
-        <div className='space-y-2'>
-          <h3 className='font-medium text-lg'>How can I help you today?</h3>
-          <p className='text-muted-foreground text-sm'>
-            {mode === 'ask'
-              ? 'Ask me anything about your workflows, available tools, or how to get started.'
-              : 'I can help you build, edit, and optimize workflows. What would you like to do?'}
-          </p>
-        </div>
-        <div className='mx-auto max-w-sm space-y-3'>
-          <div className='font-medium text-muted-foreground text-xs'>Try asking:</div>
-          <div className='flex flex-wrap justify-center gap-2'>
-            {exampleQuestions.map((question, index) => (
-              <button
-                key={index}
-                className='inline-flex cursor-pointer items-center rounded-full bg-muted/60 px-3 py-1.5 font-medium text-muted-foreground text-xs transition-all hover:scale-105 hover:bg-muted hover:text-foreground active:scale-95'
-                onClick={() => handleQuestionClick(question)}
-              >
-                {question}
-              </button>
-            ))}
-          </div>
-        </div>
+    <div className='flex w-full flex-col items-center'>
+      {/* Unified capability cards */}
+      <div className='flex w-full flex-col items-center gap-[8px]'>
+        {capabilities.map(({ title, question }, idx) => (
+          <Button
+            key={idx}
+            variant='active'
+            onClick={() => onQuestionClick?.(question)}
+            className='w-full justify-start'
+          >
+            <div className='flex flex-col items-start'>
+              <p className='font-medium'>{title}</p>
+              <p className='text-[var(--text-secondary)]'>{question}</p>
+            </div>
+          </Button>
+        ))}
       </div>
+
+      {/* Tips */}
+      <p className='pt-[12px] text-center text-[13px] text-[var(--text-secondary)]'>
+        Tip: Use <span className='font-medium'>@</span> to reference chats, workflows, knowledge,
+        blocks, or templates
+      </p>
     </div>
   )
 }

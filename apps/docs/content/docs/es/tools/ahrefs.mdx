@@ -1,0 +1,200 @@
+---
+title: Ahrefs
+description: Análisis SEO con Ahrefs
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="ahrefs"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Ahrefs](https://ahrefs.com/) es un conjunto de herramientas SEO líder para analizar sitios web, seguir posiciones, monitorear backlinks e investigar palabras clave. Proporciona información detallada sobre tu propio sitio web y el de tus competidores, ayudándote a tomar decisiones basadas en datos para mejorar tu visibilidad en los buscadores.
+
+Con la integración de Ahrefs en Sim, puedes:
+
+- **Analizar Domain Rating y autoridad**: Comprobar instantáneamente el Domain Rating (DR) y el Ahrefs Rank de cualquier sitio web para evaluar su autoridad.
+- **Obtener backlinks**: Recuperar una lista de backlinks que apuntan a un sitio o URL específica, con detalles como texto ancla, DR de la página referente y más.
+- **Obtener estadísticas de backlinks**: Acceder a métricas sobre tipos de backlinks (dofollow, nofollow, texto, imagen, redirección, etc.) para un dominio o URL.
+- **Explorar palabras clave orgánicas** *(planificado)*: Ver las palabras clave por las que un dominio se posiciona y sus posiciones en los resultados de búsqueda de Google.
+- **Descubrir páginas principales** *(planificado)*: Identificar las páginas con mejor rendimiento por tráfico orgánico y enlaces.
+
+Estas herramientas permiten a tus agentes automatizar la investigación SEO, monitorear competidores y generar informes, todo como parte de tus automatizaciones de flujo de trabajo. Para usar la integración de Ahrefs, necesitarás una suscripción Ahrefs Enterprise con acceso a API.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra las herramientas SEO de Ahrefs en tu flujo de trabajo. Analiza calificaciones de dominio, backlinks, palabras clave orgánicas, páginas principales y más. Requiere un plan Ahrefs Enterprise con acceso a API.
+
+## Herramientas
+
+### `ahrefs_domain_rating`
+
+Obtén el Domain Rating (DR) y el Ahrefs Rank para un dominio objetivo. El Domain Rating muestra la fortaleza de un sitio web
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Sí | El dominio objetivo a analizar \(p. ej., example.com\) |
+| `date` | string | No | Fecha para datos históricos en formato AAAA-MM-DD \(por defecto es hoy\) |
+| `apiKey` | string | Sí | Clave API de Ahrefs |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `domainRating` | number | Puntuación de Domain Rating \(0-100\) |
+| `ahrefsRank` | number | Ahrefs Rank - clasificación global basada en la fuerza del perfil de backlinks |
+
+### `ahrefs_backlinks`
+
+Obtener una lista de backlinks que apuntan a un dominio o URL objetivo. Devuelve detalles sobre cada backlink incluyendo URL de origen, texto de anclaje y domain rating.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Sí | El dominio o URL objetivo a analizar |
+| `mode` | string | No | Modo de análisis: domain \(dominio completo\), prefix \(prefijo URL\), subdomains \(incluir todos los subdominios\), exact \(coincidencia exacta de URL\) |
+| `date` | string | No | Fecha para datos históricos en formato AAAA-MM-DD \(por defecto es hoy\) |
+| `limit` | number | No | Número máximo de resultados a devolver \(predeterminado: 100\) |
+| `offset` | number | No | Número de resultados a omitir para paginación |
+| `apiKey` | string | Sí | Clave API de Ahrefs |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `backlinks` | array | Lista de backlinks que apuntan al objetivo |
+
+### `ahrefs_backlinks_stats`
+
+Obtén estadísticas de backlinks para un dominio o URL objetivo. Devuelve totales para diferentes tipos de backlinks incluyendo enlaces dofollow, nofollow, texto, imagen y redirección.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Sí | El dominio o URL objetivo para analizar |
+| `mode` | string | No | Modo de análisis: domain \(dominio completo\), prefix \(prefijo URL\), subdomains \(incluir todos los subdominios\), exact \(coincidencia exacta de URL\) |
+| `date` | string | No | Fecha para datos históricos en formato AAAA-MM-DD \(por defecto es hoy\) |
+| `apiKey` | string | Sí | Clave API de Ahrefs |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `stats` | object | Resumen de estadísticas de backlinks |
+
+### `ahrefs_referring_domains`
+
+Obtén una lista de dominios que enlazan a un dominio o URL objetivo. Devuelve dominios de referencia únicos con su calificación de dominio, recuento de backlinks y fechas de descubrimiento.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Sí | El dominio o URL objetivo para analizar |
+| `mode` | string | No | Modo de análisis: domain \(dominio completo\), prefix \(prefijo URL\), subdomains \(incluir todos los subdominios\), exact \(coincidencia exacta de URL\) |
+| `date` | string | No | Fecha para datos históricos en formato AAAA-MM-DD \(por defecto es hoy\) |
+| `limit` | number | No | Número máximo de resultados a devolver \(predeterminado: 100\) |
+| `offset` | number | No | Número de resultados a omitir para paginación |
+| `apiKey` | string | Sí | Clave API de Ahrefs |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `referringDomains` | array | Lista de dominios que enlazan al objetivo |
+
+### `ahrefs_organic_keywords`
+
+Obtén palabras clave orgánicas por las que un dominio o URL objetivo se posiciona en los resultados de búsqueda de Google. Devuelve detalles de las palabras clave, incluyendo volumen de búsqueda, posición en el ranking y tráfico estimado.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `target` | string | Sí | El dominio o URL objetivo a analizar |
+| `country` | string | No | Código de país para los resultados de búsqueda \(p. ej., us, gb, de\). Predeterminado: us |
+| `mode` | string | No | Modo de análisis: domain \(dominio completo\), prefix \(prefijo de URL\), subdomains \(incluir todos los subdominios\), exact \(coincidencia exacta de URL\) |
+| `date` | string | No | Fecha para datos históricos en formato AAAA-MM-DD \(por defecto: hoy\) |
+| `limit` | number | No | Número máximo de resultados a devolver \(predeterminado: 100\) |
+| `offset` | number | No | Número de resultados a omitir para la paginación |
+| `apiKey` | string | Sí | Clave API de Ahrefs |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `keywords` | array | Lista de palabras clave orgánicas por las que se posiciona el objetivo |
+
+### `ahrefs_top_pages`
+
+Obtén las páginas principales de un dominio objetivo ordenadas por tráfico orgánico. Devuelve URLs de páginas con su tráfico, recuento de palabras clave y valor estimado del tráfico.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `target` | string | Sí | El dominio objetivo a analizar |
+| `country` | string | No | Código de país para datos de tráfico \(p. ej., us, gb, de\). Predeterminado: us |
+| `mode` | string | No | Modo de análisis: domain \(dominio completo\), prefix \(prefijo URL\), subdomains \(incluir todos los subdominios\) |
+| `date` | string | No | Fecha para datos históricos en formato AAAA-MM-DD \(por defecto es hoy\) |
+| `limit` | number | No | Número máximo de resultados a devolver \(predeterminado: 100\) |
+| `offset` | number | No | Número de resultados a omitir para paginación |
+| `select` | string | No | Lista separada por comas de campos a devolver \(p. ej., url,traffic,keywords,top_keyword,value\). Predeterminado: url,traffic,keywords,top_keyword,value |
+| `apiKey` | string | Sí | Clave API de Ahrefs |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `pages` | array | Lista de páginas principales por tráfico orgánico |
+
+### `ahrefs_keyword_overview`
+
+Obtener métricas detalladas para una palabra clave incluyendo volumen de búsqueda, dificultad de la palabra clave, CPC, clics y potencial de tráfico.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `keyword` | string | Sí | La palabra clave a analizar |
+| `country` | string | No | Código de país para datos de palabras clave \(p. ej., us, gb, de\). Predeterminado: us |
+| `apiKey` | string | Sí | Clave API de Ahrefs |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `overview` | object | Resumen de métricas de palabra clave |
+
+### `ahrefs_broken_backlinks`
+
+Obtén una lista de backlinks rotos que apuntan a un dominio o URL objetivo. Útil para identificar oportunidades de recuperación de enlaces.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `target` | string | Sí | El dominio o URL objetivo para analizar |
+| `mode` | string | No | Modo de análisis: domain \(dominio completo\), prefix \(prefijo de URL\), subdomains \(incluir todos los subdominios\), exact \(coincidencia exacta de URL\) |
+| `date` | string | No | Fecha para datos históricos en formato AAAA-MM-DD \(por defecto: hoy\) |
+| `limit` | number | No | Número máximo de resultados a devolver \(predeterminado: 100\) |
+| `offset` | number | No | Número de resultados a omitir para paginación |
+| `apiKey` | string | Sí | Clave API de Ahrefs |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `brokenBacklinks` | array | Lista de backlinks rotos |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `ahrefs`

@@ -1,5 +1,8 @@
+import { createLogger } from '@/lib/logs/console/logger'
 import type { LatestCommitParams, LatestCommitResponse } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('GitHubLatestCommitTool')
 
 export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitResponse> = {
   id: 'github_latest_commit',
@@ -50,14 +53,11 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
   transformResponse: async (response, params) => {
     const data = await response.json()
 
-    // Create a human-readable content string
     const content = `Latest commit: "${data.commit.message}" by ${data.commit.author.name} on ${data.commit.author.date}. SHA: ${data.sha}`
 
-    // Initialize files array and add file information
     const files = data.files || []
     const fileDetailsWithContent = []
 
-    // Fetch raw content for each file if includeFileContent is true
     if (files.length > 0) {
       for (const file of files) {
         const fileDetail = {
@@ -72,10 +72,8 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
           content: undefined as string | undefined,
         }
 
-        // Only try to fetch content for files that are not too large and not deleted
         if (file.status !== 'removed' && file.raw_url) {
           try {
-            // Fetch the raw file content
             const contentResponse = await fetch(file.raw_url, {
               headers: {
                 Authorization: `Bearer ${params?.apiKey}`,
@@ -87,7 +85,7 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
               fileDetail.content = await contentResponse.text()
             }
           } catch (error) {
-            console.error(`Failed to fetch content for ${file.filename}:`, error)
+            logger.error(`Failed to fetch content for ${file.filename}:`, error)
           }
         }
 

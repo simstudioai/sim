@@ -9,7 +9,10 @@ export type ProviderId =
   | 'xai'
   | 'cerebras'
   | 'groq'
+  | 'mistral'
   | 'ollama'
+  | 'openrouter'
+  | 'vllm'
 
 /**
  * Model pricing information per million tokens
@@ -147,11 +150,15 @@ export interface ProviderRequest {
   }
   local_execution?: boolean
   workflowId?: string // Optional workflow ID for authentication context
+  workspaceId?: string // Optional workspace ID for MCP tool scoping
   chatId?: string // Optional chat ID for checkpoint context
   userId?: string // Optional user ID for tool execution context
   stream?: boolean
   streamToolCalls?: boolean // Whether to stream tool call responses back to user (default: false)
   environmentVariables?: Record<string, string> // Environment variables for tool execution
+  workflowVariables?: Record<string, any> // Workflow variables for <variable.name> resolution
+  blockData?: Record<string, any> // Runtime block outputs for <block.field> resolution in custom tools
+  blockNameMapping?: Record<string, string> // Mapping of block names to IDs for resolution
   isCopilotRequest?: boolean // Flag to indicate this request is from the copilot system
   // Azure OpenAI specific parameters
   azureEndpoint?: string

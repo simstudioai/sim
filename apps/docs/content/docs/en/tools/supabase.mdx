@@ -1,0 +1,491 @@
+---
+title: Supabase
+description: Use Supabase database
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="supabase"
+  color="#1C1C1C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Supabase](https://www.supabase.com/) is a powerful open-source backend-as-a-service platform that provides developers with a suite of tools to build, scale, and manage modern applications. Supabase offers a fully managed [PostgreSQL](https://www.postgresql.org/) database, robust authentication, instant RESTful and GraphQL APIs, real-time subscriptions, file storage, and edge functions—all accessible through a unified and developer-friendly interface. Its open-source nature and compatibility with popular frameworks make it a compelling alternative to Firebase, with the added benefit of SQL flexibility and transparency.
+
+**Why Supabase?**
+- **Instant APIs:** Every table and view in your database is instantly available via REST and GraphQL endpoints, making it easy to build data-driven applications without writing custom backend code.
+- **Real-time Data:** Supabase enables real-time subscriptions, allowing your apps to react instantly to changes in your database.
+- **Authentication & Authorization:** Built-in user management with support for email, OAuth, SSO, and more, plus row-level security for granular access control.
+- **Storage:** Securely upload, serve, and manage files with built-in storage that integrates seamlessly with your database.
+- **Edge Functions:** Deploy serverless functions close to your users for low-latency custom logic.
+
+**Using Supabase in Sim**
+
+Sim’s Supabase integration makes it effortless to connect your agentic workflows to your Supabase projects. With just a few configuration fields—your Project ID, Table name, and Service Role Secret—you can securely interact with your database directly from your Sim blocks. The integration abstracts away the complexity of API calls, letting you focus on building logic and automations.
+
+**Key benefits of using Supabase in Sim:**
+- **No-code/low-code database operations:** Query, insert, update, and delete rows in your Supabase tables without writing SQL or backend code.
+- **Flexible querying:** Use [PostgREST filter syntax](https://postgrest.org/en/stable/api.html#operators) to perform advanced queries, including filtering, ordering, and limiting results.
+- **Seamless integration:** Easily connect Supabase to other tools and services in your workflow, enabling powerful automations such as syncing data, triggering notifications, or enriching records.
+- **Secure and scalable:** All operations use your Supabase Service Role Secret, ensuring secure access to your data with the scalability of a managed cloud platform.
+
+Whether you’re building internal tools, automating business processes, or powering production applications, Supabase in Sim provides a fast, reliable, and developer-friendly way to manage your data and backend logic—no infrastructure management required. Simply configure your block, select the operation you need, and let Sim handle the rest.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Supabase into the workflow. Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).
+
+
+
+## Tools
+
+### `supabase_query`
+
+Query data from a Supabase table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `table` | string | Yes | The name of the Supabase table to query |
+| `filter` | string | No | PostgREST filter \(e.g., "id=eq.123"\) |
+| `orderBy` | string | No | Column to order by \(add DESC for descending\) |
+| `limit` | number | No | Maximum number of rows to return |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | array | Array of records returned from the query |
+
+### `supabase_insert`
+
+Insert data into a Supabase table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `table` | string | Yes | The name of the Supabase table to insert data into |
+| `data` | array | Yes | The data to insert \(array of objects or a single object\) |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | array | Array of inserted records |
+
+### `supabase_get_row`
+
+Get a single row from a Supabase table based on filter criteria
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `table` | string | Yes | The name of the Supabase table to query |
+| `filter` | string | Yes | PostgREST filter to find the specific row \(e.g., "id=eq.123"\) |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | array | Array containing the row data if found, empty array if not found |
+
+### `supabase_update`
+
+Update rows in a Supabase table based on filter criteria
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `table` | string | Yes | The name of the Supabase table to update |
+| `filter` | string | Yes | PostgREST filter to identify rows to update \(e.g., "id=eq.123"\) |
+| `data` | object | Yes | Data to update in the matching rows |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | array | Array of updated records |
+
+### `supabase_delete`
+
+Delete rows from a Supabase table based on filter criteria
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `table` | string | Yes | The name of the Supabase table to delete from |
+| `filter` | string | Yes | PostgREST filter to identify rows to delete \(e.g., "id=eq.123"\) |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | array | Array of deleted records |
+
+### `supabase_upsert`
+
+Insert or update data in a Supabase table (upsert operation)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `table` | string | Yes | The name of the Supabase table to upsert data into |
+| `data` | array | Yes | The data to upsert \(insert or update\) - array of objects or a single object |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | array | Array of upserted records |
+
+### `supabase_count`
+
+Count rows in a Supabase table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `table` | string | Yes | The name of the Supabase table to count rows from |
+| `filter` | string | No | PostgREST filter \(e.g., "status=eq.active"\) |
+| `countType` | string | No | Count type: exact, planned, or estimated \(default: exact\) |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `count` | number | Number of rows matching the filter |
+
+### `supabase_text_search`
+
+Perform full-text search on a Supabase table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `table` | string | Yes | The name of the Supabase table to search |
+| `column` | string | Yes | The column to search in |
+| `query` | string | Yes | The search query |
+| `searchType` | string | No | Search type: plain, phrase, or websearch \(default: websearch\) |
+| `language` | string | No | Language for text search configuration \(default: english\) |
+| `limit` | number | No | Maximum number of rows to return |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | array | Array of records matching the search query |
+
+### `supabase_vector_search`
+
+Perform similarity search using pgvector in a Supabase table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `functionName` | string | Yes | The name of the PostgreSQL function that performs vector search \(e.g., match_documents\) |
+| `queryEmbedding` | array | Yes | The query vector/embedding to search for similar items |
+| `matchThreshold` | number | No | Minimum similarity threshold \(0-1\), typically 0.7-0.9 |
+| `matchCount` | number | No | Maximum number of results to return \(default: 10\) |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | array | Array of records with similarity scores from the vector search. Each record includes a similarity field \(0-1\) indicating how similar it is to the query vector. |
+
+### `supabase_rpc`
+
+Call a PostgreSQL function in Supabase
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `functionName` | string | Yes | The name of the PostgreSQL function to call |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | json | Result returned from the function |
+
+### `supabase_storage_upload`
+
+Upload a file to a Supabase storage bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Yes | The name of the storage bucket |
+| `path` | string | Yes | The path where the file will be stored \(e.g., "folder/file.jpg"\) |
+| `fileContent` | string | Yes | The file content \(base64 encoded for binary files, or plain text\) |
+| `contentType` | string | No | MIME type of the file \(e.g., "image/jpeg", "text/plain"\) |
+| `upsert` | boolean | No | If true, overwrites existing file \(default: false\) |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | object | Upload result including file path and metadata |
+
+### `supabase_storage_download`
+
+Download a file from a Supabase storage bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Yes | The name of the storage bucket |
+| `path` | string | Yes | The path to the file to download \(e.g., "folder/file.jpg"\) |
+| `fileName` | string | No | Optional filename override |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in execution files |
+
+### `supabase_storage_list`
+
+List files in a Supabase storage bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Yes | The name of the storage bucket |
+| `path` | string | No | The folder path to list files from \(default: root\) |
+| `limit` | number | No | Maximum number of files to return \(default: 100\) |
+| `offset` | number | No | Number of files to skip \(for pagination\) |
+| `sortBy` | string | No | Column to sort by: name, created_at, updated_at \(default: name\) |
+| `sortOrder` | string | No | Sort order: asc or desc \(default: asc\) |
+| `search` | string | No | Search term to filter files by name |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | array | Array of file objects with metadata |
+
+### `supabase_storage_delete`
+
+Delete files from a Supabase storage bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Yes | The name of the storage bucket |
+| `paths` | array | Yes | Array of file paths to delete \(e.g., \["folder/file1.jpg", "folder/file2.jpg"\]\) |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | array | Array of deleted file objects |
+
+### `supabase_storage_move`
+
+Move a file within a Supabase storage bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Yes | The name of the storage bucket |
+| `fromPath` | string | Yes | The current path of the file \(e.g., "folder/old.jpg"\) |
+| `toPath` | string | Yes | The new path for the file \(e.g., "newfolder/new.jpg"\) |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | object | Move operation result |
+
+### `supabase_storage_copy`
+
+Copy a file within a Supabase storage bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Yes | The name of the storage bucket |
+| `fromPath` | string | Yes | The path of the source file \(e.g., "folder/source.jpg"\) |
+| `toPath` | string | Yes | The path for the copied file \(e.g., "folder/copy.jpg"\) |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | object | Copy operation result |
+
+### `supabase_storage_create_bucket`
+
+Create a new storage bucket in Supabase
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Yes | The name of the bucket to create |
+| `isPublic` | boolean | No | Whether the bucket should be publicly accessible \(default: false\) |
+| `fileSizeLimit` | number | No | Maximum file size in bytes \(optional\) |
+| `allowedMimeTypes` | array | No | Array of allowed MIME types \(e.g., \["image/png", "image/jpeg"\]\) |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | object | Created bucket information |
+
+### `supabase_storage_list_buckets`
+
+List all storage buckets in Supabase
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | array | Array of bucket objects |
+
+### `supabase_storage_delete_bucket`
+
+Delete a storage bucket in Supabase
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Yes | The name of the bucket to delete |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | object | Delete operation result |
+
+### `supabase_storage_get_public_url`
+
+Get the public URL for a file in a Supabase storage bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Yes | The name of the storage bucket |
+| `path` | string | Yes | The path to the file \(e.g., "folder/file.jpg"\) |
+| `download` | boolean | No | If true, forces download instead of inline display \(default: false\) |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `publicUrl` | string | The public URL to access the file |
+
+### `supabase_storage_create_signed_url`
+
+Create a temporary signed URL for a file in a Supabase storage bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Yes | The name of the storage bucket |
+| `path` | string | Yes | The path to the file \(e.g., "folder/file.jpg"\) |
+| `expiresIn` | number | Yes | Number of seconds until the URL expires \(e.g., 3600 for 1 hour\) |
+| `download` | boolean | No | If true, forces download instead of inline display \(default: false\) |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `signedUrl` | string | The temporary signed URL to access the file |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `supabase`

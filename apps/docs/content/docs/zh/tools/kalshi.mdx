@@ -1,0 +1,393 @@
+---
+title: Kalshi
+description: 访问预测市场并在 Kalshi 上进行交易
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="kalshi"
+  color="#09C285"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Kalshi](https://kalshi.com) 是一个联邦监管的交易所，用户可以直接交易未来事件结果的预测市场。Kalshi 强大的 API 和 Sim 集成使代理和工作流能够以编程方式访问平台的各个方面，支持从研究和分析到自动化交易和监控的所有内容。
+
+通过 Kalshi 在 Sim 中的集成，您可以：
+
+- **市场和事件数据：** 搜索、筛选并检索市场和事件的实时和历史数据；获取市场状态、系列、事件分组等的详细信息。
+- **账户和余额管理：** 访问账户余额、可用资金，并监控实时未平仓头寸。
+- **订单和交易管理：** 下新订单、取消现有订单、查看未完成订单、检索实时订单簿，并访问完整的交易历史。
+- **执行分析：** 获取最近的交易、历史成交和 K 线数据，用于回测或市场结构研究。
+- **监控：** 检查全交易所或系列级别的状态，接收有关市场变化或交易暂停的实时更新，并自动化响应。
+- **自动化准备：** 构建端到端的自动化代理和仪表板，消费、分析并交易基于真实世界事件概率的数据。
+
+通过使用这些统一的工具和端点，您可以将 Kalshi 的预测市场、实时交易功能和深度事件数据无缝集成到您的 AI 驱动应用程序、仪表板和工作流中，从而实现与真实世界结果相关的复杂自动化决策。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Kalshi 预测市场集成到工作流程中。可以获取市场、单个市场、事件、单个事件、余额、头寸、订单、订单簿、交易、K线图、成交、系列、交易所状态，并进行下单/取消/修改交易。
+
+## 工具
+
+### `kalshi_get_markets`
+
+从 Kalshi 检索预测市场列表，并可选择进行筛选
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `status` | string | 否 | 按状态筛选 \(未开放、开放、关闭、已结算\) |
+| `seriesTicker` | string | 否 | 按系列代码筛选 |
+| `eventTicker` | string | 否 | 按事件代码筛选 |
+| `limit` | string | 否 | 结果数量 \(1-1000，默认值：100\) |
+| `cursor` | string | 否 | 下一页的分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 市场数据和元数据 |
+
+### `kalshi_get_market`
+
+通过代码检索特定预测市场的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `ticker` | string | 是 | 市场代码 \(例如："KXBTC-24DEC31"\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 市场数据和元数据 |
+
+### `kalshi_get_events`
+
+从 Kalshi 检索事件列表，并可选择进行筛选
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `status` | string | 否 | 按状态筛选 \(开放、关闭、已结算\) |
+| `seriesTicker` | string | 否 | 按系列代码筛选 |
+| `withNestedMarkets` | string | 否 | 在响应中包含嵌套市场 \(true/false\) |
+| `limit` | string | 否 | 结果数量 \(1-200，默认值：200\) |
+| `cursor` | string | 否 | 下一页的分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 事件数据和元数据 |
+
+### `kalshi_get_event`
+
+通过代码检索特定事件的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `eventTicker` | string | 是 | 事件代码 |
+| `withNestedMarkets` | string | 否 | 在响应中包含嵌套市场 \(true/false\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 事件数据和元数据 |
+
+### `kalshi_get_balance`
+
+从 Kalshi 检索您的账户余额和投资组合价值
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | 是 | 您的 Kalshi API 密钥 ID |
+| `privateKey` | string | 是 | 您的 RSA 私钥 \(PEM 格式\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 余额数据和元数据 |
+
+### `kalshi_get_positions`
+
+从 Kalshi 检索您的未平仓头寸
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | 是 | 您的 Kalshi API 密钥 ID |
+| `privateKey` | string | 是 | 您的 RSA 私钥 \(PEM 格式\) |
+| `ticker` | string | 否 | 按市场代码筛选 |
+| `eventTicker` | string | 否 | 按事件代码筛选 \(最多 10 个逗号分隔\) |
+| `settlementStatus` | string | 否 | 按结算状态筛选 \(all, unsettled, settled\)。默认值：unsettled |
+| `limit` | string | 否 | 结果数量 \(1-1000，默认值：100\) |
+| `cursor` | string | 否 | 下一页的分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 位置数据和元数据 |
+
+### `kalshi_get_orders`
+
+通过可选过滤从 Kalshi 检索您的订单
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | 是 | 您的 Kalshi API 密钥 ID |
+| `privateKey` | string | 是 | 您的 RSA 私钥 \(PEM 格式\) |
+| `ticker` | string | 否 | 按市场代码过滤 |
+| `eventTicker` | string | 否 | 按事件代码过滤 \(最多 10 个逗号分隔\) |
+| `status` | string | 否 | 按状态过滤 \(resting, canceled, executed\) |
+| `limit` | string | 否 | 结果数量 \(1-200，默认值：100\) |
+| `cursor` | string | 否 | 下一页的分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 订单数据和元数据 |
+
+### `kalshi_get_order`
+
+通过 ID 从 Kalshi 检索特定订单的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | 是 | 您的 Kalshi API 密钥 ID |
+| `privateKey` | string | 是 | 您的 RSA 私钥 \(PEM 格式\) |
+| `orderId` | string | 是 | 要检索的订单 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 订单数据 |
+
+### `kalshi_get_orderbook`
+
+检索特定市场的订单簿（买入和卖出报价）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `ticker` | string | 是 | 市场代码 \(例如：KXBTC-24DEC31\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 订单簿数据和元数据 |
+
+### `kalshi_get_trades`
+
+检索所有市场的最近交易
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | 否 | 结果数量 \(1-1000，默认值：100\) |
+| `cursor` | string | 否 | 下一页的分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 交易数据和元数据 |
+
+### `kalshi_get_candlesticks`
+
+检索特定市场的 OHLC 蜡烛图数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `seriesTicker` | string | 是 | 系列代码 |
+| `ticker` | string | 是 | 市场代码 \(例如：KXBTC-24DEC31\) |
+| `startTs` | number | 是 | 开始时间戳 \(Unix 秒\) |
+| `endTs` | number | 是 | 结束时间戳 \(Unix 秒\) |
+| `periodInterval` | number | 是 | 时间间隔：1 \(1分钟\), 60 \(1小时\), 或 1440 \(1天\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 蜡烛图数据和元数据 |
+
+### `kalshi_get_fills`
+
+检索您的投资组合
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | 是 | 您的 Kalshi API 密钥 ID |
+| `privateKey` | string | 是 | 您的 RSA 私钥 \(PEM 格式\) |
+| `ticker` | string | 否 | 按市场代码过滤 |
+| `orderId` | string | 否 | 按订单 ID 过滤 |
+| `minTs` | number | 否 | 最小时间戳 \(Unix 毫秒\) |
+| `maxTs` | number | 否 | 最大时间戳 \(Unix 毫秒\) |
+| `limit` | string | 否 | 结果数量 \(1-1000，默认值：100\) |
+| `cursor` | string | 否 | 下一页的分页游标 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 填充数据和元数据 |
+
+### `kalshi_get_series_by_ticker`
+
+通过代码检索特定市场系列的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `seriesTicker` | string | 是 | 系列代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 系列数据和元数据 |
+
+### `kalshi_get_exchange_status`
+
+检索 Kalshi 交易所的当前状态（交易和交易所活动）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 交易所状态数据和元数据 |
+
+### `kalshi_create_order`
+
+在 Kalshi 预测市场创建新订单
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | 是 | 您的 Kalshi API 密钥 ID |
+| `privateKey` | string | 是 | 您的 RSA 私钥（PEM 格式）|
+| `ticker` | string | 是 | 市场代码 \(例如：KXBTC-24DEC31\) |
+| `side` | string | 是 | 订单方向：'yes' 或 'no' |
+| `action` | string | 是 | 操作类型：'buy' 或 'sell' |
+| `count` | string | 是 | 合约数量（最少 1）|
+| `type` | string | 否 | 订单类型：'limit' 或 'market'（默认：limit）|
+| `yesPrice` | string | 否 | Yes 价格（以美分为单位，1-99）|
+| `noPrice` | string | 否 | No 价格（以美分为单位，1-99）|
+| `yesPriceDollars` | string | 否 | Yes 价格（以美元为单位，例如："0.56"）|
+| `noPriceDollars` | string | 否 | No 价格（以美元为单位，例如："0.56"）|
+| `clientOrderId` | string | 否 | 自定义订单标识符 |
+| `expirationTs` | string | 否 | 订单过期的 Unix 时间戳 |
+| `timeInForce` | string | 否 | 有效时间：'fill_or_kill'，'good_till_canceled'，'immediate_or_cancel' |
+| `buyMaxCost` | string | 否 | 最大成本（以美分为单位，自动启用 fill_or_kill）|
+| `postOnly` | string | 否 | 设置为 'true' 以仅限做市订单 |
+| `reduceOnly` | string | 否 | 设置为 'true' 以仅限减少头寸 |
+| `selfTradePreventionType` | string | 否 | 自交易预防：'taker_at_cross' 或 'maker' |
+| `orderGroupId` | string | 否 | 关联的订单组 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 创建的订单数据 |
+
+### `kalshi_cancel_order`
+
+取消 Kalshi 上的现有订单
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | 是 | 您的 Kalshi API 密钥 ID |
+| `privateKey` | string | 是 | 您的 RSA 私钥 \(PEM 格式\) |
+| `orderId` | string | 是 | 要取消的订单 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 已取消的订单数据 |
+
+### `kalshi_amend_order`
+
+修改 Kalshi 上现有订单的价格或数量
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | 是 | 您的 Kalshi API 密钥 ID |
+| `privateKey` | string | 是 | 您的 RSA 私钥 \(PEM 格式\) |
+| `orderId` | string | 是 | 要修改的订单 ID |
+| `ticker` | string | 是 | 市场代码 |
+| `side` | string | 是 | 订单方向：'yes' 或 'no' |
+| `action` | string | 是 | 操作类型：'buy' 或 'sell' |
+| `clientOrderId` | string | 是 | 原始客户指定的订单 ID |
+| `updatedClientOrderId` | string | 是 | 修改后的客户指定订单 ID |
+| `count` | string | 否 | 更新后的订单数量 |
+| `yesPrice` | string | 否 | 更新后的 yes 价格（以分为单位 \(1-99\)） |
+| `noPrice` | string | 否 | 更新后的 no 价格（以分为单位 \(1-99\)） |
+| `yesPriceDollars` | string | 否 | 更新后的 yes 价格（以美元为单位 \(例如，"0.56"\)） |
+| `noPriceDollars` | string | 否 | 更新后的 no 价格（以美元为单位 \(例如，"0.56"\)） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 修改后的订单数据 |
+
+## 注意
+
+- 类别：`tools`
+- 类型：`kalshi`

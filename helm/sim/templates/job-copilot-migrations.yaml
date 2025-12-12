@@ -1,0 +1,83 @@
+{{- if and .Values.copilot.enabled .Values.copilot.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "sim.fullname" . }}-copilot-migrations
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: copilot-migrations
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: {{ .Values.copilot.migrations.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "sim.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: copilot-migrations
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      restartPolicy: {{ .Values.copilot.migrations.restartPolicy }}
+      {{- with .Values.copilot.migrations.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.copilot.server.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.copilot.postgresql.enabled }}
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16-alpine
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until pg_isready -h {{ include "sim.fullname" . }}-copilot-postgresql -p {{ .Values.copilot.postgresql.service.port }} -U {{ .Values.copilot.postgresql.auth.username }}; do
+                echo "Waiting for Copilot PostgreSQL to be ready..."
+                sleep 2
+              done
+              echo "Copilot PostgreSQL is ready!"
+          envFrom:
+            - secretRef:
+                name: {{ include "sim.fullname" . }}-copilot-postgresql-secret
+          {{- with .Values.copilot.migrations.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- end }}
+      containers:
+        - name: migrations
+          image: {{ include "sim.image" (dict "context" . "image" .Values.copilot.migrations.image) }}
+          imagePullPolicy: {{ .Values.copilot.migrations.image.pullPolicy }}
+          command: ["/usr/local/bin/migrate"]
+          envFrom:
+            - secretRef:
+                name: {{ include "sim.copilot.envSecretName" . }}
+            - secretRef:
+                name: {{ include "sim.copilot.databaseSecretName" . }}
+            {{- with .Values.copilot.server.extraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.copilot.server.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.copilot.migrations.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.copilot.migrations.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}
+

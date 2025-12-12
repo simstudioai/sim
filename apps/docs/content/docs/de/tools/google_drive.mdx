@@ -1,0 +1,126 @@
+---
+title: Google Drive
+description: Dateien erstellen, hochladen und auflisten
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_drive"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Drive](https://drive.google.com) ist Googles Cloud-Speicher- und Dateisynchronisierungsdienst, der es Benutzern ermöglicht, Dateien zu speichern, Dateien über verschiedene Geräte zu synchronisieren und Dateien mit anderen zu teilen. Als Kernkomponente des Produktivitätsökosystems von Google bietet Google Drive robuste Speicher-, Organisations- und Kollaborationsfunktionen.
+
+Erfahren Sie, wie Sie das Google Drive-Tool in Sim integrieren, um mühelos Informationen aus Ihrem Drive durch Ihre Workflows abzurufen. Dieses Tutorial führt Sie durch die Verbindung mit Google Drive, die Einrichtung des Datenabrufs und die Verwendung gespeicherter Dokumente und Dateien zur Verbesserung der Automatisierung. Perfekt für die Synchronisierung wichtiger Daten mit Ihren Agenten in Echtzeit.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/cRoRr4b-EAs"
+  title="Use the Google Drive tool in Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Mit Google Drive können Sie:
+
+- **Dateien in der Cloud speichern**: Laden Sie Ihre Dateien hoch und greifen Sie von überall mit Internetzugang darauf zu
+- **Inhalte organisieren**: Erstellen Sie Ordner, verwenden Sie Farbcodierung und implementieren Sie Namenskonventionen
+- **Teilen und zusammenarbeiten**: Steuern Sie Zugriffsberechtigungen und arbeiten Sie gleichzeitig an Dateien
+- **Effizient suchen**: Finden Sie Dateien schnell mit Googles leistungsstarker Suchtechnologie
+- **Zugriff über verschiedene Geräte**: Nutzen Sie Google Drive auf Desktop-, Mobil- und Webplattformen
+- **Integration mit anderen Diensten**: Verbinden Sie sich mit Google Docs, Sheets, Slides und Anwendungen von Drittanbietern
+
+In Sim ermöglicht die Google Drive-Integration Ihren Agenten, direkt und programmatisch mit Ihrem Cloud-Speicher zu interagieren. Dies erlaubt leistungsstarke Automatisierungsszenarien wie Dateiverwaltung, Inhaltsorganisation und Dokumenten-Workflows. Ihre Agenten können neue Dateien in bestimmte Ordner hochladen, bestehende Dateien herunterladen, um deren Inhalte zu verarbeiten, und Ordnerinhalte auflisten, um durch Ihre Speicherstruktur zu navigieren. Diese Integration überbrückt die Lücke zwischen Ihren KI-Workflows und Ihrem Dokumentenverwaltungssystem und ermöglicht nahtlose Dateioperationen ohne manuelle Eingriffe. Durch die Verbindung von Sim mit Google Drive können Sie dateibasierte Workflows automatisieren, Dokumente intelligent verwalten und Cloud-Speicheroperationen in die Fähigkeiten Ihres Agenten integrieren.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Integrieren Sie Google Drive in den Workflow. Kann Dateien erstellen, hochladen und auflisten. Erfordert OAuth.
+
+## Tools
+
+### `google_drive_upload`
+
+Eine Datei zu Google Drive hochladen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `fileName` | string | Ja | Der Name der hochzuladenden Datei |
+| `file` | file | Nein | Binärdatei zum Hochladen (UserFile-Objekt) |
+| `content` | string | Nein | Textinhalt zum Hochladen (verwenden Sie entweder diesen ODER file, nicht beides) |
+| `mimeType` | string | Nein | Der MIME-Typ der hochzuladenden Datei (wird automatisch aus der Datei erkannt, wenn nicht angegeben) |
+| `folderSelector` | string | Nein | Wählen Sie den Ordner aus, in den die Datei hochgeladen werden soll |
+| `folderId` | string | Nein | Die ID des Ordners, in den die Datei hochgeladen werden soll (interne Verwendung) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `file` | json | Metadaten der hochgeladenen Datei einschließlich ID, Name und Links |
+
+### `google_drive_create_folder`
+
+Einen neuen Ordner in Google Drive erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `fileName` | string | Ja | Name des zu erstellenden Ordners |
+| `folderSelector` | string | Nein | Wählen Sie den übergeordneten Ordner aus, in dem der Ordner erstellt werden soll |
+| `folderId` | string | Nein | ID des übergeordneten Ordners \(interne Verwendung\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `file` | json | Metadaten des erstellten Ordners einschließlich ID, Name und Informationen zum übergeordneten Ordner |
+
+### `google_drive_download`
+
+Eine Datei von Google Drive herunterladen (exportiert Google Workspace-Dateien automatisch)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Ja | Die ID der herunterzuladenden Datei |
+| `mimeType` | string | Nein | Der MIME-Typ, in den Google Workspace-Dateien exportiert werden sollen (optional) |
+| `fileName` | string | Nein | Optionale Überschreibung des Dateinamens |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `file` | file | Heruntergeladene Datei, die in den Ausführungsdateien gespeichert ist |
+
+### `google_drive_list`
+
+Dateien und Ordner in Google Drive auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `folderSelector` | string | Nein | Wählen Sie den Ordner aus, aus dem Dateien aufgelistet werden sollen |
+| `folderId` | string | Nein | Die ID des Ordners, aus dem Dateien aufgelistet werden sollen (interne Verwendung) |
+| `query` | string | Nein | Suchbegriff, um Dateien nach Namen zu filtern (z.B. "budget" findet Dateien mit "budget" im Namen). Verwenden Sie hier KEINE Google Drive-Abfragesyntax - geben Sie einfach einen einfachen Suchbegriff ein. |
+| `pageSize` | number | Nein | Die maximale Anzahl der zurückzugebenden Dateien (Standard: 100) |
+| `pageToken` | string | Nein | Das Seitentoken für die Paginierung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `files` | json | Array von Metadatenobjekten der Dateien aus dem angegebenen Ordner |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `google_drive`

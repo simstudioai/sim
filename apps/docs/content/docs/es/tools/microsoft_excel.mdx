@@ -1,0 +1,114 @@
+---
+title: Microsoft Excel
+description: Leer, escribir y actualizar datos
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="microsoft_excel"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Microsoft Teams](https://www.microsoft.com/en-us/microsoft-365/excel) es una potente aplicación de hojas de cálculo que permite la gestión, análisis y visualización de datos. A través de la integración de Microsoft Excel en Sim, puedes leer, escribir y manipular datos de hojas de cálculo de forma programática para satisfacer tus necesidades de automatización de flujos de trabajo.
+
+Con la integración de Microsoft Excel, puedes:
+
+- **Leer datos de hojas de cálculo**: Acceder a datos de rangos, hojas y celdas específicas
+- **Escribir y actualizar datos**: Añadir nuevos datos o modificar contenido existente en hojas de cálculo
+- **Gestionar tablas**: Crear y manipular estructuras de datos tabulares
+- **Manejar múltiples hojas**: Trabajar con varias hojas de trabajo en un libro
+- **Procesar datos**: Importar, exportar y transformar datos de hojas de cálculo
+
+En Sim, la integración de Microsoft Excel proporciona acceso fluido a la funcionalidad de hojas de cálculo mediante autenticación OAuth. Puedes leer datos de rangos específicos, escribir nueva información, actualizar celdas existentes y manejar varios formatos de datos. La integración admite operaciones tanto de lectura como de escritura con opciones flexibles de entrada y salida. Esto te permite crear flujos de trabajo que pueden gestionar eficazmente datos de hojas de cálculo, ya sea extrayendo información para análisis, actualizando registros automáticamente o manteniendo la consistencia de datos en todas tus aplicaciones.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Microsoft Excel en el flujo de trabajo. Puede leer, escribir, actualizar, añadir a tablas y crear nuevas hojas de cálculo.
+
+## Herramientas
+
+### `microsoft_excel_read`
+
+Leer datos de una hoja de cálculo de Microsoft Excel
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Sí | El ID de la hoja de cálculo de la que leer |
+| `range` | string | No | El rango de celdas del que leer. Acepta "NombreHoja!A1:B2" para rangos explícitos o simplemente "NombreHoja" para leer el rango utilizado de esa hoja. Si se omite, lee el rango utilizado de la primera hoja. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `data` | object | Datos del rango de la hoja de cálculo |
+
+### `microsoft_excel_write`
+
+Escribir datos en una hoja de cálculo de Microsoft Excel
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Sí | El ID de la hoja de cálculo en la que escribir |
+| `range` | string | No | El rango de celdas en el que escribir |
+| `values` | array | Sí | Los datos a escribir en la hoja de cálculo |
+| `valueInputOption` | string | No | El formato de los datos a escribir |
+| `includeValuesInResponse` | boolean | No | Si se deben incluir los valores escritos en la respuesta |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `updatedRange` | string | El rango que fue actualizado |
+| `updatedRows` | number | Número de filas que fueron actualizadas |
+| `updatedColumns` | number | Número de columnas que fueron actualizadas |
+| `updatedCells` | number | Número de celdas que fueron actualizadas |
+| `metadata` | object | Metadatos de la hoja de cálculo |
+
+### `microsoft_excel_table_add`
+
+Añadir nuevas filas a una tabla de Microsoft Excel
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `spreadsheetId` | string | Sí | El ID de la hoja de cálculo que contiene la tabla |
+| `tableName` | string | Sí | El nombre de la tabla a la que añadir filas |
+| `values` | array | Sí | Los datos para añadir a la tabla \(matriz de matrices o matriz de objetos\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `index` | number | Índice de la primera fila que fue añadida |
+| `values` | array | Matriz de filas que fueron añadidas a la tabla |
+| `metadata` | object | Metadatos de la hoja de cálculo |
+
+### `microsoft_excel_worksheet_add`
+
+Crear una nueva hoja de cálculo en un libro de Microsoft Excel
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Sí | El ID del libro de Excel al que añadir la hoja de cálculo |
+| `worksheetName` | string | Sí | El nombre de la nueva hoja de cálculo. Debe ser único dentro del libro y no puede exceder los 31 caracteres |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `worksheet` | object | Detalles de la hoja de cálculo recién creada |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `microsoft_excel`

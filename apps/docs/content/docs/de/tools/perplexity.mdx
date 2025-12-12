@@ -1,0 +1,85 @@
+---
+title: Perplexity
+description: Nutze Perplexity AI für Chat und Suche
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="perplexity"
+  color="#20808D"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Perplexity AI](https://www.perplexity.ai) ist eine KI-gestützte Such- und Antwortmaschine, die die Fähigkeiten großer Sprachmodelle mit Echtzeit-Websuche kombiniert, um genaue, aktuelle Informationen und umfassende Antworten auf komplexe Fragen zu liefern.
+
+Mit Perplexity AI kannst du:
+
+- **Genaue antworten erhalten**: Erhalte umfassende Antworten auf Fragen mit Zitaten aus zuverlässigen Quellen
+- **Auf echtzeit-informationen zugreifen**: Erhalte aktuelle Informationen durch die Websuchfunktionen von Perplexity
+- **Themen tiefgehend erforschen**: Tauche tiefer in Themen ein mit Folgefragen und verwandten Informationen
+- **Informationen überprüfen**: Prüfe die Glaubwürdigkeit von Antworten durch bereitgestellte Quellen und Referenzen
+- **Inhalte generieren**: Erstelle Zusammenfassungen, Analysen und kreative Inhalte basierend auf aktuellen Informationen
+- **Effizient recherchieren**: Optimiere Rechercheprozesse mit umfassenden Antworten auf komplexe Anfragen
+- **Konversationell interagieren**: Führe natürliche Dialoge, um Fragen zu verfeinern und Themen zu erkunden
+
+In Sim ermöglicht die Perplexity-Integration deinen Agenten, diese leistungsstarken KI-Fähigkeiten programmatisch als Teil ihrer Workflows zu nutzen. Dies erlaubt anspruchsvolle Automatisierungsszenarien, die natürliches Sprachverständnis, Echtzeit-Informationsabruf und Inhaltsgenerierung kombinieren. Deine Agenten können Anfragen formulieren, umfassende Antworten mit Zitaten erhalten und diese Informationen in ihre Entscheidungsprozesse oder Ausgaben einbeziehen. Diese Integration überbrückt die Lücke zwischen deiner Workflow-Automatisierung und dem Zugriff auf aktuelle, zuverlässige Informationen, wodurch deine Agenten fundiertere Entscheidungen treffen und genauere Antworten liefern können. Durch die Verbindung von Sim mit Perplexity kannst du Agenten erstellen, die mit den neuesten Informationen auf dem Laufenden bleiben, gut recherchierte Antworten liefern und wertvollere Erkenntnisse für Benutzer bereitstellen - alles ohne manuelle Recherche oder Informationssammlung.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integriere Perplexity in den Workflow. Kann Vervollständigungen mit Perplexity AI Chat-Modellen generieren oder Websuchen mit erweiterter Filterung durchführen.
+
+## Tools
+
+### `perplexity_chat`
+
+Generieren Sie Vervollständigungen mit Perplexity AI-Chatmodellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `systemPrompt` | string | Nein | System-Prompt zur Steuerung des Modellverhaltens |
+| `content` | string | Ja | Der Inhalt der Benutzernachricht, der an das Modell gesendet wird |
+| `model` | string | Ja | Modell für Chat-Vervollständigungen \(z.B. sonar, mistral\) |
+| `max_tokens` | number | Nein | Maximale Anzahl der zu generierenden Tokens |
+| `temperature` | number | Nein | Sampling-Temperatur zwischen 0 und 1 |
+| `apiKey` | string | Ja | Perplexity API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | object | Ergebnisse der Chat-Vervollständigung |
+
+### `perplexity_search`
+
+Erhalte bewertete Suchergebnisse von Perplexity
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Ja | Eine Suchanfrage oder ein Array von Anfragen \(maximal 5 für Multi-Anfrage-Suche\) |
+| `max_results` | number | Nein | Maximale Anzahl der zurückzugebenden Suchergebnisse \(1-20, Standard: 10\) |
+| `search_domain_filter` | array | Nein | Liste der Domains/URLs, auf die die Suchergebnisse beschränkt werden sollen \(max. 20\) |
+| `max_tokens_per_page` | number | Nein | Maximale Anzahl der von jeder Webseite abgerufenen Tokens \(Standard: 1024\) |
+| `country` | string | Nein | Ländercode zur Filterung der Suchergebnisse \(z.B. US, GB, DE\) |
+| `search_recency_filter` | string | Nein | Filtere Ergebnisse nach Aktualität: Stunde, Tag, Woche, Monat oder Jahr |
+| `search_after_date` | string | Nein | Nur Inhalte einbeziehen, die nach diesem Datum veröffentlicht wurden \(Format: MM/TT/JJJJ\) |
+| `search_before_date` | string | Nein | Nur Inhalte einbeziehen, die vor diesem Datum veröffentlicht wurden \(Format: MM/TT/JJJJ\) |
+| `apiKey` | string | Ja | Perplexity API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | object | Suchergebnisse |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `perplexity`

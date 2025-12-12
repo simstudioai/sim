@@ -1,0 +1,69 @@
+---
+title: Traducir
+description: Traduce texto a cualquier idioma
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="translate"
+  color="#FF4B4B"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Traducir es una herramienta que te permite traducir texto entre diferentes idiomas.
+
+Con Traducir, puedes:
+
+- **Traducir texto**: Traducir texto entre idiomas
+- **Traducir documentos**: Traducir documentos entre idiomas
+- **Traducir sitios web**: Traducir sitios web entre idiomas
+- **Traducir imágenes**: Traducir imágenes entre idiomas
+- **Traducir audio**: Traducir audio entre idiomas
+- **Traducir videos**: Traducir videos entre idiomas
+- **Traducir voz**: Traducir voz entre idiomas
+- **Traducir texto**: Traducir texto entre idiomas
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Translate en el flujo de trabajo. Puede traducir texto a cualquier idioma.
+
+## Herramientas
+
+### `openai_chat`
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Texto traducido |
+| `model` | string | Modelo utilizado |
+| `tokens` | json | Uso de tokens |
+
+### `anthropic_chat`
+
+### `google_chat`
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Texto traducido |
+| `model` | string | Modelo utilizado |
+| `tokens` | json | Uso de tokens |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `translate`

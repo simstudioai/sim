@@ -1,0 +1,136 @@
+---
+title: OneDrive
+description: Créer, téléverser, télécharger, lister et supprimer des fichiers
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="onedrive"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[OneDrive](https://onedrive.live.com) est le service de stockage cloud et de synchronisation de fichiers de Microsoft qui permet aux utilisateurs de stocker, d'accéder et de partager des fichiers en toute sécurité sur différents appareils. Profondément intégré à l'écosystème Microsoft 365, OneDrive prend en charge la collaboration transparente, le contrôle de version et l'accès en temps réel au contenu pour les équipes et les organisations.
+
+Découvrez comment intégrer l'outil OneDrive dans Sim pour extraire, gérer et organiser automatiquement vos fichiers cloud dans vos flux de travail. Ce tutoriel vous guide à travers la connexion à OneDrive, la configuration de l'accès aux fichiers et l'utilisation du contenu stocké pour alimenter l'automatisation. Idéal pour synchroniser des documents et médias essentiels avec vos agents en temps réel.
+
+Avec OneDrive, vous pouvez :
+
+- **Stocker des fichiers en toute sécurité dans le cloud** : télécharger et accéder à des documents, des images et d'autres fichiers depuis n'importe quel appareil
+- **Organiser votre contenu** : créer des dossiers structurés et gérer facilement les versions de fichiers
+- **Collaborer en temps réel** : partager des fichiers, les modifier simultanément avec d'autres et suivre les modifications
+- **Accéder depuis différents appareils** : utiliser OneDrive depuis un ordinateur, un mobile ou une plateforme web
+- **S'intégrer à Microsoft 365** : travailler de manière transparente avec Word, Excel, PowerPoint et Teams
+- **Contrôler les autorisations** : partager des fichiers et des dossiers avec des paramètres d'accès personnalisés et des contrôles d'expiration
+
+Dans Sim, l'intégration OneDrive permet à vos agents d'interagir directement avec votre stockage cloud. Les agents peuvent télécharger de nouveaux fichiers dans des dossiers spécifiques, récupérer et lire des fichiers existants, et lister le contenu des dossiers pour organiser et accéder dynamiquement aux informations. Cette intégration permet à vos agents d'incorporer des opérations sur fichiers dans des flux de travail intelligents — automatisant la réception de documents, l'analyse de contenu et la gestion structurée du stockage. En connectant Sim avec OneDrive, vous donnez à vos agents la possibilité de gérer et d'utiliser des documents cloud de manière programmatique, éliminant les étapes manuelles et améliorant l'automatisation grâce à un accès sécurisé aux fichiers en temps réel.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez OneDrive dans le flux de travail. Peut créer des fichiers texte et Excel, téléverser des fichiers, télécharger des fichiers, lister des fichiers et supprimer des fichiers ou dossiers.
+
+## Outils
+
+### `onedrive_upload`
+
+Télécharger un fichier vers OneDrive
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `fileName` | string | Oui | Le nom du fichier à télécharger |
+| `file` | file | Non | Le fichier à télécharger \(binaire\) |
+| `content` | string | Non | Le contenu textuel à télécharger \(si aucun fichier n'est fourni\) |
+| `mimeType` | string | Non | Le type MIME du fichier à créer \(par exemple, text/plain pour .txt, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet pour .xlsx\) |
+| `folderSelector` | string | Non | Sélectionner le dossier où télécharger le fichier |
+| `manualFolderId` | string | Non | ID de dossier saisi manuellement \(mode avancé\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si le fichier a été téléchargé avec succès |
+| `file` | objet | L'objet du fichier téléchargé avec métadonnées incluant id, nom, webViewLink, webContentLink et horodatages |
+
+### `onedrive_create_folder`
+
+Créer un nouveau dossier dans OneDrive
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `folderName` | chaîne | Oui | Nom du dossier à créer |
+| `folderSelector` | chaîne | Non | Sélectionnez le dossier parent où créer le dossier |
+| `manualFolderId` | chaîne | Non | ID du dossier parent saisi manuellement \(mode avancé\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si le dossier a été créé avec succès |
+| `file` | objet | L'objet du dossier créé avec métadonnées incluant id, nom, webViewLink et horodatages |
+
+### `onedrive_download`
+
+Télécharger un fichier depuis OneDrive
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `fileId` | string | Oui | L'ID du fichier à télécharger |
+| `fileName` | string | Non | Remplacement optionnel du nom de fichier |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Fichier téléchargé stocké dans les fichiers d'exécution |
+
+### `onedrive_list`
+
+Lister les fichiers et dossiers dans OneDrive
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `folderSelector` | string | Non | Sélectionner le dossier à partir duquel lister les fichiers |
+| `manualFolderId` | string | Non | L'ID de dossier saisi manuellement \(mode avancé\) |
+| `query` | string | Non | Une requête pour filtrer les fichiers |
+| `pageSize` | number | Non | Le nombre de fichiers à retourner |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indique si les fichiers ont été listés avec succès |
+| `files` | array | Tableau d'objets de fichiers et dossiers avec métadonnées |
+| `nextPageToken` | string | Jeton pour récupérer la page suivante de résultats \(optionnel\) |
+
+### `onedrive_delete`
+
+Supprimer un fichier ou un dossier de OneDrive
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `fileId` | string | Oui | L'ID du fichier ou dossier à supprimer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si le fichier a été supprimé avec succès |
+| `deleted` | booléen | Confirmation que le fichier a été supprimé |
+| `fileId` | string | L'ID du fichier supprimé |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `onedrive`

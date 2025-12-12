@@ -1,0 +1,180 @@
+---
+title: MongoDB
+description: Connect to MongoDB database
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mongodb"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+The [MongoDB](https://www.mongodb.com/) tool enables you to connect to a MongoDB database and perform a wide range of document-oriented operations directly within your agentic workflows. With flexible configuration and secure connection management, you can easily interact with and manipulate your data.
+
+With the MongoDB tool, you can:
+
+- **Find documents**: Query collections and retrieve documents with the `mongodb_query` operation using rich query filters.
+- **Insert documents**: Add one or multiple documents to a collection using the `mongodb_insert` operation.
+- **Update documents**: Modify existing documents with the `mongodb_update` operation by specifying filter criteria and the update actions.
+- **Delete documents**: Remove documents from a collection using the `mongodb_delete` operation, specifying filters and deletion options.
+- **Aggregate data**: Run complex aggregation pipelines with the `mongodb_execute` operation to transform and analyze your data.
+
+The MongoDB tool is ideal for workflows where your agents need to manage or analyze structured, document-based data. Whether it's processing user-generated content, managing app data, or powering analytics, the MongoDB tool streamlines your data access and manipulation in a secure, programmatic way.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate MongoDB into the workflow. Can find, insert, update, delete, and aggregate data.
+
+
+
+## Tools
+
+### `mongodb_query`
+
+Execute find operation on MongoDB collection
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | MongoDB server hostname or IP address |
+| `port` | number | Yes | MongoDB server port \(default: 27017\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | No | MongoDB username |
+| `password` | string | No | MongoDB password |
+| `authSource` | string | No | Authentication database |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
+| `collection` | string | Yes | Collection name to query |
+| `query` | string | No | MongoDB query filter as JSON string |
+| `limit` | number | No | Maximum number of documents to return |
+| `sort` | string | No | Sort criteria as JSON string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `documents` | array | Array of documents returned from the query |
+| `documentCount` | number | Number of documents returned |
+
+### `mongodb_insert`
+
+Insert documents into MongoDB collection
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | MongoDB server hostname or IP address |
+| `port` | number | Yes | MongoDB server port \(default: 27017\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | No | MongoDB username |
+| `password` | string | No | MongoDB password |
+| `authSource` | string | No | Authentication database |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
+| `collection` | string | Yes | Collection name to insert into |
+| `documents` | array | Yes | Array of documents to insert |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `documentCount` | number | Number of documents inserted |
+| `insertedId` | string | ID of inserted document \(single insert\) |
+| `insertedIds` | array | Array of inserted document IDs \(multiple insert\) |
+
+### `mongodb_update`
+
+Update documents in MongoDB collection
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | MongoDB server hostname or IP address |
+| `port` | number | Yes | MongoDB server port \(default: 27017\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | No | MongoDB username |
+| `password` | string | No | MongoDB password |
+| `authSource` | string | No | Authentication database |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
+| `collection` | string | Yes | Collection name to update |
+| `filter` | string | Yes | Filter criteria as JSON string |
+| `update` | string | Yes | Update operations as JSON string |
+| `upsert` | boolean | No | Create document if not found |
+| `multi` | boolean | No | Update multiple documents |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `matchedCount` | number | Number of documents matched by filter |
+| `modifiedCount` | number | Number of documents modified |
+| `documentCount` | number | Total number of documents affected |
+| `insertedId` | string | ID of inserted document \(if upsert\) |
+
+### `mongodb_delete`
+
+Delete documents from MongoDB collection
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | MongoDB server hostname or IP address |
+| `port` | number | Yes | MongoDB server port \(default: 27017\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | No | MongoDB username |
+| `password` | string | No | MongoDB password |
+| `authSource` | string | No | Authentication database |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
+| `collection` | string | Yes | Collection name to delete from |
+| `filter` | string | Yes | Filter criteria as JSON string |
+| `multi` | boolean | No | Delete multiple documents |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `deletedCount` | number | Number of documents deleted |
+| `documentCount` | number | Total number of documents affected |
+
+### `mongodb_execute`
+
+Execute MongoDB aggregation pipeline
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | MongoDB server hostname or IP address |
+| `port` | number | Yes | MongoDB server port \(default: 27017\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | No | MongoDB username |
+| `password` | string | No | MongoDB password |
+| `authSource` | string | No | Authentication database |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
+| `collection` | string | Yes | Collection name to execute pipeline on |
+| `pipeline` | string | Yes | Aggregation pipeline as JSON string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `documents` | array | Array of documents returned from aggregation |
+| `documentCount` | number | Number of documents returned |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `mongodb`

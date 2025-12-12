@@ -32,12 +32,24 @@ export interface GoogleDriveGetContentResponse extends ToolResponse {
   }
 }
 
+export interface GoogleDriveDownloadResponse extends ToolResponse {
+  output: {
+    file: {
+      name: string
+      mimeType: string
+      data: Buffer
+      size: number
+    }
+  }
+}
+
 export interface GoogleDriveToolParams {
   accessToken: string
   folderId?: string
   folderSelector?: string
   fileId?: string
   fileName?: string
+  file?: any // UserFile object
   content?: string
   mimeType?: string
   query?: string
@@ -49,4 +61,5 @@ export interface GoogleDriveToolParams {
 export type GoogleDriveResponse =
   | GoogleDriveUploadResponse
   | GoogleDriveGetContentResponse
+  | GoogleDriveDownloadResponse
   | GoogleDriveListResponse

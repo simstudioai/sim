@@ -44,6 +44,12 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
       visibility: 'user-only',
       description: 'Filter to apply to the search',
     },
+    search_return_data: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Data to return from search',
+    },
     with_payload: {
       type: 'boolean',
       required: false,
@@ -66,13 +72,40 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
       'Content-Type': 'application/json',
       ...(params.apiKey ? { 'api-key': params.apiKey } : {}),
     }),
-    body: (params) => ({
-      query: params.vector,
-      limit: params.limit ? Number.parseInt(params.limit.toString()) : 10,
-      filter: params.filter,
-      with_payload: params.with_payload,
-      with_vector: params.with_vector,
-    }),
+    body: (params) => {
+      // Calculate with_payload and with_vector from search_return_data if provided
+      let withPayload = params.with_payload ?? false
+      let withVector = params.with_vector ?? false
+
+      if (params.search_return_data) {
+        switch (params.search_return_data) {
+          case 'payload_only':
+            withPayload = true
+            withVector = false
+            break
+          case 'vector_only':
+            withPayload = false
+            withVector = true
+            break
+          case 'both':
+            withPayload = true
+            withVector = true
+            break
+          case 'none':
+            withPayload = false
+            withVector = false
+            break
+        }
+      }
+
+      return {
+        query: params.vector,
+        limit: params.limit ? Number(params.limit) : 10,
+        filter: params.filter,
+        with_payload: withPayload,
+        with_vector: withVector,
+      }
+    },
   },
 
   transformResponse: async (response) => {

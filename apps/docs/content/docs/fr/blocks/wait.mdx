@@ -1,0 +1,67 @@
+---
+title: Attente
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+Le bloc Attente met en pause votre flux de travail pendant une durée spécifiée avant de continuer vers le bloc suivant. Utilisez-le pour ajouter des délais entre les actions, respecter les limites de taux des API ou espacer les opérations.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/wait.png"
+    alt="Bloc d'attente"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Configuration
+
+### Durée d'attente
+
+Saisissez la durée pour suspendre l'exécution :
+- **Entrée** : Nombre positif
+- **Maximum** : 600 secondes (10 minutes) ou 10 minutes
+
+### Unité
+
+Choisissez l'unité de temps :
+- **Secondes** : Pour des délais courts et précis
+- **Minutes** : Pour des pauses plus longues
+
+<Callout type="info">
+  Les blocs d'attente peuvent être annulés en arrêtant le workflow. La durée d'attente maximale est de 10 minutes.
+</Callout>
+
+## Sorties
+
+- **`<wait.waitDuration>`** : La durée d'attente en millisecondes
+- **`<wait.status>`** : Statut de l'attente ('waiting', 'completed', ou 'cancelled')
+
+## Exemples de cas d'utilisation
+
+**Limitation de débit API** - Respectez les limites de débit API entre les requêtes
+
+```
+API (Request 1) → Wait (2s) → API (Request 2)
+```
+
+**Notifications programmées** - Envoyez des messages de suivi après un délai
+
+```
+Function (Send Email) → Wait (5min) → Function (Follow-up)
+```
+
+**Délais de traitement** - Attendez que le système externe termine le traitement
+
+```
+API (Trigger Job) → Wait (30s) → API (Check Status)
+```
+
+## Bonnes pratiques
+
+- **Gardez des attentes raisonnables** : Utilisez Wait pour des délais jusqu'à 10 minutes. Pour des délais plus longs, envisagez des workflows programmés
+- **Surveillez le temps d'exécution** : N'oubliez pas que les attentes prolongent la durée totale du workflow

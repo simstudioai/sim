@@ -1,10 +1,62 @@
+import { db } from '@sim/db'
+import { workflow } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { db } from '@/db'
-import { workflow } from '@/db/schema'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('SocketPermissions')
+
+// Define operation permissions based on role
+const ROLE_PERMISSIONS: Record<string, string[]> = {
+  admin: [
+    'add',
+    'remove',
+    'update',
+    'update-position',
+    'update-name',
+    'toggle-enabled',
+    'update-parent',
+    'update-wide',
+    'update-advanced-mode',
+    'update-trigger-mode',
+    'toggle-handles',
+    'duplicate',
+    'replace-state',
+  ],
+  write: [
+    'add',
+    'remove',
+    'update',
+    'update-position',
+    'update-name',
+    'toggle-enabled',
+    'update-parent',
+    'update-wide',
+    'update-advanced-mode',
+    'update-trigger-mode',
+    'toggle-handles',
+    'duplicate',
+    'replace-state',
+  ],
+  read: ['update-position'],
+}
+
+// Check if a role allows a specific operation (no DB query, pure logic)
+export function checkRolePermission(
+  role: string,
+  operation: string
+): { allowed: boolean; reason?: string } {
+  const allowedOperations = ROLE_PERMISSIONS[role] || []
+
+  if (!allowedOperations.includes(operation)) {
+    return {
+      allowed: false,
+      reason: `Role '${role}' not permitted to perform '${operation}'`,
+    }
+  }
+
+  return { allowed: true }
+}
 
 export async function verifyWorkspaceMembership(
   userId: string,
@@ -73,68 +125,5 @@ export async function verifyWorkflowAccess(
       error
     )
     return { hasAccess: false }
-  }
-}
-
-// Enhanced authorization for specific operations
-export async function verifyOperationPermission(
-  userId: string,
-  workflowId: string,
-  operation: string,
-  target: string
-): Promise<{ allowed: boolean; reason?: string }> {
-  try {
-    const accessInfo = await verifyWorkflowAccess(userId, workflowId)
-
-    if (!accessInfo.hasAccess) {
-      return { allowed: false, reason: 'No access to workflow' }
-    }
-
-    // Define operation permissions based on role
-    const rolePermissions = {
-      admin: [
-        'add',
-        'remove',
-        'update',
-        'update-position',
-        'update-name',
-        'toggle-enabled',
-        'update-parent',
-        'update-wide',
-        'update-advanced-mode',
-        'update-trigger-mode',
-        'toggle-handles',
-        'duplicate',
-      ],
-      write: [
-        'add',
-        'remove',
-        'update',
-        'update-position',
-        'update-name',
-        'toggle-enabled',
-        'update-parent',
-        'update-wide',
-        'update-advanced-mode',
-        'update-trigger-mode',
-        'toggle-handles',
-        'duplicate',
-      ],
-      read: ['update-position'], // Read-only users can only move things around
-    }
-
-    const allowedOperations = rolePermissions[accessInfo.role as keyof typeof rolePermissions] || []
-
-    if (!allowedOperations.includes(operation)) {
-      return {
-        allowed: false,
-        reason: `Role '${accessInfo.role}' not permitted to perform '${operation}' on '${target}'`,
-      }
-    }
-
-    return { allowed: true }
-  } catch (error) {
-    logger.error(`Error verifying operation permission:`, error)
-    return { allowed: false, reason: 'Permission check failed' }
   }
 }

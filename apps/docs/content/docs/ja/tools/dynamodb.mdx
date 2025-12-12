@@ -1,0 +1,188 @@
+---
+title: Amazon DynamoDB
+description: Amazon DynamoDBに接続する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="dynamodb"
+  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon DynamoDB](https://aws.amazon.com/dynamodb/)はAWSが提供する完全マネージド型のNoSQLデータベースサービスで、シームレスなスケーラビリティを備えた高速で予測可能なパフォーマンスを提供します。DynamoDBを使用すると、ハードウェアやインフラストラクチャを管理する必要なく、任意の量のデータを保存および取得し、あらゆるレベルのリクエストトラフィックに対応できます。
+
+DynamoDBでは、以下のことが可能です：
+
+- **アイテムの取得**：プライマリキーを使用してテーブル内のアイテムを検索
+- **アイテムの配置**：テーブルにアイテムを追加または置換
+- **アイテムのクエリ**：インデックス全体でクエリを使用して複数のアイテムを取得
+- **テーブルのスキャン**：テーブル内のデータの全部または一部を読み取り
+- **アイテムの更新**：既存のアイテムの特定の属性を変更
+- **アイテムの削除**：テーブルからレコードを削除
+
+Simでは、DynamoDB統合により、エージェントがAWS認証情報を使用してDynamoDBテーブルに安全にアクセスし操作することができます。サポートされている操作には以下が含まれます：
+
+- **Get**：キーによるアイテムの取得
+- **Put**：アイテムの挿入または上書き
+- **Query**：キー条件とフィルターを使用したクエリの実行
+- **Scan**：テーブルまたはインデックスをスキャンして複数のアイテムを読み取り
+- **Update**：1つ以上のアイテムの特定の属性を変更
+- **Delete**：テーブルからアイテムを削除
+
+この統合により、SimエージェントはプログラムによってDynamoDBテーブル内のデータ管理タスクを自動化できるようになり、手動の作業やサーバー管理なしでスケーラブルなNoSQLデータを管理、変更、取得するワークフローを構築できます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Amazon DynamoDBをワークフローに統合します。DynamoDBテーブルに対するGet、Put、Query、Scan、Update、Delete操作をサポートしています。
+
+## ツール
+
+### `dynamodb_get`
+
+プライマリキーを使用してDynamoDBテーブルからアイテムを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | はい | AWSリージョン（例：us-east-1） |
+| `accessKeyId` | string | はい | AWSアクセスキーID |
+| `secretAccessKey` | string | はい | AWSシークレットアクセスキー |
+| `tableName` | string | はい | DynamoDBテーブル名 |
+| `key` | object | はい | 取得するアイテムのプライマリキー |
+| `consistentRead` | boolean | いいえ | 強力な整合性のある読み取りを使用する |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `item` | object | 取得したアイテム |
+
+### `dynamodb_put`
+
+DynamoDBテーブルにアイテムを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | はい | AWSリージョン（例：us-east-1） |
+| `accessKeyId` | string | はい | AWSアクセスキーID |
+| `secretAccessKey` | string | はい | AWSシークレットアクセスキー |
+| `tableName` | string | はい | DynamoDBテーブル名 |
+| `item` | object | はい | テーブルに追加するアイテム |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `item` | object | 作成されたアイテム |
+
+### `dynamodb_query`
+
+キー条件を使用してDynamoDBテーブルからアイテムをクエリする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | はい | AWSリージョン（例：us-east-1） |
+| `accessKeyId` | string | はい | AWSアクセスキーID |
+| `secretAccessKey` | string | はい | AWSシークレットアクセスキー |
+| `tableName` | string | はい | DynamoDBテーブル名 |
+| `keyConditionExpression` | string | はい | キー条件式（例："pk = :pk"） |
+| `filterExpression` | string | いいえ | 結果のフィルター式 |
+| `expressionAttributeNames` | object | いいえ | 予約語の属性名マッピング |
+| `expressionAttributeValues` | object | いいえ | 式の属性値 |
+| `indexName` | string | いいえ | クエリするセカンダリインデックス名 |
+| `limit` | number | いいえ | 返すアイテムの最大数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `items` | array | 返されたアイテムの配列 |
+| `count` | number | 返されたアイテムの数 |
+
+### `dynamodb_scan`
+
+DynamoDBテーブル内のすべてのアイテムをスキャンする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | はい | AWSリージョン（例：us-east-1） |
+| `accessKeyId` | string | はい | AWSアクセスキーID |
+| `secretAccessKey` | string | はい | AWSシークレットアクセスキー |
+| `tableName` | string | はい | DynamoDBテーブル名 |
+| `filterExpression` | string | いいえ | 結果のフィルター式 |
+| `projectionExpression` | string | いいえ | 取得する属性 |
+| `expressionAttributeNames` | object | いいえ | 予約語の属性名マッピング |
+| `expressionAttributeValues` | object | いいえ | 式の属性値 |
+| `limit` | number | いいえ | 返すアイテムの最大数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `items` | array | 返されたアイテムの配列 |
+| `count` | number | 返されたアイテム数 |
+
+### `dynamodb_update`
+
+DynamoDBテーブル内のアイテムを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | はい | AWSリージョン（例：us-east-1） |
+| `accessKeyId` | string | はい | AWSアクセスキーID |
+| `secretAccessKey` | string | はい | AWSシークレットアクセスキー |
+| `tableName` | string | はい | DynamoDBテーブル名 |
+| `key` | object | はい | 更新するアイテムのプライマリキー |
+| `updateExpression` | string | はい | 更新式（例："SET #name = :name"） |
+| `expressionAttributeNames` | object | いいえ | 予約語の属性名マッピング |
+| `expressionAttributeValues` | object | いいえ | 式の属性値 |
+| `conditionExpression` | string | いいえ | 更新が成功するために満たす必要がある条件 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `item` | object | 更新されたアイテム |
+
+### `dynamodb_delete`
+
+DynamoDBテーブルからアイテムを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | はい | AWSリージョン（例：us-east-1） |
+| `accessKeyId` | string | はい | AWSアクセスキーID |
+| `secretAccessKey` | string | はい | AWSシークレットアクセスキー |
+| `tableName` | string | はい | DynamoDBテーブル名 |
+| `key` | object | はい | 削除するアイテムのプライマリキー |
+| `conditionExpression` | string | いいえ | 削除が成功するために満たす必要がある条件 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `dynamodb`

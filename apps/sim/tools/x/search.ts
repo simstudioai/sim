@@ -1,5 +1,8 @@
+import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { XSearchParams, XSearchResponse, XTweet, XUser } from '@/tools/x/types'
+
+const logger = createLogger('XSearchTool')
 
 export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
   id: 'x_search',
@@ -10,7 +13,6 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
   oauth: {
     required: true,
     provider: 'x',
-    additionalScopes: ['tweet.read', 'users.read'],
   },
 
   params: {
@@ -69,10 +71,10 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
         'user.fields': 'name,username,description,profile_image_url,verified,public_metrics',
       })
 
-      if (params.maxResults && params.maxResults < 10) {
+      if (params.maxResults && Number(params.maxResults) < 10) {
         queryParams.append('max_results', '10')
       } else if (params.maxResults) {
-        queryParams.append('max_results', params.maxResults.toString())
+        queryParams.append('max_results', Number(params.maxResults).toString())
       }
       if (params.startTime) queryParams.append('start_time', params.startTime)
       if (params.endTime) queryParams.append('end_time', params.endTime)
@@ -92,7 +94,7 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
 
     // Check if data.data is undefined/null or not an array
     if (!data.data || !Array.isArray(data.data)) {
-      console.error('X Search API Error:', JSON.stringify(data, null, 2))
+      logger.error('X Search API Error:', JSON.stringify(data, null, 2))
       return {
         success: false,
         error:

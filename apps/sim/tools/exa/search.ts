@@ -33,6 +33,49 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
       visibility: 'user-only',
       description: 'Search type: neural, keyword, auto or fast (default: auto)',
     },
+    includeDomains: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Comma-separated list of domains to include in results',
+    },
+    excludeDomains: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Comma-separated list of domains to exclude from results',
+    },
+    category: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Filter by category: company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site',
+    },
+    text: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Include full text content in results (default: false)',
+    },
+    highlights: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Include highlighted snippets in results (default: false)',
+    },
+    summary: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Include AI-generated summaries in results (default: false)',
+    },
+    livecrawl: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Live crawling mode: always, fallback, or never (default: never)',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -54,9 +97,50 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
       }
 
       // Add optional parameters if provided
-      if (params.numResults) body.numResults = params.numResults
+      if (params.numResults) body.numResults = Number(params.numResults)
       if (params.useAutoprompt !== undefined) body.useAutoprompt = params.useAutoprompt
       if (params.type) body.type = params.type
+
+      // Domain filtering
+      if (params.includeDomains) {
+        body.includeDomains = params.includeDomains
+          .split(',')
+          .map((d: string) => d.trim())
+          .filter((d: string) => d.length > 0)
+      }
+      if (params.excludeDomains) {
+        body.excludeDomains = params.excludeDomains
+          .split(',')
+          .map((d: string) => d.trim())
+          .filter((d: string) => d.length > 0)
+      }
+
+      // Category filtering
+      if (params.category) body.category = params.category
+
+      // Build contents object for content options
+      const contents: Record<string, any> = {}
+
+      if (params.text !== undefined) {
+        contents.text = params.text
+      }
+
+      if (params.highlights !== undefined) {
+        contents.highlights = params.highlights
+      }
+
+      if (params.summary !== undefined) {
+        contents.summary = params.summary
+      }
+
+      if (params.livecrawl) {
+        contents.livecrawl = params.livecrawl
+      }
+
+      // Add contents to body if not empty
+      if (Object.keys(contents).length > 0) {
+        body.contents = contents
+      }
 
       return body
     },
@@ -77,6 +161,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
           favicon: result.favicon,
           image: result.image,
           text: result.text,
+          highlights: result.highlights,
           score: result.score,
         })),
       },

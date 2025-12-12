@@ -61,7 +61,7 @@ export interface WandConfig {
 }
 
 interface UseWandProps {
-  wandConfig: WandConfig
+  wandConfig?: WandConfig
   currentValue?: string
   onGeneratedContent: (content: string) => void
   onStreamChunk?: (chunk: string) => void
@@ -131,7 +131,7 @@ export function useWand({
         return
       }
 
-      if (!wandConfig.enabled) {
+      if (!wandConfig?.enabled) {
         setError('Wand is not enabled.')
         return
       }
@@ -150,10 +150,10 @@ export function useWand({
 
       try {
         // Build context-aware message
-        const contextInfo = buildContextInfo(currentValue, wandConfig.generationType)
+        const contextInfo = buildContextInfo(currentValue, wandConfig?.generationType)
 
         // Build the system prompt with context information
-        let systemPrompt = wandConfig.prompt
+        let systemPrompt = wandConfig?.prompt || ''
         if (systemPrompt.includes('{context}')) {
           systemPrompt = systemPrompt.replace('{context}', contextInfo)
         }
@@ -164,7 +164,7 @@ export function useWand({
         // Keep track of the current prompt for history
         const currentPrompt = prompt
 
-        const response = await fetch('/api/wand-generate', {
+        const response = await fetch('/api/wand', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -174,7 +174,7 @@ export function useWand({
             prompt: userMessage,
             systemPrompt: systemPrompt, // Send the processed system prompt with context
             stream: true,
-            history: wandConfig.maintainHistory ? conversationHistory : [], // Include history if enabled
+            history: wandConfig?.maintainHistory ? conversationHistory : [], // Include history if enabled
           }),
           signal: abortControllerRef.current.signal,
           cache: 'no-store',
@@ -198,35 +198,37 @@ export function useWand({
             const { done, value } = await reader.read()
             if (done) break
 
-            // Process incoming chunks
-            const text = decoder.decode(value)
-            const lines = text.split('\n').filter((line) => line.trim() !== '')
+            const chunk = decoder.decode(value)
+            const lines = chunk.split('\n\n')
 
             for (const line of lines) {
-              try {
-                const data = JSON.parse(line)
+              if (line.startsWith('data: ')) {
+                const lineData = line.substring(6)
 
-                // Check if there's an error
-                if (data.error) {
-                  throw new Error(data.error)
+                if (lineData === '[DONE]') {
+                  continue
                 }
 
-                // Process chunk
-                if (data.chunk && !data.done) {
-                  accumulatedContent += data.chunk
-                  // Stream each chunk to the UI immediately
-                  if (onStreamChunk) {
-                    onStreamChunk(data.chunk)
+                try {
+                  const data = JSON.parse(lineData)
+
+                  if (data.error) {
+                    throw new Error(data.error)
                   }
-                }
 
-                // Check if streaming is complete
-                if (data.done) {
-                  break
+                  if (data.chunk) {
+                    accumulatedContent += data.chunk
+                    if (onStreamChunk) {
+                      onStreamChunk(data.chunk)
+                    }
+                  }
+
+                  if (data.done) {
+                    break
+                  }
+                } catch (parseError) {
+                  logger.debug('Failed to parse SSE line', { line, parseError })
                 }
-              } catch (parseError) {
-                // Continue processing other lines
-                logger.debug('Failed to parse streaming line', { line, parseError })
               }
             }
           }
@@ -237,8 +239,7 @@ export function useWand({
         if (accumulatedContent) {
           onGeneratedContent(accumulatedContent)
 
-          // Update conversation history if enabled
-          if (wandConfig.maintainHistory) {
+          if (wandConfig?.maintainHistory) {
             setConversationHistory((prev) => [
               ...prev,
               { role: 'user', content: currentPrompt },
@@ -246,7 +247,6 @@ export function useWand({
             ])
           }
 
-          // Call completion callback
           if (onGenerationComplete) {
             onGenerationComplete(currentPrompt, accumulatedContent)
           }

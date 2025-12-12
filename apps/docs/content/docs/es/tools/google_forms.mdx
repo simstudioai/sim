@@ -1,0 +1,54 @@
+---
+title: Google Forms
+description: Lee respuestas de un formulario de Google
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_forms"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Forms](https://forms.google.com) es la herramienta de encuestas y formularios en línea de Google que permite a los usuarios crear formularios, recopilar respuestas y analizar resultados. Como parte del conjunto de herramientas de productividad de Google, Google Forms facilita la recopilación de información, comentarios y datos de los usuarios.
+
+Aprende cómo integrar la herramienta Google Forms en Sim para leer y procesar automáticamente las respuestas de formularios en tus flujos de trabajo. Este tutorial te guía a través de la conexión de Google Forms, la recuperación de respuestas y el uso de los datos recopilados para impulsar la automatización. Perfecto para sincronizar resultados de encuestas, registros o comentarios con tus agentes en tiempo real.
+
+Con Google Forms, puedes:
+
+- **Crear encuestas y formularios**: Diseña formularios personalizados para comentarios, registro, cuestionarios y más
+- **Recopilar respuestas automáticamente**: Reúne datos de usuarios en tiempo real
+- **Analizar resultados**: Visualiza respuestas en Google Forms o expórtalas a Google Sheets para un análisis más detallado
+- **Colaborar fácilmente**: Comparte formularios y trabaja con otros para crear y revisar preguntas
+- **Integrar con otros servicios de Google**: Conéctate con Google Sheets, Drive y más
+
+En Sim, la integración con Google Forms permite a tus agentes acceder programáticamente a las respuestas de los formularios. Esto permite potentes escenarios de automatización como procesar datos de encuestas, activar flujos de trabajo basados en nuevos envíos y sincronizar resultados de formularios con otras herramientas. Tus agentes pueden obtener todas las respuestas de un formulario, recuperar una respuesta específica y usar los datos para impulsar la automatización inteligente. Al conectar Sim con Google Forms, puedes automatizar la recopilación de datos, agilizar el procesamiento de comentarios e incorporar respuestas de formularios a las capacidades de tu agente.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Google Forms en tu flujo de trabajo. Proporciona un ID de formulario para listar respuestas, o especifica un ID de respuesta para obtener una sola respuesta. Requiere OAuth.
+
+## Herramientas
+
+### `google_forms_get_responses`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| formId | string | Sí | El ID del formulario de Google |
+| responseId | string | No | Si se proporciona, devuelve esta respuesta específica |
+| pageSize | number | No | Máximo de respuestas a devolver (el servicio puede devolver menos). Por defecto es 5000 |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `data` | json | Respuesta o lista de respuestas |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `google_forms`

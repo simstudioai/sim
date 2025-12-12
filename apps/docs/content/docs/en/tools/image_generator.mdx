@@ -1,0 +1,67 @@
+---
+title: Image Generator
+description: Generate images
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="image_generator"
+  color="#4D5FFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[DALL-E](https://openai.com/dall-e-3) is OpenAI's advanced AI system designed to generate realistic images and art from natural language descriptions. As a state-of-the-art image generation model, DALL-E can create detailed and creative visuals based on text prompts, allowing users to transform their ideas into visual content without requiring artistic skills.
+
+With DALL-E, you can:
+
+- **Generate realistic images**: Create photorealistic visuals from textual descriptions
+- **Design conceptual art**: Transform abstract ideas into visual representations
+- **Produce variations**: Generate multiple interpretations of the same prompt
+- **Control artistic style**: Specify artistic styles, mediums, and visual aesthetics
+- **Create detailed scenes**: Describe complex scenes with multiple elements and relationships
+- **Visualize products**: Generate product mockups and design concepts
+- **Illustrate ideas**: Turn written concepts into visual illustrations
+
+In Sim, the DALL-E integration enables your agents to generate images programmatically as part of their workflows. This allows for powerful automation scenarios such as content creation, visual design, and creative ideation. Your agents can formulate detailed prompts, generate corresponding images, and incorporate these visuals into their outputs or downstream processes. This integration bridges the gap between natural language processing and visual content creation, enabling your agents to communicate not just through text but also through compelling imagery. By connecting Sim with DALL-E, you can create agents that produce visual content on demand, illustrate concepts, generate design assets, and enhance user experiences with rich visual elements - all without requiring human intervention in the creative process.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Image Generator into the workflow. Can generate images using DALL-E 3 or GPT Image.
+
+
+
+## Tools
+
+### `openai_image`
+
+Generate images using OpenAI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `model` | string | Yes | The model to use \(gpt-image-1 or dall-e-3\) |
+| `prompt` | string | Yes | A text description of the desired image |
+| `size` | string | Yes | The size of the generated images \(1024x1024, 1024x1792, or 1792x1024\) |
+| `quality` | string | No | The quality of the image \(standard or hd\) |
+| `style` | string | No | The style of the image \(vivid or natural\) |
+| `background` | string | No | The background color, only for gpt-image-1 |
+| `n` | number | No | The number of images to generate \(1-10\) |
+| `apiKey` | string | Yes | Your OpenAI API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Generated image data |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `image_generator`

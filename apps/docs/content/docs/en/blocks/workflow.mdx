@@ -1,0 +1,63 @@
+---
+title: Workflow Block
+description: Run another workflow inside the current flow
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+## What It Does
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/blocks/workflow.png'
+    alt='Workflow block configuration'
+    width={500}
+    height={400}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+Drop a Workflow block when you want to call a child workflow as part of a larger flow. The block runs the latest deployed version of that workflow, waits for it to finish, and then continues with the parent.
+
+## Configure It
+
+1. **Pick a workflow** from the dropdown (self-references are blocked to prevent loops).
+2. **Map inputs**: If the child workflow has an Input Form trigger, you'll see each field and can connect parent variables. The mapped values are what the child receives.
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/blocks/workflow-2.png'
+    alt='Workflow block with input mapping example'
+    width={700}
+    height={400}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+3. **Outputs**: After the child finishes, the block exposes:
+   - `result` – the child workflow's final response
+   - `success` – whether it ran without errors
+   - `error` – message when the run fails
+
+## Deployment Status Badge
+
+The Workflow block displays a deployment status badge to help you track whether the child workflow is ready to execute:
+
+- **Deployed** – The child workflow has been deployed and is ready to use. The block will execute the current deployed version.
+- **Undeployed** – The child workflow has never been deployed. You must deploy it before the Workflow block can execute it.
+- **Redeploy** – Changes have been detected in the child workflow since the last deployment. Click the badge to redeploy the child workflow with the latest changes.
+
+<Callout type="warn">
+The Workflow block always executes the most recent deployed version of the child workflow, not the editor version. Make sure to redeploy after making changes to ensure the block uses the latest logic.
+</Callout>
+
+## Execution Notes
+
+- Child workflows run in the same workspace context, so environment variables and tools carry over.
+- The block uses deployment versioning: any API, schedule, webhook, manual, or chat execution calls the deployed snapshot. Redeploy the child when you change it.
+- If the child fails, the block raises an error unless you handle it downstream.
+
+<Callout>
+Keep child workflows focused. Small, reusable flows make it easier to combine them without creating deep nesting.
+</Callout>

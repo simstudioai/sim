@@ -1,0 +1,61 @@
+---
+title: Mistral Parser
+description: PDFドキュメントからテキストを抽出する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mistral_parse"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Mistral Parseツールは、[Mistralの OCR API](https://mistral.ai/)を使用してPDFドキュメントからコンテンツを抽出し処理する強力な方法を提供します。このツールは高度な光学式文字認識を活用して、PDFファイルからテキストと構造を正確に抽出し、ドキュメントデータをエージェントワークフローに簡単に組み込むことができます。
+
+Mistral Parseツールでは、以下のことが可能です：
+
+- **PDFからテキストを抽出**: PDFコンテンツをテキスト、マークダウン、またはJSONフォーマットに正確に変換
+- **URLからPDFを処理**: URLを提供することでオンラインでホストされているPDFから直接コンテンツを抽出
+- **ドキュメント構造の維持**: 元のPDFからフォーマット、テーブル、レイアウトを保持
+- **画像の抽出**: オプションでPDFに埋め込まれた画像を含める
+- **特定のページを選択**: 複数ページのドキュメントから必要なページのみを処理
+
+Mistral Parseツールは、エージェントがPDFコンテンツを扱う必要があるシナリオ、例えばレポートの分析、フォームからのデータ抽出、またはスキャンされた文書からのテキスト処理などに特に役立ちます。PDFコンテンツをエージェントが利用できるようにするプロセスを簡素化し、PDFに保存された情報を直接テキスト入力と同じくらい簡単に扱えるようにします。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Mistral Parseをワークフローに統合します。アップロードされたPDF文書またはURLからテキストを抽出できます。APIキーが必要です。
+
+## ツール
+
+### `mistral_parser`
+
+Mistral OCR APIを使用してPDF文書を解析する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `filePath` | string | はい | 処理するPDF文書のURL |
+| `fileUpload` | object | いいえ | ファイルアップロードコンポーネントからのファイルアップロードデータ |
+| `resultType` | string | いいえ | 解析結果の種類（markdown、text、またはjson）。デフォルトはmarkdown |
+| `includeImageBase64` | boolean | いいえ | レスポンスにbase64エンコードされた画像を含める |
+| `pages` | array | いいえ | 処理する特定のページ（ページ番号の配列、0から開始） |
+| `imageLimit` | number | いいえ | PDFから抽出する画像の最大数 |
+| `imageMinSize` | number | いいえ | PDFから抽出する画像の最小の高さと幅 |
+| `apiKey` | string | はい | Mistral APIキー（MISTRAL_API_KEY） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | PDFが正常に解析されたかどうか |
+| `content` | string | 要求されたフォーマット（markdown、text、またはJSON）で抽出されたコンテンツ |
+| `metadata` | object | jobId、fileType、pageCount、使用情報を含む処理メタデータ |
+
+## メモ
+
+- カテゴリー: `tools`
+- タイプ: `mistral_parse`

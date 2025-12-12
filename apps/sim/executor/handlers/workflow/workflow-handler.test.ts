@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
-import { BlockType } from '@/executor/consts'
+import { BlockType } from '@/executor/constants'
 import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
+
+vi.mock('@/lib/auth/internal', () => ({
+  generateInternalToken: vi.fn().mockResolvedValue('test-token'),
+}))
 
 // Mock fetch globally
 global.fetch = vi.fn()
@@ -14,6 +18,12 @@ describe('WorkflowBlockHandler', () => {
   let mockFetch: Mock
 
   beforeEach(() => {
+    // Mock window.location.origin for getBaseUrl()
+    ;(global as any).window = {
+      location: {
+        origin: 'http://localhost:3000',
+      },
+    }
     handler = new WorkflowBlockHandler()
     mockFetch = global.fetch as Mock
 
@@ -34,8 +44,7 @@ describe('WorkflowBlockHandler', () => {
       metadata: { duration: 0 },
       environmentVariables: {},
       decisions: { router: new Map(), condition: new Map() },
-      loopIterations: new Map(),
-      loopItems: new Map(),
+      loopExecutions: new Map(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
       completedLoops: new Set(),
@@ -49,10 +58,6 @@ describe('WorkflowBlockHandler', () => {
 
     // Reset all mocks
     vi.clearAllMocks()
-
-    // Clear the static execution stack
-
-    ;(WorkflowBlockHandler as any).executionStack.clear()
 
     // Setup default fetch mock
     mockFetch.mockResolvedValue({
@@ -97,22 +102,8 @@ describe('WorkflowBlockHandler', () => {
     it('should throw error when no workflowId is provided', async () => {
       const inputs = {}
 
-      await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+      await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
         'No workflow selected for execution'
-      )
-    })
-
-    it('should detect and prevent cyclic dependencies', async () => {
-      const inputs = { workflowId: 'child-workflow-id' }
-
-      // Simulate a cycle by adding the execution to the stack
-
-      ;(WorkflowBlockHandler as any).executionStack.add(
-        'parent-workflow-id_sub_child-workflow-id_workflow-block-1'
-      )
-
-      await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
-        'Error in child workflow "child-workflow-id": Cyclic workflow dependency detected: parent-workflow-id_sub_child-workflow-id_workflow-block-1'
       )
     })
 
@@ -126,7 +117,7 @@ describe('WorkflowBlockHandler', () => {
           'level1_sub_level2_sub_level3_sub_level4_sub_level5_sub_level6_sub_level7_sub_level8_sub_level9_sub_level10_sub_level11',
       }
 
-      await expect(handler.execute(mockBlock, inputs, deepContext)).rejects.toThrow(
+      await expect(handler.execute(deepContext, mockBlock, inputs)).rejects.toThrow(
         'Error in child workflow "child-workflow-id": Maximum workflow nesting depth of 10 exceeded'
       )
     })
@@ -140,7 +131,7 @@ describe('WorkflowBlockHandler', () => {
         statusText: 'Not Found',
       })
 
-      await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+      await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
         'Error in child workflow "non-existent-workflow": Child workflow non-existent-workflow not found'
       )
     })
@@ -150,8 +141,8 @@ describe('WorkflowBlockHandler', () => {
 
       mockFetch.mockRejectedValueOnce(new Error('Network error'))
 
-      await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
-        'Error in child workflow "child-workflow-id": Child workflow child-workflow-id not found'
+      await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
+        'Error in child workflow "child-workflow-id": Network error'
       )
     })
   })
@@ -185,9 +176,9 @@ describe('WorkflowBlockHandler', () => {
           }),
       })
 
-      const result = await (handler as any).loadChildWorkflow(workflowId)
-
-      expect(result).toBeNull()
+      await expect((handler as any).loadChildWorkflow(workflowId)).rejects.toThrow(
+        'Child workflow invalid-workflow has invalid state'
+      )
     })
   })
 
@@ -229,7 +220,9 @@ describe('WorkflowBlockHandler', () => {
       expect(result).toEqual({
         success: false,
         childWorkflowName: 'Child Workflow',
+        result: {},
         error: 'Child workflow failed',
+        childTraceSpans: [],
       })
     })
 

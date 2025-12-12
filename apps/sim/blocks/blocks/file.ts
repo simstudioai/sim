@@ -1,6 +1,6 @@
 import { DocumentIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { BlockConfig, SubBlockLayout, SubBlockType } from '@/blocks/types'
+import type { BlockConfig, SubBlockType } from '@/blocks/types'
 import type { FileParserOutput } from '@/tools/file/types'
 
 const logger = createLogger('FileBlock')
@@ -9,7 +9,10 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
   type: 'file',
   name: 'File',
   description: 'Read and parse multiple files',
-  longDescription: `Upload and extract contents from structured file formats including PDFs, CSV spreadsheets, and Word documents (DOCX). You can either provide a URL to a file or upload files directly. Specialized parsers extract text and metadata from each format. You can upload multiple files at once and access them individually or as a combined document.`,
+  longDescription: `Integrate File into the workflow. Can upload a file manually or insert a file url.`,
+  bestPractices: `
+  - You should always use the File URL input method and enter the file URL if the user gives it to you or clarify if they have one.
+  `,
   docsLink: 'https://docs.sim.ai/tools/file',
   category: 'tools',
   bgColor: '#40916C',
@@ -19,17 +22,15 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
       id: 'inputMethod',
       title: 'Select Input Method',
       type: 'dropdown' as SubBlockType,
-      layout: 'full' as SubBlockLayout,
       options: [
         { id: 'url', label: 'File URL' },
-        { id: 'upload', label: 'Upload Files' },
+        { id: 'upload', label: 'Uploaded Files' },
       ],
     },
     {
       id: 'filePath',
       title: 'File URL',
       type: 'short-input' as SubBlockType,
-      layout: 'full' as SubBlockLayout,
       placeholder: 'Enter URL to a file (https://example.com/document.pdf)',
       condition: {
         field: 'inputMethod',
@@ -39,10 +40,10 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
 
     {
       id: 'file',
-      title: 'Upload Files',
+      title: 'Process Files',
       type: 'file-upload' as SubBlockType,
-      layout: 'full' as SubBlockLayout,
-      acceptedTypes: '.pdf,.csv,.docx',
+      acceptedTypes:
+        '.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt,.json,.xml,.rtf',
       multiple: true,
       condition: {
         field: 'inputMethod',
@@ -70,6 +71,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
           return {
             filePath: fileUrl,
             fileType: params.fileType || 'auto',
+            workspaceId: params._context?.workspaceId,
           }
         }
 

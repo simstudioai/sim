@@ -1,0 +1,59 @@
+---
+title: Vision
+description: Analysez des images avec des modèles de vision
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="vision"
+  color="#4D5FFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Vision est un outil qui vous permet d'analyser des images avec des modèles de vision.
+
+Avec Vision, vous pouvez :
+
+- **Analyser des images** : Analyser des images avec des modèles de vision
+- **Extraire du texte** : Extraire du texte à partir d'images
+- **Identifier des objets** : Identifier des objets dans des images
+- **Décrire des images** : Décrire des images en détail
+- **Générer des images** : Générer des images à partir de texte
+
+Dans Sim, l'intégration de Vision permet à vos agents d'analyser des images avec des modèles de vision dans le cadre de leurs flux de travail. Cela permet des scénarios d'automatisation puissants qui nécessitent l'analyse d'images avec des modèles de vision. Vos agents peuvent analyser des images avec des modèles de vision, extraire du texte à partir d'images, identifier des objets dans des images, décrire des images en détail et générer des images à partir de texte. Cette intégration comble le fossé entre vos flux de travail IA et vos besoins d'analyse d'images, permettant des automatisations plus sophistiquées et centrées sur l'image. En connectant Sim avec Vision, vous pouvez créer des agents qui restent à jour avec les dernières informations, fournissent des réponses plus précises et offrent plus de valeur aux utilisateurs - le tout sans nécessiter d'intervention manuelle ou de code personnalisé.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrer Vision dans le flux de travail. Peut analyser des images avec des modèles de vision. Nécessite une clé API.
+
+## Outils
+
+### `vision_tool`
+
+Traitez et analysez des images en utilisant des modèles de vision avancés. Capable de comprendre le contenu des images, d'extraire du texte, d'identifier des objets et de fournir des descriptions visuelles détaillées.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `apiKey` | string | Oui | Clé API pour le fournisseur de modèle sélectionné |
+| `imageUrl` | string | Non | URL d'image accessible publiquement |
+| `imageFile` | file | Non | Fichier image à analyser |
+| `model` | string | Non | Modèle de vision à utiliser \(gpt-4o, claude-3-opus-20240229, etc\) |
+| `prompt` | string | Non | Invite personnalisée pour l'analyse d'image |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Le contenu analysé et la description de l'image |
+| `model` | string | Le modèle de vision qui a été utilisé pour l'analyse |
+| `tokens` | number | Total des jetons utilisés pour l'analyse |
+| `usage` | object | Répartition détaillée de l'utilisation des jetons |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `vision`

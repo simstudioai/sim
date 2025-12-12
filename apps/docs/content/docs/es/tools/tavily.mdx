@@ -1,0 +1,149 @@
+---
+title: Tavily
+description: Buscar y extraer información
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="tavily"
+  color="#0066FF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Tavily](https://www.tavily.com/) es una API de búsqueda impulsada por IA diseñada específicamente para aplicaciones LLM. Proporciona capacidades de recuperación de información confiables y en tiempo real con características optimizadas para casos de uso de IA, incluyendo búsqueda semántica, extracción de contenido y recuperación de datos estructurados.
+
+Con Tavily, puedes:
+
+- **Realizar búsquedas contextuales**: Obtener resultados relevantes basados en la comprensión semántica en lugar de solo coincidencia de palabras clave
+- **Extraer contenido estructurado**: Obtener información específica de páginas web en un formato limpio y utilizable
+- **Acceder a información en tiempo real**: Recuperar datos actualizados de toda la web
+- **Procesar múltiples URLs simultáneamente**: Extraer contenido de varias páginas web en una sola solicitud
+- **Recibir resultados optimizados para IA**: Obtener resultados de búsqueda específicamente formateados para el consumo por sistemas de IA
+
+En Sim, la integración de Tavily permite a tus agentes buscar en la web y extraer información como parte de sus flujos de trabajo. Esto permite escenarios de automatización sofisticados que requieren información actualizada de internet. Tus agentes pueden formular consultas de búsqueda, recuperar resultados relevantes y extraer contenido de páginas web específicas para informar sus procesos de toma de decisiones. Esta integración cierra la brecha entre la automatización de tu flujo de trabajo y el vasto conocimiento disponible en la web, permitiendo a tus agentes acceder a información en tiempo real sin intervención manual. Al conectar Sim con Tavily, puedes crear agentes que se mantengan actualizados con la información más reciente, proporcionen respuestas más precisas y entreguen más valor a los usuarios.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Tavily en el flujo de trabajo. Puede buscar en la web y extraer contenido de URLs específicas. Requiere clave API.
+
+## Herramientas
+
+### `tavily_search`
+
+Realiza búsquedas web potenciadas por IA usando Tavily
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Sí | La consulta de búsqueda a ejecutar |
+| `max_results` | number | No | Número máximo de resultados \(1-20\) |
+| `topic` | string | No | Tipo de categoría: general, noticias o finanzas \(predeterminado: general\) |
+| `search_depth` | string | No | Alcance de búsqueda: básico \(1 crédito\) o avanzado \(2 créditos\) \(predeterminado: básico\) |
+| `include_answer` | string | No | Respuesta generada por LLM: true/basic para respuesta rápida o advanced para detallada |
+| `include_raw_content` | string | No | Contenido HTML analizado: true/markdown o formato de texto |
+| `include_images` | boolean | No | Incluir resultados de búsqueda de imágenes |
+| `include_image_descriptions` | boolean | No | Añadir texto descriptivo para imágenes |
+| `include_favicon` | boolean | No | Incluir URLs de favicon |
+| `chunks_per_source` | number | No | Número máximo de fragmentos relevantes por fuente \(1-3, predeterminado: 3\) |
+| `time_range` | string | No | Filtrar por actualidad: día/d, semana/w, mes/m, año/y |
+| `start_date` | string | No | Fecha de publicación más temprana \(formato AAAA-MM-DD\) |
+| `end_date` | string | No | Fecha de publicación más reciente \(formato AAAA-MM-DD\) |
+| `include_domains` | string | No | Lista separada por comas de dominios permitidos \(máx. 300\) |
+| `exclude_domains` | string | No | Lista separada por comas de dominios bloqueados \(máx. 150\) |
+| `country` | string | No | Potenciar resultados del país especificado \(solo tema general\) |
+| `auto_parameters` | boolean | No | Configuración automática de parámetros basada en la intención de la consulta |
+| `apiKey` | string | Sí | Clave API de Tavily |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `query` | string | La consulta de búsqueda que se ejecutó |
+| `results` | array | Resultados generados por la herramienta |
+
+### `tavily_extract`
+
+Extrae contenido en bruto de múltiples páginas web simultáneamente usando Tavily
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `urls` | string | Sí | URL o array de URLs de donde extraer contenido |
+| `extract_depth` | string | No | La profundidad de extracción \(básica=1 crédito/5 URLs, avanzada=2 créditos/5 URLs\) |
+| `format` | string | No | Formato de salida: markdown o texto \(predeterminado: markdown\) |
+| `include_images` | boolean | No | Incorporar imágenes en la salida de extracción |
+| `include_favicon` | boolean | No | Añadir URL del favicon para cada resultado |
+| `apiKey` | string | Sí | Clave API de Tavily |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `results` | array | La URL que fue extraída |
+
+### `tavily_crawl`
+
+Rastrea y extrae contenido sistemáticamente de sitios web usando Tavily
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Sí | La URL raíz para comenzar el rastreo |
+| `instructions` | string | No | Instrucciones en lenguaje natural para el rastreador \(cuesta 2 créditos por 10 páginas\) |
+| `max_depth` | number | No | Qué tan lejos de la URL base explorar \(1-5, predeterminado: 1\) |
+| `max_breadth` | number | No | Enlaces seguidos por nivel de página \(≥1, predeterminado: 20\) |
+| `limit` | number | No | Total de enlaces procesados antes de detenerse \(≥1, predeterminado: 50\) |
+| `select_paths` | string | No | Patrones regex separados por comas para incluir rutas de URL específicas \(ej., /docs/.*\) |
+| `select_domains` | string | No | Patrones regex separados por comas para restringir el rastreo a ciertos dominios |
+| `exclude_paths` | string | No | Patrones regex separados por comas para omitir rutas de URL específicas |
+| `exclude_domains` | string | No | Patrones regex separados por comas para bloquear ciertos dominios |
+| `allow_external` | boolean | No | Incluir enlaces de dominios externos en los resultados \(predeterminado: true\) |
+| `include_images` | boolean | No | Incorporar imágenes en la salida del rastreo |
+| `extract_depth` | string | No | Profundidad de extracción: básica \(1 crédito/5 páginas\) o avanzada \(2 créditos/5 páginas\) |
+| `format` | string | No | Formato de salida: markdown o texto \(predeterminado: markdown\) |
+| `include_favicon` | boolean | No | Añadir URL del favicon para cada resultado |
+| `apiKey` | string | Sí | Clave API de Tavily |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `base_url` | string | La URL base que fue rastreada |
+| `results` | array | La URL de la página rastreada |
+
+### `tavily_map`
+
+Descubre y visualiza la estructura de sitios web usando Tavily
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Sí | La URL raíz para comenzar el mapeo |
+| `instructions` | string | No | Guía en lenguaje natural para el comportamiento de mapeo \(cuesta 2 créditos por cada 10 páginas\) |
+| `max_depth` | number | No | Qué tan lejos de la URL base explorar \(1-5, predeterminado: 1\) |
+| `max_breadth` | number | No | Enlaces a seguir por nivel \(predeterminado: 20\) |
+| `limit` | number | No | Total de enlaces a procesar \(predeterminado: 50\) |
+| `select_paths` | string | No | Patrones regex separados por comas para filtrar rutas de URL \(ej., /docs/.*\) |
+| `select_domains` | string | No | Patrones regex separados por comas para restringir el mapeo a dominios específicos |
+| `exclude_paths` | string | No | Patrones regex separados por comas para excluir rutas de URL específicas |
+| `exclude_domains` | string | No | Patrones regex separados por comas para excluir dominios |
+| `allow_external` | boolean | No | Incluir enlaces de dominios externos en los resultados \(predeterminado: true\) |
+| `apiKey` | string | Sí | Clave API de Tavily |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `base_url` | string | La URL base que fue mapeada |
+| `results` | array | URL descubierta |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `tavily`

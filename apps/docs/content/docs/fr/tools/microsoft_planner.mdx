@@ -1,0 +1,296 @@
+---
+title: Microsoft Planner
+description: Gérer les tâches, les plans et les compartiments dans Microsoft Planner
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="microsoft_planner"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Microsoft Planner](https://www.microsoft.com/en-us/microsoft-365/planner) est un outil de gestion des tâches qui aide les équipes à organiser visuellement leur travail à l'aide de tableaux, de tâches et de compartiments. Intégré à Microsoft 365, il offre un moyen simple et intuitif de gérer les projets d'équipe, d'attribuer des responsabilités et de suivre la progression.
+
+Avec Microsoft Planner, vous pouvez :
+
+- **Créer et gérer des tâches** : ajouter de nouvelles tâches avec des dates d'échéance, des priorités et des utilisateurs assignés
+- **Organiser avec des compartiments** : regrouper les tâches par phase, statut ou catégorie pour refléter le flux de travail de votre équipe
+- **Visualiser l'état du projet** : utiliser des tableaux, des graphiques et des filtres pour surveiller la charge de travail et suivre la progression
+- **Rester intégré à Microsoft 365** : connecter facilement les tâches avec Teams, Outlook et d'autres outils Microsoft
+
+Dans Sim, l'intégration de Microsoft Planner permet à vos agents de créer, lire et gérer des tâches de manière programmatique dans le cadre de leurs flux de travail. Les agents peuvent générer de nouvelles tâches basées sur les demandes entrantes, récupérer les détails des tâches pour prendre des décisions et suivre l'état d'avancement des projets — le tout sans intervention humaine. Que vous construisiez des flux de travail pour l'intégration de clients, le suivi de projets internes ou la génération de tâches de suivi, l'intégration de Microsoft Planner avec Sim offre à vos agents un moyen structuré de coordonner le travail, d'automatiser la création de tâches et de maintenir les équipes alignées.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Microsoft Planner dans le flux de travail. Gérez les tâches, les plans, les compartiments et les détails des tâches, y compris les listes de contrôle et les références.
+
+## Outils
+
+### `microsoft_planner_read_task`
+
+Lire les tâches depuis Microsoft Planner - obtenir toutes les tâches de l'utilisateur ou toutes les tâches d'un plan spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `planId` | chaîne | Non | L'identifiant du plan à partir duquel obtenir les tâches \(si non fourni, récupère toutes les tâches de l'utilisateur\) |
+| `taskId` | chaîne | Non | L'identifiant de la tâche à obtenir |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si les tâches ont été récupérées avec succès |
+| `tasks` | tableau | Tableau d'objets de tâche avec propriétés filtrées |
+| `metadata` | objet | Métadonnées incluant planId, userId et planUrl |
+
+### `microsoft_planner_create_task`
+
+Créer une nouvelle tâche dans Microsoft Planner
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `planId` | chaîne | Oui | L'identifiant du plan où la tâche sera créée |
+| `title` | chaîne | Oui | Le titre de la tâche |
+| `description` | chaîne | Non | La description de la tâche |
+| `dueDateTime` | chaîne | Non | La date et l'heure d'échéance pour la tâche \(format ISO 8601\) |
+| `assigneeUserId` | chaîne | Non | L'identifiant de l'utilisateur à qui attribuer la tâche |
+| `bucketId` | chaîne | Non | L'identifiant du compartiment où placer la tâche |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si la tâche a été créée avec succès |
+| `task` | objet | L'objet de tâche créé avec toutes ses propriétés |
+| `metadata` | objet | Métadonnées incluant planId, taskId et taskUrl |
+
+### `microsoft_planner_update_task`
+
+Mettre à jour une tâche dans Microsoft Planner
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | chaîne | Oui | L'identifiant de la tâche à mettre à jour |
+| `etag` | chaîne | Oui | La valeur ETag de la tâche à mettre à jour \(en-tête If-Match\) |
+| `title` | chaîne | Non | Le nouveau titre de la tâche |
+| `bucketId` | chaîne | Non | L'identifiant du compartiment vers lequel déplacer la tâche |
+| `dueDateTime` | chaîne | Non | La date et l'heure d'échéance pour la tâche \(format ISO 8601\) |
+| `startDateTime` | chaîne | Non | La date et l'heure de début pour la tâche \(format ISO 8601\) |
+| `percentComplete` | nombre | Non | Le pourcentage d'achèvement de la tâche \(0-100\) |
+| `priority` | nombre | Non | La priorité de la tâche \(0-10\) |
+| `assigneeUserId` | chaîne | Non | L'identifiant de l'utilisateur à qui attribuer la tâche |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si la tâche a été mise à jour avec succès |
+| `message` | chaîne | Message de succès lorsque la tâche est mise à jour |
+| `task` | objet | L'objet de tâche mis à jour avec toutes ses propriétés |
+| `taskId` | chaîne | Identifiant de la tâche mise à jour |
+| `etag` | chaîne | Nouvelle valeur ETag après la mise à jour - à utiliser pour les opérations suivantes |
+| `metadata` | objet | Métadonnées incluant taskId, planId et taskUrl |
+
+### `microsoft_planner_delete_task`
+
+Supprimer une tâche de Microsoft Planner
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | chaîne | Oui | L'identifiant de la tâche à supprimer |
+| `etag` | chaîne | Oui | La valeur ETag de la tâche à supprimer \(en-tête If-Match\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si la tâche a été supprimée avec succès |
+| `deleted` | booléen | Confirmation de la suppression |
+| `metadata` | objet | Métadonnées supplémentaires |
+
+### `microsoft_planner_list_plans`
+
+Liste de tous les plans partagés avec l'utilisateur actuel
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si les plans ont été récupérés avec succès |
+| `plans` | tableau | Tableau d'objets de plan partagés avec l'utilisateur actuel |
+| `metadata` | objet | Métadonnées incluant userId et nombre |
+
+### `microsoft_planner_read_plan`
+
+Obtenir les détails d'un plan Microsoft Planner spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `planId` | chaîne | Oui | L'identifiant du plan à récupérer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si le plan a été récupéré avec succès |
+| `plan` | objet | L'objet de plan avec toutes ses propriétés |
+| `metadata` | objet | Métadonnées incluant planId et planUrl |
+
+### `microsoft_planner_list_buckets`
+
+Lister tous les compartiments dans un plan Microsoft Planner
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `planId` | chaîne | Oui | L'identifiant du plan |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si les compartiments ont été récupérés avec succès |
+| `buckets` | tableau | Tableau d'objets de compartiment |
+| `metadata` | objet | Métadonnées incluant planId et nombre |
+
+### `microsoft_planner_read_bucket`
+
+Obtenir les détails d'un compartiment spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `bucketId` | chaîne | Oui | L'identifiant du compartiment à récupérer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si le compartiment a été récupéré avec succès |
+| `bucket` | objet | L'objet compartiment avec toutes ses propriétés |
+| `metadata` | objet | Métadonnées incluant bucketId et planId |
+
+### `microsoft_planner_create_bucket`
+
+Créer un nouveau compartiment dans un plan Microsoft Planner
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `planId` | chaîne | Oui | L'identifiant du plan où le compartiment sera créé |
+| `name` | chaîne | Oui | Le nom du compartiment |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si le compartiment a été créé avec succès |
+| `bucket` | objet | L'objet compartiment créé avec toutes ses propriétés |
+| `metadata` | objet | Métadonnées incluant bucketId et planId |
+
+### `microsoft_planner_update_bucket`
+
+Mettre à jour un compartiment dans Microsoft Planner
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `bucketId` | chaîne | Oui | L'identifiant du compartiment à mettre à jour |
+| `name` | chaîne | Non | Le nouveau nom du compartiment |
+| `etag` | chaîne | Oui | La valeur ETag du compartiment à mettre à jour \(en-tête If-Match\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si le compartiment a été mis à jour avec succès |
+| `bucket` | objet | L'objet compartiment mis à jour avec toutes ses propriétés |
+| `metadata` | objet | Métadonnées incluant bucketId et planId |
+
+### `microsoft_planner_delete_bucket`
+
+Supprimer un compartiment de Microsoft Planner
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `bucketId` | chaîne | Oui | L'identifiant du compartiment à supprimer |
+| `etag` | chaîne | Oui | La valeur ETag du compartiment à supprimer \(en-tête If-Match\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si le compartiment a été supprimé avec succès |
+| `deleted` | booléen | Confirmation de la suppression |
+| `metadata` | objet | Métadonnées supplémentaires |
+
+### `microsoft_planner_get_task_details`
+
+Obtenir des informations détaillées sur une tâche, y compris la liste de contrôle et les références
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | chaîne | Oui | L'identifiant de la tâche |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si les détails de la tâche ont été récupérés avec succès |
+| `taskDetails` | objet | Les détails de la tâche incluant description, liste de contrôle et références |
+| `etag` | chaîne | La valeur ETag pour ces détails de tâche - à utiliser pour les opérations de mise à jour |
+| `metadata` | objet | Métadonnées incluant taskId |
+
+### `microsoft_planner_update_task_details`
+
+Mettre à jour les détails de la tâche, y compris la description, les éléments de la liste de contrôle et les références dans Microsoft Planner
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | chaîne | Oui | L'identifiant de la tâche |
+| `etag` | chaîne | Oui | La valeur ETag des détails de la tâche à mettre à jour \(en-tête If-Match\) |
+| `description` | chaîne | Non | La description de la tâche |
+| `checklist` | objet | Non | Éléments de la liste de contrôle sous forme d'objet JSON |
+| `references` | objet | Non | Références sous forme d'objet JSON |
+| `previewType` | chaîne | Non | Type d'aperçu : automatic, noPreview, checklist, description ou reference |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si les détails de la tâche ont été mis à jour avec succès |
+| `taskDetails` | objet | L'objet de détails de tâche mis à jour avec toutes ses propriétés |
+| `metadata` | objet | Métadonnées incluant taskId |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `microsoft_planner`

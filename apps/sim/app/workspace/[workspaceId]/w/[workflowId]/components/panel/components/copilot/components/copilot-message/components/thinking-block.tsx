@@ -1,16 +1,99 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Brain } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import clsx from 'clsx'
+import { ChevronUp } from 'lucide-react'
 
-interface ThinkingBlockProps {
-  content: string
-  isStreaming?: boolean
-  duration?: number // Persisted duration from content block
-  startTime?: number // Persisted start time from content block
+/**
+ * Timer update interval in milliseconds
+ */
+const TIMER_UPDATE_INTERVAL = 100
+
+/**
+ * Milliseconds threshold for displaying as seconds
+ */
+const SECONDS_THRESHOLD = 1000
+
+/**
+ * Props for the ShimmerOverlayText component
+ */
+interface ShimmerOverlayTextProps {
+  /** Label text to display */
+  label: string
+  /** Value text to display */
+  value: string
+  /** Whether the shimmer animation is active */
+  active?: boolean
 }
 
+/**
+ * ShimmerOverlayText component for thinking block
+ * Applies shimmer effect to the "Thought for X.Xs" text during streaming
+ *
+ * @param props - Component props
+ * @returns Text with optional shimmer overlay effect
+ */
+function ShimmerOverlayText({ label, value, active = false }: ShimmerOverlayTextProps) {
+  return (
+    <span className='relative inline-block'>
+      <span style={{ color: '#B8B8B8' }}>{label}</span>
+      <span style={{ color: 'var(--text-muted)' }}>{value}</span>
+      {active ? (
+        <span
+          aria-hidden='true'
+          className='pointer-events-none absolute inset-0 select-none overflow-hidden'
+        >
+          <span
+            className='block text-transparent'
+            style={{
+              backgroundImage:
+                'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.85) 50%, rgba(255,255,255,0) 100%)',
+              backgroundSize: '200% 100%',
+              backgroundRepeat: 'no-repeat',
+              WebkitBackgroundClip: 'text',
+              backgroundClip: 'text',
+              animation: 'thinking-shimmer 1.4s ease-in-out infinite',
+              mixBlendMode: 'screen',
+            }}
+          >
+            {label}
+            {value}
+          </span>
+        </span>
+      ) : null}
+      <style>{`
+        @keyframes thinking-shimmer {
+          0% { background-position: 150% 0; }
+          50% { background-position: 0% 0; }
+          100% { background-position: -150% 0; }
+        }
+      `}</style>
+    </span>
+  )
+}
+
+/**
+ * Props for the ThinkingBlock component
+ */
+interface ThinkingBlockProps {
+  /** Content of the thinking block */
+  content: string
+  /** Whether the block is currently streaming */
+  isStreaming?: boolean
+  /** Persisted duration from content block */
+  duration?: number
+  /** Persisted start time from content block */
+  startTime?: number
+}
+
+/**
+ * ThinkingBlock component displays AI reasoning/thinking process
+ * Shows collapsible content with duration timer
+ * Auto-expands during streaming and collapses when complete
+ *
+ * @param props - Component props
+ * @returns Thinking block with expandable content and timer
+ */
 export function ThinkingBlock({
   content,
   isStreaming = false,
@@ -19,28 +102,39 @@ export function ThinkingBlock({
 }: ThinkingBlockProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [duration, setDuration] = useState(persistedDuration ?? 0)
-  // Keep a stable reference to start time that updates when prop changes
+  const userCollapsedRef = useRef<boolean>(false)
   const startTimeRef = useRef<number>(persistedStartTime ?? Date.now())
+
+  /**
+   * Updates start time reference when persisted start time changes
+   */
   useEffect(() => {
     if (typeof persistedStartTime === 'number') {
       startTimeRef.current = persistedStartTime
     }
   }, [persistedStartTime])
 
+  /**
+   * Auto-expands block when streaming with content
+   * Auto-collapses when streaming ends
+   */
   useEffect(() => {
-    // Auto-collapse when streaming ends
     if (!isStreaming) {
       setIsExpanded(false)
+      userCollapsedRef.current = false
       return
     }
-    // Expand once there is visible content while streaming
-    if (content && content.trim().length > 0) {
+
+    if (!userCollapsedRef.current && content && content.trim().length > 0) {
       setIsExpanded(true)
     }
   }, [isStreaming, content])
 
+  /**
+   * Updates duration timer during streaming
+   * Uses persisted duration when available
+   */
   useEffect(() => {
-    // If we already have a persisted duration, just use it
     if (typeof persistedDuration === 'number') {
       setDuration(persistedDuration)
       return
@@ -49,47 +143,65 @@ export function ThinkingBlock({
     if (isStreaming) {
       const interval = setInterval(() => {
         setDuration(Date.now() - startTimeRef.current)
-      }, 100)
+      }, TIMER_UPDATE_INTERVAL)
       return () => clearInterval(interval)
     }
 
-    // Not streaming and no persisted duration: compute final duration once
     setDuration(Date.now() - startTimeRef.current)
   }, [isStreaming, persistedDuration])
 
-  // Format duration
+  /**
+   * Formats duration in milliseconds to human-readable format
+   * @param ms - Duration in milliseconds
+   * @returns Formatted string (e.g., "150ms" or "2.5s")
+   */
   const formatDuration = (ms: number) => {
-    if (ms < 1000) return `${ms}ms`
-    const seconds = (ms / 1000).toFixed(1)
+    if (ms < SECONDS_THRESHOLD) {
+      return `${ms}ms`
+    }
+    const seconds = (ms / SECONDS_THRESHOLD).toFixed(1)
     return `${seconds}s`
   }
 
+  const hasContent = content && content.trim().length > 0
+
   return (
-    <div className='my-1'>
+    <div className='mt-1 mb-0'>
       <button
-        onClick={() => setIsExpanded((v) => !v)}
-        className={cn(
-          'mb-1 inline-flex items-center gap-1 text-gray-400 text-xs transition-colors hover:text-gray-500',
-          'font-normal italic'
-        )}
+        onClick={() => {
+          setIsExpanded((v) => {
+            const next = !v
+            // If user collapses during streaming, remember to not auto-expand again
+            if (!next && isStreaming) userCollapsedRef.current = true
+            return next
+          })
+        }}
+        className='mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
         type='button'
+        disabled={!hasContent}
       >
-        <Brain className='h-3 w-3' />
-        <span>
-          Thought for {formatDuration(duration)}
-          {isExpanded ? ' (click to collapse)' : ''}
-        </span>
-        {isStreaming && (
-          <span className='inline-flex h-1 w-1 animate-pulse rounded-full bg-gray-400' />
+        <ShimmerOverlayText
+          label='Thought'
+          value={` for ${formatDuration(duration)}`}
+          active={isStreaming}
+        />
+        {hasContent && (
+          <ChevronUp
+            className={clsx('h-3 w-3 transition-transform', isExpanded && 'rotate-180')}
+            aria-hidden='true'
+          />
         )}
       </button>
 
       {isExpanded && (
-        <div className='ml-1 border-gray-200 border-l-2 pl-2 dark:border-gray-700'>
-          <pre className='whitespace-pre-wrap font-mono text-gray-400 text-xs dark:text-gray-500'>
+        <div className='ml-1 border-[var(--border-strong)] border-l-2 pl-2'>
+          <pre
+            className='whitespace-pre-wrap font-[470] font-season text-[12px] leading-[1.15rem]'
+            style={{ color: '#B8B8B8' }}
+          >
             {content}
             {isStreaming && (
-              <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-gray-400' />
+              <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-[#B8B8B8]' />
             )}
           </pre>
         </div>

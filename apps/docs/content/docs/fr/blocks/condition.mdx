@@ -1,0 +1,149 @@
+---
+title: Condition
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Le bloc Condition permet de ramifier l'exécution du flux de travail en fonction d'expressions booléennes. Évaluez des conditions en utilisant les sorties des blocs précédents et dirigez vers différents chemins sans nécessiter un LLM.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/condition.png"
+    alt="Bloc de condition"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Options de configuration
+
+### Conditions
+
+Définissez une ou plusieurs conditions qui seront évaluées. Chaque condition comprend :
+
+- **Expression** : une expression JavaScript/TypeScript qui s'évalue à vrai ou faux
+- **Chemin** : le bloc de destination vers lequel diriger si la condition est vraie
+- **Description** : explication facultative de ce que vérifie la condition
+
+Vous pouvez créer plusieurs conditions qui sont évaluées dans l'ordre, la première condition correspondante déterminant le chemin d'exécution.
+
+### Format d'expression de condition
+
+Les conditions utilisent la syntaxe JavaScript et peuvent référencer des valeurs d'entrée provenant des blocs précédents.
+
+<Tabs items={['Seuil de score', 'Analyse de texte', 'Conditions multiples']}>
+  <Tab>
+
+    ```javascript
+    // Check if a score is above a threshold
+    <agent.score> > 75
+    ```
+
+  </Tab>
+  <Tab>
+
+    ```javascript
+    // Check if a text contains specific keywords
+    <agent.text>.includes('urgent') || <agent.text>.includes('emergency')
+    ```
+
+  </Tab>
+  <Tab>
+
+    ```javascript
+    // Check multiple conditions
+    <agent.age> >= 18 && <agent.country> === 'US'
+    ```
+
+  </Tab>
+</Tabs>
+
+### Accès aux résultats
+
+Après l'évaluation d'une condition, vous pouvez accéder à ses sorties :
+
+- **condition.result** : résultat booléen de l'évaluation de la condition
+- **condition.matched_condition** : identifiant de la condition qui a été satisfaite
+- **condition.content** : description du résultat de l'évaluation
+- **condition.path** : détails de la destination de routage choisie
+
+## Fonctionnalités avancées
+
+### Expressions complexes
+
+Utilisez des opérateurs et des fonctions JavaScript dans les conditions :
+
+```javascript
+// String operations
+<user.email>.endsWith('@company.com')
+
+// Array operations
+<api.tags>.includes('urgent')
+
+// Mathematical operations
+<agent.confidence> * 100 > 85
+
+// Date comparisons
+new Date(<api.created_at>) > new Date('2024-01-01')
+```
+
+### Évaluation de conditions multiples
+
+Les conditions sont évaluées dans l'ordre jusqu'à ce qu'une correspondance soit trouvée :
+
+```javascript
+// Condition 1: Check for high priority
+<ticket.priority> === 'high'
+
+// Condition 2: Check for urgent keywords
+<ticket.subject>.toLowerCase().includes('urgent')
+
+// Condition 3: Default fallback
+true
+```
+
+### Gestion des erreurs
+
+Les conditions gèrent automatiquement :
+- Les valeurs non définies ou nulles avec une évaluation sécurisée
+- Les incompatibilités de types avec des solutions de repli appropriées
+- Les expressions invalides avec journalisation des erreurs
+- Les variables manquantes avec des valeurs par défaut
+
+## Sorties
+
+- **`<condition.result>`** : résultat booléen de l'évaluation
+- **`<condition.matched_condition>`** : identifiant de la condition satisfaite
+- **`<condition.content>`** : description du résultat de l'évaluation
+- **`<condition.path>`** : détails de la destination de routage choisie
+
+## Exemples de cas d'utilisation
+
+**Routage du support client** - Acheminer les tickets selon leur priorité
+
+```
+API (Ticket) → Condition (priority === 'high') → Agent (Escalation) or Agent (Standard)
+```
+
+**Modération de contenu** - Filtrer le contenu selon l'analyse
+
+```
+Agent (Analyze) → Condition (toxicity > 0.7) → Moderation or Publish
+```
+
+**Parcours d'intégration utilisateur** - Personnaliser l'intégration selon le type d'utilisateur
+
+```
+Function (Process) → Condition (account_type === 'enterprise') → Advanced or Simple
+```
+
+## Bonnes pratiques
+
+- **Ordonnez correctement les conditions** : placez les conditions plus spécifiques avant les générales pour garantir que la logique spécifique prévaut sur les solutions de repli
+- **Utilisez la branche else quand nécessaire** : si aucune condition ne correspond et que la branche else n'est pas connectée, la branche du workflow se terminera gracieusement. Connectez la branche else si vous avez besoin d'un chemin de repli pour les cas non correspondants
+- **Gardez les expressions simples** : utilisez des expressions booléennes claires et directes pour une meilleure lisibilité et un débogage plus facile
+- **Documentez vos conditions** : ajoutez des descriptions pour expliquer l'objectif de chaque condition pour une meilleure collaboration en équipe et une maintenance plus facile
+- **Testez les cas limites** : vérifiez que les conditions gèrent correctement les valeurs limites en testant avec des valeurs aux extrémités de vos plages de conditions

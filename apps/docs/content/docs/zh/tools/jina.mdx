@@ -1,0 +1,97 @@
+---
+title: Jina
+description: 搜索网络或从 URL 中提取内容
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="jina"
+  color="#333333"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Jina AI](https://jina.ai/) 是一款强大的内容提取工具，可与 Sim 无缝集成，将网页内容转换为简洁、可读的文本。此集成使开发者能够轻松将网页内容处理功能融入其代理工作流中。
+
+Jina AI Reader 专注于从网页中提取最相关的内容，去除杂乱、广告和格式问题，生成简洁、结构化的文本，优化语言模型和其他文本处理任务。
+
+通过在 Sim 中集成 Jina AI，您可以：
+
+- **从任何网页提取简洁内容**，只需提供一个 URL
+- **将复杂的网页布局** 转换为结构化、可读的文本
+- **保留重要的上下文**，同时去除不必要的元素
+- **为您的代理工作流** 准备网页内容以供进一步处理
+- **简化研究任务**，快速将网页信息转换为可用数据
+
+此集成对于构建需要从网页收集和处理信息、进行研究或分析在线内容的代理特别有价值。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Jina AI 集成到工作流程中。搜索网络并获取适合 LLM 的结果，或使用高级解析选项从特定 URL 中提取干净的内容。
+
+## 工具
+
+### `jina_read_url`
+
+使用 Jina AI Reader 提取和处理网页内容，生成简洁、适合 LLM 的文本。支持高级内容解析、链接收集和多种输出格式，并提供可配置的处理选项。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | 是 | 要读取并转换为 markdown 的 URL |
+| `useReaderLMv2` | boolean | 否 | 是否使用 ReaderLM-v2 以获得更高质量（3 倍 token 成本） |
+| `gatherLinks` | boolean | 否 | 是否在末尾收集所有链接 |
+| `jsonResponse` | boolean | 否 | 是否以 JSON 格式返回响应 |
+| `apiKey` | string | 是 | 您的 Jina AI API 密钥 |
+| `withImagesummary` | boolean | 否 | 从页面收集所有带有元数据的图像 |
+| `retainImages` | string | 否 | 控制图像包含："none" 删除所有，"all" 保留所有 |
+| `returnFormat` | string | 否 | 输出格式：markdown、html、text、screenshot 或 pageshot |
+| `withIframe` | boolean | 否 | 在提取中包含 iframe 内容 |
+| `withShadowDom` | boolean | 否 | 提取 Shadow DOM 内容 |
+| `noCache` | boolean | 否 | 绕过缓存内容以实时检索 |
+| `withGeneratedAlt` | boolean | 否 | 使用 VLM 为图像生成替代文本 |
+| `robotsTxt` | string | 否 | 用于 robots.txt 检查的 Bot User-Agent |
+| `dnt` | boolean | 否 | 请勿跟踪 - 防止缓存/跟踪 |
+| `noGfm` | boolean | 否 | 禁用 GitHub Flavored Markdown |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | 字符串 | 从 URL 提取的内容，处理为干净且适合 LLM 的文本 |
+| `links` | 数组 | 页面中找到的链接列表（当启用 gatherLinks 或 withLinksummary 时） |
+| `images` | 数组 | 页面中找到的图片列表（当启用 withImagesummary 时） |
+
+### `jina_search`
+
+搜索网络并返回前 5 个包含适合 LLM 的内容的结果。每个结果都会通过 Jina Reader API 自动处理。支持地理过滤、站点限制和分页功能。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | 是 | 搜索查询字符串 |
+| `apiKey` | string | 是 | 您的 Jina AI API 密钥 |
+| `num` | number | 否 | 每页最大结果数（默认值：5） |
+| `site` | string | 否 | 将结果限制为特定域名。可以用逗号分隔多个站点（例如："jina.ai,github.com"） |
+| `withFavicon` | boolean | 否 | 在结果中包含网站图标 |
+| `withImagesummary` | boolean | 否 | 从结果页面收集所有带有元数据的图像 |
+| `withLinksummary` | boolean | 否 | 从结果页面收集所有链接 |
+| `retainImages` | string | 否 | 控制图像包含："none" 删除所有，"all" 保留所有 |
+| `noCache` | boolean | 否 | 绕过缓存内容以实时检索 |
+| `withGeneratedAlt` | boolean | 否 | 使用 VLM 为图像生成替代文本 |
+| `respondWith` | string | 否 | 设置为 "no-content" 以仅获取元数据而不包含页面内容 |
+| `returnFormat` | string | 否 | 输出格式：markdown、html、text、screenshot 或 pageshot |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `results` | 数组 | 搜索结果的数组，每个结果包含标题、描述、URL 和适合 LLM 的内容 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`jina`

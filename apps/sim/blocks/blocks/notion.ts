@@ -1,13 +1,15 @@
 import { NotionIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { NotionResponse } from '@/tools/notion/types'
 
 export const NotionBlock: BlockConfig<NotionResponse> = {
   type: 'notion',
   name: 'Notion',
   description: 'Manage Notion pages',
+  authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate with Notion to read content from pages, write new content, and create new pages.',
+    'Integrate with Notion into the workflow. Can read page, read database, create page, create database, append content, query database, and search workspace.',
   docsLink: 'https://docs.sim.ai/tools/notion',
   category: 'tools',
   bgColor: '#181C1E',
@@ -17,7 +19,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Read Page', id: 'notion_read' },
         { label: 'Read Database', id: 'notion_read_database' },
@@ -33,8 +34,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'credential',
       title: 'Notion Account',
       type: 'oauth-input',
-      layout: 'full',
-      provider: 'notion',
       serviceId: 'notion',
       requiredScopes: ['workspace.content', 'workspace.name', 'page.read', 'page.write'],
       placeholder: 'Select Notion account',
@@ -45,7 +44,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'pageId',
       title: 'Page ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter Notion page ID',
       condition: {
         field: 'operation',
@@ -57,7 +55,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'databaseId',
       title: 'Database ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter Notion database ID',
       condition: {
         field: 'operation',
@@ -69,7 +66,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'pageId',
       title: 'Page ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter Notion page ID',
       condition: {
         field: 'operation',
@@ -82,7 +78,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'parentId',
       title: 'Parent Page ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'ID of parent page',
       condition: { field: 'operation', value: 'notion_create_page' },
       required: true,
@@ -91,7 +86,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'title',
       title: 'Page Title',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Title for the new page',
       condition: {
         field: 'operation',
@@ -103,7 +97,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'content',
       title: 'Content',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter content to add to the page',
       condition: {
         field: 'operation',
@@ -115,7 +108,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'content',
       title: 'Content',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter content to add to the page',
       condition: {
         field: 'operation',
@@ -128,7 +120,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'databaseId',
       title: 'Database ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter Notion database ID',
       condition: { field: 'operation', value: 'notion_query_database' },
       required: true,
@@ -137,7 +128,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'filter',
       title: 'Filter (JSON)',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter filter conditions as JSON (optional)',
       condition: { field: 'operation', value: 'notion_query_database' },
       required: true,
@@ -146,7 +136,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'sorts',
       title: 'Sort Criteria (JSON)',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter sort criteria as JSON array (optional)',
       condition: { field: 'operation', value: 'notion_query_database' },
     },
@@ -154,7 +143,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'pageSize',
       title: 'Page Size',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Number of results (default: 100, max: 100)',
       condition: { field: 'operation', value: 'notion_query_database' },
     },
@@ -163,7 +151,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'query',
       title: 'Search Query',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter search terms (leave empty for all pages)',
       condition: { field: 'operation', value: 'notion_search' },
     },
@@ -171,7 +158,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'filterType',
       title: 'Filter Type',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'All', id: 'all' },
         { label: 'Pages Only', id: 'page' },
@@ -184,7 +170,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'parentId',
       title: 'Parent Page ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'ID of parent page where database will be created',
       condition: { field: 'operation', value: 'notion_create_database' },
       required: true,
@@ -193,7 +178,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'title',
       title: 'Database Title',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Title for the new database',
       condition: { field: 'operation', value: 'notion_create_database' },
       required: true,
@@ -202,7 +186,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'properties',
       title: 'Database Properties (JSON)',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter database properties as JSON object',
       condition: { field: 'operation', value: 'notion_create_database' },
     },
@@ -282,7 +265,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
 
         return {
           ...rest,
-          accessToken: credential,
+          credential,
           ...(parsedProperties ? { properties: parsedProperties } : {}),
           ...(parsedFilter ? { filter: JSON.stringify(parsedFilter) } : {}),
           ...(parsedSorts ? { sorts: JSON.stringify(parsedSorts) } : {}),

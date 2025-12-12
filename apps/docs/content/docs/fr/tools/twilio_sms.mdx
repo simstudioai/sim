@@ -1,0 +1,60 @@
+---
+title: Twilio SMS
+description: Envoyer des messages SMS
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="twilio_sms"
+  color="#F22F46"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Twilio SMS](https://www.twilio.com/en-us/sms) est une plateforme de communication cloud puissante qui permet aux entreprises d'intégrer des fonctionnalités de messagerie dans leurs applications et services.
+
+Twilio SMS fournit une API robuste pour l'envoi et la réception programmatiques de messages texte à l'échelle mondiale. Avec une couverture dans plus de 180 pays et un SLA de disponibilité de 99,999 %, Twilio s'est imposé comme un leader du secteur dans les technologies de communication.
+
+Les fonctionnalités clés de Twilio SMS comprennent :
+
+- **Portée mondiale** : envoyez des messages aux destinataires du monde entier avec des numéros de téléphone locaux dans plusieurs pays
+- **Messagerie programmable** : personnalisez la livraison des messages avec des webhooks, des accusés de réception et des options de planification
+- **Analyses avancées** : suivez les taux de livraison, les métriques d'engagement et optimisez vos campagnes de messagerie
+
+Dans Sim, l'intégration de Twilio SMS permet à vos agents d'exploiter ces puissantes fonctionnalités de messagerie dans le cadre de leurs flux de travail. Cela crée des opportunités pour des scénarios sophistiqués d'engagement client comme les rappels de rendez-vous, les codes de vérification, les alertes et les conversations interactives. L'intégration comble le fossé entre vos flux de travail IA et les canaux de communication client, permettant à vos agents de délivrer des informations opportunes et pertinentes directement sur les appareils mobiles des utilisateurs. En connectant Sim avec Twilio SMS, vous pouvez construire des agents intelligents qui engagent les clients via leur canal de communication préféré, améliorant l'expérience utilisateur tout en automatisant les tâches de messagerie routinières.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrer Twilio dans le flux de travail. Peut envoyer des messages SMS.
+
+## Outils
+
+### `twilio_send_sms`
+
+Envoyez des messages texte à un ou plusieurs destinataires en utilisant l'API Twilio.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `phoneNumbers` | chaîne | Oui | Numéros de téléphone auxquels envoyer le message, séparés par des sauts de ligne |
+| `message` | chaîne | Oui | Message à envoyer |
+| `accountSid` | chaîne | Oui | SID du compte Twilio |
+| `authToken` | chaîne | Oui | Jeton d'authentification Twilio |
+| `fromNumber` | chaîne | Oui | Numéro de téléphone Twilio à partir duquel envoyer le message |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Statut de réussite d'envoi du SMS |
+| `messageId` | chaîne | Identifiant unique du message Twilio \(SID\) |
+| `status` | chaîne | Statut de livraison du message de Twilio |
+| `fromNumber` | chaîne | Numéro de téléphone à partir duquel le message a été envoyé |
+| `toNumber` | chaîne | Numéro de téléphone auquel le message a été envoyé |
+
+## Remarques
+
+- Catégorie : `tools`
+- Type : `twilio_sms`

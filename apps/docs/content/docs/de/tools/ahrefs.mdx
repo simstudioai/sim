@@ -1,0 +1,200 @@
+---
+title: Ahrefs
+description: SEO-Analyse mit Ahrefs
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="ahrefs"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Ahrefs](https://ahrefs.com/) ist ein führendes SEO-Toolset zur Analyse von Websites, Verfolgung von Rankings, Überwachung von Backlinks und Keyword-Recherche. Es bietet detaillierte Einblicke in Ihre eigene Website sowie in die Ihrer Wettbewerber und hilft Ihnen, datengestützte Entscheidungen zur Verbesserung Ihrer Sichtbarkeit in Suchmaschinen zu treffen.
+
+Mit der Ahrefs-Integration in Sim können Sie:
+
+- **Domain Rating & Autorität analysieren**: Überprüfen Sie sofort die Domain Rating (DR) und den Ahrefs Rank jeder Website, um deren Autorität einzuschätzen.
+- **Backlinks abrufen**: Rufen Sie eine Liste von Backlinks ab, die auf eine Website oder eine bestimmte URL verweisen, mit Details wie Ankertext, DR der verweisenden Seite und mehr.
+- **Backlink-Statistiken erhalten**: Greifen Sie auf Metriken zu Backlink-Typen (dofollow, nofollow, Text, Bild, Weiterleitung usw.) für eine Domain oder URL zu.
+- **Organische Keywords erkunden** *(geplant)*: Sehen Sie, für welche Keywords eine Domain rankt und welche Positionen sie in den Google-Suchergebnissen einnimmt.
+- **Top-Seiten entdecken** *(geplant)*: Identifizieren Sie die leistungsstärksten Seiten nach organischem Traffic und Links.
+
+Diese Tools ermöglichen es Ihren Agenten, SEO-Recherchen zu automatisieren, Wettbewerber zu überwachen und Berichte zu erstellen – alles als Teil Ihrer Workflow-Automatisierungen. Um die Ahrefs-Integration zu nutzen, benötigen Sie ein Ahrefs Enterprise-Abonnement mit API-Zugang.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Integrieren Sie Ahrefs SEO-Tools in Ihren Workflow. Analysieren Sie Domain-Ratings, Backlinks, organische Keywords, Top-Seiten und mehr. Erfordert einen Ahrefs Enterprise-Plan mit API-Zugang.
+
+## Tools
+
+### `ahrefs_domain_rating`
+
+Erhalten Sie die Domain Rating (DR) und den Ahrefs Rank für eine Zieldomain. Die Domain Rating zeigt die Stärke einer Website
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Ja | Die zu analysierende Zieldomäne (z.B. example.com) |
+| `date` | string | Nein | Datum für historische Daten im Format YYYY-MM-DD (standardmäßig heute) |
+| `apiKey` | string | Ja | Ahrefs API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `domainRating` | number | Domain Rating Score (0-100) |
+| `ahrefsRank` | number | Ahrefs Rank - globales Ranking basierend auf der Stärke des Backlink-Profils |
+
+### `ahrefs_backlinks`
+
+Erhalte eine Liste von Backlinks, die auf eine Zieldomäne oder URL verweisen. Liefert Details zu jedem Backlink, einschließlich Quell-URL, Ankertext und Domain Rating.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Ja | Die zu analysierende Zieldomäne oder URL |
+| `mode` | string | Nein | Analysemodus: domain (gesamte Domäne), prefix (URL-Präfix), subdomains (alle Subdomänen einschließen), exact (exakte URL-Übereinstimmung) |
+| `date` | string | Nein | Datum für historische Daten im Format YYYY-MM-DD (standardmäßig heute) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse (Standard: 100) |
+| `offset` | number | Nein | Anzahl der zu überspringenden Ergebnisse für Paginierung |
+| `apiKey` | string | Ja | Ahrefs API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `backlinks` | array | Liste der Backlinks, die auf das Ziel verweisen |
+
+### `ahrefs_backlinks_stats`
+
+Ruft Backlink-Statistiken für eine Zieldomäne oder URL ab. Gibt Gesamtwerte für verschiedene Backlink-Typen zurück, einschließlich Dofollow-, Nofollow-, Text-, Bild- und Weiterleitungslinks.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Ja | Die zu analysierende Zieldomäne oder URL |
+| `mode` | string | Nein | Analysemodus: domain \(gesamte Domäne\), prefix \(URL-Präfix\), subdomains \(alle Subdomänen einschließen\), exact \(exakte URL-Übereinstimmung\) |
+| `date` | string | Nein | Datum für historische Daten im Format JJJJ-MM-TT \(standardmäßig heute\) |
+| `apiKey` | string | Ja | Ahrefs API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `stats` | object | Zusammenfassung der Backlink-Statistiken |
+
+### `ahrefs_referring_domains`
+
+Ruft eine Liste von Domänen ab, die auf eine Zieldomäne oder URL verlinken. Gibt eindeutige verweisende Domänen mit ihrem Domain-Rating, Backlink-Anzahl und Entdeckungsdaten zurück.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Ja | Die zu analysierende Zieldomäne oder URL |
+| `mode` | string | Nein | Analysemodus: domain \(gesamte Domäne\), prefix \(URL-Präfix\), subdomains \(alle Subdomänen einschließen\), exact \(exakte URL-Übereinstimmung\) |
+| `date` | string | Nein | Datum für historische Daten im Format JJJJ-MM-TT \(standardmäßig heute\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse \(Standard: 100\) |
+| `offset` | number | Nein | Anzahl der zu überspringenden Ergebnisse für die Paginierung |
+| `apiKey` | string | Ja | Ahrefs API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `referringDomains` | array | Liste der Domains, die auf das Ziel verlinken |
+
+### `ahrefs_organic_keywords`
+
+Erhalte organische Keywords, für die eine Zieldomain oder URL in den Google-Suchergebnissen rankt. Liefert Keyword-Details einschließlich Suchvolumen, Ranking-Position und geschätztem Traffic.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Ja | Die zu analysierende Zieldomain oder URL |
+| `country` | string | Nein | Ländercode für Suchergebnisse \(z.B. us, gb, de\). Standard: us |
+| `mode` | string | Nein | Analysemodus: domain \(gesamte Domain\), prefix \(URL-Präfix\), subdomains \(alle Subdomains einschließen\), exact \(exakte URL-Übereinstimmung\) |
+| `date` | string | Nein | Datum für historische Daten im Format JJJJ-MM-TT \(standardmäßig heute\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse \(Standard: 100\) |
+| `offset` | number | Nein | Anzahl der zu überspringenden Ergebnisse für Paginierung |
+| `apiKey` | string | Ja | Ahrefs API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `keywords` | array | Liste der organischen Keywords, für die das Ziel rankt |
+
+### `ahrefs_top_pages`
+
+Erhalte die Top-Seiten einer Zieldomain, sortiert nach organischem Traffic. Liefert Seiten-URLs mit ihrem Traffic, Keyword-Anzahl und geschätztem Traffic-Wert.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Ja | Die zu analysierende Zieldomäne |
+| `country` | string | Nein | Ländercode für Verkehrsdaten \(z.B. us, gb, de\). Standard: us |
+| `mode` | string | Nein | Analysemodus: domain \(gesamte Domäne\), prefix \(URL-Präfix\), subdomains \(alle Subdomänen einschließen\) |
+| `date` | string | Nein | Datum für historische Daten im Format JJJJ-MM-TT \(standardmäßig heute\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse \(Standard: 100\) |
+| `offset` | number | Nein | Anzahl der zu überspringenden Ergebnisse für Paginierung |
+| `select` | string | Nein | Kommagetrennte Liste der zurückzugebenden Felder \(z.B. url,traffic,keywords,top_keyword,value\). Standard: url,traffic,keywords,top_keyword,value |
+| `apiKey` | string | Ja | Ahrefs API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `pages` | array | Liste der Top-Seiten nach organischem Traffic |
+
+### `ahrefs_keyword_overview`
+
+Erhalten Sie detaillierte Metriken für ein Keyword, einschließlich Suchvolumen, Keyword-Schwierigkeit, CPC, Klicks und Traffic-Potenzial.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `keyword` | string | Ja | Das zu analysierende Keyword |
+| `country` | string | Nein | Ländercode für Keyword-Daten \(z.B. us, gb, de\). Standard: us |
+| `apiKey` | string | Ja | Ahrefs API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `overview` | object | Keyword-Metriken Übersicht |
+
+### `ahrefs_broken_backlinks`
+
+Erhalte eine Liste defekter Backlinks, die auf eine Zieldomäne oder URL verweisen. Nützlich zur Identifizierung von Möglichkeiten zur Link-Wiederherstellung.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Ja | Die zu analysierende Zieldomäne oder URL |
+| `mode` | string | Nein | Analysemodus: domain \(gesamte Domäne\), prefix \(URL-Präfix\), subdomains \(alle Subdomänen einschließen\), exact \(exakte URL-Übereinstimmung\) |
+| `date` | string | Nein | Datum für historische Daten im Format JJJJ-MM-TT \(standardmäßig heute\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse \(Standard: 100\) |
+| `offset` | number | Nein | Anzahl der zu überspringenden Ergebnisse für Paginierung |
+| `apiKey` | string | Ja | Ahrefs API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `brokenBacklinks` | array | Liste defekter Backlinks |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `ahrefs`

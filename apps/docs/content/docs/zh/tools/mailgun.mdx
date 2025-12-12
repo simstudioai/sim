@@ -1,0 +1,216 @@
+---
+title: Mailgun
+description: 使用 Mailgun 发送电子邮件并管理邮件列表
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mailgun"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Mailgun](https://www.mailgun.com) 是一款功能强大的电子邮件发送服务，专为开发者和企业设计，能够轻松发送、接收和跟踪电子邮件。Mailgun 提供强大的 API，支持可靠的事务性和营销电子邮件、灵活的邮件列表管理以及高级事件跟踪。
+
+通过 Mailgun 的全面功能集，您可以自动化关键的电子邮件操作，并密切监控投递率和收件人参与度。这使其成为在通信、通知和活动邮件是核心流程的工作流自动化中的理想解决方案。
+
+Mailgun 的主要功能包括：
+
+- **事务性电子邮件发送：** 发送大量电子邮件，例如账户通知、收据、警报和密码重置。
+- **丰富的电子邮件内容：** 发送纯文本和 HTML 格式的电子邮件，并使用标签对消息进行分类和跟踪。
+- **邮件列表管理：** 创建、更新和管理邮件列表及成员，以高效发送分组通信。
+- **域信息：** 检索发送域的详细信息，以监控配置和健康状况。
+- **事件跟踪：** 通过详细的事件数据分析电子邮件的投递率和参与度。
+- **消息检索：** 访问存储的消息以满足合规性、分析或故障排除需求。
+
+通过将 Mailgun 集成到 Sim 中，您的代理可以以编程方式发送电子邮件、管理邮件列表、访问域信息并监控实时事件，作为自动化工作流的一部分。这使您能够直接从 AI 驱动的流程中实现智能、数据驱动的用户互动。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Mailgun 集成到您的工作流中。发送事务性电子邮件，管理邮件列表及成员，查看域信息并跟踪电子邮件事件。支持文本和 HTML 格式的电子邮件、用于跟踪的标签以及全面的列表管理功能。
+
+## 工具
+
+### `mailgun_send_message`
+
+使用 Mailgun API 发送电子邮件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Mailgun API 密钥 |
+| `domain` | string | 是 | Mailgun 域名 \(例如：mg.example.com\) |
+| `from` | string | 是 | 发件人电子邮件地址 |
+| `to` | string | 是 | 收件人电子邮件地址 \(多个地址用逗号分隔\) |
+| `subject` | string | 是 | 电子邮件主题 |
+| `text` | string | 否 | 电子邮件的纯文本正文 |
+| `html` | string | 否 | 电子邮件的 HTML 正文 |
+| `cc` | string | 否 | 抄送电子邮件地址 \(多个地址用逗号分隔\) |
+| `bcc` | string | 否 | 密送电子邮件地址 \(多个地址用逗号分隔\) |
+| `tags` | string | 否 | 电子邮件标签 \(用逗号分隔\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 消息是否成功发送 |
+| `id` | string | 消息 ID |
+| `message` | string | 来自 Mailgun 的响应消息 |
+
+### `mailgun_get_message`
+
+通过其密钥检索存储的消息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Mailgun API 密钥 |
+| `domain` | string | 是 | Mailgun 域名 |
+| `messageKey` | string | 是 | 消息存储密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 请求是否成功 |
+| `recipients` | string | 消息接收者 |
+| `from` | string | 发件人邮箱 |
+| `subject` | string | 消息主题 |
+| `bodyPlain` | string | 纯文本正文 |
+| `strippedText` | string | 去除格式的文本 |
+| `strippedSignature` | string | 去除格式的签名 |
+| `bodyHtml` | string | HTML 正文 |
+| `strippedHtml` | string | 去除格式的 HTML |
+| `attachmentCount` | number | 附件数量 |
+| `timestamp` | number | 消息时间戳 |
+| `messageHeaders` | json | 消息头信息 |
+| `contentIdMap` | json | 内容 ID 映射 |
+
+### `mailgun_list_messages`
+
+列出通过 Mailgun 发送的消息的事件（日志）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Mailgun API 密钥 |
+| `domain` | string | 是 | Mailgun 域名 |
+| `event` | string | 否 | 按事件类型过滤 \(accepted, delivered, failed, opened, clicked, etc.\) |
+| `limit` | number | 否 | 返回的最大事件数 \(默认值: 100\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 请求是否成功 |
+| `items` | json | 事件项数组 |
+| `paging` | json | 分页信息 |
+
+### `mailgun_create_mailing_list`
+
+创建一个新的邮件列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Mailgun API 密钥 |
+| `address` | string | 是 | 邮件列表地址 \(例如：list@example.com\) |
+| `name` | string | 否 | 邮件列表名称 |
+| `description` | string | 否 | 邮件列表描述 |
+| `accessLevel` | string | 否 | 访问级别：readonly、members 或 everyone |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功创建了列表 |
+| `message` | string | 响应消息 |
+| `list` | json | 创建的邮件列表详情 |
+
+### `mailgun_get_mailing_list`
+
+获取邮件列表的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Mailgun API 密钥 |
+| `address` | string | 是 | 邮件列表地址 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 请求是否成功 |
+| `list` | json | 邮件列表详情 |
+
+### `mailgun_add_list_member`
+
+向邮件列表添加成员
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Mailgun API 密钥 |
+| `listAddress` | string | 是 | 邮件列表地址 |
+| `address` | string | 是 | 成员邮箱地址 |
+| `name` | string | 否 | 成员名称 |
+| `vars` | string | 否 | 自定义变量的 JSON 字符串 |
+| `subscribed` | boolean | 否 | 成员是否已订阅 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 成员是否成功添加 |
+| `message` | string | 响应消息 |
+| `member` | json | 添加的成员详情 |
+
+### `mailgun_list_domains`
+
+列出您的 Mailgun 帐户的所有域名
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Mailgun API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 请求是否成功 |
+| `totalCount` | number | 域名总数 |
+| `items` | json | 域名对象数组 |
+
+### `mailgun_get_domain`
+
+获取特定域名的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Mailgun API 密钥 |
+| `domain` | string | 是 | 域名 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 请求是否成功 |
+| `domain` | json | 域名详情 |
+
+## 注意事项
+
+- 类别: `tools`
+- 类型: `mailgun`

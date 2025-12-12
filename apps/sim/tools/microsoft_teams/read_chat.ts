@@ -2,7 +2,10 @@ import type {
   MicrosoftTeamsReadResponse,
   MicrosoftTeamsToolParams,
 } from '@/tools/microsoft_teams/types'
-import { extractMessageAttachments } from '@/tools/microsoft_teams/utils'
+import {
+  extractMessageAttachments,
+  fetchHostedContentsForChatMessage,
+} from '@/tools/microsoft_teams/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsReadResponse> = {
@@ -10,6 +13,7 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
   name: 'Read Microsoft Teams Chat',
   description: 'Read content from a Microsoft Teams chat',
   version: '1.0',
+  errorExtractor: 'nested-error-object',
 
   oauth: {
     required: true,
@@ -28,6 +32,12 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
       required: true,
       visibility: 'user-only',
       description: 'The ID of the chat to read from',
+    },
+    includeAttachments: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Download and include message attachments (hosted contents) into storage',
     },
   },
 
@@ -77,22 +87,39 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
     }
 
     // Process messages with attachments
-    const processedMessages = messages.map((message: any) => {
-      const content = message.body?.content || 'No content'
-      const messageId = message.id
+    const processedMessages = await Promise.all(
+      messages.map(async (message: any) => {
+        const content = message.body?.content || 'No content'
+        const messageId = message.id
 
-      // Extract attachments without any content processing
-      const attachments = extractMessageAttachments(message)
+        // Extract attachments without any content processing
+        const attachments = extractMessageAttachments(message)
 
-      return {
-        id: messageId,
-        content: content, // Keep original content without modification
-        sender: message.from?.user?.displayName || 'Unknown',
-        timestamp: message.createdDateTime,
-        messageType: message.messageType || 'message',
-        attachments, // Attachments only stored here
-      }
-    })
+        // Optionally fetch and upload hosted contents
+        let uploaded: any[] = []
+        if (params?.includeAttachments && params.accessToken && params.chatId && messageId) {
+          try {
+            uploaded = await fetchHostedContentsForChatMessage({
+              accessToken: params.accessToken,
+              chatId: params.chatId,
+              messageId,
+            })
+          } catch (_e) {
+            uploaded = []
+          }
+        }
+
+        return {
+          id: messageId,
+          content: content, // Keep original content without modification
+          sender: message.from?.user?.displayName || 'Unknown',
+          timestamp: message.createdDateTime,
+          messageType: message.messageType || 'message',
+          attachments, // Raw attachment metadata
+          uploadedFiles: uploaded, // Uploaded file infos (paths/keys)
+        }
+      })
+    )
 
     // Format the messages into a readable text (no attachment info in content)
     const formattedMessages = processedMessages
@@ -131,11 +158,15 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
       messages: processedMessages,
     }
 
+    // Flatten uploaded files across all messages for convenience
+    const flattenedUploads = processedMessages.flatMap((m: any) => m.uploadedFiles || [])
+
     return {
       success: true,
       output: {
         content: formattedMessages,
         metadata,
+        attachments: flattenedUploads,
       },
     }
   },
@@ -148,5 +179,9 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
     attachmentCount: { type: 'number', description: 'Total number of attachments found' },
     attachmentTypes: { type: 'array', description: 'Types of attachments found' },
     content: { type: 'string', description: 'Formatted content of chat messages' },
+    attachments: {
+      type: 'file[]',
+      description: 'Uploaded attachments for convenience (flattened)',
+    },
   },
 }

@@ -10,6 +10,7 @@ export interface AuthenticatedSocket extends Socket {
   userName?: string
   userEmail?: string
   activeOrganizationId?: string
+  userImage?: string | null
 }
 
 // Enhanced authentication middleware
@@ -24,7 +25,6 @@ export async function authenticateSocket(socket: AuthenticatedSocket, next: any)
       hasToken: !!token,
       origin,
       referer,
-      allHeaders: Object.keys(socket.handshake.headers),
     })
 
     if (!token) {
@@ -54,6 +54,7 @@ export async function authenticateSocket(socket: AuthenticatedSocket, next: any)
       socket.userId = session.user.id
       socket.userName = session.user.name || session.user.email || 'Unknown User'
       socket.userEmail = session.user.email
+      socket.userImage = session.user.image || null
       socket.activeOrganizationId = session.session.activeOrganizationId || undefined
 
       next()

@@ -1,0 +1,38 @@
+{
+  "name": "@sim/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "bun": ">=1.2.13",
+    "node": ">=20.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    },
+    "./schema": {
+      "types": "./schema.ts",
+      "default": "./schema.ts"
+    }
+  },
+  "scripts": {
+    "db:push": "bunx drizzle-kit push --config=./drizzle.config.ts",
+    "db:migrate": "bunx drizzle-kit migrate --config=./drizzle.config.ts",
+    "db:studio": "bunx drizzle-kit studio --config=./drizzle.config.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "drizzle-orm": "^0.44.5",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  },
+  "overrides": {
+    "drizzle-orm": "^0.44.5",
+    "postgres": "^3.4.5"
+  }
+}

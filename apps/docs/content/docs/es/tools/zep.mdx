@@ -1,0 +1,217 @@
+---
+title: Zep
+description: Memoria a largo plazo para agentes de IA
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="zep"
+  color="#E8E8E8"
+/>
+
+## Instrucciones de uso
+
+Integra Zep para la gestión de memoria a largo plazo. Crea hilos, añade mensajes, recupera contexto con resúmenes potenciados por IA y extracción de datos relevantes.
+
+## Herramientas
+
+### `zep_create_thread`
+
+Iniciar un nuevo hilo de conversación en Zep
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | Sí | Identificador único para el hilo |
+| `userId` | string | Sí | ID de usuario asociado con el hilo |
+| `apiKey` | string | Sí | Tu clave API de Zep |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `threadId` | string | El ID del hilo |
+| `userId` | string | El ID del usuario |
+| `uuid` | string | UUID interno |
+| `createdAt` | string | Marca de tiempo de creación |
+| `projectUuid` | string | UUID del proyecto |
+
+### `zep_get_threads`
+
+Listar todos los hilos de conversación
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | No | Número de hilos a recuperar por página |
+| `pageNumber` | number | No | Número de página para paginación |
+| `orderBy` | string | No | Campo para ordenar resultados \(created_at, updated_at, user_id, thread_id\) |
+| `asc` | boolean | No | Dirección de ordenamiento: true para ascendente, false para descendente |
+| `apiKey` | string | Sí | Tu clave API de Zep |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `threads` | array | Array de objetos de hilo |
+| `responseCount` | number | Número de hilos en esta respuesta |
+| `totalCount` | number | Número total de hilos disponibles |
+
+### `zep_delete_thread`
+
+Eliminar un hilo de conversación de Zep
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | Sí | ID del hilo a eliminar |
+| `apiKey` | string | Sí | Tu clave API de Zep |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Indica si el hilo fue eliminado |
+
+### `zep_get_context`
+
+Recuperar el contexto del usuario de un hilo con modo resumen o básico
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | Sí | ID del hilo del que obtener el contexto |
+| `mode` | string | No | Modo de contexto: "summary" \(lenguaje natural\) o "basic" \(hechos sin procesar\) |
+| `minRating` | number | No | Calificación mínima para filtrar hechos relevantes |
+| `apiKey` | string | Sí | Tu clave API de Zep |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `context` | string | La cadena de contexto \(resumen o básico\) |
+| `facts` | array | Hechos extraídos |
+| `entities` | array | Entidades extraídas |
+| `summary` | string | Resumen de la conversación |
+
+### `zep_get_messages`
+
+Recuperar mensajes de un hilo
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | Sí | ID del hilo del que obtener mensajes |
+| `limit` | number | No | Número máximo de mensajes a devolver |
+| `cursor` | string | No | Cursor para paginación |
+| `lastn` | number | No | Número de mensajes más recientes a devolver \(anula el límite y el cursor\) |
+| `apiKey` | string | Sí | Tu clave API de Zep |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `messages` | array | Array de objetos de mensaje |
+| `rowCount` | number | Número de mensajes en esta respuesta |
+| `totalCount` | number | Número total de mensajes en el hilo |
+
+### `zep_add_messages`
+
+Añadir mensajes a un hilo existente
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | Sí | ID del hilo al que añadir mensajes |
+| `messages` | json | Sí | Array de objetos de mensaje con rol y contenido |
+| `apiKey` | string | Sí | Tu clave API de Zep |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `context` | string | Contexto actualizado después de añadir mensajes |
+| `messageIds` | array | Array de UUIDs de mensajes añadidos |
+| `threadId` | string | El ID del hilo |
+
+### `zep_add_user`
+
+Crear un nuevo usuario en Zep
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `userId` | string | Sí | Identificador único para el usuario |
+| `email` | string | No | Dirección de correo electrónico del usuario |
+| `firstName` | string | No | Nombre del usuario |
+| `lastName` | string | No | Apellido del usuario |
+| `metadata` | json | No | Metadatos adicionales como objeto JSON |
+| `apiKey` | string | Sí | Tu clave API de Zep |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `userId` | string | El ID del usuario |
+| `email` | string | Correo electrónico del usuario |
+| `firstName` | string | Nombre del usuario |
+| `lastName` | string | Apellido del usuario |
+| `uuid` | string | UUID interno |
+| `createdAt` | string | Marca de tiempo de creación |
+| `metadata` | object | Metadatos del usuario |
+
+### `zep_get_user`
+
+Recuperar información del usuario de Zep
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `userId` | string | Sí | ID del usuario a recuperar |
+| `apiKey` | string | Sí | Tu clave API de Zep |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `userId` | string | El ID del usuario |
+| `email` | string | Correo electrónico del usuario |
+| `firstName` | string | Nombre del usuario |
+| `lastName` | string | Apellido del usuario |
+| `uuid` | string | UUID interno |
+| `createdAt` | string | Marca de tiempo de creación |
+| `updatedAt` | string | Marca de tiempo de última actualización |
+| `metadata` | object | Metadatos del usuario |
+
+### `zep_get_user_threads`
+
+Listar todos los hilos de conversación para un usuario específico
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `userId` | string | Sí | ID del usuario para obtener los hilos |
+| `limit` | number | No | Número máximo de hilos a devolver |
+| `apiKey` | string | Sí | Tu clave API de Zep |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `threads` | array | Array de objetos de hilo para este usuario |
+| `userId` | string | El ID del usuario |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `zep`

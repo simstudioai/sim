@@ -1,54 +1,53 @@
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
+import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { db } from '@/db'
-import { account } from '@/db/schema'
+import { getCredential, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('MicrosoftFileAPI')
 
-/**
- * Get a single file from Microsoft OneDrive
- */
 export async function GET(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   try {
-    // Get the session
-    const session = await getSession()
-
-    // Check if the user is authenticated
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
-    }
-
-    // Get the credential ID and file ID from the query params
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
     const fileId = searchParams.get('fileId')
+    const workflowId = searchParams.get('workflowId') || undefined
 
     if (!credentialId || !fileId) {
       return NextResponse.json({ error: 'Credential ID and File ID are required' }, { status: 400 })
     }
 
-    // Get the credential from the database
-    const credentials = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+    const fileIdValidation = validateMicrosoftGraphId(fileId, 'fileId')
+    if (!fileIdValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid file ID: ${fileIdValidation.error}`)
+      return NextResponse.json({ error: fileIdValidation.error }, { status: 400 })
+    }
 
-    if (!credentials.length) {
+    const authz = await authorizeCredentialUse(request, {
+      credentialId,
+      workflowId,
+      requireWorkflowIdForInternal: false,
+    })
+
+    if (!authz.ok || !authz.credentialOwnerUserId) {
+      const status = authz.error === 'Credential not found' ? 404 : 403
+      return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status })
+    }
+
+    const credential = await getCredential(requestId, credentialId, authz.credentialOwnerUserId)
+    if (!credential) {
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
 
-    const credential = credentials[0]
-
-    // Check if the credential belongs to the user
-    if (credential.userId !== session.user.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
-    }
-
-    // Refresh access token if needed using the utility function
-    const accessToken = await refreshAccessTokenIfNeeded(credentialId, session.user.id, requestId)
+    const accessToken = await refreshAccessTokenIfNeeded(
+      credentialId,
+      authz.credentialOwnerUserId,
+      requestId
+    )
 
     if (!accessToken) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
@@ -79,7 +78,6 @@ export async function GET(request: NextRequest) {
 
     const file = await response.json()
 
-    // Transform the response to match expected format
     const transformedFile = {
       id: file.id,
       name: file.name,

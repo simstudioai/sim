@@ -11,15 +11,6 @@ export const slackCanvasTool: ToolConfig<SlackCanvasParams, SlackCanvasResponse>
   oauth: {
     required: true,
     provider: 'slack',
-    additionalScopes: [
-      'channels:read',
-      'groups:read',
-      'chat:write',
-      'chat:write.public',
-      'canvases:write',
-      'files:write',
-      'users:read',
-    ],
   },
 
   params: {

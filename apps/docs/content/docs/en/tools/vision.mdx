@@ -1,0 +1,64 @@
+---
+title: Vision
+description: Analyze images with vision models
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="vision"
+  color="#4D5FFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Vision is a tool that allows you to analyze images with vision models.
+
+With Vision, you can:
+
+- **Analyze images**: Analyze images with vision models
+- **Extract text**: Extract text from images
+- **Identify objects**: Identify objects in images
+- **Describe images**: Describe images in detail
+- **Generate images**: Generate images from text
+
+In Sim, the Vision integration enables your agents to analyze images with vision models as part of their workflows. This allows for powerful automation scenarios that require analyzing images with vision models. Your agents can analyze images with vision models, extract text from images, identify objects in images, describe images in detail, and generate images from text. This integration bridges the gap between your AI workflows and your image analysis needs, enabling more sophisticated and image-centric automations. By connecting Sim with Vision, you can create agents that stay current with the latest information, provide more accurate responses, and deliver more value to users - all without requiring manual intervention or custom code.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Vision into the workflow. Can analyze images with vision models.
+
+
+
+## Tools
+
+### `vision_tool`
+
+Process and analyze images using advanced vision models. Capable of understanding image content, extracting text, identifying objects, and providing detailed visual descriptions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API key for the selected model provider |
+| `imageUrl` | string | No | Publicly accessible image URL |
+| `imageFile` | file | No | Image file to analyze |
+| `model` | string | No | Vision model to use \(gpt-4o, claude-3-opus-20240229, etc\) |
+| `prompt` | string | No | Custom prompt for image analysis |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | The analyzed content and description of the image |
+| `model` | string | The vision model that was used for analysis |
+| `tokens` | number | Total tokens used for the analysis |
+| `usage` | object | Detailed token usage breakdown |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `vision`

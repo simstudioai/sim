@@ -1,0 +1,486 @@
+---
+title: Supabase
+description: Utiliser la base de données Supabase
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="supabase"
+  color="#1C1C1C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Supabase](https://www.supabase.com/) est une plateforme backend-as-a-service open-source puissante qui fournit aux développeurs une suite d'outils pour construire, mettre à l'échelle et gérer des applications modernes. Supabase offre une base de données [PostgreSQL](https://www.postgresql.org/) entièrement gérée, une authentification robuste, des API RESTful et GraphQL instantanées, des abonnements en temps réel, un stockage de fichiers et des fonctions edge — le tout accessible via une interface unifiée et conviviale pour les développeurs. Sa nature open-source et sa compatibilité avec les frameworks populaires en font une alternative convaincante à Firebase, avec l'avantage supplémentaire de la flexibilité SQL et de la transparence.
+
+**Pourquoi Supabase ?**
+- **API instantanées :** Chaque table et vue dans votre base de données est instantanément disponible via des points d'accès REST et GraphQL, facilitant la création d'applications basées sur les données sans écrire de code backend personnalisé.
+- **Données en temps réel :** Supabase permet des abonnements en temps réel, permettant à vos applications de réagir instantanément aux changements dans votre base de données.
+- **Authentification et autorisation :** Gestion des utilisateurs intégrée avec prise en charge de l'email, OAuth, SSO et plus encore, plus une sécurité au niveau des lignes pour un contrôle d'accès granulaire.
+- **Stockage :** Téléchargez, servez et gérez des fichiers en toute sécurité avec un stockage intégré qui s'intègre parfaitement à votre base de données.
+- **Fonctions Edge :** Déployez des fonctions serverless à proximité de vos utilisateurs pour une logique personnalisée à faible latence.
+
+**Utilisation de Supabase dans Sim**
+
+L'intégration de Supabase dans Sim permet de connecter sans effort vos flux de travail automatisés à vos projets Supabase. Avec seulement quelques champs de configuration — votre ID de projet, le nom de la table et la clé secrète du rôle de service — vous pouvez interagir en toute sécurité avec votre base de données directement depuis vos blocs Sim. L'intégration simplifie la complexité des appels API, vous permettant de vous concentrer sur la création de logique et d'automatisations.
+
+**Principaux avantages de l'utilisation de Supabase dans Sim :**
+- **Opérations de base de données sans code/low-code :** interrogez, insérez, mettez à jour et supprimez des lignes dans vos tables Supabase sans écrire de SQL ou de code backend.
+- **Requêtes flexibles :** utilisez la [syntaxe de filtre PostgREST](https://postgrest.org/en/stable/api.html#operators) pour effectuer des requêtes avancées, y compris le filtrage, le tri et la limitation des résultats.
+- **Intégration transparente :** connectez facilement Supabase à d'autres outils et services dans votre flux de travail, permettant des automatisations puissantes comme la synchronisation de données, le déclenchement de notifications ou l'enrichissement d'enregistrements.
+- **Sécurisé et évolutif :** toutes les opérations utilisent votre clé secrète de rôle de service Supabase, assurant un accès sécurisé à vos données avec l'évolutivité d'une plateforme cloud gérée.
+
+Que vous construisiez des outils internes, automatisiez des processus métier ou alimentiez des applications de production, Supabase dans Sim offre un moyen rapide, fiable et convivial pour gérer vos données et votre logique backend — sans gestion d'infrastructure requise. Configurez simplement votre bloc, sélectionnez l'opération dont vous avez besoin, et laissez Sim s'occuper du reste.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Supabase dans le flux de travail. Prend en charge les opérations de base de données (requête, insertion, mise à jour, suppression, upsert), la recherche en texte intégral, les fonctions RPC, le comptage de lignes, la recherche vectorielle et la gestion complète du stockage (téléchargement, téléversement, listage, déplacement, copie, suppression de fichiers et de buckets).
+
+## Outils
+
+### `supabase_query`
+
+Interroger des données d'une table Supabase
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | Votre ID de projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
+| `table` | chaîne | Oui | Le nom de la table Supabase à interroger |
+| `filter` | chaîne | Non | Filtre PostgREST \(ex. : "id=eq.123"\) |
+| `orderBy` | chaîne | Non | Colonne pour le tri \(ajoutez DESC pour décroissant\) |
+| `limit` | nombre | Non | Nombre maximum de lignes à retourner |
+| `apiKey` | chaîne | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `results` | array | Tableau des enregistrements retournés par la requête |
+
+### `supabase_insert`
+
+Insérer des données dans une table Supabase
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
+| `table` | chaîne | Oui | Le nom de la table Supabase dans laquelle insérer des données |
+| `data` | tableau | Oui | Les données à insérer (tableau d'objets ou un seul objet) |
+| `apiKey` | chaîne | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `results` | array | Tableau des enregistrements insérés |
+
+### `supabase_get_row`
+
+Obtenir une seule ligne d'une table Supabase selon des critères de filtrage
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
+| `table` | string | Oui | Le nom de la table Supabase à interroger |
+| `filter` | string | Oui | Filtre PostgREST pour trouver la ligne spécifique (ex. : "id=eq.123") |
+| `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `results` | array | Tableau contenant les données des lignes si trouvées, tableau vide si non trouvées |
+
+### `supabase_update`
+
+Mettre à jour des lignes dans une table Supabase selon des critères de filtrage
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
+| `table` | string | Oui | Le nom de la table Supabase à mettre à jour |
+| `filter` | string | Oui | Filtre PostgREST pour identifier les lignes à mettre à jour (ex. : "id=eq.123") |
+| `data` | object | Oui | Données à mettre à jour dans les lignes correspondantes |
+| `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `results` | array | Tableau des enregistrements mis à jour |
+
+### `supabase_delete`
+
+Supprimer des lignes d'une table Supabase selon des critères de filtrage
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
+| `table` | string | Oui | Le nom de la table Supabase d'où supprimer des lignes |
+| `filter` | string | Oui | Filtre PostgREST pour identifier les lignes à supprimer (ex. : "id=eq.123") |
+| `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `results` | array | Tableau des enregistrements supprimés |
+
+### `supabase_upsert`
+
+Insérer ou mettre à jour des données dans une table Supabase (opération upsert)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
+| `table` | chaîne | Oui | Le nom de la table Supabase dans laquelle upserter des données |
+| `data` | tableau | Oui | Les données à upserter (insérer ou mettre à jour) - tableau d'objets ou un seul objet |
+| `apiKey` | chaîne | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `results` | array | Tableau des enregistrements insérés ou mis à jour |
+
+### `supabase_count`
+
+Compter les lignes dans une table Supabase
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
+| `table` | chaîne | Oui | Le nom de la table Supabase dont compter les lignes |
+| `filter` | chaîne | Non | Filtre PostgREST (ex. : "status=eq.active") |
+| `countType` | chaîne | Non | Type de comptage : exact, planned ou estimated (par défaut : exact) |
+| `apiKey` | chaîne | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message d'état de l'opération |
+| `count` | nombre | Nombre de lignes correspondant au filtre |
+
+### `supabase_text_search`
+
+Effectuer une recherche en texte intégral sur une table Supabase
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
+| `table` | chaîne | Oui | Le nom de la table Supabase à rechercher |
+| `column` | chaîne | Oui | La colonne dans laquelle rechercher |
+| `query` | chaîne | Oui | La requête de recherche |
+| `searchType` | chaîne | Non | Type de recherche : plain, phrase ou websearch (par défaut : websearch) |
+| `language` | chaîne | Non | Langue pour la configuration de recherche textuelle (par défaut : english) |
+| `limit` | nombre | Non | Nombre maximum de lignes à retourner |
+| `apiKey` | chaîne | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `results` | array | Tableau des enregistrements correspondant à la requête de recherche |
+
+### `supabase_vector_search`
+
+Effectuer une recherche de similarité en utilisant pgvector dans une table Supabase
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
+| `functionName` | chaîne | Oui | Le nom de la fonction PostgreSQL qui effectue la recherche vectorielle (ex. : match_documents) |
+| `queryEmbedding` | tableau | Oui | Le vecteur/embedding de requête pour rechercher des éléments similaires |
+| `matchThreshold` | nombre | Non | Seuil minimum de similarité (0-1), généralement 0,7-0,9 |
+| `matchCount` | nombre | Non | Nombre maximum de résultats à retourner (par défaut : 10) |
+| `apiKey` | chaîne | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `results` | array | Tableau d'enregistrements avec scores de similarité issus de la recherche vectorielle. Chaque enregistrement inclut un champ de similarité (0-1) indiquant son degré de similarité avec le vecteur de requête. |
+
+### `supabase_rpc`
+
+Appeler une fonction PostgreSQL dans Supabase
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
+| `functionName` | chaîne | Oui | Le nom de la fonction PostgreSQL à appeler |
+| `apiKey` | chaîne | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `results` | json | Résultat retourné par la fonction |
+
+### `supabase_storage_upload`
+
+Téléverser un fichier vers un bucket de stockage Supabase
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Oui | L'ID de votre projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Oui | Le nom du bucket de stockage |
+| `path` | string | Oui | Le chemin où le fichier sera stocké \(ex. : "dossier/fichier.jpg"\) |
+| `fileContent` | string | Oui | Le contenu du fichier \(encodé en base64 pour les fichiers binaires, ou texte brut\) |
+| `contentType` | string | Non | Type MIME du fichier \(ex. : "image/jpeg", "text/plain"\) |
+| `upsert` | boolean | Non | Si vrai, écrase le fichier existant \(par défaut : false\) |
+| `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `results` | object | Résultat du téléversement incluant le chemin du fichier et les métadonnées |
+
+### `supabase_storage_download`
+
+Télécharger un fichier depuis un bucket de stockage Supabase
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
+| `bucket` | chaîne | Oui | Le nom du bucket de stockage |
+| `path` | chaîne | Oui | Le chemin vers le fichier à télécharger (ex. : "dossier/fichier.jpg") |
+| `fileName` | chaîne | Non | Remplacement optionnel du nom de fichier |
+| `apiKey` | chaîne | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | fichier | Fichier téléchargé stocké dans les fichiers d'exécution |
+
+### `supabase_storage_list`
+
+Lister les fichiers dans un bucket de stockage Supabase
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Oui | L'ID de votre projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Oui | Le nom du bucket de stockage |
+| `path` | string | Non | Le chemin du dossier à partir duquel lister les fichiers \(par défaut : racine\) |
+| `limit` | number | Non | Nombre maximum de fichiers à retourner \(par défaut : 100\) |
+| `offset` | number | Non | Nombre de fichiers à ignorer \(pour la pagination\) |
+| `sortBy` | string | Non | Colonne pour le tri : name, created_at, updated_at \(par défaut : name\) |
+| `sortOrder` | string | Non | Ordre de tri : asc ou desc \(par défaut : asc\) |
+| `search` | string | Non | Terme de recherche pour filtrer les fichiers par nom |
+| `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `results` | array | Tableau d'objets de fichiers avec métadonnées |
+
+### `supabase_storage_delete`
+
+Supprimer des fichiers d'un bucket de stockage Supabase
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
+| `bucket` | chaîne | Oui | Le nom du bucket de stockage |
+| `paths` | tableau | Oui | Tableau des chemins de fichiers à supprimer (ex. : ["dossier/fichier1.jpg", "dossier/fichier2.jpg"]) |
+| `apiKey` | chaîne | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message d'état de l'opération |
+| `results` | tableau | Tableau des objets fichiers supprimés |
+
+### `supabase_storage_move`
+
+Déplacer un fichier dans un bucket de stockage Supabase
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
+| `bucket` | chaîne | Oui | Le nom du bucket de stockage |
+| `fromPath` | chaîne | Oui | Le chemin actuel du fichier (ex. : "dossier/ancien.jpg") |
+| `toPath` | chaîne | Oui | Le nouveau chemin pour le fichier (ex. : "nouveaudossier/nouveau.jpg") |
+| `apiKey` | chaîne | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message d'état de l'opération |
+| `results` | objet | Résultat de l'opération de déplacement |
+
+### `supabase_storage_copy`
+
+Copier un fichier dans un bucket de stockage Supabase
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
+| `bucket` | chaîne | Oui | Le nom du bucket de stockage |
+| `fromPath` | chaîne | Oui | Le chemin du fichier source (ex. : "dossier/source.jpg") |
+| `toPath` | chaîne | Oui | Le chemin pour le fichier copié (ex. : "dossier/copie.jpg") |
+| `apiKey` | chaîne | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message d'état de l'opération |
+| `results` | objet | Résultat de l'opération de copie |
+
+### `supabase_storage_create_bucket`
+
+Créer un nouveau bucket de stockage dans Supabase
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
+| `bucket` | chaîne | Oui | Le nom du bucket à créer |
+| `isPublic` | booléen | Non | Si le bucket doit être accessible publiquement (par défaut : false) |
+| `fileSizeLimit` | nombre | Non | Taille maximale de fichier en octets (facultatif) |
+| `allowedMimeTypes` | tableau | Non | Tableau des types MIME autorisés (ex. : ["image/png", "image/jpeg"]) |
+| `apiKey` | chaîne | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `results` | object | Informations sur le bucket créé |
+
+### `supabase_storage_list_buckets`
+
+Lister tous les buckets de stockage dans Supabase
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Oui | L'ID de votre projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
+| `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `results` | array | Tableau d'objets bucket |
+
+### `supabase_storage_delete_bucket`
+
+Supprimer un bucket de stockage dans Supabase
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Oui | L'ID de votre projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Oui | Le nom du bucket à supprimer |
+| `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `results` | object | Résultat de l'opération de suppression |
+
+### `supabase_storage_get_public_url`
+
+Obtenir l'URL publique d'un fichier dans un bucket de stockage Supabase
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Oui | L'ID de votre projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Oui | Le nom du bucket de stockage |
+| `path` | string | Oui | Le chemin vers le fichier \(ex. : "dossier/fichier.jpg"\) |
+| `download` | boolean | Non | Si vrai, force le téléchargement au lieu de l'affichage en ligne \(par défaut : false\) |
+| `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `publicUrl` | string | L'URL publique pour accéder au fichier |
+
+### `supabase_storage_create_signed_url`
+
+Créer une URL signée temporaire pour un fichier dans un bucket de stockage Supabase
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
+| `bucket` | string | Oui | Le nom du bucket de stockage |
+| `path` | string | Oui | Le chemin vers le fichier (ex. : "dossier/fichier.jpg") |
+| `expiresIn` | number | Oui | Nombre de secondes avant l'expiration de l'URL (ex. : 3600 pour 1 heure) |
+| `download` | boolean | Non | Si vrai, force le téléchargement au lieu de l'affichage en ligne (par défaut : false) |
+| `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `signedUrl` | string | L'URL signée temporaire pour accéder au fichier |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `supabase`

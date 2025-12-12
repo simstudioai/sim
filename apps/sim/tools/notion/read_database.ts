@@ -15,7 +15,6 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
   oauth: {
     required: true,
     provider: 'notion',
-    additionalScopes: ['workspace.content', 'database.read'],
   },
 
   params: {

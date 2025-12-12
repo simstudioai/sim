@@ -7,7 +7,7 @@
  * 1. Early validation (serialization) - user-only required fields
  * 2. Late validation (tool execution) - user-or-llm required fields
  */
-import { describe, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Serializer } from '@/serializer/index'
 import { validateRequiredParametersAfterMerge } from '@/tools/utils'
 
@@ -195,7 +195,7 @@ describe('Validation Integration Tests', () => {
           } as any,
           mergedParams
         )
-      }).toThrow('"Url" is required for Jina Reader')
+      }).toThrow('Url is required for Jina Reader')
     }
   )
 
@@ -314,7 +314,7 @@ describe('Validation Integration Tests', () => {
         } as any,
         mergedParams
       )
-    }).toThrow('"Subreddit" is required for Reddit Posts')
+    }).toThrow('Subreddit is required for Reddit Posts')
   })
 
   it.concurrent('complete success: all required fields provided correctly', () => {

@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic'
  * Server-side proxy for provider requests
  */
 export async function POST(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const startTime = Date.now()
 
   try {
@@ -36,9 +37,13 @@ export async function POST(request: NextRequest) {
       azureApiVersion,
       responseFormat,
       workflowId,
+      workspaceId,
       stream,
       messages,
       environmentVariables,
+      workflowVariables,
+      blockData,
+      blockNameMapping,
       reasoningEffort,
       verbosity,
     } = body
@@ -60,6 +65,7 @@ export async function POST(request: NextRequest) {
       messageCount: messages?.length || 0,
       hasEnvironmentVariables:
         !!environmentVariables && Object.keys(environmentVariables).length > 0,
+      hasWorkflowVariables: !!workflowVariables && Object.keys(workflowVariables).length > 0,
       reasoningEffort,
       verbosity,
     })
@@ -100,9 +106,13 @@ export async function POST(request: NextRequest) {
       azureApiVersion,
       responseFormat,
       workflowId,
+      workspaceId,
       stream,
       messages,
       environmentVariables,
+      workflowVariables,
+      blockData,
+      blockNameMapping,
       reasoningEffort,
       verbosity,
     })

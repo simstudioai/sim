@@ -1,0 +1,1037 @@
+---
+title: Stripe
+description: 決済処理とStripeデータの管理
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="stripe"
+  color="#635BFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Stripe](https://stripe.com/)は、支払い、顧客、サブスクリプション、請求書、商品などを簡単に管理できる強力な決済プラットフォームです。
+
+StripeをSimに統合することで、エージェントは以下のことができます：
+
+- **決済インテントの作成と管理**: 柔軟な設定オプションで支払いを処理。
+- **顧客との連携**: ビジネスのための顧客記録の作成、取得、更新。
+- **サブスクリプションの処理**: 定期請求とサブスクリプションのライフサイクル管理。
+- **請求書の作成と送信**: 一回限りまたは定期的な支払いのための請求書生成。
+- **課金の追跡と管理**: 支払いを監視するための課金オブジェクトの取得と更新。
+- **商品と価格の設定**: 商品カタログ、価格モデル、オファーの設定。
+- **Stripeイベントの監視と対応**: 支払い更新、成功した課金、その他のStripeイベントに対応するワークフローのトリガー。
+
+SimとStripeを接続することで、エージェントワークフロー内でのシームレスな自動化と財務オペレーションが可能になります。顧客のオンボーディング、サブスクリプション管理、支払い回収、請求書生成、さらには支払いイベント発生時のカスタムアクションなど、すべてをエージェントが直接Stripeを通じて安全に処理します。
+
+eコマース自動化、サブスクリプションサービスの構築、レポーティングや照合の実行など、Stripeツールを使えば、インテリジェントなSimワークフロー内で支払いと財務データの連携が簡単に行えます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+ワークフローにStripeを統合します。決済インテント、顧客、サブスクリプション、請求書、課金、商品、価格、イベントを管理します。Stripeイベントが発生したときにワークフローをトリガーするトリガーモードでも使用できます。
+
+## ツール
+
+### `stripe_create_payment_intent`
+
+支払いを処理するための新しい決済インテントを作成
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `amount` | number | はい | 金額（セント単位）（例：2000は$20.00） |
+| `currency` | string | はい | 3文字のISO通貨コード（例：usd、eur） |
+| `customer` | string | いいえ | この支払いに関連付ける顧客ID |
+| `payment_method` | string | いいえ | 支払い方法ID |
+| `description` | string | いいえ | 支払いの説明 |
+| `receipt_email` | string | いいえ | 領収書を送信するメールアドレス |
+| `metadata` | json | いいえ | 追加情報を保存するためのキーと値のペアのセット |
+| `automatic_payment_methods` | json | いいえ | 自動支払い方法を有効にする（例：`{"enabled": true}`) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `payment_intent` | json | 作成されたPayment Intentオブジェクト |
+| `metadata` | json | ID、ステータス、金額、通貨を含むPayment Intentのメタデータ |
+
+### `stripe_retrieve_payment_intent`
+
+IDで既存のPayment Intentを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | Payment Intent ID（例：pi_1234567890） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `payment_intent` | json | 取得されたPayment Intentオブジェクト |
+| `metadata` | json | ID、ステータス、金額、通貨を含むPayment Intentのメタデータ |
+
+### `stripe_update_payment_intent`
+
+既存のPayment Intentを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | Payment Intent ID（例：pi_1234567890） |
+| `amount` | number | いいえ | 更新された金額（セント単位） |
+| `currency` | string | いいえ | 3文字のISO通貨コード |
+| `customer` | string | いいえ | 顧客ID |
+| `description` | string | いいえ | 更新された説明 |
+| `metadata` | json | いいえ | 更新されたメタデータ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `payment_intent` | json | 更新されたPayment Intentオブジェクト |
+| `metadata` | json | ID、ステータス、金額、通貨を含むPayment Intentのメタデータ |
+
+### `stripe_confirm_payment_intent`
+
+決済を完了するためにPayment Intentを確認する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | Payment Intent ID（例：pi_1234567890） |
+| `payment_method` | string | いいえ | 確認に使用する決済方法ID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `payment_intent` | json | 確認されたPayment Intentオブジェクト |
+| `metadata` | json | ID、ステータス、金額、通貨を含むPayment Intentのメタデータ |
+
+### `stripe_capture_payment_intent`
+
+承認済みのPayment Intentをキャプチャする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | Payment Intent ID（例：pi_1234567890） |
+| `amount_to_capture` | number | いいえ | キャプチャする金額（セント単位、デフォルトは全額） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `payment_intent` | json | キャプチャされたPayment Intentオブジェクト |
+| `metadata` | json | ID、ステータス、金額、通貨を含むPayment Intentのメタデータ |
+
+### `stripe_cancel_payment_intent`
+
+Payment Intentをキャンセルする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | Payment Intent ID（例：pi_1234567890） |
+| `cancellation_reason` | string | いいえ | キャンセルの理由（duplicate、fraudulent、requested_by_customer、abandoned） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `payment_intent` | json | キャンセルされたPayment Intentオブジェクト |
+| `metadata` | json | ID、ステータス、金額、通貨を含むPayment Intentのメタデータ |
+
+### `stripe_list_payment_intents`
+
+すべてのPayment Intentを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `limit` | number | いいえ | 返す結果の数（デフォルト10、最大100） |
+| `customer` | string | いいえ | 顧客IDでフィルタリング |
+| `created` | json | いいえ | 作成日でフィルタリング（例：`{"gt": 1633024800}`) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `payment_intents` | json | Payment Intentオブジェクトの配列 |
+| `metadata` | json | カウントとhas_moreを含むリストメタデータ |
+
+### `stripe_search_payment_intents`
+
+クエリ構文を使用してPayment Intentを検索する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `query` | string | はい | 検索クエリ（例："status:'succeeded' AND currency:'usd'"） |
+| `limit` | number | いいえ | 返す結果の数（デフォルト10、最大100） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `payment_intents` | json | 一致するPayment Intentオブジェクトの配列 |
+| `metadata` | json | カウントとhas_moreを含む検索メタデータ |
+
+### `stripe_create_customer`
+
+新しい顧客オブジェクトを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `email` | string | いいえ | 顧客のメールアドレス |
+| `name` | string | いいえ | 顧客のフルネーム |
+| `phone` | string | いいえ | 顧客の電話番号 |
+| `description` | string | いいえ | 顧客の説明 |
+| `address` | json | いいえ | 顧客の住所オブジェクト |
+| `metadata` | json | いいえ | キーと値のペアのセット |
+| `payment_method` | string | いいえ | 添付する支払い方法ID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `customer` | json | 作成された顧客オブジェクト |
+| `metadata` | json | 顧客メタデータ |
+
+### `stripe_retrieve_customer`
+
+IDで既存の顧客を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | 顧客ID（例：cus_1234567890） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `customer` | json | 取得された顧客オブジェクト |
+| `metadata` | json | 顧客メタデータ |
+
+### `stripe_update_customer`
+
+既存の顧客を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | 顧客ID（例：cus_1234567890） |
+| `email` | string | いいえ | 更新されたメールアドレス |
+| `name` | string | いいえ | 更新された名前 |
+| `phone` | string | いいえ | 更新された電話番号 |
+| `description` | string | いいえ | 更新された説明 |
+| `address` | json | いいえ | 更新された住所オブジェクト |
+| `metadata` | json | いいえ | 更新されたメタデータ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `customer` | json | 更新された顧客オブジェクト |
+| `metadata` | json | 顧客メタデータ |
+
+### `stripe_delete_customer`
+
+顧客を完全に削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | 顧客ID（例：cus_1234567890） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 顧客が削除されたかどうか |
+| `id` | string | 削除された顧客のID |
+| `metadata` | json | 削除メタデータ |
+
+### `stripe_list_customers`
+
+すべての顧客をリスト表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `limit` | number | いいえ | 返す結果の数（デフォルト10、最大100） |
+| `email` | string | いいえ | メールアドレスでフィルタリング |
+| `created` | json | いいえ | 作成日でフィルタリング |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `customers` | json | 顧客オブジェクトの配列 |
+| `metadata` | json | リストメタデータ |
+
+### `stripe_search_customers`
+
+クエリ構文を使用して顧客を検索する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `query` | string | はい | 検索クエリ（例："email:\'customer@example.com\'"） |
+| `limit` | number | いいえ | 返す結果の数（デフォルト10、最大100） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `customers` | json | 一致する顧客オブジェクトの配列 |
+| `metadata` | json | 検索メタデータ |
+
+### `stripe_create_subscription`
+
+顧客の新しいサブスクリプションを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `customer` | string | はい | サブスクリプションを作成する顧客ID |
+| `items` | json | はい | 価格IDを含むアイテムの配列（例：`[{"price": "price_xxx", "quantity": 1}]`） |
+| `trial_period_days` | number | いいえ | トライアル日数 |
+| `default_payment_method` | string | いいえ | 支払い方法ID |
+| `cancel_at_period_end` | boolean | いいえ | 期間終了時にサブスクリプションをキャンセルするかどうか |
+| `metadata` | json | いいえ | 追加情報を保存するためのキーと値のペアのセット |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `subscription` | json | 作成されたサブスクリプションオブジェクト |
+| `metadata` | json | ID、ステータス、顧客を含むサブスクリプションメタデータ |
+
+### `stripe_retrieve_subscription`
+
+IDで既存のサブスクリプションを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | サブスクリプションID（例：sub_1234567890） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `subscription` | json | 取得されたサブスクリプションオブジェクト |
+| `metadata` | json | ID、ステータス、顧客を含むサブスクリプションメタデータ |
+
+### `stripe_update_subscription`
+
+既存のサブスクリプションを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | サブスクリプションID（例：sub_1234567890） |
+| `items` | json | いいえ | 価格IDを含む更新された項目の配列 |
+| `cancel_at_period_end` | boolean | いいえ | 期間終了時にサブスクリプションをキャンセルするかどうか |
+| `metadata` | json | いいえ | 更新されたメタデータ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `subscription` | json | 更新されたサブスクリプションオブジェクト |
+| `metadata` | json | ID、ステータス、顧客を含むサブスクリプションメタデータ |
+
+### `stripe_cancel_subscription`
+
+サブスクリプションをキャンセルする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | サブスクリプションID（例：sub_1234567890） |
+| `prorate` | boolean | いいえ | キャンセルを日割り計算するかどうか |
+| `invoice_now` | boolean | いいえ | すぐに請求書を発行するかどうか |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `subscription` | json | キャンセルされたサブスクリプションオブジェクト |
+| `metadata` | json | ID、ステータス、顧客を含むサブスクリプションメタデータ |
+
+### `stripe_resume_subscription`
+
+キャンセル予定のサブスクリプションを再開する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | サブスクリプションID（例：sub_1234567890） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `subscription` | json | 再開されたサブスクリプションオブジェクト |
+| `metadata` | json | ID、ステータス、顧客を含むサブスクリプションメタデータ |
+
+### `stripe_list_subscriptions`
+
+すべてのサブスクリプションを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `limit` | number | いいえ | 返す結果の数（デフォルト10、最大100） |
+| `customer` | string | いいえ | 顧客IDでフィルタリング |
+| `status` | string | いいえ | ステータスでフィルタリング（active、past_due、unpaid、canceled、incomplete、incomplete_expired、trialing、all） |
+| `price` | string | いいえ | 価格IDでフィルタリング |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `subscriptions` | json | サブスクリプションオブジェクトの配列 |
+| `metadata` | json | リストメタデータ |
+
+### `stripe_search_subscriptions`
+
+クエリ構文を使用してサブスクリプションを検索する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `query` | string | はい | 検索クエリ（例："status:'active' AND customer:'cus_xxx'"） |
+| `limit` | number | いいえ | 返す結果の数（デフォルト10、最大100） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `subscriptions` | json | 一致するサブスクリプションオブジェクトの配列 |
+| `metadata` | json | 検索メタデータ |
+
+### `stripe_create_invoice`
+
+新しい請求書を作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `customer` | string | はい | 顧客ID（例：cus_1234567890） |
+| `description` | string | いいえ | 請求書の説明 |
+| `metadata` | json | いいえ | キーと値のペアのセット |
+| `auto_advance` | boolean | いいえ | 請求書を自動的に確定するかどうか |
+| `collection_method` | string | いいえ | 回収方法：charge_automatically または send_invoice |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `invoice` | json | 作成された請求書オブジェクト |
+| `metadata` | json | 請求書のメタデータ |
+
+### `stripe_retrieve_invoice`
+
+IDで既存の請求書を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | 請求書ID（例：in_1234567890） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `invoice` | json | 取得された請求書オブジェクト |
+| `metadata` | json | 請求書メタデータ |
+
+### `stripe_update_invoice`
+
+既存の請求書を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | 請求書ID（例：in_1234567890） |
+| `description` | string | いいえ | 請求書の説明 |
+| `metadata` | json | いいえ | キーと値のペアのセット |
+| `auto_advance` | boolean | いいえ | 請求書を自動確定する |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `invoice` | json | 更新された請求書オブジェクト |
+| `metadata` | json | 請求書メタデータ |
+
+### `stripe_delete_invoice`
+
+下書き請求書を完全に削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | 請求書ID（例：in_1234567890） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 請求書が削除されたかどうか |
+| `id` | string | 削除された請求書のID |
+| `metadata` | json | 削除メタデータ |
+
+### `stripe_finalize_invoice`
+
+ドラフト請求書を確定する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | 請求書ID（例：in_1234567890） |
+| `auto_advance` | boolean | いいえ | 請求書を自動的に進める |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `invoice` | json | 確定された請求書オブジェクト |
+| `metadata` | json | 請求書メタデータ |
+
+### `stripe_pay_invoice`
+
+請求書を支払う
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | 請求書ID（例：in_1234567890） |
+| `paid_out_of_band` | boolean | いいえ | 請求書をオフラインで支払い済みとしてマークする |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `invoice` | json | 支払い済みの請求書オブジェクト |
+| `metadata` | json | 請求書メタデータ |
+
+### `stripe_void_invoice`
+
+請求書を無効にする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | 請求書ID（例：in_1234567890） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `invoice` | json | 無効化された請求書オブジェクト |
+| `metadata` | json | 請求書メタデータ |
+
+### `stripe_send_invoice`
+
+顧客に請求書を送信する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | 請求書ID（例：in_1234567890） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `invoice` | json | 送信された請求書オブジェクト |
+| `metadata` | json | 請求書メタデータ |
+
+### `stripe_list_invoices`
+
+すべての請求書を一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `limit` | number | いいえ | 返す結果の数（デフォルト10、最大100） |
+| `customer` | string | いいえ | 顧客IDでフィルタリング |
+| `status` | string | いいえ | 請求書のステータスでフィルタリング |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `invoices` | json | 請求書オブジェクトの配列 |
+| `metadata` | json | リストメタデータ |
+
+### `stripe_search_invoices`
+
+クエリ構文を使用して請求書を検索する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `query` | string | はい | 検索クエリ（例："customer:\'cus_1234567890\'"） |
+| `limit` | number | いいえ | 返す結果の数（デフォルト10、最大100） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `invoices` | json | 一致する請求書オブジェクトの配列 |
+| `metadata` | json | 検索メタデータ |
+
+### `stripe_create_charge`
+
+決済処理のための新しいチャージを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `amount` | number | はい | セント単位の金額（例：2000は$20.00） |
+| `currency` | string | はい | 3文字のISO通貨コード（例：usd、eur） |
+| `customer` | string | いいえ | このチャージに関連付ける顧客ID |
+| `source` | string | いいえ | 支払いソースID（例：カードトークンまたは保存されたカードID） |
+| `description` | string | いいえ | チャージの説明 |
+| `metadata` | json | いいえ | 追加情報を保存するためのキーと値のペアのセット |
+| `capture` | boolean | いいえ | チャージをすぐにキャプチャするかどうか（デフォルトはtrue） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `charge` | json | 作成されたチャージオブジェクト |
+| `metadata` | json | ID、ステータス、金額、通貨、支払い状況を含むチャージメタデータ |
+
+### `stripe_retrieve_charge`
+
+IDで既存のチャージを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | チャージID（例：ch_1234567890） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `charge` | json | 取得された課金オブジェクト |
+| `metadata` | json | ID、ステータス、金額、通貨、支払い状況を含む課金メタデータ |
+
+### `stripe_update_charge`
+
+既存の課金を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | 課金ID（例：ch_1234567890） |
+| `description` | string | いいえ | 更新された説明 |
+| `metadata` | json | いいえ | 更新されたメタデータ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `charge` | json | 更新された課金オブジェクト |
+| `metadata` | json | ID、ステータス、金額、通貨、支払い状況を含む課金メタデータ |
+
+### `stripe_capture_charge`
+
+未キャプチャの課金をキャプチャする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | 課金ID（例：ch_1234567890） |
+| `amount` | number | いいえ | キャプチャする金額（セント単位）（デフォルトは全額） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `charge` | json | キャプチャされた課金オブジェクト |
+| `metadata` | json | ID、ステータス、金額、通貨、支払い状況を含む課金メタデータ |
+
+### `stripe_list_charges`
+
+すべての請求を一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `limit` | number | いいえ | 返す結果の数（デフォルト10、最大100） |
+| `customer` | string | いいえ | 顧客IDでフィルタリング |
+| `created` | json | いいえ | 作成日でフィルタリング（例：`{"gt": 1633024800}`) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `charges` | json | チャージオブジェクトの配列 |
+| `metadata` | json | 数とhas_moreを含むリストメタデータ |
+
+### `stripe_search_charges`
+
+クエリ構文を使用して請求を検索する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `query` | string | はい | 検索クエリ（例："status:'succeeded' AND currency:'usd'"） |
+| `limit` | number | いいえ | 返す結果の数（デフォルト10、最大100） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `charges` | json | 一致するチャージオブジェクトの配列 |
+| `metadata` | json | 数とhas_moreを含む検索メタデータ |
+
+### `stripe_create_product`
+
+新しい商品オブジェクトを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `name` | string | はい | 商品名 |
+| `description` | string | いいえ | 商品の説明 |
+| `active` | boolean | いいえ | 商品がアクティブかどうか |
+| `images` | json | いいえ | 商品の画像URLの配列 |
+| `metadata` | json | いいえ | キーと値のペアのセット |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `product` | json | 作成された商品オブジェクト |
+| `metadata` | json | 商品メタデータ |
+
+### `stripe_retrieve_product`
+
+IDで既存の商品を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | 商品ID（例：prod_1234567890） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `product` | json | 取得された商品オブジェクト |
+| `metadata` | json | 商品メタデータ |
+
+### `stripe_update_product`
+
+既存の商品を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | 商品ID（例：prod_1234567890） |
+| `name` | string | いいえ | 更新された商品名 |
+| `description` | string | いいえ | 更新された商品説明 |
+| `active` | boolean | いいえ | 更新されたアクティブステータス |
+| `images` | json | いいえ | 更新された画像URL配列 |
+| `metadata` | json | いいえ | 更新されたメタデータ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `product` | json | 更新された商品オブジェクト |
+| `metadata` | json | 商品メタデータ |
+
+### `stripe_delete_product`
+
+商品を完全に削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | 商品ID（例：prod_1234567890） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 商品が削除されたかどうか |
+| `id` | string | 削除された商品のID |
+| `metadata` | json | 削除メタデータ |
+
+### `stripe_list_products`
+
+すべての商品を一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `limit` | number | いいえ | 返す結果の数（デフォルト10、最大100） |
+| `active` | boolean | いいえ | アクティブステータスでフィルタリング |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `products` | json | 商品オブジェクトの配列 |
+| `metadata` | json | リストメタデータ |
+
+### `stripe_search_products`
+
+クエリ構文を使用して商品を検索する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `query` | string | はい | 検索クエリ（例："name:\'shirt\'"） |
+| `limit` | number | いいえ | 返す結果の数（デフォルト10、最大100） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `products` | json | 一致する商品オブジェクトの配列 |
+| `metadata` | json | 検索メタデータ |
+
+### `stripe_create_price`
+
+商品の新しい価格を作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `product` | string | はい | 商品ID（例：prod_1234567890） |
+| `currency` | string | はい | 3文字のISO通貨コード（例：usd、eur） |
+| `unit_amount` | number | いいえ | 金額（セント単位、例：1000は$10.00） |
+| `recurring` | json | いいえ | 定期請求の設定（間隔：日/週/月/年） |
+| `metadata` | json | いいえ | キーと値のペアのセット |
+| `billing_scheme` | string | いいえ | 請求スキーム（per_unitまたはtiered） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `price` | json | 作成された価格オブジェクト |
+| `metadata` | json | 価格メタデータ |
+
+### `stripe_retrieve_price`
+
+IDで既存の価格を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | 価格ID（例：price_1234567890） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `price` | json | 取得された価格オブジェクト |
+| `metadata` | json | 価格メタデータ |
+
+### `stripe_update_price`
+
+既存の価格を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | 価格ID（例：price_1234567890） |
+| `active` | boolean | いいえ | 価格がアクティブかどうか |
+| `metadata` | json | いいえ | 更新されたメタデータ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `price` | json | 更新された価格オブジェクト |
+| `metadata` | json | 価格メタデータ |
+
+### `stripe_list_prices`
+
+すべての価格を一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `limit` | number | いいえ | 返す結果の数（デフォルト10、最大100） |
+| `product` | string | いいえ | 商品IDでフィルタリング |
+| `active` | boolean | いいえ | アクティブ状態でフィルタリング |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `prices` | json | 価格オブジェクトの配列 |
+| `metadata` | json | リストメタデータ |
+
+### `stripe_search_prices`
+
+クエリ構文を使用して価格を検索する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `query` | string | はい | 検索クエリ（例："active:'true' AND currency:'usd'"） |
+| `limit` | number | いいえ | 返す結果の数（デフォルト10、最大100） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `prices` | json | 一致する価格オブジェクトの配列 |
+| `metadata` | json | 検索メタデータ |
+
+### `stripe_retrieve_event`
+
+IDで既存のイベントを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `id` | string | はい | イベントID（例：evt_1234567890） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `event` | json | 取得されたイベントオブジェクト |
+| `metadata` | json | ID、タイプ、作成タイムスタンプを含むイベントメタデータ |
+
+### `stripe_list_events`
+
+すべてのイベントを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
+| `limit` | number | いいえ | 返す結果の数（デフォルト10、最大100） |
+| `type` | string | いいえ | イベントタイプでフィルタリング（例：payment_intent.created） |
+| `created` | json | いいえ | 作成日でフィルタリング（例：`{"gt": 1633024800}`) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `events` | json | イベントオブジェクトの配列 |
+| `metadata` | json | カウントとhas_moreを含むリストメタデータ |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `stripe`

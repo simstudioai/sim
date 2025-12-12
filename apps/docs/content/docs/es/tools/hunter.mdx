@@ -1,0 +1,192 @@
+---
+title: Hunter io
+description: Encuentra y verifica direcciones de correo electrónico profesionales
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="hunter"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Hunter.io](https://hunter.io/) es una plataforma líder para encontrar y verificar direcciones de correo electrónico profesionales, descubrir empresas y enriquecer datos de contacto. Hunter.io proporciona APIs robustas para búsqueda de dominios, búsqueda de correos electrónicos, verificación y descubrimiento de empresas, convirtiéndola en una herramienta esencial para ventas, reclutamiento y desarrollo de negocios.
+
+Con Hunter.io, puedes:
+
+- **Encontrar direcciones de correo electrónico por dominio:** Busca todas las direcciones de correo electrónico disponibles públicamente asociadas con un dominio de empresa específico.
+- **Descubrir empresas:** Utiliza filtros avanzados y búsqueda potenciada por IA para encontrar empresas que coincidan con tus criterios.
+- **Encontrar una dirección de correo electrónico específica:** Localiza la dirección de correo electrónico más probable para una persona en una empresa utilizando su nombre y dominio.
+- **Verificar direcciones de correo electrónico:** Comprueba la entregabilidad y validez de cualquier dirección de correo electrónico.
+- **Enriquecer datos de empresa:** Obtén información detallada sobre empresas, incluyendo tamaño, tecnologías utilizadas y más.
+
+En Sim, la integración con Hunter.io permite a tus agentes buscar y verificar direcciones de correo electrónico de forma programática, descubrir empresas y enriquecer datos de contacto utilizando la API de Hunter.io. Esto te permite automatizar la generación de leads, el enriquecimiento de contactos y la verificación de correos electrónicos directamente dentro de tus flujos de trabajo. Tus agentes pueden aprovechar las herramientas de Hunter.io para agilizar el alcance, mantener tu CRM actualizado y potenciar escenarios de automatización inteligente para ventas, reclutamiento y más.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Hunter en el flujo de trabajo. Puede buscar dominios, encontrar direcciones de correo electrónico, verificar direcciones de correo electrónico, descubrir empresas, encontrar empresas y contar direcciones de correo electrónico. Requiere clave API.
+
+## Herramientas
+
+### `hunter_discover`
+
+Devuelve empresas que coinciden con un conjunto de criterios utilizando la búsqueda potenciada por IA de Hunter.io.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `query` | string | No | Consulta de búsqueda en lenguaje natural para empresas |
+| `domain` | string | No | Nombres de dominio de empresas para filtrar |
+| `headcount` | string | No | Filtro de tamaño de empresa \(p. ej., "1-10", "11-50"\) |
+| `company_type` | string | No | Tipo de organización |
+| `technology` | string | No | Tecnología utilizada por las empresas |
+| `apiKey` | string | Sí | Clave API de Hunter.io |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `results` | array | Array de empresas que coinciden con los criterios de búsqueda, cada una contiene dominio, nombre, recuento de personal, tecnologías y email_count |
+
+### `hunter_domain_search`
+
+Devuelve todas las direcciones de correo electrónico encontradas utilizando un nombre de dominio dado, con fuentes.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | string | Sí | Nombre de dominio para buscar direcciones de correo electrónico |
+| `limit` | number | No | Máximo de direcciones de correo electrónico a devolver \(predeterminado: 10\) |
+| `offset` | number | No | Número de direcciones de correo electrónico a omitir |
+| `type` | string | No | Filtro para correos personales o genéricos |
+| `seniority` | string | No | Filtrar por nivel de antigüedad: junior, senior o ejecutivo |
+| `department` | string | No | Filtrar por departamentos específicos \(p. ej., ventas, marketing\) |
+| `apiKey` | string | Sí | Clave API de Hunter.io |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `domain` | string | El nombre de dominio buscado |
+| `disposable` | boolean | Si el dominio acepta direcciones de correo desechables |
+| `webmail` | boolean | Si el dominio es un proveedor de webmail |
+| `accept_all` | boolean | Si el dominio acepta todas las direcciones de correo |
+| `pattern` | string | El patrón de correo electrónico utilizado por la organización |
+| `organization` | string | El nombre de la organización |
+| `description` | string | Descripción de la organización |
+| `industry` | string | Sector de la organización |
+| `twitter` | string | Perfil de Twitter de la organización |
+| `facebook` | string | Perfil de Facebook de la organización |
+| `linkedin` | string | Perfil de LinkedIn de la organización |
+| `instagram` | string | Perfil de Instagram de la organización |
+| `youtube` | string | Canal de YouTube de la organización |
+| `technologies` | array | Array de tecnologías utilizadas por la organización |
+| `country` | string | País donde se encuentra la organización |
+| `state` | string | Estado donde se encuentra la organización |
+| `city` | string | Ciudad donde se encuentra la organización |
+| `postal_code` | string | Código postal de la organización |
+| `street` | string | Dirección de la organización |
+| `emails` | array | Array de direcciones de correo encontradas para el dominio, cada una contiene valor, tipo, confianza, fuentes y detalles de la persona |
+
+### `hunter_email_finder`
+
+Encuentra la dirección de correo electrónico más probable para una persona dado su nombre y el dominio de la empresa.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Nombre del dominio de la empresa |
+| `first_name` | string | Yes | Nombre de la persona |
+| `last_name` | string | Yes | Apellido de la persona |
+| `company` | string | No | Nombre de la empresa |
+| `apiKey` | string | Yes | Clave API de Hunter.io |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | string | La dirección de correo electrónico encontrada |
+| `score` | number | Puntuación de confianza para la dirección de correo electrónico encontrada |
+| `sources` | array | Array de fuentes donde se encontró el correo electrónico, cada una contiene domain, uri, extracted_on, last_seen_on y still_on_page |
+| `verification` | object | Información de verificación que contiene fecha y estado |
+
+### `hunter_email_verifier`
+
+Verifica la entregabilidad de una dirección de correo electrónico y proporciona un estado de verificación detallado.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Yes | La dirección de correo electrónico a verificar |
+| `apiKey` | string | Yes | Clave API de Hunter.io |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Resultado de entregabilidad: deliverable, undeliverable o risky |
+| `score` | number | Puntuación de confianza para el resultado de verificación |
+| `email` | string | La dirección de correo electrónico verificada |
+| `regexp` | boolean | Si el correo electrónico sigue un patrón regex válido |
+| `gibberish` | boolean | Si el correo electrónico parece ser incoherente |
+| `disposable` | boolean | Si el correo electrónico es de un proveedor de correo desechable |
+| `webmail` | boolean | Si el correo electrónico es de un proveedor de webmail |
+| `mx_records` | boolean | Si existen registros MX para el dominio |
+| `smtp_server` | boolean | Si el servidor SMTP es accesible |
+| `smtp_check` | boolean | Si la comprobación SMTP fue exitosa |
+| `accept_all` | boolean | Si el dominio acepta todas las direcciones de correo electrónico |
+| `block` | boolean | Si el correo electrónico está bloqueado |
+| `status` | string | Estado de verificación: valid, invalid, accept_all, webmail, disposable o unknown |
+| `sources` | array | Array de fuentes donde se encontró el correo electrónico |
+
+### `hunter_companies_find`
+
+Enriquece los datos de la empresa utilizando el nombre de dominio.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Dominio para encontrar datos de la empresa |
+| `apiKey` | string | Sí | Clave API de Hunter.io |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `person` | object | Información de la persona \(indefinido para la herramienta companies_find\) |
+| `company` | object | Información de la empresa incluyendo nombre, dominio, industria, tamaño, país, linkedin y twitter |
+
+### `hunter_email_count`
+
+Devuelve el número total de direcciones de correo electrónico encontradas para un dominio o empresa.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | No | Dominio para contar correos electrónicos \(obligatorio si no se proporciona la empresa\) |
+| `company` | string | No | Nombre de la empresa para contar correos electrónicos \(obligatorio si no se proporciona el dominio\) |
+| `type` | string | No | Filtro para correos personales o genéricos solamente |
+| `apiKey` | string | Sí | Clave API de Hunter.io |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `total` | number | Número total de direcciones de correo electrónico encontradas |
+| `personal_emails` | number | Número de direcciones de correo electrónico personales encontradas |
+| `generic_emails` | number | Número de direcciones de correo electrónico genéricas encontradas |
+| `department` | object | Desglose de direcciones de correo electrónico por departamento \(ejecutivo, ti, finanzas, gestión, ventas, legal, soporte, rrhh, marketing, comunicación\) |
+| `seniority` | object | Desglose de direcciones de correo electrónico por nivel de antigüedad \(junior, senior, ejecutivo\) |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `hunter`

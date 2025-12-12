@@ -1,0 +1,151 @@
+---
+title: Exa
+description: Recherchez avec Exa AI
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="exa"
+  color="#1F40ED"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Exa](https://exa.ai/) est un moteur de recherche alimenté par l'IA conçu spécifiquement pour les développeurs et les chercheurs, fournissant des informations hautement pertinentes et à jour provenant du web. Il combine des capacités de recherche sémantique avancées avec une compréhension par IA pour offrir des résultats plus précis et contextuellement pertinents que les moteurs de recherche traditionnels.
+
+Avec Exa, vous pouvez :
+
+- **Rechercher en langage naturel** : trouver des informations en utilisant des requêtes conversationnelles et des questions
+- **Obtenir des résultats précis** : recevoir des résultats de recherche hautement pertinents avec compréhension sémantique
+- **Accéder à des informations à jour** : récupérer des informations actuelles provenant du web
+- **Trouver du contenu similaire** : découvrir des ressources connexes basées sur la similarité du contenu
+- **Extraire le contenu des pages web** : récupérer et traiter le texte intégral des pages web
+- **Répondre aux questions avec citations** : poser des questions et recevoir des réponses directes avec sources à l'appui
+- **Effectuer des tâches de recherche** : automatiser des flux de travail de recherche en plusieurs étapes pour collecter, synthétiser et résumer l'information
+
+Dans Sim, l'intégration d'Exa permet à vos agents de rechercher des informations sur le web, de récupérer du contenu à partir d'URLs spécifiques, de trouver des ressources similaires, de répondre à des questions avec citations et de mener des tâches de recherche — le tout par programmation via des appels API. Cela permet à vos agents d'accéder à des informations en temps réel sur internet, améliorant leur capacité à fournir des réponses précises, actuelles et pertinentes. L'intégration est particulièrement précieuse pour les tâches de recherche, la collecte d'informations, la découverte de contenu et la réponse aux questions nécessitant des informations à jour provenant du web.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Exa dans le flux de travail. Peut effectuer des recherches, obtenir du contenu, trouver des liens similaires, répondre à une question et mener des recherches. Nécessite une clé API.
+
+## Outils
+
+### `exa_search`
+
+Recherchez sur le web en utilisant Exa AI. Renvoie des résultats de recherche pertinents avec titres, URLs et extraits de texte.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `query` | chaîne | Oui | La requête de recherche à exécuter |
+| `numResults` | nombre | Non | Nombre de résultats à retourner \(par défaut : 10, max : 25\) |
+| `useAutoprompt` | booléen | Non | Utiliser l'autoprompt pour améliorer la requête \(par défaut : false\) |
+| `type` | chaîne | Non | Type de recherche : neural, keyword, auto ou fast \(par défaut : auto\) |
+| `includeDomains` | chaîne | Non | Liste de domaines à inclure dans les résultats, séparés par des virgules |
+| `excludeDomains` | chaîne | Non | Liste de domaines à exclure des résultats, séparés par des virgules |
+| `category` | chaîne | Non | Filtrer par catégorie : company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
+| `text` | booléen | Non | Inclure le contenu textuel complet dans les résultats \(par défaut : false\) |
+| `highlights` | booléen | Non | Inclure des extraits surlignés dans les résultats \(par défaut : false\) |
+| `summary` | booléen | Non | Inclure des résumés générés par IA dans les résultats \(par défaut : false\) |
+| `livecrawl` | chaîne | Non | Mode d'exploration en direct : always, fallback, ou never \(par défaut : never\) |
+| `apiKey` | chaîne | Oui | Clé API Exa AI |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | tableau | Résultats de recherche avec titres, URLs et extraits de texte |
+
+### `exa_get_contents`
+
+Récupérer le contenu des pages web en utilisant Exa AI. Renvoie le titre, le contenu textuel et des résumés optionnels pour chaque URL.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `urls` | chaîne | Oui | Liste d'URLs séparées par des virgules pour récupérer du contenu |
+| `text` | booléen | Non | Si vrai, renvoie le texte complet de la page avec les paramètres par défaut. Si faux, désactive le retour de texte. |
+| `summaryQuery` | chaîne | Non | Requête pour guider la génération du résumé |
+| `subpages` | nombre | Non | Nombre de sous-pages à explorer à partir des URLs fournies |
+| `subpageTarget` | chaîne | Non | Mots-clés séparés par des virgules pour cibler des sous-pages spécifiques \(ex. : "docs,tutorial,about"\) |
+| `highlights` | booléen | Non | Inclure des extraits surlignés dans les résultats \(par défaut : false\) |
+| `livecrawl` | chaîne | Non | Mode d'exploration en direct : always, fallback, ou never \(par défaut : never\) |
+| `apiKey` | chaîne | Oui | Clé API Exa AI |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | tableau | Contenu récupéré des URLs avec titre, texte et résumés |
+
+### `exa_find_similar_links`
+
+Trouvez des pages web similaires à une URL donnée en utilisant Exa AI. Renvoie une liste de liens similaires avec titres et extraits de texte.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `url` | chaîne | Oui | L'URL pour laquelle trouver des liens similaires |
+| `numResults` | nombre | Non | Nombre de liens similaires à retourner \(par défaut : 10, max : 25\) |
+| `text` | booléen | Non | Inclure ou non le texte complet des pages similaires |
+| `includeDomains` | chaîne | Non | Liste de domaines à inclure dans les résultats, séparés par des virgules |
+| `excludeDomains` | chaîne | Non | Liste de domaines à exclure des résultats, séparés par des virgules |
+| `excludeSourceDomain` | booléen | Non | Exclure le domaine source des résultats \(par défaut : false\) |
+| `category` | chaîne | Non | Filtrer par catégorie : company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
+| `highlights` | booléen | Non | Inclure des extraits surlignés dans les résultats \(par défaut : false\) |
+| `summary` | booléen | Non | Inclure des résumés générés par IA dans les résultats \(par défaut : false\) |
+| `livecrawl` | chaîne | Non | Mode d'exploration en direct : always, fallback, ou never \(par défaut : never\) |
+| `apiKey` | chaîne | Oui | Clé API Exa AI |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `similarLinks` | tableau | Liens similaires trouvés avec titres, URLs et extraits de texte |
+
+### `exa_answer`
+
+Obtenez une réponse générée par IA à une question avec des citations du web en utilisant Exa AI.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `query` | chaîne | Oui | La question à répondre |
+| `text` | booléen | Non | Indique s'il faut inclure le texte complet de la réponse |
+| `apiKey` | chaîne | Oui | Clé API Exa AI |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `answer` | chaîne | Réponse générée par IA à la question |
+| `citations` | tableau | Sources et citations pour la réponse |
+
+### `exa_research`
+
+Effectuer des recherches complètes à l'aide de l'IA pour générer des rapports détaillés avec citations
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `query` | chaîne | Oui | Requête ou sujet de recherche |
+| `model` | chaîne | Non | Modèle de recherche : exa-research-fast, exa-research \(par défaut\), ou exa-research-pro |
+| `apiKey` | chaîne | Oui | Clé API Exa AI |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `research` | tableau | Résultats de recherche complets avec citations et résumés |
+
+## Remarques
+
+- Catégorie : `tools`
+- Type : `exa`

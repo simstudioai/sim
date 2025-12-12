@@ -1,45 +1,13 @@
+import { db } from '@sim/db'
+import { pausedExecutions, permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { and, desc, eq, gte, inArray, lte, type SQL, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { permissions, workflow, workflowExecutionLogs } from '@/db/schema'
 
 const logger = createLogger('LogsAPI')
-
-// Helper function to extract block executions from trace spans
-function extractBlockExecutionsFromTraceSpans(traceSpans: any[]): any[] {
-  const blockExecutions: any[] = []
-
-  function processSpan(span: any) {
-    if (span.blockId) {
-      blockExecutions.push({
-        id: span.id,
-        blockId: span.blockId,
-        blockName: span.name || '',
-        blockType: span.type,
-        startedAt: span.startTime,
-        endedAt: span.endTime,
-        durationMs: span.duration || 0,
-        status: span.status || 'success',
-        errorMessage: span.output?.error || undefined,
-        inputData: span.input || {},
-        outputData: span.output || {},
-        cost: span.cost || undefined,
-        metadata: {},
-      })
-    }
-
-    // Process children recursively
-    if (span.children && Array.isArray(span.children)) {
-      span.children.forEach(processSpan)
-    }
-  }
-
-  traceSpans.forEach(processSpan)
-  return blockExecutions
-}
 
 export const revalidate = 0
 
@@ -54,11 +22,13 @@ const QueryParamsSchema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   search: z.string().optional(),
+  workflowName: z.string().optional(),
+  folderName: z.string().optional(),
   workspaceId: z.string(),
 })
 
 export async function GET(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const session = await getSession()
@@ -73,32 +43,77 @@ export async function GET(request: NextRequest) {
       const { searchParams } = new URL(request.url)
       const params = QueryParamsSchema.parse(Object.fromEntries(searchParams.entries()))
 
+      // Conditionally select columns based on detail level to optimize performance
+      const selectColumns =
+        params.details === 'full'
+          ? {
+              id: workflowExecutionLogs.id,
+              workflowId: workflowExecutionLogs.workflowId,
+              executionId: workflowExecutionLogs.executionId,
+              stateSnapshotId: workflowExecutionLogs.stateSnapshotId,
+              level: workflowExecutionLogs.level,
+              trigger: workflowExecutionLogs.trigger,
+              startedAt: workflowExecutionLogs.startedAt,
+              endedAt: workflowExecutionLogs.endedAt,
+              totalDurationMs: workflowExecutionLogs.totalDurationMs,
+              executionData: workflowExecutionLogs.executionData, // Large field - only in full mode
+              cost: workflowExecutionLogs.cost,
+              files: workflowExecutionLogs.files, // Large field - only in full mode
+              createdAt: workflowExecutionLogs.createdAt,
+              workflowName: workflow.name,
+              workflowDescription: workflow.description,
+              workflowColor: workflow.color,
+              workflowFolderId: workflow.folderId,
+              workflowUserId: workflow.userId,
+              workflowWorkspaceId: workflow.workspaceId,
+              workflowCreatedAt: workflow.createdAt,
+              workflowUpdatedAt: workflow.updatedAt,
+              pausedStatus: pausedExecutions.status,
+              pausedTotalPauseCount: pausedExecutions.totalPauseCount,
+              pausedResumedCount: pausedExecutions.resumedCount,
+            }
+          : {
+              // Basic mode - exclude large fields for better performance
+              id: workflowExecutionLogs.id,
+              workflowId: workflowExecutionLogs.workflowId,
+              executionId: workflowExecutionLogs.executionId,
+              stateSnapshotId: workflowExecutionLogs.stateSnapshotId,
+              level: workflowExecutionLogs.level,
+              trigger: workflowExecutionLogs.trigger,
+              startedAt: workflowExecutionLogs.startedAt,
+              endedAt: workflowExecutionLogs.endedAt,
+              totalDurationMs: workflowExecutionLogs.totalDurationMs,
+              executionData: sql<null>`NULL`, // Exclude large execution data in basic mode
+              cost: workflowExecutionLogs.cost,
+              files: sql<null>`NULL`, // Exclude files in basic mode
+              createdAt: workflowExecutionLogs.createdAt,
+              workflowName: workflow.name,
+              workflowDescription: workflow.description,
+              workflowColor: workflow.color,
+              workflowFolderId: workflow.folderId,
+              workflowUserId: workflow.userId,
+              workflowWorkspaceId: workflow.workspaceId,
+              workflowCreatedAt: workflow.createdAt,
+              workflowUpdatedAt: workflow.updatedAt,
+              pausedStatus: pausedExecutions.status,
+              pausedTotalPauseCount: pausedExecutions.totalPauseCount,
+              pausedResumedCount: pausedExecutions.resumedCount,
+            }
+
       const baseQuery = db
-        .select({
-          id: workflowExecutionLogs.id,
-          workflowId: workflowExecutionLogs.workflowId,
-          executionId: workflowExecutionLogs.executionId,
-          stateSnapshotId: workflowExecutionLogs.stateSnapshotId,
-          level: workflowExecutionLogs.level,
-          trigger: workflowExecutionLogs.trigger,
-          startedAt: workflowExecutionLogs.startedAt,
-          endedAt: workflowExecutionLogs.endedAt,
-          totalDurationMs: workflowExecutionLogs.totalDurationMs,
-          executionData: workflowExecutionLogs.executionData,
-          cost: workflowExecutionLogs.cost,
-          files: workflowExecutionLogs.files,
-          createdAt: workflowExecutionLogs.createdAt,
-          workflowName: workflow.name,
-          workflowDescription: workflow.description,
-          workflowColor: workflow.color,
-          workflowFolderId: workflow.folderId,
-          workflowUserId: workflow.userId,
-          workflowWorkspaceId: workflow.workspaceId,
-          workflowCreatedAt: workflow.createdAt,
-          workflowUpdatedAt: workflow.updatedAt,
-        })
+        .select(selectColumns)
         .from(workflowExecutionLogs)
-        .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+        .leftJoin(
+          pausedExecutions,
+          eq(pausedExecutions.executionId, workflowExecutionLogs.executionId)
+        )
+        .innerJoin(
+          workflow,
+          and(
+            eq(workflowExecutionLogs.workflowId, workflow.id),
+            eq(workflow.workspaceId, params.workspaceId)
+          )
+        )
         .innerJoin(
           permissions,
           and(
@@ -108,12 +123,17 @@ export async function GET(request: NextRequest) {
           )
         )
 
-      // Build conditions for the joined query
-      let conditions: SQL | undefined = eq(workflow.workspaceId, params.workspaceId)
+      // Build additional conditions for the query
+      let conditions: SQL | undefined
 
-      // Filter by level
+      // Filter by level (supports comma-separated for OR conditions)
       if (params.level && params.level !== 'all') {
-        conditions = and(conditions, eq(workflowExecutionLogs.level, params.level))
+        const levels = params.level.split(',').filter(Boolean)
+        if (levels.length === 1) {
+          conditions = and(conditions, eq(workflowExecutionLogs.level, levels[0]))
+        } else if (levels.length > 1) {
+          conditions = and(conditions, inArray(workflowExecutionLogs.level, levels))
+        }
       }
 
       // Filter by specific workflow IDs
@@ -158,6 +178,18 @@ export async function GET(request: NextRequest) {
         conditions = and(conditions, sql`${workflowExecutionLogs.executionId} ILIKE ${searchTerm}`)
       }
 
+      // Filter by workflow name (from advanced search input)
+      if (params.workflowName) {
+        const nameTerm = `%${params.workflowName}%`
+        conditions = and(conditions, sql`${workflow.name} ILIKE ${nameTerm}`)
+      }
+
+      // Filter by folder name (best-effort text match when present on workflows)
+      if (params.folderName) {
+        const folderTerm = `%${params.folderName}%`
+        conditions = and(conditions, sql`${workflow.name} ILIKE ${folderTerm}`)
+      }
+
       // Execute the query using the optimized join
       const logs = await baseQuery
         .where(conditions)
@@ -169,7 +201,17 @@ export async function GET(request: NextRequest) {
       const countQuery = db
         .select({ count: sql<number>`count(*)` })
         .from(workflowExecutionLogs)
-        .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+        .leftJoin(
+          pausedExecutions,
+          eq(pausedExecutions.executionId, workflowExecutionLogs.executionId)
+        )
+        .innerJoin(
+          workflow,
+          and(
+            eq(workflowExecutionLogs.workflowId, workflow.id),
+            eq(workflow.workspaceId, params.workspaceId)
+          )
+        )
         .innerJoin(
           permissions,
           and(
@@ -276,18 +318,31 @@ export async function GET(request: NextRequest) {
       const enhancedLogs = logs.map((log) => {
         const blockExecutions = blockExecutionsByExecution[log.executionId] || []
 
-        // Use stored trace spans if available, otherwise create from block executions
-        const storedTraceSpans = (log.executionData as any)?.traceSpans
-        const traceSpans =
-          storedTraceSpans && Array.isArray(storedTraceSpans) && storedTraceSpans.length > 0
-            ? storedTraceSpans
-            : createTraceSpans(blockExecutions)
+        // Only process trace spans and detailed cost in full mode
+        let traceSpans = []
+        let finalOutput: any
+        let costSummary = (log.cost as any) || { total: 0 }
 
-        // Prefer stored cost JSON; otherwise synthesize from blocks
-        const costSummary =
-          log.cost && Object.keys(log.cost as any).length > 0
-            ? (log.cost as any)
-            : extractCostSummary(blockExecutions)
+        if (params.details === 'full' && log.executionData) {
+          // Use stored trace spans if available, otherwise create from block executions
+          const storedTraceSpans = (log.executionData as any)?.traceSpans
+          traceSpans =
+            storedTraceSpans && Array.isArray(storedTraceSpans) && storedTraceSpans.length > 0
+              ? storedTraceSpans
+              : createTraceSpans(blockExecutions)
+
+          // Prefer stored cost JSON; otherwise synthesize from blocks
+          costSummary =
+            log.cost && Object.keys(log.cost as any).length > 0
+              ? (log.cost as any)
+              : extractCostSummary(blockExecutions)
+
+          // Include finalOutput if present on executionData
+          try {
+            const fo = (log.executionData as any)?.finalOutput
+            if (fo !== undefined) finalOutput = fo
+          } catch {}
+        }
 
         const workflowSummary = {
           id: log.workflowId,
@@ -304,19 +359,25 @@ export async function GET(request: NextRequest) {
         return {
           id: log.id,
           workflowId: log.workflowId,
-          executionId: params.details === 'full' ? log.executionId : undefined,
+          executionId: log.executionId,
           level: log.level,
           duration: log.totalDurationMs ? `${log.totalDurationMs}ms` : null,
           trigger: log.trigger,
           createdAt: log.startedAt.toISOString(),
           files: params.details === 'full' ? log.files || undefined : undefined,
           workflow: workflowSummary,
+          pauseSummary: {
+            status: log.pausedStatus ?? null,
+            total: log.pausedTotalPauseCount ?? 0,
+            resumed: log.pausedResumedCount ?? 0,
+          },
           executionData:
             params.details === 'full'
               ? {
                   totalDuration: log.totalDurationMs,
                   traceSpans,
                   blockExecutions,
+                  finalOutput,
                   enhanced: true,
                 }
               : undefined,
@@ -324,6 +385,10 @@ export async function GET(request: NextRequest) {
             params.details === 'full'
               ? (costSummary as any)
               : { total: (costSummary as any)?.total || 0 },
+          hasPendingPause:
+            (Number(log.pausedTotalPauseCount ?? 0) > 0 &&
+              Number(log.pausedResumedCount ?? 0) < Number(log.pausedTotalPauseCount ?? 0)) ||
+            (log.pausedStatus && log.pausedStatus !== 'fully_resumed'),
         }
       })
       return NextResponse.json(

@@ -1,0 +1,494 @@
+---
+title: Grafana
+description: Interactúa con paneles, alertas y anotaciones de Grafana
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="grafana"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Grafana](https://grafana.com/) es una plataforma líder de código abierto para monitorización, observabilidad y visualización. Permite a los usuarios consultar, visualizar, alertar y analizar datos de diversas fuentes, convirtiéndola en una herramienta esencial para la monitorización de infraestructuras y aplicaciones.
+
+Con Grafana, puedes:
+
+- **Visualizar datos**: Crear y personalizar paneles para mostrar métricas, registros y trazas en tiempo real
+- **Monitorizar salud y estado**: Comprobar la salud de tu instancia de Grafana y las fuentes de datos conectadas
+- **Gestionar alertas y anotaciones**: Configurar reglas de alerta, gestionar notificaciones y anotar paneles con eventos importantes
+- **Organizar contenido**: Organizar paneles y fuentes de datos en carpetas para una mejor gestión de acceso
+
+En Sim, la integración de Grafana permite a tus agentes interactuar directamente con tu instancia de Grafana a través de API, habilitando acciones como:
+
+- Comprobar el estado de salud del servidor Grafana, la base de datos y las fuentes de datos
+- Recuperar, listar y gestionar paneles, reglas de alerta, anotaciones, fuentes de datos y carpetas
+- Automatizar la monitorización de tu infraestructura integrando datos y alertas de Grafana en tus automatizaciones de flujo de trabajo
+
+Estas capacidades permiten a los agentes de Sim monitorizar sistemas, responder proactivamente a las alertas y ayudar a garantizar la fiabilidad y visibilidad de tus servicios, todo como parte de tus flujos de trabajo automatizados.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Grafana en flujos de trabajo. Gestiona paneles, alertas, anotaciones, fuentes de datos, carpetas y monitoriza el estado de salud.
+
+## Herramientas
+
+### `grafana_get_dashboard`
+
+Obtener un panel por su UID
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
+| `baseUrl` | string | Sí | URL de la instancia de Grafana \(p. ej., https://your-grafana.com\) |
+| `organizationId` | string | No | ID de organización para instancias Grafana multi-organización |
+| `dashboardUid` | string | Sí | El UID del panel a recuperar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `dashboard` | json | El objeto JSON completo del panel de control |
+| `meta` | json | Metadatos del panel de control \(versión, permisos, etc.\) |
+
+### `grafana_list_dashboards`
+
+Buscar y listar todos los paneles de control
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
+| `baseUrl` | string | Sí | URL de la instancia de Grafana \(p. ej., https://your-grafana.com\) |
+| `organizationId` | string | No | ID de la organización para instancias Grafana multi-organización |
+| `query` | string | No | Consulta de búsqueda para filtrar paneles por título |
+| `tag` | string | No | Filtrar por etiqueta \(separadas por comas para múltiples etiquetas\) |
+| `folderIds` | string | No | Filtrar por IDs de carpetas \(separados por comas\) |
+| `starred` | boolean | No | Devolver solo paneles destacados |
+| `limit` | number | No | Número máximo de paneles a devolver |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `dashboards` | array | Lista de resultados de búsqueda de paneles |
+
+### `grafana_create_dashboard`
+
+Crear un nuevo panel de control
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
+| `baseUrl` | string | Sí | URL de la instancia de Grafana \(p. ej., https://your-grafana.com\) |
+| `organizationId` | string | No | ID de la organización para instancias Grafana multi-organización |
+| `title` | string | Sí | El título del nuevo panel de control |
+| `folderUid` | string | No | El UID de la carpeta donde crear el panel de control |
+| `tags` | string | No | Lista de etiquetas separadas por comas |
+| `timezone` | string | No | Zona horaria del panel \(p. ej., browser, utc\) |
+| `refresh` | string | No | Intervalo de actualización automática \(p. ej., 5s, 1m, 5m\) |
+| `panels` | string | No | Array JSON de configuraciones de paneles |
+| `overwrite` | boolean | No | Sobrescribir panel existente con el mismo título |
+| `message` | string | No | Mensaje de commit para la versión del panel |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | number | El ID numérico del panel de control creado |
+| `uid` | string | El UID del panel de control creado |
+| `url` | string | La ruta URL al panel de control |
+| `status` | string | Estado de la operación \(éxito\) |
+| `version` | number | El número de versión del panel de control |
+| `slug` | string | Slug amigable para URL del panel de control |
+
+### `grafana_update_dashboard`
+
+Actualiza un panel de control existente. Obtiene el panel de control actual y fusiona tus cambios.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
+| `baseUrl` | string | Sí | URL de la instancia de Grafana \(p. ej., https://your-grafana.com\) |
+| `organizationId` | string | No | ID de organización para instancias Grafana multi-organización |
+| `dashboardUid` | string | Sí | El UID del panel de control a actualizar |
+| `title` | string | No | Nuevo título para el panel de control |
+| `folderUid` | string | No | Nuevo UID de carpeta para mover el panel de control |
+| `tags` | string | No | Lista de nuevas etiquetas separadas por comas |
+| `timezone` | string | No | Zona horaria del panel de control \(p. ej., browser, utc\) |
+| `refresh` | string | No | Intervalo de actualización automática \(p. ej., 5s, 1m, 5m\) |
+| `panels` | string | No | Array JSON de configuraciones de paneles |
+| `overwrite` | boolean | No | Sobrescribir incluso si hay un conflicto de versiones |
+| `message` | string | No | Mensaje de commit para esta versión |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | number | El ID numérico del panel actualizado |
+| `uid` | string | El UID del panel actualizado |
+| `url` | string | La ruta URL al panel |
+| `status` | string | Estado de la operación \(éxito\) |
+| `version` | number | El nuevo número de versión del panel |
+| `slug` | string | Slug amigable para URL del panel |
+
+### `grafana_delete_dashboard`
+
+Eliminar un panel por su UID
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
+| `baseUrl` | string | Sí | URL de la instancia de Grafana \(p. ej., https://your-grafana.com\) |
+| `organizationId` | string | No | ID de organización para instancias Grafana multi-organización |
+| `dashboardUid` | string | Sí | El UID del panel a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `title` | string | El título del panel eliminado |
+| `message` | string | Mensaje de confirmación |
+| `id` | number | El ID del panel eliminado |
+
+### `grafana_list_alert_rules`
+
+Listar todas las reglas de alerta en la instancia de Grafana
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
+| `baseUrl` | string | Sí | URL de la instancia de Grafana \(p. ej., https://your-grafana.com\) |
+| `organizationId` | string | No | ID de organización para instancias Grafana multi-organización |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `rules` | array | Lista de reglas de alerta |
+
+### `grafana_get_alert_rule`
+
+Obtener una regla de alerta específica por su UID
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
+| `baseUrl` | string | Sí | URL de la instancia de Grafana \(p. ej., https://your-grafana.com\) |
+| `organizationId` | string | No | ID de organización para instancias Grafana multi-organización |
+| `alertRuleUid` | string | Sí | El UID de la regla de alerta a recuperar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `uid` | string | UID de la regla de alerta |
+| `title` | string | Título de la regla de alerta |
+| `condition` | string | Condición de alerta |
+| `data` | json | Datos de consulta de la regla de alerta |
+| `folderUID` | string | UID de la carpeta principal |
+| `ruleGroup` | string | Nombre del grupo de reglas |
+| `noDataState` | string | Estado cuando no se devuelven datos |
+| `execErrState` | string | Estado en caso de error de ejecución |
+| `annotations` | json | Anotaciones de alerta |
+| `labels` | json | Etiquetas de alerta |
+
+### `grafana_create_alert_rule`
+
+Crear una nueva regla de alerta
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
+| `baseUrl` | string | Sí | URL de la instancia de Grafana \(p. ej., https://your-grafana.com\) |
+| `organizationId` | string | No | ID de organización para instancias Grafana multi-organización |
+| `title` | string | Sí | El título de la regla de alerta |
+| `folderUid` | string | Sí | El UID de la carpeta donde crear la alerta |
+| `ruleGroup` | string | Sí | El nombre del grupo de reglas |
+| `condition` | string | Sí | El refId de la consulta o expresión a usar como condición de alerta |
+| `data` | string | Sí | Array JSON de objetos de datos de consulta/expresión |
+| `forDuration` | string | No | Duración de espera antes de activarse \(p. ej., 5m, 1h\) |
+| `noDataState` | string | No | Estado cuando no se devuelven datos \(NoData, Alerting, OK\) |
+| `execErrState` | string | No | Estado en caso de error de ejecución \(Alerting, OK\) |
+| `annotations` | string | No | Objeto JSON de anotaciones |
+| `labels` | string | No | Objeto JSON de etiquetas |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `uid` | string | El UID de la regla de alerta creada |
+| `title` | string | Título de la regla de alerta |
+| `folderUID` | string | UID de la carpeta principal |
+| `ruleGroup` | string | Nombre del grupo de reglas |
+
+### `grafana_update_alert_rule`
+
+Actualiza una regla de alerta existente. Obtiene la regla actual y fusiona tus cambios.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
+| `baseUrl` | string | Sí | URL de la instancia de Grafana (p. ej., https://your-grafana.com) |
+| `organizationId` | string | No | ID de la organización para instancias de Grafana multi-organización |
+| `alertRuleUid` | string | Sí | El UID de la regla de alerta a actualizar |
+| `title` | string | No | Nuevo título para la regla de alerta |
+| `folderUid` | string | No | Nuevo UID de carpeta para mover la alerta |
+| `ruleGroup` | string | No | Nuevo nombre del grupo de reglas |
+| `condition` | string | No | Nuevo refId de condición |
+| `data` | string | No | Nuevo array JSON de objetos de datos de consulta/expresión |
+| `forDuration` | string | No | Duración de espera antes de activar (p. ej., 5m, 1h) |
+| `noDataState` | string | No | Estado cuando no se devuelven datos (NoData, Alerting, OK) |
+| `execErrState` | string | No | Estado en caso de error de ejecución (Alerting, OK) |
+| `annotations` | string | No | Objeto JSON de anotaciones |
+| `labels` | string | No | Objeto JSON de etiquetas |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `uid` | string | El UID de la regla de alerta actualizada |
+| `title` | string | Título de la regla de alerta |
+| `folderUID` | string | UID de la carpeta principal |
+| `ruleGroup` | string | Nombre del grupo de reglas |
+
+### `grafana_delete_alert_rule`
+
+Eliminar una regla de alerta por su UID
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
+| `baseUrl` | string | Sí | URL de la instancia de Grafana (p. ej., https://your-grafana.com) |
+| `organizationId` | string | No | ID de la organización para instancias de Grafana multi-organización |
+| `alertRuleUid` | string | Sí | El UID de la regla de alerta a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de confirmación |
+
+### `grafana_list_contact_points`
+
+Listar todos los puntos de contacto para notificaciones de alerta
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
+| `baseUrl` | string | Sí | URL de la instancia de Grafana (p. ej., https://your-grafana.com) |
+| `organizationId` | string | No | ID de la organización para instancias de Grafana multi-organización |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `contactPoints` | array | Lista de puntos de contacto |
+
+### `grafana_create_annotation`
+
+Crear una anotación en un panel o como una anotación global
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
+| `baseUrl` | string | Sí | URL de la instancia de Grafana \(p. ej., https://your-grafana.com\) |
+| `organizationId` | string | No | ID de la organización para instancias de Grafana multi-organización |
+| `text` | string | Sí | El contenido de texto de la anotación |
+| `tags` | string | No | Lista de etiquetas separadas por comas |
+| `dashboardUid` | string | No | UID del panel donde añadir la anotación \(opcional para anotaciones globales\) |
+| `panelId` | number | No | ID del panel donde añadir la anotación |
+| `time` | number | No | Hora de inicio en milisegundos de época \(por defecto es ahora\) |
+| `timeEnd` | number | No | Hora de finalización en milisegundos de época \(para anotaciones de rango\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | number | El ID de la anotación creada |
+| `message` | string | Mensaje de confirmación |
+
+### `grafana_list_annotations`
+
+Consultar anotaciones por rango de tiempo, panel o etiquetas
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
+| `baseUrl` | string | Sí | URL de la instancia de Grafana \(p. ej., https://your-grafana.com\) |
+| `organizationId` | string | No | ID de la organización para instancias de Grafana multi-organización |
+| `from` | number | No | Hora de inicio en milisegundos de época |
+| `to` | number | No | Hora de finalización en milisegundos de época |
+| `dashboardUid` | string | No | Filtrar por UID del panel |
+| `panelId` | number | No | Filtrar por ID del panel |
+| `tags` | string | No | Lista de etiquetas separadas por comas para filtrar |
+| `type` | string | No | Filtrar por tipo \(alerta o anotación\) |
+| `limit` | number | No | Número máximo de anotaciones a devolver |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `annotations` | array | Lista de anotaciones |
+
+### `grafana_update_annotation`
+
+Actualizar una anotación existente
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
+| `baseUrl` | string | Sí | URL de instancia de Grafana \(p. ej., https://your-grafana.com\) |
+| `organizationId` | string | No | ID de organización para instancias Grafana multi-organización |
+| `annotationId` | number | Sí | El ID de la anotación a actualizar |
+| `text` | string | Sí | Nuevo contenido de texto para la anotación |
+| `tags` | string | No | Lista de nuevas etiquetas separadas por comas |
+| `time` | number | No | Nueva hora de inicio en milisegundos de época |
+| `timeEnd` | number | No | Nueva hora de finalización en milisegundos de época |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | number | El ID de la anotación actualizada |
+| `message` | string | Mensaje de confirmación |
+
+### `grafana_delete_annotation`
+
+Eliminar una anotación por su ID
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
+| `baseUrl` | string | Sí | URL de instancia de Grafana \(p. ej., https://your-grafana.com\) |
+| `organizationId` | string | No | ID de organización para instancias Grafana multi-organización |
+| `annotationId` | number | Sí | El ID de la anotación a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de confirmación |
+
+### `grafana_list_data_sources`
+
+Listar todas las fuentes de datos configuradas en Grafana
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
+| `baseUrl` | string | Sí | URL de la instancia de Grafana (ej., https://your-grafana.com) |
+| `organizationId` | string | No | ID de organización para instancias Grafana multi-organización |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `dataSources` | array | Lista de fuentes de datos |
+
+### `grafana_get_data_source`
+
+Obtener una fuente de datos por su ID o UID
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
+| `baseUrl` | string | Sí | URL de la instancia de Grafana (ej., https://your-grafana.com) |
+| `organizationId` | string | No | ID de organización para instancias Grafana multi-organización |
+| `dataSourceId` | string | Sí | El ID o UID de la fuente de datos a recuperar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | number | ID de la fuente de datos |
+| `uid` | string | UID de la fuente de datos |
+| `name` | string | Nombre de la fuente de datos |
+| `type` | string | Tipo de fuente de datos |
+| `url` | string | URL de conexión de la fuente de datos |
+| `database` | string | Nombre de la base de datos (si aplica) |
+| `isDefault` | boolean | Si esta es la fuente de datos predeterminada |
+| `jsonData` | json | Configuración adicional de la fuente de datos |
+
+### `grafana_list_folders`
+
+Listar todas las carpetas en Grafana
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
+| `baseUrl` | string | Sí | URL de la instancia de Grafana \(p. ej., https://your-grafana.com\) |
+| `organizationId` | string | No | ID de la organización para instancias de Grafana multi-organización |
+| `limit` | number | No | Número máximo de carpetas a devolver |
+| `page` | number | No | Número de página para paginación |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `folders` | array | Lista de carpetas |
+
+### `grafana_create_folder`
+
+Crear una nueva carpeta en Grafana
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
+| `baseUrl` | string | Sí | URL de la instancia de Grafana \(p. ej., https://your-grafana.com\) |
+| `organizationId` | string | No | ID de la organización para instancias de Grafana multi-organización |
+| `title` | string | Sí | El título de la nueva carpeta |
+| `uid` | string | No | UID opcional para la carpeta \(se genera automáticamente si no se proporciona\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | number | El ID numérico de la carpeta creada |
+| `uid` | string | El UID de la carpeta creada |
+| `title` | string | El título de la carpeta creada |
+| `url` | string | La ruta URL a la carpeta |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `grafana`

@@ -1,0 +1,89 @@
+---
+title: ArXiv
+description: Suche und rufe wissenschaftliche Arbeiten von ArXiv ab
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="arxiv"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ArXiv](https://arxiv.org/) ist ein kostenfreies, frei zugängliches Repository für wissenschaftliche Forschungsarbeiten in Bereichen wie Physik, Mathematik, Informatik, quantitative Biologie, quantitative Finanzwissenschaft, Statistik, Elektrotechnik, Systemwissenschaften und Wirtschaftswissenschaften. ArXiv bietet eine umfangreiche Sammlung von Preprints und veröffentlichten Artikeln und ist damit eine primäre Ressource für Forscher und Praktiker weltweit.
+
+Mit ArXiv können Sie:
+
+- **Nach wissenschaftlichen Arbeiten suchen**: Finden Sie Forschungsarbeiten anhand von Schlüsselwörtern, Autorennamen, Titeln, Kategorien und mehr
+- **Metadaten von Arbeiten abrufen**: Zugriff auf Abstracts, Autorenlisten, Veröffentlichungsdaten und andere bibliografische Informationen
+- **Volltext-PDFs herunterladen**: Erhalten Sie den vollständigen Text der meisten Arbeiten für eingehende Studien
+- **Autorenbeiträge erkunden**: Sehen Sie alle Arbeiten eines bestimmten Autors
+- **Auf dem Laufenden bleiben**: Entdecken Sie die neuesten Einreichungen und Trendthemen in Ihrem Fachgebiet
+
+In Sim ermöglicht die ArXiv-Integration Ihren Agenten, wissenschaftliche Arbeiten von ArXiv programmatisch zu suchen, abzurufen und zu analysieren. Dies erlaubt Ihnen, Literaturrecherchen zu automatisieren, Forschungsassistenten zu erstellen oder aktuelles wissenschaftliches Wissen in Ihre agentischen Workflows einzubinden. Nutzen Sie ArXiv als dynamische Datenquelle für Forschung, Entdeckung und Wissensextraktion innerhalb Ihrer Sim-Projekte.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Integriert ArXiv in den Workflow. Kann nach Arbeiten suchen, Arbeitsdetails abrufen und Autorenarbeiten finden. Benötigt kein OAuth oder einen API-Schlüssel.
+
+## Tools
+
+### `arxiv_search`
+
+Suche nach wissenschaftlichen Artikeln auf ArXiv nach Schlüsselwörtern, Autoren, Titeln oder anderen Feldern.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `searchQuery` | string | Ja | Die auszuführende Suchanfrage |
+| `searchField` | string | Nein | Feld, in dem gesucht werden soll: all, ti \(Titel\), au \(Autor\), abs \(Abstract\), co \(Kommentar\), jr \(Journal\), cat \(Kategorie\), rn \(Berichtsnummer\) |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse \(Standard: 10, max: 2000\) |
+| `sortBy` | string | Nein | Sortieren nach: relevance, lastUpdatedDate, submittedDate \(Standard: relevance\) |
+| `sortOrder` | string | Nein | Sortierreihenfolge: ascending, descending \(Standard: descending\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `papers` | json | Array von Artikeln, die der Suchanfrage entsprechen |
+
+### `arxiv_get_paper`
+
+Erhalte detaillierte Informationen über einen bestimmten ArXiv-Artikel anhand seiner ID.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `paperId` | string | Ja | ArXiv-Artikel-ID \(z.B. "1706.03762"\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `paper` | json | Detaillierte Informationen über den angeforderten ArXiv-Artikel |
+
+### `arxiv_get_author_papers`
+
+Suche nach Artikeln eines bestimmten Autors auf ArXiv.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `authorName` | string | Ja | Zu suchender Autorenname |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse \(Standard: 10, max: 2000\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `authorPapers` | json | Array von Publikationen, die vom angegebenen Autor verfasst wurden |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `arxiv`

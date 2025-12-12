@@ -4,20 +4,74 @@ import { useState } from 'react'
 import { Check, Copy, LibraryBig } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { createLogger } from '@/lib/logs/console/logger'
+
+const logger = createLogger('BaseOverviewComponent')
 
 interface BaseOverviewProps {
   id?: string
   title: string
   docCount: number
   description: string
+  createdAt?: string
+  updatedAt?: string
 }
 
-export function BaseOverview({ id, title, docCount, description }: BaseOverviewProps) {
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+  if (diffInSeconds < 60) {
+    return 'just now'
+  }
+  if (diffInSeconds < 3600) {
+    const minutes = Math.floor(diffInSeconds / 60)
+    return `${minutes}m ago`
+  }
+  if (diffInSeconds < 86400) {
+    const hours = Math.floor(diffInSeconds / 3600)
+    return `${hours}h ago`
+  }
+  if (diffInSeconds < 604800) {
+    const days = Math.floor(diffInSeconds / 86400)
+    return `${days}d ago`
+  }
+  if (diffInSeconds < 2592000) {
+    const weeks = Math.floor(diffInSeconds / 604800)
+    return `${weeks}w ago`
+  }
+  if (diffInSeconds < 31536000) {
+    const months = Math.floor(diffInSeconds / 2592000)
+    return `${months}mo ago`
+  }
+  const years = Math.floor(diffInSeconds / 31536000)
+  return `${years}y ago`
+}
+
+function formatAbsoluteDate(dateString: string): string {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+export function BaseOverview({
+  id,
+  title,
+  docCount,
+  description,
+  createdAt,
+  updatedAt,
+}: BaseOverviewProps) {
   const [isCopied, setIsCopied] = useState(false)
   const params = useParams()
   const workspaceId = params?.workspaceId as string
 
-  // Create URL with knowledge base name as query parameter
   const searchParams = new URLSearchParams({
     kbName: title,
   })
@@ -33,7 +87,7 @@ export function BaseOverview({ id, title, docCount, description }: BaseOverviewP
         setIsCopied(true)
         setTimeout(() => setIsCopied(false), 2000)
       } catch (err) {
-        console.error('Failed to copy ID:', err)
+        logger.error('Failed to copy ID:', err)
       }
     }
   }
@@ -62,6 +116,23 @@ export function BaseOverview({ id, title, docCount, description }: BaseOverviewP
               </button>
             </div>
           </div>
+
+          {/* Timestamps */}
+          {(createdAt || updatedAt) && (
+            <div className='flex items-center gap-2 text-muted-foreground text-xs'>
+              {updatedAt && (
+                <span title={`Last updated: ${formatAbsoluteDate(updatedAt)}`}>
+                  Updated {formatRelativeTime(updatedAt)}
+                </span>
+              )}
+              {updatedAt && createdAt && <span>•</span>}
+              {createdAt && (
+                <span title={`Created: ${formatAbsoluteDate(createdAt)}`}>
+                  Created {formatRelativeTime(createdAt)}
+                </span>
+              )}
+            </div>
+          )}
 
           <p className='line-clamp-2 overflow-hidden text-muted-foreground text-xs'>
             {description}

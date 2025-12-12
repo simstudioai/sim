@@ -1,0 +1,67 @@
+---
+title: 待機
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+待機ブロックは、次のブロックに進む前に指定された時間だけワークフローを一時停止します。アクション間に遅延を追加したり、APIレート制限を尊重したり、操作の間隔を空けたりするために使用します。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/wait.png"
+    alt="待機ブロック"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## 設定
+
+### 待機時間
+
+実行を一時停止する時間を入力してください：
+- **入力値**：正の数
+- **最大値**：600秒（10分）または10分
+
+### 単位
+
+時間単位を選択してください：
+- **秒**：短く正確な遅延に
+- **分**：長めの一時停止に
+
+<Callout type="info">
+  待機ブロックはワークフローを停止することでキャンセルできます。最大待機時間は10分です。
+</Callout>
+
+## 出力
+
+- **`<wait.waitDuration>`**: ミリ秒単位の待機時間
+- **`<wait.status>`**: 待機のステータス（'waiting'、'completed'、または'cancelled'）
+
+## 使用例
+
+**APIレート制限** - リクエスト間でAPIレート制限内に留まる
+
+```
+API (Request 1) → Wait (2s) → API (Request 2)
+```
+
+**タイムド通知** - 遅延後にフォローアップメッセージを送信
+
+```
+Function (Send Email) → Wait (5min) → Function (Follow-up)
+```
+
+**処理遅延** - 外部システムが処理を完了するまで待機
+
+```
+API (Trigger Job) → Wait (30s) → API (Check Status)
+```
+
+## ベストプラクティス
+
+- **適切な待機時間を設定する**：最大10分までの遅延には待機機能を使用してください。より長い遅延にはスケジュールされたワークフローを検討してください
+- **実行時間を監視する**：待機はワークフローの合計実行時間を延長することを忘れないでください

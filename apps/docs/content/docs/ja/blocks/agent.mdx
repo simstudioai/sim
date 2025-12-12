@@ -1,0 +1,158 @@
+---
+title: エージェント
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+エージェントブロックはワークフローを大規模言語モデル（LLM）に接続します。自然言語入力を処理し、外部ツールを呼び出し、構造化または非構造化の出力を生成します。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/agent.png"
+    alt="エージェントブロックの設定"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div> 
+
+## 設定オプション
+
+### システムプロンプト
+
+システムプロンプトはエージェントの操作パラメータと動作制約を確立します。この設定はエージェントの役割、応答方法、およびすべての受信リクエストの処理境界を定義します。
+
+```markdown
+You are a helpful assistant that specializes in financial analysis.
+Always provide clear explanations and cite sources when possible.
+When responding to questions about investments, include risk disclaimers.
+```
+
+### ユーザープロンプト
+
+ユーザープロンプトは推論処理のための主要な入力データを表します。このパラメータはエージェントが分析して応答する自然言語テキストまたは構造化データを受け入れます。入力ソースには以下が含まれます：
+
+- **静的設定**: ブロック設定で指定された直接テキスト入力
+- **動的入力**: 接続インターフェースを通じて上流ブロックから渡されるデータ
+- **実行時生成**: ワークフロー実行中にプログラムによって生成されるコンテンツ
+
+### モデル選択
+
+エージェントブロックは統一された推論インターフェースを通じて複数のLLMプロバイダーをサポートしています。利用可能なモデルには以下が含まれます：
+
+- **OpenAI**: GPT-5.1、GPT-5、GPT-4o、o1、o3、o4-mini、gpt-4.1
+- **Anthropic**: Claude 4.5 Sonnet、Claude Opus 4.1
+- **Google**: Gemini 2.5 Pro、Gemini 2.0 Flash
+- **その他のプロバイダー**: Groq、Cerebras、xAI、Azure OpenAI、OpenRouter
+- **ローカルモデル**: OllamaまたはVLLM互換モデル
+
+### 温度
+
+応答のランダム性と創造性を制御します：
+
+- **低（0-0.3）**: 決定論的で焦点が絞られています。事実に基づくタスクと精度に最適。
+- **中（0.3-0.7）**: 創造性と焦点のバランスが取れています。一般的な用途に適しています。
+- **高（0.7-2.0）**: 創造的で多様です。ブレインストーミングやコンテンツ生成に理想的。
+
+### APIキー
+
+選択したLLMプロバイダーのAPIキー。これは安全に保存され、認証に使用されます。
+
+### ツール
+
+外部連携でエージェントの機能を拡張します。60以上の事前構築されたツールから選択するか、カスタム関数を定義します。
+
+**利用可能なカテゴリー:**
+- **コミュニケーション**: Gmail、Slack、Telegram、WhatsApp、Microsoft Teams
+- **データソース**: Notion、Google Sheets、Airtable、Supabase、Pinecone
+- **ウェブサービス**: Firecrawl、Google検索、Exa AI、ブラウザ自動化
+- **開発**: GitHub、Jira、Linear
+- **AIサービス**: OpenAI、Perplexity、Hugging Face、ElevenLabs
+
+**実行モード:**
+- **自動**: モデルがコンテキストに基づいてツールを使用するタイミングを決定
+- **必須**: すべてのリクエストでツールを呼び出す必要がある
+- **なし**: ツールは利用可能だがモデルに提案されない
+
+### レスポンスフォーマット
+
+レスポンスフォーマットパラメータは、JSONスキーマ検証を通じて構造化された出力生成を強制します。これにより、事前定義されたデータ構造に準拠した一貫性のある機械可読なレスポンスが保証されます：
+
+```json
+{
+  "name": "user_analysis",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "sentiment": {
+        "type": "string",
+        "enum": ["positive", "negative", "neutral"]
+      },
+      "confidence": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "required": ["sentiment", "confidence"]
+  }
+}
+```
+
+この設定はモデルの出力を指定されたスキーマに準拠するよう制約し、自由形式のテキスト応答を防ぎ、構造化データの生成を確保します。
+
+### 結果へのアクセス
+
+エージェントが完了すると、その出力にアクセスできます：
+
+- **`<agent.content>`**: エージェントの応答テキストまたは構造化データ
+- **`<agent.tokens>`**: トークン使用統計（プロンプト、完了、合計）
+- **`<agent.tool_calls>`**: エージェントが実行中に使用したツールの詳細
+- **`<agent.cost>`**: APIコールの推定コスト（利用可能な場合）
+
+## 高度な機能
+
+### メモリ + エージェント: 会話履歴
+
+一貫した`id`（例えば、`chat`）を持つ`Memory`ブロックを使用して、実行間でメッセージを保持し、その履歴をエージェントのプロンプトに含めます。
+
+- エージェントの前にユーザーのメッセージを追加
+- コンテキストのために会話履歴を読み取る
+- エージェントの実行後に返信を追加
+
+詳細については、[`Memory`](/tools/memory)ブロックのリファレンスをご覧ください。
+
+## 出力
+
+- **`<agent.content>`**: エージェントの応答テキスト
+- **`<agent.tokens>`**: トークン使用統計
+- **`<agent.tool_calls>`**: ツール実行の詳細
+- **`<agent.cost>`**: 推定APIコール費用
+
+## 使用例
+
+**カスタマーサポートの自動化** - データベースとツールアクセスを使用して問い合わせに対応
+
+```
+API (Ticket) → Agent (Postgres, KB, Linear) → Gmail (Reply) → Memory (Save)
+```
+
+**マルチモデルコンテンツ分析** - 異なるAIモデルでコンテンツを分析
+
+```
+Function (Process) → Agent (GPT-4o Technical) → Agent (Claude Sentiment) → Function (Report)
+```
+
+**ツール活用型リサーチアシスタント** - ウェブ検索とドキュメントアクセスで調査
+
+```
+Input → Agent (Google Search, Notion) → Function (Compile Report)
+```
+
+## ベストプラクティス
+
+- **システムプロンプトで具体的に指示する**: エージェントの役割、トーン、制限を明確に定義してください。指示が具体的であればあるほど、エージェントは目的を果たすことができます。
+- **適切な温度設定を選択する**: 正確さが重要な場合は低い温度設定（0〜0.3）を使用し、よりクリエイティブまたは多様な応答には温度を上げる（0.7〜2.0）
+- **ツールを効果的に活用する**: エージェントの目的を補完し、その能力を強化するツールを統合してください。エージェントに負担をかけないよう、提供するツールを選択的にしてください。重複の少ないタスクには、最良の結果を得るために別のエージェントブロックを使用してください。

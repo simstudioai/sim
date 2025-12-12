@@ -1,0 +1,58 @@
+---
+title: Hugging Face
+description: Use Hugging Face Inference API
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="huggingface"
+  color="#0B0F19"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[HuggingFace](https://huggingface.co/) is a leading AI platform that provides access to thousands of pre-trained machine learning models and powerful inference capabilities. With its extensive model hub and robust API, HuggingFace offers comprehensive tools for both research and production AI applications.
+With HuggingFace, you can:
+
+Access pre-trained models: Utilize models for text generation, translation, image processing, and more
+Generate AI completions: Create content using state-of-the-art language models through the Inference API
+Natural language processing: Process and analyze text with specialized NLP models
+Deploy at scale: Host and serve models for production applications
+Customize models: Fine-tune existing models for specific use cases
+
+In Sim, the HuggingFace integration enables your agents to programmatically generate completions using the HuggingFace Inference API. This allows for powerful automation scenarios such as content generation, text analysis, code completion, and creative writing. Your agents can generate completions with natural language prompts, access specialized models for different tasks, and integrate AI-generated content into workflows. This integration bridges the gap between your AI workflows and machine learning capabilities, enabling seamless AI-powered automation with one of the world's most comprehensive ML platforms.
+{/* MANUAL-CONTENT-END */}
+
+## Usage Instructions
+
+Integrate Hugging Face into the workflow. Can generate completions using the Hugging Face Inference API.
+
+## Tools
+
+### `huggingface_chat`
+
+Generate completions using Hugging Face Inference API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `systemPrompt` | string | No | System prompt to guide the model behavior |
+| `content` | string | Yes | The user message content to send to the model |
+| `provider` | string | Yes | The provider to use for the API request \(e.g., novita, cerebras, etc.\) |
+| `model` | string | Yes | Model to use for chat completions \(e.g., deepseek/deepseek-v3-0324\) |
+| `maxTokens` | number | No | Maximum number of tokens to generate |
+| `temperature` | number | No | Sampling temperature \(0-2\). Higher values make output more random |
+| `apiKey` | string | Yes | Hugging Face API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Chat completion results |
+
+## Notes
+
+- Category: `tools`
+- Type: `huggingface`

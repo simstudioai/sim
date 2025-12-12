@@ -1,33 +1,45 @@
+import { db } from '@sim/db'
+import { userStats, workflow } from '@sim/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { userStats, workflow } from '@/db/schema'
 
 const logger = createLogger('WorkflowStatsAPI')
+
+const queryParamsSchema = z.object({
+  runs: z.coerce.number().int().min(1).max(100).default(1),
+})
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const searchParams = request.nextUrl.searchParams
-  const runs = Number.parseInt(searchParams.get('runs') || '1', 10)
 
-  if (Number.isNaN(runs) || runs < 1 || runs > 100) {
-    logger.error(`Invalid number of runs: ${runs}`)
+  const validation = queryParamsSchema.safeParse({
+    runs: searchParams.get('runs'),
+  })
+
+  if (!validation.success) {
+    logger.error(`Invalid query parameters: ${validation.error.message}`)
     return NextResponse.json(
-      { error: 'Invalid number of runs. Must be between 1 and 100.' },
+      {
+        error:
+          validation.error.errors[0]?.message ||
+          'Invalid number of runs. Must be between 1 and 100.',
+      },
       { status: 400 }
     )
   }
 
+  const { runs } = validation.data
+
   try {
-    // Get workflow record
     const [workflowRecord] = await db.select().from(workflow).where(eq(workflow.id, id)).limit(1)
 
     if (!workflowRecord) {
       return NextResponse.json({ error: `Workflow ${id} not found` }, { status: 404 })
     }
 
-    // Update workflow runCount
     try {
       await db
         .update(workflow)
@@ -41,20 +53,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       throw error
     }
 
-    // Upsert user stats record
     try {
-      // Check if record exists
       const userStatsRecords = await db
         .select()
         .from(userStats)
         .where(eq(userStats.userId, workflowRecord.userId))
 
       if (userStatsRecords.length === 0) {
-        // Create new record if none exists
         await db.insert(userStats).values({
           id: crypto.randomUUID(),
           userId: workflowRecord.userId,
-          totalManualExecutions: runs,
+          totalManualExecutions: 0,
           totalApiCalls: 0,
           totalWebhookTriggers: 0,
           totalScheduledExecutions: 0,
@@ -64,17 +73,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           lastActive: sql`now()`,
         })
       } else {
-        // Update existing record
         await db
           .update(userStats)
           .set({
-            totalManualExecutions: sql`total_manual_executions + ${runs}`,
-            lastActive: new Date(),
+            lastActive: sql`now()`,
           })
           .where(eq(userStats.userId, workflowRecord.userId))
       }
     } catch (error) {
-      logger.error(`Error upserting userStats for userId ${workflowRecord.userId}:`, error)
+      logger.error(`Error ensuring userStats for userId ${workflowRecord.userId}:`, error)
       // Don't rethrow - we want to continue even if this fails
     }
 

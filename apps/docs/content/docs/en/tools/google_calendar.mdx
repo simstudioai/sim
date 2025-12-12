@@ -1,0 +1,146 @@
+---
+title: Google Calendar
+description: Manage Google Calendar events
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_calendar"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Calendar](https://calendar.google.com) is Google's powerful calendar and scheduling service that provides a comprehensive platform for managing events, meetings, and appointments. With seamless integration across Google's ecosystem and widespread adoption, Google Calendar offers robust features for both personal and professional scheduling needs.
+
+With Google Calendar, you can:
+
+- **Create and manage events**: Schedule meetings, appointments, and reminders with detailed information
+- **Send calendar invites**: Automatically notify and coordinate with attendees through email invitations
+- **Natural language event creation**: Quickly add events using conversational language like "Meeting with John tomorrow at 3pm"
+- **View and search events**: Easily find and access your scheduled events across multiple calendars
+- **Manage multiple calendars**: Organize different types of events across various calendars
+
+In Sim, the Google Calendar integration enables your agents to programmatically create, read, and manage calendar events. This allows for powerful automation scenarios such as scheduling meetings, sending calendar invites, checking availability, and managing event details. Your agents can create events with natural language input, send automated calendar invitations to attendees, retrieve event information, and list upcoming events. This integration bridges the gap between your AI workflows and calendar management, enabling seamless scheduling automation and coordination with one of the world's most widely used calendar platforms.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Google Calendar into the workflow. Can create, read, update, and list calendar events.
+
+
+
+## Tools
+
+### `google_calendar_create`
+
+Create a new event in Google Calendar
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Calendar ID \(defaults to primary\) |
+| `summary` | string | Yes | Event title/summary |
+| `description` | string | No | Event description |
+| `location` | string | No | Event location |
+| `startDateTime` | string | Yes | Start date and time. MUST include timezone offset \(e.g., 2025-06-03T10:00:00-08:00\) OR provide timeZone parameter |
+| `endDateTime` | string | Yes | End date and time. MUST include timezone offset \(e.g., 2025-06-03T11:00:00-08:00\) OR provide timeZone parameter |
+| `timeZone` | string | No | Time zone \(e.g., America/Los_Angeles\). Required if datetime does not include offset. Defaults to America/Los_Angeles if not provided. |
+| `attendees` | array | No | Array of attendee email addresses |
+| `sendUpdates` | string | No | How to send updates to attendees: all, externalOnly, or none |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Event creation confirmation message |
+| `metadata` | json | Created event metadata including ID, status, and details |
+
+### `google_calendar_list`
+
+List events from Google Calendar
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Calendar ID \(defaults to primary\) |
+| `timeMin` | string | No | Lower bound for events \(RFC3339 timestamp, e.g., 2025-06-03T00:00:00Z\) |
+| `timeMax` | string | No | Upper bound for events \(RFC3339 timestamp, e.g., 2025-06-04T00:00:00Z\) |
+| `orderBy` | string | No | Order of events returned \(startTime or updated\) |
+| `showDeleted` | boolean | No | Include deleted events |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Summary of found events count |
+| `metadata` | json | List of events with pagination tokens and event details |
+
+### `google_calendar_get`
+
+Get a specific event from Google Calendar
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Calendar ID \(defaults to primary\) |
+| `eventId` | string | Yes | Event ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Event retrieval confirmation message |
+| `metadata` | json | Event details including ID, status, times, and attendees |
+
+### `google_calendar_quick_add`
+
+Create events from natural language text
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Calendar ID \(defaults to primary\) |
+| `text` | string | Yes | Natural language text describing the event \(e.g., "Meeting with John tomorrow at 3pm"\) |
+| `attendees` | array | No | Array of attendee email addresses \(comma-separated string also accepted\) |
+| `sendUpdates` | string | No | How to send updates to attendees: all, externalOnly, or none |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Event creation confirmation message from natural language |
+| `metadata` | json | Created event metadata including parsed details |
+
+### `google_calendar_invite`
+
+Invite attendees to an existing Google Calendar event
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Calendar ID \(defaults to primary\) |
+| `eventId` | string | Yes | Event ID to invite attendees to |
+| `attendees` | array | Yes | Array of attendee email addresses to invite |
+| `sendUpdates` | string | No | How to send updates to attendees: all, externalOnly, or none |
+| `replaceExisting` | boolean | No | Whether to replace existing attendees or add to them \(defaults to false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Attendee invitation confirmation message with email delivery status |
+| `metadata` | json | Updated event metadata including attendee list and details |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `google_calendar`

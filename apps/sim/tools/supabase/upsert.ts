@@ -17,19 +17,19 @@ export const upsertTool: ToolConfig<SupabaseUpsertParams, SupabaseUpsertResponse
     table: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The name of the Supabase table to upsert data into',
     },
     data: {
-      type: 'any',
+      type: 'array',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The data to upsert (insert or update)',
+      description: 'The data to upsert (insert or update) - array of objects or a single object',
     },
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Your Supabase service role secret key',
     },
   },

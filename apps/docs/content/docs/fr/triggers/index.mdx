@@ -1,0 +1,67 @@
+---
+title: Aperçu
+description: Les déclencheurs sont les moyens essentiels pour lancer les flux de travail Sim
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/triggers.png"
+    alt="Aperçu des déclencheurs"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+## Déclencheurs principaux
+
+Utilisez le bloc Démarrer pour tout ce qui provient de l'éditeur, du déploiement vers l'API ou des expériences de déploiement vers le chat. D'autres déclencheurs restent disponibles pour les flux de travail basés sur des événements :
+
+<Cards>
+  <Card title="Start" href="/triggers/start">
+    Point d'entrée unifié qui prend en charge les exécutions de l'éditeur, les déploiements d'API et les déploiements de chat
+  </Card>
+  <Card title="Webhook" href="/triggers/webhook">
+    Recevoir des charges utiles de webhook externes
+  </Card>
+  <Card title="Schedule" href="/triggers/schedule">
+    Exécution basée sur cron ou intervalle
+  </Card>
+  <Card title="RSS Feed" href="/triggers/rss">
+    Surveiller les flux RSS et Atom pour du nouveau contenu
+  </Card>
+</Cards>
+
+## Comparaison rapide
+
+| Déclencheur | Condition de démarrage |
+|---------|-----------------|
+| **Start** | Exécutions de l'éditeur, requêtes de déploiement d'API ou messages de chat |
+| **Schedule** | Minuteur géré dans le bloc de planification |
+| **Webhook** | Sur requête HTTP entrante |
+| **RSS Feed** | Nouvel élément publié dans le flux |
+
+> Le bloc Démarrer expose toujours les champs `input`, `conversationId` et `files`. Ajoutez des champs personnalisés au format d'entrée pour des données structurées supplémentaires.
+
+## Utilisation des déclencheurs
+
+1. Déposez le bloc Démarrer dans l'emplacement de départ (ou un déclencheur alternatif comme Webhook/Planification).
+2. Configurez tout schéma ou authentification requis.
+3. Connectez le bloc au reste du flux de travail.
+
+> Les déploiements alimentent chaque déclencheur. Mettez à jour le flux de travail, redéployez, et tous les points d'entrée des déclencheurs récupèrent le nouveau snapshot. En savoir plus dans [Exécution → Snapshots de déploiement](/execution).
+
+## Priorité d'exécution manuelle
+
+Lorsque vous cliquez sur **Exécuter** dans l'éditeur, Sim sélectionne automatiquement quel déclencheur exécuter selon l'ordre de priorité suivant :
+
+1. **Bloc Démarrer** (priorité la plus élevée)
+2. **Déclencheurs de planification**
+3. **Déclencheurs externes** (webhooks, intégrations comme Slack, Gmail, Airtable, etc.)
+
+Si votre flux de travail comporte plusieurs déclencheurs, le déclencheur de priorité la plus élevée sera exécuté. Par exemple, si vous avez à la fois un bloc Démarrer et un déclencheur Webhook, cliquer sur Exécuter exécutera le bloc Démarrer.
+
+**Déclencheurs externes avec charges utiles simulées** : lorsque des déclencheurs externes (webhooks et intégrations) sont exécutés manuellement, Sim génère automatiquement des charges utiles simulées basées sur la structure de données attendue du déclencheur. Cela garantit que les blocs en aval peuvent résoudre correctement les variables pendant les tests.

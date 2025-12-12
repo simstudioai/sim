@@ -1,0 +1,50 @@
+---
+title: Self-Hosting
+description: Stellen Sie Sim Studio auf Ihrer eigenen Infrastruktur bereit
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Stellen Sie Sim Studio auf Ihrer eigenen Infrastruktur mit Docker oder Kubernetes bereit.
+
+## Anforderungen
+
+| Ressource | Minimum | Empfohlen |
+|----------|---------|-------------|
+| CPU | 2 Kerne | 4+ Kerne |
+| RAM | 12 GB | 16+ GB |
+| Speicher | 20 GB SSD | 50+ GB SSD |
+| Docker | 20.10+ | Neueste Version |
+
+## Schnellstart
+
+```bash
+git clone https://github.com/simstudioai/sim.git && cd sim
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Öffnen Sie [http://localhost:3000](http://localhost:3000)
+
+## Bereitstellungsoptionen
+
+<Cards>
+  <Card title="Docker" href="/self-hosting/docker">
+    Bereitstellung mit Docker Compose auf jedem Server
+  </Card>
+  <Card title="Kubernetes" href="/self-hosting/kubernetes">
+    Bereitstellung mit Helm auf Kubernetes-Clustern
+  </Card>
+  <Card title="Cloud-Plattformen" href="/self-hosting/platforms">
+    Anleitungen für Railway, DigitalOcean, AWS, Azure, GCP
+  </Card>
+</Cards>
+
+## Architektur
+
+| Komponente | Port | Beschreibung |
+|-----------|------|-------------|
+| simstudio | 3000 | Hauptanwendung |
+| realtime | 3002 | WebSocket-Server |
+| db | 5432 | PostgreSQL mit pgvector |
+| migrations | - | Datenbank-Migrationen (werden einmal ausgeführt) |

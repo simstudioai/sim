@@ -1,0 +1,67 @@
+---
+title: Warten
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+Der Warten-Block pausiert deinen Workflow für eine bestimmte Zeit, bevor er mit dem nächsten Block fortfährt. Verwende ihn, um Verzögerungen zwischen Aktionen einzufügen, API-Ratenbegrenzungen einzuhalten oder Operationen zeitlich zu verteilen.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/wait.png"
+    alt="Warte-Block"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Konfiguration
+
+### Wartezeit
+
+Geben Sie die Dauer für die Ausführungspause ein:
+- **Eingabe**: Positive Zahl
+- **Maximum**: 600 Sekunden (10 Minuten) oder 10 Minuten
+
+### Einheit
+
+Wählen Sie die Zeiteinheit:
+- **Sekunden**: Für kurze, präzise Verzögerungen
+- **Minuten**: Für längere Pausen
+
+<Callout type="info">
+  Warteblöcke können durch Stoppen des Workflows abgebrochen werden. Die maximale Wartezeit beträgt 10 Minuten.
+</Callout>
+
+## Ausgaben
+
+- **`<wait.waitDuration>`**: Die Wartezeit in Millisekunden
+- **`<wait.status>`**: Status der Wartezeit ('waiting', 'completed' oder 'cancelled')
+
+## Beispielanwendungsfälle
+
+**API-Ratenbegrenzung** - Bleiben Sie zwischen Anfragen innerhalb der API-Ratenlimits
+
+```
+API (Request 1) → Wait (2s) → API (Request 2)
+```
+
+**Zeitgesteuerte Benachrichtigungen** - Senden Sie Folgenachrichten nach einer Verzögerung
+
+```
+Function (Send Email) → Wait (5min) → Function (Follow-up)
+```
+
+**Verarbeitungsverzögerungen** - Warten Sie, bis das externe System die Verarbeitung abgeschlossen hat
+
+```
+API (Trigger Job) → Wait (30s) → API (Check Status)
+```
+
+## Bewährte Praktiken
+
+- **Halten Sie Wartezeiten angemessen**: Verwenden Sie Wait für Verzögerungen bis zu 10 Minuten. Für längere Verzögerungen sollten Sie geplante Workflows in Betracht ziehen
+- **Überwachen Sie die Ausführungszeit**: Denken Sie daran, dass Wartezeiten die Gesamtdauer des Workflows verlängern

@@ -1,9 +1,10 @@
+import { db } from '@sim/db'
+import { invitation, member, organization, subscription, user, userStats } from '@sim/db/schema'
 import { and, count, eq } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
-import { quickValidateEmail } from '@/lib/email/validation'
+import { getEffectiveSeats } from '@/lib/billing/subscriptions/utils'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { invitation, member, organization, subscription, user, userStats } from '@/db/schema'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
 const logger = createLogger('SeatManagement')
 
@@ -66,26 +67,9 @@ export async function validateSeatAvailability(
     const currentSeats = memberCount[0]?.count || 0
 
     // Determine seat limits based on subscription
-    let maxSeats = subscription.seats || 1
-
-    // For enterprise plans, check metadata for custom seat allowances
-    if (subscription.plan === 'enterprise' && subscription.metadata) {
-      try {
-        const metadata =
-          typeof subscription.metadata === 'string'
-            ? JSON.parse(subscription.metadata)
-            : subscription.metadata
-        if (metadata.maxSeats) {
-          maxSeats = metadata.maxSeats
-        }
-      } catch (error) {
-        logger.warn('Failed to parse enterprise subscription metadata', {
-          organizationId,
-          metadata: subscription.metadata,
-          error,
-        })
-      }
-    }
+    // Team: seats from Stripe subscription quantity (seats column)
+    // Enterprise: seats from metadata.seats (not from seats column which is always 1)
+    const maxSeats = getEffectiveSeats(subscription)
 
     const availableSeats = Math.max(0, maxSeats - currentSeats)
     const canInvite = availableSeats >= additionalSeats
@@ -131,7 +115,6 @@ export async function getOrganizationSeatInfo(
   organizationId: string
 ): Promise<OrganizationSeatInfo | null> {
   try {
-    // Get organization details
     const organizationData = await db
       .select({
         id: organization.id,
@@ -145,14 +128,12 @@ export async function getOrganizationSeatInfo(
       return null
     }
 
-    // Get organization subscription directly (referenceId = organizationId)
     const subscription = await getOrganizationSubscription(organizationId)
 
     if (!subscription) {
       return null
     }
 
-    // Get current member count
     const memberCount = await db
       .select({ count: count() })
       .from(member)
@@ -160,25 +141,10 @@ export async function getOrganizationSeatInfo(
 
     const currentSeats = memberCount[0]?.count || 0
 
-    // Determine seat limits
-    let maxSeats = subscription.seats || 1
-    let canAddSeats = true
+    // Team: seats from column, Enterprise: seats from metadata
+    const maxSeats = getEffectiveSeats(subscription)
 
-    if (subscription.plan === 'enterprise' && subscription.metadata) {
-      try {
-        const metadata =
-          typeof subscription.metadata === 'string'
-            ? JSON.parse(subscription.metadata)
-            : subscription.metadata
-        if (metadata.maxSeats) {
-          maxSeats = metadata.maxSeats
-        }
-        // Enterprise plans might have fixed seat counts
-        canAddSeats = !metadata.fixedSeats
-      } catch (error) {
-        logger.warn('Failed to parse enterprise subscription metadata', { organizationId, error })
-      }
-    }
+    const canAddSeats = subscription.plan !== 'enterprise'
 
     const availableSeats = Math.max(0, maxSeats - currentSeats)
 
@@ -213,14 +179,12 @@ export async function validateBulkInvitations(
   validationResult: SeatValidationResult
 }> {
   try {
-    // Remove duplicates and validate email format
     const uniqueEmails = [...new Set(emailList)]
     const validEmails = uniqueEmails.filter(
       (email) => quickValidateEmail(email.trim().toLowerCase()).isValid
     )
     const duplicateEmails = emailList.filter((email, index) => emailList.indexOf(email) !== index)
 
-    // Check for existing members
     const existingMembers = await db
       .select({ userEmail: user.email })
       .from(member)
@@ -230,7 +194,6 @@ export async function validateBulkInvitations(
     const existingEmails = existingMembers.map((m) => m.userEmail)
     const newEmails = validEmails.filter((email) => !existingEmails.includes(email))
 
-    // Check for pending invitations
     const pendingInvitations = await db
       .select({ email: invitation.email })
       .from(invitation)
@@ -239,7 +202,6 @@ export async function validateBulkInvitations(
     const pendingEmails = pendingInvitations.map((i) => i.email)
     const finalEmailsToInvite = newEmails.filter((email) => !pendingEmails.includes(email))
 
-    // Validate seat availability
     const seatsNeeded = finalEmailsToInvite.length
     const validationResult = await validateSeatAvailability(organizationId, seatsNeeded)
 
@@ -280,136 +242,6 @@ export async function validateBulkInvitations(
 }
 
 /**
- * Update organization seat count in subscription
- */
-export async function updateOrganizationSeats(
-  organizationId: string,
-  newSeatCount: number,
-  updatedBy: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    // Get current organization subscription directly (referenceId = organizationId)
-    const subscriptionRecord = await getOrganizationSubscription(organizationId)
-
-    if (!subscriptionRecord) {
-      return { success: false, error: 'No active subscription found' }
-    }
-
-    // Validate minimum seat requirements
-    const memberCount = await db
-      .select({ count: count() })
-      .from(member)
-      .where(eq(member.organizationId, organizationId))
-
-    const currentMembers = memberCount[0]?.count || 0
-
-    if (newSeatCount < currentMembers) {
-      return {
-        success: false,
-        error: `Cannot reduce seats below current member count (${currentMembers})`,
-      }
-    }
-
-    // Update subscription seat count
-    await db
-      .update(subscription)
-      .set({
-        seats: newSeatCount,
-      })
-      .where(eq(subscription.id, subscriptionRecord.id))
-
-    logger.info('Organization seat count updated', {
-      organizationId,
-      oldSeatCount: subscriptionRecord.seats,
-      newSeatCount,
-      updatedBy,
-    })
-
-    return { success: true }
-  } catch (error) {
-    logger.error('Failed to update organization seats', {
-      organizationId,
-      newSeatCount,
-      updatedBy,
-      error,
-    })
-
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }
-  }
-}
-
-/**
- * Check if a user can be removed from an organization
- */
-export async function validateMemberRemoval(
-  organizationId: string,
-  userIdToRemove: string,
-  removedBy: string
-): Promise<{ canRemove: boolean; reason?: string }> {
-  try {
-    // Get member details
-    const memberRecord = await db
-      .select({ role: member.role })
-      .from(member)
-      .where(and(eq(member.organizationId, organizationId), eq(member.userId, userIdToRemove)))
-      .limit(1)
-
-    if (memberRecord.length === 0) {
-      return { canRemove: false, reason: 'Member not found in organization' }
-    }
-
-    // Check if trying to remove the organization owner
-    if (memberRecord[0].role === 'owner') {
-      return { canRemove: false, reason: 'Cannot remove organization owner' }
-    }
-
-    // Check if the person removing has sufficient permissions
-    const removerMemberRecord = await db
-      .select({ role: member.role })
-      .from(member)
-      .where(and(eq(member.organizationId, organizationId), eq(member.userId, removedBy)))
-      .limit(1)
-
-    if (removerMemberRecord.length === 0) {
-      return { canRemove: false, reason: 'You are not a member of this organization' }
-    }
-
-    const removerRole = removerMemberRecord[0].role
-    const targetRole = memberRecord[0].role
-
-    // Permission hierarchy: owner > admin > member
-    if (removerRole === 'owner') {
-      // Owners can remove anyone except themselves
-      return userIdToRemove === removedBy
-        ? { canRemove: false, reason: 'Cannot remove yourself as owner' }
-        : { canRemove: true }
-    }
-
-    if (removerRole === 'admin') {
-      // Admins can remove members but not other admins or owners
-      return targetRole === 'member'
-        ? { canRemove: true }
-        : { canRemove: false, reason: 'Insufficient permissions to remove this member' }
-    }
-
-    // Members cannot remove other members
-    return { canRemove: false, reason: 'Insufficient permissions' }
-  } catch (error) {
-    logger.error('Failed to validate member removal', {
-      organizationId,
-      userIdToRemove,
-      removedBy,
-      error,
-    })
-
-    return { canRemove: false, reason: 'Validation failed' }
-  }
-}
-
-/**
  * Get seat usage analytics for an organization
  */
 export async function getOrganizationSeatAnalytics(organizationId: string) {
@@ -420,7 +252,6 @@ export async function getOrganizationSeatAnalytics(organizationId: string) {
       return null
     }
 
-    // Get member activity data
     const memberActivity = await db
       .select({
         userId: member.userId,
@@ -435,7 +266,6 @@ export async function getOrganizationSeatAnalytics(organizationId: string) {
       .leftJoin(userStats, eq(member.userId, userStats.userId))
       .where(eq(member.organizationId, organizationId))
 
-    // Calculate utilization metrics
     const utilizationRate =
       seatInfo.maxSeats > 0 ? (seatInfo.currentSeats / seatInfo.maxSeats) * 100 : 0
 
@@ -455,5 +285,52 @@ export async function getOrganizationSeatAnalytics(organizationId: string) {
   } catch (error) {
     logger.error('Failed to get organization seat analytics', { organizationId, error })
     return null
+  }
+}
+
+/**
+ * Sync seat count from Stripe subscription quantity.
+ * Used by webhook handlers to keep local DB in sync with Stripe.
+ */
+export async function syncSeatsFromStripeQuantity(
+  subscriptionId: string,
+  currentSeats: number | null,
+  stripeQuantity: number
+): Promise<{ synced: boolean; previousSeats: number | null; newSeats: number }> {
+  const effectiveCurrentSeats = currentSeats ?? 0
+
+  // Only update if quantity differs
+  if (stripeQuantity === effectiveCurrentSeats) {
+    return {
+      synced: false,
+      previousSeats: effectiveCurrentSeats,
+      newSeats: stripeQuantity,
+    }
+  }
+
+  try {
+    await db
+      .update(subscription)
+      .set({ seats: stripeQuantity })
+      .where(eq(subscription.id, subscriptionId))
+
+    logger.info('Synced seat count from Stripe', {
+      subscriptionId,
+      previousSeats: effectiveCurrentSeats,
+      newSeats: stripeQuantity,
+    })
+
+    return {
+      synced: true,
+      previousSeats: effectiveCurrentSeats,
+      newSeats: stripeQuantity,
+    }
+  } catch (error) {
+    logger.error('Failed to sync seat count from Stripe', {
+      subscriptionId,
+      stripeQuantity,
+      error,
+    })
+    throw error
   }
 }

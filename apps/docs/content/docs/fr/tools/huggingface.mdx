@@ -1,0 +1,58 @@
+---
+title: Hugging Face
+description: Utiliser l'API d'inférence Hugging Face
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="huggingface"
+  color="#0B0F19"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[HuggingFace](https://huggingface.co/) est une plateforme d'IA de premier plan qui donne accès à des milliers de modèles d'apprentissage automatique préentraînés et à de puissantes capacités d'inférence. Avec son vaste hub de modèles et son API robuste, HuggingFace offre des outils complets pour les applications d'IA tant en recherche qu'en production.
+Avec HuggingFace, vous pouvez :
+
+Accéder à des modèles préentraînés : utiliser des modèles pour la génération de texte, la traduction, le traitement d'images, et plus encore
+Générer des compléments d'IA : créer du contenu en utilisant des modèles de langage de pointe via l'API d'inférence
+Traitement du langage naturel : traiter et analyser du texte avec des modèles de NLP spécialisés
+Déployer à grande échelle : héberger et servir des modèles pour des applications en production
+Personnaliser des modèles : affiner des modèles existants pour des cas d'utilisation spécifiques
+
+Dans Sim, l'intégration HuggingFace permet à vos agents de générer programmatiquement des compléments en utilisant l'API d'inférence HuggingFace. Cela permet des scénarios d'automatisation puissants tels que la génération de contenu, l'analyse de texte, la complétion de code et l'écriture créative. Vos agents peuvent générer des compléments avec des invites en langage naturel, accéder à des modèles spécialisés pour différentes tâches et intégrer du contenu généré par l'IA dans les flux de travail. Cette intégration comble le fossé entre vos flux de travail d'IA et les capacités d'apprentissage automatique, permettant une automatisation transparente alimentée par l'IA avec l'une des plateformes d'apprentissage automatique les plus complètes au monde.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrer Hugging Face dans le flux de travail. Peut générer des compléments en utilisant l'API Inference de Hugging Face. Nécessite une clé API.
+
+## Outils
+
+### `huggingface_chat`
+
+Générer des compléments en utilisant l'API d'inférence Hugging Face
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `systemPrompt` | chaîne | Non | Invite système pour guider le comportement du modèle |
+| `content` | chaîne | Oui | Le contenu du message utilisateur à envoyer au modèle |
+| `provider` | chaîne | Oui | Le fournisseur à utiliser pour la requête API \(par ex., novita, cerebras, etc.\) |
+| `model` | chaîne | Oui | Modèle à utiliser pour les compléments de chat \(par ex., deepseek/deepseek-v3-0324\) |
+| `maxTokens` | nombre | Non | Nombre maximum de tokens à générer |
+| `temperature` | nombre | Non | Température d'échantillonnage \(0-2\). Des valeurs plus élevées rendent la sortie plus aléatoire |
+| `apiKey` | chaîne | Oui | Token API Hugging Face |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Statut de réussite de l'opération |
+| `output` | objet | Résultats du complément de chat |
+
+## Remarques
+
+- Catégorie : `tools`
+- Type : `huggingface`

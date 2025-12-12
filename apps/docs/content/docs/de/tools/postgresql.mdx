@@ -1,0 +1,160 @@
+---
+title: PostgreSQL
+description: Verbindung zur PostgreSQL-Datenbank herstellen
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="postgresql"
+  color="#336791"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Das [PostgreSQL](https://www.postgresql.org/)-Tool ermöglicht es Ihnen, eine Verbindung zu jeder PostgreSQL-Datenbank herzustellen und eine Vielzahl von Datenbankoperationen direkt innerhalb Ihrer agentischen Workflows durchzuführen. Mit sicherer Verbindungshandhabung und flexibler Konfiguration können Sie Ihre Daten einfach verwalten und mit ihnen interagieren.
+
+Mit dem PostgreSQL-Tool können Sie:
+
+- **Daten abfragen**: Führen Sie SELECT-Abfragen aus, um Daten aus Ihren PostgreSQL-Tabellen mit der `postgresql_query` Operation abzurufen.
+- **Datensätze einfügen**: Fügen Sie mit der `postgresql_insert` Operation neue Zeilen zu Ihren Tabellen hinzu, indem Sie die Tabelle und die einzufügenden Daten angeben.
+- **Datensätze aktualisieren**: Ändern Sie bestehende Daten in Ihren Tabellen mit der `postgresql_update` Operation, indem Sie die Tabelle, neue Daten und WHERE-Bedingungen angeben.
+- **Datensätze löschen**: Entfernen Sie Zeilen aus Ihren Tabellen mit der `postgresql_delete` Operation, indem Sie die Tabelle und WHERE-Bedingungen angeben.
+- **Raw SQL ausführen**: Führen Sie beliebige benutzerdefinierte SQL-Befehle mit der `postgresql_execute` Operation für fortgeschrittene Anwendungsfälle aus.
+
+Das PostgreSQL-Tool ist ideal für Szenarien, in denen Ihre Agenten mit strukturierten Daten interagieren müssen – wie z.B. bei der Automatisierung von Berichten, der Synchronisierung von Daten zwischen Systemen oder der Unterstützung datengesteuerter Workflows. Es vereinfacht den Datenbankzugriff und macht es einfach, Ihre PostgreSQL-Daten programmatisch zu lesen, zu schreiben und zu verwalten.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Integrieren Sie PostgreSQL in den Workflow. Kann Abfragen, Einfügungen, Aktualisierungen, Löschungen und die Ausführung von Raw-SQL durchführen.
+
+## Tools
+
+### `postgresql_query`
+
+Führt eine SELECT-Abfrage auf einer PostgreSQL-Datenbank aus
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | PostgreSQL-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | PostgreSQL-Server-Port \(Standard: 5432\) |
+| `database` | string | Ja | Datenbankname für die Verbindung |
+| `username` | string | Ja | Datenbank-Benutzername |
+| `password` | string | Ja | Datenbank-Passwort |
+| `ssl` | string | Nein | SSL-Verbindungsmodus \(disabled, required, preferred\) |
+| `query` | string | Ja | SQL SELECT-Abfrage zur Ausführung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `rows` | array | Array der von der Abfrage zurückgegebenen Zeilen |
+| `rowCount` | number | Anzahl der zurückgegebenen Zeilen |
+
+### `postgresql_insert`
+
+Daten in PostgreSQL-Datenbank einfügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | PostgreSQL-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | PostgreSQL-Server-Port (Standard: 5432) |
+| `database` | string | Ja | Name der Datenbank, zu der eine Verbindung hergestellt werden soll |
+| `username` | string | Ja | Datenbank-Benutzername |
+| `password` | string | Ja | Datenbank-Passwort |
+| `ssl` | string | Nein | SSL-Verbindungsmodus (disabled, required, preferred) |
+| `table` | string | Ja | Tabellenname, in den Daten eingefügt werden sollen |
+| `data` | object | Ja | Datenobjekt zum Einfügen (Schlüssel-Wert-Paare) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `rows` | array | Eingefügte Daten (wenn RETURNING-Klausel verwendet wird) |
+| `rowCount` | number | Anzahl der eingefügten Zeilen |
+
+### `postgresql_update`
+
+Daten in PostgreSQL-Datenbank aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | PostgreSQL-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | PostgreSQL-Server-Port (Standard: 5432) |
+| `database` | string | Ja | Name der Datenbank, zu der eine Verbindung hergestellt werden soll |
+| `username` | string | Ja | Datenbank-Benutzername |
+| `password` | string | Ja | Datenbank-Passwort |
+| `ssl` | string | Nein | SSL-Verbindungsmodus (disabled, required, preferred) |
+| `table` | string | Ja | Tabellenname, in dem Daten aktualisiert werden sollen |
+| `data` | object | Ja | Datenobjekt mit zu aktualisierenden Feldern (Schlüssel-Wert-Paare) |
+| `where` | string | Ja | WHERE-Klausel-Bedingung (ohne WHERE-Schlüsselwort) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `rows` | array | Aktualisierte Daten (wenn RETURNING-Klausel verwendet wurde) |
+| `rowCount` | number | Anzahl der aktualisierten Zeilen |
+
+### `postgresql_delete`
+
+Daten aus PostgreSQL-Datenbank löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | PostgreSQL-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | PostgreSQL-Server-Port (Standard: 5432) |
+| `database` | string | Ja | Name der Datenbank, zu der verbunden werden soll |
+| `username` | string | Ja | Datenbank-Benutzername |
+| `password` | string | Ja | Datenbank-Passwort |
+| `ssl` | string | Nein | SSL-Verbindungsmodus (disabled, required, preferred) |
+| `table` | string | Ja | Tabellenname, aus der Daten gelöscht werden sollen |
+| `where` | string | Ja | WHERE-Klausel-Bedingung (ohne WHERE-Schlüsselwort) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `rows` | array | Gelöschte Daten (wenn RETURNING-Klausel verwendet wurde) |
+| `rowCount` | number | Anzahl der gelöschten Zeilen |
+
+### `postgresql_execute`
+
+Rohe SQL-Abfrage auf PostgreSQL-Datenbank ausführen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | PostgreSQL-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | PostgreSQL-Server-Port (Standard: 5432) |
+| `database` | string | Ja | Name der Datenbank, zu der verbunden werden soll |
+| `username` | string | Ja | Datenbank-Benutzername |
+| `password` | string | Ja | Datenbank-Passwort |
+| `ssl` | string | Nein | SSL-Verbindungsmodus (disabled, required, preferred) |
+| `query` | string | Ja | Rohe SQL-Abfrage zur Ausführung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `rows` | array | Array der von der Abfrage zurückgegebenen Zeilen |
+| `rowCount` | number | Anzahl der betroffenen Zeilen |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `postgresql`

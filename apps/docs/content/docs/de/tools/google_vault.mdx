@@ -1,0 +1,161 @@
+---
+title: Google Vault
+description: Suchen, exportieren und verwalten von Sperren/Exporten für
+  Vault-Angelegenheiten
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_vault"
+  color="#E8F0FE"
+/>
+
+## Nutzungsanleitung
+
+Verbinden Sie Google Vault, um Exporte zu erstellen, Exporte aufzulisten und Sperren innerhalb von Angelegenheiten zu verwalten.
+
+## Tools
+
+### `google_vault_create_matters_export`
+
+Einen Export in einer Angelegenheit erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Ja | Keine Beschreibung |
+| `exportName` | string | Ja | Keine Beschreibung |
+| `corpus` | string | Ja | Zu exportierender Datenkorpus \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
+| `accountEmails` | string | Nein | Kommagetrennte Liste von Benutzer-E-Mails zur Eingrenzung des Exports |
+| `orgUnitId` | string | Nein | Organisationseinheit-ID zur Eingrenzung des Exports \(Alternative zu E-Mails\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `output` | json | Vault API-Antwortdaten |
+| `file` | json | Heruntergeladene Exportdatei \(UserFile\) aus Ausführungsdateien |
+
+### `google_vault_list_matters_export`
+
+Exporte für eine Angelegenheit auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Ja | Keine Beschreibung |
+| `pageSize` | number | Nein | Keine Beschreibung |
+| `pageToken` | string | Nein | Keine Beschreibung |
+| `exportId` | string | Nein | Keine Beschreibung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `output` | json | Vault API-Antwortdaten |
+| `file` | json | Heruntergeladene Exportdatei \(UserFile\) aus Ausführungsdateien |
+
+### `google_vault_download_export_file`
+
+Eine einzelne Datei aus einem Google Vault-Export herunterladen (GCS-Objekt)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Ja | Keine Beschreibung |
+| `bucketName` | string | Ja | Keine Beschreibung |
+| `objectName` | string | Ja | Keine Beschreibung |
+| `fileName` | string | Nein | Keine Beschreibung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `file` | file | Heruntergeladene Vault-Exportdatei in den Ausführungsdateien gespeichert |
+
+### `google_vault_create_matters_holds`
+
+Eine Aufbewahrung in einer Angelegenheit erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Ja | Keine Beschreibung |
+| `holdName` | string | Ja | Keine Beschreibung |
+| `corpus` | string | Ja | Datenkorpus zur Aufbewahrung \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
+| `accountEmails` | string | Nein | Kommagetrennte Liste von Benutzer-E-Mails, die aufbewahrt werden sollen |
+| `orgUnitId` | string | Nein | Organisationseinheit-ID zur Aufbewahrung \(Alternative zu Konten\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `output` | json | Vault-API-Antwortdaten |
+| `file` | json | Heruntergeladene Exportdatei \(UserFile\) aus Ausführungsdateien |
+
+### `google_vault_list_matters_holds`
+
+Aufbewahrungen für eine Angelegenheit auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Ja | Keine Beschreibung |
+| `pageSize` | number | Nein | Keine Beschreibung |
+| `pageToken` | string | Nein | Keine Beschreibung |
+| `holdId` | string | Nein | Keine Beschreibung |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `output` | json | Vault API-Antwortdaten |
+| `file` | json | Heruntergeladene Exportdatei \(UserFile\) aus Ausführungsdateien |
+
+### `google_vault_create_matters`
+
+Einen neuen Fall in Google Vault erstellen
+
+#### Input
+
+| Parameter | Type | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Ja | Keine Beschreibung |
+| `description` | string | Nein | Keine Beschreibung |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `output` | json | Vault API-Antwortdaten |
+| `file` | json | Heruntergeladene Exportdatei \(UserFile\) aus Ausführungsdateien |
+
+### `google_vault_list_matters`
+
+Fälle auflisten oder einen bestimmten Fall abrufen, wenn matterId angegeben ist
+
+#### Input
+
+| Parameter | Type | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | Nein | Keine Beschreibung |
+| `pageToken` | string | Nein | Keine Beschreibung |
+| `matterId` | string | Nein | Keine Beschreibung |
+
+#### Output
+
+| Parameter | Type | Beschreibung |
+| --------- | ---- | ----------- |
+| `output` | json | Vault API-Antwortdaten |
+| `file` | json | Heruntergeladene Exportdatei \(UserFile\) aus Ausführungsdateien |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `google_vault`

@@ -3,6 +3,14 @@
 import { useEffect, useState } from 'react'
 import { Eye, MoreHorizontal, Plus, Trash2, X } from 'lucide-react'
 import {
+  Button as EmcnButton,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+} from '@/components/emcn'
+import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
@@ -18,18 +26,16 @@ import {
 } from '@/components/ui'
 import {
   AlertDialog,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
-  AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { MAX_TAG_SLOTS } from '@/lib/constants/knowledge'
+import { MAX_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components/icons/document-icons'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { DocumentList } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/knowledge-base-tags/components/document-list'
 import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
@@ -441,74 +447,47 @@ export function KnowledgeBaseTags({ knowledgeBaseId }: KnowledgeBaseTagsProps) {
       </div>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Tag</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div>
-                <div className='mb-2'>
-                  Are you sure you want to delete the "{selectedTag?.displayName}" tag? This will
-                  remove this tag from {selectedTagUsage?.documentCount || 0} document
-                  {selectedTagUsage?.documentCount !== 1 ? 's' : ''}.{' '}
-                  <span className='text-red-500 dark:text-red-500'>
-                    This action cannot be undone.
-                  </span>
-                </div>
+      <Modal open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Delete Tag</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
+              Are you sure you want to delete the "{selectedTag?.displayName}" tag? This will remove
+              this tag from {selectedTagUsage?.documentCount || 0} document
+              {selectedTagUsage?.documentCount !== 1 ? 's' : ''}.{' '}
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            </p>
 
-                {selectedTagUsage && selectedTagUsage.documentCount > 0 && (
-                  <div className='mt-4'>
-                    <div className='mb-2 font-medium text-sm'>Affected documents:</div>
-                    <div className='rounded-md border border-border bg-background'>
-                      <div className='max-h-32 overflow-y-auto'>
-                        {selectedTagUsage.documents.slice(0, 5).map((doc, index) => {
-                          const DocumentIcon = getDocumentIcon('', doc.name)
-                          return (
-                            <div
-                              key={doc.id}
-                              className='flex items-center gap-3 border-border/50 border-b p-3 last:border-b-0'
-                            >
-                              <DocumentIcon className='h-4 w-4 flex-shrink-0' />
-                              <div className='min-w-0 flex-1'>
-                                <div className='truncate font-medium text-sm'>{doc.name}</div>
-                                {doc.tagValue && (
-                                  <div className='mt-1 text-muted-foreground text-xs'>
-                                    Tag value: <span className='font-medium'>{doc.tagValue}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )
-                        })}
-                        {selectedTagUsage.documentCount > 5 && (
-                          <div className='flex items-center gap-3 p-3 text-muted-foreground text-sm'>
-                            <div className='h-4 w-4' />
-                            <div className='font-medium'>
-                              and {selectedTagUsage.documentCount - 5} more documents...
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
+            {selectedTagUsage && selectedTagUsage.documentCount > 0 && (
+              <div className='mt-4'>
+                <div className='mb-2 font-medium text-sm'>Affected documents:</div>
+                <DocumentList
+                  documents={selectedTagUsage.documents}
+                  totalCount={selectedTagUsage.documentCount}
+                  maxHeight='max-h-32'
+                />
               </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className='flex'>
-            <AlertDialogCancel className='h-9 w-full rounded-[8px]' disabled={isDeleting}>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <EmcnButton
+              variant='active'
+              disabled={isDeleting}
+              onClick={() => setDeleteDialogOpen(false)}
+            >
               Cancel
-            </AlertDialogCancel>
-            <Button
+            </EmcnButton>
+            <EmcnButton
+              variant='primary'
               onClick={confirmDeleteTag}
               disabled={isDeleting}
-              className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
+              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {isDeleting ? 'Deleting...' : 'Delete Tag'}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </EmcnButton>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       {/* View Documents Dialog */}
       <AlertDialog open={viewDocumentsDialogOpen} onOpenChange={setViewDocumentsDialogOpen}>
@@ -531,29 +510,12 @@ export function KnowledgeBaseTags({ knowledgeBaseId }: KnowledgeBaseTagsProps) {
                     </div>
                   </div>
                 ) : (
-                  <div className='rounded-md border border-border bg-background'>
-                    <div className='max-h-80 overflow-y-auto'>
-                      {selectedTagUsage?.documents.map((doc, index) => {
-                        const DocumentIcon = getDocumentIcon('', doc.name)
-                        return (
-                          <div
-                            key={doc.id}
-                            className='flex items-center gap-3 border-border/50 border-b p-3 transition-colors last:border-b-0 hover:bg-muted/30'
-                          >
-                            <DocumentIcon className='h-4 w-4 flex-shrink-0' />
-                            <div className='min-w-0 flex-1'>
-                              <div className='truncate font-medium text-sm'>{doc.name}</div>
-                              {doc.tagValue && (
-                                <div className='mt-1 text-muted-foreground text-xs'>
-                                  Tag value: <span className='font-medium'>{doc.tagValue}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
+                  <DocumentList
+                    documents={selectedTagUsage?.documents || []}
+                    totalCount={selectedTagUsage?.documentCount || 0}
+                    maxHeight='max-h-80'
+                    showMoreText={false}
+                  />
                 )}
               </div>
             </AlertDialogDescription>

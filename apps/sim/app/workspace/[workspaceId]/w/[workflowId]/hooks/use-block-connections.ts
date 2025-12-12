@@ -1,6 +1,9 @@
-import { shallow } from 'zustand/shallow'
-import { BlockPathCalculator } from '@/lib/block-path-calculator'
+import { useShallow } from 'zustand/react/shallow'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
+import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -85,15 +88,51 @@ function extractFieldsFromSchema(schema: any): Field[] {
 
 export function useBlockConnections(blockId: string) {
   const { edges, blocks } = useWorkflowStore(
-    (state) => ({
+    useShallow((state) => ({
       edges: state.edges,
       blocks: state.blocks,
-    }),
-    shallow
+    }))
   )
 
-  // Find all blocks along paths leading to this block
-  const allPathNodeIds = BlockPathCalculator.findAllPathNodes(edges, blockId)
+  const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const workflowSubBlockValues = useSubBlockStore((state) =>
+    workflowId ? (state.workflowValues[workflowId] ?? {}) : {}
+  )
+
+  // Helper function to merge block subBlocks with live values from subblock store
+  const getMergedSubBlocks = (sourceBlockId: string): Record<string, any> => {
+    const base = blocks[sourceBlockId]?.subBlocks || {}
+    const live = workflowSubBlockValues?.[sourceBlockId] || {}
+    const merged: Record<string, any> = { ...base }
+    for (const [subId, liveVal] of Object.entries(live)) {
+      merged[subId] = { ...(base[subId] || {}), value: liveVal }
+    }
+    return merged
+  }
+
+  // Filter out all incoming edges to trigger blocks - triggers are independent entry points
+  // This ensures UI tags only show blocks that are actually connected in execution
+  const filteredEdges = edges.filter((edge) => {
+    const sourceBlock = blocks[edge.source]
+    const targetBlock = blocks[edge.target]
+
+    // If either block not found, keep the edge (might be in a different state structure)
+    if (!sourceBlock || !targetBlock) {
+      return true
+    }
+
+    const targetIsTrigger = TriggerUtils.isTriggerBlock({
+      type: targetBlock.type,
+      triggerMode: targetBlock.triggerMode,
+    })
+
+    // Filter out ALL incoming edges to trigger blocks
+    // Triggers are independent entry points and should not have incoming connections
+    return !targetIsTrigger
+  })
+
+  // Find all blocks along paths leading to this block (using filtered edges)
+  const allPathNodeIds = BlockPathCalculator.findAllPathNodes(filteredEdges, blockId)
 
   // Map each path node to a ConnectedBlock structure
   const allPathConnections = allPathNodeIds
@@ -101,20 +140,37 @@ export function useBlockConnections(blockId: string) {
       const sourceBlock = blocks[sourceId]
       if (!sourceBlock) return null
 
+      // Get merged subblocks for this source block
+      const mergedSubBlocks = getMergedSubBlocks(sourceId)
+
       // Get the response format from the subblock store
       const responseFormatValue = useSubBlockStore.getState().getValue(sourceId, 'responseFormat')
 
       // Safely parse response format with proper error handling
       const responseFormat = parseResponseFormatSafely(responseFormatValue, sourceId)
 
-      // Get the default output type from the block's outputs
-      const defaultOutputs: Field[] = Object.entries(sourceBlock.outputs || {}).map(([key]) => ({
-        name: key,
-        type: 'string',
-      }))
+      // Use getBlockOutputs to properly handle dynamic outputs from inputFormat
+      const blockOutputs = getBlockOutputs(
+        sourceBlock.type,
+        mergedSubBlocks,
+        sourceBlock.triggerMode
+      )
 
-      // Extract fields from the response format using our helper function
-      const outputFields = responseFormat ? extractFieldsFromSchema(responseFormat) : defaultOutputs
+      // Extract fields from the response format if available, otherwise use block outputs
+      let outputFields: Field[]
+      if (responseFormat) {
+        outputFields = extractFieldsFromSchema(responseFormat)
+      } else {
+        // Convert block outputs to field format
+        outputFields = Object.entries(blockOutputs).map(([key, value]: [string, any]) => ({
+          name: key,
+          type: value && typeof value === 'object' && 'type' in value ? value.type : 'string',
+          description:
+            value && typeof value === 'object' && 'description' in value
+              ? value.description
+              : undefined,
+        }))
+      }
 
       return {
         id: sourceBlock.id,
@@ -126,12 +182,15 @@ export function useBlockConnections(blockId: string) {
     })
     .filter(Boolean) as ConnectedBlock[]
 
-  // Keep the original incoming connections for compatibility
-  const directIncomingConnections = edges
+  // Keep the original incoming connections for compatibility (using filtered edges)
+  const directIncomingConnections = filteredEdges
     .filter((edge) => edge.target === blockId)
     .map((edge) => {
       const sourceBlock = blocks[edge.source]
       if (!sourceBlock) return null
+
+      // Get merged subblocks for this source block
+      const mergedSubBlocks = getMergedSubBlocks(edge.source)
 
       // Get the response format from the subblock store instead
       const responseFormatValue = useSubBlockStore
@@ -141,14 +200,28 @@ export function useBlockConnections(blockId: string) {
       // Safely parse response format with proper error handling
       const responseFormat = parseResponseFormatSafely(responseFormatValue, edge.source)
 
-      // Get the default output type from the block's outputs
-      const defaultOutputs: Field[] = Object.entries(sourceBlock.outputs || {}).map(([key]) => ({
-        name: key,
-        type: 'string',
-      }))
+      // Use getBlockOutputs to properly handle dynamic outputs from inputFormat
+      const blockOutputs = getBlockOutputs(
+        sourceBlock.type,
+        mergedSubBlocks,
+        sourceBlock.triggerMode
+      )
 
-      // Extract fields from the response format using our helper function
-      const outputFields = responseFormat ? extractFieldsFromSchema(responseFormat) : defaultOutputs
+      // Extract fields from the response format if available, otherwise use block outputs
+      let outputFields: Field[]
+      if (responseFormat) {
+        outputFields = extractFieldsFromSchema(responseFormat)
+      } else {
+        // Convert block outputs to field format
+        outputFields = Object.entries(blockOutputs).map(([key, value]: [string, any]) => ({
+          name: key,
+          type: value && typeof value === 'object' && 'type' in value ? value.type : 'string',
+          description:
+            value && typeof value === 'object' && 'description' in value
+              ? value.description
+              : undefined,
+        }))
+      }
 
       return {
         id: sourceBlock.id,

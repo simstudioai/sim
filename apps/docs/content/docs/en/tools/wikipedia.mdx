@@ -1,0 +1,104 @@
+---
+title: Wikipedia
+description: Search and retrieve content from Wikipedia
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="wikipedia"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Wikipedia](https://www.wikipedia.org/) is the world's largest free online encyclopedia, offering millions of articles on a vast range of topics, collaboratively written and maintained by volunteers.
+
+With Wikipedia, you can:
+
+- **Search for articles**: Find relevant Wikipedia pages by searching for keywords or topics
+- **Get article summaries**: Retrieve concise summaries of Wikipedia pages for quick reference
+- **Access full content**: Obtain the complete content of Wikipedia articles for in-depth information
+- **Discover random articles**: Explore new topics by retrieving random Wikipedia pages
+
+In Sim, the Wikipedia integration enables your agents to programmatically access and interact with Wikipedia content as part of their workflows. Agents can search for articles, fetch summaries, retrieve full page content, and discover random articles, empowering your automations with up-to-date, reliable information from the world's largest encyclopedia. This integration is ideal for scenarios such as research, content enrichment, fact-checking, and knowledge discovery, allowing your agents to seamlessly incorporate Wikipedia data into their decision-making and task execution processes.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Wikipedia into the workflow. Can get page summary, search pages, get page content, and get random page.
+
+
+
+## Tools
+
+### `wikipedia_summary`
+
+Get a summary and metadata for a specific Wikipedia page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `pageTitle` | string | Yes | Title of the Wikipedia page to get summary for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `summary` | object | Wikipedia page summary and metadata |
+
+### `wikipedia_search`
+
+Search for Wikipedia pages by title or content.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search query to find Wikipedia pages |
+| `searchLimit` | number | No | Maximum number of results to return \(default: 10, max: 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `searchResults` | array | Array of matching Wikipedia pages |
+
+### `wikipedia_content`
+
+Get the full HTML content of a Wikipedia page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `pageTitle` | string | Yes | Title of the Wikipedia page to get content for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | object | Full HTML content and metadata of the Wikipedia page |
+
+### `wikipedia_random`
+
+Get a random Wikipedia page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `randomPage` | object | Random Wikipedia page data |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `wikipedia`

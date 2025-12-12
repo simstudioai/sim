@@ -1,0 +1,296 @@
+---
+title: Microsoft Planner
+description: Gestiona tareas, planes y buckets en Microsoft Planner
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="microsoft_planner"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Microsoft Planner](https://www.microsoft.com/en-us/microsoft-365/planner) es una herramienta de gestión de tareas que ayuda a los equipos a organizar el trabajo visualmente mediante tableros, tareas y contenedores. Integrado con Microsoft 365, ofrece una forma sencilla e intuitiva de gestionar proyectos en equipo, asignar responsabilidades y seguir el progreso.
+
+Con Microsoft Planner, puedes:
+
+- **Crear y gestionar tareas**: Añadir nuevas tareas con fechas de vencimiento, prioridades y usuarios asignados
+- **Organizar con contenedores**: Agrupar tareas por fase, estado o categoría para reflejar el flujo de trabajo de tu equipo
+- **Visualizar el estado del proyecto**: Usar tableros, gráficos y filtros para monitorear la carga de trabajo y seguir el progreso
+- **Mantener la integración con Microsoft 365**: Conectar sin problemas las tareas con Teams, Outlook y otras herramientas de Microsoft
+
+En Sim, la integración de Microsoft Planner permite a tus agentes crear, leer y gestionar tareas de forma programática como parte de sus flujos de trabajo. Los agentes pueden generar nuevas tareas basadas en solicitudes entrantes, recuperar detalles de tareas para tomar decisiones y seguir el estado de los proyectos, todo sin intervención humana. Ya sea que estés creando flujos de trabajo para la incorporación de clientes, seguimiento de proyectos internos o generación de tareas de seguimiento, la integración de Microsoft Planner con Sim proporciona a tus agentes una forma estructurada de coordinar el trabajo, automatizar la creación de tareas y mantener a los equipos alineados.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Microsoft Planner en el flujo de trabajo. Gestiona tareas, planes, buckets y detalles de tareas incluyendo listas de verificación y referencias.
+
+## Herramientas
+
+### `microsoft_planner_read_task`
+
+Leer tareas de Microsoft Planner - obtener todas las tareas del usuario o todas las tareas de un plan específico
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | No | El ID del plan del que obtener tareas (si no se proporciona, obtiene todas las tareas del usuario) |
+| `taskId` | string | No | El ID de la tarea a obtener |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si las tareas se recuperaron correctamente |
+| `tasks` | array | Array de objetos de tarea con propiedades filtradas |
+| `metadata` | object | Metadatos que incluyen planId, userId y planUrl |
+
+### `microsoft_planner_create_task`
+
+Crear una nueva tarea en Microsoft Planner
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | Sí | El ID del plan donde se creará la tarea |
+| `title` | string | Sí | El título de la tarea |
+| `description` | string | No | La descripción de la tarea |
+| `dueDateTime` | string | No | La fecha y hora de vencimiento para la tarea (formato ISO 8601) |
+| `assigneeUserId` | string | No | El ID del usuario al que asignar la tarea |
+| `bucketId` | string | No | El ID del bucket donde colocar la tarea |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si la tarea se creó correctamente |
+| `task` | object | El objeto de tarea creado con todas sus propiedades |
+| `metadata` | object | Metadatos que incluyen planId, taskId y taskUrl |
+
+### `microsoft_planner_update_task`
+
+Actualizar una tarea en Microsoft Planner
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Sí | El ID de la tarea a actualizar |
+| `etag` | string | Sí | El valor ETag de la tarea a actualizar (encabezado If-Match) |
+| `title` | string | No | El nuevo título de la tarea |
+| `bucketId` | string | No | El ID del bucket al que mover la tarea |
+| `dueDateTime` | string | No | La fecha y hora de vencimiento para la tarea (formato ISO 8601) |
+| `startDateTime` | string | No | La fecha y hora de inicio para la tarea (formato ISO 8601) |
+| `percentComplete` | number | No | El porcentaje de finalización de la tarea (0-100) |
+| `priority` | number | No | La prioridad de la tarea (0-10) |
+| `assigneeUserId` | string | No | El ID del usuario al que asignar la tarea |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si la tarea se actualizó correctamente |
+| `message` | string | Mensaje de éxito cuando la tarea se actualiza |
+| `task` | object | El objeto de tarea actualizado con todas sus propiedades |
+| `taskId` | string | ID de la tarea actualizada |
+| `etag` | string | Nuevo ETag después de la actualización - úselo para operaciones posteriores |
+| `metadata` | object | Metadatos que incluyen taskId, planId y taskUrl |
+
+### `microsoft_planner_delete_task`
+
+Eliminar una tarea de Microsoft Planner
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Sí | El ID de la tarea a eliminar |
+| `etag` | string | Sí | El valor ETag de la tarea a eliminar (encabezado If-Match) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si la tarea se eliminó correctamente |
+| `deleted` | boolean | Confirmación de eliminación |
+| `metadata` | object | Metadatos adicionales |
+
+### `microsoft_planner_list_plans`
+
+Listar todos los planes compartidos con el usuario actual
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si los planes se recuperaron correctamente |
+| `plans` | array | Array de objetos de plan compartidos con el usuario actual |
+| `metadata` | object | Metadatos que incluyen userId y count |
+
+### `microsoft_planner_read_plan`
+
+Obtener detalles de un plan específico de Microsoft Planner
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | Sí | El ID del plan a recuperar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si el plan se recuperó correctamente |
+| `plan` | object | El objeto de plan con todas sus propiedades |
+| `metadata` | object | Metadatos que incluyen planId y planUrl |
+
+### `microsoft_planner_list_buckets`
+
+Listar todos los buckets en un plan de Microsoft Planner
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | Sí | El ID del plan |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si los buckets se recuperaron correctamente |
+| `buckets` | array | Array de objetos bucket |
+| `metadata` | object | Metadatos que incluyen planId y count |
+
+### `microsoft_planner_read_bucket`
+
+Obtener detalles de un bucket específico
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `bucketId` | string | Sí | El ID del bucket a recuperar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si el bucket se recuperó correctamente |
+| `bucket` | object | El objeto bucket con todas sus propiedades |
+| `metadata` | object | Metadatos que incluyen bucketId y planId |
+
+### `microsoft_planner_create_bucket`
+
+Crear un nuevo bucket en un plan de Microsoft Planner
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | Sí | El ID del plan donde se creará el bucket |
+| `name` | string | Sí | El nombre del bucket |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si el bucket se creó correctamente |
+| `bucket` | object | El objeto bucket creado con todas sus propiedades |
+| `metadata` | object | Metadatos que incluyen bucketId y planId |
+
+### `microsoft_planner_update_bucket`
+
+Actualizar un bucket en Microsoft Planner
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `bucketId` | string | Sí | El ID del bucket a actualizar |
+| `name` | string | No | El nuevo nombre del bucket |
+| `etag` | string | Sí | El valor ETag del bucket a actualizar (encabezado If-Match) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si el bucket se actualizó correctamente |
+| `bucket` | object | El objeto bucket actualizado con todas sus propiedades |
+| `metadata` | object | Metadatos que incluyen bucketId y planId |
+
+### `microsoft_planner_delete_bucket`
+
+Eliminar un bucket de Microsoft Planner
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `bucketId` | string | Sí | El ID del bucket a eliminar |
+| `etag` | string | Sí | El valor ETag del bucket a eliminar (encabezado If-Match) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si el bucket se eliminó correctamente |
+| `deleted` | boolean | Confirmación de eliminación |
+| `metadata` | object | Metadatos adicionales |
+
+### `microsoft_planner_get_task_details`
+
+Obtener información detallada sobre una tarea, incluyendo lista de verificación y referencias
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Sí | El ID de la tarea |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si los detalles de la tarea se recuperaron correctamente |
+| `taskDetails` | object | Los detalles de la tarea incluyendo descripción, lista de verificación y referencias |
+| `etag` | string | El valor ETag para estos detalles de tarea - úselo para operaciones de actualización |
+| `metadata` | object | Metadatos incluyendo taskId |
+
+### `microsoft_planner_update_task_details`
+
+Actualizar detalles de la tarea incluyendo descripción, elementos de la lista de verificación y referencias en Microsoft Planner
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Sí | El ID de la tarea |
+| `etag` | string | Sí | El valor ETag de los detalles de la tarea a actualizar (encabezado If-Match) |
+| `description` | string | No | La descripción de la tarea |
+| `checklist` | object | No | Elementos de la lista de verificación como objeto JSON |
+| `references` | object | No | Referencias como objeto JSON |
+| `previewType` | string | No | Tipo de vista previa: automatic, noPreview, checklist, description, o reference |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si los detalles de la tarea se actualizaron correctamente |
+| `taskDetails` | object | El objeto de detalles de la tarea actualizado con todas sus propiedades |
+| `metadata` | object | Metadatos incluyendo taskId |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `microsoft_planner`

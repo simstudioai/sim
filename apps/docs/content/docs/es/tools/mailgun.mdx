@@ -1,0 +1,216 @@
+---
+title: Mailgun
+description: Envía correos electrónicos y gestiona listas de correo con Mailgun
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mailgun"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Mailgun](https://www.mailgun.com) es un potente servicio de envío de correos electrónicos diseñado para desarrolladores y empresas que permite enviar, recibir y rastrear correos electrónicos sin esfuerzo. Mailgun te permite aprovechar APIs robustas para correos electrónicos transaccionales y de marketing confiables, gestión flexible de listas de correo y seguimiento avanzado de eventos.
+
+Con el conjunto completo de funciones de Mailgun, puedes automatizar operaciones clave de correo electrónico y monitorear de cerca la entregabilidad y el compromiso de los destinatarios. Esto lo convierte en una solución ideal para la automatización de flujos de trabajo donde las comunicaciones, notificaciones y correos de campaña son partes fundamentales de tus procesos.
+
+Las características principales de Mailgun incluyen:
+
+- **Envío de correos electrónicos transaccionales:** Entrega correos electrónicos de alto volumen como notificaciones de cuenta, recibos, alertas y restablecimientos de contraseña.
+- **Contenido de correo electrónico enriquecido:** Envía correos electrónicos tanto en texto plano como en HTML, y utiliza etiquetas para categorizar y rastrear tus mensajes.
+- **Gestión de listas de correo:** Crea, actualiza y gestiona listas de correo y miembros para enviar comunicaciones grupales de manera eficiente.
+- **Información de dominio:** Obtén detalles sobre tus dominios de envío para monitorear la configuración y el estado.
+- **Seguimiento de eventos:** Analiza la entregabilidad y el compromiso del correo electrónico con datos detallados de eventos en los mensajes enviados.
+- **Recuperación de mensajes:** Accede a mensajes almacenados para necesidades de cumplimiento, análisis o solución de problemas.
+
+Al integrar Mailgun en Sim, tus agentes pueden enviar correos electrónicos programáticamente, gestionar listas de correo, acceder a información de dominio y monitorear eventos en tiempo real como parte de flujos de trabajo automatizados. Esto permite una participación inteligente y basada en datos con tus usuarios directamente desde tus procesos impulsados por IA.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Mailgun en tu flujo de trabajo. Envía correos electrónicos transaccionales, gestiona listas de correo y miembros, visualiza información de dominio y realiza seguimiento de eventos de correo electrónico. Compatible con correos electrónicos de texto y HTML, etiquetas para seguimiento y gestión integral de listas.
+
+## Herramientas
+
+### `mailgun_send_message`
+
+Enviar un correo electrónico usando la API de Mailgun
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailgun |
+| `domain` | string | Sí | Dominio de Mailgun \(ej., mg.example.com\) |
+| `from` | string | Sí | Dirección de correo del remitente |
+| `to` | string | Sí | Dirección de correo del destinatario \(separados por comas para múltiples\) |
+| `subject` | string | Sí | Asunto del correo electrónico |
+| `text` | string | No | Cuerpo de texto plano del correo electrónico |
+| `html` | string | No | Cuerpo HTML del correo electrónico |
+| `cc` | string | No | Dirección de correo CC \(separados por comas para múltiples\) |
+| `bcc` | string | No | Dirección de correo BCC \(separados por comas para múltiples\) |
+| `tags` | string | No | Etiquetas para el correo electrónico \(separadas por comas\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si el mensaje fue enviado con éxito |
+| `id` | string | ID del mensaje |
+| `message` | string | Mensaje de respuesta de Mailgun |
+
+### `mailgun_get_message`
+
+Recuperar un mensaje almacenado por su clave
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailgun |
+| `domain` | string | Sí | Dominio de Mailgun |
+| `messageKey` | string | Sí | Clave de almacenamiento del mensaje |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si la solicitud fue exitosa |
+| `recipients` | string | Destinatarios del mensaje |
+| `from` | string | Correo electrónico del remitente |
+| `subject` | string | Asunto del mensaje |
+| `bodyPlain` | string | Cuerpo en texto plano |
+| `strippedText` | string | Texto simplificado |
+| `strippedSignature` | string | Firma simplificada |
+| `bodyHtml` | string | Cuerpo HTML |
+| `strippedHtml` | string | HTML simplificado |
+| `attachmentCount` | number | Número de archivos adjuntos |
+| `timestamp` | number | Marca de tiempo del mensaje |
+| `messageHeaders` | json | Encabezados del mensaje |
+| `contentIdMap` | json | Mapa de ID de contenido |
+
+### `mailgun_list_messages`
+
+Listar eventos (registros) para mensajes enviados a través de Mailgun
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailgun |
+| `domain` | string | Sí | Dominio de Mailgun |
+| `event` | string | No | Filtrar por tipo de evento \(accepted, delivered, failed, opened, clicked, etc.\) |
+| `limit` | number | No | Número máximo de eventos a devolver \(predeterminado: 100\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si la solicitud fue exitosa |
+| `items` | json | Array de elementos de eventos |
+| `paging` | json | Información de paginación |
+
+### `mailgun_create_mailing_list`
+
+Crear una nueva lista de correo
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailgun |
+| `address` | string | Sí | Dirección de la lista de correo \(ej., lista@ejemplo.com\) |
+| `name` | string | No | Nombre de la lista de correo |
+| `description` | string | No | Descripción de la lista de correo |
+| `accessLevel` | string | No | Nivel de acceso: readonly, members, o everyone |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si la lista fue creada con éxito |
+| `message` | string | Mensaje de respuesta |
+| `list` | json | Detalles de la lista de correo creada |
+
+### `mailgun_get_mailing_list`
+
+Obtener detalles de una lista de correo
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailgun |
+| `address` | string | Sí | Dirección de la lista de correo |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si la solicitud fue exitosa |
+| `list` | json | Detalles de la lista de correo |
+
+### `mailgun_add_list_member`
+
+Añadir un miembro a una lista de correo
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailgun |
+| `listAddress` | string | Sí | Dirección de la lista de correo |
+| `address` | string | Sí | Dirección de correo electrónico del miembro |
+| `name` | string | No | Nombre del miembro |
+| `vars` | string | No | Cadena JSON de variables personalizadas |
+| `subscribed` | boolean | No | Si el miembro está suscrito |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si el miembro fue añadido con éxito |
+| `message` | string | Mensaje de respuesta |
+| `member` | json | Detalles del miembro añadido |
+
+### `mailgun_list_domains`
+
+Listar todos los dominios para tu cuenta de Mailgun
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailgun |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si la solicitud fue exitosa |
+| `totalCount` | number | Número total de dominios |
+| `items` | json | Array de objetos de dominio |
+
+### `mailgun_get_domain`
+
+Obtener detalles de un dominio específico
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Mailgun |
+| `domain` | string | Sí | Nombre de dominio |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si la solicitud fue exitosa |
+| `domain` | json | Detalles del dominio |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `mailgun`

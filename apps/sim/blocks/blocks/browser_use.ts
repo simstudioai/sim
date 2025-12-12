@@ -1,13 +1,14 @@
 import { BrowserUseIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { BrowserUseResponse } from '@/tools/browser_use/types'
 
 export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
   type: 'browser_use',
   name: 'Browser Use',
   description: 'Run browser automation tasks',
+  authMode: AuthMode.ApiKey,
   longDescription:
-    'Execute browser automation tasks with BrowserUse to navigate the web, scrape data, and perform actions as if a real user was interacting with the browser. The task runs asynchronously and the block will poll for completion before returning results.',
+    'Integrate Browser Use into the workflow. Can navigate the web and perform actions as if a real user was interacting with the browser.',
   docsLink: 'https://docs.sim.ai/tools/browser_use',
   category: 'tools',
   bgColor: '#E0E0E0',
@@ -17,7 +18,6 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       id: 'task',
       title: 'Task',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Describe what the browser agent should do...',
       required: true,
     },
@@ -25,14 +25,12 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       id: 'variables',
       title: 'Variables (Secrets)',
       type: 'table',
-      layout: 'full',
       columns: ['Key', 'Value'],
     },
     {
       id: 'model',
       title: 'Model',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'gpt-4o', id: 'gpt-4o' },
         { label: 'gemini-2.0-flash', id: 'gemini-2.0-flash' },
@@ -45,14 +43,12 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       id: 'save_browser_data',
       title: 'Save Browser Data',
       type: 'switch',
-      layout: 'half',
       placeholder: 'Save browser data',
     },
     {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
-      layout: 'full',
       password: true,
       placeholder: 'Enter your BrowserUse API key',
       required: true,

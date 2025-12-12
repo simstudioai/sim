@@ -1,0 +1,165 @@
+---
+title: PostgreSQL
+description: Connect to PostgreSQL database
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="postgresql"
+  color="#336791"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+The [PostgreSQL](https://www.postgresql.org/) tool enables you to connect to any PostgreSQL database and perform a wide range of database operations directly within your agentic workflows. With secure connection handling and flexible configuration, you can easily manage and interact with your data.
+
+With the PostgreSQL tool, you can:
+
+- **Query data**: Execute SELECT queries to retrieve data from your PostgreSQL tables using the `postgresql_query` operation.
+- **Insert records**: Add new rows to your tables with the `postgresql_insert` operation by specifying the table and data to insert.
+- **Update records**: Modify existing data in your tables using the `postgresql_update` operation, providing the table, new data, and WHERE conditions.
+- **Delete records**: Remove rows from your tables with the `postgresql_delete` operation, specifying the table and WHERE conditions.
+- **Execute raw SQL**: Run any custom SQL command using the `postgresql_execute` operation for advanced use cases.
+
+The PostgreSQL tool is ideal for scenarios where your agents need to interact with structured data—such as automating reporting, syncing data between systems, or powering data-driven workflows. It streamlines database access, making it easy to read, write, and manage your PostgreSQL data programmatically.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate PostgreSQL into the workflow. Can query, insert, update, delete, and execute raw SQL.
+
+
+
+## Tools
+
+### `postgresql_query`
+
+Execute a SELECT query on PostgreSQL database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | PostgreSQL server hostname or IP address |
+| `port` | number | Yes | PostgreSQL server port \(default: 5432\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | Database username |
+| `password` | string | Yes | Database password |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
+| `query` | string | Yes | SQL SELECT query to execute |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of rows returned from the query |
+| `rowCount` | number | Number of rows returned |
+
+### `postgresql_insert`
+
+Insert data into PostgreSQL database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | PostgreSQL server hostname or IP address |
+| `port` | number | Yes | PostgreSQL server port \(default: 5432\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | Database username |
+| `password` | string | Yes | Database password |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
+| `table` | string | Yes | Table name to insert data into |
+| `data` | object | Yes | Data object to insert \(key-value pairs\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Inserted data \(if RETURNING clause used\) |
+| `rowCount` | number | Number of rows inserted |
+
+### `postgresql_update`
+
+Update data in PostgreSQL database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | PostgreSQL server hostname or IP address |
+| `port` | number | Yes | PostgreSQL server port \(default: 5432\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | Database username |
+| `password` | string | Yes | Database password |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
+| `table` | string | Yes | Table name to update data in |
+| `data` | object | Yes | Data object with fields to update \(key-value pairs\) |
+| `where` | string | Yes | WHERE clause condition \(without WHERE keyword\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Updated data \(if RETURNING clause used\) |
+| `rowCount` | number | Number of rows updated |
+
+### `postgresql_delete`
+
+Delete data from PostgreSQL database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | PostgreSQL server hostname or IP address |
+| `port` | number | Yes | PostgreSQL server port \(default: 5432\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | Database username |
+| `password` | string | Yes | Database password |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
+| `table` | string | Yes | Table name to delete data from |
+| `where` | string | Yes | WHERE clause condition \(without WHERE keyword\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Deleted data \(if RETURNING clause used\) |
+| `rowCount` | number | Number of rows deleted |
+
+### `postgresql_execute`
+
+Execute raw SQL query on PostgreSQL database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | PostgreSQL server hostname or IP address |
+| `port` | number | Yes | PostgreSQL server port \(default: 5432\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | Database username |
+| `password` | string | Yes | Database password |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
+| `query` | string | Yes | Raw SQL query to execute |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of rows returned from the query |
+| `rowCount` | number | Number of rows affected |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `postgresql`

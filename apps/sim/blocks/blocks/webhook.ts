@@ -13,6 +13,7 @@ import {
   WhatsAppIcon,
 } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 
 const getWebhookProviderIcon = (provider: string) => {
   const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -36,9 +37,12 @@ export const WebhookBlock: BlockConfig = {
   type: 'webhook',
   name: 'Webhook',
   description: 'Trigger workflow execution from external webhooks',
+  authMode: AuthMode.OAuth,
   category: 'triggers',
   icon: WebhookIcon,
   bgColor: '#10B981', // Green color for triggers
+  docsLink: 'https://docs.sim.ai/triggers/webhook',
+  triggerAllowed: true,
   hideFromToolbar: true, // Hidden for backwards compatibility - use generic webhook trigger instead
 
   subBlocks: [
@@ -46,7 +50,6 @@ export const WebhookBlock: BlockConfig = {
       id: 'webhookProvider',
       title: 'Webhook Provider',
       type: 'dropdown',
-      layout: 'full',
       options: [
         'slack',
         'gmail',
@@ -87,8 +90,6 @@ export const WebhookBlock: BlockConfig = {
       id: 'gmailCredential',
       title: 'Gmail Account',
       type: 'oauth-input',
-      layout: 'full',
-      provider: 'google-email',
       serviceId: 'gmail',
       requiredScopes: [
         'https://www.googleapis.com/auth/gmail.modify',
@@ -102,8 +103,6 @@ export const WebhookBlock: BlockConfig = {
       id: 'outlookCredential',
       title: 'Microsoft Account',
       type: 'oauth-input',
-      layout: 'full',
-      provider: 'outlook',
       serviceId: 'outlook',
       requiredScopes: [
         'Mail.ReadWrite',
@@ -120,7 +119,6 @@ export const WebhookBlock: BlockConfig = {
       id: 'webhookConfig',
       title: 'Webhook Configuration',
       type: 'webhook-config',
-      layout: 'full',
     },
   ],
 

@@ -1,0 +1,486 @@
+---
+title: Supabase
+description: Supabaseデータベースを使用する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="supabase"
+  color="#1C1C1C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Supabase](https://www.supabase.com/)は、開発者がモダンなアプリケーションを構築、スケーリング、管理するためのツール群を提供する強力なオープンソースのバックエンド・アズ・ア・サービスプラットフォームです。Supabaseは、フルマネージドの[PostgreSQL](https://www.postgresql.org/)データベース、堅牢な認証機能、即時利用可能なRESTfulおよびGraphQL API、リアルタイムサブスクリプション、ファイルストレージ、エッジ関数を提供し、これらすべてを統一された開発者フレンドリーなインターフェースを通じてアクセスできます。そのオープンソースの性質と人気のあるフレームワークとの互換性により、SQLの柔軟性と透明性という追加の利点を持ちながら、Firebaseの魅力的な代替手段となっています。
+
+**なぜSupabaseなのか？**
+- **即時API：** データベース内のすべてのテーブルとビューは、RESTおよびGraphQLエンドポイントを通じて即座に利用可能になり、カスタムバックエンドコードを書かずにデータ駆動型アプリケーションを簡単に構築できます。
+- **リアルタイムデータ：** Supabaseはリアルタイムサブスクリプションを可能にし、アプリがデータベースの変更に即座に反応できるようにします。
+- **認証と認可：** メール、OAuth、SSOなどをサポートする組み込みのユーザー管理機能に加え、きめ細かいアクセス制御のための行レベルセキュリティを提供します。
+- **ストレージ：** データベースとシームレスに統合された組み込みストレージで、ファイルを安全にアップロード、提供、管理できます。
+- **エッジ関数：** 低レイテンシーのカスタムロジックのために、ユーザーの近くにサーバーレス関数をデプロイできます。
+
+**Simでのスパベースの使用**
+
+SimのSupabase統合により、エージェントワークフローをSupabaseプロジェクトに簡単に接続できます。プロジェクトID、テーブル名、サービスロールシークレットという数項目の設定だけで、Simブロックから直接データベースに安全にアクセスできます。この統合によりAPIコールの複雑さが抽象化され、ロジックと自動化の構築に集中できます。
+
+**SimでSupabaseを使用する主なメリット:**
+- **ノーコード/ローコードのデータベース操作:** SQLやバックエンドコードを書かずに、Supabaseテーブルの照会、挿入、更新、削除が可能。
+- **柔軟なクエリ:** [PostgREST フィルター構文](https://postgrest.org/en/stable/api.html#operators)を使用して、フィルタリング、並べ替え、結果の制限などの高度なクエリを実行できます。
+- **シームレスな統合:** Supabaseをワークフロー内の他のツールやサービスに簡単に接続し、データの同期、通知のトリガー、レコードの強化などの強力な自動化を実現。
+- **安全でスケーラブル:** すべての操作はSupabaseサービスロールシークレットを使用し、マネージドクラウドプラットフォームのスケーラビリティを備えたデータへの安全なアクセスを確保します。
+
+内部ツールの構築、ビジネスプロセスの自動化、本番アプリケーションの実行など、どのような用途でも、SimのSupabaseは、データとバックエンドロジックを管理するための高速で信頼性が高く、開発者に優しい方法を提供します—インフラ管理は必要ありません。ブロックを設定し、必要な操作を選択するだけで、Simが残りを処理します。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+ワークフローにSupabaseを統合します。データベース操作（クエリ、挿入、更新、削除、アップサート）、全文検索、RPC関数、行数カウント、ベクトル検索、および完全なストレージ管理（ファイルとバケットのアップロード、ダウンロード、一覧表示、移動、コピー、削除）をサポートします。
+
+## ツール
+
+### `supabase_query`
+
+Supabaseテーブルからデータを照会する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `table` | string | はい | 照会するSupabaseテーブルの名前 |
+| `filter` | string | いいえ | PostgRESTフィルター（例："id=eq.123"） |
+| `orderBy` | string | いいえ | 並べ替える列（降順の場合はDESCを追加） |
+| `limit` | number | いいえ | 返す最大行数 |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | array | クエリから返されたレコードの配列 |
+
+### `supabase_insert`
+
+Supabaseテーブルにデータを挿入する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `table` | string | はい | データを挿入するSupabaseテーブルの名前 |
+| `data` | array | はい | 挿入するデータ（オブジェクトの配列または単一のオブジェクト） |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | array | 挿入されたレコードの配列 |
+
+### `supabase_get_row`
+
+フィルター条件に基づいてSupabaseテーブルから単一の行を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | SupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `table` | string | はい | クエリを実行するSupabaseテーブルの名前 |
+| `filter` | string | はい | 特定の行を見つけるためのPostgRESTフィルター（例："id=eq.123"） |
+| `apiKey` | string | はい | Supabaseサービスロールのシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | array | 行データを含む配列（見つかった場合）、空の配列（見つからなかった場合） |
+
+### `supabase_update`
+
+フィルター条件に基づいてSupabaseテーブルの行を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `table` | string | はい | 更新するSupabaseテーブルの名前 |
+| `filter` | string | はい | 更新する行を識別するPostgRESTフィルター（例："id=eq.123"） |
+| `data` | object | はい | 一致する行で更新するデータ |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | array | 更新されたレコードの配列 |
+
+### `supabase_delete`
+
+フィルター条件に基づいてSupabaseテーブルから行を削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `table` | string | はい | 削除するSupabaseテーブルの名前 |
+| `filter` | string | はい | 削除する行を識別するPostgRESTフィルター（例："id=eq.123"） |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | array | 削除されたレコードの配列 |
+
+### `supabase_upsert`
+
+Supabaseテーブルにデータを挿入または更新する（アップサート操作）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `table` | string | はい | データをアップサートするSupabaseテーブルの名前 |
+| `data` | array | はい | アップサート（挿入または更新）するデータ - オブジェクトの配列または単一のオブジェクト |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | array | アップサートされたレコードの配列 |
+
+### `supabase_count`
+
+Supabaseテーブルの行数をカウントする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `table` | string | はい | 行数をカウントするSupabaseテーブルの名前 |
+| `filter` | string | いいえ | PostgRESTフィルター（例："status=eq.active"） |
+| `countType` | string | いいえ | カウントタイプ：exact、planned、またはestimated（デフォルト：exact） |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `count` | number | フィルターに一致する行数 |
+
+### `supabase_text_search`
+
+Supabaseテーブルで全文検索を実行する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `table` | string | はい | 検索するSupabaseテーブルの名前 |
+| `column` | string | はい | 検索する列 |
+| `query` | string | はい | 検索クエリ |
+| `searchType` | string | いいえ | 検索タイプ：plain、phrase、またはwebsearch（デフォルト：websearch） |
+| `language` | string | いいえ | テキスト検索設定の言語（デフォルト：english） |
+| `limit` | number | いいえ | 返す最大行数 |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | array | 検索クエリに一致するレコードの配列 |
+
+### `supabase_vector_search`
+
+Supabaseテーブルでpgvectorを使用して類似性検索を実行する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `functionName` | string | はい | ベクトル検索を実行するPostgreSQL関数の名前（例：match_documents） |
+| `queryEmbedding` | array | はい | 類似アイテムを検索するためのクエリベクトル/埋め込み |
+| `matchThreshold` | number | いいえ | 最小類似度しきい値（0-1）、通常は0.7-0.9 |
+| `matchCount` | number | いいえ | 返す結果の最大数（デフォルト：10） |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | array | ベクトル検索からの類似度スコア付きレコードの配列。各レコードには、クエリベクトルとの類似度を示す類似度フィールド（0-1）が含まれます。 |
+
+### `supabase_rpc`
+
+SupabaseでPostgreSQL関数を呼び出す
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `functionName` | string | はい | 呼び出すPostgreSQL関数の名前 |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | json | 関数から返された結果 |
+
+### `supabase_storage_upload`
+
+Supabaseストレージバケットにファイルをアップロードする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `bucket` | string | はい | ストレージバケットの名前 |
+| `path` | string | はい | ファイルが保存されるパス（例："folder/file.jpg"） |
+| `fileContent` | string | はい | ファイルの内容（バイナリファイルの場合はbase64エンコード、またはプレーンテキスト） |
+| `contentType` | string | いいえ | ファイルのMIMEタイプ（例："image/jpeg"、"text/plain"） |
+| `upsert` | boolean | いいえ | trueの場合、既存のファイルを上書きする（デフォルト：false） |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | object | ファイルパスとメタデータを含むアップロード結果 |
+
+### `supabase_storage_download`
+
+Supabaseストレージバケットからファイルをダウンロードする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `bucket` | string | はい | ストレージバケットの名前 |
+| `path` | string | はい | ダウンロードするファイルへのパス（例："folder/file.jpg"） |
+| `fileName` | string | いいえ | オプションのファイル名上書き |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `file` | file | 実行ファイルに保存されたダウンロードファイル |
+
+### `supabase_storage_list`
+
+Supabaseストレージバケット内のファイルを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `bucket` | string | はい | ストレージバケットの名前 |
+| `path` | string | いいえ | ファイルを一覧表示するフォルダパス（デフォルト：ルート） |
+| `limit` | number | いいえ | 返すファイルの最大数（デフォルト：100） |
+| `offset` | number | いいえ | スキップするファイル数（ページネーション用） |
+| `sortBy` | string | いいえ | 並べ替える列：name、created_at、updated_at（デフォルト：name） |
+| `sortOrder` | string | いいえ | 並べ替え順序：asc（昇順）またはdesc（降順）（デフォルト：asc） |
+| `search` | string | いいえ | ファイル名でフィルタリングする検索語 |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | array | メタデータを含むファイルオブジェクトの配列 |
+
+### `supabase_storage_delete`
+
+Supabaseストレージバケットからファイルを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `bucket` | string | はい | ストレージバケットの名前 |
+| `paths` | array | はい | 削除するファイルパスの配列（例：["folder/file1.jpg", "folder/file2.jpg"]） |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | array | 削除されたファイルオブジェクトの配列 |
+
+### `supabase_storage_move`
+
+Supabaseストレージバケット内でファイルを移動する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `bucket` | string | はい | ストレージバケットの名前 |
+| `fromPath` | string | はい | ファイルの現在のパス（例："folder/old.jpg"） |
+| `toPath` | string | はい | ファイルの新しいパス（例："newfolder/new.jpg"） |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | object | 移動操作の結果 |
+
+### `supabase_storage_copy`
+
+Supabaseストレージバケット内のファイルをコピーする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `bucket` | string | はい | ストレージバケットの名前 |
+| `fromPath` | string | はい | ソースファイルのパス（例："folder/source.jpg"） |
+| `toPath` | string | はい | コピー先ファイルのパス（例："folder/copy.jpg"） |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | object | コピー操作の結果 |
+
+### `supabase_storage_create_bucket`
+
+Supabaseに新しいストレージバケットを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `bucket` | string | はい | 作成するバケットの名前 |
+| `isPublic` | boolean | いいえ | バケットを公開アクセス可能にするかどうか（デフォルト：false） |
+| `fileSizeLimit` | number | いいえ | 最大ファイルサイズ（バイト単位）（オプション） |
+| `allowedMimeTypes` | array | いいえ | 許可されるMIMEタイプの配列（例：["image/png", "image/jpeg"]） |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | object | 作成されたバケット情報 |
+
+### `supabase_storage_list_buckets`
+
+Supabaseのすべてのストレージバケットを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | array | バケットオブジェクトの配列 |
+
+### `supabase_storage_delete_bucket`
+
+Supabaseのストレージバケットを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `bucket` | string | はい | 削除するバケットの名前 |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | object | 削除操作の結果 |
+
+### `supabase_storage_get_public_url`
+
+Supabaseストレージバケット内のファイルの公開URLを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `bucket` | string | はい | ストレージバケットの名前 |
+| `path` | string | はい | ファイルへのパス（例："folder/file.jpg"） |
+| `download` | boolean | いいえ | trueの場合、インライン表示ではなくダウンロードを強制する（デフォルト：false） |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `publicUrl` | string | ファイルにアクセスするための公開URL |
+
+### `supabase_storage_create_signed_url`
+
+Supabaseストレージバケット内のファイルの一時署名付きURLを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `bucket` | string | はい | ストレージバケットの名前 |
+| `path` | string | はい | ファイルへのパス（例："folder/file.jpg"） |
+| `expiresIn` | number | はい | URLの有効期限までの秒数（例：1時間の場合は3600） |
+| `download` | boolean | いいえ | trueの場合、インライン表示ではなくダウンロードを強制（デフォルト：false） |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `signedUrl` | string | ファイルにアクセスするための一時署名付きURL |
+
+## 注意事項
+
+- カテゴリ: `tools`
+- タイプ: `supabase`
