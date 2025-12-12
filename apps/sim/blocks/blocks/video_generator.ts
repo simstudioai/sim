@@ -169,6 +169,21 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
       required: false,
     },
 
+    // Duration selection - Fal.ai (5, 8, or 10 seconds - common across models)
+    {
+      id: 'duration',
+      title: 'Duration (seconds)',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'falai' },
+      options: [
+        { label: '5', id: '5' },
+        { label: '8', id: '8' },
+        { label: '10', id: '10' },
+      ],
+      value: () => '5',
+      required: false,
+    },
+
     // Aspect ratio selection - Veo (only 16:9 and 9:16)
     {
       id: 'aspectRatio',
@@ -208,6 +223,20 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
         { label: '16:9', id: '16:9' },
         { label: '9:16', id: '9:16' },
         { label: '1:1', id: '1:1' },
+      ],
+      value: () => '16:9',
+      required: false,
+    },
+
+    // Aspect ratio selection - Fal.ai (16:9 and 9:16 supported across models)
+    {
+      id: 'aspectRatio',
+      title: 'Aspect Ratio',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'falai' },
+      options: [
+        { label: '16:9', id: '16:9' },
+        { label: '9:16', id: '9:16' },
       ],
       value: () => '16:9',
       required: false,
