@@ -31,7 +31,6 @@ export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
         return `https://vault.googleapis.com/v1/matters/${params.matterId}`
       }
       const url = new URL('https://vault.googleapis.com/v1/matters')
-      // Handle pageSize - convert to number if needed
       if (params.pageSize !== undefined && params.pageSize !== null) {
         const pageSize = Number(params.pageSize)
         if (Number.isFinite(pageSize) && pageSize > 0) {
@@ -39,7 +38,6 @@ export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
         }
       }
       if (params.pageToken) url.searchParams.set('pageToken', params.pageToken)
-      // Default BASIC view implicitly by omitting 'view' and 'state' params
       return url.toString()
     },
     method: 'GET',
@@ -51,11 +49,9 @@ export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
     if (!response.ok) {
       throw new Error(data.error?.message || 'Failed to list matters')
     }
-    // If a specific matter was requested, wrap it in 'matter' field
     if (params?.matterId) {
       return { success: true, output: { matter: data } }
     }
-    // Otherwise return the list response as-is (contains 'matters' array and 'nextPageToken')
     return { success: true, output: data }
   },
 

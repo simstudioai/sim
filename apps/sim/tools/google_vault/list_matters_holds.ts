@@ -26,7 +26,6 @@ export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams>
         return `https://vault.googleapis.com/v1/matters/${params.matterId}/holds/${params.holdId}`
       }
       const url = new URL(`https://vault.googleapis.com/v1/matters/${params.matterId}/holds`)
-      // Handle pageSize - convert to number if needed
       if (params.pageSize !== undefined && params.pageSize !== null) {
         const pageSize = Number(params.pageSize)
         if (Number.isFinite(pageSize) && pageSize > 0) {
@@ -34,7 +33,6 @@ export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams>
         }
       }
       if (params.pageToken) url.searchParams.set('pageToken', params.pageToken)
-      // Default BASIC_HOLD implicitly by omitting 'view'
       return url.toString()
     },
     method: 'GET',
@@ -46,11 +44,9 @@ export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams>
     if (!response.ok) {
       throw new Error(data.error?.message || 'Failed to list holds')
     }
-    // If a specific hold was requested, wrap it in 'hold' field
     if (params?.holdId) {
       return { success: true, output: { hold: data } }
     }
-    // Otherwise return the list response as-is (contains 'holds' array and 'nextPageToken')
     return { success: true, output: data }
   },
 

@@ -42,7 +42,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    // Process the file input
     let fileToProcess = file
     if (Array.isArray(file)) {
       if (file.length === 0) {
@@ -51,7 +50,6 @@ export async function POST(request: NextRequest) {
       fileToProcess = file[0]
     }
 
-    // Convert to UserFile format
     let userFile
     try {
       userFile = processSingleFileToUserFile(fileToProcess, 'confluence-upload', logger)
@@ -62,7 +60,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Download the file from storage
     let fileBuffer: Buffer
     try {
       fileBuffer = await downloadFileFromStorage(userFile, 'confluence-upload', logger)
@@ -76,14 +73,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Determine the file name
     const uploadFileName = fileName || userFile.name || 'attachment'
     const mimeType = userFile.type || 'application/octet-stream'
 
-    // Confluence v1 API uses /wiki/rest/api/content/{id}/child/attachment for file uploads
     const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/rest/api/content/${pageId}/child/attachment`
 
-    // Create FormData for multipart upload
     const formData = new FormData()
     const blob = new Blob([new Uint8Array(fileBuffer)], { type: mimeType })
     formData.append('file', blob, uploadFileName)
@@ -121,7 +115,6 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json()
 
-    // The response contains an array of results
     const attachment = data.results?.[0] || data
 
     return NextResponse.json({

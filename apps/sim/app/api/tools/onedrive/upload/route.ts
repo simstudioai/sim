@@ -8,9 +8,6 @@ import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { normalizeExcelValues } from '@/tools/onedrive/utils'
 
-/**
- * Get file extension from MIME type
- */
 function getExtensionFromMimeType(mimeType: string): string | null {
   const mimeToExtension: Record<string, string> = {
     'application/pdf': 'pdf',
@@ -196,14 +193,12 @@ export async function POST(request: NextRequest) {
     const hasExtension = fileName.includes('.') && fileName.lastIndexOf('.') > 0
 
     if (!hasExtension) {
-      // If no extension provided, derive from mimeType
       const extension = getExtensionFromMimeType(mimeType)
       if (extension) {
         fileName = `${fileName}.${extension}`
         logger.info(`[${requestId}] Added extension to filename: ${fileName}`)
       }
     } else if (isExcelCreation && !fileName.endsWith('.xlsx')) {
-      // For Excel creation, ensure .xlsx extension
       fileName = `${fileName.replace(/\.[^.]*$/, '')}.xlsx`
     }
 

@@ -1,8 +1,6 @@
 import type { GoogleVaultListMattersExportParams } from '@/tools/google_vault/types'
 import type { ToolConfig } from '@/tools/types'
 
-// matters.exports.list
-// GET https://vault.googleapis.com/v1/matters/{matterId}/exports
 export const listMattersExportTool: ToolConfig<GoogleVaultListMattersExportParams> = {
   id: 'list_matters_export',
   name: 'Vault List Exports (by Matter)',
@@ -28,7 +26,6 @@ export const listMattersExportTool: ToolConfig<GoogleVaultListMattersExportParam
         return `https://vault.googleapis.com/v1/matters/${params.matterId}/exports/${params.exportId}`
       }
       const url = new URL(`https://vault.googleapis.com/v1/matters/${params.matterId}/exports`)
-      // Handle pageSize - convert to number if needed
       if (params.pageSize !== undefined && params.pageSize !== null) {
         const pageSize = Number(params.pageSize)
         if (Number.isFinite(pageSize) && pageSize > 0) {
@@ -47,11 +44,9 @@ export const listMattersExportTool: ToolConfig<GoogleVaultListMattersExportParam
     if (!response.ok) {
       throw new Error(data.error?.message || 'Failed to list exports')
     }
-    // If a specific export was requested, wrap it in 'export' field
     if (params?.exportId) {
       return { success: true, output: { export: data } }
     }
-    // Otherwise return the list response as-is (contains 'exports' array and 'nextPageToken')
     return { success: true, output: data }
   },
 
