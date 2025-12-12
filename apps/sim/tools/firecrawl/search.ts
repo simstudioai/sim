@@ -35,21 +35,13 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       }
 
       // Add optional parameters if provided (truthy check filters empty strings, null, undefined)
-<<<<<<< HEAD
-      if (params.limit != null && params.limit !== '') body.limit = Number(params.limit)
-=======
       if (params.limit) body.limit = Number(params.limit)
->>>>>>> ec62eb129 (fix(firecrawl): fixed optional params for firecrawl)
       if (params.sources) body.sources = params.sources
       if (params.categories) body.categories = params.categories
       if (params.tbs) body.tbs = params.tbs
       if (params.location) body.location = params.location
       if (params.country) body.country = params.country
-<<<<<<< HEAD
-      if (params.timeout != null && params.timeout !== '') body.timeout = Number(params.timeout)
-=======
       if (params.timeout) body.timeout = Number(params.timeout)
->>>>>>> ec62eb129 (fix(firecrawl): fixed optional params for firecrawl)
       if (typeof params.ignoreInvalidURLs === 'boolean')
         body.ignoreInvalidURLs = params.ignoreInvalidURLs
       if (params.scrapeOptions) body.scrapeOptions = params.scrapeOptions
@@ -65,7 +57,6 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       success: true,
       output: {
         data: data.data,
-        warning: data.warning,
       },
     }
   },
@@ -89,6 +80,5 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
         },
       },
     },
-    warning: { type: 'string', description: 'Warning messages from the search operation' },
   },
 }

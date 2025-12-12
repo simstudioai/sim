@@ -162,7 +162,6 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
             jobId,
             success: true,
             data: extractData.data || {},
-            warning: extractData.warning,
           }
           return result
         }
@@ -209,21 +208,6 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
     data: {
       type: 'object',
       description: 'Extracted structured data according to the schema or prompt',
-    },
-    sources: {
-      type: 'array',
-      description: 'Data sources (only if showSources is enabled)',
-      items: {
-        type: 'object',
-        properties: {
-          url: { type: 'string', description: 'Source URL' },
-          title: { type: 'string', description: 'Source title' },
-        },
-      },
-    },
-    warning: {
-      type: 'string',
-      description: 'Warning messages from the extraction operation',
     },
   },
 }
