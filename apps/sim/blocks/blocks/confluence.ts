@@ -266,7 +266,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
 
         const effectivePageId = (pageId || manualPageId || '').trim()
 
-        // Operations that require pageId
         const requiresPageId = [
           'read',
           'update',
@@ -278,7 +277,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
           'upload_attachment',
         ]
 
-        // Operations that require spaceId
         const requiresSpaceId = ['create', 'get_space']
 
         if (requiresPageId.includes(operation) && !effectivePageId) {
@@ -289,7 +287,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
           throw new Error('Space ID is required for this operation.')
         }
 
-        // Handle upload_attachment specific params
         if (operation === 'upload_attachment') {
           return {
             credential,

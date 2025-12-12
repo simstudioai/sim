@@ -31,7 +31,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Space ID is required' }, { status: 400 })
     }
 
-    // Confluence API v2 requires numeric space IDs, not space keys
     if (!/^\d+$/.test(String(spaceId))) {
       return NextResponse.json(
         {
@@ -103,7 +102,6 @@ export async function POST(request: Request) {
         error: JSON.stringify(errorData, null, 2),
       })
 
-      // Extract user-friendly error message
       let errorMessage = `Failed to create Confluence page (${response.status})`
       if (errorData?.message) {
         errorMessage = errorData.message
