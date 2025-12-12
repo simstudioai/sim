@@ -132,21 +132,8 @@ export const pipedriveCreateActivityTool: ToolConfig<
   },
 
   outputs: {
+    activity: { type: 'object', description: 'The created activity object' },
+    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Created activity details',
-      properties: {
-        activity: {
-          type: 'object',
-          description: 'The created activity object',
-        },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-        },
-        success: { type: 'boolean', description: 'Operation success status' },
-      },
-    },
   },
 }

@@ -90,21 +90,8 @@ export const pipedriveGetMailMessagesTool: ToolConfig<
   },
 
   outputs: {
+    messages: { type: 'array', description: 'Array of mail thread objects from Pipedrive mailbox' },
+    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Mail threads data',
-      properties: {
-        messages: {
-          type: 'array',
-          description: 'Array of mail thread objects from Pipedrive mailbox',
-        },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-        },
-        success: { type: 'boolean', description: 'Operation success status' },
-      },
-    },
   },
 }

@@ -136,25 +136,9 @@ export const pipedriveGetLeadsTool: ToolConfig<PipedriveGetLeadsParams, Pipedriv
     },
 
     outputs: {
+      leads: { type: 'array', description: 'Array of lead objects (when listing all)' },
+      lead: { type: 'object', description: 'Single lead object (when lead_id is provided)' },
+      metadata: { type: 'object', description: 'Operation metadata' },
       success: { type: 'boolean', description: 'Operation success status' },
-      output: {
-        type: 'object',
-        description: 'Leads data or single lead details',
-        properties: {
-          leads: {
-            type: 'array',
-            description: 'Array of lead objects (when listing all)',
-          },
-          lead: {
-            type: 'object',
-            description: 'Single lead object (when lead_id is provided)',
-          },
-          metadata: {
-            type: 'object',
-            description: 'Operation metadata',
-          },
-          success: { type: 'boolean', description: 'Operation success status' },
-        },
-      },
     },
   }
