@@ -378,7 +378,7 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
       !trimmedValue.startsWith("'") &&
       !trimmedValue.startsWith('`')
     ) {
-      const commentIndex = value.indexOf(' #')
+      const commentIndex = value.search(/\s#/)
       if (commentIndex !== -1) {
         value = value.substring(0, commentIndex)
       }
