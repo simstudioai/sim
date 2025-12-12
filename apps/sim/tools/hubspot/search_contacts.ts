@@ -145,8 +145,7 @@ export const hubspotSearchContactsTool: ToolConfig<
       throw new Error(data.message || 'Failed to search contacts in HubSpot')
     }
 
-    return {
-      success: true,
+    const result = {
       contacts: data.results || [],
       total: data.total,
       paging: data.paging,
@@ -155,6 +154,12 @@ export const hubspotSearchContactsTool: ToolConfig<
         totalReturned: data.results?.length || 0,
         total: data.total,
       },
+    }
+
+    return {
+      success: true,
+      output: result,
+      ...result,
     }
   },
 
