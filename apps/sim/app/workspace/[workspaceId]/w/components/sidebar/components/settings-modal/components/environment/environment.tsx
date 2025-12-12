@@ -367,8 +367,8 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
     let value = withoutExport.substring(equalIndex + 1)
 
     const looksLikeBase64Key = /^[A-Za-z0-9+/]+$/.test(potentialKey) && !potentialKey.includes('_')
-    const valueIsJustPadding = /^=*$/.test(value.trim())
-    if (looksLikeBase64Key && valueIsJustPadding && potentialKey.length > 10) {
+    const valueIsJustPadding = /^=+$/.test(value.trim())
+    if (looksLikeBase64Key && valueIsJustPadding && potentialKey.length > 20) {
       return null
     }
 
