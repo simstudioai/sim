@@ -43,22 +43,18 @@ export interface CurrentWorkflow {
  */
 export function useCurrentWorkflow(): CurrentWorkflow {
   // Get normal workflow state - optimized with shallow comparison
-  // This prevents re-renders when only subblock values change (not block structure)
   const normalWorkflow = useWorkflowStore(
-    useShallow((state) => {
-      const workflow = state.getWorkflowState()
-      return {
-        blocks: workflow.blocks,
-        edges: workflow.edges,
-        loops: workflow.loops,
-        parallels: workflow.parallels,
-        lastSaved: workflow.lastSaved,
-        isDeployed: workflow.isDeployed,
-        deployedAt: workflow.deployedAt,
-        deploymentStatuses: workflow.deploymentStatuses,
-        needsRedeployment: workflow.needsRedeployment,
-      }
-    })
+    useShallow((state) => ({
+      blocks: state.blocks,
+      edges: state.edges,
+      loops: state.loops,
+      parallels: state.parallels,
+      lastSaved: state.lastSaved,
+      isDeployed: state.isDeployed,
+      deployedAt: state.deployedAt,
+      deploymentStatuses: state.deploymentStatuses,
+      needsRedeployment: state.needsRedeployment,
+    }))
   )
 
   // Get diff state - optimized with shallow comparison

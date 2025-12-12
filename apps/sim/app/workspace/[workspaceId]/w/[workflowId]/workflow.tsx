@@ -3,9 +3,12 @@
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import ReactFlow, {
+  applyNodeChanges,
   ConnectionLineType,
   type Edge,
   type EdgeTypes,
+  type Node,
+  type NodeChange,
   type NodeTypes,
   ReactFlowProvider,
   useReactFlow,
@@ -138,15 +141,9 @@ const WorkflowContent = React.memo(() => {
 
   const currentWorkflow = useCurrentWorkflow()
 
-  const {
-    updateNodeDimensions,
-    storeUpdateBlockPosition,
-    setDragStartPosition,
-    getDragStartPosition,
-  } = useWorkflowStore(
+  const { updateNodeDimensions, setDragStartPosition, getDragStartPosition } = useWorkflowStore(
     useShallow((state) => ({
       updateNodeDimensions: state.updateNodeDimensions,
-      storeUpdateBlockPosition: state.updateBlockPosition,
       setDragStartPosition: state.setDragStartPosition,
       getDragStartPosition: state.getDragStartPosition,
     }))
@@ -1376,19 +1373,21 @@ const WorkflowContent = React.memo(() => {
   const prevBlocksHashRef = useRef<string>('')
   const prevBlocksRef = useRef(blocks)
 
-  /** Stable hash of block properties to prevent node recreation on subblock changes. */
-  const blocksHash = useMemo(() => {
+  /** Stable hash of block STRUCTURAL properties - excludes position to prevent node recreation during drag. */
+  const blocksStructureHash = useMemo(() => {
     // Only recalculate hash if blocks reference actually changed
     if (prevBlocksRef.current === blocks) {
       return prevBlocksHashRef.current
     }
 
     prevBlocksRef.current = blocks
+    // Hash only structural properties - NOT position (position changes shouldn't recreate nodes)
     const hash = Object.values(blocks)
       .map((b) => {
         const width = typeof b.data?.width === 'number' ? b.data.width : ''
         const height = typeof b.data?.height === 'number' ? b.data.height : ''
-        return `${b.id}:${b.type}:${b.name}:${b.position.x.toFixed(0)}:${b.position.y.toFixed(0)}:${b.height}:${b.data?.parentId || ''}:${width}:${height}`
+        // Exclude position from hash - drag should not recreate nodes
+        return `${b.id}:${b.type}:${b.name}:${b.height}:${b.data?.parentId || ''}:${width}:${height}`
       })
       .join('|')
 
@@ -1396,9 +1395,9 @@ const WorkflowContent = React.memo(() => {
     return hash
   }, [blocks])
 
-  /** Transforms blocks into ReactFlow nodes. */
-  const nodes = useMemo(() => {
-    const nodeArray: any[] = []
+  /** Transforms blocks into ReactFlow nodes - only recreates on structural changes. */
+  const derivedNodes = useMemo(() => {
+    const nodeArray: Node[] = []
 
     // Add block nodes
     Object.entries(blocks).forEach(([blockId, block]) => {
@@ -1484,36 +1483,37 @@ const WorkflowContent = React.memo(() => {
     })
 
     return nodeArray
-  }, [blocksHash, blocks, activeBlockIds, pendingBlocks, isDebugging, getBlockConfig])
+  }, [blocksStructureHash, blocks, activeBlockIds, pendingBlocks, isDebugging, getBlockConfig])
 
-  /** Handles node position changes without triggering collaborative updates. */
-  const onNodesChange = useCallback(
-    (changes: any) => {
-      changes.forEach((change: any) => {
-        if (change.type === 'position' && change.position) {
-          const node = nodes.find((n) => n.id === change.id)
-          if (!node) return
-          // Use store version to avoid collaborative feedback loop
-          // React Flow position changes can be triggered by collaborative updates
-          storeUpdateBlockPosition(change.id, change.position)
-        }
-      })
-    },
-    [nodes, storeUpdateBlockPosition]
-  )
+  // Local state for nodes - allows smooth drag without store updates on every frame
+  const [displayNodes, setDisplayNodes] = useState<Node[]>([])
+
+  // Sync derived nodes to display nodes when structure changes
+  useEffect(() => {
+    setDisplayNodes(derivedNodes)
+  }, [derivedNodes])
+
+  /** Handles node position changes - updates local state for smooth drag, syncs to store only on drag end. */
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
+    // Apply position changes to local state for smooth rendering
+    setDisplayNodes((nds) => applyNodeChanges(changes, nds))
+
+    // Don't sync to store during drag - that's handled in onNodeDragStop
+    // Only sync non-position changes (like selection) to store if needed
+  }, [])
 
   /**
    * Effect to resize loops when nodes change (add/remove/position change).
-   * Runs on every node change for immediate responsiveness.
+   * Runs on structural changes only - not during drag (position-only changes).
    * Skips during loading to avoid unnecessary work.
    */
   useEffect(() => {
     // Skip during initial render when nodes aren't loaded yet or workflow not ready
-    if (nodes.length === 0 || !isWorkflowReady) return
+    if (derivedNodes.length === 0 || !isWorkflowReady) return
 
     // Resize all loops to fit their children
     resizeLoopNodesWrapper()
-  }, [nodes, resizeLoopNodesWrapper, isWorkflowReady])
+  }, [derivedNodes, resizeLoopNodesWrapper, isWorkflowReady])
 
   /** Cleans up orphaned nodes with invalid parent references after deletion. */
   useEffect(() => {
@@ -2065,7 +2065,7 @@ const WorkflowContent = React.memo(() => {
   /** Transforms edges to include selection state and delete handlers. Memoized to prevent re-renders. */
   const edgesWithSelection = useMemo(() => {
     // Build node lookup map once - O(n) instead of O(n) per edge
-    const nodeMap = new Map(nodes.map((n) => [n.id, n]))
+    const nodeMap = new Map(displayNodes.map((n) => [n.id, n]))
 
     return edgesForDisplay.map((edge) => {
       const sourceNode = nodeMap.get(edge.source)
@@ -2085,7 +2085,7 @@ const WorkflowContent = React.memo(() => {
         },
       }
     })
-  }, [edgesForDisplay, nodes, selectedEdgeInfo?.contextId, handleEdgeDelete])
+  }, [edgesForDisplay, displayNodes, selectedEdgeInfo?.contextId, handleEdgeDelete])
 
   /** Handles Delete/Backspace to remove selected edges or blocks. */
   useEffect(() => {
@@ -2177,7 +2177,7 @@ const WorkflowContent = React.memo(() => {
         {showTrainingModal && <TrainingModal />}
 
         <ReactFlow
-          nodes={nodes}
+          nodes={displayNodes}
           edges={edgesWithSelection}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
