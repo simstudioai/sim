@@ -226,12 +226,12 @@ export function Sidebar() {
   )
 
   const isLoading = workflowsLoading || sessionLoading
-  const initialScrollDoneRef = useRef<string | null>(null)
+  const initialScrollDoneRef = useRef(false)
 
-  /** Scrolls to active workflow on initial load or workspace switch */
+  /** Scrolls to active workflow on initial page load only */
   useEffect(() => {
-    if (!workflowId || workflowsLoading || initialScrollDoneRef.current === workflowId) return
-    initialScrollDoneRef.current = workflowId
+    if (!workflowId || workflowsLoading || initialScrollDoneRef.current) return
+    initialScrollDoneRef.current = true
     requestAnimationFrame(() => {
       window.dispatchEvent(
         new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: workflowId } })
