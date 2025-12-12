@@ -56,8 +56,17 @@ export const hubspotCreateCompanyTool: ToolConfig<
       }
     },
     body: (params) => {
+      let properties = params.properties
+      if (typeof properties === 'string') {
+        try {
+          properties = JSON.parse(properties)
+        } catch (e) {
+          throw new Error('Invalid JSON format for properties. Please provide a valid JSON object.')
+        }
+      }
+
       const body: any = {
-        properties: params.properties,
+        properties,
       }
 
       if (params.associations && params.associations.length > 0) {

@@ -69,8 +69,17 @@ export const hubspotUpdateContactTool: ToolConfig<
       }
     },
     body: (params) => {
+      let properties = params.properties
+      if (typeof properties === 'string') {
+        try {
+          properties = JSON.parse(properties)
+        } catch (e) {
+          throw new Error('Invalid JSON format for properties. Please provide a valid JSON object.')
+        }
+      }
+
       return {
-        properties: params.properties,
+        properties,
       }
     },
   },
