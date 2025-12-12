@@ -65,46 +65,47 @@ export const zepAddMessagesTool: ToolConfig<any, ZepResponse> = {
   transformResponse: async (response, params) => {
     const threadId = params.threadId
 
-    const text = await response.text()
-
     if (!response.ok) {
-      throw new Error(`Zep API error (${response.status}): ${text || response.statusText}`)
+      const error = await response.text()
+      throw new Error(`Zep API error (${response.status}): ${error || response.statusText}`)
     }
 
+    const text = await response.text()
     if (!text || text.trim() === '') {
       return {
         success: true,
         output: {
           threadId,
           added: true,
+          messageIds: [],
         },
       }
     }
 
-    const data = JSON.parse(text.replace(/^\uFEFF/, '').trim())
+    const data = JSON.parse(text)
 
     return {
       success: true,
       output: {
         threadId,
-        context: data.context,
+        added: true,
         messageIds: data.message_uuids || [],
       },
     }
   },
 
   outputs: {
-    context: {
+    threadId: {
       type: 'string',
-      description: 'Updated context after adding messages',
+      description: 'The thread ID',
+    },
+    added: {
+      type: 'boolean',
+      description: 'Whether messages were added successfully',
     },
     messageIds: {
       type: 'array',
       description: 'Array of added message UUIDs',
-    },
-    threadId: {
-      type: 'string',
-      description: 'The thread ID',
     },
   },
 }

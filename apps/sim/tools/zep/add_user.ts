@@ -80,12 +80,12 @@ export const zepAddUserTool: ToolConfig<any, ZepResponse> = {
   },
 
   transformResponse: async (response) => {
-    const text = await response.text()
-
     if (!response.ok) {
-      throw new Error(`Zep API error (${response.status}): ${text || response.statusText}`)
+      const error = await response.text()
+      throw new Error(`Zep API error (${response.status}): ${error || response.statusText}`)
     }
 
+    const text = await response.text()
     if (!text || text.trim() === '') {
       return {
         success: true,
@@ -93,7 +93,7 @@ export const zepAddUserTool: ToolConfig<any, ZepResponse> = {
       }
     }
 
-    const data = JSON.parse(text.replace(/^\uFEFF/, '').trim())
+    const data = JSON.parse(text)
 
     return {
       success: true,
