@@ -262,6 +262,24 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'sharing.write': 'Share files and folders with others',
   // WordPress.com scopes
   global: 'Full access to manage your WordPress.com sites, posts, pages, media, and settings',
+  // Spotify scopes
+  'user-read-private': 'View your Spotify account details',
+  'user-read-email': 'View your email address on Spotify',
+  'user-library-read': 'View your saved tracks and albums',
+  'user-library-modify': 'Save and remove tracks and albums from your library',
+  'playlist-read-private': 'View your private playlists',
+  'playlist-read-collaborative': 'View collaborative playlists you have access to',
+  'playlist-modify-public': 'Create and manage your public playlists',
+  'playlist-modify-private': 'Create and manage your private playlists',
+  'user-read-playback-state': 'View your current playback state',
+  'user-modify-playback-state': 'Control playback on your Spotify devices',
+  'user-read-currently-playing': 'View your currently playing track',
+  'user-read-recently-played': 'View your recently played tracks',
+  'user-top-read': 'View your top artists and tracks',
+  'user-follow-read': 'View artists and users you follow',
+  'user-follow-modify': 'Follow and unfollow artists and users',
+  'user-read-playback-position': 'View your playback position in podcasts',
+  'ugc-image-upload': 'Upload images to your Spotify playlists',
 }
 
 function getScopeDescription(scope: string): string {
