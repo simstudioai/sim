@@ -15,9 +15,8 @@ const logger = createLogger('ProxyTTSStreamAPI')
  */
 async function validateChatAuth(request: NextRequest, chatId: string): Promise<boolean> {
   try {
-    // Verify the chat exists and is active
     const chatResult = await db
-      .select({ id: chat.id, isActive: chat.isActive })
+      .select({ id: chat.id, isActive: chat.isActive, authType: chat.authType })
       .from(chat)
       .where(eq(chat.id, chatId))
       .limit(1)
@@ -27,23 +26,18 @@ async function validateChatAuth(request: NextRequest, chatId: string): Promise<b
       return false
     }
 
-    // Check for chat auth cookie
+    const chatData = chatResult[0]
+
+    // Public chats allow TTS without auth cookie
+    if (chatData.authType === 'public') {
+      return true
+    }
+
+    // For protected chats, check for valid auth cookie
     const cookieName = `chat_auth_${chatId}`
     const authCookie = request.cookies.get(cookieName)
 
     if (authCookie && validateAuthToken(authCookie.value, chatId)) {
-      return true
-    }
-
-    // For public chats, allow TTS without cookie (the chat itself handles access control)
-    // We already verified the chat exists and is active above
-    const [chatData] = await db
-      .select({ authType: chat.authType })
-      .from(chat)
-      .where(eq(chat.id, chatId))
-      .limit(1)
-
-    if (chatData?.authType === 'public') {
       return true
     }
 
