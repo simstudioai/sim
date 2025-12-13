@@ -24,13 +24,13 @@ import {
   Panel,
   SubflowNodeComponent,
   Terminal,
-  TrainingControls,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { Chat } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/chat'
 import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/cursors/cursors'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { TrainingModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/training-controls/training-modal'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import {
@@ -45,6 +45,7 @@ import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
+import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
@@ -133,6 +134,9 @@ const WorkflowContent = React.memo(() => {
 
   // Get copilot cleanup function
   const copilotCleanup = useCopilotStore((state) => state.cleanup)
+
+  // Training modal state
+  const showTrainingModal = useCopilotTrainingStore((state) => state.showModal)
 
   // Handle copilot stream cleanup on page unload and component unmount
   useStreamCleanup(copilotCleanup)
@@ -2244,8 +2248,8 @@ const WorkflowContent = React.memo(() => {
   return (
     <div className='flex h-full w-full flex-col overflow-hidden'>
       <div className='relative h-full w-full flex-1 transition-all duration-200'>
-        {/* Training Controls - for recording workflow edits */}
-        <TrainingControls />
+        {/* Training Modal - for recording workflow edits */}
+        {showTrainingModal && <TrainingModal />}
 
         <ReactFlow
           nodes={nodes}
