@@ -1,5 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
-import type { ToolResponse } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyGetFollowedArtistsParams {
   accessToken: string
@@ -99,4 +98,3 @@ export const spotifyGetFollowedArtistsTool: ToolConfig<
     next: { type: 'string', description: 'Cursor for next page', optional: true },
   },
 }
-

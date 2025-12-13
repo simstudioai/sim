@@ -92,4 +92,3 @@ export const spotifyGetEpisodeTool: ToolConfig<SpotifyGetEpisodeParams, SpotifyG
       external_url: { type: 'string', description: 'Spotify URL' },
     },
   }
-

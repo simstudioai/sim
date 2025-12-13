@@ -55,4 +55,3 @@ export const spotifyRemoveSavedAlbumsTool: ToolConfig<
     success: { type: 'boolean', description: 'Whether albums were removed' },
   },
 }
-

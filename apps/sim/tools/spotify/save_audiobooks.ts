@@ -55,4 +55,3 @@ export const spotifySaveAudiobooksTool: ToolConfig<
     success: { type: 'boolean', description: 'Whether audiobooks were saved' },
   },
 }
-

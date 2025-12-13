@@ -55,4 +55,3 @@ export const spotifyRemoveSavedShowsTool: ToolConfig<
     success: { type: 'boolean', description: 'Whether shows were removed' },
   },
 }
-

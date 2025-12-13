@@ -25,7 +25,8 @@ export const spotifySearchTool: ToolConfig<SpotifySearchParams, SpotifySearchRes
       required: false,
       visibility: 'user-or-llm',
       default: 'track',
-      description: 'Type of results: track, album, artist, playlist, or comma-separated (e.g., "track,artist")',
+      description:
+        'Type of results: track, album, artist, playlist, or comma-separated (e.g., "track,artist")',
     },
     limit: {
       type: 'number',
@@ -154,4 +155,3 @@ export const spotifySearchTool: ToolConfig<SpotifySearchParams, SpotifySearchRes
     },
   },
 }
-

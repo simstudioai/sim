@@ -45,4 +45,3 @@ export const spotifyGetMarketsTool: ToolConfig<SpotifyGetMarketsParams, SpotifyG
       markets: { type: 'json', description: 'List of ISO country codes' },
     },
   }
-

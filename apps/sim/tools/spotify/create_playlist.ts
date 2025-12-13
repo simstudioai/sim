@@ -87,4 +87,3 @@ export const spotifyCreatePlaylistTool: ToolConfig<
     external_url: { type: 'string', description: 'Spotify URL' },
   },
 }
-

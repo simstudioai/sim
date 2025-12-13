@@ -1,5 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
-import type { ToolResponse } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyGetAlbumTracksParams {
   accessToken: string
@@ -111,4 +110,3 @@ export const spotifyGetAlbumTracksTool: ToolConfig<
     next: { type: 'string', description: 'URL for next page', optional: true },
   },
 }
-

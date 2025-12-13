@@ -139,23 +139,6 @@ export interface SpotifyPlaybackState {
   currently_playing_type: string
 }
 
-export interface SpotifyAudioFeatures {
-  id: string
-  danceability: number
-  energy: number
-  key: number
-  loudness: number
-  mode: number
-  speechiness: number
-  acousticness: number
-  instrumentalness: number
-  liveness: number
-  valence: number
-  tempo: number
-  duration_ms: number
-  time_signature: number
-}
-
 /**
  * Search
  */
@@ -261,32 +244,6 @@ export interface SpotifyGetTracksResponse extends ToolResponse {
       preview_url: string | null
       external_url: string
     }>
-  }
-}
-
-/**
- * Get Audio Features
- */
-export interface SpotifyGetAudioFeaturesParams extends SpotifyBaseParams {
-  trackId: string
-}
-
-export interface SpotifyGetAudioFeaturesResponse extends ToolResponse {
-  output: {
-    id: string
-    danceability: number
-    energy: number
-    key: number
-    loudness: number
-    mode: number
-    speechiness: number
-    acousticness: number
-    instrumentalness: number
-    liveness: number
-    valence: number
-    tempo: number
-    duration_ms: number
-    time_signature: number
   }
 }
 
@@ -414,27 +371,6 @@ export interface SpotifyGetArtistTopTracksResponse extends ToolResponse {
       duration_ms: number
       popularity: number
       preview_url: string | null
-      external_url: string
-    }>
-  }
-}
-
-/**
- * Get Related Artists
- */
-export interface SpotifyGetRelatedArtistsParams extends SpotifyBaseParams {
-  artistId: string
-}
-
-export interface SpotifyGetRelatedArtistsResponse extends ToolResponse {
-  output: {
-    artists: Array<{
-      id: string
-      name: string
-      genres: string[]
-      popularity: number
-      followers: number
-      image_url: string | null
       external_url: string
     }>
   }
@@ -780,54 +716,6 @@ export interface SpotifyCheckSavedTracksResponse extends ToolResponse {
 }
 
 /**
- * Get Recommendations
- */
-export interface SpotifyGetRecommendationsParams extends SpotifyBaseParams {
-  seed_artists?: string
-  seed_genres?: string
-  seed_tracks?: string
-  limit?: number
-  market?: string
-  min_acousticness?: number
-  max_acousticness?: number
-  min_danceability?: number
-  max_danceability?: number
-  min_energy?: number
-  max_energy?: number
-  min_instrumentalness?: number
-  max_instrumentalness?: number
-  min_popularity?: number
-  max_popularity?: number
-  min_tempo?: number
-  max_tempo?: number
-  min_valence?: number
-  max_valence?: number
-}
-
-export interface SpotifyGetRecommendationsResponse extends ToolResponse {
-  output: {
-    tracks: Array<{
-      id: string
-      name: string
-      artists: Array<{ id: string; name: string }>
-      album: {
-        id: string
-        name: string
-        image_url: string | null
-      }
-      duration_ms: number
-      popularity: number
-      preview_url: string | null
-      external_url: string
-    }>
-    seeds: Array<{
-      id: string
-      type: string
-    }>
-  }
-}
-
-/**
  * Browse Categories
  */
 export interface SpotifyBrowseCategoriesParams extends SpotifyBaseParams {
@@ -867,33 +755,6 @@ export interface SpotifyBrowseNewReleasesResponse extends ToolResponse {
       album_type: string
       total_tracks: number
       release_date: string
-      image_url: string | null
-      external_url: string
-    }>
-    total: number
-    next: string | null
-  }
-}
-
-/**
- * Browse Featured Playlists
- */
-export interface SpotifyBrowseFeaturedPlaylistsParams extends SpotifyBaseParams {
-  country?: string
-  locale?: string
-  limit?: number
-  offset?: number
-}
-
-export interface SpotifyBrowseFeaturedPlaylistsResponse extends ToolResponse {
-  output: {
-    message: string
-    playlists: Array<{
-      id: string
-      name: string
-      description: string | null
-      owner: string
-      total_tracks: number
       image_url: string | null
       external_url: string
     }>
@@ -1122,36 +983,6 @@ export interface SpotifySetShuffleResponse extends ToolResponse {
 }
 
 /**
- * Get Audio Analysis
- */
-export interface SpotifyGetAudioAnalysisParams extends SpotifyBaseParams {
-  trackId: string
-}
-
-export interface SpotifyGetAudioAnalysisResponse extends ToolResponse {
-  output: {
-    duration: number
-    tempo: number
-    time_signature: number
-    key: number
-    mode: number
-    loudness: number
-    bars: number
-    beats: number
-    sections: Array<{
-      start: number
-      duration: number
-      loudness: number
-      tempo: number
-      key: number
-      mode: number
-      time_signature: number
-    }>
-    segments_count: number
-  }
-}
-
-/**
  * Get New Releases
  */
 export interface SpotifyGetNewReleasesParams extends SpotifyBaseParams {
@@ -1178,31 +1009,6 @@ export interface SpotifyGetNewReleasesResponse extends ToolResponse {
 }
 
 /**
- * Get Featured Playlists
- */
-export interface SpotifyGetFeaturedPlaylistsParams extends SpotifyBaseParams {
-  country?: string
-  locale?: string
-  limit?: number
-}
-
-export interface SpotifyGetFeaturedPlaylistsResponse extends ToolResponse {
-  output: {
-    message: string
-    playlists: Array<{
-      id: string
-      name: string
-      description: string | null
-      owner: string
-      total_tracks: number
-      image_url: string | null
-      external_url: string
-    }>
-    total: number
-  }
-}
-
-/**
  * Get Categories
  */
 export interface SpotifyGetCategoriesParams extends SpotifyBaseParams {
@@ -1221,28 +1027,3 @@ export interface SpotifyGetCategoriesResponse extends ToolResponse {
     total: number
   }
 }
-
-/**
- * Get Category Playlists
- */
-export interface SpotifyGetCategoryPlaylistsParams extends SpotifyBaseParams {
-  categoryId: string
-  country?: string
-  limit?: number
-}
-
-export interface SpotifyGetCategoryPlaylistsResponse extends ToolResponse {
-  output: {
-    playlists: Array<{
-      id: string
-      name: string
-      description: string | null
-      owner: string
-      total_tracks: number
-      image_url: string | null
-      external_url: string
-    }>
-    total: number
-  }
-}
-

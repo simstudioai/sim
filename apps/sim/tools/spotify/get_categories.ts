@@ -80,4 +80,3 @@ export const spotifyGetCategoriesTool: ToolConfig<
     total: { type: 'number', description: 'Total number of categories' },
   },
 }
-

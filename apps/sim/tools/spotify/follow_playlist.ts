@@ -59,4 +59,3 @@ export const spotifyFollowPlaylistTool: ToolConfig<
     success: { type: 'boolean', description: 'Whether follow succeeded' },
   },
 }
-

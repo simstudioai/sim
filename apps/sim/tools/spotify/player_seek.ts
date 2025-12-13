@@ -1,5 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
-import type { ToolResponse } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifySeekParams {
   accessToken: string
@@ -66,4 +65,3 @@ export const spotifySeekTool: ToolConfig<SpotifySeekParams, SpotifySeekResponse>
     success: { type: 'boolean', description: 'Whether seek was successful' },
   },
 }
-

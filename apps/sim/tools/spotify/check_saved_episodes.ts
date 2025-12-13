@@ -56,4 +56,3 @@ export const spotifyCheckSavedEpisodesTool: ToolConfig<
     results: { type: 'json', description: 'Array of booleans for each episode' },
   },
 }
-

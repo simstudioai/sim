@@ -56,4 +56,3 @@ export const spotifyGetCurrentUserTool: ToolConfig<
     external_url: { type: 'string', description: 'Spotify profile URL' },
   },
 }
-

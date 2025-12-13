@@ -1,7 +1,10 @@
 import type { ToolConfig } from '@/tools/types'
 import type { SpotifyGetPlaylistParams, SpotifyGetPlaylistResponse } from './types'
 
-export const spotifyGetPlaylistTool: ToolConfig<SpotifyGetPlaylistParams, SpotifyGetPlaylistResponse> = {
+export const spotifyGetPlaylistTool: ToolConfig<
+  SpotifyGetPlaylistParams,
+  SpotifyGetPlaylistResponse
+> = {
   id: 'spotify_get_playlist',
   name: 'Spotify Get Playlist',
   description: 'Get detailed information about a playlist on Spotify by its ID.',
@@ -78,4 +81,3 @@ export const spotifyGetPlaylistTool: ToolConfig<SpotifyGetPlaylistParams, Spotif
     external_url: { type: 'string', description: 'Spotify URL' },
   },
 }
-

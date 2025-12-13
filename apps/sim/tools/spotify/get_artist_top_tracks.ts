@@ -7,7 +7,7 @@ export const spotifyGetArtistTopTracksTool: ToolConfig<
 > = {
   id: 'spotify_get_artist_top_tracks',
   name: 'Spotify Get Artist Top Tracks',
-  description: "Get the top 10 most popular tracks by an artist on Spotify.",
+  description: 'Get the top 10 most popular tracks by an artist on Spotify.',
   version: '1.0.0',
 
   oauth: {
@@ -87,4 +87,3 @@ export const spotifyGetArtistTopTracksTool: ToolConfig<
     },
   },
 }
-

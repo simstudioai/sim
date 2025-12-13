@@ -50,4 +50,3 @@ export const spotifyPauseTool: ToolConfig<SpotifyPauseParams, SpotifyPauseRespon
     success: { type: 'boolean', description: 'Whether playback was paused' },
   },
 }
-

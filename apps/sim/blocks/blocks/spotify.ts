@@ -12,7 +12,7 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
     'Integrate Spotify into your workflow. Search for tracks, albums, artists, and playlists. Manage playlists, access your library, control playback, browse podcasts and audiobooks.',
   docsLink: 'https://docs.sim.ai/tools/spotify',
   category: 'tools',
-  bgColor: '#1DB954',
+  bgColor: '#000000',
   icon: SpotifyIcon,
   subBlocks: [
     {
@@ -60,11 +60,23 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
         // Audiobooks
         { label: 'Get Audiobook', id: 'spotify_get_audiobook', group: 'Audiobooks' },
         { label: 'Get Multiple Audiobooks', id: 'spotify_get_audiobooks', group: 'Audiobooks' },
-        { label: 'Get Audiobook Chapters', id: 'spotify_get_audiobook_chapters', group: 'Audiobooks' },
+        {
+          label: 'Get Audiobook Chapters',
+          id: 'spotify_get_audiobook_chapters',
+          group: 'Audiobooks',
+        },
         { label: 'Get Saved Audiobooks', id: 'spotify_get_saved_audiobooks', group: 'Audiobooks' },
         { label: 'Save Audiobooks', id: 'spotify_save_audiobooks', group: 'Audiobooks' },
-        { label: 'Remove Saved Audiobooks', id: 'spotify_remove_saved_audiobooks', group: 'Audiobooks' },
-        { label: 'Check Saved Audiobooks', id: 'spotify_check_saved_audiobooks', group: 'Audiobooks' },
+        {
+          label: 'Remove Saved Audiobooks',
+          id: 'spotify_remove_saved_audiobooks',
+          group: 'Audiobooks',
+        },
+        {
+          label: 'Check Saved Audiobooks',
+          id: 'spotify_check_saved_audiobooks',
+          group: 'Audiobooks',
+        },
         // Playlists
         { label: 'Get Playlist', id: 'spotify_get_playlist', group: 'Playlists' },
         { label: 'Get Playlist Tracks', id: 'spotify_get_playlist_tracks', group: 'Playlists' },
@@ -73,13 +85,33 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
         { label: 'Create Playlist', id: 'spotify_create_playlist', group: 'Playlists' },
         { label: 'Update Playlist', id: 'spotify_update_playlist', group: 'Playlists' },
         { label: 'Add Playlist Cover', id: 'spotify_add_playlist_cover', group: 'Playlists' },
-        { label: 'Add Tracks to Playlist', id: 'spotify_add_tracks_to_playlist', group: 'Playlists' },
-        { label: 'Remove Tracks from Playlist', id: 'spotify_remove_tracks_from_playlist', group: 'Playlists' },
-        { label: 'Reorder Playlist Items', id: 'spotify_reorder_playlist_items', group: 'Playlists' },
-        { label: 'Replace Playlist Items', id: 'spotify_replace_playlist_items', group: 'Playlists' },
+        {
+          label: 'Add Tracks to Playlist',
+          id: 'spotify_add_tracks_to_playlist',
+          group: 'Playlists',
+        },
+        {
+          label: 'Remove Tracks from Playlist',
+          id: 'spotify_remove_tracks_from_playlist',
+          group: 'Playlists',
+        },
+        {
+          label: 'Reorder Playlist Items',
+          id: 'spotify_reorder_playlist_items',
+          group: 'Playlists',
+        },
+        {
+          label: 'Replace Playlist Items',
+          id: 'spotify_replace_playlist_items',
+          group: 'Playlists',
+        },
         { label: 'Follow Playlist', id: 'spotify_follow_playlist', group: 'Playlists' },
         { label: 'Unfollow Playlist', id: 'spotify_unfollow_playlist', group: 'Playlists' },
-        { label: 'Check Playlist Followers', id: 'spotify_check_playlist_followers', group: 'Playlists' },
+        {
+          label: 'Check Playlist Followers',
+          id: 'spotify_check_playlist_followers',
+          group: 'Playlists',
+        },
         // User Profile & Library
         { label: 'Get My Profile', id: 'spotify_get_current_user', group: 'User & Library' },
         { label: 'Get User Profile', id: 'spotify_get_user_profile', group: 'User & Library' },
@@ -87,9 +119,17 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
         { label: 'Get My Top Artists', id: 'spotify_get_top_artists', group: 'User & Library' },
         { label: 'Get Saved Tracks', id: 'spotify_get_saved_tracks', group: 'User & Library' },
         { label: 'Save Tracks', id: 'spotify_save_tracks', group: 'User & Library' },
-        { label: 'Remove Saved Tracks', id: 'spotify_remove_saved_tracks', group: 'User & Library' },
+        {
+          label: 'Remove Saved Tracks',
+          id: 'spotify_remove_saved_tracks',
+          group: 'User & Library',
+        },
         { label: 'Check Saved Tracks', id: 'spotify_check_saved_tracks', group: 'User & Library' },
-        { label: 'Get Recently Played', id: 'spotify_get_recently_played', group: 'User & Library' },
+        {
+          label: 'Get Recently Played',
+          id: 'spotify_get_recently_played',
+          group: 'User & Library',
+        },
         // Browse
         { label: 'Get New Releases', id: 'spotify_get_new_releases', group: 'Browse' },
         { label: 'Get Categories', id: 'spotify_get_categories', group: 'Browse' },
@@ -155,7 +195,15 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       type: 'short-input',
       placeholder: 'Comma-separated track IDs',
       required: true,
-      condition: { field: 'operation', value: ['spotify_get_tracks', 'spotify_save_tracks', 'spotify_remove_saved_tracks', 'spotify_check_saved_tracks'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'spotify_get_tracks',
+          'spotify_save_tracks',
+          'spotify_remove_saved_tracks',
+          'spotify_check_saved_tracks',
+        ],
+      },
     },
 
     // === ALBUM ID ===
@@ -173,7 +221,15 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       type: 'short-input',
       placeholder: 'Comma-separated album IDs',
       required: true,
-      condition: { field: 'operation', value: ['spotify_get_albums', 'spotify_save_albums', 'spotify_remove_saved_albums', 'spotify_check_saved_albums'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'spotify_get_albums',
+          'spotify_save_albums',
+          'spotify_remove_saved_albums',
+          'spotify_check_saved_albums',
+        ],
+      },
     },
 
     // === ARTIST ID ===
@@ -215,7 +271,15 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       type: 'short-input',
       placeholder: 'Comma-separated show IDs',
       required: true,
-      condition: { field: 'operation', value: ['spotify_get_shows', 'spotify_save_shows', 'spotify_remove_saved_shows', 'spotify_check_saved_shows'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'spotify_get_shows',
+          'spotify_save_shows',
+          'spotify_remove_saved_shows',
+          'spotify_check_saved_shows',
+        ],
+      },
     },
 
     // === EPISODE IDs ===
@@ -233,7 +297,15 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       type: 'short-input',
       placeholder: 'Comma-separated episode IDs',
       required: true,
-      condition: { field: 'operation', value: ['spotify_get_episodes', 'spotify_save_episodes', 'spotify_remove_saved_episodes', 'spotify_check_saved_episodes'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'spotify_get_episodes',
+          'spotify_save_episodes',
+          'spotify_remove_saved_episodes',
+          'spotify_check_saved_episodes',
+        ],
+      },
     },
 
     // === AUDIOBOOK IDs ===
@@ -243,7 +315,10 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       type: 'short-input',
       placeholder: 'Spotify audiobook ID',
       required: true,
-      condition: { field: 'operation', value: ['spotify_get_audiobook', 'spotify_get_audiobook_chapters'] },
+      condition: {
+        field: 'operation',
+        value: ['spotify_get_audiobook', 'spotify_get_audiobook_chapters'],
+      },
     },
     {
       id: 'audiobookIds',
@@ -251,7 +326,15 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       type: 'short-input',
       placeholder: 'Comma-separated audiobook IDs',
       required: true,
-      condition: { field: 'operation', value: ['spotify_get_audiobooks', 'spotify_save_audiobooks', 'spotify_remove_saved_audiobooks', 'spotify_check_saved_audiobooks'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'spotify_get_audiobooks',
+          'spotify_save_audiobooks',
+          'spotify_remove_saved_audiobooks',
+          'spotify_check_saved_audiobooks',
+        ],
+      },
     },
 
     // === CHECK FOLLOWING ===
@@ -330,14 +413,20 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       title: 'Playlist Description',
       type: 'long-input',
       placeholder: 'Optional description for the playlist',
-      condition: { field: 'operation', value: ['spotify_create_playlist', 'spotify_update_playlist'] },
+      condition: {
+        field: 'operation',
+        value: ['spotify_create_playlist', 'spotify_update_playlist'],
+      },
     },
     {
       id: 'public',
       title: 'Public',
       type: 'switch',
       defaultValue: true,
-      condition: { field: 'operation', value: ['spotify_create_playlist', 'spotify_update_playlist', 'spotify_follow_playlist'] },
+      condition: {
+        field: 'operation',
+        value: ['spotify_create_playlist', 'spotify_update_playlist', 'spotify_follow_playlist'],
+      },
     },
 
     // === CHECK PLAYLIST FOLLOWERS ===
@@ -394,7 +483,11 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       required: true,
       condition: {
         field: 'operation',
-        value: ['spotify_add_tracks_to_playlist', 'spotify_remove_tracks_from_playlist', 'spotify_replace_playlist_items'],
+        value: [
+          'spotify_add_tracks_to_playlist',
+          'spotify_remove_tracks_from_playlist',
+          'spotify_replace_playlist_items',
+        ],
       },
     },
 
@@ -421,7 +514,10 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
         { label: 'All Time', id: 'long_term' },
       ],
       value: () => 'medium_term',
-      condition: { field: 'operation', value: ['spotify_get_top_tracks', 'spotify_get_top_artists'] },
+      condition: {
+        field: 'operation',
+        value: ['spotify_get_top_tracks', 'spotify_get_top_artists'],
+      },
     },
 
     // === PLAYER CONTROLS ===
@@ -525,11 +621,8 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
     {
       id: 'limit',
       title: 'Limit',
-      type: 'slider',
-      min: 1,
-      max: 50,
-      step: 1,
-      integer: true,
+      type: 'short-input',
+      placeholder: 'Number of results (1-50, default: 20)',
       condition: {
         field: 'operation',
         value: [
@@ -735,45 +828,518 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
     limit: { type: 'number', description: 'Maximum number of results' },
   },
   outputs: {
-    // Search results
-    tracks: { type: 'json', description: 'List of tracks' },
-    artists: { type: 'json', description: 'List of artists' },
-    albums: { type: 'json', description: 'List of albums' },
-    playlists: { type: 'json', description: 'List of playlists' },
-    shows: { type: 'json', description: 'List of shows/podcasts' },
-    episodes: { type: 'json', description: 'List of episodes' },
-    audiobooks: { type: 'json', description: 'List of audiobooks' },
-    chapters: { type: 'json', description: 'List of chapters' },
-    // Single items
-    id: { type: 'string', description: 'Spotify ID' },
-    name: { type: 'string', description: 'Name of item' },
-    popularity: { type: 'number', description: 'Popularity score (0-100)' },
-    external_url: { type: 'string', description: 'Spotify URL' },
-    image_url: { type: 'string', description: 'Image URL' },
-    images: { type: 'json', description: 'List of images' },
-    // User profile
-    display_name: { type: 'string', description: 'User display name' },
-    email: { type: 'string', description: 'User email' },
-    followers: { type: 'number', description: 'Number of followers' },
-    // Playlist
-    total_tracks: { type: 'number', description: 'Total tracks in playlist' },
-    snapshot_id: { type: 'string', description: 'Playlist snapshot ID' },
-    // Player
-    is_playing: { type: 'boolean', description: 'Whether playback is active' },
-    devices: { type: 'json', description: 'Available devices' },
-    // Browse
-    categories: { type: 'json', description: 'List of browse categories' },
-    markets: { type: 'json', description: 'List of available markets' },
-    // Check Saved
-    results: { type: 'json', description: 'Results of check operation' },
-    // Queue
-    currently_playing: { type: 'json', description: 'Currently playing track' },
-    queue: { type: 'json', description: 'Upcoming tracks in queue' },
-    progress_ms: { type: 'number', description: 'Current playback position' },
-    // General
-    items: { type: 'json', description: 'List of items' },
-    total: { type: 'number', description: 'Total number of items' },
-    next: { type: 'string', description: 'URL for next page' },
-    success: { type: 'boolean', description: 'Whether operation succeeded' },
+    // === SEARCH OUTPUTS ===
+    tracks: {
+      type: 'json',
+      description: 'List of tracks',
+      condition: {
+        field: 'operation',
+        value: [
+          'spotify_search',
+          'spotify_get_tracks',
+          'spotify_get_album_tracks',
+          'spotify_get_playlist_tracks',
+          'spotify_get_artist_top_tracks',
+          'spotify_get_saved_tracks',
+          'spotify_get_top_tracks',
+        ],
+      },
+    },
+    artists: {
+      type: 'json',
+      description: 'List of artists',
+      condition: {
+        field: 'operation',
+        value: [
+          'spotify_search',
+          'spotify_get_artists',
+          'spotify_get_top_artists',
+          'spotify_get_followed_artists',
+        ],
+      },
+    },
+    albums: {
+      type: 'json',
+      description: 'List of albums',
+      condition: {
+        field: 'operation',
+        value: [
+          'spotify_search',
+          'spotify_get_albums',
+          'spotify_get_artist_albums',
+          'spotify_get_saved_albums',
+          'spotify_get_new_releases',
+        ],
+      },
+    },
+    playlists: {
+      type: 'json',
+      description: 'List of playlists',
+      condition: { field: 'operation', value: ['spotify_search', 'spotify_get_user_playlists'] },
+    },
+
+    // === SINGLE ITEM OUTPUTS ===
+    id: {
+      type: 'string',
+      description: 'Spotify ID',
+      condition: {
+        field: 'operation',
+        value: [
+          'spotify_get_track',
+          'spotify_get_album',
+          'spotify_get_artist',
+          'spotify_get_playlist',
+          'spotify_get_show',
+          'spotify_get_episode',
+          'spotify_get_audiobook',
+          'spotify_get_current_user',
+          'spotify_get_user_profile',
+          'spotify_create_playlist',
+        ],
+      },
+    },
+    name: {
+      type: 'string',
+      description: 'Name',
+      condition: {
+        field: 'operation',
+        value: [
+          'spotify_get_track',
+          'spotify_get_album',
+          'spotify_get_artist',
+          'spotify_get_playlist',
+          'spotify_get_show',
+          'spotify_get_episode',
+          'spotify_get_audiobook',
+          'spotify_create_playlist',
+        ],
+      },
+    },
+    uri: {
+      type: 'string',
+      description: 'Spotify URI',
+      condition: { field: 'operation', value: 'spotify_get_track' },
+    },
+    external_url: {
+      type: 'string',
+      description: 'Spotify URL',
+      condition: {
+        field: 'operation',
+        value: [
+          'spotify_get_track',
+          'spotify_get_album',
+          'spotify_get_artist',
+          'spotify_get_playlist',
+          'spotify_get_show',
+          'spotify_get_episode',
+          'spotify_get_audiobook',
+          'spotify_get_current_user',
+          'spotify_get_user_profile',
+          'spotify_create_playlist',
+        ],
+      },
+    },
+    image_url: {
+      type: 'string',
+      description: 'Cover/profile image URL',
+      condition: {
+        field: 'operation',
+        value: [
+          'spotify_get_track',
+          'spotify_get_album',
+          'spotify_get_artist',
+          'spotify_get_playlist',
+          'spotify_get_show',
+          'spotify_get_episode',
+          'spotify_get_audiobook',
+          'spotify_get_current_user',
+          'spotify_get_user_profile',
+          'spotify_get_playlist_cover',
+        ],
+      },
+    },
+    popularity: {
+      type: 'number',
+      description: 'Popularity score (0-100)',
+      condition: {
+        field: 'operation',
+        value: ['spotify_get_track', 'spotify_get_album', 'spotify_get_artist'],
+      },
+    },
+
+    // === TRACK OUTPUTS ===
+    album: {
+      type: 'json',
+      description: 'Album information',
+      condition: { field: 'operation', value: 'spotify_get_track' },
+    },
+    duration_ms: {
+      type: 'number',
+      description: 'Duration in milliseconds',
+      condition: { field: 'operation', value: ['spotify_get_track', 'spotify_get_episode'] },
+    },
+    explicit: {
+      type: 'boolean',
+      description: 'Contains explicit content',
+      condition: {
+        field: 'operation',
+        value: ['spotify_get_track', 'spotify_get_show', 'spotify_get_episode'],
+      },
+    },
+    preview_url: {
+      type: 'string',
+      description: 'URL to 30-second preview',
+      condition: { field: 'operation', value: 'spotify_get_track' },
+    },
+
+    // === ALBUM OUTPUTS ===
+    album_type: {
+      type: 'string',
+      description: 'Album type (album, single, compilation)',
+      condition: { field: 'operation', value: 'spotify_get_album' },
+    },
+    release_date: {
+      type: 'string',
+      description: 'Release date',
+      condition: { field: 'operation', value: ['spotify_get_album', 'spotify_get_episode'] },
+    },
+    label: {
+      type: 'string',
+      description: 'Record label',
+      condition: { field: 'operation', value: 'spotify_get_album' },
+    },
+    total_tracks: {
+      type: 'number',
+      description: 'Total tracks',
+      condition: { field: 'operation', value: ['spotify_get_album', 'spotify_get_playlist'] },
+    },
+    genres: {
+      type: 'json',
+      description: 'List of genres',
+      condition: { field: 'operation', value: ['spotify_get_album', 'spotify_get_artist'] },
+    },
+
+    // === ARTIST OUTPUTS ===
+    followers: {
+      type: 'number',
+      description: 'Number of followers',
+      condition: {
+        field: 'operation',
+        value: ['spotify_get_artist', 'spotify_get_current_user', 'spotify_get_user_profile'],
+      },
+    },
+
+    // === PLAYLIST OUTPUTS ===
+    description: {
+      type: 'string',
+      description: 'Description',
+      condition: {
+        field: 'operation',
+        value: [
+          'spotify_get_playlist',
+          'spotify_get_show',
+          'spotify_get_episode',
+          'spotify_get_audiobook',
+          'spotify_create_playlist',
+        ],
+      },
+    },
+    owner: {
+      type: 'json',
+      description: 'Playlist owner information',
+      condition: { field: 'operation', value: ['spotify_get_playlist', 'spotify_create_playlist'] },
+    },
+    public: {
+      type: 'boolean',
+      description: 'Whether playlist is public',
+      condition: { field: 'operation', value: ['spotify_get_playlist', 'spotify_create_playlist'] },
+    },
+    collaborative: {
+      type: 'boolean',
+      description: 'Whether playlist is collaborative',
+      condition: { field: 'operation', value: ['spotify_get_playlist', 'spotify_create_playlist'] },
+    },
+    snapshot_id: {
+      type: 'string',
+      description: 'Playlist version snapshot ID',
+      condition: {
+        field: 'operation',
+        value: [
+          'spotify_get_playlist',
+          'spotify_create_playlist',
+          'spotify_add_tracks_to_playlist',
+          'spotify_remove_tracks_from_playlist',
+          'spotify_reorder_playlist_items',
+          'spotify_replace_playlist_items',
+        ],
+      },
+    },
+
+    // === SHOW/PODCAST OUTPUTS ===
+    publisher: {
+      type: 'string',
+      description: 'Publisher name',
+      condition: { field: 'operation', value: ['spotify_get_show', 'spotify_get_audiobook'] },
+    },
+    total_episodes: {
+      type: 'number',
+      description: 'Total episodes in show',
+      condition: { field: 'operation', value: 'spotify_get_show' },
+    },
+    shows: {
+      type: 'json',
+      description: 'List of shows/podcasts',
+      condition: { field: 'operation', value: ['spotify_get_shows', 'spotify_get_saved_shows'] },
+    },
+    languages: {
+      type: 'json',
+      description: 'List of languages',
+      condition: { field: 'operation', value: ['spotify_get_show', 'spotify_get_audiobook'] },
+    },
+
+    // === EPISODE OUTPUTS ===
+    show: {
+      type: 'json',
+      description: 'Parent show information',
+      condition: { field: 'operation', value: 'spotify_get_episode' },
+    },
+    episodes: {
+      type: 'json',
+      description: 'List of episodes',
+      condition: {
+        field: 'operation',
+        value: ['spotify_get_episodes', 'spotify_get_show_episodes', 'spotify_get_saved_episodes'],
+      },
+    },
+
+    // === AUDIOBOOK OUTPUTS ===
+    authors: {
+      type: 'json',
+      description: 'List of authors',
+      condition: { field: 'operation', value: 'spotify_get_audiobook' },
+    },
+    narrators: {
+      type: 'json',
+      description: 'List of narrators',
+      condition: { field: 'operation', value: 'spotify_get_audiobook' },
+    },
+    total_chapters: {
+      type: 'number',
+      description: 'Total chapters',
+      condition: { field: 'operation', value: 'spotify_get_audiobook' },
+    },
+    audiobooks: {
+      type: 'json',
+      description: 'List of audiobooks',
+      condition: {
+        field: 'operation',
+        value: ['spotify_get_audiobooks', 'spotify_get_saved_audiobooks'],
+      },
+    },
+    chapters: {
+      type: 'json',
+      description: 'List of chapters',
+      condition: { field: 'operation', value: 'spotify_get_audiobook_chapters' },
+    },
+
+    // === USER PROFILE OUTPUTS ===
+    display_name: {
+      type: 'string',
+      description: 'User display name',
+      condition: {
+        field: 'operation',
+        value: ['spotify_get_current_user', 'spotify_get_user_profile'],
+      },
+    },
+    email: {
+      type: 'string',
+      description: 'User email address',
+      condition: { field: 'operation', value: 'spotify_get_current_user' },
+    },
+    country: {
+      type: 'string',
+      description: 'User country code',
+      condition: { field: 'operation', value: 'spotify_get_current_user' },
+    },
+    product: {
+      type: 'string',
+      description: 'Subscription level (free, premium)',
+      condition: { field: 'operation', value: 'spotify_get_current_user' },
+    },
+
+    // === PLAYER STATE OUTPUTS ===
+    is_playing: {
+      type: 'boolean',
+      description: 'Whether playback is active',
+      condition: {
+        field: 'operation',
+        value: ['spotify_get_playback_state', 'spotify_get_currently_playing'],
+      },
+    },
+    device: {
+      type: 'json',
+      description: 'Active device information',
+      condition: { field: 'operation', value: 'spotify_get_playback_state' },
+    },
+    devices: {
+      type: 'json',
+      description: 'Available playback devices',
+      condition: { field: 'operation', value: 'spotify_get_devices' },
+    },
+    progress_ms: {
+      type: 'number',
+      description: 'Current playback position in ms',
+      condition: {
+        field: 'operation',
+        value: ['spotify_get_playback_state', 'spotify_get_currently_playing'],
+      },
+    },
+    currently_playing_type: {
+      type: 'string',
+      description: 'Type of content (track, episode, ad)',
+      condition: { field: 'operation', value: 'spotify_get_playback_state' },
+    },
+    shuffle_state: {
+      type: 'boolean',
+      description: 'Whether shuffle is enabled',
+      condition: { field: 'operation', value: 'spotify_get_playback_state' },
+    },
+    repeat_state: {
+      type: 'string',
+      description: 'Repeat mode (off, track, context)',
+      condition: { field: 'operation', value: 'spotify_get_playback_state' },
+    },
+    track: {
+      type: 'json',
+      description: 'Currently playing track',
+      condition: {
+        field: 'operation',
+        value: ['spotify_get_playback_state', 'spotify_get_currently_playing'],
+      },
+    },
+    currently_playing: {
+      type: 'json',
+      description: 'Currently playing item',
+      condition: { field: 'operation', value: 'spotify_get_queue' },
+    },
+    queue: {
+      type: 'json',
+      description: 'Upcoming tracks in queue',
+      condition: { field: 'operation', value: 'spotify_get_queue' },
+    },
+
+    // === RECENTLY PLAYED OUTPUTS ===
+    items: {
+      type: 'json',
+      description: 'List of recently played items',
+      condition: { field: 'operation', value: 'spotify_get_recently_played' },
+    },
+
+    // === BROWSE OUTPUTS ===
+    categories: {
+      type: 'json',
+      description: 'List of browse categories',
+      condition: { field: 'operation', value: 'spotify_get_categories' },
+    },
+    markets: {
+      type: 'json',
+      description: 'List of available market codes',
+      condition: { field: 'operation', value: 'spotify_get_markets' },
+    },
+
+    // === CHECK SAVED OUTPUTS ===
+    results: {
+      type: 'json',
+      description: 'Check operation results (id and saved boolean)',
+      condition: {
+        field: 'operation',
+        value: [
+          'spotify_check_saved_tracks',
+          'spotify_check_saved_albums',
+          'spotify_check_saved_shows',
+          'spotify_check_saved_episodes',
+          'spotify_check_saved_audiobooks',
+          'spotify_check_following',
+          'spotify_check_playlist_followers',
+        ],
+      },
+    },
+
+    // === PAGINATION OUTPUTS ===
+    total: {
+      type: 'number',
+      description: 'Total number of items',
+      condition: {
+        field: 'operation',
+        value: [
+          'spotify_get_album_tracks',
+          'spotify_get_artist_albums',
+          'spotify_get_playlist_tracks',
+          'spotify_get_user_playlists',
+          'spotify_get_saved_tracks',
+          'spotify_get_saved_albums',
+          'spotify_get_top_tracks',
+          'spotify_get_top_artists',
+          'spotify_get_new_releases',
+          'spotify_get_categories',
+        ],
+      },
+    },
+    next: {
+      type: 'string',
+      description: 'URL for next page of results',
+      condition: {
+        field: 'operation',
+        value: [
+          'spotify_get_album_tracks',
+          'spotify_get_artist_albums',
+          'spotify_get_playlist_tracks',
+          'spotify_get_user_playlists',
+          'spotify_get_saved_tracks',
+          'spotify_get_saved_albums',
+          'spotify_get_top_tracks',
+          'spotify_get_top_artists',
+          'spotify_get_recently_played',
+          'spotify_get_new_releases',
+        ],
+      },
+    },
+
+    // === OPERATION RESULT OUTPUTS ===
+    success: {
+      type: 'boolean',
+      description: 'Whether operation succeeded',
+      condition: {
+        field: 'operation',
+        value: [
+          'spotify_play',
+          'spotify_pause',
+          'spotify_skip_next',
+          'spotify_skip_previous',
+          'spotify_seek',
+          'spotify_set_volume',
+          'spotify_set_repeat',
+          'spotify_set_shuffle',
+          'spotify_transfer_playback',
+          'spotify_add_to_queue',
+          'spotify_save_tracks',
+          'spotify_remove_saved_tracks',
+          'spotify_save_albums',
+          'spotify_remove_saved_albums',
+          'spotify_save_shows',
+          'spotify_remove_saved_shows',
+          'spotify_save_episodes',
+          'spotify_remove_saved_episodes',
+          'spotify_save_audiobooks',
+          'spotify_remove_saved_audiobooks',
+          'spotify_follow_artists',
+          'spotify_unfollow_artists',
+          'spotify_follow_playlist',
+          'spotify_unfollow_playlist',
+          'spotify_update_playlist',
+          'spotify_add_playlist_cover',
+        ],
+      },
+    },
   },
 }

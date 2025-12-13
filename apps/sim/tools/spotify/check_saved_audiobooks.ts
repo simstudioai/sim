@@ -56,4 +56,3 @@ export const spotifyCheckSavedAudiobooksTool: ToolConfig<
     results: { type: 'json', description: 'Array of booleans for each audiobook' },
   },
 }
-

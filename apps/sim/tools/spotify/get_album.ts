@@ -4,7 +4,8 @@ import type { SpotifyGetAlbumParams, SpotifyGetAlbumResponse } from './types'
 export const spotifyGetAlbumTool: ToolConfig<SpotifyGetAlbumParams, SpotifyGetAlbumResponse> = {
   id: 'spotify_get_album',
   name: 'Spotify Get Album',
-  description: 'Get detailed information about an album on Spotify by its ID, including track listing.',
+  description:
+    'Get detailed information about an album on Spotify by its ID, including track listing.',
   version: '1.0.0',
 
   oauth: {
@@ -84,4 +85,3 @@ export const spotifyGetAlbumTool: ToolConfig<SpotifyGetAlbumParams, SpotifyGetAl
     external_url: { type: 'string', description: 'Spotify URL' },
   },
 }
-

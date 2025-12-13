@@ -254,7 +254,9 @@ export class LoggingSession {
       }
 
       if (this.requestId) {
-        logger.debug(`[${this.requestId}] Completed error logging for execution ${this.executionId}`)
+        logger.debug(
+          `[${this.requestId}] Completed error logging for execution ${this.executionId}`
+        )
       }
     } catch (enhancedError) {
       // Always log completion failures with full details
@@ -330,7 +332,9 @@ export class LoggingSession {
       await this.complete(params)
     } catch (error) {
       // Error already logged in complete(), log a summary here
-      logger.warn(`[${this.requestId || 'unknown'}] Logging completion failed for execution ${this.executionId} - execution data not persisted`)
+      logger.warn(
+        `[${this.requestId || 'unknown'}] Logging completion failed for execution ${this.executionId} - execution data not persisted`
+      )
     }
   }
 
@@ -339,7 +343,9 @@ export class LoggingSession {
       await this.completeWithError(error)
     } catch (enhancedError) {
       // Error already logged in completeWithError(), log a summary here
-      logger.warn(`[${this.requestId || 'unknown'}] Error logging completion failed for execution ${this.executionId} - execution data not persisted`)
+      logger.warn(
+        `[${this.requestId || 'unknown'}] Error logging completion failed for execution ${this.executionId} - execution data not persisted`
+      )
     }
   }
 }

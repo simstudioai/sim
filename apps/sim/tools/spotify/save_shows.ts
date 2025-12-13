@@ -52,4 +52,3 @@ export const spotifySaveShowsTool: ToolConfig<SpotifySaveShowsParams, SpotifySav
     success: { type: 'boolean', description: 'Whether shows were saved' },
   },
 }
-

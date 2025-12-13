@@ -55,4 +55,3 @@ export const spotifyRemoveSavedAudiobooksTool: ToolConfig<
     success: { type: 'boolean', description: 'Whether audiobooks were removed' },
   },
 }
-

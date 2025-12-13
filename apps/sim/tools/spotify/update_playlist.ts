@@ -74,4 +74,3 @@ export const spotifyUpdatePlaylistTool: ToolConfig<
     success: { type: 'boolean', description: 'Whether update succeeded' },
   },
 }
-

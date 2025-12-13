@@ -64,4 +64,3 @@ export const spotifyGetPlaylistCoverTool: ToolConfig<
     images: { type: 'json', description: 'List of cover images' },
   },
 }
-

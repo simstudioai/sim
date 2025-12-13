@@ -67,4 +67,3 @@ export const spotifyReplacePlaylistItemsTool: ToolConfig<
     snapshot_id: { type: 'string', description: 'New playlist snapshot ID' },
   },
 }
-

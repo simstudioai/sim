@@ -104,4 +104,3 @@ export const spotifyGetShowEpisodesTool: ToolConfig<
     next: { type: 'string', description: 'URL for next page', optional: true },
   },
 }
-

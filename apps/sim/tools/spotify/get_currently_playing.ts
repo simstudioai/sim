@@ -1,5 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
-import type { ToolResponse } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyGetCurrentlyPlayingParams {
   accessToken: string
@@ -107,4 +106,3 @@ export const spotifyGetCurrentlyPlayingTool: ToolConfig<
     track: { type: 'json', description: 'Currently playing track', optional: true },
   },
 }
-

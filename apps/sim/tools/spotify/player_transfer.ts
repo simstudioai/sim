@@ -1,5 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
-import type { ToolResponse } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyTransferPlaybackParams {
   accessToken: string
@@ -68,4 +67,3 @@ export const spotifyTransferPlaybackTool: ToolConfig<
     success: { type: 'boolean', description: 'Whether transfer was successful' },
   },
 }
-

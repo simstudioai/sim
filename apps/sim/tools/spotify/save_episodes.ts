@@ -55,4 +55,3 @@ export const spotifySaveEpisodesTool: ToolConfig<
     success: { type: 'boolean', description: 'Whether episodes were saved' },
   },
 }
-

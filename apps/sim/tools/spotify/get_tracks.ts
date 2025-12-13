@@ -92,4 +92,3 @@ export const spotifyGetTracksTool: ToolConfig<SpotifyGetTracksParams, SpotifyGet
     },
   },
 }
-

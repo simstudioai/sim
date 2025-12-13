@@ -1,5 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
-import type { ToolResponse } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyRemoveSavedTracksParams {
   accessToken: string
@@ -62,4 +61,3 @@ export const spotifyRemoveSavedTracksTool: ToolConfig<
     success: { type: 'boolean', description: 'Whether tracks were removed successfully' },
   },
 }
-

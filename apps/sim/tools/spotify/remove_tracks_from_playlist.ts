@@ -1,5 +1,8 @@
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyRemoveTracksFromPlaylistParams, SpotifyRemoveTracksFromPlaylistResponse } from './types'
+import type {
+  SpotifyRemoveTracksFromPlaylistParams,
+  SpotifyRemoveTracksFromPlaylistResponse,
+} from './types'
 
 export const spotifyRemoveTracksFromPlaylistTool: ToolConfig<
   SpotifyRemoveTracksFromPlaylistParams,
@@ -27,7 +30,8 @@ export const spotifyRemoveTracksFromPlaylistTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comma-separated Spotify URIs to remove (e.g., "spotify:track:xxx,spotify:track:yyy")',
+      description:
+        'Comma-separated Spotify URIs to remove (e.g., "spotify:track:xxx,spotify:track:yyy")',
     },
   },
 
@@ -59,4 +63,3 @@ export const spotifyRemoveTracksFromPlaylistTool: ToolConfig<
     snapshot_id: { type: 'string', description: 'New playlist snapshot ID after modification' },
   },
 }
-

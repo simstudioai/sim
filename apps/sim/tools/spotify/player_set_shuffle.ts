@@ -1,5 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
-import type { ToolResponse } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifySetShuffleParams {
   accessToken: string
@@ -67,4 +66,3 @@ export const spotifySetShuffleTool: ToolConfig<SpotifySetShuffleParams, SpotifyS
       success: { type: 'boolean', description: 'Whether shuffle was set successfully' },
     },
   }
-

@@ -55,4 +55,3 @@ export const spotifyRemoveSavedEpisodesTool: ToolConfig<
     success: { type: 'boolean', description: 'Whether episodes were removed' },
   },
 }
-

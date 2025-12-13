@@ -62,4 +62,3 @@ export const spotifyCheckPlaylistFollowersTool: ToolConfig<
     results: { type: 'json', description: 'Array of booleans for each user' },
   },
 }
-

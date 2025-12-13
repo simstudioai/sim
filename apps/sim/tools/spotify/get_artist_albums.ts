@@ -7,7 +7,7 @@ export const spotifyGetArtistAlbumsTool: ToolConfig<
 > = {
   id: 'spotify_get_artist_albums',
   name: 'Spotify Get Artist Albums',
-  description: "Get albums by an artist on Spotify. Can filter by album type.",
+  description: 'Get albums by an artist on Spotify. Can filter by album type.',
   version: '1.0.0',
 
   oauth: {
@@ -114,4 +114,3 @@ export const spotifyGetArtistAlbumsTool: ToolConfig<
     next: { type: 'string', description: 'URL for next page of results', optional: true },
   },
 }
-

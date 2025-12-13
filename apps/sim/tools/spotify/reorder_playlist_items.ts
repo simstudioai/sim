@@ -89,4 +89,3 @@ export const spotifyReorderPlaylistItemsTool: ToolConfig<
     snapshot_id: { type: 'string', description: 'New playlist snapshot ID' },
   },
 }
-

@@ -4,7 +4,8 @@ import type { SpotifyPlayParams, SpotifyPlayResponse } from './types'
 export const spotifyPlayTool: ToolConfig<SpotifyPlayParams, SpotifyPlayResponse> = {
   id: 'spotify_play',
   name: 'Spotify Play',
-  description: 'Start or resume playback on Spotify. Can play specific tracks, albums, or playlists.',
+  description:
+    'Start or resume playback on Spotify. Can play specific tracks, albums, or playlists.',
   version: '1.0.0',
 
   oauth: {
@@ -30,7 +31,8 @@ export const spotifyPlayTool: ToolConfig<SpotifyPlayParams, SpotifyPlayResponse>
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated track URIs to play (e.g., "spotify:track:xxx,spotify:track:yyy")',
+      description:
+        'Comma-separated track URIs to play (e.g., "spotify:track:xxx,spotify:track:yyy")',
     },
     offset: {
       type: 'number',
@@ -90,4 +92,3 @@ export const spotifyPlayTool: ToolConfig<SpotifyPlayParams, SpotifyPlayResponse>
     success: { type: 'boolean', description: 'Whether playback started successfully' },
   },
 }
-

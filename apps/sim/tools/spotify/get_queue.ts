@@ -1,5 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
-import type { ToolResponse } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyGetQueueParams {
   accessToken: string
@@ -84,4 +83,3 @@ export const spotifyGetQueueTool: ToolConfig<SpotifyGetQueueParams, SpotifyGetQu
     queue: { type: 'json', description: 'Upcoming tracks in queue' },
   },
 }
-

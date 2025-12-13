@@ -102,4 +102,3 @@ export const spotifyGetSavedTracksTool: ToolConfig<
     next: { type: 'string', description: 'URL for next page', optional: true },
   },
 }
-

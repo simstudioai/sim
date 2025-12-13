@@ -48,4 +48,3 @@ export const spotifyUnfollowPlaylistTool: ToolConfig<
     success: { type: 'boolean', description: 'Whether unfollow succeeded' },
   },
 }
-

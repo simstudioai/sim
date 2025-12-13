@@ -89,4 +89,3 @@ export const spotifyGetEpisodesTool: ToolConfig<
     episodes: { type: 'json', description: 'List of episodes' },
   },
 }
-

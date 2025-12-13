@@ -82,4 +82,3 @@ export const spotifyGetShowsTool: ToolConfig<SpotifyGetShowsParams, SpotifyGetSh
     shows: { type: 'json', description: 'List of shows' },
   },
 }
-

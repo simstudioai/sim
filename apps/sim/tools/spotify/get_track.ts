@@ -79,4 +79,3 @@ export const spotifyGetTrackTool: ToolConfig<SpotifyGetTrackParams, SpotifyGetTr
     uri: { type: 'string', description: 'Spotify URI for the track' },
   },
 }
-

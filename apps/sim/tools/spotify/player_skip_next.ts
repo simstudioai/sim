@@ -50,4 +50,3 @@ export const spotifySkipNextTool: ToolConfig<SpotifySkipNextParams, SpotifySkipN
     success: { type: 'boolean', description: 'Whether skip was successful' },
   },
 }
-

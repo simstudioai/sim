@@ -95,4 +95,3 @@ export const spotifyGetSavedAudiobooksTool: ToolConfig<
     next: { type: 'string', description: 'URL for next page', optional: true },
   },
 }
-

@@ -85,4 +85,3 @@ export const spotifyGetAudiobooksTool: ToolConfig<
     audiobooks: { type: 'json', description: 'List of audiobooks' },
   },
 }
-

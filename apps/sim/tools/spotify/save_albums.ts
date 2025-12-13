@@ -53,4 +53,3 @@ export const spotifySaveAlbumsTool: ToolConfig<SpotifySaveAlbumsParams, SpotifyS
       success: { type: 'boolean', description: 'Whether albums were saved' },
     },
   }
-

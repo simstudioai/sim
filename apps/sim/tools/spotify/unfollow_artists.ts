@@ -1,5 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
-import type { ToolResponse } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyUnfollowArtistsParams {
   accessToken: string
@@ -63,4 +62,3 @@ export const spotifyUnfollowArtistsTool: ToolConfig<
     success: { type: 'boolean', description: 'Whether artists were unfollowed successfully' },
   },
 }
-

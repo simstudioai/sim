@@ -69,4 +69,3 @@ export const spotifyCheckSavedTracksTool: ToolConfig<
     none_saved: { type: 'boolean', description: 'Whether no tracks are saved' },
   },
 }
-

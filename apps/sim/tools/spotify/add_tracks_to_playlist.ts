@@ -69,4 +69,3 @@ export const spotifyAddTracksToPlaylistTool: ToolConfig<
     snapshot_id: { type: 'string', description: 'New playlist snapshot ID after modification' },
   },
 }
-

@@ -56,4 +56,3 @@ export const spotifyAddPlaylistCoverTool: ToolConfig<
     success: { type: 'boolean', description: 'Whether upload succeeded' },
   },
 }
-

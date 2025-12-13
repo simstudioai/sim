@@ -1,5 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
-import type { ToolResponse } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifySetRepeatParams {
   accessToken: string
@@ -66,4 +65,3 @@ export const spotifySetRepeatTool: ToolConfig<SpotifySetRepeatParams, SpotifySet
     success: { type: 'boolean', description: 'Whether repeat mode was set successfully' },
   },
 }
-

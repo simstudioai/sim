@@ -1,5 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetTopItemsParams, SpotifyGetTopArtistsResponse } from './types'
+import type { SpotifyGetTopArtistsResponse, SpotifyGetTopItemsParams } from './types'
 
 export const spotifyGetTopArtistsTool: ToolConfig<
   SpotifyGetTopItemsParams,
@@ -98,4 +98,3 @@ export const spotifyGetTopArtistsTool: ToolConfig<
     next: { type: 'string', description: 'URL for next page', optional: true },
   },
 }
-

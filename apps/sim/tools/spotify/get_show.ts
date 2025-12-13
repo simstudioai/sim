@@ -87,4 +87,3 @@ export const spotifyGetShowTool: ToolConfig<SpotifyGetShowParams, SpotifyGetShow
     external_url: { type: 'string', description: 'Spotify URL' },
   },
 }
-

@@ -57,4 +57,3 @@ export const spotifyGetArtistTool: ToolConfig<SpotifyGetArtistParams, SpotifyGet
     external_url: { type: 'string', description: 'Spotify URL' },
   },
 }
-

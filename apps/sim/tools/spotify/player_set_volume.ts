@@ -57,4 +57,3 @@ export const spotifySetVolumeTool: ToolConfig<SpotifySetVolumeParams, SpotifySet
     success: { type: 'boolean', description: 'Whether volume was set' },
   },
 }
-

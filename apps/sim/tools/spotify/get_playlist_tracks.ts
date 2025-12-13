@@ -111,4 +111,3 @@ export const spotifyGetPlaylistTracksTool: ToolConfig<
     next: { type: 'string', description: 'URL for next page of results', optional: true },
   },
 }
-

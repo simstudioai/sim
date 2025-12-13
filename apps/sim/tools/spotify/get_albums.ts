@@ -1,5 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
-import type { ToolResponse } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyGetAlbumsParams {
   accessToken: string
@@ -93,4 +92,3 @@ export const spotifyGetAlbumsTool: ToolConfig<SpotifyGetAlbumsParams, SpotifyGet
     albums: { type: 'json', description: 'List of albums' },
   },
 }
-

@@ -1,7 +1,10 @@
 import type { ToolConfig } from '@/tools/types'
 import type { SpotifySkipPreviousParams, SpotifySkipPreviousResponse } from './types'
 
-export const spotifySkipPreviousTool: ToolConfig<SpotifySkipPreviousParams, SpotifySkipPreviousResponse> = {
+export const spotifySkipPreviousTool: ToolConfig<
+  SpotifySkipPreviousParams,
+  SpotifySkipPreviousResponse
+> = {
   id: 'spotify_skip_previous',
   name: 'Spotify Skip to Previous',
   description: 'Skip to the previous track on Spotify.',
@@ -50,4 +53,3 @@ export const spotifySkipPreviousTool: ToolConfig<SpotifySkipPreviousParams, Spot
     success: { type: 'boolean', description: 'Whether skip was successful' },
   },
 }
-

@@ -114,6 +114,7 @@ export type OAuthService =
   | 'zoom'
   | 'wordpress'
   | 'spotify'
+
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -906,25 +907,25 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'spotify',
         icon: (props) => SpotifyIcon(props),
         baseProviderIcon: (props) => SpotifyIcon(props),
-                scopes: [
-                  'user-read-private',
-                  'user-read-email',
-                  'user-library-read',
-                  'user-library-modify',
-                  'playlist-read-private',
-                  'playlist-read-collaborative',
-                  'playlist-modify-public',
-                  'playlist-modify-private',
-                  'user-read-playback-state',
-                  'user-modify-playback-state',
-                  'user-read-currently-playing',
-                  'user-read-recently-played',
-                  'user-top-read',
-                  'user-follow-read',
-                  'user-follow-modify',
-                  'user-read-playback-position',
-                  'ugc-image-upload',
-                ],
+        scopes: [
+          'user-read-private',
+          'user-read-email',
+          'user-library-read',
+          'user-library-modify',
+          'playlist-read-private',
+          'playlist-read-collaborative',
+          'playlist-modify-public',
+          'playlist-modify-private',
+          'user-read-playback-state',
+          'user-modify-playback-state',
+          'user-read-currently-playing',
+          'user-read-recently-played',
+          'user-top-read',
+          'user-follow-read',
+          'user-follow-modify',
+          'user-read-playback-position',
+          'ugc-image-upload',
+        ],
       },
     },
     defaultService: 'spotify',
