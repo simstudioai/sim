@@ -320,11 +320,11 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `baseUrl` | string | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
 | `organizationId` | string | 否 | 多组织 Grafana 实例的组织 ID |
 | `text` | string | 是 | 注释的文本内容 |
-| `tags` | string | 否 | 以逗号分隔的标签列表 |
-| `dashboardUid` | string | 否 | 要添加注释的仪表板 UID \(全局注释可选\) |
+| `tags` | string | 否 | 逗号分隔的标签列表 |
+| `dashboardUid` | string | 是 | 要添加注释的仪表板 UID |
 | `panelId` | number | 否 | 要添加注释的面板 ID |
-| `time` | number | 否 | 起始时间（以 epoch 毫秒为单位，默认为当前时间） |
-| `timeEnd` | number | 否 | 结束时间（以 epoch 毫秒为单位，用于范围注释） |
+| `time` | number | 否 | 开始时间（以纪元毫秒为单位，默认为当前时间） |
+| `timeEnd` | number | 否 | 结束时间（以纪元毫秒为单位，用于范围注释） |
 
 #### 输出
 
@@ -342,15 +342,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | 是 | Grafana 服务账户令牌 |
-| ---INLINE-CODE-PLACEHOLDER-42355e89d407292dbef683bcc5a4fc3e--- | string | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
+| `baseUrl` | string | 是 | Grafana 实例 URL \(例如：https://your-grafana.com\) |
 | `organizationId` | string | 否 | 多组织 Grafana 实例的组织 ID |
-| `from` | number | 否 | 起始时间（以 epoch 毫秒为单位） |
-| `to` | number | 否 | 结束时间（以 epoch 毫秒为单位） |
-| `dashboardUid` | string | 否 | 按仪表板 UID 过滤 |
+| `from` | number | 否 | 开始时间（以纪元毫秒为单位） |
+| `to` | number | 否 | 结束时间（以纪元毫秒为单位） |
+| `dashboardUid` | string | 是 | 要查询注释的仪表板 UID |
 | `panelId` | number | 否 | 按面板 ID 过滤 |
-| `tags` | string | 否 | 按逗号分隔的标签列表过滤 |
-| `type` | string | 否 | 按类型过滤 \(警报或注释\) |
-| `limit` | number | 否 | 返回的最大注释数 |
+| `tags` | string | 否 | 按标签过滤（逗号分隔） |
+| `type` | string | 否 | 按类型过滤 \(alert 或 annotation\) |
+| `limit` | number | 否 | 返回的注释最大数量 |
 
 #### 输出
 
@@ -483,10 +483,20 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `id` | number | 创建的文件夹的数字 ID |
-| `uid` | string | 创建的文件夹的 UID |
-| `title` | string | 创建的文件夹的标题 |
+| `id` | number | 创建文件夹的数字 ID |
+| `uid` | string | 创建文件夹的 UID |
+| `title` | string | 创建文件夹的标题 |
 | `url` | string | 文件夹的 URL 路径 |
+| `hasAcl` | boolean | 文件夹是否具有自定义 ACL 权限 |
+| `canSave` | boolean | 当前用户是否可以保存文件夹 |
+| `canEdit` | boolean | 当前用户是否可以编辑文件夹 |
+| `canAdmin` | boolean | 当前用户是否对文件夹具有管理员权限 |
+| `canDelete` | boolean | 当前用户是否可以删除文件夹 |
+| `createdBy` | string | 创建文件夹的用户名 |
+| `created` | string | 文件夹创建的时间戳 |
+| `updatedBy` | string | 最后更新文件夹的用户名 |
+| `updated` | string | 文件夹最后更新的时间戳 |
+| `version` | number | 文件夹的版本号 |
 
 ## 注意事项
 

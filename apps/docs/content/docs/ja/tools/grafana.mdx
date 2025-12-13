@@ -321,9 +321,9 @@ UIDによるアラートルールの削除
 | `organizationId` | string | いいえ | マルチ組織Grafanaインスタンス用の組織ID |
 | `text` | string | はい | アノテーションのテキスト内容 |
 | `tags` | string | いいえ | カンマ区切りのタグリスト |
-| `dashboardUid` | string | いいえ | アノテーションを追加するダッシュボードのUID（全体的なアノテーションの場合はオプション） |
+| `dashboardUid` | string | はい | アノテーションを追加するダッシュボードのUID |
 | `panelId` | number | いいえ | アノテーションを追加するパネルのID |
-| `time` | number | いいえ | エポックミリ秒での開始時間（デフォルトは現在） |
+| `time` | number | いいえ | エポックミリ秒での開始時間（デフォルトは現在時刻） |
 | `timeEnd` | number | いいえ | エポックミリ秒での終了時間（範囲アノテーション用） |
 
 #### 出力
@@ -346,10 +346,10 @@ UIDによるアラートルールの削除
 | `organizationId` | string | いいえ | マルチ組織Grafanaインスタンス用の組織ID |
 | `from` | number | いいえ | エポックミリ秒での開始時間 |
 | `to` | number | いいえ | エポックミリ秒での終了時間 |
-| `dashboardUid` | string | いいえ | ダッシュボードUIDでフィルタリング |
+| `dashboardUid` | string | はい | アノテーションを取得するダッシュボードのUID |
 | `panelId` | number | いいえ | パネルIDでフィルタリング |
 | `tags` | string | いいえ | フィルタリングするタグのカンマ区切りリスト |
-| `type` | string | いいえ | タイプでフィルタリング（アラートまたはアノテーション） |
+| `type` | string | いいえ | タイプでフィルタリング（alertまたはannotation） |
 | `limit` | number | いいえ | 返すアノテーションの最大数 |
 
 #### 出力
@@ -487,6 +487,16 @@ Grafanaに新しいフォルダを作成
 | `uid` | string | 作成されたフォルダのUID |
 | `title` | string | 作成されたフォルダのタイトル |
 | `url` | string | フォルダへのURLパス |
+| `hasAcl` | boolean | フォルダがカスタムACL権限を持っているかどうか |
+| `canSave` | boolean | 現在のユーザーがフォルダを保存できるかどうか |
+| `canEdit` | boolean | 現在のユーザーがフォルダを編集できるかどうか |
+| `canAdmin` | boolean | 現在のユーザーがフォルダに対して管理者権限を持っているかどうか |
+| `canDelete` | boolean | 現在のユーザーがフォルダを削除できるかどうか |
+| `createdBy` | string | フォルダを作成したユーザーのユーザー名 |
+| `created` | string | フォルダが作成されたときのタイムスタンプ |
+| `updatedBy` | string | フォルダを最後に更新したユーザーのユーザー名 |
+| `updated` | string | フォルダが最後に更新されたときのタイムスタンプ |
+| `version` | number | フォルダのバージョン番号 |
 
 ## メモ
 
