@@ -46,10 +46,9 @@ export const createAnnotationTool: ToolConfig<
     },
     dashboardUid: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description:
-        'UID of the dashboard to add the annotation to (optional for global annotations)',
+      description: 'UID of the dashboard to add the annotation to',
     },
     panelId: {
       type: 'number',

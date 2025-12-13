@@ -40,7 +40,7 @@ const CreateTemplateSchema = z.object({
       about: z.string().optional(), // Markdown long description
     })
     .optional(),
-  creatorId: z.string().optional(), // Creator profile ID
+  creatorId: z.string().min(1, 'Creator profile is required'),
   tags: z.array(z.string()).max(10, 'Maximum 10 tags allowed').optional().default([]),
 })
 
@@ -204,50 +204,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
-    // Validate creator profile if provided
-    if (data.creatorId) {
-      // Verify the creator profile exists and user has access
-      const creatorProfile = await db
+    // Validate creator profile - required for all templates
+    const creatorProfile = await db
+      .select()
+      .from(templateCreators)
+      .where(eq(templateCreators.id, data.creatorId))
+      .limit(1)
+
+    if (creatorProfile.length === 0) {
+      logger.warn(`[${requestId}] Creator profile not found: ${data.creatorId}`)
+      return NextResponse.json({ error: 'Creator profile not found' }, { status: 404 })
+    }
+
+    const creator = creatorProfile[0]
+
+    // Verify user has permission to use this creator profile
+    if (creator.referenceType === 'user') {
+      if (creator.referenceId !== session.user.id) {
+        logger.warn(`[${requestId}] User cannot use creator profile: ${data.creatorId}`)
+        return NextResponse.json(
+          { error: 'You do not have permission to use this creator profile' },
+          { status: 403 }
+        )
+      }
+    } else if (creator.referenceType === 'organization') {
+      // Verify user is a member of the organization
+      const membership = await db
         .select()
-        .from(templateCreators)
-        .where(eq(templateCreators.id, data.creatorId))
+        .from(member)
+        .where(
+          and(eq(member.userId, session.user.id), eq(member.organizationId, creator.referenceId))
+        )
         .limit(1)
 
-      if (creatorProfile.length === 0) {
-        logger.warn(`[${requestId}] Creator profile not found: ${data.creatorId}`)
-        return NextResponse.json({ error: 'Creator profile not found' }, { status: 404 })
-      }
-
-      const creator = creatorProfile[0]
-
-      // Verify user has permission to use this creator profile
-      if (creator.referenceType === 'user') {
-        if (creator.referenceId !== session.user.id) {
-          logger.warn(`[${requestId}] User cannot use creator profile: ${data.creatorId}`)
-          return NextResponse.json(
-            { error: 'You do not have permission to use this creator profile' },
-            { status: 403 }
-          )
-        }
-      } else if (creator.referenceType === 'organization') {
-        // Verify user is a member of the organization
-        const membership = await db
-          .select()
-          .from(member)
-          .where(
-            and(eq(member.userId, session.user.id), eq(member.organizationId, creator.referenceId))
-          )
-          .limit(1)
-
-        if (membership.length === 0) {
-          logger.warn(
-            `[${requestId}] User not a member of organization for creator: ${data.creatorId}`
-          )
-          return NextResponse.json(
-            { error: 'You must be a member of the organization to use its creator profile' },
-            { status: 403 }
-          )
-        }
+      if (membership.length === 0) {
+        logger.warn(
+          `[${requestId}] User not a member of organization for creator: ${data.creatorId}`
+        )
+        return NextResponse.json(
+          { error: 'You must be a member of the organization to use its creator profile' },
+          { status: 403 }
+        )
       }
     }
 
@@ -307,7 +304,7 @@ export async function POST(request: NextRequest) {
       workflowId: data.workflowId,
       name: data.name,
       details: data.details || null,
-      creatorId: data.creatorId || null,
+      creatorId: data.creatorId,
       views: 0,
       stars: 0,
       status: 'pending' as const, // All new templates start as pending

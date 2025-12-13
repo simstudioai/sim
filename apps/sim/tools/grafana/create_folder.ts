@@ -108,5 +108,45 @@ export const createFolderTool: ToolConfig<GrafanaCreateFolderParams, GrafanaCrea
         type: 'string',
         description: 'The URL path to the folder',
       },
+      hasAcl: {
+        type: 'boolean',
+        description: 'Whether the folder has custom ACL permissions',
+      },
+      canSave: {
+        type: 'boolean',
+        description: 'Whether the current user can save the folder',
+      },
+      canEdit: {
+        type: 'boolean',
+        description: 'Whether the current user can edit the folder',
+      },
+      canAdmin: {
+        type: 'boolean',
+        description: 'Whether the current user has admin rights on the folder',
+      },
+      canDelete: {
+        type: 'boolean',
+        description: 'Whether the current user can delete the folder',
+      },
+      createdBy: {
+        type: 'string',
+        description: 'Username of who created the folder',
+      },
+      created: {
+        type: 'string',
+        description: 'Timestamp when the folder was created',
+      },
+      updatedBy: {
+        type: 'string',
+        description: 'Username of who last updated the folder',
+      },
+      updated: {
+        type: 'string',
+        description: 'Timestamp when the folder was last updated',
+      },
+      version: {
+        type: 'number',
+        description: 'Version number of the folder',
+      },
     },
   }
