@@ -5,7 +5,6 @@ export interface ZepResponse extends ToolResponse {
   output: {
     // Thread operations
     threadId?: string
-    userId?: string
     uuid?: string
     createdAt?: string
     updatedAt?: string
@@ -17,26 +16,18 @@ export interface ZepResponse extends ToolResponse {
     messages?: any[]
     messageIds?: string[]
     added?: boolean
-    batchId?: string
 
     // Context operations
     context?: string
-    facts?: any[]
-    entities?: any[]
-    summary?: string
 
     // User operations
+    userId?: string
     email?: string
     firstName?: string
     lastName?: string
     metadata?: any
 
-    // Pagination
-    responseCount?: number
+    // Counts
     totalCount?: number
-    rowCount?: number
-
-    // Search results (if needed in future)
-    searchResults?: any[]
   }
 }

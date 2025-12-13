@@ -276,26 +276,26 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
     metadata: { type: 'json', description: 'User metadata' },
   },
   outputs: {
+    // Thread operations
     threadId: { type: 'string', description: 'Thread identifier' },
-    userId: { type: 'string', description: 'User identifier' },
     uuid: { type: 'string', description: 'Internal UUID' },
     createdAt: { type: 'string', description: 'Creation timestamp' },
     updatedAt: { type: 'string', description: 'Update timestamp' },
     threads: { type: 'json', description: 'Array of threads' },
     deleted: { type: 'boolean', description: 'Deletion status' },
+    // Message operations
     messages: { type: 'json', description: 'Message data' },
-    messageIds: { type: 'json', description: 'Message identifiers' },
-    context: { type: 'string', description: 'User context string' },
-    facts: { type: 'json', description: 'Extracted facts' },
-    entities: { type: 'json', description: 'Extracted entities' },
-    summary: { type: 'string', description: 'Conversation summary' },
-    batchId: { type: 'string', description: 'Batch operation ID' },
+    messageIds: { type: 'json', description: 'Array of added message UUIDs' },
+    added: { type: 'boolean', description: 'Whether messages were added successfully' },
+    // Context operations
+    context: { type: 'string', description: 'User context string (summary or basic mode)' },
+    // User operations
+    userId: { type: 'string', description: 'User identifier' },
     email: { type: 'string', description: 'User email' },
     firstName: { type: 'string', description: 'User first name' },
     lastName: { type: 'string', description: 'User last name' },
     metadata: { type: 'json', description: 'User metadata' },
-    responseCount: { type: 'number', description: 'Number of items in response' },
-    totalCount: { type: 'number', description: 'Total number of items available' },
-    rowCount: { type: 'number', description: 'Number of rows in response' },
+    // Counts
+    totalCount: { type: 'number', description: 'Total number of items returned' },
   },
 }
