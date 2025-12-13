@@ -45,8 +45,8 @@ Lister toutes les listes d'un tableau Trello
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `lists` | tableau | Tableau d'objets liste avec id, nom, fermé, pos et idBoard |
-| `count` | nombre | Nombre de listes retournées |
+| `lists` | array | Tableau d'objets liste avec id, name, closed, pos et idBoard |
+| `count` | number | Nombre de listes retournées |
 
 ### `trello_list_cards`
 
@@ -63,8 +63,8 @@ Lister toutes les cartes d'un tableau Trello
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `cards` | tableau | Tableau d'objets carte avec id, nom, desc, url, IDs de tableau/liste, étiquettes et date d'échéance |
-| `count` | nombre | Nombre de cartes retournées |
+| `cards` | array | Tableau d'objets carte avec id, name, desc, url, IDs de tableau/liste, étiquettes et date d'échéance |
+| `count` | number | Nombre de cartes retournées |
 
 ### `trello_create_card`
 
@@ -86,7 +86,7 @@ Créer une nouvelle carte sur un tableau Trello
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `card` | objet | L'objet carte créé avec id, nom, desc, url et autres propriétés |
+| `card` | object | L'objet carte créé avec id, name, desc, url et autres propriétés |
 
 ### `trello_update_card`
 
@@ -108,7 +108,7 @@ Mettre à jour une carte existante sur Trello
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `card` | objet | L'objet carte mis à jour avec id, nom, desc, url et autres propriétés |
+| `card` | object | L'objet carte mis à jour avec id, name, desc, url et autres propriétés |
 
 ### `trello_get_actions`
 
@@ -127,8 +127,8 @@ Obtenir l'activité/les actions d'un tableau ou d'une carte
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `actions` | tableau | Tableau d'objets action avec type, date, membre et données |
-| `count` | nombre | Nombre d'actions retournées |
+| `actions` | array | Tableau d'objets action avec type, date, member et data |
+| `count` | number | Nombre d'actions retournées |
 
 ### `trello_add_comment`
 
@@ -145,7 +145,7 @@ Ajouter un commentaire à une carte Trello
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `comment` | objet | L'objet commentaire créé avec id, texte, date et membre créateur |
+| `comment` | object | L'objet commentaire créé avec id, text, date et member creator |
 
 ## Notes
 

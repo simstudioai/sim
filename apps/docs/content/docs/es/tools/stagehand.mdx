@@ -1,6 +1,6 @@
 ---
-title: Stagehand Extract
-description: Extrae datos de sitios web
+title: Stagehand
+description: Automatización web y extracción de datos
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -11,34 +11,42 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Stagehand](https://stagehand.com) es una herramienta que te permite extraer datos estructurados de páginas web utilizando Browserbase y OpenAI.
+[Stagehand](https://stagehand.com) es una herramienta que permite tanto la extracción de datos estructurados de páginas web como la automatización web autónoma utilizando Browserbase y LLMs modernos (OpenAI o Anthropic).
 
-Con Stagehand, puedes:
+Stagehand ofrece dos capacidades principales en Sim:
 
-- **Extraer datos estructurados**: Extraer datos estructurados de páginas web utilizando Browserbase y OpenAI
-- **Guardar datos en una base de datos**: Guardar los datos extraídos en una base de datos
-- **Automatizar flujos de trabajo**: Automatizar flujos de trabajo para extraer datos de páginas web
+- **stagehand_extract**: Extrae datos estructurados de una sola página web. Especificas lo que quieres (un esquema), y la IA recupera y analiza los datos en esa forma desde la página. Esto es mejor para extraer listas, campos u objetos cuando sabes exactamente qué información necesitas y dónde obtenerla.
 
-En Sim, la integración de Stagehand permite a tus agentes extraer datos estructurados de páginas web utilizando Browserbase y OpenAI. Esto permite escenarios de automatización potentes como extracción de datos, análisis de datos e integración de datos. Tus agentes pueden extraer datos estructurados de páginas web, guardar los datos extraídos en una base de datos y automatizar flujos de trabajo para extraer datos de páginas web. Esta integración cierra la brecha entre tus flujos de trabajo de IA y tu sistema de gestión de datos, permitiendo una extracción e integración de datos sin problemas. Al conectar Sim con Stagehand, puedes automatizar procesos de extracción de datos, mantener repositorios de información actualizados, generar informes y organizar información de manera inteligente, todo a través de tus agentes inteligentes.
+- **stagehand_agent**: Ejecuta un agente web autónomo capaz de completar tareas de múltiples pasos, interactuar con elementos, navegar entre páginas y devolver resultados estructurados. Esto es mucho más flexible: el agente puede hacer cosas como iniciar sesión, buscar, completar formularios, recopilar datos de múltiples lugares y generar un resultado final según un esquema solicitado.
+
+**Diferencias clave:**
+
+- *stagehand_extract* es una operación rápida de “extraer estos datos de esta página”. Funciona mejor para tareas de extracción directas, de un solo paso.
+- *stagehand_agent* realiza tareas autónomas complejas de múltiples pasos en la web — como navegación, búsqueda o incluso transacciones — y puede extraer datos dinámicamente según tus instrucciones y un esquema opcional.
+
+En la práctica, usa **stagehand_extract** cuando sabes qué quieres y dónde, y usa **stagehand_agent** cuando necesitas que un bot piense y ejecute flujos de trabajo interactivos.
+
+Al integrar Stagehand, los agentes de Sim pueden automatizar la recopilación de datos, el análisis y la ejecución de flujos de trabajo en la web: actualizando bases de datos, organizando información y generando informes personalizados, de manera fluida y autónoma.
 {/* MANUAL-CONTENT-END */}
 
 ## Instrucciones de uso
 
-Integra Stagehand en el flujo de trabajo. Puede extraer datos estructurados de páginas web. Requiere clave API.
+Integra Stagehand en el flujo de trabajo. Puede extraer datos estructurados de páginas web o ejecutar un agente autónomo para realizar tareas.
 
 ## Herramientas
 
 ### `stagehand_extract`
 
-Extrae datos estructurados de una página web utilizando Stagehand
+Extraer datos estructurados de una página web usando Stagehand
 
 #### Entrada
 
-| Parámetro | Tipo | Requerido | Descripción |
+| Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `url` | string | Sí | URL de la página web de la que extraer datos |
 | `instruction` | string | Sí | Instrucciones para la extracción |
-| `apiKey` | string | Sí | Clave API de OpenAI para la extracción \(requerida por Stagehand\) |
+| `provider` | string | No | Proveedor de IA a utilizar: openai o anthropic |
+| `apiKey` | string | Sí | Clave API para el proveedor seleccionado |
 | `schema` | json | Sí | Esquema JSON que define la estructura de los datos a extraer |
 
 #### Salida
@@ -46,6 +54,28 @@ Extrae datos estructurados de una página web utilizando Stagehand
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `data` | object | Datos estructurados extraídos que coinciden con el esquema proporcionado |
+
+### `stagehand_agent`
+
+Ejecutar un agente web autónomo para completar tareas y extraer datos estructurados
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `startUrl` | string | Sí | URL de la página web donde iniciar el agente |
+| `task` | string | Sí | La tarea a completar o el objetivo a lograr en el sitio web |
+| `variables` | json | No | Variables opcionales para sustituir en la tarea \(formato: \{key: value\}\). Referencia en la tarea usando %key% |
+| `format` | string | No | Sin descripción |
+| `provider` | string | No | Proveedor de IA a utilizar: openai o anthropic |
+| `apiKey` | string | Sí | Clave API para el proveedor seleccionado |
+| `outputSchema` | json | No | Esquema JSON opcional que define la estructura de los datos que el agente debe devolver |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `agentResult` | objeto | Resultado de la ejecución del agente Stagehand |
 
 ## Notas
 

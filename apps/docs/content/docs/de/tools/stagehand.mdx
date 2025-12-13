@@ -1,6 +1,6 @@
 ---
-title: Stagehand Extract
-description: Extract data from websites
+title: Stagehand
+description: Web-Automatisierung und Datenextraktion
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -11,43 +11,73 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Stagehand](https://stagehand.com) is a tool that allows you to extract structured data from webpages using Browserbase and OpenAI.
+[Stagehand](https://stagehand.com) ist ein Tool, das sowohl die Extraktion strukturierter Daten aus Webseiten als auch autonome Web-Automatisierung mittels Browserbase und modernen LLMs (OpenAI oder Anthropic) ermöglicht.
 
-With Stagehand, you can:
+Stagehand bietet zwei Hauptfunktionen in Sim:
 
-- **Extract structured data**: Extract structured data from webpages using Browserbase and OpenAI
-- **Save data to a database**: Save the extracted data to a database
-- **Automate workflows**: Automate workflows to extract data from webpages
+- **stagehand_extract**: Extrahiert strukturierte Daten von einer einzelnen Webseite. Sie geben an, was Sie möchten (ein Schema), und die KI ruft die Daten in dieser Form von der Seite ab und analysiert sie. Dies eignet sich am besten zum Extrahieren von Listen, Feldern oder Objekten, wenn Sie genau wissen, welche Informationen Sie benötigen und woher Sie diese bekommen.
 
-In Sim, the Stagehand integration enables your agents to extract structured data from webpages using Browserbase and OpenAI. This allows for powerful automation scenarios such as data extraction, data analysis, and data integration. Your agents can extract structured data from webpages, save the extracted data to a database, and automate workflows to extract data from webpages. This integration bridges the gap between your AI workflows and your data management system, enabling seamless data extraction and integration. By connecting Sim with Stagehand, you can automate data extraction processes, maintain up-to-date information repositories, generate reports, and organize information intelligently - all through your intelligent agents.
+- **stagehand_agent**: Führt einen autonomen Web-Agenten aus, der in der Lage ist, mehrstufige Aufgaben zu erledigen, mit Elementen zu interagieren, zwischen Seiten zu navigieren und strukturierte Ergebnisse zurückzugeben. Dies ist viel flexibler: der Agent kann Dinge wie Anmeldungen, Suchen, Ausfüllen von Formularen, Sammeln von Daten aus verschiedenen Quellen durchführen und ein Endergebnis gemäß einem angeforderten Schema ausgeben.
+
+**Wesentliche Unterschiede:**
+
+- *stagehand_extract* ist ein schneller “extrahiere diese Daten von dieser Seite” Vorgang. Es funktioniert am besten für direkte, einstufige Extraktionsaufgaben.
+- *stagehand_agent* führt komplexe, mehrstufige autonome Aufgaben im Web aus — wie Navigation, Suche oder sogar Transaktionen — und kann Daten dynamisch gemäß Ihren Anweisungen und einem optionalen Schema extrahieren.
+
+In der Praxis verwenden Sie **stagehand_extract**, wenn Sie wissen, was Sie wollen und woher, und **stagehand_agent**, wenn Sie einen Bot benötigen, der interaktive Arbeitsabläufe durchdenkt und ausführt.
+
+Durch die Integration von Stagehand können Sim-Agenten die Datenerfassung, -analyse und Workflow-Ausführung im Web automatisieren: Datenbanken aktualisieren, Informationen organisieren und benutzerdefinierte Berichte erstellen — nahtlos und autonom.
 {/* MANUAL-CONTENT-END */}
 
-## Usage Instructions
+## Gebrauchsanweisung
 
-Integrate Stagehand into the workflow. Can extract structured data from webpages.
+Integrieren Sie Stagehand in den Workflow. Kann strukturierte Daten aus Webseiten extrahieren oder einen autonomen Agenten ausführen, um Aufgaben zu erledigen.
 
 ## Tools
 
 ### `stagehand_extract`
 
-Extract structured data from a webpage using Stagehand
+Extrahieren Sie strukturierte Daten von einer Webseite mit Stagehand
 
-#### Input
+#### Eingabe
 
-| Parameter | Type | Required | Description |
+| Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Yes | URL of the webpage to extract data from |
-| `instruction` | string | Yes | Instructions for extraction |
-| `apiKey` | string | Yes | OpenAI API key for extraction \(required by Stagehand\) |
-| `schema` | json | Yes | JSON schema defining the structure of the data to extract |
+| `url` | string | Ja | URL der Webseite, aus der Daten extrahiert werden sollen |
+| `instruction` | string | Ja | Anweisungen für die Extraktion |
+| `provider` | string | Nein | Zu verwendender KI-Anbieter: openai oder anthropic |
+| `apiKey` | string | Ja | API-Schlüssel für den ausgewählten Anbieter |
+| `schema` | json | Ja | JSON-Schema, das die Struktur der zu extrahierenden Daten definiert |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `data` | object | Extrahierte strukturierte Daten, die dem bereitgestellten Schema entsprechen |
+
+### `stagehand_agent`
+
+Führen Sie einen autonomen Web-Agenten aus, um Aufgaben zu erledigen und strukturierte Daten zu extrahieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `startUrl` | string | Ja | URL der Webseite, auf der der Agent starten soll |
+| `task` | string | Ja | Die zu erledigende Aufgabe oder das zu erreichende Ziel auf der Website |
+| `variables` | json | Nein | Optionale Variablen, die in der Aufgabe ersetzt werden sollen (Format: \{key: value\}). Referenzierung in der Aufgabe mit %key% |
+| `format` | string | Nein | Keine Beschreibung |
+| `provider` | string | Nein | Zu verwendender KI-Anbieter: openai oder anthropic |
+| `apiKey` | string | Ja | API-Schlüssel für den ausgewählten Anbieter |
+| `outputSchema` | json | Nein | Optionales JSON-Schema, das die Struktur der Daten definiert, die der Agent zurückgeben soll |
 
 #### Output
 
-| Parameter | Type | Description |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `data` | object | Extracted structured data matching the provided schema |
+| `agentResult` | object | Ergebnis der Stagehand-Agent-Ausführung |
 
-## Notes
+## Hinweise
 
-- Category: `tools`
-- Type: `stagehand`
+- Kategorie: `tools`
+- Typ: `stagehand`

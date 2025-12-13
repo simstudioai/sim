@@ -1,6 +1,6 @@
 ---
-title: Stagehand Extract
-description: Extract data from websites
+title: Stagehand
+description: Webの自動化とデータ抽出
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -11,43 +11,73 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Stagehand](https://stagehand.com) is a tool that allows you to extract structured data from webpages using Browserbase and OpenAI.
+[Stagehand](https://stagehand.com)は、BrowserbaseとモダンなLLM（OpenAIまたはAnthropic）を使用して、Webページからの構造化データの抽出と自律的なWeb自動化の両方を可能にするツールです。
 
-With Stagehand, you can:
+StagehandはSimで2つの主要な機能を提供します：
 
-- **Extract structured data**: Extract structured data from webpages using Browserbase and OpenAI
-- **Save data to a database**: Save the extracted data to a database
-- **Automate workflows**: Automate workflows to extract data from webpages
+- **stagehand_extract**: 単一のWebページから構造化データを抽出します。必要なもの（スキーマ）を指定すると、AIがページからその形式でデータを取得して解析します。これは、必要な情報とその取得場所を正確に把握している場合に、リスト、フィールド、またはオブジェクトを抽出するのに最適です。
 
-In Sim, the Stagehand integration enables your agents to extract structured data from webpages using Browserbase and OpenAI. This allows for powerful automation scenarios such as data extraction, data analysis, and data integration. Your agents can extract structured data from webpages, save the extracted data to a database, and automate workflows to extract data from webpages. This integration bridges the gap between your AI workflows and your data management system, enabling seamless data extraction and integration. By connecting Sim with Stagehand, you can automate data extraction processes, maintain up-to-date information repositories, generate reports, and organize information intelligently - all through your intelligent agents.
+- **stagehand_agent**: 複数ステップのタスクを完了し、要素と対話し、ページ間を移動し、構造化された結果を返すことができる自律型Webエージェントを実行します。これははるかに柔軟で、エージェントはログイン、検索、フォーム入力、複数の場所からのデータ収集、要求されたスキーマに従った最終結果の出力などを行うことができます。
+
+**主な違い：**
+
+- *stagehand_extract*は迅速な“このページからこのデータを抽出する”操作です。直接的な一段階の抽出タスクに最適です。
+- *stagehand_agent*はWeb上で複雑な複数ステップの自律的なタスク（ナビゲーション、検索、さらには取引など）を実行し、指示とオプションのスキーマに従って動的にデータを抽出できます。
+
+実際には、何が欲しいのかとその場所を知っている場合は**stagehand_extract**を使用し、インタラクティブなワークフローを考え実行するボットが必要な場合は**stagehand_agent**を使用します。
+
+Stagehandを統合することで、Simエージェントはデータ収集、分析、Web上でのワークフロー実行を自動化できます：データベースの更新、情報の整理、カスタムレポートの生成を、シームレスかつ自律的に行います。
 {/* MANUAL-CONTENT-END */}
 
-## Usage Instructions
+## 使用方法
 
-Integrate Stagehand into the workflow. Can extract structured data from webpages.
+Stagehandをワークフローに統合します。ウェブページから構造化データを抽出したり、タスクを実行する自律型エージェントを実行したりできます。
 
-## Tools
+## ツール
 
 ### `stagehand_extract`
 
-Extract structured data from a webpage using Stagehand
+Stagehandを使用してウェブページから構造化データを抽出する
 
-#### Input
+#### 入力
 
-| Parameter | Type | Required | Description |
+| パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Yes | URL of the webpage to extract data from |
-| `instruction` | string | Yes | Instructions for extraction |
-| `apiKey` | string | Yes | OpenAI API key for extraction \(required by Stagehand\) |
-| `schema` | json | Yes | JSON schema defining the structure of the data to extract |
+| `url` | string | はい | データを抽出するウェブページのURL |
+| `instruction` | string | はい | 抽出のための指示 |
+| `provider` | string | いいえ | 使用するAIプロバイダー：openaiまたはanthropic |
+| `apiKey` | string | はい | 選択したプロバイダーのAPIキー |
+| `schema` | json | はい | 抽出するデータの構造を定義するJSONスキーマ |
 
-#### Output
+#### 出力
 
-| Parameter | Type | Description |
+| パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `data` | object | Extracted structured data matching the provided schema |
+| `data` | object | 提供されたスキーマに一致する抽出された構造化データ |
 
-## Notes
+### `stagehand_agent`
 
-- Category: `tools`
-- Type: `stagehand`
+タスクを完了し構造化データを抽出するための自律型ウェブエージェントを実行する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `startUrl` | string | はい | エージェントを開始するウェブページのURL |
+| `task` | string | はい | ウェブサイトで完了するタスクまたは達成する目標 |
+| `variables` | json | いいえ | タスクで置き換えるオプションの変数（形式：\{key: value\}）。タスク内で%key%を使用して参照 |
+| `format` | string | いいえ | 説明なし |
+| `provider` | string | いいえ | 使用するAIプロバイダー：openaiまたはanthropic |
+| `apiKey` | string | はい | 選択したプロバイダーのAPIキー |
+| `outputSchema` | json | いいえ | エージェントが返すべきデータの構造を定義するオプションのJSONスキーマ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `agentResult` | object | Stagehandエージェント実行からの結果 |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `stagehand`
