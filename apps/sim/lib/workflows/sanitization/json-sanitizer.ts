@@ -163,9 +163,9 @@ function sanitizeSubBlocks(
 
   Object.entries(subBlocks).forEach(([key, subBlock]) => {
     // Skip null/undefined values
-        if (subBlock.value === null || subBlock.value === undefined) {
-          return
-        }
+    if (subBlock.value === null || subBlock.value === undefined) {
+      return
+    }
 
     // Normalize responseFormat for consistent key ordering (important for training data)
     if (key === 'responseFormat') {
