@@ -1280,642 +1280,156 @@ Get the user
 
 ### `spotify_play`
 
+Start or resume playback on Spotify. Can play specific tracks, albums, or playlists.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `device_id` | string | No | Device ID to play on. If not provided, plays on active device. |
+| `context_uri` | string | No | Spotify URI of album, artist, or playlist to play \(e.g., "spotify:album:xxx"\) |
+| `uris` | string | No | Comma-separated track URIs to play \(e.g., "spotify:track:xxx,spotify:track:yyy"\) |
+| `offset` | number | No | Position in context to start playing \(0-based index\) |
+| `position_ms` | number | No | Position in track to start from \(in milliseconds\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tracks` | json | List of tracks |
-| `artists` | json | List of artists |
-| `albums` | json | List of albums |
-| `playlists` | json | List of playlists |
-| `id` | string | Spotify ID |
-| `name` | string | Name |
-| `uri` | string | Spotify URI |
-| `external_url` | string | Spotify URL |
-| `image_url` | string | Cover/profile image URL |
-| `popularity` | number | Popularity score \(0-100\) |
-| `album` | json | Album information |
-| `duration_ms` | number | Duration in milliseconds |
-| `explicit` | boolean | Contains explicit content |
-| `preview_url` | string | URL to 30-second preview |
-| `album_type` | string | Album type \(album, single, compilation\) |
-| `release_date` | string | Release date |
-| `label` | string | Record label |
-| `total_tracks` | number | Total tracks |
-| `genres` | json | List of genres |
-| `followers` | number | Number of followers |
-| `description` | string | Description |
-| `owner` | json | Playlist owner information |
-| `public` | boolean | Whether playlist is public |
-| `collaborative` | boolean | Whether playlist is collaborative |
-| `snapshot_id` | string | Playlist version snapshot ID |
-| `publisher` | string | Publisher name |
-| `total_episodes` | number | Total episodes in show |
-| `shows` | json | List of shows/podcasts |
-| `languages` | json | List of languages |
-| `show` | json | Parent show information |
-| `episodes` | json | List of episodes |
-| `authors` | json | List of authors |
-| `narrators` | json | List of narrators |
-| `total_chapters` | number | Total chapters |
-| `audiobooks` | json | List of audiobooks |
-| `chapters` | json | List of chapters |
-| `display_name` | string | User display name |
-| `email` | string | User email address |
-| `country` | string | User country code |
-| `product` | string | Subscription level \(free, premium\) |
-| `is_playing` | boolean | Whether playback is active |
-| `device` | json | Active device information |
-| `devices` | json | Available playback devices |
-| `progress_ms` | number | Current playback position in ms |
-| `currently_playing_type` | string | Type of content \(track, episode, ad\) |
-| `shuffle_state` | boolean | Whether shuffle is enabled |
-| `repeat_state` | string | Repeat mode \(off, track, context\) |
-| `track` | json | Currently playing track |
-| `currently_playing` | json | Currently playing item |
-| `queue` | json | Upcoming tracks in queue |
-| `items` | json | List of recently played items |
-| `categories` | json | List of browse categories |
-| `markets` | json | List of available market codes |
-| `results` | json | Check operation results \(id and saved boolean\) |
-| `all_saved` | boolean | Whether all tracks are saved |
-| `none_saved` | boolean | Whether no tracks are saved |
-| `total` | number | Total number of items |
-| `next` | string | URL for next page of results |
-| `success` | boolean | Whether operation succeeded |
+| `success` | boolean | Whether playback started successfully |
 
 ### `spotify_pause`
 
+Pause playback on Spotify.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `device_id` | string | No | Device ID to pause. If not provided, pauses active device. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tracks` | json | List of tracks |
-| `artists` | json | List of artists |
-| `albums` | json | List of albums |
-| `playlists` | json | List of playlists |
-| `id` | string | Spotify ID |
-| `name` | string | Name |
-| `uri` | string | Spotify URI |
-| `external_url` | string | Spotify URL |
-| `image_url` | string | Cover/profile image URL |
-| `popularity` | number | Popularity score \(0-100\) |
-| `album` | json | Album information |
-| `duration_ms` | number | Duration in milliseconds |
-| `explicit` | boolean | Contains explicit content |
-| `preview_url` | string | URL to 30-second preview |
-| `album_type` | string | Album type \(album, single, compilation\) |
-| `release_date` | string | Release date |
-| `label` | string | Record label |
-| `total_tracks` | number | Total tracks |
-| `genres` | json | List of genres |
-| `followers` | number | Number of followers |
-| `description` | string | Description |
-| `owner` | json | Playlist owner information |
-| `public` | boolean | Whether playlist is public |
-| `collaborative` | boolean | Whether playlist is collaborative |
-| `snapshot_id` | string | Playlist version snapshot ID |
-| `publisher` | string | Publisher name |
-| `total_episodes` | number | Total episodes in show |
-| `shows` | json | List of shows/podcasts |
-| `languages` | json | List of languages |
-| `show` | json | Parent show information |
-| `episodes` | json | List of episodes |
-| `authors` | json | List of authors |
-| `narrators` | json | List of narrators |
-| `total_chapters` | number | Total chapters |
-| `audiobooks` | json | List of audiobooks |
-| `chapters` | json | List of chapters |
-| `display_name` | string | User display name |
-| `email` | string | User email address |
-| `country` | string | User country code |
-| `product` | string | Subscription level \(free, premium\) |
-| `is_playing` | boolean | Whether playback is active |
-| `device` | json | Active device information |
-| `devices` | json | Available playback devices |
-| `progress_ms` | number | Current playback position in ms |
-| `currently_playing_type` | string | Type of content \(track, episode, ad\) |
-| `shuffle_state` | boolean | Whether shuffle is enabled |
-| `repeat_state` | string | Repeat mode \(off, track, context\) |
-| `track` | json | Currently playing track |
-| `currently_playing` | json | Currently playing item |
-| `queue` | json | Upcoming tracks in queue |
-| `items` | json | List of recently played items |
-| `categories` | json | List of browse categories |
-| `markets` | json | List of available market codes |
-| `results` | json | Check operation results \(id and saved boolean\) |
-| `all_saved` | boolean | Whether all tracks are saved |
-| `none_saved` | boolean | Whether no tracks are saved |
-| `total` | number | Total number of items |
-| `next` | string | URL for next page of results |
-| `success` | boolean | Whether operation succeeded |
+| `success` | boolean | Whether playback was paused |
 
 ### `spotify_skip_next`
 
+Skip to the next track on Spotify.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `device_id` | string | No | Device ID. If not provided, uses active device. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tracks` | json | List of tracks |
-| `artists` | json | List of artists |
-| `albums` | json | List of albums |
-| `playlists` | json | List of playlists |
-| `id` | string | Spotify ID |
-| `name` | string | Name |
-| `uri` | string | Spotify URI |
-| `external_url` | string | Spotify URL |
-| `image_url` | string | Cover/profile image URL |
-| `popularity` | number | Popularity score \(0-100\) |
-| `album` | json | Album information |
-| `duration_ms` | number | Duration in milliseconds |
-| `explicit` | boolean | Contains explicit content |
-| `preview_url` | string | URL to 30-second preview |
-| `album_type` | string | Album type \(album, single, compilation\) |
-| `release_date` | string | Release date |
-| `label` | string | Record label |
-| `total_tracks` | number | Total tracks |
-| `genres` | json | List of genres |
-| `followers` | number | Number of followers |
-| `description` | string | Description |
-| `owner` | json | Playlist owner information |
-| `public` | boolean | Whether playlist is public |
-| `collaborative` | boolean | Whether playlist is collaborative |
-| `snapshot_id` | string | Playlist version snapshot ID |
-| `publisher` | string | Publisher name |
-| `total_episodes` | number | Total episodes in show |
-| `shows` | json | List of shows/podcasts |
-| `languages` | json | List of languages |
-| `show` | json | Parent show information |
-| `episodes` | json | List of episodes |
-| `authors` | json | List of authors |
-| `narrators` | json | List of narrators |
-| `total_chapters` | number | Total chapters |
-| `audiobooks` | json | List of audiobooks |
-| `chapters` | json | List of chapters |
-| `display_name` | string | User display name |
-| `email` | string | User email address |
-| `country` | string | User country code |
-| `product` | string | Subscription level \(free, premium\) |
-| `is_playing` | boolean | Whether playback is active |
-| `device` | json | Active device information |
-| `devices` | json | Available playback devices |
-| `progress_ms` | number | Current playback position in ms |
-| `currently_playing_type` | string | Type of content \(track, episode, ad\) |
-| `shuffle_state` | boolean | Whether shuffle is enabled |
-| `repeat_state` | string | Repeat mode \(off, track, context\) |
-| `track` | json | Currently playing track |
-| `currently_playing` | json | Currently playing item |
-| `queue` | json | Upcoming tracks in queue |
-| `items` | json | List of recently played items |
-| `categories` | json | List of browse categories |
-| `markets` | json | List of available market codes |
-| `results` | json | Check operation results \(id and saved boolean\) |
-| `all_saved` | boolean | Whether all tracks are saved |
-| `none_saved` | boolean | Whether no tracks are saved |
-| `total` | number | Total number of items |
-| `next` | string | URL for next page of results |
-| `success` | boolean | Whether operation succeeded |
+| `success` | boolean | Whether skip was successful |
 
 ### `spotify_skip_previous`
 
+Skip to the previous track on Spotify.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `device_id` | string | No | Device ID. If not provided, uses active device. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tracks` | json | List of tracks |
-| `artists` | json | List of artists |
-| `albums` | json | List of albums |
-| `playlists` | json | List of playlists |
-| `id` | string | Spotify ID |
-| `name` | string | Name |
-| `uri` | string | Spotify URI |
-| `external_url` | string | Spotify URL |
-| `image_url` | string | Cover/profile image URL |
-| `popularity` | number | Popularity score \(0-100\) |
-| `album` | json | Album information |
-| `duration_ms` | number | Duration in milliseconds |
-| `explicit` | boolean | Contains explicit content |
-| `preview_url` | string | URL to 30-second preview |
-| `album_type` | string | Album type \(album, single, compilation\) |
-| `release_date` | string | Release date |
-| `label` | string | Record label |
-| `total_tracks` | number | Total tracks |
-| `genres` | json | List of genres |
-| `followers` | number | Number of followers |
-| `description` | string | Description |
-| `owner` | json | Playlist owner information |
-| `public` | boolean | Whether playlist is public |
-| `collaborative` | boolean | Whether playlist is collaborative |
-| `snapshot_id` | string | Playlist version snapshot ID |
-| `publisher` | string | Publisher name |
-| `total_episodes` | number | Total episodes in show |
-| `shows` | json | List of shows/podcasts |
-| `languages` | json | List of languages |
-| `show` | json | Parent show information |
-| `episodes` | json | List of episodes |
-| `authors` | json | List of authors |
-| `narrators` | json | List of narrators |
-| `total_chapters` | number | Total chapters |
-| `audiobooks` | json | List of audiobooks |
-| `chapters` | json | List of chapters |
-| `display_name` | string | User display name |
-| `email` | string | User email address |
-| `country` | string | User country code |
-| `product` | string | Subscription level \(free, premium\) |
-| `is_playing` | boolean | Whether playback is active |
-| `device` | json | Active device information |
-| `devices` | json | Available playback devices |
-| `progress_ms` | number | Current playback position in ms |
-| `currently_playing_type` | string | Type of content \(track, episode, ad\) |
-| `shuffle_state` | boolean | Whether shuffle is enabled |
-| `repeat_state` | string | Repeat mode \(off, track, context\) |
-| `track` | json | Currently playing track |
-| `currently_playing` | json | Currently playing item |
-| `queue` | json | Upcoming tracks in queue |
-| `items` | json | List of recently played items |
-| `categories` | json | List of browse categories |
-| `markets` | json | List of available market codes |
-| `results` | json | Check operation results \(id and saved boolean\) |
-| `all_saved` | boolean | Whether all tracks are saved |
-| `none_saved` | boolean | Whether no tracks are saved |
-| `total` | number | Total number of items |
-| `next` | string | URL for next page of results |
-| `success` | boolean | Whether operation succeeded |
+| `success` | boolean | Whether skip was successful |
 
 ### `spotify_seek`
 
+Seek to a position in the currently playing track.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `position_ms` | number | Yes | Position in milliseconds to seek to |
+| `device_id` | string | No | Device ID to target |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tracks` | json | List of tracks |
-| `artists` | json | List of artists |
-| `albums` | json | List of albums |
-| `playlists` | json | List of playlists |
-| `id` | string | Spotify ID |
-| `name` | string | Name |
-| `uri` | string | Spotify URI |
-| `external_url` | string | Spotify URL |
-| `image_url` | string | Cover/profile image URL |
-| `popularity` | number | Popularity score \(0-100\) |
-| `album` | json | Album information |
-| `duration_ms` | number | Duration in milliseconds |
-| `explicit` | boolean | Contains explicit content |
-| `preview_url` | string | URL to 30-second preview |
-| `album_type` | string | Album type \(album, single, compilation\) |
-| `release_date` | string | Release date |
-| `label` | string | Record label |
-| `total_tracks` | number | Total tracks |
-| `genres` | json | List of genres |
-| `followers` | number | Number of followers |
-| `description` | string | Description |
-| `owner` | json | Playlist owner information |
-| `public` | boolean | Whether playlist is public |
-| `collaborative` | boolean | Whether playlist is collaborative |
-| `snapshot_id` | string | Playlist version snapshot ID |
-| `publisher` | string | Publisher name |
-| `total_episodes` | number | Total episodes in show |
-| `shows` | json | List of shows/podcasts |
-| `languages` | json | List of languages |
-| `show` | json | Parent show information |
-| `episodes` | json | List of episodes |
-| `authors` | json | List of authors |
-| `narrators` | json | List of narrators |
-| `total_chapters` | number | Total chapters |
-| `audiobooks` | json | List of audiobooks |
-| `chapters` | json | List of chapters |
-| `display_name` | string | User display name |
-| `email` | string | User email address |
-| `country` | string | User country code |
-| `product` | string | Subscription level \(free, premium\) |
-| `is_playing` | boolean | Whether playback is active |
-| `device` | json | Active device information |
-| `devices` | json | Available playback devices |
-| `progress_ms` | number | Current playback position in ms |
-| `currently_playing_type` | string | Type of content \(track, episode, ad\) |
-| `shuffle_state` | boolean | Whether shuffle is enabled |
-| `repeat_state` | string | Repeat mode \(off, track, context\) |
-| `track` | json | Currently playing track |
-| `currently_playing` | json | Currently playing item |
-| `queue` | json | Upcoming tracks in queue |
-| `items` | json | List of recently played items |
-| `categories` | json | List of browse categories |
-| `markets` | json | List of available market codes |
-| `results` | json | Check operation results \(id and saved boolean\) |
-| `all_saved` | boolean | Whether all tracks are saved |
-| `none_saved` | boolean | Whether no tracks are saved |
-| `total` | number | Total number of items |
-| `next` | string | URL for next page of results |
-| `success` | boolean | Whether operation succeeded |
+| `success` | boolean | Whether seek was successful |
 
 ### `spotify_add_to_queue`
 
+Add a track to the user
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `uri` | string | Yes | Spotify URI of the track to add \(e.g., "spotify:track:xxx"\) |
+| `device_id` | string | No | Device ID. If not provided, uses active device. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tracks` | json | List of tracks |
-| `artists` | json | List of artists |
-| `albums` | json | List of albums |
-| `playlists` | json | List of playlists |
-| `id` | string | Spotify ID |
-| `name` | string | Name |
-| `uri` | string | Spotify URI |
-| `external_url` | string | Spotify URL |
-| `image_url` | string | Cover/profile image URL |
-| `popularity` | number | Popularity score \(0-100\) |
-| `album` | json | Album information |
-| `duration_ms` | number | Duration in milliseconds |
-| `explicit` | boolean | Contains explicit content |
-| `preview_url` | string | URL to 30-second preview |
-| `album_type` | string | Album type \(album, single, compilation\) |
-| `release_date` | string | Release date |
-| `label` | string | Record label |
-| `total_tracks` | number | Total tracks |
-| `genres` | json | List of genres |
-| `followers` | number | Number of followers |
-| `description` | string | Description |
-| `owner` | json | Playlist owner information |
-| `public` | boolean | Whether playlist is public |
-| `collaborative` | boolean | Whether playlist is collaborative |
-| `snapshot_id` | string | Playlist version snapshot ID |
-| `publisher` | string | Publisher name |
-| `total_episodes` | number | Total episodes in show |
-| `shows` | json | List of shows/podcasts |
-| `languages` | json | List of languages |
-| `show` | json | Parent show information |
-| `episodes` | json | List of episodes |
-| `authors` | json | List of authors |
-| `narrators` | json | List of narrators |
-| `total_chapters` | number | Total chapters |
-| `audiobooks` | json | List of audiobooks |
-| `chapters` | json | List of chapters |
-| `display_name` | string | User display name |
-| `email` | string | User email address |
-| `country` | string | User country code |
-| `product` | string | Subscription level \(free, premium\) |
-| `is_playing` | boolean | Whether playback is active |
-| `device` | json | Active device information |
-| `devices` | json | Available playback devices |
-| `progress_ms` | number | Current playback position in ms |
-| `currently_playing_type` | string | Type of content \(track, episode, ad\) |
-| `shuffle_state` | boolean | Whether shuffle is enabled |
-| `repeat_state` | string | Repeat mode \(off, track, context\) |
-| `track` | json | Currently playing track |
-| `currently_playing` | json | Currently playing item |
-| `queue` | json | Upcoming tracks in queue |
-| `items` | json | List of recently played items |
-| `categories` | json | List of browse categories |
-| `markets` | json | List of available market codes |
-| `results` | json | Check operation results \(id and saved boolean\) |
-| `all_saved` | boolean | Whether all tracks are saved |
-| `none_saved` | boolean | Whether no tracks are saved |
-| `total` | number | Total number of items |
-| `next` | string | URL for next page of results |
-| `success` | boolean | Whether operation succeeded |
+| `success` | boolean | Whether track was added to queue |
 
 ### `spotify_set_volume`
 
+Set the playback volume on Spotify.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `volume_percent` | number | Yes | Volume level \(0 to 100\) |
+| `device_id` | string | No | Device ID. If not provided, uses active device. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tracks` | json | List of tracks |
-| `artists` | json | List of artists |
-| `albums` | json | List of albums |
-| `playlists` | json | List of playlists |
-| `id` | string | Spotify ID |
-| `name` | string | Name |
-| `uri` | string | Spotify URI |
-| `external_url` | string | Spotify URL |
-| `image_url` | string | Cover/profile image URL |
-| `popularity` | number | Popularity score \(0-100\) |
-| `album` | json | Album information |
-| `duration_ms` | number | Duration in milliseconds |
-| `explicit` | boolean | Contains explicit content |
-| `preview_url` | string | URL to 30-second preview |
-| `album_type` | string | Album type \(album, single, compilation\) |
-| `release_date` | string | Release date |
-| `label` | string | Record label |
-| `total_tracks` | number | Total tracks |
-| `genres` | json | List of genres |
-| `followers` | number | Number of followers |
-| `description` | string | Description |
-| `owner` | json | Playlist owner information |
-| `public` | boolean | Whether playlist is public |
-| `collaborative` | boolean | Whether playlist is collaborative |
-| `snapshot_id` | string | Playlist version snapshot ID |
-| `publisher` | string | Publisher name |
-| `total_episodes` | number | Total episodes in show |
-| `shows` | json | List of shows/podcasts |
-| `languages` | json | List of languages |
-| `show` | json | Parent show information |
-| `episodes` | json | List of episodes |
-| `authors` | json | List of authors |
-| `narrators` | json | List of narrators |
-| `total_chapters` | number | Total chapters |
-| `audiobooks` | json | List of audiobooks |
-| `chapters` | json | List of chapters |
-| `display_name` | string | User display name |
-| `email` | string | User email address |
-| `country` | string | User country code |
-| `product` | string | Subscription level \(free, premium\) |
-| `is_playing` | boolean | Whether playback is active |
-| `device` | json | Active device information |
-| `devices` | json | Available playback devices |
-| `progress_ms` | number | Current playback position in ms |
-| `currently_playing_type` | string | Type of content \(track, episode, ad\) |
-| `shuffle_state` | boolean | Whether shuffle is enabled |
-| `repeat_state` | string | Repeat mode \(off, track, context\) |
-| `track` | json | Currently playing track |
-| `currently_playing` | json | Currently playing item |
-| `queue` | json | Upcoming tracks in queue |
-| `items` | json | List of recently played items |
-| `categories` | json | List of browse categories |
-| `markets` | json | List of available market codes |
-| `results` | json | Check operation results \(id and saved boolean\) |
-| `all_saved` | boolean | Whether all tracks are saved |
-| `none_saved` | boolean | Whether no tracks are saved |
-| `total` | number | Total number of items |
-| `next` | string | URL for next page of results |
-| `success` | boolean | Whether operation succeeded |
+| `success` | boolean | Whether volume was set |
 
 ### `spotify_set_repeat`
 
+Set the repeat mode for playback.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `state` | string | Yes | Repeat mode: "off", "track", or "context" |
+| `device_id` | string | No | Device ID to target |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tracks` | json | List of tracks |
-| `artists` | json | List of artists |
-| `albums` | json | List of albums |
-| `playlists` | json | List of playlists |
-| `id` | string | Spotify ID |
-| `name` | string | Name |
-| `uri` | string | Spotify URI |
-| `external_url` | string | Spotify URL |
-| `image_url` | string | Cover/profile image URL |
-| `popularity` | number | Popularity score \(0-100\) |
-| `album` | json | Album information |
-| `duration_ms` | number | Duration in milliseconds |
-| `explicit` | boolean | Contains explicit content |
-| `preview_url` | string | URL to 30-second preview |
-| `album_type` | string | Album type \(album, single, compilation\) |
-| `release_date` | string | Release date |
-| `label` | string | Record label |
-| `total_tracks` | number | Total tracks |
-| `genres` | json | List of genres |
-| `followers` | number | Number of followers |
-| `description` | string | Description |
-| `owner` | json | Playlist owner information |
-| `public` | boolean | Whether playlist is public |
-| `collaborative` | boolean | Whether playlist is collaborative |
-| `snapshot_id` | string | Playlist version snapshot ID |
-| `publisher` | string | Publisher name |
-| `total_episodes` | number | Total episodes in show |
-| `shows` | json | List of shows/podcasts |
-| `languages` | json | List of languages |
-| `show` | json | Parent show information |
-| `episodes` | json | List of episodes |
-| `authors` | json | List of authors |
-| `narrators` | json | List of narrators |
-| `total_chapters` | number | Total chapters |
-| `audiobooks` | json | List of audiobooks |
-| `chapters` | json | List of chapters |
-| `display_name` | string | User display name |
-| `email` | string | User email address |
-| `country` | string | User country code |
-| `product` | string | Subscription level \(free, premium\) |
-| `is_playing` | boolean | Whether playback is active |
-| `device` | json | Active device information |
-| `devices` | json | Available playback devices |
-| `progress_ms` | number | Current playback position in ms |
-| `currently_playing_type` | string | Type of content \(track, episode, ad\) |
-| `shuffle_state` | boolean | Whether shuffle is enabled |
-| `repeat_state` | string | Repeat mode \(off, track, context\) |
-| `track` | json | Currently playing track |
-| `currently_playing` | json | Currently playing item |
-| `queue` | json | Upcoming tracks in queue |
-| `items` | json | List of recently played items |
-| `categories` | json | List of browse categories |
-| `markets` | json | List of available market codes |
-| `results` | json | Check operation results \(id and saved boolean\) |
-| `all_saved` | boolean | Whether all tracks are saved |
-| `none_saved` | boolean | Whether no tracks are saved |
-| `total` | number | Total number of items |
-| `next` | string | URL for next page of results |
-| `success` | boolean | Whether operation succeeded |
+| `success` | boolean | Whether repeat mode was set successfully |
 
 ### `spotify_set_shuffle`
 
+Turn shuffle on or off.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `state` | boolean | Yes | true for shuffle on, false for off |
+| `device_id` | string | No | Device ID to target |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tracks` | json | List of tracks |
-| `artists` | json | List of artists |
-| `albums` | json | List of albums |
-| `playlists` | json | List of playlists |
-| `id` | string | Spotify ID |
-| `name` | string | Name |
-| `uri` | string | Spotify URI |
-| `external_url` | string | Spotify URL |
-| `image_url` | string | Cover/profile image URL |
-| `popularity` | number | Popularity score \(0-100\) |
-| `album` | json | Album information |
-| `duration_ms` | number | Duration in milliseconds |
-| `explicit` | boolean | Contains explicit content |
-| `preview_url` | string | URL to 30-second preview |
-| `album_type` | string | Album type \(album, single, compilation\) |
-| `release_date` | string | Release date |
-| `label` | string | Record label |
-| `total_tracks` | number | Total tracks |
-| `genres` | json | List of genres |
-| `followers` | number | Number of followers |
-| `description` | string | Description |
-| `owner` | json | Playlist owner information |
-| `public` | boolean | Whether playlist is public |
-| `collaborative` | boolean | Whether playlist is collaborative |
-| `snapshot_id` | string | Playlist version snapshot ID |
-| `publisher` | string | Publisher name |
-| `total_episodes` | number | Total episodes in show |
-| `shows` | json | List of shows/podcasts |
-| `languages` | json | List of languages |
-| `show` | json | Parent show information |
-| `episodes` | json | List of episodes |
-| `authors` | json | List of authors |
-| `narrators` | json | List of narrators |
-| `total_chapters` | number | Total chapters |
-| `audiobooks` | json | List of audiobooks |
-| `chapters` | json | List of chapters |
-| `display_name` | string | User display name |
-| `email` | string | User email address |
-| `country` | string | User country code |
-| `product` | string | Subscription level \(free, premium\) |
-| `is_playing` | boolean | Whether playback is active |
-| `device` | json | Active device information |
-| `devices` | json | Available playback devices |
-| `progress_ms` | number | Current playback position in ms |
-| `currently_playing_type` | string | Type of content \(track, episode, ad\) |
-| `shuffle_state` | boolean | Whether shuffle is enabled |
-| `repeat_state` | string | Repeat mode \(off, track, context\) |
-| `track` | json | Currently playing track |
-| `currently_playing` | json | Currently playing item |
-| `queue` | json | Upcoming tracks in queue |
-| `items` | json | List of recently played items |
-| `categories` | json | List of browse categories |
-| `markets` | json | List of available market codes |
-| `results` | json | Check operation results \(id and saved boolean\) |
-| `all_saved` | boolean | Whether all tracks are saved |
-| `none_saved` | boolean | Whether no tracks are saved |
-| `total` | number | Total number of items |
-| `next` | string | URL for next page of results |
-| `success` | boolean | Whether operation succeeded |
+| `success` | boolean | Whether shuffle was set successfully |
 
 ### `spotify_transfer_playback`
 
