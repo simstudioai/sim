@@ -1,21 +1,90 @@
+import { db } from '@sim/db'
+import { chat } from '@sim/db/schema'
+import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateAuthToken } from '@/app/api/chat/utils'
 
 const logger = createLogger('ProxyTTSStreamAPI')
 
-export async function POST(request: NextRequest) {
+/**
+ * Validates chat-based authentication for deployed chat voice mode
+ * Checks if the user has a valid chat auth cookie for the given chatId
+ */
+async function validateChatAuth(request: NextRequest, chatId: string): Promise<boolean> {
   try {
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
-    if (!authResult.success) {
-      logger.error('Authentication failed for TTS stream proxy:', authResult.error)
-      return new Response('Unauthorized', { status: 401 })
+    // Verify the chat exists and is active
+    const chatResult = await db
+      .select({ id: chat.id, isActive: chat.isActive })
+      .from(chat)
+      .where(eq(chat.id, chatId))
+      .limit(1)
+
+    if (chatResult.length === 0 || !chatResult[0].isActive) {
+      logger.warn('Chat not found or inactive for TTS auth:', chatId)
+      return false
     }
 
-    const body = await request.json()
-    const { text, voiceId, modelId = 'eleven_turbo_v2_5' } = body
+    // Check for chat auth cookie
+    const cookieName = `chat_auth_${chatId}`
+    const authCookie = request.cookies.get(cookieName)
+
+    if (authCookie && validateAuthToken(authCookie.value, chatId)) {
+      return true
+    }
+
+    // For public chats, allow TTS without cookie (the chat itself handles access control)
+    // We already verified the chat exists and is active above
+    const [chatData] = await db
+      .select({ authType: chat.authType })
+      .from(chat)
+      .where(eq(chat.id, chatId))
+      .limit(1)
+
+    if (chatData?.authType === 'public') {
+      return true
+    }
+
+    return false
+  } catch (error) {
+    logger.error('Error validating chat auth for TTS:', error)
+    return false
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    // Clone request to read body for chatId check before hybrid auth consumes it
+    const clonedRequest = request.clone()
+    let body: any
+    try {
+      body = await clonedRequest.json()
+    } catch {
+      return new Response('Invalid request body', { status: 400 })
+    }
+
+    const { text, voiceId, modelId = 'eleven_turbo_v2_5', chatId } = body
+
+    // Try chat-based authentication first if chatId is provided
+    if (chatId) {
+      const isChatAuthed = await validateChatAuth(request, chatId)
+      if (isChatAuthed) {
+        logger.info('TTS request authenticated via chat auth for chatId:', chatId)
+      } else {
+        logger.warn('Chat authentication failed for TTS, chatId:', chatId)
+        return new Response('Unauthorized', { status: 401 })
+      }
+    } else {
+      // Fall back to standard hybrid auth (session, API key, or internal JWT)
+      const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+      if (!authResult.success) {
+        logger.error('Authentication failed for TTS stream proxy:', authResult.error)
+        return new Response('Unauthorized', { status: 401 })
+      }
+    }
 
     if (!text || !voiceId) {
       return new Response('Missing required parameters', { status: 400 })
