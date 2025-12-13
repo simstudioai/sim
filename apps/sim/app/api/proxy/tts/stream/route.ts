@@ -1,24 +1,79 @@
+import { db } from '@sim/db'
+import { chat } from '@sim/db/schema'
+import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateAuthToken } from '@/app/api/chat/utils'
 
 const logger = createLogger('ProxyTTSStreamAPI')
 
-export async function POST(request: NextRequest) {
+/**
+ * Validates chat-based authentication for deployed chat voice mode
+ * Checks if the user has a valid chat auth cookie for the given chatId
+ */
+async function validateChatAuth(request: NextRequest, chatId: string): Promise<boolean> {
   try {
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
-    if (!authResult.success) {
-      logger.error('Authentication failed for TTS stream proxy:', authResult.error)
-      return new Response('Unauthorized', { status: 401 })
+    const chatResult = await db
+      .select({
+        id: chat.id,
+        isActive: chat.isActive,
+        authType: chat.authType,
+        password: chat.password,
+      })
+      .from(chat)
+      .where(eq(chat.id, chatId))
+      .limit(1)
+
+    if (chatResult.length === 0 || !chatResult[0].isActive) {
+      logger.warn('Chat not found or inactive for TTS auth:', chatId)
+      return false
     }
 
-    const body = await request.json()
-    const { text, voiceId, modelId = 'eleven_turbo_v2_5' } = body
+    const chatData = chatResult[0]
+
+    if (chatData.authType === 'public') {
+      return true
+    }
+
+    const cookieName = `chat_auth_${chatId}`
+    const authCookie = request.cookies.get(cookieName)
+
+    if (authCookie && validateAuthToken(authCookie.value, chatId, chatData.password)) {
+      return true
+    }
+
+    return false
+  } catch (error) {
+    logger.error('Error validating chat auth for TTS:', error)
+    return false
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return new Response('Invalid request body', { status: 400 })
+    }
+
+    const { text, voiceId, modelId = 'eleven_turbo_v2_5', chatId } = body
+
+    if (!chatId) {
+      return new Response('chatId is required', { status: 400 })
+    }
 
     if (!text || !voiceId) {
       return new Response('Missing required parameters', { status: 400 })
+    }
+
+    const isChatAuthed = await validateChatAuth(request, chatId)
+    if (!isChatAuthed) {
+      logger.warn('Chat authentication failed for TTS, chatId:', chatId)
+      return new Response('Unauthorized', { status: 401 })
     }
 
     const voiceIdValidation = validateAlphanumericId(voiceId, 'voiceId', 255)

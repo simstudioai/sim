@@ -23,13 +23,13 @@ export async function GET() {
 
     if (!response.ok) {
       console.warn('GitHub API request failed:', response.status)
-      return NextResponse.json({ stars: formatStarCount(14500) })
+      return NextResponse.json({ stars: formatStarCount(19400) })
     }
 
     const data = await response.json()
-    return NextResponse.json({ stars: formatStarCount(Number(data?.stargazers_count ?? 14500)) })
+    return NextResponse.json({ stars: formatStarCount(Number(data?.stargazers_count ?? 19400)) })
   } catch (error) {
     console.warn('Error fetching GitHub stars:', error)
-    return NextResponse.json({ stars: formatStarCount(14500) })
+    return NextResponse.json({ stars: formatStarCount(19400) })
   }
 }
