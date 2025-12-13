@@ -171,9 +171,26 @@ function sanitizeTools(tools: any[]): any[] {
 }
 
 /**
- * Sanitize subblocks by removing null values, secrets, and simplifying structure
+ * Sort object keys recursively for consistent comparison
+ */
+function sortKeysRecursively(item: any): any {
+  if (Array.isArray(item)) {
+    return item.map(sortKeysRecursively)
+  }
+  if (item !== null && typeof item === 'object') {
+    return Object.keys(item)
+      .sort()
+      .reduce((result: any, key: string) => {
+        result[key] = sortKeysRecursively(item[key])
+        return result
+      }, {})
+  }
+  return item
+}
+
+/**
+ * Sanitize subblocks by removing null values and simplifying structure
  * Maps each subblock key directly to its value instead of the full object
- * Note: responseFormat is kept as an object for better copilot understanding
  */
 function sanitizeSubBlocks(
   subBlocks: BlockState['subBlocks']
@@ -181,62 +198,35 @@ function sanitizeSubBlocks(
   const sanitized: Record<string, string | number | string[][] | object> = {}
 
   Object.entries(subBlocks).forEach(([key, subBlock]) => {
-    // Special handling for responseFormat - process BEFORE null check
-    // so we can detect when it's added/removed
+    // Skip null/undefined values
+    if (subBlock.value === null || subBlock.value === undefined) {
+      return
+    }
+
+    // Normalize responseFormat for consistent key ordering (important for training data)
     if (key === 'responseFormat') {
       try {
-        // Handle null/undefined - skip if no value
-        if (subBlock.value === null || subBlock.value === undefined) {
-          return
-        }
-
         let obj = subBlock.value
 
-        // Handle string values - parse them first
+        // Parse JSON string if needed
         if (typeof subBlock.value === 'string') {
           const trimmed = subBlock.value.trim()
           if (!trimmed) {
-            // Empty string - skip this field
             return
           }
           obj = JSON.parse(trimmed)
         }
 
-        // Handle object values - normalize keys and keep as object for copilot
+        // Sort keys for consistent comparison
         if (obj && typeof obj === 'object') {
-          // Sort keys recursively for consistent comparison
-          const sortKeys = (item: any): any => {
-            if (Array.isArray(item)) {
-              return item.map(sortKeys)
-            }
-            if (item !== null && typeof item === 'object') {
-              return Object.keys(item)
-                .sort()
-                .reduce((result: any, key: string) => {
-                  result[key] = sortKeys(item[key])
-                  return result
-                }, {})
-            }
-            return item
-          }
-
-          // Keep as object (not stringified) for better copilot understanding
-          const normalized = sortKeys(obj)
-          sanitized[key] = normalized
+          sanitized[key] = sortKeysRecursively(obj)
           return
         }
-
-        // If we get here, obj is not an object (maybe null or primitive) - skip it
-        return
-      } catch (error) {
-        // Invalid JSON - skip this field to avoid crashes
+      } catch {
+        // Invalid JSON - pass through as-is
+        sanitized[key] = subBlock.value
         return
       }
-    }
-
-    // Skip null/undefined values for other fields
-    if (subBlock.value === null || subBlock.value === undefined) {
-      return
     }
 
     // Special handling for condition-input type - clean UI metadata
