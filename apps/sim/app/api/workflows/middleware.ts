@@ -42,7 +42,7 @@ export async function validateWorkflowAccess(
       }
 
       const internalSecret = request.headers.get('X-Internal-Secret')
-      if (internalSecret === env.INTERNAL_API_SECRET) {
+      if (env.INTERNAL_API_SECRET && internalSecret === env.INTERNAL_API_SECRET) {
         return { workflow }
       }
 
