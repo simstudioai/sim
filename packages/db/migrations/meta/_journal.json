@@ -848,6 +848,13 @@
       "when": 1765434895472,
       "tag": "0121_new_mantis",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1765587157593,
+      "tag": "0122_pale_absorbing_man",
+      "breakpoints": true
     }
   ]
 }
