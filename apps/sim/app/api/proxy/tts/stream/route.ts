@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { chat } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -57,37 +56,27 @@ async function validateChatAuth(request: NextRequest, chatId: string): Promise<b
 
 export async function POST(request: NextRequest) {
   try {
-    // Clone request to read body for chatId check before hybrid auth consumes it
-    const clonedRequest = request.clone()
     let body: any
     try {
-      body = await clonedRequest.json()
+      body = await request.json()
     } catch {
       return new Response('Invalid request body', { status: 400 })
     }
 
     const { text, voiceId, modelId = 'eleven_turbo_v2_5', chatId } = body
 
-    // Try chat-based authentication first if chatId is provided
-    if (chatId) {
-      const isChatAuthed = await validateChatAuth(request, chatId)
-      if (isChatAuthed) {
-        logger.info('TTS request authenticated via chat auth for chatId:', chatId)
-      } else {
-        logger.warn('Chat authentication failed for TTS, chatId:', chatId)
-        return new Response('Unauthorized', { status: 401 })
-      }
-    } else {
-      // Fall back to standard hybrid auth (session, API key, or internal JWT)
-      const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
-      if (!authResult.success) {
-        logger.error('Authentication failed for TTS stream proxy:', authResult.error)
-        return new Response('Unauthorized', { status: 401 })
-      }
+    if (!chatId) {
+      return new Response('chatId is required', { status: 400 })
     }
 
     if (!text || !voiceId) {
       return new Response('Missing required parameters', { status: 400 })
+    }
+
+    const isChatAuthed = await validateChatAuth(request, chatId)
+    if (!isChatAuthed) {
+      logger.warn('Chat authentication failed for TTS, chatId:', chatId)
+      return new Response('Unauthorized', { status: 401 })
     }
 
     const voiceIdValidation = validateAlphanumericId(voiceId, 'voiceId', 255)
