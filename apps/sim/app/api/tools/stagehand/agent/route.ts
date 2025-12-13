@@ -1,4 +1,3 @@
-import { Stagehand } from '@browserbasehq/stagehand'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { env } from '@/lib/core/config/env'
@@ -6,6 +5,8 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { ensureZodObject, normalizeUrl } from '@/app/api/tools/stagehand/utils'
 
 const logger = createLogger('StagehandAgentAPI')
+
+type StagehandType = import('@browserbasehq/stagehand').Stagehand
 
 const BROWSERBASE_API_KEY = env.BROWSERBASE_API_KEY
 const BROWSERBASE_PROJECT_ID = env.BROWSERBASE_PROJECT_ID
@@ -89,7 +90,7 @@ function substituteVariables(text: string, variables: Record<string, string> | u
 }
 
 export async function POST(request: NextRequest) {
-  let stagehand: Stagehand | null = null
+  let stagehand: StagehandType | null = null
 
   try {
     const body = await request.json()
@@ -156,6 +157,8 @@ export async function POST(request: NextRequest) {
 
     try {
       logger.info('Initializing Stagehand with Browserbase (v3)', { provider, modelName })
+
+      const { Stagehand } = await import('@browserbasehq/stagehand')
 
       stagehand = new Stagehand({
         env: 'BROWSERBASE',
