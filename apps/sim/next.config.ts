@@ -80,6 +80,8 @@ const nextConfig: NextConfig = {
     'pino-pretty',
     'thread-stream',
     '@browserbasehq/stagehand',
+    '@anthropic-ai/sdk',
+    'openai',
   ],
   experimental: {
     optimizeCss: true,

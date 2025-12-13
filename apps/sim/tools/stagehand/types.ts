@@ -4,6 +4,7 @@ import type { ToolResponse } from '@/tools/types'
 export interface StagehandExtractParams {
   instruction: string
   schema: Record<string, any>
+  provider?: 'openai' | 'anthropic'
   apiKey: string
   url: string
 }
@@ -17,6 +18,7 @@ export interface StagehandAgentParams {
   startUrl: string
   outputSchema?: Record<string, any>
   variables?: Record<string, string>
+  provider?: 'openai' | 'anthropic'
   apiKey: string
   options?: {
     useTextExtract?: boolean

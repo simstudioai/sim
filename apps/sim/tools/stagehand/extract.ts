@@ -23,11 +23,17 @@ export const extractTool: ToolConfig<StagehandExtractParams, StagehandExtractRes
       visibility: 'user-or-llm',
       description: 'Instructions for extraction',
     },
+    provider: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'AI provider to use: openai or anthropic',
+    },
     apiKey: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'OpenAI API key for extraction (required by Stagehand)',
+      description: 'API key for the selected provider',
     },
     schema: {
       type: 'json',
@@ -46,6 +52,7 @@ export const extractTool: ToolConfig<StagehandExtractParams, StagehandExtractRes
     body: (params) => ({
       instruction: params.instruction,
       schema: params.schema,
+      provider: params.provider || 'openai',
       apiKey: params.apiKey,
       url: params.url,
     }),
