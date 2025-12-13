@@ -1,0 +1,1456 @@
+---
+title: Spotify
+description: Search music, manage playlists, control playback, and access your library
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="spotify"
+  color="#000000"
+/>
+
+## Usage Instructions
+
+Integrate Spotify into your workflow. Search for tracks, albums, artists, and playlists. Manage playlists, access your library, control playback, browse podcasts and audiobooks.
+
+
+
+## Tools
+
+### `spotify_search`
+
+Search for tracks, albums, artists, or playlists on Spotify. Returns matching results based on the query.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search query \(e.g., "Bohemian Rhapsody", "artist:Queen", "genre:rock"\) |
+| `type` | string | No | Type of results: track, album, artist, playlist, or comma-separated \(e.g., "track,artist"\) |
+| `limit` | number | No | Maximum number of results to return \(1-50\) |
+| `offset` | number | No | Index of the first result to return for pagination |
+| `market` | string | No | ISO 3166-1 alpha-2 country code to filter results \(e.g., "US", "GB"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tracks` | array | List of matching tracks |
+
+### `spotify_get_track`
+
+Get detailed information about a specific track on Spotify by its ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `trackId` | string | Yes | The Spotify ID of the track |
+| `market` | string | No | ISO 3166-1 alpha-2 country code for track availability |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Spotify track ID |
+| `name` | string | Track name |
+| `artists` | array | List of artists |
+| `album` | object | Album information |
+| `duration_ms` | number | Track duration in milliseconds |
+| `explicit` | boolean | Whether the track has explicit content |
+| `popularity` | number | Popularity score \(0-100\) |
+| `preview_url` | string | URL to 30-second preview |
+| `external_url` | string | Spotify URL |
+| `uri` | string | Spotify URI for the track |
+
+### `spotify_get_tracks`
+
+Get detailed information about multiple tracks on Spotify by their IDs (up to 50).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `trackIds` | string | Yes | Comma-separated list of Spotify track IDs \(max 50\) |
+| `market` | string | No | ISO 3166-1 alpha-2 country code for track availability |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tracks` | array | List of tracks |
+
+### `spotify_get_album`
+
+Get detailed information about an album on Spotify by its ID, including track listing.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `albumId` | string | Yes | The Spotify ID of the album |
+| `market` | string | No | ISO 3166-1 alpha-2 country code for track availability |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Spotify album ID |
+| `name` | string | Album name |
+| `artists` | array | List of artists |
+| `album_type` | string | Type of album \(album, single, compilation\) |
+| `total_tracks` | number | Total number of tracks |
+| `release_date` | string | Release date |
+| `label` | string | Record label |
+| `popularity` | number | Popularity score \(0-100\) |
+| `genres` | array | List of genres |
+| `image_url` | string | Album cover image URL |
+| `tracks` | array | List of tracks on the album |
+| `external_url` | string | Spotify URL |
+
+### `spotify_get_albums`
+
+Get details for multiple albums by their IDs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `albumIds` | string | Yes | Comma-separated album IDs \(max 20\) |
+| `market` | string | No | ISO country code for market |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `albums` | json | List of albums |
+
+### `spotify_get_album_tracks`
+
+Get the tracks from an album.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `albumId` | string | Yes | The Spotify album ID |
+| `limit` | number | No | Number of tracks to return \(1-50\) |
+| `offset` | number | No | Index of first track to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tracks` | json | List of tracks |
+| `total` | number | Total number of tracks |
+| `next` | string | URL for next page |
+
+### `spotify_get_saved_albums`
+
+Get the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | No | Number of albums to return \(1-50\) |
+| `offset` | number | No | Index of first album to return |
+| `market` | string | No | ISO country code for market |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `albums` | json | List of saved albums |
+| `total` | number | Total saved albums |
+| `next` | string | URL for next page |
+
+### `spotify_save_albums`
+
+Save albums to the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `albumIds` | string | Yes | Comma-separated album IDs \(max 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether albums were saved |
+
+### `spotify_remove_saved_albums`
+
+Remove albums from the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `albumIds` | string | Yes | Comma-separated album IDs \(max 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether albums were removed |
+
+### `spotify_check_saved_albums`
+
+Check if albums are saved in library.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `albumIds` | string | Yes | Comma-separated album IDs \(max 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Array of booleans for each album |
+
+### `spotify_get_artist`
+
+Get detailed information about an artist on Spotify by their ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `artistId` | string | Yes | The Spotify ID of the artist |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Spotify artist ID |
+| `name` | string | Artist name |
+| `genres` | array | List of genres associated with the artist |
+| `popularity` | number | Popularity score \(0-100\) |
+| `followers` | number | Number of followers |
+| `image_url` | string | Artist image URL |
+| `external_url` | string | Spotify URL |
+
+### `spotify_get_artists`
+
+Get details for multiple artists by their IDs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `artistIds` | string | Yes | Comma-separated artist IDs \(max 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `artists` | json | List of artists |
+
+### `spotify_get_artist_albums`
+
+Get albums by an artist on Spotify. Can filter by album type.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `artistId` | string | Yes | The Spotify ID of the artist |
+| `include_groups` | string | No | Filter by album type: album, single, appears_on, compilation \(comma-separated\) |
+| `limit` | number | No | Maximum number of albums to return \(1-50\) |
+| `offset` | number | No | Index of the first album to return |
+| `market` | string | No | ISO 3166-1 alpha-2 country code |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `albums` | array | Artist |
+
+### `spotify_get_artist_top_tracks`
+
+Get the top 10 most popular tracks by an artist on Spotify.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `artistId` | string | Yes | The Spotify ID of the artist |
+| `market` | string | No | ISO 3166-1 alpha-2 country code \(required for this endpoint\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tracks` | array | Artist |
+
+### `spotify_follow_artists`
+
+Follow one or more artists.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `artistIds` | string | Yes | Comma-separated artist IDs to follow \(max 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether artists were followed successfully |
+
+### `spotify_unfollow_artists`
+
+Unfollow one or more artists.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `artistIds` | string | Yes | Comma-separated artist IDs to unfollow \(max 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether artists were unfollowed successfully |
+
+### `spotify_get_followed_artists`
+
+Get the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | No | Number of artists to return \(1-50\) |
+| `after` | string | No | Cursor for pagination \(last artist ID from previous request\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `artists` | json | List of followed artists |
+| `total` | number | Total number of followed artists |
+| `next` | string | Cursor for next page |
+
+### `spotify_check_following`
+
+Check if the user follows artists or users.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `type` | string | Yes | Type to check: "artist" or "user" |
+| `ids` | string | Yes | Comma-separated artist or user IDs \(max 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Array of booleans for each ID |
+
+### `spotify_get_show`
+
+Get details for a podcast show.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `showId` | string | Yes | The Spotify show ID |
+| `market` | string | No | ISO country code for market |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Show ID |
+| `name` | string | Show name |
+| `description` | string | Show description |
+| `publisher` | string | Publisher name |
+| `total_episodes` | number | Total episodes |
+| `explicit` | boolean | Contains explicit content |
+| `languages` | json | Languages |
+| `image_url` | string | Cover image URL |
+| `external_url` | string | Spotify URL |
+
+### `spotify_get_shows`
+
+Get details for multiple podcast shows.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `showIds` | string | Yes | Comma-separated show IDs \(max 50\) |
+| `market` | string | No | ISO country code for market |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `shows` | json | List of shows |
+
+### `spotify_get_show_episodes`
+
+Get episodes from a podcast show.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `showId` | string | Yes | The Spotify show ID |
+| `limit` | number | No | Number of episodes to return \(1-50\) |
+| `offset` | number | No | Index of first episode to return |
+| `market` | string | No | ISO country code for market |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `episodes` | json | List of episodes |
+| `total` | number | Total episodes |
+| `next` | string | URL for next page |
+
+### `spotify_get_saved_shows`
+
+Get the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | No | Number of shows to return \(1-50\) |
+| `offset` | number | No | Index of first show to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `shows` | json | List of saved shows |
+| `total` | number | Total saved shows |
+| `next` | string | URL for next page |
+
+### `spotify_save_shows`
+
+Save podcast shows to the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `showIds` | string | Yes | Comma-separated show IDs \(max 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether shows were saved |
+
+### `spotify_remove_saved_shows`
+
+Remove podcast shows from the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `showIds` | string | Yes | Comma-separated show IDs \(max 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether shows were removed |
+
+### `spotify_check_saved_shows`
+
+Check if shows are saved in library.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `showIds` | string | Yes | Comma-separated show IDs \(max 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Array of booleans for each show |
+
+### `spotify_get_episode`
+
+Get details for a podcast episode.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `episodeId` | string | Yes | The Spotify episode ID |
+| `market` | string | No | ISO country code for market |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Episode ID |
+| `name` | string | Episode name |
+| `description` | string | Episode description |
+| `duration_ms` | number | Duration in ms |
+| `release_date` | string | Release date |
+| `explicit` | boolean | Contains explicit content |
+| `show` | json | Parent show info |
+| `image_url` | string | Cover image URL |
+| `external_url` | string | Spotify URL |
+
+### `spotify_get_episodes`
+
+Get details for multiple podcast episodes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `episodeIds` | string | Yes | Comma-separated episode IDs \(max 50\) |
+| `market` | string | No | ISO country code for market |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `episodes` | json | List of episodes |
+
+### `spotify_get_saved_episodes`
+
+Get the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | No | Number of episodes to return \(1-50\) |
+| `offset` | number | No | Index of first episode to return |
+| `market` | string | No | ISO country code for market |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `episodes` | json | List of saved episodes |
+| `total` | number | Total saved episodes |
+| `next` | string | URL for next page |
+
+### `spotify_save_episodes`
+
+Save podcast episodes to the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `episodeIds` | string | Yes | Comma-separated episode IDs \(max 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether episodes were saved |
+
+### `spotify_remove_saved_episodes`
+
+Remove podcast episodes from the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `episodeIds` | string | Yes | Comma-separated episode IDs \(max 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether episodes were removed |
+
+### `spotify_check_saved_episodes`
+
+Check if episodes are saved in library.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `episodeIds` | string | Yes | Comma-separated episode IDs \(max 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Array of booleans for each episode |
+
+### `spotify_get_audiobook`
+
+Get details for an audiobook.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `audiobookId` | string | Yes | The Spotify audiobook ID |
+| `market` | string | No | ISO country code for market |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Audiobook ID |
+| `name` | string | Audiobook name |
+| `authors` | json | Authors |
+| `narrators` | json | Narrators |
+| `publisher` | string | Publisher |
+| `description` | string | Description |
+| `total_chapters` | number | Total chapters |
+| `languages` | json | Languages |
+| `image_url` | string | Cover image URL |
+| `external_url` | string | Spotify URL |
+
+### `spotify_get_audiobooks`
+
+Get details for multiple audiobooks.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `audiobookIds` | string | Yes | Comma-separated audiobook IDs \(max 50\) |
+| `market` | string | No | ISO country code for market |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `audiobooks` | json | List of audiobooks |
+
+### `spotify_get_audiobook_chapters`
+
+Get chapters from an audiobook.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `audiobookId` | string | Yes | The Spotify audiobook ID |
+| `limit` | number | No | Number of chapters to return \(1-50\) |
+| `offset` | number | No | Index of first chapter to return |
+| `market` | string | No | ISO country code for market |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chapters` | json | List of chapters |
+| `total` | number | Total chapters |
+| `next` | string | URL for next page |
+
+### `spotify_get_saved_audiobooks`
+
+Get the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | No | Number of audiobooks to return \(1-50\) |
+| `offset` | number | No | Index of first audiobook to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `audiobooks` | json | List of saved audiobooks |
+| `total` | number | Total saved audiobooks |
+| `next` | string | URL for next page |
+
+### `spotify_save_audiobooks`
+
+Save audiobooks to the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `audiobookIds` | string | Yes | Comma-separated audiobook IDs \(max 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether audiobooks were saved |
+
+### `spotify_remove_saved_audiobooks`
+
+Remove audiobooks from the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `audiobookIds` | string | Yes | Comma-separated audiobook IDs \(max 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether audiobooks were removed |
+
+### `spotify_check_saved_audiobooks`
+
+Check if audiobooks are saved in library.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `audiobookIds` | string | Yes | Comma-separated audiobook IDs \(max 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Array of booleans for each audiobook |
+
+### `spotify_get_playlist`
+
+Get detailed information about a playlist on Spotify by its ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | Yes | The Spotify ID of the playlist |
+| `market` | string | No | ISO 3166-1 alpha-2 country code for track availability |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Spotify playlist ID |
+| `name` | string | Playlist name |
+| `description` | string | Playlist description |
+| `public` | boolean | Whether the playlist is public |
+| `collaborative` | boolean | Whether the playlist is collaborative |
+| `owner` | object | Playlist owner information |
+| `image_url` | string | Playlist cover image URL |
+| `total_tracks` | number | Total number of tracks |
+| `snapshot_id` | string | Playlist snapshot ID for versioning |
+| `external_url` | string | Spotify URL |
+
+### `spotify_get_playlist_tracks`
+
+Get the tracks in a Spotify playlist.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | Yes | The Spotify ID of the playlist |
+| `limit` | number | No | Maximum number of tracks to return \(1-100\) |
+| `offset` | number | No | Index of the first track to return |
+| `market` | string | No | ISO 3166-1 alpha-2 country code for track availability |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tracks` | array | List of tracks in the playlist |
+
+### `spotify_get_playlist_cover`
+
+Get a playlist
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | Yes | The Spotify playlist ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `images` | json | List of cover images |
+
+### `spotify_get_user_playlists`
+
+Get the current user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | No | Maximum number of playlists to return \(1-50\) |
+| `offset` | number | No | Index of the first playlist to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `playlists` | array | User |
+
+### `spotify_create_playlist`
+
+Create a new playlist for the current user on Spotify.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Name for the new playlist |
+| `description` | string | No | Description for the playlist |
+| `public` | boolean | No | Whether the playlist should be public |
+| `collaborative` | boolean | No | Whether the playlist should be collaborative \(requires public to be false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Spotify playlist ID |
+| `name` | string | Playlist name |
+| `description` | string | Playlist description |
+| `public` | boolean | Whether the playlist is public |
+| `collaborative` | boolean | Whether collaborative |
+| `snapshot_id` | string | Playlist snapshot ID |
+| `external_url` | string | Spotify URL |
+
+### `spotify_update_playlist`
+
+Update a playlist
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | Yes | The Spotify playlist ID |
+| `name` | string | No | New name for the playlist |
+| `description` | string | No | New description for the playlist |
+| `public` | boolean | No | Whether the playlist should be public |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether update succeeded |
+
+### `spotify_add_playlist_cover`
+
+Upload a custom cover image for a playlist. Image must be JPEG and under 256KB.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | Yes | The Spotify playlist ID |
+| `imageBase64` | string | Yes | Base64-encoded JPEG image \(max 256KB\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether upload succeeded |
+
+### `spotify_add_tracks_to_playlist`
+
+Add one or more tracks to a Spotify playlist.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | Yes | The Spotify ID of the playlist |
+| `uris` | string | Yes | Comma-separated Spotify URIs \(e.g., "spotify:track:xxx,spotify:track:yyy"\) |
+| `position` | number | No | Position to insert tracks \(0-based\). If omitted, tracks are appended. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `snapshot_id` | string | New playlist snapshot ID after modification |
+
+### `spotify_remove_tracks_from_playlist`
+
+Remove one or more tracks from a Spotify playlist.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | Yes | The Spotify ID of the playlist |
+| `uris` | string | Yes | Comma-separated Spotify URIs to remove \(e.g., "spotify:track:xxx,spotify:track:yyy"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `snapshot_id` | string | New playlist snapshot ID after modification |
+
+### `spotify_reorder_playlist_items`
+
+Move tracks to a different position in a playlist.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | Yes | The Spotify playlist ID |
+| `range_start` | number | Yes | Start index of items to reorder |
+| `insert_before` | number | Yes | Index to insert items before |
+| `range_length` | number | No | Number of items to reorder |
+| `snapshot_id` | string | No | Playlist snapshot ID for concurrency control |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `snapshot_id` | string | New playlist snapshot ID |
+
+### `spotify_replace_playlist_items`
+
+Replace all items in a playlist with new tracks.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | Yes | The Spotify playlist ID |
+| `uris` | string | Yes | Comma-separated Spotify URIs \(max 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `snapshot_id` | string | New playlist snapshot ID |
+
+### `spotify_follow_playlist`
+
+Follow (save) a playlist.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | Yes | The Spotify playlist ID |
+| `public` | boolean | No | Whether the playlist will be in public playlists |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether follow succeeded |
+
+### `spotify_unfollow_playlist`
+
+Unfollow (unsave) a playlist.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | Yes | The Spotify playlist ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether unfollow succeeded |
+
+### `spotify_check_playlist_followers`
+
+Check if users follow a playlist.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | Yes | The Spotify playlist ID |
+| `userIds` | string | Yes | Comma-separated user IDs to check \(max 5\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Array of booleans for each user |
+
+### `spotify_get_current_user`
+
+Get the current user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Spotify user ID |
+| `display_name` | string | Display name |
+| `email` | string | Email address |
+| `country` | string | Country code |
+| `product` | string | Subscription level \(free, premium\) |
+| `followers` | number | Number of followers |
+| `image_url` | string | Profile image URL |
+| `external_url` | string | Spotify profile URL |
+
+### `spotify_get_user_profile`
+
+Get a user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | The Spotify user ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | User ID |
+| `display_name` | string | Display name |
+| `followers` | number | Number of followers |
+| `image_url` | string | Profile image URL |
+| `external_url` | string | Spotify URL |
+
+### `spotify_get_top_tracks`
+
+Get the current user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `time_range` | string | No | Time range: short_term \(~4 weeks\), medium_term \(~6 months\), long_term \(years\) |
+| `limit` | number | No | Number of tracks to return \(1-50\) |
+| `offset` | number | No | Index of the first track to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tracks` | array | User |
+
+### `spotify_get_top_artists`
+
+Get the current user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `time_range` | string | No | Time range: short_term \(~4 weeks\), medium_term \(~6 months\), long_term \(years\) |
+| `limit` | number | No | Number of artists to return \(1-50\) |
+| `offset` | number | No | Index of the first artist to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `artists` | array | User |
+
+### `spotify_get_saved_tracks`
+
+Get the current user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | No | Number of tracks to return \(1-50\) |
+| `offset` | number | No | Index of the first track to return |
+| `market` | string | No | ISO 3166-1 alpha-2 country code |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tracks` | array | User |
+
+### `spotify_save_tracks`
+
+Save tracks to the current user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `trackIds` | string | Yes | Comma-separated Spotify track IDs to save \(max 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the tracks were saved successfully |
+
+### `spotify_remove_saved_tracks`
+
+Remove tracks from the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `trackIds` | string | Yes | Comma-separated track IDs to remove \(max 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether tracks were removed successfully |
+
+### `spotify_check_saved_tracks`
+
+Check if one or more tracks are saved in the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `trackIds` | string | Yes | Comma-separated track IDs to check \(max 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Array of track IDs with saved status |
+| `all_saved` | boolean | Whether all tracks are saved |
+| `none_saved` | boolean | Whether no tracks are saved |
+
+### `spotify_get_recently_played`
+
+Get the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | No | Number of tracks to return \(1-50\) |
+| `after` | number | No | Unix timestamp in milliseconds. Returns items after this cursor. |
+| `before` | number | No | Unix timestamp in milliseconds. Returns items before this cursor. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Recently played tracks |
+
+### `spotify_get_new_releases`
+
+Get a list of new album releases featured in Spotify.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `country` | string | No | ISO 3166-1 alpha-2 country code \(e.g., "US", "GB"\) |
+| `limit` | number | No | Number of releases to return \(1-50\) |
+| `offset` | number | No | Index of first release to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `albums` | json | List of new releases |
+| `total` | number | Total number of new releases |
+| `next` | string | URL for next page |
+
+### `spotify_get_categories`
+
+Get a list of browse categories used to tag items in Spotify.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `country` | string | No | ISO 3166-1 alpha-2 country code \(e.g., "US", "GB"\) |
+| `locale` | string | No | Locale code \(e.g., "en_US", "es_MX"\) |
+| `limit` | number | No | Number of categories to return \(1-50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `categories` | json | List of browse categories |
+| `total` | number | Total number of categories |
+
+### `spotify_get_markets`
+
+Get the list of markets where Spotify is available.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `markets` | json | List of ISO country codes |
+
+### `spotify_get_playback_state`
+
+Get the current playback state including device, track, and progress.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `market` | string | No | ISO 3166-1 alpha-2 country code |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `is_playing` | boolean | Whether playback is active |
+| `device` | object | Active device information |
+| `progress_ms` | number | Progress in milliseconds |
+| `currently_playing_type` | string | Type of content playing |
+| `shuffle_state` | boolean | Whether shuffle is enabled |
+| `repeat_state` | string | Repeat mode \(off, track, context\) |
+| `track` | object | Currently playing track |
+
+### `spotify_get_currently_playing`
+
+Get the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `market` | string | No | ISO country code for market |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `is_playing` | boolean | Whether playback is active |
+| `progress_ms` | number | Current position in track \(ms\) |
+| `track` | json | Currently playing track |
+
+### `spotify_get_devices`
+
+Get the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `devices` | array | Available playback devices |
+
+### `spotify_get_queue`
+
+Get the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `currently_playing` | json | Currently playing track |
+| `queue` | json | Upcoming tracks in queue |
+
+### `spotify_play`
+
+Start or resume playback on Spotify. Can play specific tracks, albums, or playlists.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `device_id` | string | No | Device ID to play on. If not provided, plays on active device. |
+| `context_uri` | string | No | Spotify URI of album, artist, or playlist to play \(e.g., "spotify:album:xxx"\) |
+| `uris` | string | No | Comma-separated track URIs to play \(e.g., "spotify:track:xxx,spotify:track:yyy"\) |
+| `offset` | number | No | Position in context to start playing \(0-based index\) |
+| `position_ms` | number | No | Position in track to start from \(in milliseconds\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether playback started successfully |
+
+### `spotify_pause`
+
+Pause playback on Spotify.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `device_id` | string | No | Device ID to pause. If not provided, pauses active device. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether playback was paused |
+
+### `spotify_skip_next`
+
+Skip to the next track on Spotify.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `device_id` | string | No | Device ID. If not provided, uses active device. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether skip was successful |
+
+### `spotify_skip_previous`
+
+Skip to the previous track on Spotify.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `device_id` | string | No | Device ID. If not provided, uses active device. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether skip was successful |
+
+### `spotify_seek`
+
+Seek to a position in the currently playing track.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `position_ms` | number | Yes | Position in milliseconds to seek to |
+| `device_id` | string | No | Device ID to target |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether seek was successful |
+
+### `spotify_add_to_queue`
+
+Add a track to the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `uri` | string | Yes | Spotify URI of the track to add \(e.g., "spotify:track:xxx"\) |
+| `device_id` | string | No | Device ID. If not provided, uses active device. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether track was added to queue |
+
+### `spotify_set_volume`
+
+Set the playback volume on Spotify.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `volume_percent` | number | Yes | Volume level \(0 to 100\) |
+| `device_id` | string | No | Device ID. If not provided, uses active device. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether volume was set |
+
+### `spotify_set_repeat`
+
+Set the repeat mode for playback.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `state` | string | Yes | Repeat mode: "off", "track", or "context" |
+| `device_id` | string | No | Device ID to target |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether repeat mode was set successfully |
+
+### `spotify_set_shuffle`
+
+Turn shuffle on or off.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `state` | boolean | Yes | true for shuffle on, false for off |
+| `device_id` | string | No | Device ID to target |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether shuffle was set successfully |
+
+### `spotify_transfer_playback`
+
+Transfer playback to a different device.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `device_id` | string | Yes | Device ID to transfer playback to |
+| `play` | boolean | No | Whether to start playing on the new device |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether transfer was successful |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `spotify`
