@@ -96,10 +96,7 @@ Retrieve user context from a thread with summary or basic mode
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `context` | string | The context string \(summary or basic\) |
-| `facts` | array | Extracted facts |
-| `entities` | array | Extracted entities |
-| `summary` | string | Conversation summary |
+| `context` | string | The context string \(summary or basic mode\) |
 
 ### `zep_get_messages`
 
@@ -139,9 +136,9 @@ Add messages to an existing thread
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `context` | string | Updated context after adding messages |
-| `messageIds` | array | Array of added message UUIDs |
 | `threadId` | string | The thread ID |
+| `added` | boolean | Whether messages were added successfully |
+| `messageIds` | array | Array of added message UUIDs |
 
 ### `zep_add_user`
 
@@ -211,7 +208,7 @@ List all conversation threads for a specific user
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `threads` | array | Array of thread objects for this user |
-| `userId` | string | The user ID |
+| `totalCount` | number | Total number of threads returned |
 
 
 

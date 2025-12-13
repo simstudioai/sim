@@ -324,7 +324,7 @@ Create an annotation on a dashboard or as a global annotation
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances |
 | `text` | string | Yes | The text content of the annotation |
 | `tags` | string | No | Comma-separated list of tags |
-| `dashboardUid` | string | No | UID of the dashboard to add the annotation to \(optional for global annotations\) |
+| `dashboardUid` | string | Yes | UID of the dashboard to add the annotation to |
 | `panelId` | number | No | ID of the panel to add the annotation to |
 | `time` | number | No | Start time in epoch milliseconds \(defaults to now\) |
 | `timeEnd` | number | No | End time in epoch milliseconds \(for range annotations\) |
@@ -349,7 +349,7 @@ Query annotations by time range, dashboard, or tags
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances |
 | `from` | number | No | Start time in epoch milliseconds |
 | `to` | number | No | End time in epoch milliseconds |
-| `dashboardUid` | string | No | Filter by dashboard UID |
+| `dashboardUid` | string | Yes | Dashboard UID to query annotations from |
 | `panelId` | number | No | Filter by panel ID |
 | `tags` | string | No | Comma-separated list of tags to filter by |
 | `type` | string | No | Filter by type \(alert or annotation\) |
@@ -490,6 +490,16 @@ Create a new folder in Grafana
 | `uid` | string | The UID of the created folder |
 | `title` | string | The title of the created folder |
 | `url` | string | The URL path to the folder |
+| `hasAcl` | boolean | Whether the folder has custom ACL permissions |
+| `canSave` | boolean | Whether the current user can save the folder |
+| `canEdit` | boolean | Whether the current user can edit the folder |
+| `canAdmin` | boolean | Whether the current user has admin rights on the folder |
+| `canDelete` | boolean | Whether the current user can delete the folder |
+| `createdBy` | string | Username of who created the folder |
+| `created` | string | Timestamp when the folder was created |
+| `updatedBy` | string | Username of who last updated the folder |
+| `updated` | string | Timestamp when the folder was last updated |
+| `version` | number | Version number of the folder |
 
 
 

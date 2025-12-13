@@ -20,7 +20,7 @@
     "test:coverage": "vitest run --coverage",
     "email:dev": "email dev --dir components/emails",
     "type-check": "tsc --noEmit",
-    "test:billing:suite": "bun run scripts/test-billing-suite.ts"
+    "generate-docs": "bun run ../../scripts/generate-docs.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
