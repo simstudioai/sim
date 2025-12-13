@@ -21,6 +21,131 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('OrganizationMembership')
 
+export interface RestoreProResult {
+  restored: boolean
+  usageRestored: boolean
+  subscriptionId?: string
+}
+
+/**
+ * Restore a user's personal Pro subscription if it was paused (cancelAtPeriodEnd=true).
+ * Also restores any snapshotted Pro usage from when they joined a team.
+ *
+ * Called when:
+ * - A member leaves a team (via removeUserFromOrganization)
+ * - A team subscription ends (members stay but get Pro restored)
+ */
+export async function restoreUserProSubscription(userId: string): Promise<RestoreProResult> {
+  const result: RestoreProResult = {
+    restored: false,
+    usageRestored: false,
+  }
+
+  try {
+    const [personalPro] = await db
+      .select()
+      .from(subscriptionTable)
+      .where(
+        and(
+          eq(subscriptionTable.referenceId, userId),
+          eq(subscriptionTable.status, 'active'),
+          eq(subscriptionTable.plan, 'pro')
+        )
+      )
+      .limit(1)
+
+    if (!personalPro?.cancelAtPeriodEnd || !personalPro.stripeSubscriptionId) {
+      return result
+    }
+
+    result.subscriptionId = personalPro.id
+
+    try {
+      const stripe = requireStripeClient()
+      await stripe.subscriptions.update(personalPro.stripeSubscriptionId, {
+        cancel_at_period_end: false,
+      })
+    } catch (stripeError) {
+      logger.error('Stripe restore cancel_at_period_end failed for personal Pro', {
+        userId,
+        stripeSubscriptionId: personalPro.stripeSubscriptionId,
+        error: stripeError,
+      })
+    }
+
+    try {
+      await db
+        .update(subscriptionTable)
+        .set({ cancelAtPeriodEnd: false })
+        .where(eq(subscriptionTable.id, personalPro.id))
+
+      result.restored = true
+
+      logger.info('Restored personal Pro subscription', {
+        userId,
+        subscriptionId: personalPro.id,
+      })
+    } catch (dbError) {
+      logger.error('DB update failed when restoring personal Pro', {
+        userId,
+        subscriptionId: personalPro.id,
+        error: dbError,
+      })
+    }
+
+    try {
+      const [stats] = await db
+        .select({
+          currentPeriodCost: userStats.currentPeriodCost,
+          proPeriodCostSnapshot: userStats.proPeriodCostSnapshot,
+        })
+        .from(userStats)
+        .where(eq(userStats.userId, userId))
+        .limit(1)
+
+      if (stats) {
+        const currentUsage = stats.currentPeriodCost || '0'
+        const snapshotUsage = stats.proPeriodCostSnapshot || '0'
+        const snapshotNum = Number.parseFloat(snapshotUsage)
+
+        if (snapshotNum > 0) {
+          const currentNum = Number.parseFloat(currentUsage)
+          const restoredUsage = (currentNum + snapshotNum).toString()
+
+          await db
+            .update(userStats)
+            .set({
+              currentPeriodCost: restoredUsage,
+              proPeriodCostSnapshot: '0',
+            })
+            .where(eq(userStats.userId, userId))
+
+          result.usageRestored = true
+
+          logger.info('Restored Pro usage snapshot', {
+            userId,
+            previousUsage: currentUsage,
+            snapshotUsage,
+            restoredUsage,
+          })
+        }
+      }
+    } catch (usageRestoreError) {
+      logger.error('Failed to restore Pro usage snapshot', {
+        userId,
+        error: usageRestoreError,
+      })
+    }
+  } catch (error) {
+    logger.error('Failed to restore user Pro subscription', {
+      userId,
+      error,
+    })
+  }
+
+  return result
+}
+
 export interface AddMemberParams {
   userId: string
   organizationId: string
@@ -409,7 +534,6 @@ export async function removeUserFromOrganization(
     // STEP 3: Restore personal Pro if user has no remaining paid team memberships
     if (!skipBillingLogic) {
       try {
-        // Check for remaining paid team memberships
         const remainingPaidTeams = await db
           .select({ orgId: member.organizationId })
           .from(member)
@@ -428,104 +552,10 @@ export async function removeUserFromOrganization(
           )
         }
 
-        // If no remaining paid teams, try to restore personal Pro
         if (!hasAnyPaidTeam) {
-          const [personalPro] = await db
-            .select()
-            .from(subscriptionTable)
-            .where(
-              and(
-                eq(subscriptionTable.referenceId, userId),
-                eq(subscriptionTable.status, 'active'),
-                eq(subscriptionTable.plan, 'pro')
-              )
-            )
-            .limit(1)
-
-          // Only restore if cancelAtPeriodEnd is true AND stripeSubscriptionId exists
-          if (
-            personalPro &&
-            personalPro.cancelAtPeriodEnd === true &&
-            personalPro.stripeSubscriptionId
-          ) {
-            // Call Stripe API first (separate try/catch so failure doesn't prevent DB update)
-            try {
-              const stripe = requireStripeClient()
-              await stripe.subscriptions.update(personalPro.stripeSubscriptionId, {
-                cancel_at_period_end: false,
-              })
-            } catch (stripeError) {
-              logger.error('Stripe restore cancel_at_period_end failed for personal Pro', {
-                userId,
-                stripeSubscriptionId: personalPro.stripeSubscriptionId,
-                error: stripeError,
-              })
-            }
-
-            // Update DB (separate try/catch)
-            try {
-              await db
-                .update(subscriptionTable)
-                .set({ cancelAtPeriodEnd: false })
-                .where(eq(subscriptionTable.id, personalPro.id))
-
-              billingActions.proRestored = true
-
-              logger.info('Restored personal Pro after leaving last paid team', {
-                userId,
-                personalSubscriptionId: personalPro.id,
-              })
-            } catch (dbError) {
-              logger.error('DB update failed when restoring personal Pro', {
-                userId,
-                subscriptionId: personalPro.id,
-                error: dbError,
-              })
-            }
-
-            // Restore snapshotted Pro usage (separate try/catch)
-            try {
-              const [stats] = await db
-                .select({
-                  currentPeriodCost: userStats.currentPeriodCost,
-                  proPeriodCostSnapshot: userStats.proPeriodCostSnapshot,
-                })
-                .from(userStats)
-                .where(eq(userStats.userId, userId))
-                .limit(1)
-
-              if (stats) {
-                const currentUsage = stats.currentPeriodCost || '0'
-                const snapshotUsage = stats.proPeriodCostSnapshot || '0'
-
-                const currentNum = Number.parseFloat(currentUsage)
-                const snapshotNum = Number.parseFloat(snapshotUsage)
-                const restoredUsage = (currentNum + snapshotNum).toString()
-
-                await db
-                  .update(userStats)
-                  .set({
-                    currentPeriodCost: restoredUsage,
-                    proPeriodCostSnapshot: '0',
-                  })
-                  .where(eq(userStats.userId, userId))
-
-                billingActions.usageRestored = true
-
-                logger.info('Restored Pro usage after leaving team', {
-                  userId,
-                  previousUsage: currentUsage,
-                  snapshotUsage: snapshotUsage,
-                  restoredUsage: restoredUsage,
-                })
-              }
-            } catch (usageRestoreError) {
-              logger.error('Failed to restore Pro usage after leaving team', {
-                userId,
-                error: usageRestoreError,
-              })
-            }
-          }
+          const restoreResult = await restoreUserProSubscription(userId)
+          billingActions.proRestored = restoreResult.restored
+          billingActions.usageRestored = restoreResult.usageRestored
         }
       } catch (postRemoveError) {
         logger.error('Post-removal personal Pro restore check failed', {
