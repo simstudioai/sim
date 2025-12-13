@@ -246,7 +246,7 @@ export async function DELETE(
           logger.info(`Deleted templates for workflows in workspace ${workspaceId}`)
         } else {
           // Set workflowId to null for templates to create "orphaned" templates
-          // This allows templates to remain in marketplace but without source workflows
+          // This allows templates to remain without source workflows
           await tx
             .update(templates)
             .set({ workflowId: null })
@@ -260,7 +260,7 @@ export async function DELETE(
       // Delete all workflows in the workspace - database cascade will handle all workflow-related data
       // The database cascade will handle deleting related workflow_blocks, workflow_edges, workflow_subflows,
       // workflow_logs, workflow_execution_snapshots, workflow_execution_logs, workflow_execution_trace_spans,
-      // workflow_schedule, webhook, marketplace, chat, and memory records
+      // workflow_schedule, webhook, chat, and memory records
       await tx.delete(workflow).where(eq(workflow.workspaceId, workspaceId))
 
       // Clear workspace ID from knowledge bases instead of deleting them
