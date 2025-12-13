@@ -56,4 +56,8 @@ export const removeMemberTool: ToolConfig<GoogleGroupsRemoveMemberParams, Google
       output: { message: 'Member removed successfully' },
     }
   },
+
+  outputs: {
+    message: { type: 'string', description: 'Success message' },
+  },
 }

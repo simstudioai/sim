@@ -77,13 +77,11 @@ export const trelloListCardsTool: ToolConfig<TrelloListCardsParams, TrelloListCa
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the operation was successful' },
     cards: {
       type: 'array',
       description:
         'Array of card objects with id, name, desc, url, board/list IDs, labels, and due date',
     },
     count: { type: 'number', description: 'Number of cards returned' },
-    error: { type: 'string', description: 'Error message if operation failed' },
   },
 }

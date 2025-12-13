@@ -215,6 +215,75 @@ export function getMimeTypeFromExtension(extension: string): string {
 }
 
 /**
+ * Get file extension from MIME type
+ * @param mimeType - MIME type string
+ * @returns File extension without dot, or null if not found
+ */
+export function getExtensionFromMimeType(mimeType: string): string | null {
+  const mimeToExtension: Record<string, string> = {
+    // Images
+    'image/jpeg': 'jpg',
+    'image/jpg': 'jpg',
+    'image/png': 'png',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+    'image/svg+xml': 'svg',
+
+    // Documents
+    'application/pdf': 'pdf',
+    'text/plain': 'txt',
+    'text/csv': 'csv',
+    'application/json': 'json',
+    'application/xml': 'xml',
+    'text/xml': 'xml',
+    'text/html': 'html',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+    'application/msword': 'doc',
+    'application/vnd.ms-excel': 'xls',
+    'application/vnd.ms-powerpoint': 'ppt',
+    'text/markdown': 'md',
+    'application/rtf': 'rtf',
+
+    // Audio
+    'audio/mpeg': 'mp3',
+    'audio/mp3': 'mp3',
+    'audio/mp4': 'm4a',
+    'audio/x-m4a': 'm4a',
+    'audio/m4a': 'm4a',
+    'audio/wav': 'wav',
+    'audio/wave': 'wav',
+    'audio/x-wav': 'wav',
+    'audio/webm': 'webm',
+    'audio/ogg': 'ogg',
+    'audio/vorbis': 'ogg',
+    'audio/flac': 'flac',
+    'audio/x-flac': 'flac',
+    'audio/aac': 'aac',
+    'audio/x-aac': 'aac',
+    'audio/opus': 'opus',
+
+    // Video
+    'video/mp4': 'mp4',
+    'video/mpeg': 'mpg',
+    'video/quicktime': 'mov',
+    'video/x-quicktime': 'mov',
+    'video/x-msvideo': 'avi',
+    'video/avi': 'avi',
+    'video/x-matroska': 'mkv',
+    'video/webm': 'webm',
+
+    // Archives
+    'application/zip': 'zip',
+    'application/x-zip-compressed': 'zip',
+    'application/gzip': 'gz',
+  }
+
+  return mimeToExtension[mimeType.toLowerCase()] || null
+}
+
+/**
  * Format bytes to human-readable file size
  * @param bytes - File size in bytes
  * @param options - Formatting options
@@ -278,6 +347,7 @@ export function validateKnowledgeBaseFile(
 
 /**
  * Extract storage key from a file path
+ * Handles URLs like /api/files/serve/s3/key or /api/files/serve/blob/key
  */
 export function extractStorageKey(filePath: string): string {
   let pathWithoutQuery = filePath.split('?')[0]
@@ -292,7 +362,13 @@ export function extractStorageKey(filePath: string): string {
   }
 
   if (pathWithoutQuery.startsWith('/api/files/serve/')) {
-    return decodeURIComponent(pathWithoutQuery.substring('/api/files/serve/'.length))
+    let key = decodeURIComponent(pathWithoutQuery.substring('/api/files/serve/'.length))
+    if (key.startsWith('s3/')) {
+      key = key.substring(3)
+    } else if (key.startsWith('blob/')) {
+      key = key.substring(5)
+    }
+    return key
   }
   return pathWithoutQuery
 }

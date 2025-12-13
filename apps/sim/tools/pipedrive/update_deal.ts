@@ -109,21 +109,8 @@ export const pipedriveUpdateDealTool: ToolConfig<
   },
 
   outputs: {
+    deal: { type: 'object', description: 'The updated deal object' },
+    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Updated deal details',
-      properties: {
-        deal: {
-          type: 'object',
-          description: 'The updated deal object',
-        },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-        },
-        success: { type: 'boolean', description: 'Operation success status' },
-      },
-    },
   },
 }

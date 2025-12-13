@@ -103,21 +103,8 @@ export const hubspotGetCompanyTool: ToolConfig<HubSpotGetCompanyParams, HubSpotG
     },
 
     outputs: {
+      company: { type: 'object', description: 'HubSpot company object with properties' },
+      metadata: { type: 'object', description: 'Operation metadata' },
       success: { type: 'boolean', description: 'Operation success status' },
-      output: {
-        type: 'object',
-        description: 'Company data',
-        properties: {
-          company: {
-            type: 'object',
-            description: 'Company object with properties',
-          },
-          metadata: {
-            type: 'object',
-            description: 'Operation metadata',
-          },
-          success: { type: 'boolean', description: 'Operation success status' },
-        },
-      },
     },
   }

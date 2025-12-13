@@ -508,7 +508,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           color: getNextWorkflowColor(),
           workspaceId, // Include the workspaceId in the new workflow
           folderId: sourceWorkflow.folderId, // Include the folderId from source workflow
-          // Do not copy marketplace data
         }
 
         // Get the current workflow state to copy from

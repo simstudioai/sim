@@ -31,7 +31,6 @@ export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
         return `https://vault.googleapis.com/v1/matters/${params.matterId}`
       }
       const url = new URL('https://vault.googleapis.com/v1/matters')
-      // Handle pageSize - convert to number if needed
       if (params.pageSize !== undefined && params.pageSize !== null) {
         const pageSize = Number(params.pageSize)
         if (Number.isFinite(pageSize) && pageSize > 0) {
@@ -39,18 +38,26 @@ export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
         }
       }
       if (params.pageToken) url.searchParams.set('pageToken', params.pageToken)
-      // Default BASIC view implicitly by omitting 'view' and 'state' params
       return url.toString()
     },
     method: 'GET',
     headers: (params) => ({ Authorization: `Bearer ${params.accessToken}` }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: GoogleVaultListMattersParams) => {
     const data = await response.json()
     if (!response.ok) {
       throw new Error(data.error?.message || 'Failed to list matters')
     }
+    if (params?.matterId) {
+      return { success: true, output: { matter: data } }
+    }
     return { success: true, output: data }
+  },
+
+  outputs: {
+    matters: { type: 'json', description: 'Array of matter objects' },
+    matter: { type: 'json', description: 'Single matter object (when matterId is provided)' },
+    nextPageToken: { type: 'string', description: 'Token for fetching next page of results' },
   },
 }

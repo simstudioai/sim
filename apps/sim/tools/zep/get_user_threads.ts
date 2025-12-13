@@ -43,19 +43,19 @@ export const zepGetUserThreadsTool: ToolConfig<any, ZepResponse> = {
   },
 
   transformResponse: async (response) => {
-    const text = await response.text()
-
     if (!response.ok) {
-      throw new Error(`Zep API error (${response.status}): ${text || response.statusText}`)
+      const error = await response.text()
+      throw new Error(`Zep API error (${response.status}): ${error || response.statusText}`)
     }
 
-    const data = JSON.parse(text.replace(/^\uFEFF/, '').trim())
+    const data = await response.json()
+    const threads = data.threads || data || []
 
     return {
       success: true,
       output: {
-        threads: data.threads || data || [],
-        userId: data.user_id,
+        threads,
+        totalCount: threads.length,
       },
     }
   },
@@ -65,9 +65,9 @@ export const zepGetUserThreadsTool: ToolConfig<any, ZepResponse> = {
       type: 'array',
       description: 'Array of thread objects for this user',
     },
-    userId: {
-      type: 'string',
-      description: 'The user ID',
+    totalCount: {
+      type: 'number',
+      description: 'Total number of threads returned',
     },
   },
 }

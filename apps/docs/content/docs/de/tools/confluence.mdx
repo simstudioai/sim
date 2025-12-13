@@ -221,9 +221,36 @@ Löscht einen Kommentar von einer Confluence-Seite.
 | `commentId` | string | Gelöschte Kommentar-ID |
 | `deleted` | boolean | Löschstatus |
 
+### `confluence_upload_attachment`
+
+Laden Sie eine Datei als Anhang zu einer Confluence-Seite hoch.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Confluence-Domain (z.B. ihrfirma.atlassian.net) |
+| `pageId` | string | Ja | Confluence-Seiten-ID, an die die Datei angehängt werden soll |
+| `file` | file | Ja | Die als Anhang hochzuladende Datei |
+| `fileName` | string | Nein | Optionaler benutzerdefinierter Dateiname für den Anhang |
+| `comment` | string | Nein | Optionaler Kommentar zum Anhang |
+| `cloudId` | string | Nein | Confluence Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel des Uploads |
+| `attachmentId` | string | Hochgeladene Anhangs-ID |
+| `title` | string | Dateiname des Anhangs |
+| `fileSize` | number | Dateigröße in Bytes |
+| `mediaType` | string | MIME-Typ des Anhangs |
+| `downloadUrl` | string | Download-URL für den Anhang |
+| `pageId` | string | Seiten-ID, zu der der Anhang hinzugefügt wurde |
+
 ### `confluence_list_attachments`
 
-Listet alle Anhänge einer Confluence-Seite auf.
+Listen Sie alle Anhänge einer Confluence-Seite auf.
 
 #### Eingabe
 
@@ -243,7 +270,7 @@ Listet alle Anhänge einer Confluence-Seite auf.
 
 ### `confluence_delete_attachment`
 
-Löscht einen Anhang von einer Confluence-Seite (wird in den Papierkorb verschoben).
+Löschen eines Anhangs von einer Confluence-Seite (wird in den Papierkorb verschoben).
 
 #### Eingabe
 
@@ -263,7 +290,7 @@ Löscht einen Anhang von einer Confluence-Seite (wird in den Papierkorb verschob
 
 ### `confluence_list_labels`
 
-Alle Labels einer Confluence-Seite auflisten.
+Listet alle Labels einer Confluence-Seite auf.
 
 #### Eingabe
 
@@ -282,7 +309,7 @@ Alle Labels einer Confluence-Seite auflisten.
 
 ### `confluence_get_space`
 
-Details zu einem bestimmten Confluence-Space abrufen.
+Ruft Details zu einem bestimmten Confluence-Space ab.
 
 #### Eingabe
 
@@ -306,7 +333,7 @@ Details zu einem bestimmten Confluence-Space abrufen.
 
 ### `confluence_list_spaces`
 
-Alle für den Benutzer zugänglichen Confluence-Spaces auflisten.
+Listet alle Confluence-Spaces auf, auf die der Benutzer zugreifen kann.
 
 #### Eingabe
 

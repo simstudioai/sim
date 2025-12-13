@@ -318,10 +318,10 @@ Crear una anotación en un panel o como una anotación global
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
 | `baseUrl` | string | Sí | URL de la instancia de Grafana \(p. ej., https://your-grafana.com\) |
-| `organizationId` | string | No | ID de la organización para instancias de Grafana multi-organización |
+| `organizationId` | string | No | ID de organización para instancias Grafana multi-organización |
 | `text` | string | Sí | El contenido de texto de la anotación |
 | `tags` | string | No | Lista de etiquetas separadas por comas |
-| `dashboardUid` | string | No | UID del panel donde añadir la anotación \(opcional para anotaciones globales\) |
+| `dashboardUid` | string | Sí | UID del panel de control donde añadir la anotación |
 | `panelId` | number | No | ID del panel donde añadir la anotación |
 | `time` | number | No | Hora de inicio en milisegundos de época \(por defecto es ahora\) |
 | `timeEnd` | number | No | Hora de finalización en milisegundos de época \(para anotaciones de rango\) |
@@ -343,11 +343,11 @@ Consultar anotaciones por rango de tiempo, panel o etiquetas
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Sí | Token de cuenta de servicio de Grafana |
 | `baseUrl` | string | Sí | URL de la instancia de Grafana \(p. ej., https://your-grafana.com\) |
-| `organizationId` | string | No | ID de la organización para instancias de Grafana multi-organización |
+| `organizationId` | string | No | ID de organización para instancias Grafana multi-organización |
 | `from` | number | No | Hora de inicio en milisegundos de época |
 | `to` | number | No | Hora de finalización en milisegundos de época |
-| `dashboardUid` | string | No | Filtrar por UID del panel |
-| `panelId` | number | No | Filtrar por ID del panel |
+| `dashboardUid` | string | Sí | UID del panel de control para consultar anotaciones |
+| `panelId` | number | No | Filtrar por ID de panel |
 | `tags` | string | No | Lista de etiquetas separadas por comas para filtrar |
 | `type` | string | No | Filtrar por tipo \(alerta o anotación\) |
 | `limit` | number | No | Número máximo de anotaciones a devolver |
@@ -487,6 +487,16 @@ Crear una nueva carpeta en Grafana
 | `uid` | string | El UID de la carpeta creada |
 | `title` | string | El título de la carpeta creada |
 | `url` | string | La ruta URL a la carpeta |
+| `hasAcl` | boolean | Si la carpeta tiene permisos ACL personalizados |
+| `canSave` | boolean | Si el usuario actual puede guardar la carpeta |
+| `canEdit` | boolean | Si el usuario actual puede editar la carpeta |
+| `canAdmin` | boolean | Si el usuario actual tiene derechos de administrador en la carpeta |
+| `canDelete` | boolean | Si el usuario actual puede eliminar la carpeta |
+| `createdBy` | string | Nombre de usuario de quien creó la carpeta |
+| `created` | string | Marca de tiempo cuando se creó la carpeta |
+| `updatedBy` | string | Nombre de usuario de quien actualizó por última vez la carpeta |
+| `updated` | string | Marca de tiempo cuando se actualizó por última vez la carpeta |
+| `version` | number | Número de versión de la carpeta |
 
 ## Notas
 

@@ -352,13 +352,48 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
   }, [])
 
   const parseEnvVarLine = useCallback((line: string): UIEnvironmentVariable | null => {
-    const equalIndex = line.indexOf('=')
+    const trimmed = line.trim()
+
+    if (!trimmed || trimmed.startsWith('#')) return null
+
+    const withoutExport = trimmed.replace(/^export\s+/, '')
+
+    const equalIndex = withoutExport.indexOf('=')
     if (equalIndex === -1 || equalIndex === 0) return null
 
-    const potentialKey = line.substring(0, equalIndex).trim()
+    const potentialKey = withoutExport.substring(0, equalIndex).trim()
     if (!ENV_VAR_PATTERN.test(potentialKey)) return null
 
-    const value = line.substring(equalIndex + 1).trim()
+    let value = withoutExport.substring(equalIndex + 1)
+
+    const looksLikeBase64Key = /^[A-Za-z0-9+/]+$/.test(potentialKey) && !potentialKey.includes('_')
+    const valueIsJustPadding = /^=+$/.test(value.trim())
+    if (looksLikeBase64Key && valueIsJustPadding && potentialKey.length > 20) {
+      return null
+    }
+
+    const trimmedValue = value.trim()
+    if (
+      !trimmedValue.startsWith('"') &&
+      !trimmedValue.startsWith("'") &&
+      !trimmedValue.startsWith('`')
+    ) {
+      const commentIndex = value.search(/\s#/)
+      if (commentIndex !== -1) {
+        value = value.substring(0, commentIndex)
+      }
+    }
+
+    value = value.trim()
+
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'")) ||
+      (value.startsWith('`') && value.endsWith('`'))
+    ) {
+      value = value.slice(1, -1)
+    }
+
     return { key: potentialKey, value, id: generateRowId() }
   }, [])
 

@@ -1,0 +1,63 @@
+---
+title: Amazon SQS
+description: Verbindung zu Amazon SQS
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sqs"
+  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon Simple Queue Service (SQS)](https://aws.amazon.com/sqs/) ist ein vollständig verwalteter Message-Queuing-Dienst, der es ermöglicht, Microservices, verteilte Systeme und serverlose Anwendungen zu entkoppeln und zu skalieren. SQS beseitigt die Komplexität und den Aufwand, die mit der Verwaltung und dem Betrieb von nachrichtenorientierter Middleware verbunden sind, und ermöglicht Entwicklern, sich auf differenzierende Arbeit zu konzentrieren.
+
+Mit Amazon SQS können Sie:
+
+- **Nachrichten senden**: Veröffentlichen Sie Nachrichten in Warteschlangen für asynchrone Verarbeitung
+- **Anwendungen entkoppeln**: Ermöglichen Sie eine lose Kopplung zwischen Komponenten Ihres Systems
+- **Workloads skalieren**: Bewältigen Sie variable Arbeitslasten ohne Bereitstellung von Infrastruktur
+- **Zuverlässigkeit gewährleisten**: Eingebaute Redundanz und hohe Verfügbarkeit
+- **FIFO-Warteschlangen unterstützen**: Strikte Nachrichtenreihenfolge und genau einmalige Verarbeitung beibehalten
+
+In Sim ermöglicht die SQS-Integration Ihren Agenten, Nachrichten sicher und programmatisch an Amazon SQS-Warteschlangen zu senden. Unterstützte Operationen umfassen:
+
+- **Nachricht senden**: Senden Sie Nachrichten an SQS-Warteschlangen mit optionaler Nachrichtengruppen-ID und Deduplizierungs-ID für FIFO-Warteschlangen
+
+Diese Integration ermöglicht es Ihren Agenten, Workflows zum Senden von Nachrichten ohne manuelle Eingriffe zu automatisieren. Durch die Verbindung von Sim mit Amazon SQS können Sie Agenten erstellen, die Nachrichten innerhalb Ihrer Workflows in Warteschlangen veröffentlichen – alles ohne Verwaltung der Warteschlangen-Infrastruktur oder Verbindungen.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integrieren Sie Amazon SQS in den Workflow. Kann Nachrichten an SQS-Warteschlangen senden.
+
+## Tools
+
+### `sqs_send`
+
+Eine Nachricht an eine Amazon SQS-Warteschlange senden
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Ja | AWS-Region (z.B. us-east-1) |
+| `accessKeyId` | string | Ja | AWS-Zugriffsschlüssel-ID |
+| `secretAccessKey` | string | Ja | AWS-Geheimzugriffsschlüssel |
+| `queueUrl` | string | Ja | Queue-URL |
+| `data` | object | Ja | Zu sendender Nachrichtentext |
+| `messageGroupId` | string | Nein | Nachrichtengruppen-ID (optional) |
+| `messageDeduplicationId` | string | Nein | Nachrichtendeduplizierungs-ID (optional) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `id` | string | Nachrichten-ID |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `sqs`

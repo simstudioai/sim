@@ -16,10 +16,35 @@ jobs:
     uses: ./.github/workflows/test-build.yml
     secrets: inherit
 
+  # Detect if this is a version release commit (e.g., "v0.5.24: ...")
+  detect-version:
+    name: Detect Version
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    outputs:
+      version: ${{ steps.extract.outputs.version }}
+      is_release: ${{ steps.extract.outputs.is_release }}
+    steps:
+      - name: Extract version from commit message
+        id: extract
+        run: |
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          # Only tag versions on main branch
+          if [ "${{ github.ref }}" = "refs/heads/main" ] && [[ "$COMMIT_MSG" =~ ^(v[0-9]+\.[0-9]+\.[0-9]+): ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "is_release=true" >> $GITHUB_OUTPUT
+            echo "✅ Detected release commit: ${VERSION}"
+          else
+            echo "version=" >> $GITHUB_OUTPUT
+            echo "is_release=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ Not a release commit"
+          fi
+
   # Build AMD64 images and push to ECR immediately (+ GHCR for main)
   build-amd64:
     name: Build AMD64
-    needs: test-build
+    needs: [test-build, detect-version]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     runs-on: blacksmith-8vcpu-ubuntu-2404
     permissions:
@@ -93,6 +118,14 @@ jobs:
             GHCR_AMD64="${GHCR_IMAGE}:latest-amd64"
             GHCR_SHA="${GHCR_IMAGE}:${{ github.sha }}-amd64"
             TAGS="${TAGS},$GHCR_AMD64,$GHCR_SHA"
+
+            # Add version tag if this is a release commit
+            if [ "${{ needs.detect-version.outputs.is_release }}" = "true" ]; then
+              VERSION="${{ needs.detect-version.outputs.version }}"
+              GHCR_VERSION="${GHCR_IMAGE}:${VERSION}-amd64"
+              TAGS="${TAGS},$GHCR_VERSION"
+              echo "📦 Adding version tag: ${VERSION}-amd64"
+            fi
           fi
 
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
@@ -111,7 +144,7 @@ jobs:
   # Build ARM64 images for GHCR (main branch only, runs in parallel)
   build-ghcr-arm64:
     name: Build ARM64 (GHCR Only)
-    needs: test-build
+    needs: [test-build, detect-version]
     runs-on: blacksmith-8vcpu-ubuntu-2404-arm
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
@@ -146,7 +179,16 @@ jobs:
         id: meta
         run: |
           IMAGE="${{ matrix.image }}"
-          echo "tags=${IMAGE}:latest-arm64,${IMAGE}:${{ github.sha }}-arm64" >> $GITHUB_OUTPUT
+          TAGS="${IMAGE}:latest-arm64,${IMAGE}:${{ github.sha }}-arm64"
+
+          # Add version tag if this is a release commit
+          if [ "${{ needs.detect-version.outputs.is_release }}" = "true" ]; then
+            VERSION="${{ needs.detect-version.outputs.version }}"
+            TAGS="${TAGS},${IMAGE}:${VERSION}-arm64"
+            echo "📦 Adding version tag: ${VERSION}-arm64"
+          fi
+
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
 
       - name: Build and push ARM64 to GHCR
         uses: useblacksmith/build-push-action@v2
@@ -162,8 +204,8 @@ jobs:
   # Create GHCR multi-arch manifests (only for main, after both builds)
   create-ghcr-manifests:
     name: Create GHCR Manifests
-    runs-on: blacksmith-8vcpu-ubuntu-2404
-    needs: [build-amd64, build-ghcr-arm64]
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    needs: [build-amd64, build-ghcr-arm64, detect-version]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       packages: write
@@ -197,6 +239,16 @@ jobs:
             "${IMAGE_BASE}:${{ github.sha }}-amd64" \
             "${IMAGE_BASE}:${{ github.sha }}-arm64"
           docker manifest push "${IMAGE_BASE}:${{ github.sha }}"
+
+          # Create version manifest if this is a release commit
+          if [ "${{ needs.detect-version.outputs.is_release }}" = "true" ]; then
+            VERSION="${{ needs.detect-version.outputs.version }}"
+            echo "📦 Creating version manifest: ${VERSION}"
+            docker manifest create "${IMAGE_BASE}:${VERSION}" \
+              "${IMAGE_BASE}:${VERSION}-amd64" \
+              "${IMAGE_BASE}:${VERSION}-arm64"
+            docker manifest push "${IMAGE_BASE}:${VERSION}"
+          fi
 
   # Check if docs changed
   check-docs-changes:

@@ -31,6 +31,7 @@ import {
   SalesforceIcon,
   ShopifyIcon,
   SlackIcon,
+  SpotifyIcon,
   // SupabaseIcon,
   TrelloIcon,
   WealthboxIcon,
@@ -70,6 +71,7 @@ export type OAuthProvider =
   | 'shopify'
   | 'zoom'
   | 'wordpress'
+  | 'spotify'
   | string
 
 export type OAuthService =
@@ -111,6 +113,8 @@ export type OAuthService =
   | 'shopify'
   | 'zoom'
   | 'wordpress'
+  | 'spotify'
+
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -891,6 +895,41 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'wordpress',
   },
+  spotify: {
+    id: 'spotify',
+    name: 'Spotify',
+    icon: (props) => SpotifyIcon(props),
+    services: {
+      spotify: {
+        id: 'spotify',
+        name: 'Spotify',
+        description: 'Search music, manage playlists, control playback, and access your library.',
+        providerId: 'spotify',
+        icon: (props) => SpotifyIcon(props),
+        baseProviderIcon: (props) => SpotifyIcon(props),
+        scopes: [
+          'user-read-private',
+          'user-read-email',
+          'user-library-read',
+          'user-library-modify',
+          'playlist-read-private',
+          'playlist-read-collaborative',
+          'playlist-modify-public',
+          'playlist-modify-private',
+          'user-read-playback-state',
+          'user-modify-playback-state',
+          'user-read-currently-playing',
+          'user-read-recently-played',
+          'user-top-read',
+          'user-follow-read',
+          'user-follow-modify',
+          'user-read-playback-position',
+          'ugc-image-upload',
+        ],
+      },
+    },
+    defaultService: 'spotify',
+  },
 }
 
 /**
@@ -1467,6 +1506,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: false,
+        supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'spotify': {
+      const { clientId, clientSecret } = getCredentials(
+        env.SPOTIFY_CLIENT_ID,
+        env.SPOTIFY_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://accounts.spotify.com/api/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
         supportsRefreshTokenRotation: false,
       }
     }

@@ -4,7 +4,10 @@ import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
+import {
+  getExtensionFromMimeType,
+  processSingleFileToUserFile,
+} from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { normalizeExcelValues } from '@/tools/onedrive/utils'
 
@@ -27,9 +30,8 @@ const OneDriveUploadSchema = z.object({
   fileName: z.string().min(1, 'File name is required'),
   file: z.any().optional(), // UserFile object (optional for blank Excel creation)
   folderId: z.string().optional().nullable(),
-  mimeType: z.string().optional(),
-  // Optional Excel write-after-create inputs
-  values: ExcelValuesSchema.optional(),
+  mimeType: z.string().nullish(), // Accept string, null, or undefined
+  values: ExcelValuesSchema.optional().nullable(),
 })
 
 export async function POST(request: NextRequest) {
@@ -149,9 +151,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Ensure file name has correct extension for Excel files
+    // Ensure file name has an appropriate extension
     let fileName = validatedData.fileName
-    if (isExcelCreation && !fileName.endsWith('.xlsx')) {
+    const hasExtension = fileName.includes('.') && fileName.lastIndexOf('.') > 0
+
+    if (!hasExtension) {
+      const extension = getExtensionFromMimeType(mimeType)
+      if (extension) {
+        fileName = `${fileName}.${extension}`
+        logger.info(`[${requestId}] Added extension to filename: ${fileName}`)
+      }
+    } else if (isExcelCreation && !fileName.endsWith('.xlsx')) {
       fileName = `${fileName.replace(/\.[^.]*$/, '')}.xlsx`
     }
 

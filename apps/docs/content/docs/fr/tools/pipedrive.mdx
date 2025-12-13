@@ -51,8 +51,9 @@ Récupérer toutes les affaires de Pipedrive avec des filtres optionnels
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `deals` | array | Tableau d'objets d'affaires de Pipedrive |
+| `metadata` | object | Métadonnées de l'opération |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données et métadonnées des affaires |
 
 ### `pipedrive_get_deal`
 
@@ -68,8 +69,9 @@ Récupérer des informations détaillées sur une affaire spécifique
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `deal` | object | Objet d'affaire avec tous les détails |
+| `metadata` | object | Métadonnées de l'opération |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Détails de l'affaire |
 
 ### `pipedrive_create_deal`
 
@@ -93,8 +95,9 @@ Créer une nouvelle affaire dans Pipedrive
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `deal` | object | L'objet d'affaire créé |
+| `metadata` | object | Métadonnées de l'opération |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Détails de l'affaire créée |
 
 ### `pipedrive_update_deal`
 
@@ -115,8 +118,9 @@ Mettre à jour une affaire existante dans Pipedrive
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `deal` | object | L'objet d'affaire mis à jour |
+| `metadata` | object | Métadonnées de l'opération |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Détails de l'affaire mise à jour |
 
 ### `pipedrive_get_files`
 
@@ -135,8 +139,9 @@ Récupérer des fichiers depuis Pipedrive avec des filtres optionnels
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `files` | array | Tableau d'objets fichiers de Pipedrive |
+| `metadata` | object | Métadonnées de l'opération |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données des fichiers |
 
 ### `pipedrive_get_mail_messages`
 
@@ -153,8 +158,9 @@ Récupérer les fils de discussion de la boîte mail Pipedrive
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `messages` | array | Tableau d'objets de fils de discussion de la boîte mail Pipedrive |
+| `metadata` | object | Métadonnées de l'opération |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données des fils de discussion |
 
 ### `pipedrive_get_mail_thread`
 
@@ -170,8 +176,9 @@ Récupérer tous les messages d'un fil de discussion spécifique
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `messages` | array | Tableau d'objets de messages électroniques du fil de discussion |
+| `metadata` | object | Métadonnées de l'opération incluant l'ID du fil de discussion |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données des messages du fil de discussion |
 
 ### `pipedrive_get_pipelines`
 
@@ -190,8 +197,9 @@ Récupérer tous les pipelines de Pipedrive
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `pipelines` | array | Tableau d'objets de pipeline de Pipedrive |
+| `metadata` | object | Métadonnées de l'opération |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données des pipelines |
 
 ### `pipedrive_get_pipeline_deals`
 
@@ -210,8 +218,9 @@ Récupérer toutes les affaires dans un pipeline spécifique
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `deals` | array | Tableau d'objets d'affaires du pipeline |
+| `metadata` | object | Métadonnées de l'opération incluant l'ID du pipeline |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données des affaires du pipeline |
 
 ### `pipedrive_get_projects`
 
@@ -229,8 +238,10 @@ Récupérer tous les projets ou un projet spécifique de Pipedrive
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `projects` | array | Tableau d'objets de projet (lors du listage de tous) |
+| `project` | object | Objet de projet unique (lorsque project_id est fourni) |
+| `metadata` | object | Métadonnées de l'opération |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données des projets ou détails d'un projet unique |
 
 ### `pipedrive_create_project`
 
@@ -249,8 +260,9 @@ Créer un nouveau projet dans Pipedrive
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `project` | object | L'objet du projet créé |
+| `metadata` | object | Métadonnées de l'opération |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Détails du projet créé |
 
 ### `pipedrive_get_activities`
 
@@ -271,8 +283,9 @@ Récupérer les activités (tâches) de Pipedrive avec filtres optionnels
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `activities` | array | Tableau d'objets d'activité de Pipedrive |
+| `metadata` | object | Métadonnées de l'opération |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données des activités |
 
 ### `pipedrive_create_activity`
 
@@ -296,8 +309,9 @@ Créer une nouvelle activité (tâche) dans Pipedrive
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | booléen | Statut de réussite de l'opération |
-| `output` | objet | Détails de l'activité créée |
+| `activity` | object | L'objet activité créé |
+| `metadata` | object | Métadonnées de l'opération |
+| `success` | boolean | Statut de réussite de l'opération |
 
 ### `pipedrive_update_activity`
 
@@ -319,8 +333,9 @@ Mettre à jour une activité existante (tâche) dans Pipedrive
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `activity` | object | L'objet activité mis à jour |
+| `metadata` | object | Métadonnées de l'opération |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Détails de l'activité mise à jour |
 
 ### `pipedrive_get_leads`
 
@@ -341,8 +356,10 @@ Récupérer tous les prospects ou un prospect spécifique depuis Pipedrive
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `leads` | array | Tableau d'objets prospect \(lors de la liste complète\) |
+| `lead` | object | Objet prospect unique \(lorsque lead_id est fourni\) |
+| `metadata` | object | Métadonnées de l'opération |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données des prospects ou détails d'un prospect spécifique |
 
 ### `pipedrive_create_lead`
 
@@ -365,8 +382,9 @@ Créer un nouveau prospect dans Pipedrive
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `lead` | object | L'objet prospect créé |
+| `metadata` | object | Métadonnées de l'opération |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Détails du lead créé |
 
 ### `pipedrive_update_lead`
 
@@ -390,8 +408,9 @@ Mettre à jour un lead existant dans Pipedrive
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `lead` | object | L'objet prospect mis à jour |
+| `metadata` | object | Métadonnées de l'opération |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Détails du lead mis à jour |
 
 ### `pipedrive_delete_lead`
 
@@ -407,8 +426,9 @@ Supprimer un lead spécifique de Pipedrive
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `data` | object | Données de confirmation de suppression |
+| `metadata` | object | Métadonnées de l'opération |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Résultat de la suppression |
 
 ## Notes
 

@@ -89,15 +89,16 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
         urls: params.urls,
       }
 
-      if (params.prompt != null) body.prompt = params.prompt
-      if (params.schema != null) body.schema = params.schema
-      if (params.enableWebSearch != null) body.enableWebSearch = params.enableWebSearch
-      if (params.ignoreSitemap != null) body.ignoreSitemap = params.ignoreSitemap
-      if (params.includeSubdomains != null) body.includeSubdomains = params.includeSubdomains
-      if (params.showSources != null) body.showSources = params.showSources
-      if (params.ignoreInvalidURLs != null) body.ignoreInvalidURLs = params.ignoreInvalidURLs
+      if (params.prompt) body.prompt = params.prompt
+      if (params.schema) body.schema = params.schema
+      if (typeof params.enableWebSearch === 'boolean') body.enableWebSearch = params.enableWebSearch
+      if (typeof params.ignoreSitemap === 'boolean') body.ignoreSitemap = params.ignoreSitemap
+      if (typeof params.includeSubdomains === 'boolean')
+        body.includeSubdomains = params.includeSubdomains
+      if (typeof params.showSources === 'boolean') body.showSources = params.showSources
+      if (typeof params.ignoreInvalidURLs === 'boolean')
+        body.ignoreInvalidURLs = params.ignoreInvalidURLs
 
-      // Add scrapeOptions, filtering out null/undefined values
       if (params.scrapeOptions != null) {
         const cleanedScrapeOptions = Object.entries(params.scrapeOptions).reduce(
           (acc, [key, val]) => {
@@ -161,7 +162,6 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
             jobId,
             success: true,
             data: extractData.data || {},
-            warning: extractData.warning,
           }
           return result
         }
@@ -208,21 +208,6 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
     data: {
       type: 'object',
       description: 'Extracted structured data according to the schema or prompt',
-    },
-    sources: {
-      type: 'array',
-      description: 'Data sources (only if showSources is enabled)',
-      items: {
-        type: 'object',
-        properties: {
-          url: { type: 'string', description: 'Source URL' },
-          title: { type: 'string', description: 'Source title' },
-        },
-      },
-    },
-    warning: {
-      type: 'string',
-      description: 'Warning messages from the extraction operation',
     },
   },
 }

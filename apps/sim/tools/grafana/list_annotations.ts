@@ -46,9 +46,9 @@ export const listAnnotationsTool: ToolConfig<
     },
     dashboardUid: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description: 'Filter by dashboard UID',
+      description: 'Dashboard UID to query annotations from',
     },
     panelId: {
       type: 'number',

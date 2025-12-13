@@ -55,23 +55,23 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
         },
       }
 
-      // Add all optional crawl-specific parameters if provided
-      if (params.prompt !== undefined) body.prompt = params.prompt
-      if (params.maxDiscoveryDepth !== undefined)
-        body.maxDiscoveryDepth = Number(params.maxDiscoveryDepth)
-      if (params.sitemap !== undefined) body.sitemap = params.sitemap
-      if (params.crawlEntireDomain !== undefined) body.crawlEntireDomain = params.crawlEntireDomain
-      if (params.allowExternalLinks !== undefined)
+      if (params.prompt) body.prompt = params.prompt
+      if (params.maxDiscoveryDepth) body.maxDiscoveryDepth = Number(params.maxDiscoveryDepth)
+      if (params.sitemap) body.sitemap = params.sitemap
+      if (typeof params.crawlEntireDomain === 'boolean')
+        body.crawlEntireDomain = params.crawlEntireDomain
+      if (typeof params.allowExternalLinks === 'boolean')
         body.allowExternalLinks = params.allowExternalLinks
-      if (params.allowSubdomains !== undefined) body.allowSubdomains = params.allowSubdomains
-      if (params.ignoreQueryParameters !== undefined)
+      if (typeof params.allowSubdomains === 'boolean') body.allowSubdomains = params.allowSubdomains
+      if (typeof params.ignoreQueryParameters === 'boolean')
         body.ignoreQueryParameters = params.ignoreQueryParameters
-      if (params.delay !== undefined) body.delay = Number(params.delay)
-      if (params.maxConcurrency !== undefined) body.maxConcurrency = Number(params.maxConcurrency)
-      if (params.excludePaths !== undefined) body.excludePaths = params.excludePaths
-      if (params.includePaths !== undefined) body.includePaths = params.includePaths
-      if (params.webhook !== undefined) body.webhook = params.webhook
-      if (params.zeroDataRetention !== undefined) body.zeroDataRetention = params.zeroDataRetention
+      if (params.delay) body.delay = Number(params.delay)
+      if (params.maxConcurrency) body.maxConcurrency = Number(params.maxConcurrency)
+      if (params.excludePaths) body.excludePaths = params.excludePaths
+      if (params.includePaths) body.includePaths = params.includePaths
+      if (params.webhook) body.webhook = params.webhook
+      if (typeof params.zeroDataRetention === 'boolean')
+        body.zeroDataRetention = params.zeroDataRetention
 
       return body
     },

@@ -45,10 +45,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作是否成功 |
 | `lists` | array | 包含 id、name、closed、pos 和 idBoard 的列表对象数组 |
 | `count` | number | 返回的列表数量 |
-| `error` | string | 如果操作失败的错误信息 |
 
 ### `trello_list_cards`
 
@@ -65,10 +63,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作是否成功 |
-| `cards` | array | 包含 id、name、desc、url、board/list IDs、labels 和到期日期的卡片对象数组 |
+| `cards` | array | 包含 id、name、desc、url、看板/列表 ID、标签和到期日期的卡片对象数组 |
 | `count` | number | 返回的卡片数量 |
-| `error` | string | 如果操作失败的错误信息 |
 
 ### `trello_create_card`
 
@@ -90,9 +86,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 卡片是否创建成功 |
 | `card` | object | 创建的卡片对象，包含 id、name、desc、url 和其他属性 |
-| `error` | string | 如果操作失败，返回错误信息 |
 
 ### `trello_update_card`
 
@@ -114,9 +108,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 卡片是否更新成功 |
 | `card` | object | 更新的卡片对象，包含 id、name、desc、url 和其他属性 |
-| `error` | string | 如果操作失败，返回错误信息 |
 
 ### `trello_get_actions`
 
@@ -135,10 +127,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作是否成功 |
-| `actions` | array | 包含类型、日期、成员和数据的操作对象数组 |
+| `actions` | array | 包含 type、date、member 和 data 的操作对象数组 |
 | `count` | number | 返回的操作数量 |
-| `error` | string | 如果操作失败，返回的错误信息 |
 
 ### `trello_add_comment`
 
@@ -155,9 +145,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 评论是否成功添加 |
-| `comment` | object | 创建的评论对象，包含 id、text、date 和 member creator |
-| `error` | string | 如果操作失败，返回的错误信息 |
+| `comment` | object | 创建的评论对象，包含 id、text、date 和创建者信息 |
 
 ## 注意事项
 

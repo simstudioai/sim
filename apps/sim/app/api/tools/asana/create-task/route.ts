@@ -99,15 +99,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      output: {
-        ts: new Date().toISOString(),
-        gid: task.gid,
-        name: task.name,
-        notes: task.notes || '',
-        completed: task.completed || false,
-        created_at: task.created_at,
-        permalink_url: task.permalink_url,
-      },
+      ts: new Date().toISOString(),
+      gid: task.gid,
+      name: task.name,
+      notes: task.notes || '',
+      completed: task.completed || false,
+      created_at: task.created_at,
+      permalink_url: task.permalink_url,
     })
   } catch (error: any) {
     logger.error('Error creating Asana task:', {

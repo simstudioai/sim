@@ -29,6 +29,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         { label: 'List Comments', id: 'list_comments' },
         { label: 'Update Comment', id: 'update_comment' },
         { label: 'Delete Comment', id: 'delete_comment' },
+        { label: 'Upload Attachment', id: 'upload_attachment' },
         { label: 'List Attachments', id: 'list_attachments' },
         { label: 'Delete Attachment', id: 'delete_attachment' },
         { label: 'List Labels', id: 'list_labels' },
@@ -156,6 +157,28 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       condition: { field: 'operation', value: 'delete_attachment' },
     },
     {
+      id: 'attachmentFile',
+      title: 'File',
+      type: 'file-upload',
+      placeholder: 'Select file to upload',
+      required: true,
+      condition: { field: 'operation', value: 'upload_attachment' },
+    },
+    {
+      id: 'attachmentFileName',
+      title: 'File Name',
+      type: 'short-input',
+      placeholder: 'Optional custom file name',
+      condition: { field: 'operation', value: 'upload_attachment' },
+    },
+    {
+      id: 'attachmentComment',
+      title: 'Comment',
+      type: 'short-input',
+      placeholder: 'Optional comment for the attachment',
+      condition: { field: 'operation', value: 'upload_attachment' },
+    },
+    {
       id: 'labelName',
       title: 'Label Name',
       type: 'short-input',
@@ -185,6 +208,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       'confluence_list_comments',
       'confluence_update_comment',
       'confluence_delete_comment',
+      'confluence_upload_attachment',
       'confluence_list_attachments',
       'confluence_delete_attachment',
       'confluence_list_labels',
@@ -212,6 +236,8 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
             return 'confluence_update_comment'
           case 'delete_comment':
             return 'confluence_delete_comment'
+          case 'upload_attachment':
+            return 'confluence_upload_attachment'
           case 'list_attachments':
             return 'confluence_list_attachments'
           case 'delete_attachment':
@@ -227,11 +253,19 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         }
       },
       params: (params) => {
-        const { credential, pageId, manualPageId, operation, ...rest } = params
+        const {
+          credential,
+          pageId,
+          manualPageId,
+          operation,
+          attachmentFile,
+          attachmentFileName,
+          attachmentComment,
+          ...rest
+        } = params
 
         const effectivePageId = (pageId || manualPageId || '').trim()
 
-        // Operations that require pageId
         const requiresPageId = [
           'read',
           'update',
@@ -240,9 +274,9 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
           'list_comments',
           'list_attachments',
           'list_labels',
+          'upload_attachment',
         ]
 
-        // Operations that require spaceId
         const requiresSpaceId = ['create', 'get_space']
 
         if (requiresPageId.includes(operation) && !effectivePageId) {
@@ -251,6 +285,18 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
 
         if (requiresSpaceId.includes(operation) && !rest.spaceId) {
           throw new Error('Space ID is required for this operation.')
+        }
+
+        if (operation === 'upload_attachment') {
+          return {
+            credential,
+            pageId: effectivePageId,
+            operation,
+            file: attachmentFile,
+            fileName: attachmentFileName,
+            comment: attachmentComment,
+            ...rest,
+          }
         }
 
         return {
@@ -276,6 +322,9 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
     comment: { type: 'string', description: 'Comment text' },
     commentId: { type: 'string', description: 'Comment identifier' },
     attachmentId: { type: 'string', description: 'Attachment identifier' },
+    attachmentFile: { type: 'json', description: 'File to upload as attachment' },
+    attachmentFileName: { type: 'string', description: 'Custom file name for attachment' },
+    attachmentComment: { type: 'string', description: 'Comment for the attachment' },
     labelName: { type: 'string', description: 'Label name' },
     limit: { type: 'number', description: 'Maximum number of results' },
   },
@@ -297,6 +346,9 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
     spaces: { type: 'array', description: 'List of spaces' },
     commentId: { type: 'string', description: 'Comment identifier' },
     attachmentId: { type: 'string', description: 'Attachment identifier' },
+    fileSize: { type: 'number', description: 'Attachment file size in bytes' },
+    mediaType: { type: 'string', description: 'Attachment MIME type' },
+    downloadUrl: { type: 'string', description: 'Attachment download URL' },
     labelName: { type: 'string', description: 'Label name' },
     spaceId: { type: 'string', description: 'Space identifier' },
     name: { type: 'string', description: 'Space name' },

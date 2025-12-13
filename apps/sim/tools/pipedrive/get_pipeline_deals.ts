@@ -99,21 +99,8 @@ export const pipedriveGetPipelineDealsTool: ToolConfig<
   },
 
   outputs: {
+    deals: { type: 'array', description: 'Array of deal objects from the pipeline' },
+    metadata: { type: 'object', description: 'Operation metadata including pipeline ID' },
     success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Pipeline deals data',
-      properties: {
-        deals: {
-          type: 'array',
-          description: 'Array of deal objects from the pipeline',
-        },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata including pipeline ID',
-        },
-        success: { type: 'boolean', description: 'Operation success status' },
-      },
-    },
   },
 }

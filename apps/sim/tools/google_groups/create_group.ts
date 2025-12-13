@@ -67,7 +67,11 @@ export const createGroupTool: ToolConfig<GoogleGroupsCreateParams, GoogleGroupsR
     }
     return {
       success: true,
-      output: data,
+      output: { group: data },
     }
+  },
+
+  outputs: {
+    group: { type: 'json', description: 'Created group object' },
   },
 }

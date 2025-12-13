@@ -34,7 +34,14 @@ Eine einzelne Aufgabe anhand der GID abrufen oder mehrere Aufgaben mit Filtern e
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Details einer einzelnen Aufgabe oder Array von Aufgaben, abhängig davon, ob taskGid angegeben wurde |
+| `ts` | string | Zeitstempel der Antwort |
+| `gid` | string | Global eindeutige Kennung der Aufgabe |
+| `resource_type` | string | Ressourcentyp \(task\) |
+| `resource_subtype` | string | Ressourcen-Subtyp |
+| `name` | string | Aufgabenname |
+| `notes` | string | Aufgabennotizen oder -beschreibung |
+| `completed` | boolean | Ob die Aufgabe abgeschlossen ist |
+| `assignee` | object | Details zum Zugewiesenen |
 
 ### `asana_create_task`
 
@@ -54,8 +61,14 @@ Eine neue Aufgabe in Asana erstellen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Details der erstellten Aufgabe mit Zeitstempel, GID, Name, Notizen und Permalink |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `ts` | string | Zeitstempel der Antwort |
+| `gid` | string | Global eindeutige Kennung der Aufgabe |
+| `name` | string | Aufgabenname |
+| `notes` | string | Aufgabennotizen oder -beschreibung |
+| `completed` | boolean | Ob die Aufgabe abgeschlossen ist |
+| `created_at` | string | Zeitstempel der Aufgabenerstellung |
+| `permalink_url` | string | URL zur Aufgabe in Asana |
 
 ### `asana_update_task`
 
@@ -77,7 +90,12 @@ Eine bestehende Aufgabe in Asana aktualisieren
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Aktualisierte Aufgabendetails mit Zeitstempel, GID, Name, Notizen und Änderungszeitstempel |
+| `ts` | string | Zeitstempel der Antwort |
+| `gid` | string | Global eindeutige Kennung der Aufgabe |
+| `name` | string | Aufgabenname |
+| `notes` | string | Aufgabennotizen oder -beschreibung |
+| `completed` | boolean | Ob die Aufgabe abgeschlossen ist |
+| `modified_at` | string | Zeitstempel der letzten Änderung der Aufgabe |
 
 ### `asana_get_projects`
 
@@ -94,7 +112,8 @@ Alle Projekte aus einem Asana-Workspace abrufen
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Liste der Projekte mit ihrer GID, Name und Ressourcentyp |
+| `ts` | string | Zeitstempel der Antwort |
+| `projects` | array | Array von Projekten |
 
 ### `asana_search_tasks`
 
@@ -115,7 +134,8 @@ Nach Aufgaben in einem Asana-Workspace suchen
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Liste der Aufgaben, die den Suchkriterien entsprechen |
+| `ts` | string | Zeitstempel der Antwort |
+| `tasks` | array | Array von passenden Aufgaben |
 
 ### `asana_add_comment`
 
@@ -133,7 +153,11 @@ Einen Kommentar (Story) zu einer Asana-Aufgabe hinzufügen
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Kommentardetails einschließlich gid, Text, Erstellungszeitstempel und Autor |
+| `ts` | string | Zeitstempel der Antwort |
+| `gid` | string | Global eindeutige Kennung des Kommentars |
+| `text` | string | Textinhalt des Kommentars |
+| `created_at` | string | Erstellungszeitstempel des Kommentars |
+| `created_by` | object | Details zum Autor des Kommentars |
 
 ## Hinweise
 

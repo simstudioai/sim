@@ -182,12 +182,20 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
 
         const result: Record<string, any> = { apiKey }
 
-        // Handle operation-specific fields
         switch (operation) {
           case 'scrape':
             if (url) result.url = url
             if (formats) {
-              result.formats = Array.isArray(formats) ? formats : ['markdown']
+              if (Array.isArray(formats)) {
+                result.formats = formats
+              } else if (typeof formats === 'string') {
+                try {
+                  const parsed = JSON.parse(formats)
+                  result.formats = Array.isArray(parsed) ? parsed : ['markdown']
+                } catch {
+                  result.formats = ['markdown']
+                }
+              }
             }
             if (timeout) result.timeout = Number.parseInt(timeout)
             if (waitFor) result.waitFor = Number.parseInt(waitFor)
@@ -214,7 +222,16 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
 
           case 'extract':
             if (urls) {
-              result.urls = Array.isArray(urls) ? urls : [urls]
+              if (Array.isArray(urls)) {
+                result.urls = urls
+              } else if (typeof urls === 'string') {
+                try {
+                  const parsed = JSON.parse(urls)
+                  result.urls = Array.isArray(parsed) ? parsed : [parsed]
+                } catch {
+                  result.urls = [urls]
+                }
+              }
             }
             if (prompt) result.prompt = prompt
             break

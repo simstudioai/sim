@@ -34,7 +34,8 @@ Alle Gruppen in einer Google Workspace-Domain auflisten
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API-Antwortdaten |
+| `groups` | json | Array von Gruppenobjekten |
+| `nextPageToken` | string | Token zum Abrufen der nächsten Ergebnisseite |
 
 ### `google_groups_get_group`
 
@@ -50,7 +51,7 @@ Details einer bestimmten Google-Gruppe nach E-Mail oder Gruppen-ID abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API-Antwortdaten |
+| `group` | json | Gruppenobjekt |
 
 ### `google_groups_create_group`
 
@@ -68,7 +69,7 @@ Eine neue Google-Gruppe in der Domain erstellen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API-Antwortdaten |
+| `group` | json | Erstelltes Gruppenobjekt |
 
 ### `google_groups_update_group`
 
@@ -87,7 +88,7 @@ Eine bestehende Google-Gruppe aktualisieren
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API-Antwortdaten |
+| `group` | json | Aktualisiertes Gruppenobjekt |
 
 ### `google_groups_delete_group`
 
@@ -103,7 +104,7 @@ Eine Google-Gruppe löschen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API-Antwortdaten |
+| `message` | string | Erfolgsmeldung |
 
 ### `google_groups_list_members`
 
@@ -122,7 +123,8 @@ Alle Mitglieder einer Google-Gruppe auflisten
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API-Antwortdaten |
+| `members` | json | Array von Mitgliederobjekten |
+| `nextPageToken` | string | Token zum Abrufen der nächsten Ergebnisseite |
 
 ### `google_groups_get_member`
 
@@ -139,7 +141,7 @@ Details eines bestimmten Mitglieds in einer Google-Gruppe abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API-Antwortdaten |
+| `member` | json | Mitgliederobjekt |
 
 ### `google_groups_add_member`
 
@@ -157,7 +159,7 @@ Ein neues Mitglied zu einer Google-Gruppe hinzufügen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API-Antwortdaten |
+| `member` | json | Hinzugefügtes Mitgliederobjekt |
 
 ### `google_groups_remove_member`
 
@@ -174,7 +176,7 @@ Ein Mitglied aus einer Google-Gruppe entfernen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API-Antwortdaten |
+| `message` | string | Erfolgsmeldung |
 
 ### `google_groups_update_member`
 
@@ -192,7 +194,7 @@ Ein Mitglied aktualisieren
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API-Antwortdaten |
+| `member` | json | Aktualisiertes Mitgliederobjekt |
 
 ### `google_groups_has_member`
 
@@ -209,7 +211,7 @@ Prüfen, ob ein Benutzer Mitglied einer Google-Gruppe ist
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `output` | json | Google Groups API-Antwortdaten |
+| `isMember` | boolean | Gibt an, ob der Benutzer ein Mitglied der Gruppe ist |
 
 ## Hinweise
 

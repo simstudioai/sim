@@ -1,0 +1,63 @@
+---
+title: Amazon SQS
+description: Amazon SQSに接続
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sqs"
+  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon Simple Queue Service (SQS)](https://aws.amazon.com/sqs/)は、マイクロサービス、分散システム、サーバーレスアプリケーションの分離とスケーリングを可能にする完全マネージド型のメッセージキューイングサービスです。SQSは、メッセージ指向のミドルウェアの管理と運用に関連する複雑さとオーバーヘッドを排除し、開発者が差別化作業に集中できるようにします。
+
+Amazon SQSでは、以下のことが可能です：
+
+- **メッセージの送信**：非同期処理のためにキューにメッセージを公開
+- **アプリケーションの分離**：システムのコンポーネント間の疎結合を実現
+- **ワークロードのスケーリング**：インフラストラクチャをプロビジョニングせずに変動するワークロードを処理
+- **信頼性の確保**：組み込みの冗長性と高可用性
+- **FIFOキューのサポート**：厳密なメッセージ順序と完全に一度だけの処理を維持
+
+Simでは、SQS統合により、エージェントがAmazon SQSキューにメッセージを安全にプログラムで送信できるようになります。サポートされている操作には以下が含まれます：
+
+- **メッセージ送信**：FIFOキュー用のオプションのメッセージグループIDと重複排除IDを使用してSQSキューにメッセージを送信
+
+この統合により、エージェントは手動介入なしでメッセージ送信ワークフローを自動化できます。SimとAmazon SQSを接続することで、キューインフラストラクチャや接続を処理することなく、ワークフロー内でキューにメッセージを公開するエージェントを構築できます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用手順
+
+Amazon SQSをワークフローに統合します。SQSキューにメッセージを送信できます。
+
+## ツール
+
+### `sqs_send`
+
+Amazon SQSキューにメッセージを送信
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | はい | AWS リージョン（例：us-east-1） |
+| `accessKeyId` | string | はい | AWS アクセスキーID |
+| `secretAccessKey` | string | はい | AWS シークレットアクセスキー |
+| `queueUrl` | string | はい | キューURL |
+| `data` | object | はい | 送信するメッセージ本文 |
+| `messageGroupId` | string | いいえ | メッセージグループID（オプション） |
+| `messageDeduplicationId` | string | いいえ | メッセージ重複排除ID（オプション） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `id` | string | メッセージID |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `sqs`

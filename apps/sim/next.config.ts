@@ -79,8 +79,11 @@ const nextConfig: NextConfig = {
     'pino',
     'pino-pretty',
     'thread-stream',
-    '@browserbasehq/stagehand',
+    'ws',
   ],
+  outputFileTracingIncludes: {
+    '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],
+  },
   experimental: {
     optimizeCss: true,
     turbopackSourceMaps: false,

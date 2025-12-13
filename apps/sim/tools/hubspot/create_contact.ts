@@ -59,8 +59,17 @@ export const hubspotCreateContactTool: ToolConfig<
       }
     },
     body: (params) => {
+      let properties = params.properties
+      if (typeof properties === 'string') {
+        try {
+          properties = JSON.parse(properties)
+        } catch (e) {
+          throw new Error('Invalid JSON format for properties. Please provide a valid JSON object.')
+        }
+      }
+
       const body: any = {
-        properties: params.properties,
+        properties,
       }
 
       if (params.associations && params.associations.length > 0) {
@@ -93,21 +102,8 @@ export const hubspotCreateContactTool: ToolConfig<
   },
 
   outputs: {
+    contact: { type: 'object', description: 'Created HubSpot contact object' },
+    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Created contact data',
-      properties: {
-        contact: {
-          type: 'object',
-          description: 'Created contact object with properties and ID',
-        },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-        },
-        success: { type: 'boolean', description: 'Operation success status' },
-      },
-    },
   },
 }

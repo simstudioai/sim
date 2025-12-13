@@ -258,7 +258,11 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
         throw new Error('Invalid response format from Mistral OCR API')
       }
 
-      // Set default values and extract from params if available
+      const mistralData =
+        ocrResult.output && typeof ocrResult.output === 'object' && !ocrResult.pages
+          ? ocrResult.output
+          : ocrResult
+
       let resultType: 'markdown' | 'text' | 'json' = 'markdown'
       let sourceUrl = ''
       let isFileUpload = false
@@ -268,50 +272,44 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
           sourceUrl = params.filePath.trim()
         }
 
-        // Check if this was a file upload
         isFileUpload = !!params.fileUpload
 
         if (params.resultType && ['markdown', 'text', 'json'].includes(params.resultType)) {
           resultType = params.resultType as 'markdown' | 'text' | 'json'
         }
       } else if (
-        ocrResult.document &&
-        typeof ocrResult.document === 'object' &&
-        ocrResult.document.document_url &&
-        typeof ocrResult.document.document_url === 'string'
+        mistralData.document &&
+        typeof mistralData.document === 'object' &&
+        mistralData.document.document_url &&
+        typeof mistralData.document.document_url === 'string'
       ) {
-        sourceUrl = ocrResult.document.document_url
+        sourceUrl = mistralData.document.document_url
       }
 
-      // Process content from pages
       let content = ''
       const pageCount =
-        ocrResult.pages && Array.isArray(ocrResult.pages) ? ocrResult.pages.length : 0
+        mistralData.pages && Array.isArray(mistralData.pages) ? mistralData.pages.length : 0
 
       if (pageCount > 0) {
-        content = ocrResult.pages
+        content = mistralData.pages
           .map((page: any) => (page && typeof page.markdown === 'string' ? page.markdown : ''))
           .filter(Boolean)
           .join('\n\n')
       } else {
         logger.warn('No pages found in OCR result, returning raw response')
-        content = JSON.stringify(ocrResult, null, 2)
+        content = JSON.stringify(mistralData, null, 2)
       }
 
-      // Process based on requested result type
       if (resultType === 'text') {
-        // Strip markdown formatting
         content = content
           .replace(/##*\s/g, '') // Remove markdown headers
           .replace(/\*\*/g, '') // Remove bold markers
           .replace(/\*/g, '') // Remove italic markers
           .replace(/\n{3,}/g, '\n\n') // Normalize newlines
       } else if (resultType === 'json') {
-        // Return the structured data as JSON string
-        content = JSON.stringify(ocrResult, null, 2)
+        content = JSON.stringify(mistralData, null, 2)
       }
 
-      // Extract file information with proper validation
       let fileName = 'document.pdf'
       let fileType = 'pdf'
 
@@ -333,27 +331,24 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
         }
       }
 
-      // Generate a tracking ID with timestamp and random component for uniqueness
       const timestamp = Date.now()
       const randomId = Math.random().toString(36).substring(2, 10)
       const jobId = `mistral-ocr-${timestamp}-${randomId}`
 
-      // Map API response fields to our schema with proper type checking
       const usageInfo =
-        ocrResult.usage_info && typeof ocrResult.usage_info === 'object'
+        mistralData.usage_info && typeof mistralData.usage_info === 'object'
           ? {
               pagesProcessed:
-                typeof ocrResult.usage_info.pages_processed === 'number'
-                  ? ocrResult.usage_info.pages_processed
-                  : Number(ocrResult.usage_info.pages_processed),
+                typeof mistralData.usage_info.pages_processed === 'number'
+                  ? mistralData.usage_info.pages_processed
+                  : Number(mistralData.usage_info.pages_processed),
               docSizeBytes:
-                typeof ocrResult.usage_info.doc_size_bytes === 'number'
-                  ? ocrResult.usage_info.doc_size_bytes
-                  : Number(ocrResult.usage_info.doc_size_bytes),
+                typeof mistralData.usage_info.doc_size_bytes === 'number'
+                  ? mistralData.usage_info.doc_size_bytes
+                  : Number(mistralData.usage_info.doc_size_bytes),
             }
           : undefined
 
-      // Create metadata object
       const metadata: any = {
         jobId,
         fileType,
@@ -361,12 +356,11 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
         source: 'url',
         pageCount,
         usageInfo,
-        model: typeof ocrResult.model === 'string' ? ocrResult.model : 'mistral-ocr-latest',
+        model: typeof mistralData.model === 'string' ? mistralData.model : 'mistral-ocr-latest',
         resultType,
         processedAt: new Date().toISOString(),
       }
 
-      // Only include sourceUrl for non-file-upload sources or URLs that don't contain our API endpoint
       if (
         !isFileUpload &&
         sourceUrl &&
@@ -376,7 +370,6 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
         metadata.sourceUrl = sourceUrl
       }
 
-      // Return properly structured response
       const parserResponse: MistralParserOutput = {
         success: true,
         output: {

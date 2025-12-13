@@ -1,0 +1,63 @@
+---
+title: Amazon SQS
+description: 连接到 Amazon SQS
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sqs"
+  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon Simple Queue Service (SQS)](https://aws.amazon.com/sqs/) 是一项完全托管的消息队列服务，可帮助您解耦和扩展微服务、分布式系统和无服务器应用程序。SQS 消除了与管理和操作面向消息的中间件相关的复杂性和开销，使开发人员能够专注于差异化工作。
+
+使用 Amazon SQS，您可以：
+
+- **发送消息**：将消息发布到队列以进行异步处理
+- **解耦应用程序**：实现系统组件之间的松耦合
+- **扩展工作负载**：处理可变工作负载，无需预置基础设施
+- **确保可靠性**：内置冗余和高可用性
+- **支持 FIFO 队列**：保持严格的消息顺序和精确的一次性处理
+
+在 Sim 中，SQS 集成使您的代理能够安全且以编程方式将消息发送到 Amazon SQS 队列。支持的操作包括：
+
+- **发送消息**：将消息发送到 SQS 队列，并为 FIFO 队列提供可选的消息组 ID 和去重 ID
+
+此集成允许您的代理自动化消息发送工作流，无需人工干预。通过将 Sim 与 Amazon SQS 连接，您可以构建代理，在工作流中将消息发布到队列，而无需处理队列基础设施或连接。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Amazon SQS 集成到工作流中。可以将消息发送到 SQS 队列。
+
+## 工具
+
+### `sqs_send`
+
+向 Amazon SQS 队列发送消息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | 是 | AWS 区域 \(例如，us-east-1\) |
+| `accessKeyId` | string | 是 | AWS 访问密钥 ID |
+| `secretAccessKey` | string | 是 | AWS 秘密访问密钥 |
+| `queueUrl` | string | 是 | 队列 URL |
+| `data` | object | 是 | 要发送的消息正文 |
+| `messageGroupId` | string | 否 | 消息组 ID \(可选\) |
+| `messageDeduplicationId` | string | 否 | 消息去重 ID \(可选\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `id` | string | 消息 ID |
+
+## 注意事项
+
+- 类别: `tools`
+- 类型: `sqs`

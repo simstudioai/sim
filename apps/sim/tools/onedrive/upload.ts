@@ -63,32 +63,25 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
 
   request: {
     url: (params) => {
-      // If file is provided OR Excel file is being created, use custom API route
       const isExcelFile =
         params.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       if (params.file || isExcelFile) {
         return '/api/tools/onedrive/upload'
       }
 
-      // Direct upload for text files - use Microsoft Graph API
       let fileName = params.fileName || 'untitled'
 
-      // For text files, ensure .txt extension
       if (!fileName.endsWith('.txt')) {
-        // Remove any existing extensions and add .txt
         fileName = `${fileName.replace(/\.[^.]*$/, '')}.txt`
       }
 
-      // Build the proper URL based on parent folder
       const parentFolderId = params.manualFolderId || params.folderSelector
       if (parentFolderId && parentFolderId.trim() !== '') {
         return `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(parentFolderId)}:/${fileName}:/content`
       }
-      // Default to root folder
       return `https://graph.microsoft.com/v1.0/me/drive/root:/${fileName}:/content`
     },
     method: (params) => {
-      // Use POST for custom API route (file uploads or Excel creation), PUT for direct text upload
       const isExcelFile =
         params.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       return params.file || isExcelFile ? 'POST' : 'PUT'
@@ -98,11 +91,9 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       const isExcelFile =
         params.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
-      // For file uploads or Excel creation via custom API, send JSON
       if (params.file || isExcelFile) {
         headers['Content-Type'] = 'application/json'
       } else {
-        // For direct text uploads, use direct PUT with access token
         headers.Authorization = `Bearer ${params.accessToken}`
         headers['Content-Type'] = 'text/plain'
       }
@@ -112,20 +103,17 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       const isExcelFile =
         params.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
-      // For file uploads or Excel creation, send all params as JSON to custom API route
       if (params.file || isExcelFile) {
         return {
           accessToken: params.accessToken,
           fileName: params.fileName,
           file: params.file,
           folderId: params.manualFolderId || params.folderSelector,
-          mimeType: params.mimeType,
-          // Optional Excel content write-after-create
-          values: params.values,
+          ...(params.mimeType && { mimeType: params.mimeType }),
+          ...(params.values && { values: params.values }),
         }
       }
 
-      // For text files, send content directly
       return (params.content || '') as unknown as Record<string, unknown>
     },
   },
@@ -136,7 +124,6 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
     const isExcelFile =
       params?.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
-    // Handle response from custom API route (for file uploads or Excel creation)
     if ((params?.file || isExcelFile) && data.success !== undefined) {
       if (!data.success) {
         throw new Error(data.error || 'Failed to upload file')
@@ -153,7 +140,6 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       }
     }
 
-    // Handle response from direct Microsoft Graph API (for text-only uploads)
     const fileData = data
 
     logger.info('Successfully uploaded file to OneDrive', {

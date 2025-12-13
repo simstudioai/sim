@@ -209,11 +209,11 @@ const renderLabel = (
 
       {/* Wand inline prompt */}
       {isWandEnabled && !isPreview && (
-        <div className='flex items-center pr-[4px]'>
+        <div className='flex min-w-0 flex-1 items-center justify-end pr-[4px]'>
           {!isSearchActive ? (
             <Button
               variant='ghost'
-              className='h-[12px] w-[12px] p-0 hover:bg-transparent'
+              className='h-[12px] w-[12px] flex-shrink-0 p-0 hover:bg-transparent'
               aria-label='Generate with AI'
               onClick={onSearchClick}
             >
@@ -235,7 +235,7 @@ const renderLabel = (
               }}
               disabled={isStreaming}
               className={cn(
-                'h-[12px] w-full max-w-[200px] border-none bg-transparent py-0 pr-[2px] text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[var(--text-muted)] focus:outline-none',
+                'h-[12px] w-full min-w-[100px] border-none bg-transparent py-0 pr-[2px] text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[var(--text-muted)] focus:outline-none',
                 isStreaming && 'text-muted-foreground'
               )}
               placeholder='Describe...'

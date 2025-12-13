@@ -44,10 +44,10 @@ export const webflowListItemsTool: ToolConfig<WebflowListItemsParams, WebflowLis
       const baseUrl = `https://api.webflow.com/v2/collections/${params.collectionId}/items`
       const queryParams = new URLSearchParams()
 
-      if (params.offset !== undefined) {
+      if (params.offset) {
         queryParams.append('offset', Number(params.offset).toString())
       }
-      if (params.limit !== undefined) {
+      if (params.limit) {
         queryParams.append('limit', Number(params.limit).toString())
       }
 

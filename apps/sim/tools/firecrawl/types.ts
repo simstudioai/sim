@@ -163,7 +163,6 @@ export interface SearchResponse extends ToolResponse {
         error?: string
       }
     }>
-    warning?: string
   }
 }
 
@@ -198,11 +197,6 @@ export interface ExtractResponse extends ToolResponse {
     jobId: string
     success: boolean
     data: Record<string, any>
-    sources?: Array<{
-      url: string
-      title?: string
-    }>
-    warning?: string
   }
 }
 

@@ -141,21 +141,8 @@ export const pipedriveCreateLeadTool: ToolConfig<
   },
 
   outputs: {
+    lead: { type: 'object', description: 'The created lead object' },
+    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Created lead details',
-      properties: {
-        lead: {
-          type: 'object',
-          description: 'The created lead object',
-        },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-        },
-        success: { type: 'boolean', description: 'Operation success status' },
-      },
-    },
   },
 }

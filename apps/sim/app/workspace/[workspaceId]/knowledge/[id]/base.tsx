@@ -466,7 +466,7 @@ export function KnowledgeBase({
    */
   const checkForDeadProcesses = async () => {
     const now = new Date()
-    const DEAD_PROCESS_THRESHOLD_MS = 150 * 1000
+    const DEAD_PROCESS_THRESHOLD_MS = 600 * 1000 // 10 minutes
 
     const staleDocuments = documents.filter((doc) => {
       if (doc.processingStatus !== 'processing' || !doc.processingStartedAt) {
@@ -928,9 +928,22 @@ export function KnowledgeBase({
                   Tags
                 </Button>
               )}
-              <Button onClick={() => setShowDeleteDialog(true)} className='h-[32px] rounded-[6px]'>
-                <Trash className='h-[14px] w-[14px]' />
-              </Button>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    onClick={() => setShowDeleteDialog(true)}
+                    disabled={!userPermissions.canEdit}
+                    className='h-[32px] rounded-[6px]'
+                  >
+                    <Trash className='h-[14px] w-[14px]' />
+                  </Button>
+                </Tooltip.Trigger>
+                {!userPermissions.canEdit && (
+                  <Tooltip.Content>
+                    Write permission required to delete knowledge base
+                  </Tooltip.Content>
+                )}
+              </Tooltip.Root>
             </div>
           </div>
 
@@ -940,7 +953,7 @@ export function KnowledgeBase({
             </p>
           )}
 
-          <div className='mt-[12px] flex items-center gap-[8px]'>
+          <div className='mt-[16px] flex items-center gap-[8px]'>
             <span className='text-[14px] text-[var(--text-muted)]'>
               {pagination.total} {pagination.total === 1 ? 'document' : 'documents'}
             </span>

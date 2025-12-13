@@ -47,8 +47,9 @@ Recuperar todos los usuarios de la cuenta de HubSpot
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
+| `users` | array | Array de objetos de usuario de HubSpot |
+| `metadata` | object | Metadatos de la operación |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos de usuarios |
 
 ### `hubspot_list_contacts`
 
@@ -67,8 +68,10 @@ Recuperar todos los contactos de la cuenta de HubSpot con soporte de paginación
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
+| `contacts` | array | Array de objetos de contacto de HubSpot |
+| `paging` | object | Información de paginación |
+| `metadata` | object | Metadatos de la operación |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos de contactos |
 
 ### `hubspot_get_contact`
 
@@ -87,8 +90,9 @@ Recuperar un solo contacto por ID o email desde HubSpot
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
+| `contact` | object | Objeto de contacto de HubSpot con propiedades |
+| `metadata` | object | Metadatos de la operación |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos del contacto |
 
 ### `hubspot_create_contact`
 
@@ -105,8 +109,9 @@ Crear un nuevo contacto en HubSpot. Requiere al menos uno de: email, firstname o
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
+| `contact` | object | Objeto de contacto de HubSpot creado |
+| `metadata` | object | Metadatos de la operación |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | objeto | Datos del contacto creado |
 
 ### `hubspot_update_contact`
 
@@ -124,8 +129,9 @@ Actualizar un contacto existente en HubSpot por ID o email
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
+| `contact` | object | Objeto de contacto de HubSpot actualizado |
+| `metadata` | object | Metadatos de la operación |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | objeto | Datos del contacto actualizado |
 
 ### `hubspot_search_contacts`
 
@@ -146,8 +152,11 @@ Buscar contactos en HubSpot usando filtros, ordenación y consultas
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
+| `contacts` | array | Array de objetos de contacto de HubSpot coincidentes |
+| `total` | number | Número total de contactos coincidentes |
+| `paging` | object | Información de paginación |
+| `metadata` | object | Metadatos de la operación |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Resultados de la búsqueda |
 
 ### `hubspot_list_companies`
 
@@ -166,8 +175,10 @@ Recuperar todas las empresas de la cuenta de HubSpot con soporte de paginación
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
+| `companies` | array | Array de objetos de empresa de HubSpot |
+| `paging` | object | Información de paginación |
+| `metadata` | object | Metadatos de la operación |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos de las empresas |
 
 ### `hubspot_get_company`
 
@@ -186,8 +197,9 @@ Recuperar una sola empresa por ID o dominio desde HubSpot
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
+| `company` | object | Objeto de empresa de HubSpot con propiedades |
+| `metadata` | object | Metadatos de la operación |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos de la empresa |
 
 ### `hubspot_create_company`
 
@@ -204,8 +216,9 @@ Crear una nueva empresa en HubSpot
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
+| `company` | object | Objeto de empresa de HubSpot creado |
+| `metadata` | object | Metadatos de la operación |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos de la empresa creada |
 
 ### `hubspot_update_company`
 
@@ -223,8 +236,9 @@ Actualizar una empresa existente en HubSpot por ID o dominio
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
+| `company` | object | Objeto de empresa de HubSpot actualizado |
+| `metadata` | object | Metadatos de la operación |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos actualizados de la empresa |
 
 ### `hubspot_search_companies`
 
@@ -245,8 +259,11 @@ Buscar empresas en HubSpot usando filtros, ordenación y consultas
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
+| `companies` | array | Array de objetos de empresa de HubSpot coincidentes |
+| `total` | number | Número total de empresas coincidentes |
+| `paging` | object | Información de paginación |
+| `metadata` | object | Metadatos de la operación |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Resultados de la búsqueda |
 
 ### `hubspot_list_deals`
 
@@ -265,8 +282,10 @@ Recuperar todos los acuerdos de la cuenta de HubSpot con soporte de paginación
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
+| `deals` | array | Array de objetos de negocio de HubSpot |
+| `paging` | object | Información de paginación |
+| `metadata` | object | Metadatos de la operación |
 | `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos de ofertas |
 
 ## Notas
 

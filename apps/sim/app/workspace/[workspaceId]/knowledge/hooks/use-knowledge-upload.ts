@@ -423,6 +423,10 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
           return await uploadFileInChunks(file, presignedData, timeoutMs, fileIndex)
         }
 
+        if (presignedOverride?.directUploadSupported && presignedOverride.presignedUrl) {
+          return await uploadFileDirectly(file, presignedOverride, timeoutMs, controller, fileIndex)
+        }
+
         return await uploadFileThroughAPI(file, timeoutMs)
       } finally {
         clearTimeout(timeoutId)
@@ -510,7 +514,6 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         if (event.lengthComputable && fileIndex !== undefined && !isCompleted) {
           const percentComplete = Math.round((event.loaded / event.total) * 100)
           setUploadProgress((prev) => {
-            // Only update if this file is still uploading
             if (prev.fileStatuses?.[fileIndex]?.status === 'uploading') {
               return {
                 ...prev,
@@ -638,7 +641,6 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       })
 
       if (!partUrlsResponse.ok) {
-        // Abort the multipart upload if we can't get URLs
         await fetch('/api/files/multipart?action=abort', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -822,9 +824,6 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
     }
   }
 
-  /**
-   * Upload files using batch presigned URLs (works for both S3 and Azure Blob)
-   */
   /**
    * Uploads files in batches using presigned URLs
    */

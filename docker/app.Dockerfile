@@ -10,16 +10,15 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Install turbo globally (cached separately, changes infrequently)
-RUN bun install -g turbo
-
 COPY package.json bun.lock turbo.json ./
 RUN mkdir -p apps packages/db
 COPY apps/sim/package.json ./apps/sim/package.json
 COPY packages/db/package.json ./packages/db/package.json
 
-# Install dependencies (this layer will be cached if package files don't change)
-RUN bun install --omit dev --ignore-scripts
+# Install turbo globally and dependencies with cache mount for faster builds
+RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
+    bun install -g turbo && \
+    bun install --omit=dev --ignore-scripts
 
 # ========================================
 # Builder Stage: Build the Application
@@ -27,8 +26,9 @@ RUN bun install --omit dev --ignore-scripts
 FROM base AS builder
 WORKDIR /app
 
-# Install turbo globally (cached separately, changes infrequently)
-RUN bun install -g turbo
+# Install turbo globally (cached for fast reinstall)
+RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
+    bun install -g turbo
 
 # Copy node_modules from deps stage (cached if dependencies don't change)
 COPY --from=deps /app/node_modules ./node_modules
@@ -50,7 +50,8 @@ COPY packages ./packages
 
 # Required for standalone nextjs build
 WORKDIR /app/apps/sim
-RUN bun install sharp
+RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
+    bun install sharp
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     VERCEL_TELEMETRY_DISABLED=1 \

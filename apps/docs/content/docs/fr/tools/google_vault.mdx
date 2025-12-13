@@ -35,8 +35,7 @@ Créer une exportation dans une affaire
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Données de réponse de l'API Vault |
-| `file` | json | Fichier d'exportation téléchargé \(UserFile\) depuis les fichiers d'exécution |
+| `export` | json | Objet d'exportation créé |
 
 ### `google_vault_list_matters_export`
 
@@ -55,8 +54,9 @@ Lister les exportations pour une affaire
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Données de réponse de l'API Vault |
-| `file` | json | Fichier d'exportation téléchargé \(UserFile\) depuis les fichiers d'exécution |
+| `exports` | json | Tableau d'objets d'exportation |
+| `export` | json | Objet d'exportation unique \(lorsque exportId est fourni\) |
+| `nextPageToken` | string | Jeton pour récupérer la page suivante de résultats |
 
 ### `google_vault_download_export_file`
 
@@ -95,8 +95,7 @@ Créer une suspension dans une affaire
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Données de réponse de l'API Vault |
-| `file` | json | Fichier d'exportation téléchargé \(UserFile\) depuis les fichiers d'exécution |
+| `hold` | json | Objet de suspension créé |
 
 ### `google_vault_list_matters_holds`
 
@@ -115,8 +114,9 @@ Lister les suspensions pour une affaire
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Données de réponse de l'API Vault |
-| `file` | json | Fichier d'exportation téléchargé (UserFile) à partir des fichiers d'exécution |
+| `holds` | json | Tableau d'objets de suspension |
+| `hold` | json | Objet de suspension unique \(lorsque holdId est fourni\) |
+| `nextPageToken` | string | Jeton pour récupérer la page suivante de résultats |
 
 ### `google_vault_create_matters`
 
@@ -133,8 +133,7 @@ Créer une nouvelle affaire dans Google Vault
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Données de réponse de l'API Vault |
-| `file` | json | Fichier d'exportation téléchargé (UserFile) à partir des fichiers d'exécution |
+| `matter` | json | Objet d'affaire créé |
 
 ### `google_vault_list_matters`
 
@@ -152,8 +151,9 @@ Lister les affaires, ou obtenir une affaire spécifique si matterId est fourni
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `output` | json | Données de réponse de l'API Vault |
-| `file` | json | Fichier d'exportation téléchargé (UserFile) à partir des fichiers d'exécution |
+| `matters` | json | Tableau d'objets d'affaire |
+| `matter` | json | Objet d'affaire unique \(lorsque matterId est fourni\) |
+| `nextPageToken` | string | Jeton pour récupérer la page suivante de résultats |
 
 ## Notes
 

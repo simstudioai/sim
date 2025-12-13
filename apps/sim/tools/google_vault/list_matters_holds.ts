@@ -26,7 +26,6 @@ export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams>
         return `https://vault.googleapis.com/v1/matters/${params.matterId}/holds/${params.holdId}`
       }
       const url = new URL(`https://vault.googleapis.com/v1/matters/${params.matterId}/holds`)
-      // Handle pageSize - convert to number if needed
       if (params.pageSize !== undefined && params.pageSize !== null) {
         const pageSize = Number(params.pageSize)
         if (Number.isFinite(pageSize) && pageSize > 0) {
@@ -34,18 +33,26 @@ export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams>
         }
       }
       if (params.pageToken) url.searchParams.set('pageToken', params.pageToken)
-      // Default BASIC_HOLD implicitly by omitting 'view'
       return url.toString()
     },
     method: 'GET',
     headers: (params) => ({ Authorization: `Bearer ${params.accessToken}` }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: GoogleVaultListMattersHoldsParams) => {
     const data = await response.json()
     if (!response.ok) {
       throw new Error(data.error?.message || 'Failed to list holds')
     }
+    if (params?.holdId) {
+      return { success: true, output: { hold: data } }
+    }
     return { success: true, output: data }
+  },
+
+  outputs: {
+    holds: { type: 'json', description: 'Array of hold objects' },
+    hold: { type: 'json', description: 'Single hold object (when holdId is provided)' },
+    nextPageToken: { type: 'string', description: 'Token for fetching next page of results' },
   },
 }

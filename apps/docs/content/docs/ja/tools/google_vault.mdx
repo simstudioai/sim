@@ -34,8 +34,7 @@ Google Vaultに接続して、案件内のエクスポートの作成、エク�
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `output` | json | Vault APIレスポンスデータ |
-| `file` | json | 実行ファイルからダウンロードしたエクスポートファイル（UserFile） |
+| `export` | json | 作成されたエクスポートオブジェクト |
 
 ### `google_vault_list_matters_export`
 
@@ -54,8 +53,9 @@ Google Vaultに接続して、案件内のエクスポートの作成、エク�
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `output` | json | Vault APIレスポンスデータ |
-| `file` | json | 実行ファイルからダウンロードしたエクスポートファイル（UserFile） |
+| `exports` | json | エクスポートオブジェクトの配列 |
+| `export` | json | 単一のエクスポートオブジェクト（exportIdが提供された場合） |
+| `nextPageToken` | string | 結果の次のページを取得するためのトークン |
 
 ### `google_vault_download_export_file`
 
@@ -94,8 +94,7 @@ Google Vaultエクスポート（GCSオブジェクト）から単一ファイ�
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `output` | json | Vault APIレスポンスデータ |
-| `file` | json | 実行ファイルからダウンロードしたエクスポートファイル（UserFile） |
+| `hold` | json | 作成された保留オブジェクト |
 
 ### `google_vault_list_matters_holds`
 
@@ -112,10 +111,11 @@ Google Vaultエクスポート（GCSオブジェクト）から単一ファイ�
 
 #### 出力
 
-| パラメータ | タイプ | 説明 |
+| パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `output` | json | Vault APIレスポンスデータ |
-| `file` | json | 実行ファイルからダウンロードされたエクスポートファイル（UserFile） |
+| `holds` | json | 保留オブジェクトの配列 |
+| `hold` | json | 単一の保留オブジェクト（holdIdが提供された場合） |
+| `nextPageToken` | string | 結果の次のページを取得するためのトークン |
 
 ### `google_vault_create_matters`
 
@@ -130,10 +130,9 @@ Google Vaultで新しい案件を作成する
 
 #### 出力
 
-| パラメータ | タイプ | 説明 |
+| パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `output` | json | Vault APIレスポンスデータ |
-| `file` | json | 実行ファイルからダウンロードされたエクスポートファイル（UserFile） |
+| `matter` | json | 作成された案件オブジェクト |
 
 ### `google_vault_list_matters`
 
@@ -149,10 +148,11 @@ Google Vaultで新しい案件を作成する
 
 #### 出力
 
-| パラメータ | タイプ | 説明 |
+| パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `output` | json | Vault APIレスポンスデータ |
-| `file` | json | 実行ファイルからダウンロードされたエクスポートファイル（UserFile） |
+| `matters` | json | 案件オブジェクトの配列 |
+| `matter` | json | 単一の案件オブジェクト（matterIdが提供された場合） |
+| `nextPageToken` | string | 結果の次のページを取得するためのトークン |
 
 ## 注意事項
 

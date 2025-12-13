@@ -45,31 +45,34 @@ export const asanaGetProjectsTool: ToolConfig<AsanaGetProjectsParams, AsanaGetPr
     if (!responseText) {
       return {
         success: false,
+        output: {},
         error: 'Empty response from Asana',
       }
     }
 
     const data = JSON.parse(responseText)
-
-    if (data.success && data.output) {
-      return data
-    }
-
+    const { success, error, ...output } = data
     return {
-      success: data.success || false,
-      output: data.output || { ts: new Date().toISOString(), projects: [] },
-      error: data.error,
+      success: success ?? true,
+      output,
+      error,
     }
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
-      type: 'object',
-      description: 'List of projects with their gid, name, and resource type',
+    success: { type: 'boolean', description: 'Operation success status' },
+    ts: { type: 'string', description: 'Timestamp of the response' },
+    projects: {
+      type: 'array',
+      description: 'Array of projects',
+      items: {
+        type: 'object',
+        properties: {
+          gid: { type: 'string', description: 'Project GID' },
+          name: { type: 'string', description: 'Project name' },
+          resource_type: { type: 'string', description: 'Resource type (project)' },
+        },
+      },
     },
   },
 }

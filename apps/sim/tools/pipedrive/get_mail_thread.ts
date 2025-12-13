@@ -77,21 +77,8 @@ export const pipedriveGetMailThreadTool: ToolConfig<
   },
 
   outputs: {
+    messages: { type: 'array', description: 'Array of mail message objects from the thread' },
+    metadata: { type: 'object', description: 'Operation metadata including thread ID' },
     success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Mail thread messages data',
-      properties: {
-        messages: {
-          type: 'array',
-          description: 'Array of mail message objects from the thread',
-        },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata including thread ID',
-        },
-        success: { type: 'boolean', description: 'Operation success status' },
-      },
-    },
   },
 }

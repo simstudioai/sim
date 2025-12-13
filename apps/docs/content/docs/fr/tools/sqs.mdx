@@ -1,0 +1,63 @@
+---
+title: Amazon SQS
+description: Se connecter à Amazon SQS
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sqs"
+  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon Simple Queue Service (SQS)](https://aws.amazon.com/sqs/) est un service de file d'attente de messages entièrement géré qui permet de découpler et de mettre à l'échelle des microservices, des systèmes distribués et des applications sans serveur. SQS élimine la complexité et les frais généraux associés à la gestion et à l'exploitation d'un middleware orienté messages, et permet aux développeurs de se concentrer sur un travail différenciant.
+
+Avec Amazon SQS, vous pouvez :
+
+- **Envoyer des messages** : publier des messages dans des files d'attente pour un traitement asynchrone
+- **Découpler des applications** : permettre un couplage souple entre les composants de votre système
+- **Mettre à l'échelle les charges de travail** : gérer des charges de travail variables sans provisionner d'infrastructure
+- **Assurer la fiabilité** : redondance intégrée et haute disponibilité
+- **Prendre en charge les files d'attente FIFO** : maintenir un ordre strict des messages et un traitement exactement une fois
+
+Dans Sim, l'intégration SQS permet à vos agents d'envoyer des messages aux files d'attente Amazon SQS de manière sécurisée et programmatique. Les opérations prises en charge comprennent :
+
+- **Envoi de message** : envoyer des messages aux files d'attente SQS avec un ID de groupe de messages facultatif et un ID de déduplication pour les files d'attente FIFO
+
+Cette intégration permet à vos agents d'automatiser les flux de travail d'envoi de messages sans intervention manuelle. En connectant Sim à Amazon SQS, vous pouvez créer des agents qui publient des messages dans des files d'attente au sein de vos flux de travail, le tout sans avoir à gérer l'infrastructure ou les connexions des files d'attente.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Amazon SQS dans le flux de travail. Peut envoyer des messages aux files d'attente SQS.
+
+## Outils
+
+### `sqs_send`
+
+Envoyer un message à une file d'attente Amazon SQS
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `region` | string | Oui | Région AWS (par ex., us-east-1) |
+| `accessKeyId` | string | Oui | ID de clé d'accès AWS |
+| `secretAccessKey` | string | Oui | Clé d'accès secrète AWS |
+| `queueUrl` | string | Oui | URL de la file d'attente |
+| `data` | object | Oui | Corps du message à envoyer |
+| `messageGroupId` | string | Non | ID de groupe de messages (facultatif) |
+| `messageDeduplicationId` | string | Non | ID de déduplication de message (facultatif) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `id` | string | ID du message |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `sqs`

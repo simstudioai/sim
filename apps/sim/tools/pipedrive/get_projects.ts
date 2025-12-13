@@ -112,25 +112,9 @@ export const pipedriveGetProjectsTool: ToolConfig<
   },
 
   outputs: {
+    projects: { type: 'array', description: 'Array of project objects (when listing all)' },
+    project: { type: 'object', description: 'Single project object (when project_id is provided)' },
+    metadata: { type: 'object', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Projects data or single project details',
-      properties: {
-        projects: {
-          type: 'array',
-          description: 'Array of project objects (when listing all)',
-        },
-        project: {
-          type: 'object',
-          description: 'Single project object (when project_id is provided)',
-        },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-        },
-        success: { type: 'boolean', description: 'Operation success status' },
-      },
-    },
   },
 }

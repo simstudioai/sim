@@ -1,0 +1,63 @@
+---
+title: Amazon SQS
+description: Conectar a Amazon SQS
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sqs"
+  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon Simple Queue Service (SQS)](https://aws.amazon.com/sqs/) es un servicio de cola de mensajes completamente administrado que permite desacoplar y escalar microservicios, sistemas distribuidos y aplicaciones sin servidor. SQS elimina la complejidad y la sobrecarga asociadas con la gestión y operación de middleware orientado a mensajes, y permite a los desarrolladores centrarse en el trabajo diferenciador.
+
+Con Amazon SQS, puedes:
+
+- **Enviar mensajes**: Publicar mensajes en colas para procesamiento asíncrono
+- **Desacoplar aplicaciones**: Permitir un acoplamiento flexible entre los componentes de tu sistema
+- **Escalar cargas de trabajo**: Manejar cargas de trabajo variables sin aprovisionar infraestructura
+- **Garantizar fiabilidad**: Redundancia incorporada y alta disponibilidad
+- **Soportar colas FIFO**: Mantener un orden estricto de mensajes y procesamiento exactamente una vez
+
+En Sim, la integración con SQS permite a tus agentes enviar mensajes a las colas de Amazon SQS de forma segura y programática. Las operaciones compatibles incluyen:
+
+- **Enviar mensaje**: Enviar mensajes a colas SQS con ID de grupo de mensajes opcional e ID de deduplicación para colas FIFO
+
+Esta integración permite a tus agentes automatizar flujos de trabajo de envío de mensajes sin intervención manual. Al conectar Sim con Amazon SQS, puedes crear agentes que publiquen mensajes en colas dentro de tus flujos de trabajo, todo sin tener que gestionar la infraestructura o las conexiones de las colas.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Amazon SQS en el flujo de trabajo. Puede enviar mensajes a colas SQS.
+
+## Herramientas
+
+### `sqs_send`
+
+Enviar un mensaje a una cola de Amazon SQS
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Sí | Región de AWS (p. ej., us-east-1) |
+| `accessKeyId` | string | Sí | ID de clave de acceso de AWS |
+| `secretAccessKey` | string | Sí | Clave de acceso secreta de AWS |
+| `queueUrl` | string | Sí | URL de la cola |
+| `data` | object | Sí | Cuerpo del mensaje a enviar |
+| `messageGroupId` | string | No | ID del grupo de mensajes (opcional) |
+| `messageDeduplicationId` | string | No | ID de deduplicación del mensaje (opcional) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `id` | string | ID del mensaje |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `sqs`

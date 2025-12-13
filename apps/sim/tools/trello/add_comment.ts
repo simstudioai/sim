@@ -86,11 +86,9 @@ export const trelloAddCommentTool: ToolConfig<TrelloAddCommentParams, TrelloAddC
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the comment was added successfully' },
     comment: {
       type: 'object',
       description: 'The created comment object with id, text, date, and member creator',
     },
-    error: { type: 'string', description: 'Error message if operation failed' },
   },
 }

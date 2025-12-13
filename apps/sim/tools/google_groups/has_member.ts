@@ -53,7 +53,11 @@ export const hasMemberTool: ToolConfig<GoogleGroupsHasMemberParams, GoogleGroups
     }
     return {
       success: true,
-      output: data,
+      output: { isMember: data.isMember },
     }
+  },
+
+  outputs: {
+    isMember: { type: 'boolean', description: 'Whether the user is a member of the group' },
   },
 }

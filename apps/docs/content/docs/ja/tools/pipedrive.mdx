@@ -51,8 +51,9 @@ Pipedriveをワークフローに統合します。強力なCRM機能を使用�
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `deals` | array | Pipedriveからの取引オブジェクトの配列 |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | 取引データとメタデータ |
 
 ### `pipedrive_get_deal`
 
@@ -68,8 +69,9 @@ Pipedriveをワークフローに統合します。強力なCRM機能を使用�
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `deal` | object | 詳細情報を含む取引オブジェクト |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | 取引の詳細 |
 
 ### `pipedrive_create_deal`
 
@@ -93,8 +95,9 @@ Pipedriveで新しい取引を作成する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `deal` | object | 作成された取引オブジェクト |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | 作成されたディールの詳細 |
 
 ### `pipedrive_update_deal`
 
@@ -115,8 +118,9 @@ Pipedriveの既存のディールを更新する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `deal` | object | 更新された取引オブジェクト |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | 更新されたディールの詳細 |
 
 ### `pipedrive_get_files`
 
@@ -135,8 +139,9 @@ Pipedriveの既存のディールを更新する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `files` | array | Pipedriveからのファイルオブジェクトの配列 |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | ファイルデータ |
 
 ### `pipedrive_get_mail_messages`
 
@@ -153,8 +158,9 @@ Pipedriveメールボックスからメールスレッドを取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `messages` | array | Pipedriveメールボックスからのメールスレッドオブジェクトの配列 |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | メールスレッドデータ |
 
 ### `pipedrive_get_mail_thread`
 
@@ -170,8 +176,9 @@ Pipedriveメールボックスからメールスレッドを取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `messages` | array | スレッドからのメールメッセージオブジェクトの配列 |
+| `metadata` | object | スレッドIDを含む操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | メールスレッドメッセージデータ |
 
 ### `pipedrive_get_pipelines`
 
@@ -190,8 +197,9 @@ Pipedriveからすべてのパイプラインを取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `pipelines` | array | Pipedriveからのパイプラインオブジェクトの配列 |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | パイプラインデータ |
 
 ### `pipedrive_get_pipeline_deals`
 
@@ -210,8 +218,9 @@ Pipedriveからすべてのパイプラインを取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `deals` | array | パイプラインからの取引オブジェクトの配列 |
+| `metadata` | object | パイプラインIDを含む操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | パイプライン取引データ |
 
 ### `pipedrive_get_projects`
 
@@ -229,8 +238,10 @@ Pipedriveからすべてのプロジェクトまたは特定のプロジェク�
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `projects` | array | プロジェクトオブジェクトの配列（すべてをリスト表示する場合） |
+| `project` | object | 単一のプロジェクトオブジェクト（project_idが提供される場合） |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | プロジェクトデータまたは単一プロジェクトの詳細 |
 
 ### `pipedrive_create_project`
 
@@ -249,8 +260,9 @@ Pipedriveで新しいプロジェクトを作成する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `project` | object | 作成されたプロジェクトオブジェクト |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | 作成されたプロジェクトの詳細 |
 
 ### `pipedrive_get_activities`
 
@@ -271,8 +283,9 @@ Pipedriveで新しいプロジェクトを作成する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `activities` | array | Pipedriveからのアクティビティオブジェクトの配列 |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | アクティビティデータ |
 
 ### `pipedrive_create_activity`
 
@@ -296,8 +309,9 @@ Pipedriveで新しいアクティビティ（タスク）を作成する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作の成功ステータス |
-| `output` | object | 作成されたアクティビティの詳細 |
+| `activity` | object | 作成されたアクティビティオブジェクト |
+| `metadata` | object | 操作メタデータ |
+| `success` | boolean | 操作成功ステータス |
 
 ### `pipedrive_update_activity`
 
@@ -319,8 +333,9 @@ Pipedriveで既存のアクティビティ（タスク）を更新する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `activity` | object | 更新されたアクティビティオブジェクト |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | 更新されたアクティビティの詳細 |
 
 ### `pipedrive_get_leads`
 
@@ -341,8 +356,10 @@ Pipedriveからすべてのリードまたは特定のリードを取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `leads` | array | リード オブジェクトの配列（すべてをリスト表示する場合） |
+| `lead` | object | 単一のリード オブジェクト（lead_id が提供される場合） |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | リードデータまたは単一リードの詳細 |
 
 ### `pipedrive_create_lead`
 
@@ -365,8 +382,9 @@ Pipedriveに新しいリードを作成する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `lead` | object | 作成されたリードオブジェクト |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | 作成されたリードの詳細 |
 
 ### `pipedrive_update_lead`
 
@@ -390,8 +408,9 @@ Pipedriveの既存リードを更新する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `lead` | object | 更新されたリードオブジェクト |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | 更新されたリードの詳細 |
 
 ### `pipedrive_delete_lead`
 
@@ -407,8 +426,9 @@ Pipedriveから特定のリードを削除する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
+| `data` | object | 削除確認データ |
+| `metadata` | object | 操作メタデータ |
 | `success` | boolean | 操作成功ステータス |
-| `output` | object | 削除結果 |
 
 ## 注意事項
 

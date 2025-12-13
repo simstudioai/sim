@@ -312,6 +312,12 @@ export const GoogleGroupsBlock: BlockConfig = {
     roles: { type: 'string', description: 'Filter by roles for list members' },
   },
   outputs: {
-    output: { type: 'json', description: 'Google Groups API response data' },
+    groups: { type: 'json', description: 'Array of group objects (for list_groups)' },
+    group: { type: 'json', description: 'Single group object (for get/create/update_group)' },
+    members: { type: 'json', description: 'Array of member objects (for list_members)' },
+    member: { type: 'json', description: 'Single member object (for get/add/update_member)' },
+    isMember: { type: 'boolean', description: 'Membership check result (for has_member)' },
+    message: { type: 'string', description: 'Success message (for delete/remove operations)' },
+    nextPageToken: { type: 'string', description: 'Token for fetching next page of results' },
   },
 }

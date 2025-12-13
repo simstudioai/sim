@@ -48,10 +48,15 @@ export const telegramSendDocumentTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params: TelegramSendDocumentParams) => {
+      let normalizedFiles: unknown[] | null = null
+      if (params.files) {
+        normalizedFiles = Array.isArray(params.files) ? params.files : [params.files]
+      }
+
       return {
         botToken: params.botToken,
         chatId: params.chatId,
-        files: params.files || null,
+        files: normalizedFiles,
         caption: params.caption,
       }
     },

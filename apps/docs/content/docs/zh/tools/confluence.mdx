@@ -220,6 +220,33 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `commentId` | string | 删除的评论 ID |
 | `deleted` | boolean | 删除状态 |
 
+### `confluence_upload_attachment`
+
+将文件作为附件上传到 Confluence 页面。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名 \(例如：yourcompany.atlassian.net\) |
+| `pageId` | string | 是 | 要附加文件的 Confluence 页面 ID |
+| `file` | file | 是 | 要作为附件上传的文件 |
+| `fileName` | string | 否 | 附件的可选自定义文件名 |
+| `comment` | string | 否 | 附件的可选评论 |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 上传的时间戳 |
+| `attachmentId` | string | 上传的附件 ID |
+| `title` | string | 附件文件名 |
+| `fileSize` | number | 文件大小（以字节为单位） |
+| `mediaType` | string | 附件的 MIME 类型 |
+| `downloadUrl` | string | 附件的下载 URL |
+| `pageId` | string | 添加附件的页面 ID |
+
 ### `confluence_list_attachments`
 
 列出 Confluence 页面上的所有附件。
@@ -230,7 +257,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | 是 | 您的 Confluence 域名 \(例如：yourcompany.atlassian.net\) |
 | `pageId` | string | 是 | 要列出附件的 Confluence 页面 ID |
-| `limit` | number | 否 | 返回的附件最大数量 \(默认值：25\) |
+| `limit` | number | 否 | 返回的最大附件数量 \(默认值：25\) |
 | `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
 
 #### 输出
@@ -257,7 +284,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `ts` | string | 删除的时间戳 |
-| `attachmentId` | string | 已删除的附件 ID |
+| `attachmentId` | string | 删除的附件 ID |
 | `deleted` | boolean | 删除状态 |
 
 ### `confluence_list_labels`
@@ -281,7 +308,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ### `confluence_get_space`
 
-获取特定 Confluence 空间的详细信息。
+获取有关特定 Confluence 空间的详细信息。
 
 #### 输入
 
