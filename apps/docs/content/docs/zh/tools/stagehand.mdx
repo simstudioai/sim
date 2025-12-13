@@ -1,6 +1,6 @@
 ---
-title: Stagehand Extract
-description: 从网站提取数据
+title: Stagehand
+description: 网页自动化和数据提取
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -11,20 +11,27 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Stagehand](https://stagehand.com) 是一款工具，可通过 Browserbase 和 OpenAI 从网页中提取结构化数据。
+[Stagehand](https://stagehand.com) 是一款工具，可以通过 Browserbase 和现代 LLMs（如 OpenAI 或 Anthropic）实现从网页中提取结构化数据以及自主网页自动化。
 
-使用 Stagehand，您可以：
+Stagehand 在 Sim 中提供了两项主要功能：
 
-- **提取结构化数据**：通过 Browserbase 和 OpenAI 从网页中提取结构化数据
-- **将数据保存到数据库**：将提取的数据保存到数据库中
-- **自动化工作流程**：自动化工作流程以从网页中提取数据
+- **stagehand_extract**：从单个网页中提取结构化数据。您可以指定所需内容（一个模式），AI 会从页面中以该格式检索并解析数据。这非常适合在您明确知道需要什么信息以及从哪里获取时，用于提取列表、字段或对象。
 
-在 Sim 中，Stagehand 集成使您的代理能够通过 Browserbase 和 OpenAI 从网页中提取结构化数据。这为数据提取、数据分析和数据集成等强大的自动化场景提供了可能。您的代理可以从网页中提取结构化数据，将提取的数据保存到数据库中，并自动化工作流程以提取数据。此集成弥合了 AI 工作流程与数据管理系统之间的差距，实现了无缝的数据提取和集成。通过将 Sim 与 Stagehand 连接，您可以自动化数据提取流程，维护最新的信息库，生成报告，并智能地组织信息——这一切都通过您的智能代理完成。
+- **stagehand_agent**：运行一个自主的网页代理，能够完成多步骤任务，与元素交互，在页面之间导航，并返回结构化结果。这更加灵活：代理可以执行登录、搜索、填写表单、从多个地方收集数据，并根据请求的模式输出最终结果。
+
+**关键区别：**
+
+- *stagehand_extract* 是一个快速的“从这个页面提取这些数据”的操作。它最适合直接的、一步完成的提取任务。
+- *stagehand_agent* 执行复杂的、多步骤的自主网页任务，例如导航、搜索，甚至交易，并可以根据您的指示和可选的模式动态提取数据。
+
+在实际应用中，当您知道需要什么以及在哪里时，请使用 **stagehand_extract**；当您需要一个机器人思考并执行交互式工作流程时，请使用 **stagehand_agent**。
+
+通过集成 Stagehand，Sim 代理可以在网页上自动化数据收集、分析和工作流程执行：更新数据库、组织信息以及生成自定义报告——无缝且自主地完成。
 {/* MANUAL-CONTENT-END */}
 
 ## 使用说明
 
-将 Stagehand 集成到工作流程中。可以从网页中提取结构化数据。需要 API 密钥。
+将 Stagehand 集成到工作流程中。可以从网页中提取结构化数据，或运行自主代理执行任务。
 
 ## 工具
 
@@ -38,14 +45,37 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | -------- | ----------- |
 | `url` | string | 是 | 要提取数据的网页 URL |
 | `instruction` | string | 是 | 提取的指令 |
-| `apiKey` | string | 是 | 用于提取的 OpenAI API 密钥 \(Stagehand 所需\) |
+| `provider` | string | 否 | 要使用的 AI 提供商：openai 或 anthropic |
+| `apiKey` | string | 是 | 所选提供商的 API 密钥 |
 | `schema` | json | 是 | 定义要提取数据结构的 JSON 架构 |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `data` | object | 提取的与提供的模式匹配的结构化数据 |
+| `data` | object | 符合提供架构的提取结构化数据 |
+
+### `stagehand_agent`
+
+运行自主网页代理以完成任务并提取结构化数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `startUrl` | string | 是 | 启动代理的网页 URL |
+| `task` | string | 是 | 在网站上完成的任务或目标 |
+| `variables` | json | 否 | 任务中可替换的可选变量（格式：\{key: value\}）。在任务中使用 %key% 引用 |
+| `format` | string | 否 | 无描述 |
+| `provider` | string | 否 | 要使用的 AI 提供商：openai 或 anthropic |
+| `apiKey` | string | 是 | 所选提供商的 API 密钥 |
+| `outputSchema` | json | 否 | 定义代理应返回数据结构的可选 JSON 架构 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `agentResult` | object | Stagehand 代理执行的结果 |
 
 ## 注意事项
 
