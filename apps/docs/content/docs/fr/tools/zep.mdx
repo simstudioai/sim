@@ -94,10 +94,7 @@ Récupérer le contexte utilisateur d'un fil de discussion en mode résumé ou b
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `context` | string | La chaîne de contexte \(résumé ou basique\) |
-| `facts` | array | Faits extraits |
-| `entities` | array | Entités extraites |
-| `summary` | string | Résumé de la conversation |
+| `context` | string | La chaîne de contexte \(mode résumé ou basique\) |
 
 ### `zep_get_messages`
 
@@ -137,9 +134,9 @@ Ajouter des messages à un fil de discussion existant
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `context` | chaîne | Contexte mis à jour après l'ajout des messages |
-| `messageIds` | tableau | Tableau des UUID des messages ajoutés |
-| `threadId` | chaîne | L'ID du fil de discussion |
+| `threadId` | string | L'ID du fil de discussion |
+| `added` | boolean | Si les messages ont été ajoutés avec succès |
+| `messageIds` | array | Tableau des UUID des messages ajoutés |
 
 ### `zep_add_user`
 
@@ -208,8 +205,8 @@ Lister tous les fils de conversation pour un utilisateur spécifique
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `threads` | tableau | Tableau d'objets de fils pour cet utilisateur |
-| `userId` | chaîne | L'ID de l'utilisateur |
+| `threads` | array | Tableau d'objets de fil de discussion pour cet utilisateur |
+| `totalCount` | number | Nombre total de fils de discussion retournés |
 
 ## Notes
 

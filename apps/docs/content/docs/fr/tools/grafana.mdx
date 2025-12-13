@@ -315,13 +315,13 @@ Créer une annotation sur un tableau de bord ou comme annotation globale
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 | `apiKey` | chaîne | Oui | Jeton de compte de service Grafana |
 | `baseUrl` | chaîne | Oui | URL de l'instance Grafana \(ex., https://your-grafana.com\) |
-| `organizationId` | chaîne | Non | ID d'organisation pour les instances Grafana multi-organisations |
+| `organizationId` | chaîne | Non | ID de l'organisation pour les instances Grafana multi-organisations |
 | `text` | chaîne | Oui | Le contenu textuel de l'annotation |
-| `tags` | chaîne | Non | Liste de tags séparés par des virgules |
-| `dashboardUid` | chaîne | Non | UID du tableau de bord auquel ajouter l'annotation \(facultatif pour les annotations globales\) |
+| `tags` | chaîne | Non | Liste d'étiquettes séparées par des virgules |
+| `dashboardUid` | chaîne | Oui | UID du tableau de bord auquel ajouter l'annotation |
 | `panelId` | nombre | Non | ID du panneau auquel ajouter l'annotation |
 | `time` | nombre | Non | Heure de début en millisecondes d'époque \(par défaut : maintenant\) |
 | `timeEnd` | nombre | Non | Heure de fin en millisecondes d'époque \(pour les annotations de plage\) |
@@ -340,15 +340,15 @@ Interroger les annotations par plage de temps, tableau de bord ou tags
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 | `apiKey` | chaîne | Oui | Jeton de compte de service Grafana |
 | `baseUrl` | chaîne | Oui | URL de l'instance Grafana \(ex., https://your-grafana.com\) |
-| `organizationId` | chaîne | Non | ID d'organisation pour les instances Grafana multi-organisations |
+| `organizationId` | chaîne | Non | ID de l'organisation pour les instances Grafana multi-organisations |
 | `from` | nombre | Non | Heure de début en millisecondes d'époque |
 | `to` | nombre | Non | Heure de fin en millisecondes d'époque |
-| `dashboardUid` | chaîne | Non | Filtrer par UID de tableau de bord |
+| `dashboardUid` | chaîne | Oui | UID du tableau de bord pour interroger les annotations |
 | `panelId` | nombre | Non | Filtrer par ID de panneau |
-| `tags` | chaîne | Non | Liste de tags séparés par des virgules pour filtrer |
+| `tags` | chaîne | Non | Liste d'étiquettes séparées par des virgules pour filtrer |
 | `type` | chaîne | Non | Filtrer par type \(alerte ou annotation\) |
 | `limit` | nombre | Non | Nombre maximum d'annotations à retourner |
 
@@ -483,10 +483,20 @@ Créer un nouveau dossier dans Grafana
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | nombre | L'ID numérique du dossier créé |
-| `uid` | chaîne | L'UID du dossier créé |
-| `title` | chaîne | Le titre du dossier créé |
-| `url` | chaîne | Le chemin URL vers le dossier |
+| `id` | number | L'identifiant numérique du dossier créé |
+| `uid` | string | L'UID du dossier créé |
+| `title` | string | Le titre du dossier créé |
+| `url` | string | Le chemin URL vers le dossier |
+| `hasAcl` | boolean | Si le dossier possède des permissions ACL personnalisées |
+| `canSave` | boolean | Si l'utilisateur actuel peut enregistrer le dossier |
+| `canEdit` | boolean | Si l'utilisateur actuel peut modifier le dossier |
+| `canAdmin` | boolean | Si l'utilisateur actuel a des droits d'administrateur sur le dossier |
+| `canDelete` | boolean | Si l'utilisateur actuel peut supprimer le dossier |
+| `createdBy` | string | Nom d'utilisateur de la personne qui a créé le dossier |
+| `created` | string | Horodatage de la création du dossier |
+| `updatedBy` | string | Nom d'utilisateur de la personne qui a dernièrement mis à jour le dossier |
+| `updated` | string | Horodatage de la dernière mise à jour du dossier |
+| `version` | number | Numéro de version du dossier |
 
 ## Notes
 

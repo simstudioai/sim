@@ -1,0 +1,1452 @@
+---
+title: Spotify
+description: 搜索音乐、管理播放列表、控制播放并访问您的音乐库
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="spotify"
+  color="#000000"
+/>
+
+## 使用说明
+
+将 Spotify 集成到您的工作流程中。搜索曲目、专辑、艺术家和播放列表。管理播放列表，访问您的音乐库，控制播放，浏览播客和有声书。
+
+## 工具
+
+### `spotify_search`
+
+在 Spotify 上搜索曲目、专辑、艺术家或播放列表。根据查询返回匹配的结果。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | 是 | 搜索查询 \(例如："Bohemian Rhapsody", "artist:Queen", "genre:rock"\) |
+| `type` | string | 否 | 结果类型：track, album, artist, playlist 或逗号分隔 \(例如："track,artist"\) |
+| `limit` | number | 否 | 返回结果的最大数量 \(1-50\) |
+| `offset` | number | 否 | 分页时返回的第一个结果的索引 |
+| `market` | string | 否 | 用于过滤结果的 ISO 3166-1 alpha-2 国家代码 \(例如："US", "GB"\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `tracks` | array | 匹配曲目的列表 |
+
+### `spotify_get_track`
+
+通过其 ID 获取 Spotify 上特定曲目的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `trackId` | string | 是 | 曲目的 Spotify ID |
+| `market` | string | 否 | 曲目可用性的 ISO 3166-1 alpha-2 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | Spotify 曲目 ID |
+| `name` | string | 曲目名称 |
+| `artists` | array | 艺术家列表 |
+| `album` | object | 专辑信息 |
+| `duration_ms` | number | 曲目时长（毫秒） |
+| `explicit` | boolean | 曲目是否包含显式内容 |
+| `popularity` | number | 热度评分 \(0-100\) |
+| `preview_url` | string | 30 秒预览的 URL |
+| `external_url` | string | Spotify URL |
+| `uri` | string | 曲目的 Spotify URI |
+
+### `spotify_get_tracks`
+
+通过曲目 ID（最多 50 个）获取 Spotify 上多个曲目的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `trackIds` | string | 是 | 逗号分隔的 Spotify 曲目 ID 列表 \(最多 50 个\) |
+| `market` | string | 否 | 曲目可用性的 ISO 3166-1 alpha-2 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `tracks` | array | 曲目列表 |
+
+### `spotify_get_album`
+
+通过专辑 ID 获取 Spotify 上专辑的详细信息，包括曲目列表。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `albumId` | string | 是 | 专辑的 Spotify ID |
+| `market` | string | 否 | 曲目可用性的 ISO 3166-1 alpha-2 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | Spotify 专辑 ID |
+| `name` | string | 专辑名称 |
+| `artists` | array | 艺术家列表 |
+| `album_type` | string | 专辑类型 \(专辑、单曲、合辑\) |
+| `total_tracks` | number | 曲目总数 |
+| `release_date` | string | 发行日期 |
+| `label` | string | 唱片公司 |
+| `popularity` | number | 热度评分 \(0-100\) |
+| `genres` | array | 流派列表 |
+| `image_url` | string | 专辑封面图片 URL |
+| `tracks` | array | 专辑中的曲目列表 |
+| `external_url` | string | Spotify URL |
+
+### `spotify_get_albums`
+
+通过专辑 ID 获取多个专辑的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `albumIds` | string | 是 | 逗号分隔的专辑 ID \(最多 20 个\) |
+| `market` | string | 否 | 市场的 ISO 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `albums` | json | 专辑列表 |
+
+### `spotify_get_album_tracks`
+
+获取专辑中的曲目。
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `albumId` | string | 是 | Spotify 专辑 ID |
+| `limit` | number | 否 | 返回的曲目数量 \(1-50\) |
+| `offset` | number | 否 | 返回的首个曲目的索引 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `tracks` | json | 曲目列表 |
+| `total` | number | 曲目总数 |
+| `next` | string | 下一页的 URL |
+
+### `spotify_get_saved_albums`
+
+获取用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | 否 | 要返回的专辑数量 \(1-50\) |
+| `offset` | number | 否 | 要返回的第一个专辑的索引 |
+| `market` | string | 否 | 市场的 ISO 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `albums` | json | 已保存专辑列表 |
+| `total` | number | 已保存专辑总数 |
+| `next` | string | 下一页的 URL |
+
+### `spotify_save_albums`
+
+将专辑保存到用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `albumIds` | string | 是 | 逗号分隔的专辑 ID \(最多 20 个\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否已保存专辑 |
+
+### `spotify_remove_saved_albums`
+
+从用户中移除专辑
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `albumIds` | string | 是 | 逗号分隔的专辑 ID \(最多 20 个\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | 布尔值 | 是否移除了专辑 |
+
+### `spotify_check_saved_albums`
+
+检查专辑是否已保存到库中。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `albumIds` | 字符串 | 是 | 逗号分隔的专辑 ID（最多 20 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `results` | JSON | 每个专辑的布尔值数组 |
+
+### `spotify_get_artist`
+
+通过 Spotify ID 获取艺术家的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `artistId` | 字符串 | 是 | 艺术家的 Spotify ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | 字符串 | Spotify 艺术家 ID |
+| `name` | 字符串 | 艺术家名称 |
+| `genres` | 数组 | 与艺术家相关的流派列表 |
+| `popularity` | 数字 | 人气评分（0-100） |
+| `followers` | 数字 | 关注者数量 |
+| `image_url` | 字符串 | 艺术家图片 URL |
+| `external_url` | 字符串 | Spotify URL |
+
+### `spotify_get_artists`
+
+通过 ID 获取多个艺术家的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `artistIds` | 字符串 | 是 | 逗号分隔的艺术家 ID（最多 50 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `artists` | json | 艺术家列表 |
+
+### `spotify_get_artist_albums`
+
+获取 Spotify 上某艺术家的专辑。可以按专辑类型筛选。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `artistId` | string | 是 | 艺术家的 Spotify ID |
+| `include_groups` | string | 否 | 按专辑类型筛选：album, single, appears_on, compilation（逗号分隔） |
+| `limit` | number | 否 | 返回的专辑最大数量（1-50） |
+| `offset` | number | 否 | 返回的第一个专辑的索引 |
+| `market` | string | 否 | ISO 3166-1 alpha-2 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `albums` | array | 艺术家 |
+
+### `spotify_get_artist_top_tracks`
+
+获取 Spotify 上某艺术家的前 10 首最受欢迎的曲目。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `artistId` | string | 是 | 艺术家的 Spotify ID |
+| `market` | string | 否 | ISO 3166-1 alpha-2 国家代码（此端点必需） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `tracks` | array | 艺术家 |
+
+### `spotify_follow_artists`
+
+关注一个或多个艺术家。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `artistIds` | string | 是 | 逗号分隔的艺术家 ID 列表（最多 50 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 艺术家是否成功关注 |
+
+### `spotify_unfollow_artists`
+
+取消关注一个或多个艺术家。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `artistIds` | string | 是 | 逗号分隔的艺术家 ID 列表（最多 50 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 艺术家是否成功取消关注 |
+
+### `spotify_get_followed_artists`
+
+获取用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | 否 | 返回的艺术家数量（1-50） |
+| `after` | string | 否 | 分页游标（上次请求的最后一个艺术家 ID） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `artists` | json | 已关注艺术家列表 |
+| `total` | number | 已关注艺术家的总数 |
+| `next` | string | 下一页的游标 |
+
+### `spotify_check_following`
+
+检查用户是否关注艺术家或用户。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `type` | string | 是 | 检查的类型：“artist” 或 “user” |
+| `ids` | string | 是 | 逗号分隔的艺术家或用户 ID 列表（最多 50 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `results` | json | 每个 ID 的布尔值数组 |
+
+### `spotify_get_show`
+
+获取播客节目的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `showId` | string | 是 | Spotify 节目 ID |
+| `market` | string | 否 | 市场的 ISO 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 节目 ID |
+| `name` | string | 节目名称 |
+| `description` | string | 节目描述 |
+| `publisher` | string | 发布者名称 |
+| `total_episodes` | number | 总集数 |
+| `explicit` | boolean | 是否包含显式内容 |
+| `languages` | json | 语言 |
+| `image_url` | string | 封面图片 URL |
+| `external_url` | string | Spotify URL |
+
+### `spotify_get_shows`
+
+获取多个播客节目的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `showIds` | string | 是 | 逗号分隔的节目 ID（最多 50 个） |
+| `market` | string | 否 | 市场的 ISO 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `shows` | json | 节目列表 |
+
+### `spotify_get_show_episodes`
+
+从播客节目中获取剧集。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `showId` | string | 是 | Spotify 节目 ID |
+| `limit` | number | 否 | 要返回的剧集数量 \(1-50\) |
+| `offset` | number | 否 | 要返回的第一个剧集的索引 |
+| `market` | string | 否 | 市场的 ISO 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `episodes` | json | 剧集列表 |
+| `total` | number | 剧集总数 |
+| `next` | string | 下一页的 URL |
+
+### `spotify_get_saved_shows`
+
+获取用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | 否 | 要返回的节目数量 \(1-50\) |
+| `offset` | number | 否 | 要返回的第一个节目的索引 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `shows` | json | 已保存节目的列表 |
+| `total` | number | 已保存节目的总数 |
+| `next` | string | 下一页的 URL |
+
+### `spotify_save_shows`
+
+将播客节目保存到用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `showIds` | string | 是 | 逗号分隔的节目 ID \(最多 50 个\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否保存了节目 |
+
+### `spotify_remove_saved_shows`
+
+从用户中移除播客节目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `showIds` | string | 是 | 逗号分隔的节目 ID（最多 50 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否移除了节目 |
+
+### `spotify_check_saved_shows`
+
+检查节目是否已保存在库中。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `showIds` | string | 是 | 逗号分隔的节目 ID（最多 50 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `results` | json | 每个节目的布尔值数组 |
+
+### `spotify_get_episode`
+
+获取播客剧集的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `episodeId` | string | 是 | Spotify 剧集 ID |
+| `market` | string | 否 | 市场的 ISO 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 剧集 ID |
+| `name` | string | 剧集名称 |
+| `description` | string | 剧集描述 |
+| `duration_ms` | number | 时长（毫秒） |
+| `release_date` | string | 发布日期 |
+| `explicit` | boolean | 是否包含显式内容 |
+| `show` | json | 父节目信息 |
+| `image_url` | string | 封面图片 URL |
+| `external_url` | string | Spotify URL |
+
+### `spotify_get_episodes`
+
+获取多个播客剧集的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `episodeIds` | string | 是 | 逗号分隔的剧集 ID（最多 50 个） |
+| `market` | string | 否 | 市场的 ISO 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `episodes` | json | 剧集列表 |
+
+### `spotify_get_saved_episodes`
+
+获取用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | 否 | 要返回的剧集数量（1-50） |
+| `offset` | number | 否 | 要返回的第一个剧集的索引 |
+| `market` | string | 否 | 市场的 ISO 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `episodes` | json | 已保存的剧集列表 |
+| `total` | number | 已保存剧集总数 |
+| `next` | string | 下一页的 URL |
+
+### `spotify_save_episodes`
+
+将播客剧集保存到用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `episodeIds` | string | 是 | 逗号分隔的剧集 ID（最多 50 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 剧集是否已保存 |
+
+### `spotify_remove_saved_episodes`
+
+从用户中移除播客剧集
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `episodeIds` | string | 是 | 逗号分隔的剧集 ID（最多 50 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否已移除剧集 |
+
+### `spotify_check_saved_episodes`
+
+检查剧集是否已保存到库中。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `episodeIds` | string | 是 | 逗号分隔的剧集 ID（最多 50 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `results` | json | 每个剧集的布尔值数组 |
+
+### `spotify_get_audiobook`
+
+获取有声书的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `audiobookId` | string | 是 | Spotify 有声书 ID |
+| `market` | string | 否 | 市场的 ISO 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 有声书 ID |
+| `name` | string | 有声书名称 |
+| `authors` | json | 作者 |
+| `narrators` | json | 旁白 |
+| `publisher` | string | 出版商 |
+| `description` | string | 描述 |
+| `total_chapters` | number | 总章节数 |
+| `languages` | json | 语言 |
+| `image_url` | string | 封面图片 URL |
+| `external_url` | string | Spotify URL |
+
+### `spotify_get_audiobooks`
+
+获取多个有声书的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `audiobookIds` | string | 是 | 逗号分隔的有声书 ID（最多 50 个） |
+| `market` | string | 否 | 市场的 ISO 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `audiobooks` | json | 有声书列表 |
+
+### `spotify_get_audiobook_chapters`
+
+获取有声书的章节。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `audiobookId` | string | 是 | Spotify 有声书 ID |
+| `limit` | number | 否 | 返回的章节数量（1-50） |
+| `offset` | number | 否 | 返回的第一个章节的索引 |
+| `market` | string | 否 | 市场的 ISO 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `chapters` | json | 章节列表 |
+| `total` | number | 总章节数 |
+| `next` | string | 下一页的 URL |
+
+### `spotify_get_saved_audiobooks`
+
+获取用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | 否 | 返回的有声书数量（1-50） |
+| `offset` | number | 否 | 返回的第一个有声书的索引 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `audiobooks` | json | 已保存有声书的列表 |
+| `total` | number | 已保存有声书的总数 |
+| `next` | string | 下一页的 URL |
+
+### `spotify_save_audiobooks`
+
+将有声书保存到用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `audiobookIds` | string | 是 | 逗号分隔的有声书 ID（最多 50 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否已保存有声书 |
+
+### `spotify_remove_saved_audiobooks`
+
+从用户中移除有声书
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `audiobookIds` | string | 是 | 逗号分隔的有声书 ID（最多 50 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否已移除有声书 |
+
+### `spotify_check_saved_audiobooks`
+
+检查有声书是否已保存到库中。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `audiobookIds` | string | 是 | 逗号分隔的有声书 ID（最多 50 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `results` | json | 每本有声书的布尔值数组 |
+
+### `spotify_get_playlist`
+
+通过其 ID 获取 Spotify 上播放列表的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | 是 | 播放列表的 Spotify ID |
+| `market` | string | 否 | 用于曲目可用性的 ISO 3166-1 alpha-2 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | Spotify 播放列表 ID |
+| `name` | string | 播放列表名称 |
+| `description` | string | 播放列表描述 |
+| `public` | boolean | 播放列表是否公开 |
+| `collaborative` | boolean | 播放列表是否为协作 |
+| `owner` | object | 播放列表所有者信息 |
+| `image_url` | string | 播放列表封面图片 URL |
+| `total_tracks` | number | 曲目总数 |
+| `snapshot_id` | string | 用于版本控制的播放列表快照 ID |
+| `external_url` | string | Spotify URL |
+
+### `spotify_get_playlist_tracks`
+
+获取 Spotify 播放列表中的曲目。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | 是 | 播放列表的 Spotify ID |
+| `limit` | number | 否 | 返回的曲目最大数量 \(1-100\) |
+| `offset` | number | 否 | 返回的第一个曲目的索引 |
+| `market` | string | 否 | 用于曲目可用性的 ISO 3166-1 alpha-2 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `tracks` | array | 播放列表中的曲目列表 |
+
+### `spotify_get_playlist_cover`
+
+获取播放列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | 是 | Spotify 播放列表 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `images` | json | 封面图片列表 |
+
+### `spotify_get_user_playlists`
+
+获取当前用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | 否 | 要返回的最大播放列表数量 \(1-50\) |
+| `offset` | number | 否 | 要返回的第一个播放列表的索引 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `playlists` | array | 用户 |
+
+### `spotify_create_playlist`
+
+为当前用户在 Spotify 上创建一个新播放列表。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | 是 | 新播放列表的名称 |
+| `description` | string | 否 | 播放列表的描述 |
+| `public` | boolean | 否 | 播放列表是否应为公开 |
+| `collaborative` | boolean | 否 | 播放列表是否应为协作 \(需要公开设置为 false\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | Spotify 播放列表 ID |
+| `name` | string | 播放列表名称 |
+| `description` | string | 播放列表描述 |
+| `public` | boolean | 播放列表是否公开 |
+| `collaborative` | boolean | 是否可协作 |
+| `snapshot_id` | string | 播放列表快照 ID |
+| `external_url` | string | Spotify URL |
+
+### `spotify_update_playlist`
+
+更新播放列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | 是 | Spotify 播放列表 ID |
+| `name` | string | 否 | 播放列表的新名称 |
+| `description` | string | 否 | 播放列表的新描述 |
+| `public` | boolean | 否 | 播放列表是否应公开 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 更新是否成功 |
+
+### `spotify_add_playlist_cover`
+
+为播放列表上传自定义封面图片。图片必须为 JPEG 格式且小于 256KB。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | 是 | Spotify 播放列表 ID |
+| `imageBase64` | string | 是 | Base64 编码的 JPEG 图片（最大 256KB） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 上传是否成功 |
+
+### `spotify_add_tracks_to_playlist`
+
+将一首或多首曲目添加到 Spotify 播放列表。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | 是 | 播放列表的 Spotify ID |
+| `uris` | string | 是 | 逗号分隔的 Spotify URI \(例如："spotify:track:xxx,spotify:track:yyy"\) |
+| `position` | number | 否 | 插入曲目的位置 \(从 0 开始\)。如果省略，曲目将追加到末尾。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `snapshot_id` | string | 修改后新的播放列表快照 ID |
+
+### `spotify_remove_tracks_from_playlist`
+
+从 Spotify 播放列表中移除一首或多首曲目。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | 是 | 播放列表的 Spotify ID |
+| `uris` | string | 是 | 要移除的逗号分隔的 Spotify URI \(例如："spotify:track:xxx,spotify:track:yyy"\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `snapshot_id` | string | 修改后新的播放列表快照 ID |
+
+### `spotify_reorder_playlist_items`
+
+将曲目移动到播放列表中的不同位置。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | 是 | Spotify 播放列表 ID |
+| `range_start` | number | 是 | 要重新排序的项目的起始索引 |
+| `insert_before` | number | 是 | 插入项目之前的索引 |
+| `range_length` | number | 否 | 要重新排序的项目数量 |
+| `snapshot_id` | string | 否 | 用于并发控制的播放列表快照 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `snapshot_id` | string | 新的播放列表快照 ID |
+
+### `spotify_replace_playlist_items`
+
+用新曲目替换播放列表中的所有项目。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | 是 | Spotify 播放列表 ID |
+| `uris` | string | 是 | 逗号分隔的 Spotify URI（最多 100 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `snapshot_id` | string | 新的播放列表快照 ID |
+
+### `spotify_follow_playlist`
+
+关注（保存）播放列表。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | 是 | Spotify 播放列表 ID |
+| `public` | boolean | 否 | 播放列表是否会出现在公开播放列表中 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否关注成功 |
+
+### `spotify_unfollow_playlist`
+
+取消关注（取消保存）播放列表。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | 是 | Spotify 播放列表 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否取消关注成功 |
+
+### `spotify_check_playlist_followers`
+
+检查用户是否关注某个播放列表。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | 是 | Spotify 播放列表 ID |
+| `userIds` | string | 是 | 逗号分隔的用户 ID（最多 5 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `results` | json | 每个用户的布尔值数组 |
+
+### `spotify_get_current_user`
+
+获取当前用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | Spotify 用户 ID |
+| `display_name` | string | 显示名称 |
+| `email` | string | 电子邮件地址 |
+| `country` | string | 国家代码 |
+| `product` | string | 订阅级别（免费，付费）|
+| `followers` | number | 关注者数量 |
+| `image_url` | string | 个人资料图片 URL |
+| `external_url` | string | Spotify 个人资料 URL |
+
+### `spotify_get_user_profile`
+
+获取用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | 是 | Spotify 用户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 用户 ID |
+| `display_name` | string | 显示名称 |
+| `followers` | number | 关注者数量 |
+| `image_url` | string | 个人资料图片 URL |
+| `external_url` | string | Spotify URL |
+
+### `spotify_get_top_tracks`
+
+获取当前用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `time_range` | string | 否 | 时间范围：short_term（约4周）、medium_term（约6个月）、long_term（年） |
+| `limit` | number | 否 | 返回的曲目数量（1-50） |
+| `offset` | number | 否 | 返回的第一个曲目的索引 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `tracks` | array | 用户 |
+
+### `spotify_get_top_artists`
+
+获取当前用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `time_range` | string | 否 | 时间范围：short_term（约4周）、medium_term（约6个月）、long_term（年） |
+| `limit` | number | 否 | 返回的艺术家数量（1-50） |
+| `offset` | number | 否 | 返回的第一个艺术家的索引 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `artists` | array | 用户 |
+
+### `spotify_get_saved_tracks`
+
+获取当前用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | 否 | 返回的曲目数量（1-50） |
+| `offset` | number | 否 | 返回的第一个曲目的索引 |
+| `market` | string | 否 | ISO 3166-1 alpha-2 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `tracks` | array | 用户 |
+
+### `spotify_save_tracks`
+
+将曲目保存到当前用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `trackIds` | string | 是 | 逗号分隔的 Spotify 曲目 ID（最多 50 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 曲目是否成功保存 |
+
+### `spotify_remove_saved_tracks`
+
+从用户中移除曲目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `trackIds` | string | 是 | 逗号分隔的曲目 ID（最多 50 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 曲目是否成功移除 |
+
+### `spotify_check_saved_tracks`
+
+检查一个或多个曲目是否已保存到用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `trackIds` | string | 是 | 逗号分隔的曲目 ID（最多 50 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `results` | json | 包含保存状态的曲目 ID 数组 |
+| `all_saved` | boolean | 是否所有曲目都已保存 |
+| `none_saved` | boolean | 是否没有曲目被保存 |
+
+### `spotify_get_recently_played`
+
+获取用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | 否 | 返回的曲目数量 \(1-50\) |
+| `after` | number | 否 | Unix 时间戳（毫秒）。返回此游标之后的项目。 |
+| `before` | number | 否 | Unix 时间戳（毫秒）。返回此游标之前的项目。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `items` | array | 最近播放的曲目 |
+
+### `spotify_get_new_releases`
+
+获取 Spotify 中推荐的新专辑列表。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `country` | string | 否 | ISO 3166-1 alpha-2 国家代码 \(例如："US", "GB"\) |
+| `limit` | number | 否 | 返回的专辑数量 \(1-50\) |
+| `offset` | number | 否 | 返回的第一个专辑的索引 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `albums` | json | 新专辑列表 |
+| `total` | number | 新专辑的总数 |
+| `next` | string | 下一页的 URL |
+
+### `spotify_get_categories`
+
+获取 Spotify 中用于标记项目的浏览类别列表。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `country` | string | 否 | ISO 3166-1 alpha-2 国家代码 \(例如："US", "GB"\) |
+| `locale` | string | 否 | 区域代码 \(例如："en_US", "es_MX"\) |
+| `limit` | number | 否 | 返回的类别数量 \(1-50\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `categories` | json | 浏览类别列表 |
+| `total` | number | 类别总数 |
+
+### `spotify_get_markets`
+
+获取 Spotify 可用的市场列表。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `markets` | json | ISO 国家代码列表 |
+
+### `spotify_get_playback_state`
+
+获取当前播放状态，包括设备、曲目和进度。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `market` | string | 否 | ISO 3166-1 alpha-2 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `is_playing` | boolean | 播放是否处于活动状态 |
+| `device` | object | 活动设备信息 |
+| `progress_ms` | number | 进度（毫秒） |
+| `currently_playing_type` | string | 播放内容的类型 |
+| `shuffle_state` | boolean | 是否启用了随机播放 |
+| `repeat_state` | string | 循环模式（off, track, context） |
+| `track` | object | 当前播放的曲目 |
+
+### `spotify_get_currently_playing`
+
+获取用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `market` | string | 否 | 市场的 ISO 国家代码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `is_playing` | boolean | 播放是否处于活动状态 |
+| `progress_ms` | number | 当前曲目位置（毫秒） |
+| `track` | json | 当前播放的曲目 |
+
+### `spotify_get_devices`
+
+获取用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `devices` | array | 可用的播放设备 |
+
+### `spotify_get_queue`
+
+获取用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `currently_playing` | json | 当前播放的曲目 |
+| `queue` | json | 队列中的即将播放曲目 |
+
+### `spotify_play`
+
+在 Spotify 上开始或恢复播放。可以播放特定的曲目、专辑或播放列表。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `device_id` | string | 否 | 要播放的设备 ID。如果未提供，则在活动设备上播放。 |
+| `context_uri` | string | 否 | 专辑、艺术家或播放列表的 Spotify URI（例如："spotify:album:xxx"） |
+| `uris` | string | 否 | 逗号分隔的曲目 URI（例如："spotify:track:xxx,spotify:track:yyy"） |
+| `offset` | number | 否 | 开始播放的上下文位置（从 0 开始的索引） |
+| `position_ms` | number | 否 | 从曲目中的位置开始播放（以毫秒为单位） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | 布尔值 | 播放是否成功启动 |
+
+### `spotify_pause`
+
+暂停 Spotify 上的播放。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `device_id` | 字符串 | 否 | 要暂停的设备 ID。如果未提供，则暂停活动设备。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | 布尔值 | 播放是否已暂停 |
+
+### `spotify_skip_next`
+
+跳到 Spotify 上的下一首曲目。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `device_id` | 字符串 | 否 | 设备 ID。如果未提供，则使用活动设备。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | 布尔值 | 跳过是否成功 |
+
+### `spotify_skip_previous`
+
+跳到 Spotify 上的上一首曲目。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `device_id` | 字符串 | 否 | 设备 ID。如果未提供，则使用活动设备。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | 布尔值 | 跳过是否成功 |
+
+### `spotify_seek`
+
+跳到当前播放曲目中的某个位置。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `position_ms` | number | 是 | 要跳转到的位置（以毫秒为单位） |
+| `device_id` | string | 否 | 目标设备 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功跳转 |
+
+### `spotify_add_to_queue`
+
+将曲目添加到用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `uri` | string | 是 | 要添加的曲目的 Spotify URI \(例如："spotify:track:xxx"\) |
+| `device_id` | string | 否 | 设备 ID。如果未提供，则使用活动设备。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否将曲目添加到队列 |
+
+### `spotify_set_volume`
+
+设置 Spotify 的播放音量。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `volume_percent` | number | 是 | 音量级别 \(0 到 100\) |
+| `device_id` | string | 否 | 设备 ID。如果未提供，则使用活动设备。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否设置了音量 |
+
+### `spotify_set_repeat`
+
+设置播放的重复模式。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `state` | string | 是 | 重复模式："off"、"track" 或 "context" |
+| `device_id` | string | 否 | 目标设备 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功设置了重复模式 |
+
+### `spotify_set_shuffle`
+
+打开或关闭随机播放。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `state` | boolean | 是 | true 表示打开随机播放，false 表示关闭 |
+| `device_id` | string | 否 | 目标设备 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功设置了随机播放 |
+
+### `spotify_transfer_playback`
+
+将播放转移到其他设备。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `device_id` | string | 是 | 要转移播放的目标设备 ID |
+| `play` | boolean | 否 | 是否在新设备上开始播放 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功转移播放 |
+
+## 注意
+
+- 类别：`tools`
+- 类型：`spotify`

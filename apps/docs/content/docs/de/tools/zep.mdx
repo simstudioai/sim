@@ -94,10 +94,7 @@ Benutzerkontext aus einem Thread mit Zusammenfassungs- oder Basismodus abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `context` | string | Der Kontextstring \(Zusammenfassung oder Basis\) |
-| `facts` | array | Extrahierte Fakten |
-| `entities` | array | Extrahierte Entitäten |
-| `summary` | string | Konversationszusammenfassung |
+| `context` | string | Die Kontext-Zeichenfolge \(Zusammenfassung oder Basismodus\) |
 
 ### `zep_get_messages`
 
@@ -137,9 +134,9 @@ Nachrichten zu einem bestehenden Thread hinzufügen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `context` | string | Aktualisierter Kontext nach dem Hinzufügen von Nachrichten |
-| `messageIds` | array | Array der hinzugefügten Nachrichten-UUIDs |
 | `threadId` | string | Die Thread-ID |
+| `added` | boolean | Ob Nachrichten erfolgreich hinzugefügt wurden |
+| `messageIds` | array | Array der hinzugefügten Nachrichten-UUIDs |
 
 ### `zep_add_user`
 
@@ -209,7 +206,7 @@ Alle Konversations-Threads für einen bestimmten Benutzer auflisten
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `threads` | array | Array von Thread-Objekten für diesen Benutzer |
-| `userId` | string | Die Benutzer-ID |
+| `totalCount` | number | Gesamtanzahl der zurückgegebenen Threads |
 
 ## Hinweise
 

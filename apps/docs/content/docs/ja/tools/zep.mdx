@@ -94,10 +94,7 @@ Zepから会話スレッドを削除する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `context` | string | コンテキスト文字列（サマリーまたは基本） |
-| `facts` | array | 抽出されたファクト |
-| `entities` | array | 抽出されたエンティティ |
-| `summary` | string | 会話のサマリー |
+| `context` | string | コンテキスト文字列（要約または基本モード） |
 
 ### `zep_get_messages`
 
@@ -137,9 +134,9 @@ Zepから会話スレッドを削除する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `context` | string | メッセージ追加後の更新されたコンテキスト |
-| `messageIds` | array | 追加されたメッセージUUIDの配列 |
 | `threadId` | string | スレッドID |
+| `added` | boolean | メッセージが正常に追加されたかどうか |
+| `messageIds` | array | 追加されたメッセージUUIDの配列 |
 
 ### `zep_add_user`
 
@@ -209,7 +206,7 @@ Zepからユーザー情報を取得する
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
 | `threads` | array | このユーザーのスレッドオブジェクトの配列 |
-| `userId` | string | ユーザーID |
+| `totalCount` | number | 返されたスレッドの総数 |
 
 ## 注意事項
 

@@ -321,7 +321,7 @@ Eine Anmerkung auf einem Dashboard oder als globale Anmerkung erstellen
 | `organizationId` | string | Nein | Organisations-ID für Multi-Org-Grafana-Instanzen |
 | `text` | string | Ja | Der Textinhalt der Anmerkung |
 | `tags` | string | Nein | Kommagetrennte Liste von Tags |
-| `dashboardUid` | string | Nein | UID des Dashboards, zu dem die Anmerkung hinzugefügt werden soll \(optional für globale Anmerkungen\) |
+| `dashboardUid` | string | Ja | UID des Dashboards, zu dem die Anmerkung hinzugefügt werden soll |
 | `panelId` | number | Nein | ID des Panels, zu dem die Anmerkung hinzugefügt werden soll |
 | `time` | number | Nein | Startzeit in Epochenmillisekunden \(standardmäßig jetzt\) |
 | `timeEnd` | number | Nein | Endzeit in Epochenmillisekunden \(für Bereichsanmerkungen\) |
@@ -346,11 +346,11 @@ Anmerkungen nach Zeitraum, Dashboard oder Tags abfragen
 | `organizationId` | string | Nein | Organisations-ID für Multi-Org-Grafana-Instanzen |
 | `from` | number | Nein | Startzeit in Epochenmillisekunden |
 | `to` | number | Nein | Endzeit in Epochenmillisekunden |
-| `dashboardUid` | string | Nein | Nach Dashboard-UID filtern |
+| `dashboardUid` | string | Ja | Dashboard-UID, von der Anmerkungen abgefragt werden sollen |
 | `panelId` | number | Nein | Nach Panel-ID filtern |
-| `tags` | string | Nein | Kommagetrennte Liste von Tags, nach denen gefiltert werden soll |
+| `tags` | string | Nein | Kommagetrennte Liste von Tags zum Filtern |
 | `type` | string | Nein | Nach Typ filtern \(alert oder annotation\) |
-| `limit` | number | Nein | Maximale Anzahl von zurückzugebenden Anmerkungen |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Anmerkungen |
 
 #### Ausgabe
 
@@ -481,12 +481,22 @@ Einen neuen Ordner in Grafana erstellen
 
 #### Ausgabe
 
-| Parameter | Typ | Beschreibung |
+| Parameter | Type | Beschreibung |
 | --------- | ---- | ----------- |
 | `id` | number | Die numerische ID des erstellten Ordners |
 | `uid` | string | Die UID des erstellten Ordners |
 | `title` | string | Der Titel des erstellten Ordners |
 | `url` | string | Der URL-Pfad zum Ordner |
+| `hasAcl` | boolean | Ob der Ordner benutzerdefinierte ACL-Berechtigungen hat |
+| `canSave` | boolean | Ob der aktuelle Benutzer den Ordner speichern kann |
+| `canEdit` | boolean | Ob der aktuelle Benutzer den Ordner bearbeiten kann |
+| `canAdmin` | boolean | Ob der aktuelle Benutzer Administratorrechte für den Ordner hat |
+| `canDelete` | boolean | Ob der aktuelle Benutzer den Ordner löschen kann |
+| `createdBy` | string | Benutzername desjenigen, der den Ordner erstellt hat |
+| `created` | string | Zeitstempel, wann der Ordner erstellt wurde |
+| `updatedBy` | string | Benutzername desjenigen, der den Ordner zuletzt aktualisiert hat |
+| `updated` | string | Zeitstempel, wann der Ordner zuletzt aktualisiert wurde |
+| `version` | number | Versionsnummer des Ordners |
 
 ## Notizen
 

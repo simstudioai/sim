@@ -94,10 +94,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `context` | 字符串 | 上下文字符串（摘要或基本） |
-| `facts` | 数组 | 提取的事实 |
-| `entities` | 数组 | 提取的实体 |
-| `summary` | 字符串 | 会话摘要 |
+| `context` | string | 上下文字符串（摘要或基本模式） |
 
 ### `zep_get_messages`
 
@@ -137,9 +134,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `context` | string | 添加消息后的更新上下文 |
-| `messageIds` | array | 添加的消息 UUID 数组 |
 | `threadId` | string | 线程 ID |
+| `added` | boolean | 消息是否成功添加 |
+| `messageIds` | array | 添加的消息 UUID 数组 |
 
 ### `zep_add_user`
 
@@ -209,7 +206,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `threads` | array | 此用户的线程对象数组 |
-| `userId` | string | 用户 ID |
+| `totalCount` | number | 返回的线程总数 |
 
 ## 注意
 

@@ -94,10 +94,7 @@ Recuperar el contexto del usuario de un hilo con modo resumen o básico
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `context` | string | La cadena de contexto \(resumen o básico\) |
-| `facts` | array | Hechos extraídos |
-| `entities` | array | Entidades extraídas |
-| `summary` | string | Resumen de la conversación |
+| `context` | string | La cadena de contexto \(modo resumen o básico\) |
 
 ### `zep_get_messages`
 
@@ -137,9 +134,9 @@ Añadir mensajes a un hilo existente
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `context` | string | Contexto actualizado después de añadir mensajes |
-| `messageIds` | array | Array de UUIDs de mensajes añadidos |
 | `threadId` | string | El ID del hilo |
+| `added` | boolean | Si los mensajes se agregaron correctamente |
+| `messageIds` | array | Array de UUIDs de mensajes agregados |
 
 ### `zep_add_user`
 
@@ -209,7 +206,7 @@ Listar todos los hilos de conversación para un usuario específico
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `threads` | array | Array de objetos de hilo para este usuario |
-| `userId` | string | El ID del usuario |
+| `totalCount` | number | Número total de hilos devueltos |
 
 ## Notas
 
