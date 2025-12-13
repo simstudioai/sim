@@ -45,6 +45,16 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       requiredScopes: ['read', 'write'],
       placeholder: 'Select Trello account',
       required: true,
+      mode: 'basic',
+    },
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
 
     {
@@ -330,9 +340,10 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
         }
       },
       params: (params) => {
-        const { operation, limit, closed, dueComplete, ...rest } = params
+        const { credential, accessToken, operation, limit, closed, dueComplete, ...rest } = params
 
-        const result: Record<string, any> = { ...rest }
+        const authParam = credential ? { credential } : { accessToken }
+        const result: Record<string, any> = { ...rest, ...authParam }
 
         if (limit && operation === 'trello_get_actions') {
           result.limit = Number.parseInt(limit, 10)

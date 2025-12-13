@@ -37,6 +37,16 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       requiredScopes: ['login', 'data'],
       placeholder: 'Select Wealthbox account',
       required: true,
+      mode: 'basic',
+    },
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     {
       id: 'noteId',
@@ -167,16 +177,25 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
         }
       },
       params: (params) => {
-        const { credential, operation, contactId, manualContactId, taskId, manualTaskId, ...rest } =
-          params
+        const {
+          credential,
+          accessToken,
+          operation,
+          contactId,
+          manualContactId,
+          taskId,
+          manualTaskId,
+          ...rest
+        } = params
 
+        const authParam = credential ? { credential } : { accessToken }
         // Handle both selector and manual inputs
         const effectiveContactId = (contactId || manualContactId || '').trim()
         const effectiveTaskId = (taskId || manualTaskId || '').trim()
 
         const baseParams = {
           ...rest,
-          credential,
+          ...authParam,
         }
 
         if (operation === 'read_note' || operation === 'write_note') {

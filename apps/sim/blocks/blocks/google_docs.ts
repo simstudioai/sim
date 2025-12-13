@@ -27,7 +27,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       ],
       value: () => 'read',
     },
-    // Google Docs Credentials
+    // Google Docs Credentials (basic mode)
     {
       id: 'credential',
       title: 'Google Account',
@@ -39,6 +39,17 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
         'https://www.googleapis.com/auth/drive',
       ],
       placeholder: 'Select Google account',
+      mode: 'basic',
+    },
+    // Direct access token (advanced mode)
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     // Document selector (basic mode)
     {
@@ -61,7 +72,6 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       type: 'short-input',
       canonicalParamId: 'documentId',
       placeholder: 'Enter document ID',
-      dependsOn: ['credential'],
       mode: 'advanced',
       condition: { field: 'operation', value: ['read', 'write'] },
     },
@@ -95,7 +105,6 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       type: 'short-input',
       canonicalParamId: 'folderId',
       placeholder: 'Enter parent folder ID (leave empty for root folder)',
-      dependsOn: ['credential'],
       mode: 'advanced',
       condition: { field: 'operation', value: 'create' },
     },
@@ -133,8 +142,15 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
         }
       },
       params: (params) => {
-        const { credential, documentId, manualDocumentId, folderSelector, folderId, ...rest } =
-          params
+        const {
+          credential,
+          accessToken,
+          documentId,
+          manualDocumentId,
+          folderSelector,
+          folderId,
+          ...rest
+        } = params
 
         const effectiveDocumentId = (documentId || manualDocumentId || '').trim()
         const effectiveFolderId = (folderSelector || folderId || '').trim()
@@ -143,7 +159,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
           ...rest,
           documentId: effectiveDocumentId || undefined,
           folderId: effectiveFolderId || undefined,
-          credential,
+          ...(credential ? { credential } : { accessToken }),
         }
       },
     },

@@ -31,7 +31,7 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
       ],
       value: () => 'read',
     },
-    // Google Slides Credentials
+    // Google Slides Credentials (basic mode)
     {
       id: 'credential',
       title: 'Google Account',
@@ -43,6 +43,17 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
         'https://www.googleapis.com/auth/drive',
       ],
       placeholder: 'Select Google account',
+      mode: 'basic',
+    },
+    // Direct access token (advanced mode)
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     // Presentation selector (basic mode) - for operations that need an existing presentation
     {
@@ -68,7 +79,6 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
       type: 'short-input',
       canonicalParamId: 'presentationId',
       placeholder: 'Enter presentation ID',
-      dependsOn: ['credential'],
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -123,7 +133,6 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
       type: 'short-input',
       canonicalParamId: 'folderId',
       placeholder: 'Enter parent folder ID (leave empty for root folder)',
-      dependsOn: ['credential'],
       mode: 'advanced',
       condition: { field: 'operation', value: 'create' },
     },
@@ -316,6 +325,7 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
       params: (params) => {
         const {
           credential,
+          accessToken,
           presentationId,
           manualPresentationId,
           folderSelector,
@@ -334,7 +344,7 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
         const result: Record<string, any> = {
           ...rest,
           presentationId: effectivePresentationId || undefined,
-          credential,
+          ...(credential ? { credential } : { accessToken }),
         }
 
         // Handle operation-specific params

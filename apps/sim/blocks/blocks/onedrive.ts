@@ -33,7 +33,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         { label: 'Delete File', id: 'delete' },
       ],
     },
-    // One Drive Credentials
+    // OneDrive Credentials (basic mode)
     {
       id: 'credential',
       title: 'Microsoft Account',
@@ -48,6 +48,17 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         'offline_access',
       ],
       placeholder: 'Select Microsoft account',
+      mode: 'basic',
+    },
+    // Direct access token (advanced mode)
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     // Create File Fields
     {
@@ -164,7 +175,6 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       type: 'short-input',
       canonicalParamId: 'folderId',
       placeholder: 'Enter parent folder ID (leave empty for root folder)',
-      dependsOn: ['credential'],
       mode: 'advanced',
       condition: { field: 'operation', value: ['create_file', 'upload'] },
     },
@@ -202,7 +212,6 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       type: 'short-input',
       canonicalParamId: 'folderId',
       placeholder: 'Enter parent folder ID (leave empty for root folder)',
-      dependsOn: ['credential'],
       mode: 'advanced',
       condition: { field: 'operation', value: 'create_folder' },
     },
@@ -234,7 +243,6 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       type: 'short-input',
       canonicalParamId: 'folderId',
       placeholder: 'Enter folder ID (leave empty for root folder)',
-      dependsOn: ['credential'],
       mode: 'advanced',
       condition: { field: 'operation', value: 'list' },
     },
@@ -352,7 +360,16 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         }
       },
       params: (params) => {
-        const { credential, folderId, fileId, mimeType, values, downloadFileName, ...rest } = params
+        const {
+          credential,
+          accessToken,
+          folderId,
+          fileId,
+          mimeType,
+          values,
+          downloadFileName,
+          ...rest
+        } = params
 
         let normalizedValues: ReturnType<typeof normalizeExcelValuesForToolParams>
         if (values !== undefined) {
@@ -360,7 +377,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         }
 
         return {
-          credential,
+          ...(credential ? { credential } : { accessToken }),
           ...rest,
           values: normalizedValues,
           folderId: folderId || undefined,

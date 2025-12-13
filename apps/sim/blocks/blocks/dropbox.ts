@@ -49,6 +49,16 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
       ],
       placeholder: 'Select Dropbox account',
       required: true,
+      mode: 'basic',
+    },
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     // Upload operation inputs
     {

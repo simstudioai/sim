@@ -34,6 +34,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       ],
       value: () => 'send_outlook',
     },
+    // Microsoft Credentials (basic mode)
     {
       id: 'credential',
       title: 'Microsoft Account',
@@ -50,6 +51,17 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         'email',
       ],
       placeholder: 'Select Microsoft account',
+      required: true,
+      mode: 'basic',
+    },
+    // Direct access token (advanced mode)
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
       required: true,
     },
     {
@@ -326,6 +338,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       params: (params) => {
         const {
           credential,
+          accessToken,
           folder,
           manualFolder,
           destinationFolder,
@@ -378,7 +391,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
 
         return {
           ...rest,
-          credential,
+          ...(credential ? { credential } : { accessToken }),
         }
       },
     },

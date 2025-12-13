@@ -27,7 +27,7 @@ export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
       value: () => 'share_post',
     },
 
-    // LinkedIn OAuth Authentication
+    // LinkedIn OAuth Authentication (basic mode)
     {
       id: 'credential',
       title: 'LinkedIn Account',
@@ -35,6 +35,17 @@ export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
       serviceId: 'linkedin',
       requiredScopes: ['profile', 'openid', 'email', 'w_member_social'],
       placeholder: 'Select LinkedIn account',
+      mode: 'basic',
+      required: true,
+    },
+    // Direct access token (advanced mode)
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
       required: true,
     },
 
@@ -80,18 +91,18 @@ export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
       },
       params: (inputs) => {
         const operation = inputs.operation || 'share_post'
-        const { credential, ...rest } = inputs
+        const { credential, accessToken, ...rest } = inputs
+
+        const authParam = credential ? { credential } : { accessToken }
 
         if (operation === 'get_profile') {
-          return {
-            accessToken: credential,
-          }
+          return authParam
         }
 
         return {
           text: rest.text,
           visibility: rest.visibility || 'PUBLIC',
-          accessToken: credential,
+          ...authParam,
         }
       },
     },

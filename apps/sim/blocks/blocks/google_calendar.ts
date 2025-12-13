@@ -28,6 +28,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       ],
       value: () => 'create',
     },
+    // Google Calendar Credentials (basic mode)
     {
       id: 'credential',
       title: 'Google Calendar Account',
@@ -36,6 +37,17 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       serviceId: 'google-calendar',
       requiredScopes: ['https://www.googleapis.com/auth/calendar'],
       placeholder: 'Select Google Calendar account',
+      mode: 'basic',
+    },
+    // Direct access token (advanced mode)
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     // Calendar selector (basic mode)
     {
@@ -49,7 +61,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       dependsOn: ['credential'],
       mode: 'basic',
     },
-    // Manual calendar ID input (advanced mode)
+    // Manual calendar ID input (advanced mode) - no dependsOn needed for text input
     {
       id: 'manualCalendarId',
       title: 'Calendar ID',
@@ -213,6 +225,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       params: (params) => {
         const {
           credential,
+          accessToken,
           operation,
           attendees,
           replaceExisting,
@@ -253,7 +266,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
         }
 
         return {
-          credential,
+          ...(credential ? { credential } : { accessToken }),
           ...processedParams,
         }
       },

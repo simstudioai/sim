@@ -28,7 +28,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       ],
       value: () => 'read',
     },
-    // Google Sheets Credentials
+    // Google Sheets Credentials (basic mode)
     {
       id: 'credential',
       title: 'Google Account',
@@ -40,6 +40,17 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
         'https://www.googleapis.com/auth/drive',
       ],
       placeholder: 'Select Google account',
+      mode: 'basic',
+    },
+    // Direct access token (advanced mode)
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     // Spreadsheet Selector
     {
@@ -64,7 +75,6 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       type: 'short-input',
       canonicalParamId: 'spreadsheetId',
       placeholder: 'ID of the spreadsheet (from URL)',
-      dependsOn: ['credential'],
       mode: 'advanced',
     },
     // Range
@@ -168,7 +178,8 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
         }
       },
       params: (params) => {
-        const { credential, values, spreadsheetId, manualSpreadsheetId, ...rest } = params
+        const { credential, accessToken, values, spreadsheetId, manualSpreadsheetId, ...rest } =
+          params
 
         const parsedValues = values ? JSON.parse(values as string) : undefined
 
@@ -182,7 +193,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
           ...rest,
           spreadsheetId: effectiveSpreadsheetId,
           values: parsedValues,
-          credential,
+          ...(credential ? { credential } : { accessToken }),
         }
       },
     },

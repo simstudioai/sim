@@ -38,7 +38,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       ],
       value: () => 'send_gmail',
     },
-    // Gmail Credentials
+    // Gmail Credentials (basic mode)
     {
       id: 'credential',
       title: 'Gmail Account',
@@ -50,6 +50,17 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
         'https://www.googleapis.com/auth/gmail.labels',
       ],
       placeholder: 'Select Gmail account',
+      required: true,
+      mode: 'basic',
+    },
+    // Direct access token (advanced mode)
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
       required: true,
     },
     // Send Email Fields
@@ -377,6 +388,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       params: (params) => {
         const {
           credential,
+          accessToken,
           folder,
           manualFolder,
           destinationLabel,
@@ -437,7 +449,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
 
         return {
           ...rest,
-          credential,
+          ...(credential ? { credential } : { accessToken }),
         }
       },
     },

@@ -57,6 +57,16 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       ],
       placeholder: 'Select Pipedrive account',
       required: true,
+      mode: 'basic',
+    },
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     {
       id: 'status',
@@ -660,10 +670,11 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
         }
       },
       params: (params) => {
-        const { credential, operation, ...rest } = params
+        const { credential, accessToken, operation, ...rest } = params
+        const authParam = credential ? { credential } : { accessToken }
 
         const cleanParams: Record<string, any> = {
-          credential,
+          ...authParam,
         }
 
         Object.entries(rest).forEach(([key, value]) => {

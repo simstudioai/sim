@@ -38,6 +38,16 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       requiredScopes: ['workspace.content', 'workspace.name', 'page.read', 'page.write'],
       placeholder: 'Select Notion account',
       required: true,
+      mode: 'basic',
+    },
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     // Read/Write operation - Page ID
     {
@@ -222,7 +232,8 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         }
       },
       params: (params) => {
-        const { credential, operation, properties, filter, sorts, ...rest } = params
+        const { credential, accessToken, operation, properties, filter, sorts, ...rest } = params
+        const authParam = credential ? { credential } : { accessToken }
 
         // Parse properties from JSON string for create operations
         let parsedProperties
@@ -265,7 +276,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
 
         return {
           ...rest,
-          credential,
+          ...authParam,
           ...(parsedProperties ? { properties: parsedProperties } : {}),
           ...(parsedFilter ? { filter: JSON.stringify(parsedFilter) } : {}),
           ...(parsedSorts ? { sorts: JSON.stringify(parsedSorts) } : {}),

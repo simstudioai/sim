@@ -71,6 +71,16 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       ],
       placeholder: 'Select Shopify account',
       required: true,
+      mode: 'basic',
+    },
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     {
       id: 'shopDomain',
@@ -526,8 +536,11 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         return params.operation || 'shopify_list_products'
       },
       params: (params) => {
+        const authParam = params.credential
+          ? { credential: params.credential }
+          : { accessToken: params.accessToken }
         const baseParams: Record<string, unknown> = {
-          credential: params.credential,
+          ...authParam,
           shopDomain: params.shopDomain?.trim(),
         }
 

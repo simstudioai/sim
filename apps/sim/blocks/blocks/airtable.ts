@@ -41,6 +41,16 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       ],
       placeholder: 'Select Airtable account',
       required: true,
+      mode: 'basic',
+    },
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     {
       id: 'baseId',
@@ -124,7 +134,8 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
         }
       },
       params: (params) => {
-        const { credential, records, fields, ...rest } = params
+        const { credential, accessToken, records, fields, ...rest } = params
+        const authParam = credential ? { credential } : { accessToken }
         let parsedRecords: any | undefined
         let parsedFields: any | undefined
 
@@ -142,7 +153,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
 
         // Construct parameters based on operation
         const baseParams = {
-          credential,
+          ...authParam,
           ...rest,
         }
 

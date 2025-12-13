@@ -53,6 +53,16 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
       ],
       placeholder: 'Select Zoom account',
       required: true,
+      mode: 'basic',
+    },
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     // User ID for create/list operations
     {
@@ -366,8 +376,11 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
         return params.operation || 'zoom_create_meeting'
       },
       params: (params) => {
+        const authParam = params.credential
+          ? { credential: params.credential }
+          : { accessToken: params.accessToken }
         const baseParams: Record<string, any> = {
-          credential: params.credential,
+          ...authParam,
         }
 
         switch (params.operation) {

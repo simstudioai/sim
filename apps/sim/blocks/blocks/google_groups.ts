@@ -33,6 +33,7 @@ export const GoogleGroupsBlock: BlockConfig = {
       ],
       value: () => 'list_groups',
     },
+    // Google Groups Credentials (basic mode)
     {
       id: 'credential',
       title: 'Google Groups Account',
@@ -44,6 +45,17 @@ export const GoogleGroupsBlock: BlockConfig = {
         'https://www.googleapis.com/auth/admin.directory.group.member',
       ],
       placeholder: 'Select Google Workspace account',
+      mode: 'basic',
+    },
+    // Direct access token (advanced mode)
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
 
     {
@@ -221,12 +233,13 @@ export const GoogleGroupsBlock: BlockConfig = {
         }
       },
       params: (params) => {
-        const { credential, operation, ...rest } = params
+        const { credential, accessToken, operation, ...rest } = params
+        const authParam = credential ? { credential } : { accessToken }
 
         switch (operation) {
           case 'list_groups':
             return {
-              credential,
+              ...authParam,
               customer: rest.customer,
               domain: rest.domain,
               query: rest.query,
@@ -235,19 +248,19 @@ export const GoogleGroupsBlock: BlockConfig = {
           case 'get_group':
           case 'delete_group':
             return {
-              credential,
+              ...authParam,
               groupKey: rest.groupKey,
             }
           case 'create_group':
             return {
-              credential,
+              ...authParam,
               email: rest.email,
               name: rest.name,
               description: rest.description,
             }
           case 'update_group':
             return {
-              credential,
+              ...authParam,
               groupKey: rest.groupKey,
               name: rest.newName,
               email: rest.newEmail,
@@ -255,7 +268,7 @@ export const GoogleGroupsBlock: BlockConfig = {
             }
           case 'list_members':
             return {
-              credential,
+              ...authParam,
               groupKey: rest.groupKey,
               maxResults: rest.maxResults ? Number(rest.maxResults) : undefined,
               roles: rest.roles,
@@ -263,32 +276,32 @@ export const GoogleGroupsBlock: BlockConfig = {
           case 'get_member':
           case 'remove_member':
             return {
-              credential,
+              ...authParam,
               groupKey: rest.groupKey,
               memberKey: rest.memberKey,
             }
           case 'add_member':
             return {
-              credential,
+              ...authParam,
               groupKey: rest.groupKey,
               email: rest.memberEmail,
               role: rest.role,
             }
           case 'update_member':
             return {
-              credential,
+              ...authParam,
               groupKey: rest.groupKey,
               memberKey: rest.memberKey,
               role: rest.role,
             }
           case 'has_member':
             return {
-              credential,
+              ...authParam,
               groupKey: rest.groupKey,
               memberKey: rest.memberKey,
             }
           default:
-            return { credential, ...rest }
+            return { ...(credential ? { credential } : { accessToken }), ...rest }
         }
       },
     },

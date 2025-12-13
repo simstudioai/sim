@@ -66,6 +66,16 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
       requiredScopes: ['api', 'refresh_token', 'openid', 'offline_access'],
       placeholder: 'Select Salesforce account',
       required: true,
+      mode: 'basic',
+    },
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     // Common fields for GET operations
     {
@@ -590,8 +600,9 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
         }
       },
       params: (params) => {
-        const { credential, operation, ...rest } = params
-        const cleanParams: Record<string, any> = { credential }
+        const { credential, accessToken, operation, ...rest } = params
+        const authParam = credential ? { credential } : { accessToken }
+        const cleanParams: Record<string, any> = { ...authParam }
         Object.entries(rest).forEach(([key, value]) => {
           if (value !== undefined && value !== null && value !== '') {
             cleanParams[key] = value

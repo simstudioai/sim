@@ -76,6 +76,16 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       ],
       placeholder: 'Select Confluence account',
       required: true,
+      mode: 'basic',
+    },
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     {
       id: 'pageId',
@@ -255,6 +265,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       params: (params) => {
         const {
           credential,
+          accessToken,
           pageId,
           manualPageId,
           operation,
@@ -264,6 +275,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
           ...rest
         } = params
 
+        const authParam = credential ? { credential } : { accessToken }
         const effectivePageId = (pageId || manualPageId || '').trim()
 
         const requiresPageId = [
@@ -289,7 +301,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
 
         if (operation === 'upload_attachment') {
           return {
-            credential,
+            ...authParam,
             pageId: effectivePageId,
             operation,
             file: attachmentFile,
@@ -300,7 +312,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         }
 
         return {
-          credential,
+          ...authParam,
           pageId: effectivePageId || undefined,
           operation,
           ...rest,

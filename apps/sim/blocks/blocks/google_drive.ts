@@ -28,7 +28,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       ],
       value: () => 'create_folder',
     },
-    // Google Drive Credentials
+    // Google Drive Credentials (basic mode)
     {
       id: 'credential',
       title: 'Google Drive Account',
@@ -40,6 +40,17 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         'https://www.googleapis.com/auth/drive',
       ],
       placeholder: 'Select Google Drive account',
+      mode: 'basic',
+    },
+    // Direct access token (advanced mode)
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     // Create/Upload File Fields
     {
@@ -324,6 +335,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       params: (params) => {
         const {
           credential,
+          accessToken,
           folderSelector,
           manualFolderId,
           fileSelector,
@@ -339,7 +351,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         const effectiveFileId = (fileSelector || manualFileId || '').trim()
 
         return {
-          credential,
+          ...(credential ? { credential } : { accessToken }),
           folderId: effectiveFolderId || undefined,
           fileId: effectiveFileId || undefined,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,

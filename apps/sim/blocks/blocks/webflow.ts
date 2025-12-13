@@ -38,6 +38,16 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
       requiredScopes: ['sites:read', 'sites:write', 'cms:read', 'cms:write'],
       placeholder: 'Select Webflow account',
       required: true,
+      mode: 'basic',
+    },
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     {
       id: 'collectionId',
@@ -108,7 +118,8 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
         }
       },
       params: (params) => {
-        const { credential, fieldData, ...rest } = params
+        const { credential, accessToken, fieldData, ...rest } = params
+        const authParam = credential ? { credential } : { accessToken }
         let parsedFieldData: any | undefined
 
         try {
@@ -120,7 +131,7 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
         }
 
         const baseParams = {
-          credential,
+          ...authParam,
           ...rest,
         }
 

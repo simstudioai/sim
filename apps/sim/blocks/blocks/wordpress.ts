@@ -59,7 +59,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       value: () => 'wordpress_create_post',
     },
 
-    // Credential selector for OAuth
+    // Credential selector for OAuth (basic mode)
     {
       id: 'credential',
       title: 'WordPress Account',
@@ -67,6 +67,16 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       serviceId: 'wordpress',
       requiredScopes: ['global'],
       placeholder: 'Select WordPress account',
+      required: true,
+      mode: 'basic',
+    },
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
       required: true,
     },
 
@@ -665,8 +675,11 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       tool: (params) => params.operation || 'wordpress_create_post',
       params: (params) => {
         // OAuth authentication for WordPress.com
+        const authParam = params.credential
+          ? { credential: params.credential }
+          : { accessToken: params.accessToken }
         const baseParams: Record<string, any> = {
-          credential: params.credential,
+          ...authParam,
           siteId: params.siteId,
         }
 

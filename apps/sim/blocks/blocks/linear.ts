@@ -133,6 +133,16 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       requiredScopes: ['read', 'write'],
       placeholder: 'Select Linear account',
       required: true,
+      mode: 'basic',
+    },
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     // Team selector (for most operations)
     {
@@ -1261,9 +1271,14 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         const effectiveTeamId = (params.teamId || params.manualTeamId || '').trim()
         const effectiveProjectId = (params.projectId || params.manualProjectId || '').trim()
 
+        // Auth param handling
+        const authParam = params.credential
+          ? { credential: params.credential }
+          : { accessToken: params.accessToken }
+
         // Base params that most operations need
         const baseParams: Record<string, any> = {
-          credential: params.credential,
+          ...authParam,
         }
 
         // Operation-specific param mapping

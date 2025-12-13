@@ -37,7 +37,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       value: () => 'get_posts',
     },
 
-    // Reddit OAuth Authentication
+    // Reddit OAuth Authentication (basic mode)
     {
       id: 'credential',
       title: 'Reddit Account',
@@ -62,6 +62,17 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
         'modmail',
       ],
       placeholder: 'Select Reddit account',
+      required: true,
+      mode: 'basic',
+    },
+    // Direct access token (advanced mode)
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
       required: true,
     },
 
@@ -555,7 +566,9 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       },
       params: (inputs) => {
         const operation = inputs.operation || 'get_posts'
-        const { credential, ...rest } = inputs
+        const { credential, accessToken, ...rest } = inputs
+
+        const authParam = credential ? { credential } : { accessToken }
 
         if (operation === 'get_comments') {
           return {
@@ -563,7 +576,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
             subreddit: rest.subreddit,
             sort: rest.commentSort,
             limit: rest.commentLimit ? Number.parseInt(rest.commentLimit) : undefined,
-            credential: credential,
+            ...authParam,
           }
         }
 
@@ -572,7 +585,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
             subreddit: rest.subreddit,
             time: rest.controversialTime,
             limit: rest.controversialLimit ? Number.parseInt(rest.controversialLimit) : undefined,
-            credential: credential,
+            ...authParam,
           }
         }
 
@@ -583,7 +596,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
             sort: rest.searchSort,
             time: rest.searchTime,
             limit: rest.searchLimit ? Number.parseInt(rest.searchLimit) : undefined,
-            credential: credential,
+            ...authParam,
           }
         }
 
@@ -595,7 +608,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
             url: rest.postType === 'link' ? rest.url : undefined,
             nsfw: rest.nsfw === 'true',
             spoiler: rest.spoiler === 'true',
-            credential: credential,
+            ...authParam,
           }
         }
 
@@ -603,7 +616,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
           return {
             id: rest.voteId,
             dir: Number.parseInt(rest.voteDirection),
-            credential: credential,
+            ...authParam,
           }
         }
 
@@ -611,14 +624,14 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
           return {
             id: rest.saveId,
             category: rest.saveCategory,
-            credential: credential,
+            ...authParam,
           }
         }
 
         if (operation === 'unsave') {
           return {
             id: rest.saveId,
-            credential: credential,
+            ...authParam,
           }
         }
 
@@ -626,7 +639,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
           return {
             parent_id: rest.replyParentId,
             text: rest.replyText,
-            credential: credential,
+            ...authParam,
           }
         }
 
@@ -634,14 +647,14 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
           return {
             thing_id: rest.editThingId,
             text: rest.editText,
-            credential: credential,
+            ...authParam,
           }
         }
 
         if (operation === 'delete') {
           return {
             id: rest.deleteId,
-            credential: credential,
+            ...authParam,
           }
         }
 
@@ -649,7 +662,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
           return {
             subreddit: rest.subscribeSubreddit,
             action: rest.subscribeAction,
-            credential: credential,
+            ...authParam,
           }
         }
 
@@ -658,7 +671,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
           sort: rest.sort,
           limit: rest.limit ? Number.parseInt(rest.limit) : undefined,
           time: rest.sort === 'top' ? rest.time : undefined,
-          credential: credential,
+          ...authParam,
         }
       },
     },

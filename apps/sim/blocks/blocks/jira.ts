@@ -92,6 +92,16 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
         'delete:issue-link:jira',
       ],
       placeholder: 'Select Jira account',
+      mode: 'basic',
+    },
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     // Project selector (basic mode)
     {
@@ -443,14 +453,23 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
         }
       },
       params: (params) => {
-        const { credential, projectId, manualProjectId, issueKey, manualIssueKey, ...rest } = params
+        const {
+          credential,
+          accessToken,
+          projectId,
+          manualProjectId,
+          issueKey,
+          manualIssueKey,
+          ...rest
+        } = params
 
         // Use the selected IDs or the manually entered ones
         const effectiveProjectId = (projectId || manualProjectId || '').trim()
         const effectiveIssueKey = (issueKey || manualIssueKey || '').trim()
 
+        const authParam = credential ? { credential } : { accessToken }
         const baseParams = {
-          credential,
+          ...authParam,
           domain: params.domain,
         }
 

@@ -27,6 +27,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       ],
       value: () => 'read',
     },
+    // Microsoft Excel Credentials (basic mode)
     {
       id: 'credential',
       title: 'Microsoft Account',
@@ -41,6 +42,17 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
         'offline_access',
       ],
       placeholder: 'Select Microsoft account',
+      required: true,
+      mode: 'basic',
+    },
+    // Direct access token (advanced mode)
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
       required: true,
     },
     {
@@ -61,7 +73,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       type: 'short-input',
       canonicalParamId: 'spreadsheetId',
       placeholder: 'Enter spreadsheet ID',
-      dependsOn: ['credential'],
       mode: 'advanced',
     },
     {
@@ -160,6 +171,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       params: (params) => {
         const {
           credential,
+          accessToken,
           values,
           spreadsheetId,
           manualSpreadsheetId,
@@ -193,7 +205,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
           ...rest,
           spreadsheetId: effectiveSpreadsheetId,
           values: parsedValues,
-          credential,
+          ...(credential ? { credential } : { accessToken }),
         }
 
         if (params.operation === 'table_add') {

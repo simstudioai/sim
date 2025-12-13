@@ -159,6 +159,16 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       type: 'oauth-input',
       serviceId: 'spotify',
       required: true,
+      mode: 'basic',
+    },
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
 
     // === SEARCH ===

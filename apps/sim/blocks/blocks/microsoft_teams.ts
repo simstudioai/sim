@@ -39,6 +39,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       ],
       value: () => 'read_chat',
     },
+    // Microsoft Teams Credentials (basic mode)
     {
       id: 'credential',
       title: 'Microsoft Account',
@@ -67,6 +68,17 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         'Sites.Read.All',
       ],
       placeholder: 'Select Microsoft account',
+      required: true,
+      mode: 'basic',
+    },
+    // Direct access token (advanced mode)
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
       required: true,
     },
     {
@@ -315,6 +327,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       params: (params) => {
         const {
           credential,
+          accessToken,
           operation,
           teamId,
           manualTeamId,
@@ -336,7 +349,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
 
         const baseParams: Record<string, any> = {
           ...rest,
-          credential,
+          ...(credential ? { credential } : { accessToken }),
         }
 
         if ((operation === 'read_chat' || operation === 'read_channel') && includeAttachments) {

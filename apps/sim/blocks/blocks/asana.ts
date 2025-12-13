@@ -32,11 +32,20 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'credential',
       title: 'Asana Account',
       type: 'oauth-input',
-
       required: true,
       serviceId: 'asana',
       requiredScopes: ['default'],
       placeholder: 'Select Asana account',
+      mode: 'basic',
+    },
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     {
       id: 'workspace',
@@ -202,7 +211,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
         }
       },
       params: (params) => {
-        const { credential, operation } = params
+        const { credential, accessToken, operation } = params
 
         const projectsArray = params.projects
           ? params.projects
@@ -211,14 +220,12 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
               .filter((p: string) => p.length > 0)
           : undefined
 
-        const baseParams = {
-          accessToken: credential?.accessToken,
-        }
+        const authParam = credential ? { credential } : { accessToken }
 
         switch (operation) {
           case 'get_task':
             return {
-              ...baseParams,
+              ...authParam,
               taskGid: params.taskGid,
               workspace: params.getTasks_workspace,
               project: params.getTasks_project,
@@ -226,7 +233,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
             }
           case 'create_task':
             return {
-              ...baseParams,
+              ...authParam,
               workspace: params.workspace,
               name: params.name,
               notes: params.notes,
@@ -235,7 +242,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
             }
           case 'update_task':
             return {
-              ...baseParams,
+              ...authParam,
               taskGid: params.taskGid,
               name: params.name,
               notes: params.notes,
@@ -245,12 +252,12 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
             }
           case 'get_projects':
             return {
-              ...baseParams,
+              ...authParam,
               workspace: params.workspace,
             }
           case 'search_tasks':
             return {
-              ...baseParams,
+              ...authParam,
               workspace: params.workspace,
               text: params.searchText,
               assignee: params.assignee,
@@ -259,12 +266,12 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
             }
           case 'add_comment':
             return {
-              ...baseParams,
+              ...authParam,
               taskGid: params.taskGid,
               text: params.commentText,
             }
           default:
-            return baseParams
+            return authParam
         }
       },
     },

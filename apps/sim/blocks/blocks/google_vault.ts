@@ -30,6 +30,7 @@ export const GoogleVaultBlock: BlockConfig = {
       value: () => 'list_matters_export',
     },
 
+    // Google Vault Credentials (basic mode)
     {
       id: 'credential',
       title: 'Google Vault Account',
@@ -41,6 +42,17 @@ export const GoogleVaultBlock: BlockConfig = {
         'https://www.googleapis.com/auth/devstorage.read_only',
       ],
       placeholder: 'Select Google Vault account',
+      mode: 'basic',
+    },
+    // Direct access token (advanced mode)
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     // Create Hold inputs
     {
@@ -218,10 +230,10 @@ export const GoogleVaultBlock: BlockConfig = {
         }
       },
       params: (params) => {
-        const { credential, ...rest } = params
+        const { credential, accessToken, ...rest } = params
         return {
           ...rest,
-          credential,
+          ...(credential ? { credential } : { accessToken }),
         }
       },
     },

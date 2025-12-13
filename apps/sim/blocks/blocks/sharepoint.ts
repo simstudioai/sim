@@ -33,6 +33,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
         { label: 'Upload File', id: 'upload_file' },
       ],
     },
+    // SharePoint Credentials (basic mode)
     {
       id: 'credential',
       title: 'Microsoft Account',
@@ -48,6 +49,17 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
         'offline_access',
       ],
       placeholder: 'Select Microsoft account',
+      mode: 'basic',
+    },
+    // Direct access token (advanced mode)
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
 
     {
@@ -155,7 +167,6 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       type: 'short-input',
       canonicalParamId: 'siteId',
       placeholder: 'Enter site ID (leave empty for root site)',
-      dependsOn: ['credential'],
       mode: 'advanced',
       condition: { field: 'operation', value: 'create_page' },
     },
@@ -255,7 +266,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
         }
       },
       params: (params) => {
-        const { credential, siteSelector, manualSiteId, mimeType, ...rest } = params
+        const { credential, accessToken, siteSelector, manualSiteId, mimeType, ...rest } = params
 
         const effectiveSiteId = (siteSelector || manualSiteId || '').trim()
 
@@ -315,7 +326,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
         // Handle file upload files parameter
         const fileParam = uploadFiles || files
         const baseParams = {
-          credential,
+          ...(credential ? { credential } : { accessToken }),
           siteId: effectiveSiteId || undefined,
           pageSize: others.pageSize ? Number.parseInt(others.pageSize as string, 10) : undefined,
           mimeType: mimeType,

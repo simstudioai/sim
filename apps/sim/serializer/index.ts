@@ -32,7 +32,11 @@ function shouldIncludeField(subBlockConfig: SubBlockConfig, isAdvancedMode: bool
   const fieldMode = subBlockConfig.mode
 
   if (fieldMode === 'advanced' && !isAdvancedMode) {
-    return false // Skip advanced-only fields when in basic mode
+    return false
+  }
+
+  if (fieldMode === 'basic' && isAdvancedMode) {
+    return false
   }
 
   return true

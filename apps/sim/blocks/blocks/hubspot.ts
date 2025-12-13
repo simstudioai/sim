@@ -67,6 +67,16 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       ],
       placeholder: 'Select HubSpot account',
       required: true,
+      mode: 'basic',
+    },
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     {
       id: 'contactId',
@@ -824,6 +834,7 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
       params: (params) => {
         const {
           credential,
+          accessToken,
           operation,
           propertiesToSet,
           properties,
@@ -834,8 +845,9 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
           ...rest
         } = params
 
+        const authParam = credential ? { credential } : { accessToken }
         const cleanParams: Record<string, any> = {
-          credential,
+          ...authParam,
         }
 
         const createUpdateOps = [

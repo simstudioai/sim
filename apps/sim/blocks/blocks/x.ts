@@ -27,6 +27,7 @@ export const XBlock: BlockConfig<XResponse> = {
       ],
       value: () => 'x_write',
     },
+    // X Credentials (basic mode)
     {
       id: 'credential',
       title: 'X Account',
@@ -34,6 +35,17 @@ export const XBlock: BlockConfig<XResponse> = {
       serviceId: 'x',
       requiredScopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
       placeholder: 'Select X account',
+      mode: 'basic',
+    },
+    // Direct access token (advanced mode)
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     {
       id: 'text',
@@ -143,11 +155,9 @@ export const XBlock: BlockConfig<XResponse> = {
         }
       },
       params: (params) => {
-        const { credential, ...rest } = params
+        const { credential, accessToken, ...rest } = params
 
-        const parsedParams: Record<string, any> = {
-          credential: credential,
-        }
+        const parsedParams: Record<string, any> = credential ? { credential } : { accessToken }
 
         Object.keys(rest).forEach((key) => {
           const value = rest[key]

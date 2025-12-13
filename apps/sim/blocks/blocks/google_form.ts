@@ -13,6 +13,7 @@ export const GoogleFormsBlock: BlockConfig = {
   bgColor: '#E0E0E0',
   icon: GoogleFormsIcon,
   subBlocks: [
+    // Google Forms Credentials (basic mode)
     {
       id: 'credential',
       title: 'Google Account',
@@ -25,6 +26,17 @@ export const GoogleFormsBlock: BlockConfig = {
         'https://www.googleapis.com/auth/forms.responses.readonly',
       ],
       placeholder: 'Select Google account',
+      mode: 'basic',
+    },
+    // Direct access token (advanced mode)
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
     {
       id: 'formId',
@@ -32,7 +44,6 @@ export const GoogleFormsBlock: BlockConfig = {
       type: 'short-input',
       required: true,
       placeholder: 'Enter the Google Form ID',
-      dependsOn: ['credential'],
     },
     {
       id: 'responseId',
@@ -53,7 +64,7 @@ export const GoogleFormsBlock: BlockConfig = {
     config: {
       tool: () => 'google_forms_get_responses',
       params: (params) => {
-        const { credential, formId, responseId, pageSize, ...rest } = params
+        const { credential, accessToken, formId, responseId, pageSize, ...rest } = params
 
         const effectiveFormId = String(formId || '').trim()
         if (!effectiveFormId) {
@@ -65,7 +76,7 @@ export const GoogleFormsBlock: BlockConfig = {
           formId: effectiveFormId,
           responseId: responseId ? String(responseId).trim() : undefined,
           pageSize: pageSize ? Number(pageSize) : undefined,
-          credential,
+          ...(credential ? { credential } : { accessToken }),
         }
       },
     },

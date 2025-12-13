@@ -57,6 +57,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
         { label: 'Update Task Details', id: 'update_task_details' },
       ],
     },
+    // Microsoft Planner Credentials (basic mode)
     {
       id: 'credential',
       title: 'Microsoft Account',
@@ -72,6 +73,17 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
         'offline_access',
       ],
       placeholder: 'Select Microsoft account',
+      mode: 'basic',
+    },
+    // Direct access token (advanced mode)
+    {
+      id: 'accessToken',
+      title: 'Access Token',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter OAuth access token',
+      mode: 'advanced',
+      required: true,
     },
 
     // Plan ID - for various operations
@@ -342,7 +354,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
 
         const baseParams: MicrosoftPlannerBlockParams = {
           ...rest,
-          credential,
+          ...(credential ? { credential } : { accessToken }),
         }
 
         // Handle different task ID fields
