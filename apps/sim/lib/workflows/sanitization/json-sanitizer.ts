@@ -2,7 +2,6 @@ import type { Edge } from 'reactflow'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { TRIGGER_PERSISTED_SUBBLOCK_IDS } from '@/triggers/constants'
 
 /**
  * Sanitized workflow state for copilot (removes all UI-specific data)
@@ -63,41 +62,6 @@ export interface ExportWorkflowState {
       value: any
     }>
   }
-}
-
-/**
- * Check if a subblock contains sensitive/secret data
- */
-function isSensitiveSubBlock(key: string, subBlock: BlockState['subBlocks'][string]): boolean {
-  if (TRIGGER_PERSISTED_SUBBLOCK_IDS.includes(key)) {
-    return false
-  }
-
-  // Check if it's an OAuth input type
-  if (subBlock.type === 'oauth-input') {
-    return true
-  }
-
-  // Check if the field name suggests it contains sensitive data
-  const sensitivePattern = /credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i
-  if (sensitivePattern.test(key)) {
-    return true
-  }
-
-  // Check if the value itself looks like a secret (but not environment variable references)
-  if (typeof subBlock.value === 'string' && subBlock.value.length > 0) {
-    // Don't sanitize environment variable references like {{VAR_NAME}}
-    if (subBlock.value.startsWith('{{') && subBlock.value.endsWith('}}')) {
-      return false
-    }
-
-    // If it matches sensitive patterns in the value, it's likely a hardcoded secret
-    if (sensitivePattern.test(subBlock.value)) {
-      return true
-    }
-  }
-
-  return false
 }
 
 /**
@@ -199,9 +163,9 @@ function sanitizeSubBlocks(
 
   Object.entries(subBlocks).forEach(([key, subBlock]) => {
     // Skip null/undefined values
-    if (subBlock.value === null || subBlock.value === undefined) {
-      return
-    }
+        if (subBlock.value === null || subBlock.value === undefined) {
+          return
+        }
 
     // Normalize responseFormat for consistent key ordering (important for training data)
     if (key === 'responseFormat') {
