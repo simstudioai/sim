@@ -15,6 +15,7 @@ const requestSchema = z.object({
   schema: z.record(z.any()),
   useTextExtract: z.boolean().optional().default(false),
   selector: z.string().nullable().optional(),
+  provider: z.enum(['openai', 'anthropic']).optional().default('openai'),
   apiKey: z.string(),
   url: z.string().url(),
 })
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
     }
 
     const params = validationResult.data
-    const { url: rawUrl, instruction, selector, apiKey, schema } = params
+    const { url: rawUrl, instruction, selector, provider, apiKey, schema } = params
     const url = normalizeUrl(rawUrl)
 
     logger.info('Starting Stagehand extraction process', {
@@ -71,13 +72,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!apiKey || typeof apiKey !== 'string' || !apiKey.startsWith('sk-')) {
+    if (!apiKey || typeof apiKey !== 'string') {
+      logger.error('API key is required')
+      return NextResponse.json({ error: 'API key is required' }, { status: 400 })
+    }
+
+    if (provider === 'openai' && !apiKey.startsWith('sk-')) {
       logger.error('Invalid OpenAI API key format')
       return NextResponse.json({ error: 'Invalid OpenAI API key format' }, { status: 400 })
     }
 
+    if (provider === 'anthropic' && !apiKey.startsWith('sk-ant-')) {
+      logger.error('Invalid Anthropic API key format')
+      return NextResponse.json({ error: 'Invalid Anthropic API key format' }, { status: 400 })
+    }
+
     try {
-      logger.info('Initializing Stagehand with Browserbase (v3)')
+      const modelName =
+        provider === 'anthropic' ? 'anthropic/claude-3-7-sonnet-latest' : 'openai/gpt-4.1'
+
+      logger.info('Initializing Stagehand with Browserbase (v3)', { provider, modelName })
 
       stagehand = new Stagehand({
         env: 'BROWSERBASE',
@@ -86,7 +100,7 @@ export async function POST(request: NextRequest) {
         verbose: 1,
         logger: (msg) => logger.info(typeof msg === 'string' ? msg : JSON.stringify(msg)),
         model: {
-          modelName: 'openai/gpt-4o',
+          modelName,
           apiKey: apiKey,
         },
       })

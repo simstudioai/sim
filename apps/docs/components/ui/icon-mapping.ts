@@ -142,7 +142,6 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   supabase: SupabaseIcon,
   stt: STTIcon,
   stripe: StripeIcon,
-  stagehand_agent: StagehandIcon,
   stagehand: StagehandIcon,
   ssh: SshIcon,
   sqs: SQSIcon,

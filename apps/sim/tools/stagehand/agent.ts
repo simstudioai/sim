@@ -30,11 +30,17 @@ export const agentTool: ToolConfig<StagehandAgentParams, StagehandAgentResponse>
       description:
         'Optional variables to substitute in the task (format: {key: value}). Reference in task using %key%',
     },
+    provider: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'AI provider to use: openai or anthropic',
+    },
     apiKey: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'OpenAI API key for agent execution (required by Stagehand)',
+      description: 'API key for the selected provider',
     },
     outputSchema: {
       type: 'json',
@@ -62,6 +68,7 @@ export const agentTool: ToolConfig<StagehandAgentParams, StagehandAgentResponse>
         startUrl: startUrl,
         outputSchema: params.outputSchema,
         variables: params.variables,
+        provider: params.provider || 'openai',
         apiKey: params.apiKey,
       }
     },

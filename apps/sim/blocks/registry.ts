@@ -103,7 +103,6 @@ import { SlackBlock } from '@/blocks/blocks/slack'
 import { SmtpBlock } from '@/blocks/blocks/smtp'
 import { SSHBlock } from '@/blocks/blocks/ssh'
 import { StagehandBlock } from '@/blocks/blocks/stagehand'
-import { StagehandAgentBlock } from '@/blocks/blocks/stagehand_agent'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
 import { StarterBlock } from '@/blocks/blocks/starter'
 import { StripeBlock } from '@/blocks/blocks/stripe'
@@ -246,7 +245,6 @@ export const registry: Record<string, BlockConfig> = {
   sftp: SftpBlock,
   ssh: SSHBlock,
   stagehand: StagehandBlock,
-  stagehand_agent: StagehandAgentBlock,
   starter: StarterBlock,
   start_trigger: StartTriggerBlock,
   stt: SttBlock,
