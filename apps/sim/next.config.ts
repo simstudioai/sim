@@ -79,7 +79,6 @@ const nextConfig: NextConfig = {
     'pino',
     'pino-pretty',
     'thread-stream',
-    '@browserbasehq/stagehand',
   ],
   experimental: {
     optimizeCss: true,
