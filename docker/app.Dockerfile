@@ -18,7 +18,7 @@ COPY packages/db/package.json ./packages/db/package.json
 # Install turbo globally and dependencies with cache mount for faster builds
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
     bun install -g turbo && \
-    bun install --omit dev --ignore-scripts
+    bun install --omit=dev --ignore-scripts
 
 # ========================================
 # Builder Stage: Build the Application
