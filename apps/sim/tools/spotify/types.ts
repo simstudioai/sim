@@ -712,6 +712,8 @@ export interface SpotifyCheckSavedTracksResponse extends ToolResponse {
       id: string
       saved: boolean
     }>
+    all_saved: boolean
+    none_saved: boolean
   }
 }
 

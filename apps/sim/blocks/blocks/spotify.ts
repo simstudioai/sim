@@ -1264,6 +1264,16 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
         ],
       },
     },
+    all_saved: {
+      type: 'boolean',
+      description: 'Whether all tracks are saved',
+      condition: { field: 'operation', value: 'spotify_check_saved_tracks' },
+    },
+    none_saved: {
+      type: 'boolean',
+      description: 'Whether no tracks are saved',
+      condition: { field: 'operation', value: 'spotify_check_saved_tracks' },
+    },
 
     // === PAGINATION OUTPUTS ===
     total: {
