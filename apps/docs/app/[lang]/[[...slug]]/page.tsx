@@ -243,7 +243,8 @@ export async function generateMetadata(props: {
   const baseUrl = 'https://docs.sim.ai'
   const fullUrl = `${baseUrl}${page.url}`
 
-  const ogImageUrl = `${baseUrl}/api/og?title=${encodeURIComponent(page.data.title)}&category=DOCUMENTATION`
+  const description = page.data.description || ''
+  const ogImageUrl = `${baseUrl}/api/og?title=${encodeURIComponent(page.data.title)}&category=DOCUMENTATION${description ? `&description=${encodeURIComponent(description)}` : ''}`
 
   return {
     title: page.data.title,
