@@ -63,7 +63,6 @@ export const FOOTER_TOOLS = [
   'Pipedrive',
   'PostHog',
   'PostgreSQL',
-  'Pylon',
   'Qdrant',
   'Reddit',
   'Resend',

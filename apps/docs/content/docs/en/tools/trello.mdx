@@ -48,10 +48,8 @@ List all lists on a Trello board
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the operation was successful |
 | `lists` | array | Array of list objects with id, name, closed, pos, and idBoard |
 | `count` | number | Number of lists returned |
-| `error` | string | Error message if operation failed |
 
 ### `trello_list_cards`
 
@@ -68,10 +66,8 @@ List all cards on a Trello board
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the operation was successful |
 | `cards` | array | Array of card objects with id, name, desc, url, board/list IDs, labels, and due date |
 | `count` | number | Number of cards returned |
-| `error` | string | Error message if operation failed |
 
 ### `trello_create_card`
 
@@ -93,9 +89,7 @@ Create a new card on a Trello board
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the card was created successfully |
 | `card` | object | The created card object with id, name, desc, url, and other properties |
-| `error` | string | Error message if operation failed |
 
 ### `trello_update_card`
 
@@ -117,9 +111,7 @@ Update an existing card on Trello
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the card was updated successfully |
 | `card` | object | The updated card object with id, name, desc, url, and other properties |
-| `error` | string | Error message if operation failed |
 
 ### `trello_get_actions`
 
@@ -138,10 +130,8 @@ Get activity/actions from a board or card
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the operation was successful |
 | `actions` | array | Array of action objects with type, date, member, and data |
 | `count` | number | Number of actions returned |
-| `error` | string | Error message if operation failed |
 
 ### `trello_add_comment`
 
@@ -158,9 +148,7 @@ Add a comment to a Trello card
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the comment was added successfully |
 | `comment` | object | The created comment object with id, text, date, and member creator |
-| `error` | string | Error message if operation failed |
 
 
 
