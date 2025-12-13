@@ -45,10 +45,8 @@ Lister toutes les listes d'un tableau Trello
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Si l'opération a réussi |
-| `lists` | array | Tableau d'objets liste avec id, nom, fermé, position et idTableau |
-| `count` | number | Nombre de listes retournées |
-| `error` | string | Message d'erreur si l'opération a échoué |
+| `lists` | tableau | Tableau d'objets liste avec id, nom, fermé, pos et idBoard |
+| `count` | nombre | Nombre de listes retournées |
 
 ### `trello_list_cards`
 
@@ -65,10 +63,8 @@ Lister toutes les cartes d'un tableau Trello
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Si l'opération a réussi |
-| `cards` | array | Tableau d'objets carte avec id, nom, description, url, IDs du tableau/liste, étiquettes et date d'échéance |
-| `count` | number | Nombre de cartes retournées |
-| `error` | string | Message d'erreur si l'opération a échoué |
+| `cards` | tableau | Tableau d'objets carte avec id, nom, desc, url, IDs de tableau/liste, étiquettes et date d'échéance |
+| `count` | nombre | Nombre de cartes retournées |
 
 ### `trello_create_card`
 
@@ -90,9 +86,7 @@ Créer une nouvelle carte sur un tableau Trello
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | booléen | Indique si la carte a été créée avec succès |
-| `card` | objet | L'objet carte créé avec id, nom, description, url et autres propriétés |
-| `error` | chaîne | Message d'erreur si l'opération a échoué |
+| `card` | objet | L'objet carte créé avec id, nom, desc, url et autres propriétés |
 
 ### `trello_update_card`
 
@@ -114,9 +108,7 @@ Mettre à jour une carte existante sur Trello
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | booléen | Indique si la carte a été mise à jour avec succès |
-| `card` | objet | L'objet carte mis à jour avec id, nom, description, url et autres propriétés |
-| `error` | chaîne | Message d'erreur si l'opération a échoué |
+| `card` | objet | L'objet carte mis à jour avec id, nom, desc, url et autres propriétés |
 
 ### `trello_get_actions`
 
@@ -135,10 +127,8 @@ Obtenir l'activité/les actions d'un tableau ou d'une carte
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Indique si l'opération a réussi |
-| `actions` | array | Tableau d'objets d'action avec type, date, membre et données |
-| `count` | number | Nombre d'actions retournées |
-| `error` | string | Message d'erreur si l'opération a échoué |
+| `actions` | tableau | Tableau d'objets action avec type, date, membre et données |
+| `count` | nombre | Nombre d'actions retournées |
 
 ### `trello_add_comment`
 
@@ -155,9 +145,7 @@ Ajouter un commentaire à une carte Trello
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Indique si le commentaire a été ajouté avec succès |
-| `comment` | object | L'objet commentaire créé avec id, texte, date et membre créateur |
-| `error` | string | Message d'erreur si l'opération a échoué |
+| `comment` | objet | L'objet commentaire créé avec id, texte, date et membre créateur |
 
 ## Notes
 
