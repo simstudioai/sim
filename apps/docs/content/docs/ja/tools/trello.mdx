@@ -45,10 +45,8 @@ Trelloボード上のすべてのリストを表示する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作が成功したかどうか |
 | `lists` | array | id、name、closed、pos、idBoardを含むリストオブジェクトの配列 |
 | `count` | number | 返されたリストの数 |
-| `error` | string | 操作が失敗した場合のエラーメッセージ |
 
 ### `trello_list_cards`
 
@@ -65,10 +63,8 @@ Trelloボード上のすべてのカードを表示する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作が成功したかどうか |
 | `cards` | array | id、name、desc、url、ボード/リストID、ラベル、期限日を含むカードオブジェクトの配列 |
 | `count` | number | 返されたカードの数 |
-| `error` | string | 操作が失敗した場合のエラーメッセージ |
 
 ### `trello_create_card`
 
@@ -90,9 +86,7 @@ Trelloボードに新しいカードを作成する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | カードが正常に作成されたかどうか |
-| `card` | object | 作成されたカードオブジェクト（id、name、desc、url、その他のプロパティを含む） |
-| `error` | string | 操作が失敗した場合のエラーメッセージ |
+| `card` | object | id、name、desc、urlなどのプロパティを含む作成されたカードオブジェクト |
 
 ### `trello_update_card`
 
@@ -114,9 +108,7 @@ Trelloの既存のカードを更新する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | カードが正常に更新されたかどうか |
-| `card` | object | 更新されたカードオブジェクト（id、name、desc、url、その他のプロパティを含む） |
-| `error` | string | 操作が失敗した場合のエラーメッセージ |
+| `card` | object | id、name、desc、urlなどのプロパティを含む更新されたカードオブジェクト |
 
 ### `trello_get_actions`
 
@@ -135,10 +127,8 @@ Trelloの既存のカードを更新する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作が成功したかどうか |
-| `actions` | array | タイプ、日付、メンバー、データを含むアクションオブジェクトの配列 |
+| `actions` | array | type、date、member、dataを含むアクションオブジェクトの配列 |
 | `count` | number | 返されたアクションの数 |
-| `error` | string | 操作が失敗した場合のエラーメッセージ |
 
 ### `trello_add_comment`
 
@@ -155,9 +145,7 @@ Trelloカードにコメントを追加する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | コメントが正常に追加されたかどうか |
-| `comment` | object | ID、テキスト、日付、作成者メンバーを含む作成されたコメントオブジェクト |
-| `error` | string | 操作が失敗した場合のエラーメッセージ |
+| `comment` | object | id、text、date、member creatorを含む作成されたコメントオブジェクト |
 
 ## 注意事項
 
