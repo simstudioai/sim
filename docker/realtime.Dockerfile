@@ -17,7 +17,7 @@ COPY packages/db/package.json ./packages/db/package.json
 
 # Install dependencies with cache mount for faster builds
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
-    bun install --frozen-lockfile --omit dev --ignore-scripts
+    bun install --omit dev --ignore-scripts
 
 # ========================================
 # Builder Stage: Prepare source code
