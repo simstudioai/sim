@@ -13,20 +13,21 @@ import {
   X,
   XCircle,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Textarea } from '@/components/ui/textarea'
+  Button,
+  Input,
+  Label,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalHeader,
+  ModalTabs,
+  ModalTabsContent,
+  ModalTabsList,
+  ModalTabsTrigger,
+  Textarea,
+} from '@/components/emcn'
+import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
@@ -74,6 +75,7 @@ export function TrainingModal() {
   const [liveWorkflowFailed, setLiveWorkflowFailed] = useState(false)
   const [liveWorkflowTitle, setLiveWorkflowTitle] = useState('')
   const [liveWorkflowDescription, setLiveWorkflowDescription] = useState('')
+  const [activeTab, setActiveTab] = useState(isTraining ? 'datasets' : 'new')
 
   const handleStart = () => {
     if (localTitle.trim() && localPrompt.trim()) {
@@ -340,438 +342,470 @@ export function TrainingModal() {
   }
 
   return (
-    <Dialog open={showModal} onOpenChange={toggleModal}>
-      <DialogContent className='max-w-3xl'>
-        <DialogHeader>
-          <DialogTitle>Copilot Training Dataset Builder</DialogTitle>
-          <DialogDescription>
-            Record workflow editing sessions to create training datasets for the copilot
-          </DialogDescription>
-        </DialogHeader>
+    <Modal open={showModal} onOpenChange={toggleModal}>
+      <ModalContent size='lg'>
+        <ModalHeader>Copilot Training Dataset Builder</ModalHeader>
 
-        {isTraining && (
-          <>
-            <div className='mt-4 rounded-lg border bg-orange-50 p-4 dark:bg-orange-950/30'>
-              <p className='mb-2 font-medium text-orange-700 dark:text-orange-300'>
-                Recording: {currentTitle}
-              </p>
-              <p className='mb-3 text-sm'>{currentPrompt}</p>
-              <div className='flex gap-2'>
-                <Button variant='outline' size='sm' onClick={cancelTraining} className='flex-1'>
-                  <X className='mr-2 h-4 w-4' />
-                  Cancel
-                </Button>
-                <Button
-                  variant='default'
-                  size='sm'
-                  onClick={() => {
-                    useCopilotTrainingStore.getState().stopTraining()
-                    setLocalPrompt('')
-                  }}
-                  className='flex-1'
-                >
-                  <Check className='mr-2 h-4 w-4' />
-                  Save Dataset
-                </Button>
+        <ModalTabs value={activeTab} onValueChange={setActiveTab}>
+          <ModalTabsList>
+            <ModalTabsTrigger value='new' disabled={isTraining}>
+              New Session
+            </ModalTabsTrigger>
+            <ModalTabsTrigger value='datasets'>Datasets ({datasets.length})</ModalTabsTrigger>
+            <ModalTabsTrigger value='live'>Send Live State</ModalTabsTrigger>
+          </ModalTabsList>
+
+          <ModalBody className='flex min-h-[400px] flex-col overflow-hidden'>
+            {/* Recording Banner */}
+            {isTraining && (
+              <div className='mb-[16px] rounded-[8px] border bg-orange-50 p-[12px] dark:bg-orange-950/30'>
+                <p className='mb-[8px] font-medium text-[13px] text-orange-700 dark:text-orange-300'>
+                  Recording: {currentTitle}
+                </p>
+                <p className='mb-[12px] text-[12px] text-[var(--text-secondary)]'>
+                  {currentPrompt}
+                </p>
+                <div className='flex gap-[8px]'>
+                  <Button variant='default' onClick={cancelTraining} className='flex-1'>
+                    <X className='mr-[6px] h-[14px] w-[14px]' />
+                    Cancel
+                  </Button>
+                  <Button
+                    variant='primary'
+                    onClick={() => {
+                      useCopilotTrainingStore.getState().stopTraining()
+                      setLocalPrompt('')
+                    }}
+                    className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90 flex-1'
+                  >
+                    <Check className='mr-[6px] h-[14px] w-[14px]' />
+                    Save Dataset
+                  </Button>
+                </div>
+                {startSnapshot && (
+                  <div className='mt-[8px] flex items-center gap-[12px] text-[12px]'>
+                    <span className='text-orange-600 dark:text-orange-400'>Starting state:</span>
+                    <span className='text-[var(--text-primary)]'>
+                      {Object.keys(startSnapshot.blocks).length} blocks
+                    </span>
+                    <span className='text-[var(--text-tertiary)]'>·</span>
+                    <span className='text-[var(--text-primary)]'>
+                      {startSnapshot.edges.length} edges
+                    </span>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
-            {startSnapshot && (
-              <div className='mt-3 rounded-lg border p-3'>
-                <p className='mb-2 font-medium text-sm'>Starting State</p>
-                <p className='text-muted-foreground text-xs'>
-                  {Object.keys(startSnapshot.blocks).length} blocks, {startSnapshot.edges.length}{' '}
-                  edges
+            {/* New Training Session Tab */}
+            <ModalTabsContent value='new' className='flex flex-col gap-[16px]'>
+              <div className='flex items-center gap-[16px] text-[13px]'>
+                <span className='text-[var(--text-muted)]'>Current workflow:</span>
+                <span className='text-[var(--text-primary)]'>
+                  {currentWorkflow.getBlockCount()} blocks
+                </span>
+                <span className='text-[var(--text-tertiary)]'>·</span>
+                <span className='text-[var(--text-primary)]'>
+                  {currentWorkflow.getEdgeCount()} edges
+                </span>
+              </div>
+
+              <div className='flex flex-col gap-[8px]'>
+                <Label htmlFor='title'>Title</Label>
+                <Input
+                  id='title'
+                  placeholder='Enter a title for this training dataset...'
+                  value={localTitle}
+                  onChange={(e) => setLocalTitle(e.target.value)}
+                  className='h-9'
+                />
+              </div>
+
+              <div className='flex flex-col gap-[8px]'>
+                <Label htmlFor='prompt'>Training Prompt</Label>
+                <Textarea
+                  id='prompt'
+                  placeholder='Enter the user intent/prompt for this workflow transformation...'
+                  value={localPrompt}
+                  onChange={(e) => setLocalPrompt(e.target.value)}
+                  rows={3}
+                />
+                <p className='text-[12px] text-[var(--text-muted)]'>
+                  Describe what the next sequence of edits aim to achieve
                 </p>
               </div>
-            )}
-          </>
-        )}
 
-        <Tabs defaultValue={isTraining ? 'datasets' : 'new'} className='mt-4'>
-          <TabsList className='grid w-full grid-cols-3'>
-            <TabsTrigger value='new' disabled={isTraining}>
-              New Session
-            </TabsTrigger>
-            <TabsTrigger value='datasets'>Datasets ({datasets.length})</TabsTrigger>
-            <TabsTrigger value='live'>Send Live State</TabsTrigger>
-          </TabsList>
+              <Button
+                onClick={handleStart}
+                disabled={!localTitle.trim() || !localPrompt.trim()}
+                className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90 w-full'
+              >
+                Start Training Session
+              </Button>
+            </ModalTabsContent>
 
-          {/* New Training Session Tab */}
-          <TabsContent value='new' className='space-y-4'>
-            <div className='rounded-lg border bg-muted/50 p-3'>
-              <p className='mb-2 font-medium text-muted-foreground text-sm'>
-                Current Workflow State
-              </p>
-              <p className='text-sm'>
-                {currentWorkflow.getBlockCount()} blocks, {currentWorkflow.getEdgeCount()} edges
-              </p>
-            </div>
-
-            <div className='space-y-2'>
-              <Label htmlFor='title'>Title</Label>
-              <Input
-                id='title'
-                placeholder='Enter a title for this training dataset...'
-                value={localTitle}
-                onChange={(e) => setLocalTitle(e.target.value)}
-              />
-            </div>
-
-            <div className='space-y-2'>
-              <Label htmlFor='prompt'>Training Prompt</Label>
-              <Textarea
-                id='prompt'
-                placeholder='Enter the user intent/prompt for this workflow transformation...'
-                value={localPrompt}
-                onChange={(e) => setLocalPrompt(e.target.value)}
-                rows={3}
-              />
-              <p className='text-muted-foreground text-xs'>
-                Describe what the next sequence of edits aim to achieve
-              </p>
-            </div>
-
-            <Button
-              onClick={handleStart}
-              disabled={!localTitle.trim() || !localPrompt.trim()}
-              className='w-full'
-            >
-              Start Training Session
-            </Button>
-          </TabsContent>
-
-          {/* Datasets Tab */}
-          <TabsContent value='datasets' className='space-y-4'>
-            {datasets.length === 0 ? (
-              <div className='py-8 text-center text-muted-foreground'>
-                No training datasets yet. Start a new session to create one.
-              </div>
-            ) : (
-              <>
-                <div className='flex items-center justify-between'>
-                  <div className='flex items-center gap-3'>
-                    <Checkbox
-                      checked={datasets.length > 0 && selectedDatasets.size === datasets.length}
-                      onCheckedChange={toggleSelectAll}
-                      disabled={datasets.length === 0}
-                    />
-                    <p className='text-muted-foreground text-sm'>
-                      {selectedDatasets.size > 0
-                        ? `${selectedDatasets.size} of ${datasets.length} selected`
-                        : `${datasets.length} dataset${datasets.length !== 1 ? 's' : ''} recorded`}
-                    </p>
-                  </div>
-                  <div className='flex gap-2'>
-                    {selectedDatasets.size > 0 && (
-                      <Button
-                        variant='default'
-                        size='sm'
-                        onClick={handleSendSelected}
-                        disabled={sendingSelected}
-                      >
-                        <Send className='mr-2 h-4 w-4' />
-                        {sendingSelected ? 'Sending...' : `Send ${selectedDatasets.size} Selected`}
-                      </Button>
-                    )}
-                    <Button
-                      variant='outline'
-                      size='sm'
-                      onClick={handleSendAll}
-                      disabled={datasets.length === 0 || sendingAll}
-                    >
-                      <Send className='mr-2 h-4 w-4' />
-                      {sendingAll ? 'Sending...' : 'Send All'}
-                    </Button>
-                    <Button
-                      variant='outline'
-                      size='sm'
-                      onClick={handleExportAll}
-                      disabled={datasets.length === 0}
-                    >
-                      <Download className='mr-2 h-4 w-4' />
-                      Export
-                    </Button>
-                    <Button
-                      variant='outline'
-                      size='sm'
-                      onClick={clearDatasets}
-                      disabled={datasets.length === 0}
-                    >
-                      <Trash2 className='mr-2 h-4 w-4' />
-                      Clear
-                    </Button>
-                  </div>
+            {/* Datasets Tab */}
+            <ModalTabsContent value='datasets' className='flex flex-col gap-[16px]'>
+              {datasets.length === 0 ? (
+                <div className='py-[32px] text-center text-[13px] text-[var(--text-muted)]'>
+                  No training datasets yet. Start a new session to create one.
                 </div>
-
-                <ScrollArea className='h-[400px]'>
-                  <div className='space-y-3'>
-                    {datasets.map((dataset, index) => (
-                      <div
-                        key={dataset.id}
-                        className='rounded-lg border bg-card transition-colors hover:bg-muted/50'
-                      >
-                        <div className='flex items-start p-4'>
-                          <Checkbox
-                            checked={selectedDatasets.has(dataset.id)}
-                            onCheckedChange={() => toggleDatasetSelection(dataset.id)}
-                            className='mt-0.5 mr-3'
-                          />
-                          <button
-                            className='flex flex-1 items-center justify-between text-left'
-                            onClick={() =>
-                              setExpandedDataset(expandedDataset === dataset.id ? null : dataset.id)
-                            }
-                          >
-                            <div className='flex-1'>
-                              <p className='font-medium text-sm'>{dataset.title}</p>
-                              <p className='text-muted-foreground text-xs'>
-                                {dataset.prompt.substring(0, 50)}
-                                {dataset.prompt.length > 50 ? '...' : ''}
-                              </p>
-                            </div>
-                            <div className='flex items-center gap-3'>
-                              {dataset.sentAt && (
-                                <span className='inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-green-700 text-xs ring-1 ring-green-600/20 ring-inset dark:bg-green-900/20 dark:text-green-300'>
-                                  <CheckCircle2 className='mr-1 h-3 w-3' /> Sent
-                                </span>
-                              )}
-                              <span className='text-muted-foreground text-xs'>
-                                {dataset.editSequence.length} ops
-                              </span>
-                              <ChevronDown
-                                className={cn(
-                                  'h-4 w-4 text-muted-foreground transition-transform',
-                                  expandedDataset === dataset.id && 'rotate-180'
-                                )}
-                              />
-                            </div>
-                          </button>
-                        </div>
-
-                        {expandedDataset === dataset.id && (
-                          <div className='space-y-3 border-t px-4 pt-3 pb-4'>
-                            <div>
-                              <p className='mb-1 font-medium text-sm'>Prompt</p>
-                              <p className='text-muted-foreground text-sm'>{dataset.prompt}</p>
-                            </div>
-
-                            <div>
-                              <p className='mb-1 font-medium text-sm'>Statistics</p>
-                              <div className='grid grid-cols-2 gap-2 text-sm'>
-                                <div>
-                                  <span className='text-muted-foreground'>Duration:</span>{' '}
-                                  {dataset.metadata?.duration
-                                    ? `${(dataset.metadata.duration / 1000).toFixed(1)}s`
-                                    : 'N/A'}
-                                </div>
-                                <div>
-                                  <span className='text-muted-foreground'>Operations:</span>{' '}
-                                  {dataset.editSequence.length}
-                                </div>
-                                <div>
-                                  <span className='text-muted-foreground'>Final blocks:</span>{' '}
-                                  {dataset.metadata?.blockCount || 0}
-                                </div>
-                                <div>
-                                  <span className='text-muted-foreground'>Final edges:</span>{' '}
-                                  {dataset.metadata?.edgeCount || 0}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div>
-                              <p className='mb-1 font-medium text-sm'>Edit Sequence</p>
-                              <div className='max-h-32 overflow-y-auto rounded border bg-muted/50 p-2'>
-                                <ul className='space-y-1 font-mono text-xs'>
-                                  {formatEditSequence(dataset.editSequence).map((desc, i) => (
-                                    <li key={i}>{desc}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            </div>
-
-                            <div className='flex gap-2'>
-                              <Button
-                                variant={
-                                  sentDatasets.has(dataset.id)
-                                    ? 'outline'
-                                    : failedDatasets.has(dataset.id)
-                                      ? 'destructive'
-                                      : 'outline'
-                                }
-                                size='sm'
-                                onClick={() => handleSendOne(dataset)}
-                                disabled={sendingDatasets.has(dataset.id)}
-                                className={
-                                  sentDatasets.has(dataset.id)
-                                    ? 'border-green-500 text-green-600 hover:bg-green-50 dark:border-green-400 dark:text-green-400 dark:hover:bg-green-950'
-                                    : ''
-                                }
-                              >
-                                {sendingDatasets.has(dataset.id) ? (
-                                  <>
-                                    <div className='mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent' />
-                                    Sending...
-                                  </>
-                                ) : sentDatasets.has(dataset.id) ? (
-                                  <>
-                                    <CheckCircle2 className='mr-2 h-4 w-4' />
-                                    Sent
-                                  </>
-                                ) : failedDatasets.has(dataset.id) ? (
-                                  <>
-                                    <XCircle className='mr-2 h-4 w-4' />
-                                    Failed
-                                  </>
-                                ) : (
-                                  <>
-                                    <Send className='mr-2 h-4 w-4' />
-                                    Send
-                                  </>
-                                )}
-                              </Button>
-                              <Button
-                                variant='outline'
-                                size='sm'
-                                onClick={() => setViewingDataset(dataset.id)}
-                              >
-                                <Eye className='mr-2 h-4 w-4' />
-                                View
-                              </Button>
-                              <Button
-                                variant='outline'
-                                size='sm'
-                                onClick={() => handleCopyDataset(dataset)}
-                              >
-                                {copiedId === dataset.id ? (
-                                  <>
-                                    <Check className='mr-2 h-4 w-4' />
-                                    Copied!
-                                  </>
-                                ) : (
-                                  <>
-                                    <Clipboard className='mr-2 h-4 w-4' />
-                                    Copy
-                                  </>
-                                )}
-                              </Button>
-                            </div>
-
-                            {viewingDataset === dataset.id && (
-                              <div className='rounded border bg-muted/50 p-3'>
-                                <pre className='max-h-64 overflow-auto text-xs'>
-                                  {JSON.stringify(
-                                    {
-                                      prompt: dataset.prompt,
-                                      editSequence: dataset.editSequence,
-                                      metadata: dataset.metadata,
-                                    },
-                                    null,
-                                    2
-                                  )}
-                                </pre>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </>
-            )}
-          </TabsContent>
-
-          {/* Send Live State Tab */}
-          <TabsContent value='live' className='space-y-4'>
-            <div className='rounded-lg border bg-muted/50 p-3'>
-              <p className='mb-2 font-medium text-muted-foreground text-sm'>
-                Current Workflow State
-              </p>
-              <p className='text-sm'>
-                {currentWorkflow.getBlockCount()} blocks, {currentWorkflow.getEdgeCount()} edges
-              </p>
-            </div>
-
-            <div className='space-y-2'>
-              <Label htmlFor='live-title'>Title</Label>
-              <Input
-                id='live-title'
-                placeholder='e.g., Customer Onboarding Workflow'
-                value={liveWorkflowTitle}
-                onChange={(e) => setLiveWorkflowTitle(e.target.value)}
-              />
-              <p className='text-muted-foreground text-xs'>
-                A short title identifying this workflow
-              </p>
-            </div>
-
-            <div className='space-y-2'>
-              <Label htmlFor='live-description'>Description</Label>
-              <Textarea
-                id='live-description'
-                placeholder='Describe what this workflow does...'
-                value={liveWorkflowDescription}
-                onChange={(e) => setLiveWorkflowDescription(e.target.value)}
-                rows={3}
-              />
-              <p className='text-muted-foreground text-xs'>
-                Explain the purpose and functionality of this workflow
-              </p>
-            </div>
-
-            <Button
-              onClick={handleSendLiveWorkflow}
-              disabled={
-                !liveWorkflowTitle.trim() ||
-                !liveWorkflowDescription.trim() ||
-                sendingLiveWorkflow ||
-                currentWorkflow.getBlockCount() === 0
-              }
-              className='w-full'
-            >
-              {sendingLiveWorkflow ? (
-                <>
-                  <div className='mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent' />
-                  Sending...
-                </>
-              ) : liveWorkflowSent ? (
-                <>
-                  <CheckCircle2 className='mr-2 h-4 w-4' />
-                  Sent Successfully
-                </>
-              ) : liveWorkflowFailed ? (
-                <>
-                  <XCircle className='mr-2 h-4 w-4' />
-                  Failed - Try Again
-                </>
               ) : (
                 <>
-                  <Send className='mr-2 h-4 w-4' />
-                  Send Live Workflow State
+                  <div className='flex items-center justify-between'>
+                    <div className='flex items-center gap-[12px]'>
+                      <Checkbox
+                        checked={datasets.length > 0 && selectedDatasets.size === datasets.length}
+                        onCheckedChange={toggleSelectAll}
+                        disabled={datasets.length === 0}
+                      />
+                      <p className='text-[13px] text-[var(--text-muted)]'>
+                        {selectedDatasets.size > 0
+                          ? `${selectedDatasets.size} of ${datasets.length} selected`
+                          : `${datasets.length} dataset${datasets.length !== 1 ? 's' : ''} recorded`}
+                      </p>
+                    </div>
+                    <div className='flex gap-[8px]'>
+                      {selectedDatasets.size > 0 && (
+                        <Button
+                          variant='primary'
+                          onClick={handleSendSelected}
+                          disabled={sendingSelected}
+                          className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+                        >
+                          <Send className='mr-[6px] h-[12px] w-[12px]' />
+                          {sendingSelected
+                            ? 'Sending...'
+                            : `Send ${selectedDatasets.size} Selected`}
+                        </Button>
+                      )}
+                      <Button
+                        variant='default'
+                        onClick={handleSendAll}
+                        disabled={datasets.length === 0 || sendingAll}
+                      >
+                        <Send className='mr-[6px] h-[12px] w-[12px]' />
+                        {sendingAll ? 'Sending...' : 'Send All'}
+                      </Button>
+                      <Button
+                        variant='default'
+                        onClick={handleExportAll}
+                        disabled={datasets.length === 0}
+                      >
+                        <Download className='mr-[6px] h-[12px] w-[12px]' />
+                        Export
+                      </Button>
+                      <Button
+                        variant='default'
+                        onClick={clearDatasets}
+                        disabled={datasets.length === 0}
+                      >
+                        <Trash2 className='mr-[6px] h-[12px] w-[12px]' />
+                        Clear
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className='max-h-[320px] overflow-y-auto'>
+                    <div className='flex flex-col gap-[8px]'>
+                      {datasets.map((dataset, index) => (
+                        <div
+                          key={dataset.id}
+                          className='rounded-[8px] border bg-[var(--surface-3)] transition-colors hover:bg-[var(--surface-5)]'
+                        >
+                          <div className='flex items-start p-[12px]'>
+                            <Checkbox
+                              checked={selectedDatasets.has(dataset.id)}
+                              onCheckedChange={() => toggleDatasetSelection(dataset.id)}
+                              className='mt-[2px] mr-[12px]'
+                            />
+                            <button
+                              className='flex flex-1 items-center justify-between text-left'
+                              onClick={() =>
+                                setExpandedDataset(
+                                  expandedDataset === dataset.id ? null : dataset.id
+                                )
+                              }
+                            >
+                              <div className='flex-1'>
+                                <p className='font-medium text-[14px] text-[var(--text-primary)]'>
+                                  {dataset.title}
+                                </p>
+                                <p className='text-[12px] text-[var(--text-muted)]'>
+                                  {dataset.prompt.substring(0, 50)}
+                                  {dataset.prompt.length > 50 ? '...' : ''}
+                                </p>
+                              </div>
+                              <div className='flex items-center gap-[12px]'>
+                                {dataset.sentAt && (
+                                  <span className='inline-flex items-center rounded-full bg-green-50 px-[8px] py-[2px] text-[11px] text-green-700 ring-1 ring-green-600/20 ring-inset dark:bg-green-900/20 dark:text-green-300'>
+                                    <CheckCircle2 className='mr-[4px] h-[10px] w-[10px]' /> Sent
+                                  </span>
+                                )}
+                                <span className='text-[12px] text-[var(--text-muted)]'>
+                                  {dataset.editSequence.length} ops
+                                </span>
+                                <ChevronDown
+                                  className={cn(
+                                    'h-[14px] w-[14px] text-[var(--text-muted)] transition-transform',
+                                    expandedDataset === dataset.id && 'rotate-180'
+                                  )}
+                                />
+                              </div>
+                            </button>
+                          </div>
+
+                          {expandedDataset === dataset.id && (
+                            <div className='flex flex-col gap-[12px] border-t px-[12px] pt-[12px] pb-[16px]'>
+                              <div>
+                                <p className='mb-[4px] font-medium text-[13px] text-[var(--text-primary)]'>
+                                  Prompt
+                                </p>
+                                <p className='text-[13px] text-[var(--text-secondary)]'>
+                                  {dataset.prompt}
+                                </p>
+                              </div>
+
+                              <div>
+                                <p className='mb-[4px] font-medium text-[13px] text-[var(--text-primary)]'>
+                                  Statistics
+                                </p>
+                                <div className='grid grid-cols-2 gap-[8px] text-[13px]'>
+                                  <div>
+                                    <span className='text-[var(--text-muted)]'>Duration:</span>{' '}
+                                    <span className='text-[var(--text-secondary)]'>
+                                      {dataset.metadata?.duration
+                                        ? `${(dataset.metadata.duration / 1000).toFixed(1)}s`
+                                        : 'N/A'}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className='text-[var(--text-muted)]'>Operations:</span>{' '}
+                                    <span className='text-[var(--text-secondary)]'>
+                                      {dataset.editSequence.length}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className='text-[var(--text-muted)]'>Final blocks:</span>{' '}
+                                    <span className='text-[var(--text-secondary)]'>
+                                      {dataset.metadata?.blockCount || 0}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className='text-[var(--text-muted)]'>Final edges:</span>{' '}
+                                    <span className='text-[var(--text-secondary)]'>
+                                      {dataset.metadata?.edgeCount || 0}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div>
+                                <p className='mb-[4px] font-medium text-[13px] text-[var(--text-primary)]'>
+                                  Edit Sequence
+                                </p>
+                                <div className='max-h-[100px] overflow-y-auto rounded-[6px] border bg-[var(--surface-6)] p-[8px]'>
+                                  <ul className='flex flex-col gap-[4px] font-mono text-[11px]'>
+                                    {formatEditSequence(dataset.editSequence).map((desc, i) => (
+                                      <li key={i} className='text-[var(--text-secondary)]'>
+                                        {desc}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              </div>
+
+                              <div className='flex gap-[8px]'>
+                                <Button
+                                  variant={
+                                    sentDatasets.has(dataset.id)
+                                      ? 'default'
+                                      : failedDatasets.has(dataset.id)
+                                        ? 'default'
+                                        : 'default'
+                                  }
+                                  onClick={() => handleSendOne(dataset)}
+                                  disabled={sendingDatasets.has(dataset.id)}
+                                  className={
+                                    sentDatasets.has(dataset.id)
+                                      ? '!border-green-500 !text-green-600 dark:!border-green-400 dark:!text-green-400'
+                                      : failedDatasets.has(dataset.id)
+                                        ? '!border-red-500 !text-red-600 dark:!border-red-400 dark:!text-red-400'
+                                        : ''
+                                  }
+                                >
+                                  {sendingDatasets.has(dataset.id) ? (
+                                    <>
+                                      <div className='mr-[6px] h-[12px] w-[12px] animate-spin rounded-full border-2 border-current border-t-transparent' />
+                                      Sending...
+                                    </>
+                                  ) : sentDatasets.has(dataset.id) ? (
+                                    <>
+                                      <CheckCircle2 className='mr-[6px] h-[12px] w-[12px]' />
+                                      Sent
+                                    </>
+                                  ) : failedDatasets.has(dataset.id) ? (
+                                    <>
+                                      <XCircle className='mr-[6px] h-[12px] w-[12px]' />
+                                      Failed
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Send className='mr-[6px] h-[12px] w-[12px]' />
+                                      Send
+                                    </>
+                                  )}
+                                </Button>
+                                <Button
+                                  variant='default'
+                                  onClick={() => setViewingDataset(dataset.id)}
+                                >
+                                  <Eye className='mr-[6px] h-[12px] w-[12px]' />
+                                  View
+                                </Button>
+                                <Button
+                                  variant='default'
+                                  onClick={() => handleCopyDataset(dataset)}
+                                >
+                                  {copiedId === dataset.id ? (
+                                    <>
+                                      <Check className='mr-[6px] h-[12px] w-[12px]' />
+                                      Copied!
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Clipboard className='mr-[6px] h-[12px] w-[12px]' />
+                                      Copy
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+
+                              {viewingDataset === dataset.id && (
+                                <div className='rounded-[6px] border bg-[var(--surface-6)] p-[12px]'>
+                                  <pre className='max-h-[200px] overflow-auto text-[11px] text-[var(--text-secondary)]'>
+                                    {JSON.stringify(
+                                      {
+                                        prompt: dataset.prompt,
+                                        editSequence: dataset.editSequence,
+                                        metadata: dataset.metadata,
+                                      },
+                                      null,
+                                      2
+                                    )}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </>
               )}
-            </Button>
+            </ModalTabsContent>
 
-            {liveWorkflowSent && (
-              <div className='rounded-lg border bg-green-50 p-3 dark:bg-green-950/30'>
-                <p className='text-green-700 text-sm dark:text-green-300'>
-                  Workflow state sent successfully!
+            {/* Send Live State Tab */}
+            <ModalTabsContent value='live' className='flex flex-col gap-[16px]'>
+              <div className='flex items-center gap-[16px] text-[13px]'>
+                <span className='text-[var(--text-muted)]'>Current workflow:</span>
+                <span className='text-[var(--text-primary)]'>
+                  {currentWorkflow.getBlockCount()} blocks
+                </span>
+                <span className='text-[var(--text-tertiary)]'>·</span>
+                <span className='text-[var(--text-primary)]'>
+                  {currentWorkflow.getEdgeCount()} edges
+                </span>
+              </div>
+
+              <div className='flex flex-col gap-[8px]'>
+                <Label htmlFor='live-title'>Title</Label>
+                <Input
+                  id='live-title'
+                  placeholder='e.g., Customer Onboarding Workflow'
+                  value={liveWorkflowTitle}
+                  onChange={(e) => setLiveWorkflowTitle(e.target.value)}
+                  className='h-9'
+                />
+                <p className='text-[12px] text-[var(--text-muted)]'>
+                  A short title identifying this workflow
                 </p>
               </div>
-            )}
 
-            {liveWorkflowFailed && (
-              <div className='rounded-lg border bg-red-50 p-3 dark:bg-red-950/30'>
-                <p className='text-red-700 text-sm dark:text-red-300'>
-                  Failed to send workflow state. Please try again.
+              <div className='flex flex-col gap-[8px]'>
+                <Label htmlFor='live-description'>Description</Label>
+                <Textarea
+                  id='live-description'
+                  placeholder='Describe what this workflow does...'
+                  value={liveWorkflowDescription}
+                  onChange={(e) => setLiveWorkflowDescription(e.target.value)}
+                  rows={3}
+                />
+                <p className='text-[12px] text-[var(--text-muted)]'>
+                  Explain the purpose and functionality of this workflow
                 </p>
               </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+
+              <Button
+                onClick={handleSendLiveWorkflow}
+                disabled={
+                  !liveWorkflowTitle.trim() ||
+                  !liveWorkflowDescription.trim() ||
+                  sendingLiveWorkflow ||
+                  currentWorkflow.getBlockCount() === 0
+                }
+                className={cn(
+                  'w-full',
+                  liveWorkflowSent
+                    ? '!bg-green-600 !text-white hover:!bg-green-700'
+                    : liveWorkflowFailed
+                      ? '!bg-red-600 !text-white hover:!bg-red-700'
+                      : '!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+                )}
+              >
+                {sendingLiveWorkflow ? (
+                  <>
+                    <div className='mr-[6px] h-[14px] w-[14px] animate-spin rounded-full border-2 border-current border-t-transparent' />
+                    Sending...
+                  </>
+                ) : liveWorkflowSent ? (
+                  <>
+                    <CheckCircle2 className='mr-[6px] h-[14px] w-[14px]' />
+                    Sent Successfully
+                  </>
+                ) : liveWorkflowFailed ? (
+                  <>
+                    <XCircle className='mr-[6px] h-[14px] w-[14px]' />
+                    Failed - Try Again
+                  </>
+                ) : (
+                  <>
+                    <Send className='mr-[6px] h-[14px] w-[14px]' />
+                    Send Live Workflow State
+                  </>
+                )}
+              </Button>
+
+              {liveWorkflowSent && (
+                <div className='rounded-[8px] border bg-green-50 p-[12px] dark:bg-green-950/30'>
+                  <p className='text-[13px] text-green-700 dark:text-green-300'>
+                    Workflow state sent successfully!
+                  </p>
+                </div>
+              )}
+
+              {liveWorkflowFailed && (
+                <div className='rounded-[8px] border bg-red-50 p-[12px] dark:bg-red-950/30'>
+                  <p className='text-[13px] text-red-700 dark:text-red-300'>
+                    Failed to send workflow state. Please try again.
+                  </p>
+                </div>
+              )}
+            </ModalTabsContent>
+          </ModalBody>
+        </ModalTabs>
+      </ModalContent>
+    </Modal>
   )
 }
