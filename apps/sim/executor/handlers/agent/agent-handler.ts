@@ -987,18 +987,19 @@ export class AgentBlockHandler implements BlockHandler {
       try {
         const executionData = JSON.parse(executionDataHeader)
 
-        // If execution data contains full content, persist to memory
-        if (ctx && inputs && executionData.output?.content) {
-          const assistantMessage: Message = {
-            role: 'assistant',
-            content: executionData.output.content,
-          }
-          // Fire and forget - don't await
-          memoryService
-            .persistMemoryMessage(ctx, inputs, assistantMessage, block.id)
-            .catch((error) =>
-              logger.error('Failed to persist streaming response to memory:', error)
+        // If execution data contains content or tool calls, persist to memory
+        if (ctx && inputs && (executionData.output?.content || executionData.output?.toolCalls?.list?.length)) {
+          const toolCalls = executionData.output?.toolCalls?.list
+          const messages = this.buildMessagesForMemory(executionData.output.content, toolCalls)
+
+          // Fire and forget - don't await, persist all messages
+          Promise.all(
+            messages.map((message) =>
+              memoryService.persistMemoryMessage(ctx, inputs, message, block.id)
             )
+          ).catch((error) =>
+            logger.error('Failed to persist streaming response to memory:', error)
+          )
         }
 
         return {
@@ -1117,30 +1118,90 @@ export class AgentBlockHandler implements BlockHandler {
         return
       }
 
-      // Extract content from regular response
+      // Extract content and tool calls from regular response
       const blockOutput = result as any
       const content = blockOutput?.content
+      const toolCalls = blockOutput?.toolCalls?.list
 
-      if (!content || typeof content !== 'string') {
+      // Build messages to persist
+      const messages = this.buildMessagesForMemory(content, toolCalls)
+
+      if (messages.length === 0) {
         return
       }
 
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content,
+      // Persist all messages
+      for (const message of messages) {
+        await memoryService.persistMemoryMessage(ctx, inputs, message, blockId)
       }
-
-      await memoryService.persistMemoryMessage(ctx, inputs, assistantMessage, blockId)
 
       logger.debug('Persisted assistant response to memory', {
         workflowId: ctx.workflowId,
         memoryType: inputs.memoryType,
         conversationId: inputs.conversationId,
+        messageCount: messages.length,
       })
     } catch (error) {
       logger.error('Failed to persist response to memory:', error)
       // Don't throw - memory persistence failure shouldn't break workflow execution
     }
+  }
+
+  /**
+   * Builds messages for memory storage including tool calls and results
+   * Returns proper OpenAI-compatible message format:
+   * - Assistant message with tool_calls array (if tools were used)
+   * - Tool role messages with results (one per tool call)
+   * - Final assistant message with content (if present)
+   */
+  private buildMessagesForMemory(content: string | undefined, toolCalls: any[] | undefined): Message[] {
+    const messages: Message[] = []
+
+    if (toolCalls?.length) {
+      // Generate stable IDs for each tool call (only if not provided by provider)
+      // Use index to ensure uniqueness even for same tool name in same millisecond
+      const toolCallsWithIds = toolCalls.map((tc: any, index: number) => ({
+        ...tc,
+        _stableId: tc.id || `call_${tc.name}_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 7)}`,
+      }))
+
+      // Add assistant message with tool_calls
+      const formattedToolCalls = toolCallsWithIds.map((tc: any) => ({
+        id: tc._stableId,
+        type: 'function' as const,
+        function: {
+          name: tc.name,
+          arguments: tc.rawArguments || JSON.stringify(tc.arguments || {}),
+        },
+      }))
+
+      messages.push({
+        role: 'assistant',
+        content: null,
+        tool_calls: formattedToolCalls,
+      })
+
+      // Add tool result messages using the same stable IDs
+      for (const tc of toolCallsWithIds) {
+        const resultContent = typeof tc.result === 'string' ? tc.result : JSON.stringify(tc.result || {})
+        messages.push({
+          role: 'tool',
+          content: resultContent,
+          tool_call_id: tc._stableId,
+          name: tc.name, // Store tool name for providers that need it (e.g., Google/Gemini)
+        })
+      }
+    }
+
+    // Add final assistant response if present
+    if (content && typeof content === 'string') {
+      messages.push({
+        role: 'assistant',
+        content,
+      })
+    }
+
+    return messages
   }
 
   private processProviderResponse(

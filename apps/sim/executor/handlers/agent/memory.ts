@@ -202,11 +202,85 @@ export class Memory {
     const systemMessages = messages.filter((msg) => msg.role === 'system')
     const conversationMessages = messages.filter((msg) => msg.role !== 'system')
 
-    const recentMessages = conversationMessages.slice(-limit)
+    // Group messages into conversation turns
+    // A turn = user message + any tool calls/results + assistant response
+    const turns = this.groupMessagesIntoTurns(conversationMessages)
+
+    // Take the last N turns
+    const recentTurns = turns.slice(-limit)
+
+    // Flatten back to messages
+    const recentMessages = recentTurns.flat()
 
     const firstSystemMessage = systemMessages.length > 0 ? [systemMessages[0]] : []
 
     return [...firstSystemMessage, ...recentMessages]
+  }
+
+  /**
+   * Groups messages into conversation turns.
+   * A turn starts with a user message and includes all subsequent messages
+   * until the next user message (tool calls, tool results, assistant response).
+   */
+  private groupMessagesIntoTurns(messages: Message[]): Message[][] {
+    const turns: Message[][] = []
+    let currentTurn: Message[] = []
+
+    for (const msg of messages) {
+      if (msg.role === 'user') {
+        // Start a new turn
+        if (currentTurn.length > 0) {
+          turns.push(currentTurn)
+        }
+        currentTurn = [msg]
+      } else {
+        // Add to current turn (assistant, tool, etc.)
+        currentTurn.push(msg)
+      }
+    }
+
+    // Don't forget the last turn
+    if (currentTurn.length > 0) {
+      turns.push(currentTurn)
+    }
+
+    return turns
+  }
+
+  /**
+   * Remove orphaned tool messages that don't have a corresponding tool_calls message
+   * This prevents errors like "tool_result without corresponding tool_use"
+   */
+  private removeOrphanedToolMessages(messages: Message[]): Message[] {
+    const result: Message[] = []
+    const seenToolCallIds = new Set<string>()
+
+    // First pass: collect all tool_call IDs from assistant messages with tool_calls
+    for (const msg of messages) {
+      if (msg.role === 'assistant' && msg.tool_calls && Array.isArray(msg.tool_calls)) {
+        for (const tc of msg.tool_calls) {
+          if (tc.id) {
+            seenToolCallIds.add(tc.id)
+          }
+        }
+      }
+    }
+
+    // Second pass: only include tool messages that have a matching tool_calls message
+    for (const msg of messages) {
+      if (msg.role === 'tool') {
+        const toolCallId = (msg as any).tool_call_id
+        if (toolCallId && seenToolCallIds.has(toolCallId)) {
+          result.push(msg)
+        } else {
+          logger.debug('Removing orphaned tool message', { toolCallId })
+        }
+      } else {
+        result.push(msg)
+      }
+    }
+
+    return result
   }
 
   /**
@@ -216,6 +290,11 @@ export class Memory {
    * - For consistency with message-based sliding window, the first system message is preserved
    * - System messages are excluded from the token count
    * - This ensures system prompts are always available while limiting conversation history
+   *
+   * Turn handling:
+   * - Messages are grouped into turns (user + tool calls/results + assistant response)
+   * - Complete turns are added to stay within token limit
+   * - This prevents breaking tool call/result pairs
    */
   private applySlidingWindowByTokens(
     messages: Message[],
@@ -233,25 +312,31 @@ export class Memory {
     const systemMessages = messages.filter((msg) => msg.role === 'system')
     const conversationMessages = messages.filter((msg) => msg.role !== 'system')
 
+    // Group into turns to keep tool call/result pairs together
+    const turns = this.groupMessagesIntoTurns(conversationMessages)
+
     const result: Message[] = []
     let currentTokenCount = 0
 
-    // Add conversation messages from most recent backwards
-    for (let i = conversationMessages.length - 1; i >= 0; i--) {
-      const message = conversationMessages[i]
-      const messageTokens = getAccurateTokenCount(message.content, model)
+    // Add turns from most recent backwards
+    for (let i = turns.length - 1; i >= 0; i--) {
+      const turn = turns[i]
+      const turnTokens = turn.reduce(
+        (sum, msg) => sum + getAccurateTokenCount(msg.content || '', model),
+        0
+      )
 
-      if (currentTokenCount + messageTokens <= tokenLimit) {
-        result.unshift(message)
-        currentTokenCount += messageTokens
+      if (currentTokenCount + turnTokens <= tokenLimit) {
+        result.unshift(...turn)
+        currentTokenCount += turnTokens
       } else if (result.length === 0) {
-        logger.warn('Single message exceeds token limit, including anyway', {
-          messageTokens,
+        logger.warn('Single turn exceeds token limit, including anyway', {
+          turnTokens,
           tokenLimit,
-          messageRole: message.role,
+          turnMessages: turn.length,
         })
-        result.unshift(message)
-        currentTokenCount += messageTokens
+        result.unshift(...turn)
+        currentTokenCount += turnTokens
         break
       } else {
         // Token limit reached, stop processing
@@ -259,17 +344,20 @@ export class Memory {
       }
     }
 
+    // No need to remove orphaned messages - turns are already complete
+    const cleanedResult = result
+
     logger.debug('Applied token-based sliding window', {
       totalMessages: messages.length,
       conversationMessages: conversationMessages.length,
-      includedMessages: result.length,
+      includedMessages: cleanedResult.length,
       totalTokens: currentTokenCount,
       tokenLimit,
     })
 
     // Preserve first system message and prepend to results (consistent with message-based window)
     const firstSystemMessage = systemMessages.length > 0 ? [systemMessages[0]] : []
-    return [...firstSystemMessage, ...result]
+    return [...firstSystemMessage, ...cleanedResult]
   }
 
   /**
@@ -324,7 +412,7 @@ export class Memory {
     // Count tokens used by system messages first
     let systemTokenCount = 0
     for (const msg of systemMessages) {
-      systemTokenCount += getAccurateTokenCount(msg.content, model)
+      systemTokenCount += getAccurateTokenCount(msg.content || '', model)
     }
 
     // Calculate remaining tokens available for conversation messages
@@ -339,30 +427,36 @@ export class Memory {
       return systemMessages
     }
 
+    // Group into turns to keep tool call/result pairs together
+    const turns = this.groupMessagesIntoTurns(conversationMessages)
+
     const result: Message[] = []
     let currentTokenCount = 0
 
-    for (let i = conversationMessages.length - 1; i >= 0; i--) {
-      const message = conversationMessages[i]
-      const messageTokens = getAccurateTokenCount(message.content, model)
+    for (let i = turns.length - 1; i >= 0; i--) {
+      const turn = turns[i]
+      const turnTokens = turn.reduce(
+        (sum, msg) => sum + getAccurateTokenCount(msg.content || '', model),
+        0
+      )
 
-      if (currentTokenCount + messageTokens <= remainingTokens) {
-        result.unshift(message)
-        currentTokenCount += messageTokens
+      if (currentTokenCount + turnTokens <= remainingTokens) {
+        result.unshift(...turn)
+        currentTokenCount += turnTokens
       } else if (result.length === 0) {
-        logger.warn('Single message exceeds remaining context window, including anyway', {
-          messageTokens,
+        logger.warn('Single turn exceeds remaining context window, including anyway', {
+          turnTokens,
           remainingTokens,
           systemTokenCount,
-          messageRole: message.role,
+          turnMessages: turn.length,
         })
-        result.unshift(message)
-        currentTokenCount += messageTokens
+        result.unshift(...turn)
+        currentTokenCount += turnTokens
         break
       } else {
         logger.info('Auto-trimmed conversation history to fit context window', {
-          originalMessages: conversationMessages.length,
-          trimmedMessages: result.length,
+          originalTurns: turns.length,
+          trimmedTurns: turns.length - i - 1,
           conversationTokens: currentTokenCount,
           systemTokens: systemTokenCount,
           totalTokens: currentTokenCount + systemTokenCount,
@@ -372,6 +466,7 @@ export class Memory {
       }
     }
 
+    // No need to remove orphaned messages - turns are already complete
     return [...systemMessages, ...result]
   }
 
@@ -638,7 +733,7 @@ export class Memory {
   /**
    * Validate inputs to prevent malicious data or performance issues
    */
-  private validateInputs(conversationId?: string, content?: string): void {
+  private validateInputs(conversationId?: string, content?: string | null): void {
     if (conversationId) {
       if (conversationId.length > 255) {
         throw new Error('Conversation ID too long (max 255 characters)')

@@ -11,6 +11,7 @@ import type {
 import {
   prepareToolExecution,
   prepareToolsWithUsageControl,
+  sanitizeMessagesForProvider,
   trackForcedToolUsage,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
@@ -83,8 +84,10 @@ export const xAIProvider: ProviderConfig = {
       })
     }
 
+    // Sanitize messages to ensure proper tool call/result pairing
     if (request.messages) {
-      allMessages.push(...request.messages)
+      const sanitizedMessages = sanitizeMessagesForProvider(request.messages)
+      allMessages.push(...sanitizedMessages)
     }
 
     // Set up tools
@@ -364,8 +367,10 @@ export const xAIProvider: ProviderConfig = {
               }
 
               toolCalls.push({
+                id: toolCall.id,
                 name: toolName,
                 arguments: toolParams,
+                rawArguments: toolCall.function.arguments,
                 startTime: new Date(toolCallStartTime).toISOString(),
                 endTime: new Date(toolCallEndTime).toISOString(),
                 duration: toolCallDuration,

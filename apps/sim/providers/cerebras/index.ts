@@ -11,6 +11,7 @@ import type {
 import {
   prepareToolExecution,
   prepareToolsWithUsageControl,
+  sanitizeMessagesForProvider,
   trackForcedToolUsage,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
@@ -86,9 +87,10 @@ export const cerebrasProvider: ProviderConfig = {
         })
       }
 
-      // Add remaining messages
+      // Add remaining messages (sanitized to ensure proper tool call/result pairing)
       if (request.messages) {
-        allMessages.push(...request.messages)
+        const sanitizedMessages = sanitizeMessagesForProvider(request.messages)
+        allMessages.push(...sanitizedMessages)
       }
 
       // Transform tools to Cerebras format if provided
@@ -323,8 +325,10 @@ export const cerebrasProvider: ProviderConfig = {
               }
 
               toolCalls.push({
+                id: toolCall.id,
                 name: toolName,
                 arguments: toolParams,
+                rawArguments: toolCall.function.arguments,
                 startTime: new Date(toolCallStartTime).toISOString(),
                 endTime: new Date(toolCallEndTime).toISOString(),
                 duration: toolCallDuration,

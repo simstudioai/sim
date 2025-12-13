@@ -4,7 +4,12 @@ import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
 import { getProviderDefaultModel, getProviderModels } from '../models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
-import { prepareToolExecution, prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
+import {
+  prepareToolExecution,
+  prepareToolsWithUsageControl,
+  sanitizeMessagesForProvider,
+  trackForcedToolUsage,
+} from '../utils'
 
 const logger = createLogger('AnthropicProvider')
 
@@ -68,8 +73,12 @@ export const anthropicProvider: ProviderConfig = {
 
     // Add remaining messages
     if (request.messages) {
-      request.messages.forEach((msg) => {
+      // Sanitize messages to ensure proper tool call/result pairing
+      const sanitizedMessages = sanitizeMessagesForProvider(request.messages)
+
+      sanitizedMessages.forEach((msg) => {
         if (msg.role === 'function') {
+          // Legacy function role format
           messages.push({
             role: 'user',
             content: [
@@ -80,7 +89,34 @@ export const anthropicProvider: ProviderConfig = {
               },
             ],
           })
+        } else if (msg.role === 'tool') {
+          // Modern tool role format (OpenAI-compatible)
+          messages.push({
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: (msg as any).tool_call_id,
+                content: msg.content || '',
+              },
+            ],
+          })
+        } else if (msg.tool_calls && Array.isArray(msg.tool_calls)) {
+          // Modern tool_calls format (OpenAI-compatible)
+          const toolUseContent = msg.tool_calls.map((tc: any) => ({
+            type: 'tool_use',
+            id: tc.id,
+            name: tc.function?.name || tc.name,
+            input: typeof tc.function?.arguments === 'string'
+              ? JSON.parse(tc.function.arguments)
+              : tc.function?.arguments || tc.arguments || {},
+          }))
+          messages.push({
+            role: 'assistant',
+            content: toolUseContent,
+          })
         } else if (msg.function_call) {
+          // Legacy function_call format
           const toolUseId = `${msg.function_call.name}-${Date.now()}`
           messages.push({
             role: 'assistant',
@@ -490,9 +526,14 @@ ${fieldDescriptions}
                   }
                 }
 
+                // Use the original tool use ID from the API response
+                const toolUseId = toolUse.id || generateToolUseId(toolName)
+
                 toolCalls.push({
+                  id: toolUseId,
                   name: toolName,
                   arguments: toolParams,
+                  rawArguments: JSON.stringify(toolArgs),
                   startTime: new Date(toolCallStartTime).toISOString(),
                   endTime: new Date(toolCallEndTime).toISOString(),
                   duration: toolCallDuration,
@@ -501,7 +542,6 @@ ${fieldDescriptions}
                 })
 
                 // Add the tool call and result to messages (both success and failure)
-                const toolUseId = generateToolUseId(toolName)
 
                 currentMessages.push({
                   role: 'assistant',
@@ -840,9 +880,14 @@ ${fieldDescriptions}
                 }
               }
 
+              // Use the original tool use ID from the API response
+              const toolUseId = toolUse.id || generateToolUseId(toolName)
+
               toolCalls.push({
+                id: toolUseId,
                 name: toolName,
                 arguments: toolParams,
+                rawArguments: JSON.stringify(toolArgs),
                 startTime: new Date(toolCallStartTime).toISOString(),
                 endTime: new Date(toolCallEndTime).toISOString(),
                 duration: toolCallDuration,
@@ -851,7 +896,6 @@ ${fieldDescriptions}
               })
 
               // Add the tool call and result to messages (both success and failure)
-              const toolUseId = generateToolUseId(toolName)
 
               currentMessages.push({
                 role: 'assistant',

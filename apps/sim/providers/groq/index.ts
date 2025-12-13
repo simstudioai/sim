@@ -11,6 +11,7 @@ import type {
 import {
   prepareToolExecution,
   prepareToolsWithUsageControl,
+  sanitizeMessagesForProvider,
   trackForcedToolUsage,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
@@ -75,9 +76,10 @@ export const groqProvider: ProviderConfig = {
       })
     }
 
-    // Add remaining messages
+    // Add remaining messages (sanitized to ensure proper tool call/result pairing)
     if (request.messages) {
-      allMessages.push(...request.messages)
+      const sanitizedMessages = sanitizeMessagesForProvider(request.messages)
+      allMessages.push(...sanitizedMessages)
     }
 
     // Transform tools to function format if provided
@@ -296,8 +298,10 @@ export const groqProvider: ProviderConfig = {
               }
 
               toolCalls.push({
+                id: toolCall.id,
                 name: toolName,
                 arguments: toolParams,
+                rawArguments: toolCall.function.arguments,
                 startTime: new Date(toolCallStartTime).toISOString(),
                 endTime: new Date(toolCallEndTime).toISOString(),
                 duration: toolCallDuration,
