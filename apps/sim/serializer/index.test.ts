@@ -589,6 +589,35 @@ describe('Serializer', () => {
       }).toThrow('Test Jina Block is missing required fields: API Key')
     })
 
+    it.concurrent('should skip validation for disabled blocks', () => {
+      const serializer = new Serializer()
+
+      // Create a disabled block with a missing user-only required field
+      const disabledBlockWithMissingField: any = {
+        id: 'test-block',
+        type: 'jina',
+        name: 'Disabled Jina Block',
+        position: { x: 0, y: 0 },
+        subBlocks: {
+          url: { value: 'https://example.com' },
+          apiKey: { value: null }, // Missing user-only required field
+        },
+        outputs: {},
+        enabled: false, // Block is disabled
+      }
+
+      // Should NOT throw error because the block is disabled
+      expect(() => {
+        serializer.serializeWorkflow(
+          { 'test-block': disabledBlockWithMissingField },
+          [],
+          {},
+          undefined,
+          true
+        )
+      }).not.toThrow()
+    })
+
     it.concurrent('should not throw error when all user-only required fields are present', () => {
       const serializer = new Serializer()
 

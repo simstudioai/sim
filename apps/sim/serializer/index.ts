@@ -429,6 +429,11 @@ export class Serializer {
     blockConfig: any,
     params: Record<string, any>
   ) {
+    // Skip validation if the block is disabled
+    if (block.enabled === false) {
+      return
+    }
+
     // Skip validation if the block is used as a trigger
     if (
       block.triggerMode === true ||
