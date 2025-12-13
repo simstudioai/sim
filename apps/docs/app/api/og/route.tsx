@@ -18,8 +18,8 @@ function getTitleFontSize(title: string): number {
 /**
  * Loads a Google Font dynamically by fetching the CSS and extracting the font URL.
  */
-async function loadGoogleFont(font: string, text: string): Promise<ArrayBuffer> {
-  const url = `https://fonts.googleapis.com/css2?family=${font}:wght@500;600&text=${encodeURIComponent(text)}`
+async function loadGoogleFont(font: string, weights: string, text: string): Promise<ArrayBuffer> {
+  const url = `https://fonts.googleapis.com/css2?family=${font}:wght@${weights}&text=${encodeURIComponent(text)}`
   const css = await (await fetch(url)).text()
   const resource = css.match(/src: url\((.+)\) format\('(opentype|truetype)'\)/)
 
@@ -40,13 +40,13 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const title = searchParams.get('title') || 'Documentation'
   const category = searchParams.get('category') || 'DOCUMENTATION'
+  const description = searchParams.get('description') || ''
 
   const baseUrl = new URL(request.url).origin
   const backgroundImageUrl = `${baseUrl}/static/og-background.png`
 
-  // Load Inter font dynamically from Google Fonts
-  const allText = `${title}${category}docs.sim.ai`
-  const fontData = await loadGoogleFont('Inter', allText)
+  const allText = `${title}${category}${description}docs.sim.ai`
+  const fontData = await loadGoogleFont('Geist', '400;500;600', allText)
 
   return new ImageResponse(
     <div
@@ -55,9 +55,9 @@ export async function GET(request: NextRequest) {
         width: '100%',
         display: 'flex',
         flexDirection: 'column',
-        backgroundColor: '#121212',
+        background: 'linear-gradient(315deg, #1e1e3f 0%, #1a1a2e 40%, #0f0f0f 100%)',
         position: 'relative',
-        fontFamily: 'Inter',
+        fontFamily: 'Geist',
       }}
     >
       {/* Background texture */}
@@ -71,7 +71,21 @@ export async function GET(request: NextRequest) {
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          opacity: 0.06,
+          opacity: 0.04,
+        }}
+      />
+
+      {/* Subtle purple glow from bottom right */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          right: 0,
+          width: '50%',
+          height: '100%',
+          background:
+            'radial-gradient(ellipse at bottom right, rgba(112, 31, 252, 0.1) 0%, transparent 50%)',
+          display: 'flex',
         }}
       />
 
@@ -80,28 +94,28 @@ export async function GET(request: NextRequest) {
         style={{
           display: 'flex',
           flexDirection: 'column',
-          padding: '60px 72px',
+          padding: '56px 72px',
           height: '100%',
           justifyContent: 'space-between',
         }}
       >
         {/* Logo */}
-        <img src={`${baseUrl}/static/logo.png`} alt='sim' height={36} />
+        <img src={`${baseUrl}/static/logo.png`} alt='sim' height={32} />
 
-        {/* Category + Title */}
+        {/* Category + Title + Description */}
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 16,
+            gap: 12,
           }}
         >
           <span
             style={{
-              fontSize: 14,
-              fontWeight: 500,
-              color: '#737373',
-              letterSpacing: '0.08em',
+              fontSize: 15,
+              fontWeight: 600,
+              color: '#802fff',
+              letterSpacing: '0.02em',
             }}
           >
             {category}
@@ -111,20 +125,33 @@ export async function GET(request: NextRequest) {
               fontSize: getTitleFontSize(title),
               fontWeight: 600,
               color: '#ffffff',
-              lineHeight: 1.15,
+              lineHeight: 1.1,
               letterSpacing: '-0.02em',
             }}
           >
             {title}
           </span>
+          {description && (
+            <span
+              style={{
+                fontSize: 18,
+                fontWeight: 400,
+                color: '#a1a1aa',
+                lineHeight: 1.4,
+                marginTop: 4,
+              }}
+            >
+              {description.length > 100 ? `${description.slice(0, 100)}...` : description}
+            </span>
+          )}
         </div>
 
         {/* Footer */}
         <span
           style={{
-            fontSize: 16,
-            fontWeight: 400,
-            color: '#525252',
+            fontSize: 15,
+            fontWeight: 500,
+            color: '#52525b',
           }}
         >
           docs.sim.ai
@@ -136,7 +163,7 @@ export async function GET(request: NextRequest) {
       height: 630,
       fonts: [
         {
-          name: 'Inter',
+          name: 'Geist',
           data: fontData,
           style: 'normal',
         },
