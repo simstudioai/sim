@@ -239,20 +239,6 @@ function sanitizeSubBlocks(
       return
     }
 
-    // For sensitive fields, either omit or replace with placeholder
-    if (isSensitiveSubBlock(key, subBlock)) {
-      // If it's an environment variable reference, keep it
-      if (
-        typeof subBlock.value === 'string' &&
-        subBlock.value.startsWith('{{') &&
-        subBlock.value.endsWith('}}')
-      ) {
-        sanitized[key] = subBlock.value
-      }
-      // Otherwise omit the sensitive value entirely
-      return
-    }
-
     // Special handling for condition-input type - clean UI metadata
     if (subBlock.type === 'condition-input' && typeof subBlock.value === 'string') {
       const cleanedConditions: string = sanitizeConditions(subBlock.value)
