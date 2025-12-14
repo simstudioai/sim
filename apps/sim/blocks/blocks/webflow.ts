@@ -157,8 +157,8 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
         const {
           credential,
           fieldData,
-          siteId: _siteId,
-          manualSiteId: _manualSiteId,
+          siteId,
+          manualSiteId,
           collectionId,
           manualCollectionId,
           itemId,
@@ -175,6 +175,7 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
           throw new Error(`Invalid JSON input for ${params.operation} operation: ${error.message}`)
         }
 
+        const effectiveSiteId = ((siteId as string) || (manualSiteId as string) || '').trim()
         const effectiveCollectionId = (
           (collectionId as string) ||
           (manualCollectionId as string) ||
@@ -182,12 +183,17 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
         ).trim()
         const effectiveItemId = ((itemId as string) || (manualItemId as string) || '').trim()
 
+        if (!effectiveSiteId) {
+          throw new Error('Site ID is required')
+        }
+
         if (!effectiveCollectionId) {
           throw new Error('Collection ID is required')
         }
 
         const baseParams = {
           credential,
+          siteId: effectiveSiteId,
           collectionId: effectiveCollectionId,
           ...rest,
         }
