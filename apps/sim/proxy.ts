@@ -1,6 +1,6 @@
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
-import { isHosted } from './lib/core/config/feature-flags'
+import { isAuthDisabled, isHosted } from './lib/core/config/feature-flags'
 import { generateRuntimeCSP } from './lib/core/security/csp'
 import { createLogger } from './lib/logs/console/logger'
 
@@ -135,7 +135,7 @@ export async function proxy(request: NextRequest) {
   const url = request.nextUrl
 
   const sessionCookie = getSessionCookie(request)
-  const hasActiveSession = !!sessionCookie
+  const hasActiveSession = isAuthDisabled || !!sessionCookie
 
   const redirect = handleRootPathRedirects(request, hasActiveSession)
   if (redirect) return redirect

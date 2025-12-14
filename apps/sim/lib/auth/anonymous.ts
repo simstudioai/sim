@@ -2,23 +2,14 @@ import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
+import { ANONYMOUS_USER, ANONYMOUS_USER_ID } from './constants'
 
 const logger = createLogger('AnonymousAuth')
-
-export const ANONYMOUS_USER_ID = '00000000-0000-0000-0000-000000000000'
-
-export const ANONYMOUS_USER = {
-  id: ANONYMOUS_USER_ID,
-  name: 'Anonymous',
-  email: 'anonymous@localhost',
-  emailVerified: true,
-  image: null,
-} as const
 
 let anonymousUserEnsured = false
 
 /**
- * Ensures the anonymous user exists in the database.
+ * Ensures the anonymous user and their stats record exist in the database.
  * Called when DISABLE_AUTH is enabled to ensure DB operations work.
  */
 export async function ensureAnonymousUserExists(): Promise<void> {
@@ -37,6 +28,19 @@ export async function ensureAnonymousUserExists(): Promise<void> {
         updatedAt: now,
       })
       logger.info('Created anonymous user for DISABLE_AUTH mode')
+    }
+
+    const existingStats = await db.query.userStats.findFirst({
+      where: eq(schema.userStats.userId, ANONYMOUS_USER_ID),
+    })
+
+    if (!existingStats) {
+      await db.insert(schema.userStats).values({
+        id: crypto.randomUUID(),
+        userId: ANONYMOUS_USER_ID,
+        currentUsageLimit: '10000000000',
+      })
+      logger.info('Created anonymous user stats for DISABLE_AUTH mode')
     }
 
     anonymousUserEnsured = true

@@ -549,7 +549,6 @@ describe('AgentBlockHandler', () => {
     })
 
     it('should not require API key for gpt-4o on hosted version', async () => {
-      // Note: isHosted is now a constant, test runs with isHosted=false from mock
       const inputs = {
         model: 'gpt-4o',
         systemPrompt: 'You are a helpful assistant.',

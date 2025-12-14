@@ -44,7 +44,6 @@ vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn(),
 }))
 
-// Mock feature-flags at the top level so isDev is always true for tests
 vi.mock('@/lib/core/config/feature-flags', () => ({
   isDev: true,
   isHosted: false,

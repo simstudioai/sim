@@ -15,8 +15,8 @@ import {
   Switch,
 } from '@/components/emcn'
 import { Input, Skeleton } from '@/components/ui'
-import { ANONYMOUS_USER_ID } from '@/lib/auth/anonymous'
 import { signOut, useSession } from '@/lib/auth/auth-client'
+import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { useBrandConfig } from '@/lib/branding/branding'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'

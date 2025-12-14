@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
-import { ANONYMOUS_USER_ID } from '@/lib/auth/anonymous'
+import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { isAuthDisabled } from '@/lib/core/config/feature-flags'
 import { createLogger } from '@/lib/logs/console/logger'
 
