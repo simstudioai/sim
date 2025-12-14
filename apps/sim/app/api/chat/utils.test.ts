@@ -44,6 +44,12 @@ vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn(),
 }))
 
+vi.mock('@/lib/core/config/feature-flags', () => ({
+  isDev: true,
+  isHosted: false,
+  isProd: false,
+}))
+
 describe('Chat API Utils', () => {
   beforeEach(() => {
     vi.doMock('@/lib/logs/console/logger', () => ({
@@ -62,11 +68,6 @@ describe('Chat API Utils', () => {
         NODE_ENV: 'development',
       },
     })
-
-    vi.doMock('@/lib/core/config/environment', () => ({
-      isDev: true,
-      isHosted: false,
-    }))
   })
 
   afterEach(() => {

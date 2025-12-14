@@ -243,6 +243,9 @@ export async function generateMetadata(props: {
   const baseUrl = 'https://docs.sim.ai'
   const fullUrl = `${baseUrl}${page.url}`
 
+  const description = page.data.description || ''
+  const ogImageUrl = `${baseUrl}/api/og?title=${encodeURIComponent(page.data.title)}&category=DOCUMENTATION${description ? `&description=${encodeURIComponent(description)}` : ''}`
+
   return {
     title: page.data.title,
     description:
@@ -272,12 +275,23 @@ export async function generateMetadata(props: {
       alternateLocale: ['en', 'es', 'fr', 'de', 'ja', 'zh']
         .filter((lang) => lang !== params.lang)
         .map((lang) => (lang === 'en' ? 'en_US' : `${lang}_${lang.toUpperCase()}`)),
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: page.data.title,
+        },
+      ],
     },
     twitter: {
-      card: 'summary',
+      card: 'summary_large_image',
       title: page.data.title,
       description:
         page.data.description || 'Sim visual workflow builder for AI applications documentation',
+      images: [ogImageUrl],
+      creator: '@simdotai',
+      site: '@simdotai',
     },
     robots: {
       index: true,

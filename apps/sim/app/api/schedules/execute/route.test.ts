@@ -42,11 +42,11 @@ describe('Scheduled Workflow Execution API Route', () => {
       executeScheduleJob: mockExecuteScheduleJob,
     }))
 
-    vi.doMock('@/lib/core/config/env', () => ({
-      env: {
-        TRIGGER_DEV_ENABLED: false,
-      },
-      isTruthy: vi.fn(() => false),
+    vi.doMock('@/lib/core/config/feature-flags', () => ({
+      isTriggerDevEnabled: false,
+      isHosted: false,
+      isProd: false,
+      isDev: true,
     }))
 
     vi.doMock('drizzle-orm', () => ({
@@ -119,11 +119,11 @@ describe('Scheduled Workflow Execution API Route', () => {
       },
     }))
 
-    vi.doMock('@/lib/core/config/env', () => ({
-      env: {
-        TRIGGER_DEV_ENABLED: true,
-      },
-      isTruthy: vi.fn(() => true),
+    vi.doMock('@/lib/core/config/feature-flags', () => ({
+      isTriggerDevEnabled: true,
+      isHosted: false,
+      isProd: false,
+      isDev: true,
     }))
 
     vi.doMock('drizzle-orm', () => ({
@@ -191,11 +191,11 @@ describe('Scheduled Workflow Execution API Route', () => {
       executeScheduleJob: vi.fn().mockResolvedValue(undefined),
     }))
 
-    vi.doMock('@/lib/core/config/env', () => ({
-      env: {
-        TRIGGER_DEV_ENABLED: false,
-      },
-      isTruthy: vi.fn(() => false),
+    vi.doMock('@/lib/core/config/feature-flags', () => ({
+      isTriggerDevEnabled: false,
+      isHosted: false,
+      isProd: false,
+      isDev: true,
     }))
 
     vi.doMock('drizzle-orm', () => ({
@@ -250,11 +250,11 @@ describe('Scheduled Workflow Execution API Route', () => {
       executeScheduleJob: vi.fn().mockResolvedValue(undefined),
     }))
 
-    vi.doMock('@/lib/core/config/env', () => ({
-      env: {
-        TRIGGER_DEV_ENABLED: false,
-      },
-      isTruthy: vi.fn(() => false),
+    vi.doMock('@/lib/core/config/feature-flags', () => ({
+      isTriggerDevEnabled: false,
+      isHosted: false,
+      isProd: false,
+      isDev: true,
     }))
 
     vi.doMock('drizzle-orm', () => ({

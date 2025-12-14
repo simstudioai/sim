@@ -15,6 +15,8 @@ export interface SelectorResolutionArgs {
   planId?: string
   teamId?: string
   knowledgeBaseId?: string
+  siteId?: string
+  collectionId?: string
 }
 
 const defaultContext: SelectorContext = {}
@@ -52,6 +54,8 @@ function buildBaseContext(
     planId: args.planId,
     teamId: args.teamId,
     knowledgeBaseId: args.knowledgeBaseId,
+    siteId: args.siteId,
+    collectionId: args.collectionId,
     ...extra,
   }
 }
@@ -106,6 +110,14 @@ function resolveFileSelector(
     }
     case 'sharepoint':
       return { key: 'sharepoint.sites', context, allowSearch: true }
+    case 'webflow':
+      if (subBlock.id === 'collectionId') {
+        return { key: 'webflow.collections', context, allowSearch: false }
+      }
+      if (subBlock.id === 'itemId') {
+        return { key: 'webflow.items', context, allowSearch: true }
+      }
+      return { key: null, context, allowSearch: true }
     default:
       return { key: null, context, allowSearch: true }
   }
@@ -159,6 +171,8 @@ function resolveProjectSelector(
     }
     case 'jira':
       return { key: 'jira.projects', context, allowSearch: true }
+    case 'webflow':
+      return { key: 'webflow.sites', context, allowSearch: false }
     default:
       return { key: null, context, allowSearch: true }
   }

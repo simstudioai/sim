@@ -39,9 +39,10 @@ Alle Elemente aus einer Webflow CMS-Sammlung auflisten
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
+| `siteId` | string | Ja | ID der Webflow-Website |
 | `collectionId` | string | Ja | ID der Sammlung |
-| `offset` | number | Nein | Offset für Paginierung \(optional\) |
-| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Elemente \(optional, Standard: 100\) |
+| `offset` | number | Nein | Offset für Paginierung (optional) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Elemente (optional, Standard: 100) |
 
 #### Ausgabe
 
@@ -58,6 +59,7 @@ Ein einzelnes Element aus einer Webflow CMS-Sammlung abrufen
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
+| `siteId` | string | Ja | ID der Webflow-Website |
 | `collectionId` | string | Ja | ID der Sammlung |
 | `itemId` | string | Ja | ID des abzurufenden Elements |
 
@@ -76,8 +78,9 @@ Ein neues Element in einer Webflow CMS-Sammlung erstellen
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
+| `siteId` | string | Ja | ID der Webflow-Website |
 | `collectionId` | string | Ja | ID der Sammlung |
-| `fieldData` | json | Ja | Felddaten für das neue Element als JSON-Objekt. Die Schlüssel sollten mit den Feldnamen der Sammlung übereinstimmen. |
+| `fieldData` | json | Ja | Felddaten für das neue Element als JSON-Objekt. Schlüssel sollten mit den Sammlungsfeldnamen übereinstimmen. |
 
 #### Ausgabe
 
@@ -94,6 +97,7 @@ Ein vorhandenes Element in einer Webflow CMS-Sammlung aktualisieren
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
+| `siteId` | string | Ja | ID der Webflow-Website |
 | `collectionId` | string | Ja | ID der Sammlung |
 | `itemId` | string | Ja | ID des zu aktualisierenden Elements |
 | `fieldData` | json | Ja | Zu aktualisierende Felddaten als JSON-Objekt. Nur Felder einschließen, die geändert werden sollen. |
@@ -113,6 +117,7 @@ Ein Element aus einer Webflow CMS-Sammlung löschen
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
+| `siteId` | string | Ja | ID der Webflow-Website |
 | `collectionId` | string | Ja | ID der Sammlung |
 | `itemId` | string | Ja | ID des zu löschenden Elements |
 

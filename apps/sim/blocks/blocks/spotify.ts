@@ -153,6 +153,14 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       value: () => 'spotify_search',
     },
 
+    {
+      id: 'credential',
+      title: 'Spotify Account',
+      type: 'oauth-input',
+      serviceId: 'spotify',
+      required: true,
+    },
+
     // === SEARCH ===
     {
       id: 'query',
@@ -646,15 +654,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
           'spotify_get_saved_audiobooks',
         ],
       },
-    },
-
-    // === OAUTH CREDENTIAL ===
-    {
-      id: 'credential',
-      title: 'Spotify Account',
-      type: 'oauth-input',
-      serviceId: 'spotify',
-      required: true,
     },
   ],
   tools: {

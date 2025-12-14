@@ -12,6 +12,9 @@
  * POST /api/v1/admin/organizations/[id]/members
  *
  * Add a user to an organization with full billing logic.
+ * Validates seat availability before adding (uses same logic as invitation flow):
+ *   - Team plans: checks seats column
+ *   - Enterprise plans: checks metadata.seats
  * Handles Pro usage snapshot and subscription cancellation like the invitation flow.
  * If user is already a member, updates their role if different.
  *
@@ -29,6 +32,7 @@ import { db } from '@sim/db'
 import { member, organization, user, userStats } from '@sim/db/schema'
 import { count, eq } from 'drizzle-orm'
 import { addUserToOrganization } from '@/lib/billing/organizations/membership'
+import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
@@ -221,6 +225,29 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
 
     if (!result.success) {
       return badRequestResponse(result.error || 'Failed to add member')
+    }
+
+    // Sync Pro subscription cancellation with Stripe (same as invitation flow)
+    if (result.billingActions.proSubscriptionToCancel?.stripeSubscriptionId) {
+      try {
+        const stripe = requireStripeClient()
+        await stripe.subscriptions.update(
+          result.billingActions.proSubscriptionToCancel.stripeSubscriptionId,
+          { cancel_at_period_end: true }
+        )
+        logger.info('Admin API: Synced Pro cancellation with Stripe', {
+          userId: body.userId,
+          subscriptionId: result.billingActions.proSubscriptionToCancel.subscriptionId,
+          stripeSubscriptionId: result.billingActions.proSubscriptionToCancel.stripeSubscriptionId,
+        })
+      } catch (stripeError) {
+        logger.error('Admin API: Failed to sync Pro cancellation with Stripe', {
+          userId: body.userId,
+          subscriptionId: result.billingActions.proSubscriptionToCancel.subscriptionId,
+          stripeSubscriptionId: result.billingActions.proSubscriptionToCancel.stripeSubscriptionId,
+          error: stripeError,
+        })
+      }
     }
 
     const data: AdminMember = {

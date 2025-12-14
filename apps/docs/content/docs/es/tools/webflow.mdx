@@ -39,6 +39,7 @@ Listar todos los elementos de una colección del CMS de Webflow
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
+| `siteId` | string | Sí | ID del sitio de Webflow |
 | `collectionId` | string | Sí | ID de la colección |
 | `offset` | number | No | Desplazamiento para paginación \(opcional\) |
 | `limit` | number | No | Número máximo de elementos a devolver \(opcional, predeterminado: 100\) |
@@ -58,6 +59,7 @@ Obtener un solo elemento de una colección del CMS de Webflow
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
+| `siteId` | string | Sí | ID del sitio de Webflow |
 | `collectionId` | string | Sí | ID de la colección |
 | `itemId` | string | Sí | ID del elemento a recuperar |
 
@@ -76,6 +78,7 @@ Crear un nuevo elemento en una colección del CMS de Webflow
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
+| `siteId` | string | Sí | ID del sitio de Webflow |
 | `collectionId` | string | Sí | ID de la colección |
 | `fieldData` | json | Sí | Datos de campo para el nuevo elemento como objeto JSON. Las claves deben coincidir con los nombres de campo de la colección. |
 
@@ -94,6 +97,7 @@ Actualizar un elemento existente en una colección CMS de Webflow
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
+| `siteId` | string | Sí | ID del sitio de Webflow |
 | `collectionId` | string | Sí | ID de la colección |
 | `itemId` | string | Sí | ID del elemento a actualizar |
 | `fieldData` | json | Sí | Datos de campo para actualizar como objeto JSON. Solo incluye los campos que quieres cambiar. |
@@ -113,6 +117,7 @@ Eliminar un elemento de una colección CMS de Webflow
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
+| `siteId` | string | Sí | ID del sitio de Webflow |
 | `collectionId` | string | Sí | ID de la colección |
 | `itemId` | string | Sí | ID del elemento a eliminar |
 

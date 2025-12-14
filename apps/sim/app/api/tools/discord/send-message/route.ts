@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { validateNumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
@@ -40,6 +41,17 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const validatedData = DiscordSendMessageSchema.parse(body)
+
+    const channelIdValidation = validateNumericId(validatedData.channelId, 'channelId')
+    if (!channelIdValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid channelId format`, {
+        error: channelIdValidation.error,
+      })
+      return NextResponse.json(
+        { success: false, error: channelIdValidation.error },
+        { status: 400 }
+      )
+    }
 
     logger.info(`[${requestId}] Sending Discord message`, {
       channelId: validatedData.channelId,

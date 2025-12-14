@@ -1,13 +1,18 @@
+import { createHash } from 'crypto'
 import { db } from '@sim/db'
 import { chat, workflow } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import type { NextRequest, NextResponse } from 'next/server'
-import { isDev } from '@/lib/core/config/environment'
+import { isDev } from '@/lib/core/config/feature-flags'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { createLogger } from '@/lib/logs/console/logger'
 import { hasAdminPermission } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('ChatAuthUtils')
+
+function hashPassword(encryptedPassword: string): string {
+  return createHash('sha256').update(encryptedPassword).digest('hex').substring(0, 8)
+}
 
 /**
  * Check if user has permission to create a chat for a specific workflow
@@ -77,14 +82,20 @@ export async function checkChatAccess(
   return { hasAccess: false }
 }
 
-const encryptAuthToken = (chatId: string, type: string): string => {
-  return Buffer.from(`${chatId}:${type}:${Date.now()}`).toString('base64')
+function encryptAuthToken(chatId: string, type: string, encryptedPassword?: string | null): string {
+  const pwHash = encryptedPassword ? hashPassword(encryptedPassword) : ''
+  return Buffer.from(`${chatId}:${type}:${Date.now()}:${pwHash}`).toString('base64')
 }
 
-export const validateAuthToken = (token: string, chatId: string): boolean => {
+export function validateAuthToken(
+  token: string,
+  chatId: string,
+  encryptedPassword?: string | null
+): boolean {
   try {
     const decoded = Buffer.from(token, 'base64').toString()
-    const [storedId, _type, timestamp] = decoded.split(':')
+    const parts = decoded.split(':')
+    const [storedId, _type, timestamp, storedPwHash] = parts
 
     if (storedId !== chatId) {
       return false
@@ -92,10 +103,17 @@ export const validateAuthToken = (token: string, chatId: string): boolean => {
 
     const createdAt = Number.parseInt(timestamp)
     const now = Date.now()
-    const expireTime = 24 * 60 * 60 * 1000 // 24 hours
+    const expireTime = 24 * 60 * 60 * 1000
 
     if (now - createdAt > expireTime) {
       return false
+    }
+
+    if (encryptedPassword) {
+      const currentPwHash = hashPassword(encryptedPassword)
+      if (storedPwHash !== currentPwHash) {
+        return false
+      }
     }
 
     return true
@@ -104,8 +122,13 @@ export const validateAuthToken = (token: string, chatId: string): boolean => {
   }
 }
 
-export const setChatAuthCookie = (response: NextResponse, chatId: string, type: string): void => {
-  const token = encryptAuthToken(chatId, type)
+export function setChatAuthCookie(
+  response: NextResponse,
+  chatId: string,
+  type: string,
+  encryptedPassword?: string | null
+): void {
+  const token = encryptAuthToken(chatId, type, encryptedPassword)
   response.cookies.set({
     name: `chat_auth_${chatId}`,
     value: token,
@@ -113,7 +136,7 @@ export const setChatAuthCookie = (response: NextResponse, chatId: string, type: 
     secure: !isDev,
     sameSite: 'lax',
     path: '/',
-    maxAge: 60 * 60 * 24, // 24 hours
+    maxAge: 60 * 60 * 24,
   })
 }
 
@@ -145,7 +168,7 @@ export async function validateChatAuth(
   const cookieName = `chat_auth_${deployment.id}`
   const authCookie = request.cookies.get(cookieName)
 
-  if (authCookie && validateAuthToken(authCookie.value, deployment.id)) {
+  if (authCookie && validateAuthToken(authCookie.value, deployment.id, deployment.password)) {
     return { authorized: true }
   }
 
@@ -259,8 +282,8 @@ export async function validateChatAuth(
         return { authorized: false, error: 'Email not authorized for SSO access' }
       }
 
-      const { auth } = await import('@/lib/auth')
-      const session = await auth.api.getSession({ headers: request.headers })
+      const { getSession } = await import('@/lib/auth')
+      const session = await getSession()
 
       if (!session || !session.user) {
         return { authorized: false, error: 'auth_required_sso' }

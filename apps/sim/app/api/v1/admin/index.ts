@@ -35,19 +35,18 @@
  *   GET    /api/v1/admin/organizations/:id                  - Get organization details
  *   PATCH  /api/v1/admin/organizations/:id                  - Update organization
  *   GET    /api/v1/admin/organizations/:id/members          - List organization members
- *   POST   /api/v1/admin/organizations/:id/members          - Add/update member in organization
+ *   POST   /api/v1/admin/organizations/:id/members          - Add/update member (validates seat availability)
  *   GET    /api/v1/admin/organizations/:id/members/:mid     - Get member details
  *   PATCH  /api/v1/admin/organizations/:id/members/:mid     - Update member role
  *   DELETE /api/v1/admin/organizations/:id/members/:mid     - Remove member
  *   GET    /api/v1/admin/organizations/:id/billing          - Get org billing summary
  *   PATCH  /api/v1/admin/organizations/:id/billing          - Update org usage limit
  *   GET    /api/v1/admin/organizations/:id/seats            - Get seat analytics
- *   PATCH  /api/v1/admin/organizations/:id/seats            - Update seat count
  *
  *   Subscriptions:
  *   GET    /api/v1/admin/subscriptions                      - List all subscriptions
  *   GET    /api/v1/admin/subscriptions/:id                  - Get subscription details
- *   PATCH  /api/v1/admin/subscriptions/:id                  - Update subscription
+ *   DELETE /api/v1/admin/subscriptions/:id                  - Cancel subscription (?atPeriodEnd=true for scheduled)
  */
 
 export type { AdminAuthFailure, AdminAuthResult, AdminAuthSuccess } from '@/app/api/v1/admin/auth'

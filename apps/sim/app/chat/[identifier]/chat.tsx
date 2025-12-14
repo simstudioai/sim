@@ -39,6 +39,7 @@ interface ChatConfig {
 
 interface AudioStreamingOptions {
   voiceId: string
+  chatId?: string
   onError: (error: Error) => void
 }
 
@@ -62,16 +63,19 @@ function fileToBase64(file: File): Promise<string> {
  * Creates an audio stream handler for text-to-speech conversion
  * @param streamTextToAudio - Function to stream text to audio
  * @param voiceId - The voice ID to use for TTS
+ * @param chatId - Optional chat ID for deployed chat authentication
  * @returns Audio stream handler function or undefined
  */
 function createAudioStreamHandler(
   streamTextToAudio: (text: string, options: AudioStreamingOptions) => Promise<void>,
-  voiceId: string
+  voiceId: string,
+  chatId?: string
 ) {
   return async (text: string) => {
     try {
       await streamTextToAudio(text, {
         voiceId,
+        chatId,
         onError: (error: Error) => {
           logger.error('Audio streaming error:', error)
         },
@@ -113,7 +117,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const [starCount, setStarCount] = useState('3.4k')
+  const [starCount, setStarCount] = useState('19.4k')
   const [conversationId, setConversationId] = useState('')
 
   const [showScrollButton, setShowScrollButton] = useState(false)
@@ -391,7 +395,11 @@ export default function ChatClient({ identifier }: { identifier: string }) {
       // Use the streaming hook with audio support
       const shouldPlayAudio = isVoiceInput || isVoiceFirstMode
       const audioHandler = shouldPlayAudio
-        ? createAudioStreamHandler(streamTextToAudio, DEFAULT_VOICE_SETTINGS.voiceId)
+        ? createAudioStreamHandler(
+            streamTextToAudio,
+            DEFAULT_VOICE_SETTINGS.voiceId,
+            chatConfig?.id
+          )
         : undefined
 
       logger.info('Starting to handle streamed response:', { shouldPlayAudio })
