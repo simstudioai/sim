@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -19,9 +20,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
     }
 
-    if (!collectionId) {
-      logger.error('Missing collectionId in request')
-      return NextResponse.json({ error: 'Collection ID is required' }, { status: 400 })
+    const collectionIdValidation = validateAlphanumericId(collectionId, 'collectionId')
+    if (!collectionIdValidation.isValid) {
+      logger.error('Invalid collectionId', { error: collectionIdValidation.error })
+      return NextResponse.json({ error: collectionIdValidation.error }, { status: 400 })
     }
 
     const authz = await authorizeCredentialUse(request as any, {

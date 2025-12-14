@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -19,9 +20,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
     }
 
-    if (!siteId) {
-      logger.error('Missing siteId in request')
-      return NextResponse.json({ error: 'Site ID is required' }, { status: 400 })
+    const siteIdValidation = validateAlphanumericId(siteId, 'siteId')
+    if (!siteIdValidation.isValid) {
+      logger.error('Invalid siteId', { error: siteIdValidation.error })
+      return NextResponse.json({ error: siteIdValidation.error }, { status: 400 })
     }
 
     const authz = await authorizeCredentialUse(request as any, {
