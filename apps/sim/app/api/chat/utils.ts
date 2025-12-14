@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { chat, workflow } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import type { NextRequest, NextResponse } from 'next/server'
-import { isDev } from '@/lib/core/config/environment'
+import { isDev } from '@/lib/core/config/feature-flags'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { createLogger } from '@/lib/logs/console/logger'
 import { hasAdminPermission } from '@/lib/workspaces/permissions/utils'
@@ -282,8 +282,8 @@ export async function validateChatAuth(
         return { authorized: false, error: 'Email not authorized for SSO access' }
       }
 
-      const { auth } = await import('@/lib/auth')
-      const session = await auth.api.getSession({ headers: request.headers })
+      const { getSession } = await import('@/lib/auth')
+      const session = await getSession()
 
       if (!session || !session.user) {
         return { authorized: false, error: 'auth_required_sso' }

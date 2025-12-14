@@ -15,7 +15,7 @@ import {
   maybeSendUsageThresholdEmail,
 } from '@/lib/billing/core/usage'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
-import { isBillingEnabled } from '@/lib/core/config/environment'
+import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { filterForDisplay } from '@/lib/core/utils/display-filters'
 import { createLogger } from '@/lib/logs/console/logger'

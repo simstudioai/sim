@@ -1,6 +1,6 @@
 import { createContext, Script } from 'vm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { env, isTruthy } from '@/lib/core/config/env'
+import { isE2bEnabled } from '@/lib/core/config/feature-flags'
 import { validateProxyUrl } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { executeInE2B } from '@/lib/execution/e2b'
@@ -701,7 +701,6 @@ export async function POST(req: NextRequest) {
     resolvedCode = codeResolution.resolvedCode
     const contextVariables = codeResolution.contextVariables
 
-    const e2bEnabled = isTruthy(env.E2B_ENABLED)
     const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
 
     // Extract imports once for JavaScript code (reuse later to avoid double extraction)
@@ -722,14 +721,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Python always requires E2B
-    if (lang === CodeLanguage.Python && !e2bEnabled) {
+    if (lang === CodeLanguage.Python && !isE2bEnabled) {
       throw new Error(
         'Python execution requires E2B to be enabled. Please contact your administrator to enable E2B, or use JavaScript instead.'
       )
     }
 
     // JavaScript with imports requires E2B
-    if (lang === CodeLanguage.JavaScript && hasImports && !e2bEnabled) {
+    if (lang === CodeLanguage.JavaScript && hasImports && !isE2bEnabled) {
       throw new Error(
         'JavaScript code with import statements requires E2B to be enabled. Please remove the import statements, or contact your administrator to enable E2B.'
       )
@@ -740,13 +739,13 @@ export async function POST(req: NextRequest) {
     // - Not a custom tool AND
     // - (Python OR JavaScript with imports)
     const useE2B =
-      e2bEnabled &&
+      isE2bEnabled &&
       !isCustomTool &&
       (lang === CodeLanguage.Python || (lang === CodeLanguage.JavaScript && hasImports))
 
     if (useE2B) {
       logger.info(`[${requestId}] E2B status`, {
-        enabled: e2bEnabled,
+        enabled: isE2bEnabled,
         hasApiKey: Boolean(process.env.E2B_API_KEY),
         language: lang,
       })

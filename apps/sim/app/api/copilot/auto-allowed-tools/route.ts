@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { settings } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CopilotAutoAllowedToolsAPI')
@@ -10,9 +10,9 @@ const logger = createLogger('CopilotAutoAllowedToolsAPI')
 /**
  * GET - Fetch user's auto-allowed integration tools
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const session = await auth.api.getSession({ headers: request.headers })
+    const session = await getSession()
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -31,7 +31,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ autoAllowedTools })
     }
 
-    // If no settings record exists, create one with empty array
     await db.insert(settings).values({
       id: userId,
       userId,
@@ -50,7 +49,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: request.headers })
+    const session = await getSession()
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -65,13 +64,11 @@ export async function POST(request: NextRequest) {
 
     const toolId = body.toolId
 
-    // Get existing settings
     const [existing] = await db.select().from(settings).where(eq(settings.userId, userId)).limit(1)
 
     if (existing) {
       const currentTools = (existing.copilotAutoAllowedTools as string[]) || []
 
-      // Add tool if not already present
       if (!currentTools.includes(toolId)) {
         const updatedTools = [...currentTools, toolId]
         await db
@@ -89,7 +86,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, autoAllowedTools: currentTools })
     }
 
-    // Create new settings record with the tool
     await db.insert(settings).values({
       id: userId,
       userId,
@@ -109,7 +105,7 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: request.headers })
+    const session = await getSession()
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -123,7 +119,6 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'toolId query parameter is required' }, { status: 400 })
     }
 
-    // Get existing settings
     const [existing] = await db.select().from(settings).where(eq(settings.userId, userId)).limit(1)
 
     if (existing) {

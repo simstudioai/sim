@@ -1,10 +1,14 @@
 import type { Socket } from 'socket.io'
 import { auth } from '@/lib/auth'
+import { ANONYMOUS_USER, ANONYMOUS_USER_ID } from '@/lib/auth/constants'
+import { isAuthDisabled } from '@/lib/core/config/feature-flags'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('SocketAuth')
 
-// Extend Socket interface to include user data
+/**
+ * Authenticated socket with user data attached.
+ */
 export interface AuthenticatedSocket extends Socket {
   userId?: string
   userName?: string
@@ -13,9 +17,21 @@ export interface AuthenticatedSocket extends Socket {
   userImage?: string | null
 }
 
-// Enhanced authentication middleware
+/**
+ * Socket.IO authentication middleware.
+ * Handles both anonymous mode (DISABLE_AUTH=true) and normal token-based auth.
+ */
 export async function authenticateSocket(socket: AuthenticatedSocket, next: any) {
   try {
+    if (isAuthDisabled) {
+      socket.userId = ANONYMOUS_USER_ID
+      socket.userName = ANONYMOUS_USER.name
+      socket.userEmail = ANONYMOUS_USER.email
+      socket.userImage = ANONYMOUS_USER.image
+      logger.debug(`Socket ${socket.id} authenticated as anonymous`)
+      return next()
+    }
+
     // Extract authentication data from socket handshake
     const token = socket.handshake.auth?.token
     const origin = socket.handshake.headers.origin

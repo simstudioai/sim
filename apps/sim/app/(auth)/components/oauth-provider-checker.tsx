@@ -1,7 +1,7 @@
 'use server'
 
 import { env } from '@/lib/core/config/env'
-import { isProd } from '@/lib/core/config/environment'
+import { isProd } from '@/lib/core/config/feature-flags'
 
 export async function getOAuthProviderStatus() {
   const githubAvailable = !!(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET)

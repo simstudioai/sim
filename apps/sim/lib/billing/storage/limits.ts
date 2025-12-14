@@ -13,7 +13,7 @@ import {
 import { organization, subscription, userStats } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { getEnv } from '@/lib/core/config/env'
-import { isBillingEnabled } from '@/lib/core/config/environment'
+import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('StorageLimits')

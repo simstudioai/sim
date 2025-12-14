@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
-import { isBillingEnabled } from '@/lib/core/config/environment'
+import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('OrganizationSeatsAPI')
