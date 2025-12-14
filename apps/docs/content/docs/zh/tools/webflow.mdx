@@ -38,9 +38,10 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | Webflow 网站的 ID |
 | `collectionId` | string | 是 | 集合的 ID |
-| `offset` | number | 否 | 分页偏移量（可选） |
-| `limit` | number | 否 | 返回的最大项目数（可选，默认值：100） |
+| `offset` | number | 否 | 分页的偏移量（可选） |
+| `limit` | number | 否 | 要返回的最大项目数（可选，默认值：100） |
 
 #### 输出
 
@@ -57,8 +58,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | Webflow 网站的 ID |
 | `collectionId` | string | 是 | 集合的 ID |
-| `itemId` | string | 是 | 要检索的项目 ID |
+| `itemId` | string | 是 | 要检索项目的 ID |
 
 #### 输出
 
@@ -75,8 +77,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | Webflow 网站的 ID |
 | `collectionId` | string | 是 | 集合的 ID |
-| `fieldData` | json | 是 | 新项目的字段数据，格式为 JSON 对象。键名应与集合字段名称匹配。 |
+| `fieldData` | json | 是 | 新项目的字段数据，格式为 JSON 对象。键名应与集合字段名匹配。 |
 
 #### 输出
 
@@ -93,9 +96,10 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | Webflow 网站的 ID |
 | `collectionId` | string | 是 | 集合的 ID |
 | `itemId` | string | 是 | 要更新项目的 ID |
-| `fieldData` | json | 是 | 要更新的字段数据，格式为 JSON 对象。仅包含您想更改的字段。 |
+| `fieldData` | json | 是 | 要更新的字段数据，格式为 JSON 对象。仅包含需要更改的字段。 |
 
 #### 输出
 
@@ -112,6 +116,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
+| `siteId` | string | 是 | Webflow 网站的 ID |
 | `collectionId` | string | 是 | 集合的 ID |
 | `itemId` | string | 是 | 要删除项目的 ID |
 

@@ -38,7 +38,8 @@ Lister tous les éléments d'une collection CMS Webflow
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
+| `siteId` | string | Oui | ID du site Webflow |
 | `collectionId` | string | Oui | ID de la collection |
 | `offset` | number | Non | Décalage pour la pagination \(facultatif\) |
 | `limit` | number | Non | Nombre maximum d'éléments à retourner \(facultatif, par défaut : 100\) |
@@ -57,7 +58,8 @@ Obtenir un seul élément d'une collection CMS Webflow
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
+| `siteId` | string | Oui | ID du site Webflow |
 | `collectionId` | string | Oui | ID de la collection |
 | `itemId` | string | Oui | ID de l'élément à récupérer |
 
@@ -76,8 +78,9 @@ Créer un nouvel élément dans une collection CMS Webflow
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
+| `siteId` | string | Oui | ID du site Webflow |
 | `collectionId` | string | Oui | ID de la collection |
-| `fieldData` | json | Oui | Données de champ pour le nouvel élément sous forme d'objet JSON. Les clés doivent correspondre aux noms des champs de la collection. |
+| `fieldData` | json | Oui | Données des champs pour le nouvel élément sous forme d'objet JSON. Les clés doivent correspondre aux noms des champs de la collection. |
 
 #### Sortie
 
@@ -94,9 +97,10 @@ Mettre à jour un élément existant dans une collection CMS Webflow
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
+| `siteId` | string | Oui | ID du site Webflow |
 | `collectionId` | string | Oui | ID de la collection |
 | `itemId` | string | Oui | ID de l'élément à mettre à jour |
-| `fieldData` | json | Oui | Données de champ à mettre à jour sous forme d'objet JSON. N'incluez que les champs que vous souhaitez modifier. |
+| `fieldData` | json | Oui | Données des champs à mettre à jour sous forme d'objet JSON. N'incluez que les champs que vous souhaitez modifier. |
 
 #### Sortie
 
@@ -113,6 +117,7 @@ Supprimer un élément d'une collection CMS Webflow
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
+| `siteId` | string | Oui | ID du site Webflow |
 | `collectionId` | string | Oui | ID de la collection |
 | `itemId` | string | Oui | ID de l'élément à supprimer |
 
