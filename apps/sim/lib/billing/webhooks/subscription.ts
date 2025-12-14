@@ -291,6 +291,14 @@ export async function handleSubscriptionDeleted(subscription: {
         await syncUsageLimitsFromSubscription(m.userId)
       }
       membersSynced = memberUserIds.length
+    } else if (subscription.plan === 'pro') {
+      await syncUsageLimitsFromSubscription(subscription.referenceId)
+      membersSynced = 1
+
+      logger.info('Synced usage limits for cancelled Pro subscription', {
+        userId: subscription.referenceId,
+        subscriptionId: subscription.id,
+      })
     }
 
     // Note: better-auth's Stripe plugin already updates status to 'canceled' before calling this handler
