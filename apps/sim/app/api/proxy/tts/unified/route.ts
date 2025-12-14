@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
 import { StorageService } from '@/lib/uploads'
@@ -146,6 +147,10 @@ export async function POST(request: NextRequest) {
             { error: 'voiceId is required for ElevenLabs provider' },
             { status: 400 }
           )
+        }
+        const voiceIdValidation = validateAlphanumericId(body.voiceId, 'voiceId')
+        if (!voiceIdValidation.isValid) {
+          return NextResponse.json({ error: voiceIdValidation.error }, { status: 400 })
         }
         const result = await synthesizeWithElevenLabs({
           text,
