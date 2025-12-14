@@ -11,6 +11,7 @@ import type {
 import {
   prepareToolExecution,
   prepareToolsWithUsageControl,
+  sanitizeMessagesForProvider,
   trackForcedToolUsage,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
@@ -93,8 +94,10 @@ export const openRouterProvider: ProviderConfig = {
       allMessages.push({ role: 'user', content: request.context })
     }
 
+    // Sanitize messages to ensure proper tool call/result pairing
     if (request.messages) {
-      allMessages.push(...request.messages)
+      const sanitizedMessages = sanitizeMessagesForProvider(request.messages)
+      allMessages.push(...sanitizedMessages)
     }
 
     const tools = request.tools?.length
@@ -303,8 +306,10 @@ export const openRouterProvider: ProviderConfig = {
             }
 
             toolCalls.push({
+              id: toolCall.id,
               name: toolName,
               arguments: toolParams,
+              rawArguments: toolCall.function.arguments,
               startTime: new Date(toolCallStartTime).toISOString(),
               endTime: new Date(toolCallEndTime).toISOString(),
               duration: toolCallDuration,

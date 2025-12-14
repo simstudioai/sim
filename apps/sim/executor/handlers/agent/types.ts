@@ -37,10 +37,22 @@ export interface ToolInput {
 }
 
 export interface Message {
-  role: 'system' | 'user' | 'assistant'
-  content: string
+  role: 'system' | 'user' | 'assistant' | 'tool'
+  content: string | null
   function_call?: any
-  tool_calls?: any[]
+  tool_calls?: ToolCallMessage[]
+  tool_call_id?: string
+  /** Tool name for tool role messages (used by providers like Google/Gemini) */
+  name?: string
+}
+
+export interface ToolCallMessage {
+  id: string
+  type: 'function'
+  function: {
+    name: string
+    arguments: string
+  }
 }
 
 export interface StreamingConfig {

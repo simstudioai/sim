@@ -10,6 +10,7 @@ import type {
 import {
   prepareToolExecution,
   prepareToolsWithUsageControl,
+  sanitizeMessagesForProvider,
   trackForcedToolUsage,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
@@ -552,9 +553,14 @@ export const googleProvider: ProviderConfig = {
                 }
               }
 
+              // Generate a unique ID for this tool call (Google doesn't provide one)
+              const toolCallId = `call_${toolName}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+
               toolCalls.push({
+                id: toolCallId,
                 name: toolName,
                 arguments: toolParams,
+                rawArguments: JSON.stringify(toolArgs),
                 startTime: new Date(toolCallStartTime).toISOString(),
                 endTime: new Date(toolCallEndTime).toISOString(),
                 duration: toolCallDuration,
@@ -1087,9 +1093,10 @@ function convertToGeminiFormat(request: ProviderRequest): {
     contents.push({ role: 'user', parts: [{ text: request.context }] })
   }
 
-  // Process messages
+  // Process messages (sanitized to ensure proper tool call/result pairing)
   if (request.messages && request.messages.length > 0) {
-    for (const message of request.messages) {
+    const sanitizedMessages = sanitizeMessagesForProvider(request.messages)
+    for (const message of sanitizedMessages) {
       if (message.role === 'system') {
         // Add to system instruction
         if (!systemInstruction) {
@@ -1119,10 +1126,27 @@ function convertToGeminiFormat(request: ProviderRequest): {
           contents.push({ role: 'model', parts: functionCalls })
         }
       } else if (message.role === 'tool') {
-        // Convert tool response (Gemini only accepts user/model roles)
+        // Convert tool response to Gemini's functionResponse format
+        // Gemini uses 'user' role for function responses
+        const functionName = (message as any).name || 'function'
+        
+        let responseData: any
+        try {
+          responseData = typeof message.content === 'string' 
+            ? JSON.parse(message.content) 
+            : message.content
+        } catch {
+          responseData = { result: message.content }
+        }
+
         contents.push({
           role: 'user',
-          parts: [{ text: `Function result: ${message.content}` }],
+          parts: [{
+            functionResponse: {
+              name: functionName,
+              response: responseData,
+            },
+          }],
         })
       }
     }

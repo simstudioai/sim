@@ -81,6 +81,10 @@ export function VoiceInterface({
   const isCallEndedRef = useRef(false)
 
   useEffect(() => {
+    isCallEndedRef.current = false
+  }, [])
+
+  useEffect(() => {
     currentStateRef.current = state
   }, [state])
 
@@ -119,6 +123,8 @@ export function VoiceInterface({
   }, [])
 
   useEffect(() => {
+    if (isCallEndedRef.current) return
+
     if (isPlayingAudio && state !== 'agent_speaking') {
       clearResponseTimeout()
       setState('agent_speaking')
@@ -139,6 +145,9 @@ export function VoiceInterface({
         }
       }
     } else if (!isPlayingAudio && state === 'agent_speaking') {
+      // Don't unmute/restart if call has ended
+      if (isCallEndedRef.current) return
+
       setState('idle')
       setCurrentTranscript('')
 
@@ -226,6 +235,8 @@ export function VoiceInterface({
     recognition.onstart = () => {}
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
+      if (isCallEndedRef.current) return
+
       const currentState = currentStateRef.current
 
       if (isMutedRef.current || currentState !== 'listening') {
@@ -303,6 +314,8 @@ export function VoiceInterface({
   }, [isSupported, onVoiceTranscript, setResponseTimeout])
 
   const startListening = useCallback(() => {
+    if (isCallEndedRef.current) return
+
     if (!isInitialized || isMuted || state !== 'idle') {
       return
     }
@@ -320,6 +333,9 @@ export function VoiceInterface({
   }, [isInitialized, isMuted, state])
 
   const stopListening = useCallback(() => {
+    // Don't process if call has ended
+    if (isCallEndedRef.current) return
+
     setState('idle')
     setCurrentTranscript('')
 
@@ -333,12 +349,15 @@ export function VoiceInterface({
   }, [])
 
   const handleInterrupt = useCallback(() => {
+    if (isCallEndedRef.current) return
+
     if (state === 'agent_speaking') {
       onInterrupt?.()
       setState('listening')
       setCurrentTranscript('')
 
       setIsMuted(false)
+      isMutedRef.current = false
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getAudioTracks().forEach((track) => {
           track.enabled = true
@@ -356,11 +375,22 @@ export function VoiceInterface({
   }, [state, onInterrupt])
 
   const handleCallEnd = useCallback(() => {
+    // Mark call as ended FIRST to prevent any effects from restarting recognition
     isCallEndedRef.current = true
+
+    // Set muted to true to prevent auto-start effect from triggering
+    setIsMuted(true)
+    isMutedRef.current = true
 
     setState('idle')
     setCurrentTranscript('')
-    setIsMuted(false)
+
+    // Immediately disable audio tracks to stop listening
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getAudioTracks().forEach((track) => {
+        track.enabled = false
+      })
+    }
 
     if (recognitionRef.current) {
       try {
@@ -377,6 +407,8 @@ export function VoiceInterface({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (isCallEndedRef.current) return
+
       if (event.code === 'Space') {
         event.preventDefault()
         handleInterrupt()
@@ -388,6 +420,8 @@ export function VoiceInterface({
   }, [handleInterrupt])
 
   const toggleMute = useCallback(() => {
+    if (isCallEndedRef.current) return
+
     if (state === 'agent_speaking') {
       handleInterrupt()
       return
@@ -395,6 +429,7 @@ export function VoiceInterface({
 
     const newMutedState = !isMuted
     setIsMuted(newMutedState)
+    isMutedRef.current = newMutedState
 
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getAudioTracks().forEach((track) => {
@@ -417,6 +452,8 @@ export function VoiceInterface({
   }, [isSupported, setupSpeechRecognition, setupAudio])
 
   useEffect(() => {
+    if (isCallEndedRef.current) return
+
     if (isInitialized && !isMuted && state === 'idle') {
       startListening()
     }

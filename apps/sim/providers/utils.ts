@@ -1049,3 +1049,96 @@ export function prepareToolExecution(
 
   return { toolParams, executionParams }
 }
+
+/**
+ * Sanitizes messages array to ensure proper tool call/result pairing
+ * This prevents provider errors like "tool_result without corresponding tool_use"
+ *
+ * Rules enforced:
+ * 1. Every tool message must have a matching tool_calls message before it
+ * 2. Every tool_calls in an assistant message should have corresponding tool results
+ * 3. Messages maintain their original order
+ */
+export function sanitizeMessagesForProvider(
+  messages: Array<{
+    role: string
+    content?: string | null
+    tool_calls?: Array<{ id: string; [key: string]: any }>
+    tool_call_id?: string
+    [key: string]: any
+  }>
+): typeof messages {
+  if (!messages || messages.length === 0) {
+    return messages
+  }
+
+  // Build a map of tool_call IDs to their positions
+  const toolCallIdToIndex = new Map<string, number>()
+  const toolResultIds = new Set<string>()
+
+  // First pass: collect all tool_call IDs and tool result IDs
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i]
+
+    if (msg.tool_calls && Array.isArray(msg.tool_calls)) {
+      for (const tc of msg.tool_calls) {
+        if (tc.id) {
+          toolCallIdToIndex.set(tc.id, i)
+        }
+      }
+    }
+
+    if (msg.role === 'tool' && msg.tool_call_id) {
+      toolResultIds.add(msg.tool_call_id)
+    }
+  }
+
+  // Second pass: filter messages
+  const result: typeof messages = []
+
+  for (const msg of messages) {
+    // For tool messages: only include if there's a matching tool_calls before it
+    if (msg.role === 'tool') {
+      const toolCallId = msg.tool_call_id
+      if (toolCallId && toolCallIdToIndex.has(toolCallId)) {
+        result.push(msg)
+      } else {
+        logger.debug('Removing orphaned tool message', { toolCallId })
+      }
+      continue
+    }
+
+    // For assistant messages with tool_calls: only include tool_calls that have results
+    if (msg.role === 'assistant' && msg.tool_calls && Array.isArray(msg.tool_calls)) {
+      const validToolCalls = msg.tool_calls.filter((tc) => tc.id && toolResultIds.has(tc.id))
+
+      if (validToolCalls.length === 0) {
+        // No valid tool calls - if there's content, keep as regular message
+        if (msg.content) {
+          const { tool_calls, ...msgWithoutToolCalls } = msg
+          result.push(msgWithoutToolCalls)
+        } else {
+          logger.debug('Removing assistant message with orphaned tool_calls', {
+            toolCallIds: msg.tool_calls.map((tc) => tc.id),
+          })
+        }
+      } else if (validToolCalls.length === msg.tool_calls.length) {
+        // All tool calls are valid
+        result.push(msg)
+      } else {
+        // Some tool calls are orphaned - keep only valid ones
+        result.push({ ...msg, tool_calls: validToolCalls })
+        logger.debug('Filtered orphaned tool_calls from message', {
+          original: msg.tool_calls.length,
+          kept: validToolCalls.length,
+        })
+      }
+      continue
+    }
+
+    // All other messages pass through
+    result.push(msg)
+  }
+
+  return result
+}

@@ -9,7 +9,7 @@ import type {
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
-import { prepareToolExecution } from '@/providers/utils'
+import { prepareToolExecution, sanitizeMessagesForProvider } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 import { executeTool } from '@/tools'
 
@@ -126,9 +126,10 @@ export const ollamaProvider: ProviderConfig = {
       })
     }
 
-    // Add remaining messages
+    // Add remaining messages (sanitized to ensure proper tool call/result pairing)
     if (request.messages) {
-      allMessages.push(...request.messages)
+      const sanitizedMessages = sanitizeMessagesForProvider(request.messages)
+      allMessages.push(...sanitizedMessages)
     }
 
     // Transform tools to OpenAI format if provided
@@ -407,8 +408,10 @@ export const ollamaProvider: ProviderConfig = {
             }
 
             toolCalls.push({
+              id: toolCall.id,
               name: toolName,
               arguments: toolParams,
+              rawArguments: toolCall.function.arguments,
               startTime: new Date(toolCallStartTime).toISOString(),
               endTime: new Date(toolCallEndTime).toISOString(),
               duration: toolCallDuration,
