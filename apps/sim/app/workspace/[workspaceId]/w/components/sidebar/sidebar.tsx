@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, Database, HelpCircle, Layout, Plus, Search, Settings } from 'lucide-react'
+import { ArrowDown, Database, HelpCircle, Layout, Plus, Search, Settings, Sun, Moon } from 'lucide-react'
+import { useTheme } from 'next-themes'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { Button, FolderPlus, Library, Tooltip } from '@/components/emcn'
@@ -59,6 +60,7 @@ export function Sidebar() {
   const workflowId = params.workflowId as string | undefined
   const router = useRouter()
   const pathname = usePathname()
+  const { theme, setTheme } = useTheme()
 
   const sidebarRef = useRef<HTMLElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -219,8 +221,14 @@ export function Sidebar() {
         icon: Settings,
         onClick: () => setIsSettingsModalOpen(true),
       },
+      {
+        id: 'theme',
+        label: theme === 'light' ? 'Dark Mode' : 'Light Mode',
+        icon: theme === 'light' ? Moon : Sun,
+        onClick: () => setTheme(theme === 'light' ? 'dark' : 'light'),
+      },
     ],
-    [workspaceId]
+    [workspaceId, theme]
   )
 
   const isLoading = workflowsLoading || sessionLoading
