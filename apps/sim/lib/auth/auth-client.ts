@@ -42,7 +42,9 @@ export function useSession(): SessionHookResult {
   return ctx
 }
 
-export const { useActiveOrganization } = client
+export const useActiveOrganization = isBillingEnabled
+  ? client.useActiveOrganization
+  : () => ({ data: undefined, isPending: false, error: null })
 
 export const useSubscription = () => {
   return {
