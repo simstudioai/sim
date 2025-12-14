@@ -25,9 +25,9 @@ export const client = createAuthClient({
           stripeClient({
             subscription: true, // Enable subscription management
           }),
+          organizationClient(),
         ]
       : []),
-    organizationClient(),
     ...(env.NEXT_PUBLIC_SSO_ENABLED ? [ssoClient()] : []),
   ],
 })
@@ -42,7 +42,9 @@ export function useSession(): SessionHookResult {
   return ctx
 }
 
-export const { useActiveOrganization } = client
+export const useActiveOrganization = isBillingEnabled
+  ? client.useActiveOrganization
+  : () => ({ data: undefined, isPending: false, error: null })
 
 export const useSubscription = () => {
   return {
