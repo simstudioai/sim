@@ -25,9 +25,9 @@ export const client = createAuthClient({
           stripeClient({
             subscription: true, // Enable subscription management
           }),
+          organizationClient(),
         ]
       : []),
-    organizationClient(),
     ...(env.NEXT_PUBLIC_SSO_ENABLED ? [ssoClient()] : []),
   ],
 })
