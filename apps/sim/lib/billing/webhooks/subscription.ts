@@ -51,6 +51,34 @@ async function restoreMemberProSubscriptions(organizationId: string): Promise<nu
 }
 
 /**
+ * Cleanup organization when team/enterprise subscription is deleted.
+ * - Restores member Pro subscriptions
+ * - Deletes the organization
+ * - Syncs usage limits for former members (resets to free or Pro tier)
+ */
+async function cleanupOrganizationSubscription(organizationId: string): Promise<{
+  restoredProCount: number
+  membersSynced: number
+}> {
+  // Get member userIds before deletion (needed for limit syncing after org deletion)
+  const memberUserIds = await db
+    .select({ userId: member.userId })
+    .from(member)
+    .where(eq(member.organizationId, organizationId))
+
+  const restoredProCount = await restoreMemberProSubscriptions(organizationId)
+
+  await db.delete(organization).where(eq(organization.id, organizationId))
+
+  // Sync usage limits for former members (now free or Pro tier)
+  for (const m of memberUserIds) {
+    await syncUsageLimitsFromSubscription(m.userId)
+  }
+
+  return { restoredProCount, membersSynced: memberUserIds.length }
+}
+
+/**
  * Handle new subscription creation - reset usage if transitioning from free to paid
  */
 export async function handleSubscriptionCreated(subscriptionData: {
@@ -137,33 +165,23 @@ export async function handleSubscriptionDeleted(subscription: {
     const totalOverage = await calculateSubscriptionOverage(subscription)
     const stripe = requireStripeClient()
 
-    // Enterprise plans have no overages - reset usage, restore Pro, sync limits, delete org
+    // Enterprise plans have no overages - reset usage and cleanup org
     if (subscription.plan === 'enterprise') {
-      // Get member userIds before any changes (needed for limit syncing after org deletion)
-      const memberUserIds = await db
-        .select({ userId: member.userId })
-        .from(member)
-        .where(eq(member.organizationId, subscription.referenceId))
-
       await resetUsageForSubscription({
         plan: subscription.plan,
         referenceId: subscription.referenceId,
       })
-      const restoredProCount = await restoreMemberProSubscriptions(subscription.referenceId)
 
-      await db.delete(organization).where(eq(organization.id, subscription.referenceId))
-
-      // Sync usage limits for former members (now free or Pro tier)
-      for (const m of memberUserIds) {
-        await syncUsageLimitsFromSubscription(m.userId)
-      }
+      const { restoredProCount, membersSynced } = await cleanupOrganizationSubscription(
+        subscription.referenceId
+      )
 
       logger.info('Successfully processed enterprise subscription cancellation', {
         subscriptionId: subscription.id,
         stripeSubscriptionId,
         restoredProCount,
         organizationDeleted: true,
-        membersSynced: memberUserIds.length,
+        membersSynced,
       })
       return
     }
@@ -270,35 +288,19 @@ export async function handleSubscriptionDeleted(subscription: {
       referenceId: subscription.referenceId,
     })
 
-    // For team: restore member Pro subscriptions, sync limits, delete organization
+    // Plan-specific cleanup after billing
     let restoredProCount = 0
     let organizationDeleted = false
     let membersSynced = 0
+
     if (subscription.plan === 'team') {
-      // Get member userIds before deletion (needed for limit syncing)
-      const memberUserIds = await db
-        .select({ userId: member.userId })
-        .from(member)
-        .where(eq(member.organizationId, subscription.referenceId))
-
-      restoredProCount = await restoreMemberProSubscriptions(subscription.referenceId)
-
-      await db.delete(organization).where(eq(organization.id, subscription.referenceId))
+      const cleanup = await cleanupOrganizationSubscription(subscription.referenceId)
+      restoredProCount = cleanup.restoredProCount
+      membersSynced = cleanup.membersSynced
       organizationDeleted = true
-
-      // Sync usage limits for former members (now free or Pro tier)
-      for (const m of memberUserIds) {
-        await syncUsageLimitsFromSubscription(m.userId)
-      }
-      membersSynced = memberUserIds.length
     } else if (subscription.plan === 'pro') {
       await syncUsageLimitsFromSubscription(subscription.referenceId)
       membersSynced = 1
-
-      logger.info('Synced usage limits for cancelled Pro subscription', {
-        userId: subscription.referenceId,
-        subscriptionId: subscription.id,
-      })
     }
 
     // Note: better-auth's Stripe plugin already updates status to 'canceled' before calling this handler
@@ -307,6 +309,7 @@ export async function handleSubscriptionDeleted(subscription: {
     logger.info('Successfully processed subscription cancellation', {
       subscriptionId: subscription.id,
       stripeSubscriptionId,
+      plan: subscription.plan,
       totalOverage,
       restoredProCount,
       organizationDeleted,
