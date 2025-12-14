@@ -579,8 +579,10 @@ const WorkflowContent = React.memo(() => {
           const node = nodeIndex.get(id)
           if (!node) return false
 
-          // If dropping outside containers, ignore blocks that are inside a container
-          if (!containerAtPoint && blocks[id]?.data?.parentId) return false
+          const blockParentId = blocks[id]?.data?.parentId
+          const dropParentId = containerAtPoint?.loopId
+          if (dropParentId !== blockParentId) return false
+
           return true
         })
         .map(([id, block]) => {
