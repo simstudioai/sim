@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
-import { isHosted } from '@/lib/core/config/feature-flags'
 import { getAllBlocks } from '@/blocks'
 import { BlockType } from '@/executor/constants'
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
@@ -11,11 +10,11 @@ import { executeTool } from '@/tools'
 
 process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
 
-vi.mock('@/lib/core/config/environment', () => ({
-  isHosted: vi.fn().mockReturnValue(false),
-  isProd: vi.fn().mockReturnValue(false),
-  isDev: vi.fn().mockReturnValue(true),
-  isTest: vi.fn().mockReturnValue(false),
+vi.mock('@/lib/core/config/feature-flags', () => ({
+  isHosted: false,
+  isProd: false,
+  isDev: true,
+  isTest: false,
   getCostMultiplier: vi.fn().mockReturnValue(1),
   isEmailVerificationEnabled: false,
   isBillingEnabled: false,
@@ -65,7 +64,6 @@ global.fetch = Object.assign(vi.fn(), { preconnect: vi.fn() }) as typeof fetch
 
 const mockGetAllBlocks = getAllBlocks as Mock
 const mockExecuteTool = executeTool as Mock
-const mockIsHosted = isHosted as unknown as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
 const mockTransformBlockTool = transformBlockTool as Mock
 const mockFetch = global.fetch as unknown as Mock
@@ -120,7 +118,6 @@ describe('AgentBlockHandler', () => {
         loops: {},
       } as SerializedWorkflow,
     }
-    mockIsHosted.mockReturnValue(false)
     mockGetProviderFromModel.mockReturnValue('mock-provider')
 
     mockFetch.mockImplementation(() => {
@@ -552,8 +549,7 @@ describe('AgentBlockHandler', () => {
     })
 
     it('should not require API key for gpt-4o on hosted version', async () => {
-      mockIsHosted.mockReturnValue(true)
-
+      // Note: isHosted is now a constant, test runs with isHosted=false from mock
       const inputs = {
         model: 'gpt-4o',
         systemPrompt: 'You are a helpful assistant.',

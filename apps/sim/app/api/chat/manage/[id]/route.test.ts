@@ -6,6 +6,12 @@ import { NextRequest } from 'next/server'
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/lib/core/config/feature-flags', () => ({
+  isDev: true,
+  isHosted: false,
+  isProd: false,
+}))
+
 describe('Chat Edit API Route', () => {
   const mockSelect = vi.fn()
   const mockFrom = vi.fn()
@@ -24,7 +30,6 @@ describe('Chat Edit API Route', () => {
   beforeEach(() => {
     vi.resetModules()
 
-    // Set default return values
     mockLimit.mockResolvedValue([])
     mockSelect.mockReturnValue({ from: mockFrom })
     mockFrom.mockReturnValue({ where: mockWhere })
@@ -75,10 +80,6 @@ describe('Chat Edit API Route', () => {
 
     vi.doMock('@/lib/core/utils/urls', () => ({
       getEmailDomain: vi.fn().mockReturnValue('localhost:3000'),
-    }))
-
-    vi.doMock('@/lib/core/config/environment', () => ({
-      isDev: true,
     }))
 
     vi.doMock('@/app/api/chat/utils', () => ({
@@ -254,7 +255,6 @@ describe('Chat Edit API Route', () => {
 
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true, chat: mockChat })
 
-      // Reset and reconfigure mockLimit to return the conflict
       mockLimit.mockReset()
       mockLimit.mockResolvedValue([{ id: 'other-chat-id', identifier: 'new-identifier' }])
       mockWhere.mockReturnValue({ limit: mockLimit })
@@ -291,7 +291,7 @@ describe('Chat Edit API Route', () => {
 
       const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'PATCH',
-        body: JSON.stringify({ authType: 'password' }), // No password provided
+        body: JSON.stringify({ authType: 'password' }),
       })
       const { PATCH } = await import('@/app/api/chat/manage/[id]/route')
       const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
@@ -316,9 +316,8 @@ describe('Chat Edit API Route', () => {
         workflowId: 'workflow-123',
       }
 
-      // User doesn't own chat but has workspace admin access
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true, chat: mockChat })
-      mockLimit.mockResolvedValueOnce([]) // No identifier conflict
+      mockLimit.mockResolvedValueOnce([])
 
       const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'PATCH',
@@ -399,7 +398,6 @@ describe('Chat Edit API Route', () => {
         }),
       }))
 
-      // User doesn't own chat but has workspace admin access
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true })
       mockWhere.mockResolvedValue(undefined)
 
