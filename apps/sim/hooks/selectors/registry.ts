@@ -673,6 +673,99 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       return { id: doc.id, label: doc.filename }
     },
   },
+  'webflow.sites': {
+    key: 'webflow.sites',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'webflow.sites',
+      context.credentialId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.credentialId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'webflow.sites')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ sites: { id: string; name: string }[] }>(
+        '/api/tools/webflow/sites',
+        {
+          method: 'POST',
+          body,
+        }
+      )
+      return (data.sites || []).map((site) => ({
+        id: site.id,
+        label: site.name,
+      }))
+    },
+  },
+  'webflow.collections': {
+    key: 'webflow.collections',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'webflow.collections',
+      context.credentialId ?? 'none',
+      context.siteId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.credentialId && context.siteId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'webflow.collections')
+      if (!context.siteId) {
+        throw new Error('Missing site ID for webflow.collections selector')
+      }
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        siteId: context.siteId,
+      })
+      const data = await fetchJson<{ collections: { id: string; name: string }[] }>(
+        '/api/tools/webflow/collections',
+        {
+          method: 'POST',
+          body,
+        }
+      )
+      return (data.collections || []).map((collection) => ({
+        id: collection.id,
+        label: collection.name,
+      }))
+    },
+  },
+  'webflow.items': {
+    key: 'webflow.items',
+    staleTime: 15 * 1000,
+    getQueryKey: ({ context, search }: SelectorQueryArgs) => [
+      'selectors',
+      'webflow.items',
+      context.credentialId ?? 'none',
+      context.collectionId ?? 'none',
+      search ?? '',
+    ],
+    enabled: ({ context }) => Boolean(context.credentialId && context.collectionId),
+    fetchList: async ({ context, search }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'webflow.items')
+      if (!context.collectionId) {
+        throw new Error('Missing collection ID for webflow.items selector')
+      }
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        collectionId: context.collectionId,
+        search,
+      })
+      const data = await fetchJson<{ items: { id: string; name: string }[] }>(
+        '/api/tools/webflow/items',
+        {
+          method: 'POST',
+          body,
+        }
+      )
+      return (data.items || []).map((item) => ({
+        id: item.id,
+        label: item.name,
+      }))
+    },
+  },
 }
 
 export function getSelectorDefinition(key: SelectorKey): SelectorDefinition {

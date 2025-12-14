@@ -84,19 +84,11 @@ export function ProjectSelectorInput({
   const selectorResolution = useMemo(() => {
     return resolveSelectorForSubBlock(subBlock, {
       workflowId: workflowIdFromUrl || undefined,
-      credentialId: (isLinear ? linearCredential : jiraCredential) as string | undefined,
+      credentialId: (connectedCredential as string) || undefined,
       domain,
       teamId: (linearTeamId as string) || undefined,
     })
-  }, [
-    subBlock,
-    workflowIdFromUrl,
-    isLinear,
-    linearCredential,
-    jiraCredential,
-    domain,
-    linearTeamId,
-  ])
+  }, [subBlock, workflowIdFromUrl, connectedCredential, domain, linearTeamId])
 
   const missingCredential = !selectorResolution?.context.credentialId
 

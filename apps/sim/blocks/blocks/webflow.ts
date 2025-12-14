@@ -40,18 +40,64 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
       required: true,
     },
     {
+      id: 'siteId',
+      title: 'Site',
+      type: 'project-selector',
+      canonicalParamId: 'siteId',
+      serviceId: 'webflow',
+      placeholder: 'Select Webflow site',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      required: true,
+    },
+    {
+      id: 'manualSiteId',
+      title: 'Site ID',
+      type: 'short-input',
+      canonicalParamId: 'siteId',
+      placeholder: 'Enter site ID',
+      mode: 'advanced',
+      required: true,
+    },
+    {
       id: 'collectionId',
+      title: 'Collection',
+      type: 'file-selector',
+      canonicalParamId: 'collectionId',
+      serviceId: 'webflow',
+      placeholder: 'Select collection',
+      dependsOn: ['credential', 'siteId'],
+      mode: 'basic',
+      required: true,
+    },
+    {
+      id: 'manualCollectionId',
       title: 'Collection ID',
       type: 'short-input',
+      canonicalParamId: 'collectionId',
       placeholder: 'Enter collection ID',
-      dependsOn: ['credential'],
+      mode: 'advanced',
       required: true,
     },
     {
       id: 'itemId',
+      title: 'Item',
+      type: 'file-selector',
+      canonicalParamId: 'itemId',
+      serviceId: 'webflow',
+      placeholder: 'Select item',
+      dependsOn: ['credential', 'collectionId'],
+      mode: 'basic',
+      condition: { field: 'operation', value: ['get', 'update', 'delete'] },
+      required: true,
+    },
+    {
+      id: 'manualItemId',
       title: 'Item ID',
       type: 'short-input',
-      placeholder: 'ID of the item',
+      canonicalParamId: 'itemId',
+      placeholder: 'Enter item ID',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['get', 'update', 'delete'] },
       required: true,
     },
@@ -108,7 +154,17 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
         }
       },
       params: (params) => {
-        const { credential, fieldData, ...rest } = params
+        const {
+          credential,
+          fieldData,
+          siteId: _siteId,
+          manualSiteId: _manualSiteId,
+          collectionId,
+          manualCollectionId,
+          itemId,
+          manualItemId,
+          ...rest
+        } = params
         let parsedFieldData: any | undefined
 
         try {
@@ -119,15 +175,40 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
           throw new Error(`Invalid JSON input for ${params.operation} operation: ${error.message}`)
         }
 
+        const effectiveCollectionId = (
+          (collectionId as string) ||
+          (manualCollectionId as string) ||
+          ''
+        ).trim()
+        const effectiveItemId = ((itemId as string) || (manualItemId as string) || '').trim()
+
+        if (!effectiveCollectionId) {
+          throw new Error('Collection ID is required')
+        }
+
         const baseParams = {
           credential,
+          collectionId: effectiveCollectionId,
           ...rest,
         }
 
         switch (params.operation) {
           case 'create':
           case 'update':
-            return { ...baseParams, fieldData: parsedFieldData }
+            if (params.operation === 'update' && !effectiveItemId) {
+              throw new Error('Item ID is required for update operation')
+            }
+            return {
+              ...baseParams,
+              itemId: effectiveItemId || undefined,
+              fieldData: parsedFieldData,
+            }
+          case 'get':
+          case 'delete':
+            if (!effectiveItemId) {
+              throw new Error(`Item ID is required for ${params.operation} operation`)
+            }
+            return { ...baseParams, itemId: effectiveItemId }
           default:
             return baseParams
         }
@@ -137,12 +218,15 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     credential: { type: 'string', description: 'Webflow OAuth access token' },
+    siteId: { type: 'string', description: 'Webflow site identifier' },
+    manualSiteId: { type: 'string', description: 'Manual site identifier' },
     collectionId: { type: 'string', description: 'Webflow collection identifier' },
-    // Conditional inputs
-    itemId: { type: 'string', description: 'Item identifier' }, // Required for get/update/delete
-    offset: { type: 'number', description: 'Pagination offset' }, // Optional for list
-    limit: { type: 'number', description: 'Maximum items to return' }, // Optional for list
-    fieldData: { type: 'json', description: 'Item field data' }, // Required for create/update
+    manualCollectionId: { type: 'string', description: 'Manual collection identifier' },
+    itemId: { type: 'string', description: 'Item identifier' },
+    manualItemId: { type: 'string', description: 'Manual item identifier' },
+    offset: { type: 'number', description: 'Pagination offset' },
+    limit: { type: 'number', description: 'Maximum items to return' },
+    fieldData: { type: 'json', description: 'Item field data' },
   },
   outputs: {
     items: { type: 'json', description: 'Array of items (list operation)' },

@@ -47,12 +47,16 @@ export function FileSelectorInput({
   const [projectIdValueFromStore] = useSubBlockValue(blockId, 'projectId')
   const [planIdValueFromStore] = useSubBlockValue(blockId, 'planId')
   const [teamIdValueFromStore] = useSubBlockValue(blockId, 'teamId')
+  const [siteIdValueFromStore] = useSubBlockValue(blockId, 'siteId')
+  const [collectionIdValueFromStore] = useSubBlockValue(blockId, 'collectionId')
 
   const connectedCredential = previewContextValues?.credential ?? connectedCredentialFromStore
   const domainValue = previewContextValues?.domain ?? domainValueFromStore
   const projectIdValue = previewContextValues?.projectId ?? projectIdValueFromStore
   const planIdValue = previewContextValues?.planId ?? planIdValueFromStore
   const teamIdValue = previewContextValues?.teamId ?? teamIdValueFromStore
+  const siteIdValue = previewContextValues?.siteId ?? siteIdValueFromStore
+  const collectionIdValue = previewContextValues?.collectionId ?? collectionIdValueFromStore
 
   const normalizedCredentialId =
     typeof connectedCredential === 'string'
@@ -75,6 +79,8 @@ export function FileSelectorInput({
       projectId: (projectIdValue as string) || undefined,
       planId: (planIdValue as string) || undefined,
       teamId: (teamIdValue as string) || undefined,
+      siteId: (siteIdValue as string) || undefined,
+      collectionId: (collectionIdValue as string) || undefined,
     })
   }, [
     subBlock,
@@ -84,6 +90,8 @@ export function FileSelectorInput({
     projectIdValue,
     planIdValue,
     teamIdValue,
+    siteIdValue,
+    collectionIdValue,
   ])
 
   const missingCredential = !normalizedCredentialId
@@ -97,6 +105,10 @@ export function FileSelectorInput({
     !selectorResolution?.context.projectId
   const missingPlan =
     selectorResolution?.key === 'microsoft.planner' && !selectorResolution?.context.planId
+  const missingSite =
+    selectorResolution?.key === 'webflow.collections' && !selectorResolution?.context.siteId
+  const missingCollection =
+    selectorResolution?.key === 'webflow.items' && !selectorResolution?.context.collectionId
 
   const disabledReason =
     finalDisabled ||
@@ -105,6 +117,8 @@ export function FileSelectorInput({
     missingDomain ||
     missingProject ||
     missingPlan ||
+    missingSite ||
+    missingCollection ||
     !selectorResolution?.key
 
   if (!selectorResolution?.key) {
