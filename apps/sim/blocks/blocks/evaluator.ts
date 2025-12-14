@@ -1,5 +1,5 @@
 import { ChartBarIcon } from '@/components/icons'
-import { isHosted } from '@/lib/core/config/environment'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig, ParamType } from '@/blocks/types'
 import type { ProviderId } from '@/providers/types'

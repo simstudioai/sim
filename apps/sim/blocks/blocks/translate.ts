@@ -1,5 +1,5 @@
 import { TranslateIcon } from '@/components/icons'
-import { isHosted } from '@/lib/core/config/environment'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import { getHostedModels, getProviderIcon, providers } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'

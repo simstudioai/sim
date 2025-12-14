@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { member, organization, userStats } from '@sim/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { getUserUsageLimit } from '@/lib/billing/core/usage'
-import { isBillingEnabled } from '@/lib/core/config/environment'
+import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('UsageMonitor')

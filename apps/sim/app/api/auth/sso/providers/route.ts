@@ -1,14 +1,14 @@
 import { db, ssoProvider } from '@sim/db'
 import { eq } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { NextResponse } from 'next/server'
+import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('SSO-Providers')
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const session = await auth.api.getSession({ headers: req.headers })
+    const session = await getSession()
 
     let providers
     if (session?.user?.id) {
@@ -38,8 +38,6 @@ export async function GET(req: NextRequest) {
                 : ('oidc' as 'oidc' | 'saml'),
       }))
     } else {
-      // Unauthenticated users can only see basic info (domain only)
-      // This is needed for SSO login flow to check if a domain has SSO enabled
       const results = await db
         .select({
           domain: ssoProvider.domain,

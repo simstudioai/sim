@@ -5,7 +5,7 @@
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
-import { isTest } from '@/lib/core/config/environment'
+import { isTest } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'

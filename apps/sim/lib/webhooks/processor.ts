@@ -3,7 +3,7 @@ import { tasks } from '@trigger.dev/sdk'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
-import { env, isTruthy } from '@/lib/core/config/env'
+import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { createLogger } from '@/lib/logs/console/logger'
 import { convertSquareBracketsToTwiML } from '@/lib/webhooks/utils'
@@ -707,9 +707,7 @@ export async function queueWebhookExecution(
       ...(credentialId ? { credentialId } : {}),
     }
 
-    const useTrigger = isTruthy(env.TRIGGER_DEV_ENABLED)
-
-    if (useTrigger) {
+    if (isTriggerDevEnabled) {
       const handle = await tasks.trigger('webhook-execution', payload)
       logger.info(
         `[${options.requestId}] Queued ${options.testMode ? 'TEST ' : ''}webhook execution task ${

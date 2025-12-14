@@ -1,5 +1,5 @@
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { isHosted } from '@/lib/core/config/environment'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { createLogger } from '@/lib/logs/console/logger'
 import { anthropicProvider } from '@/providers/anthropic'
 import { azureOpenAIProvider } from '@/providers/azure-openai'

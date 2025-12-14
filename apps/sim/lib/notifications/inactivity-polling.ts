@@ -7,7 +7,7 @@ import {
 } from '@sim/db/schema'
 import { and, eq, gte, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
-import { env, isTruthy } from '@/lib/core/config/env'
+import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   executeNotificationDelivery,
@@ -118,9 +118,7 @@ async function checkWorkflowInactivity(
     alertConfig,
   }
 
-  const useTrigger = isTruthy(env.TRIGGER_DEV_ENABLED)
-
-  if (useTrigger) {
+  if (isTriggerDevEnabled) {
     await workspaceNotificationDeliveryTask.trigger(payload)
   } else {
     void executeNotificationDelivery(payload).catch((error) => {

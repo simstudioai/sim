@@ -15,6 +15,7 @@ import {
   Switch,
 } from '@/components/emcn'
 import { Input, Skeleton } from '@/components/ui'
+import { ANONYMOUS_USER_ID } from '@/lib/auth/anonymous'
 import { signOut, useSession } from '@/lib/auth/auth-client'
 import { useBrandConfig } from '@/lib/branding/branding'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
@@ -59,6 +60,7 @@ export function General({ onOpenChange }: GeneralProps) {
   const isLoading = isProfileLoading || isSettingsLoading
 
   const isTrainingEnabled = isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED'))
+  const isAuthDisabled = session?.user?.id === ANONYMOUS_USER_ID
 
   const [isSuperUser, setIsSuperUser] = useState(false)
   const [loadingSuperUser, setLoadingSuperUser] = useState(true)
@@ -461,10 +463,12 @@ export function General({ onOpenChange }: GeneralProps) {
         </div>
       )}
 
-      <div className='mt-auto flex items-center gap-[8px]'>
-        <Button onClick={handleSignOut}>Sign out</Button>
-        <Button onClick={() => setShowResetPasswordModal(true)}>Reset password</Button>
-      </div>
+      {!isAuthDisabled && (
+        <div className='mt-auto flex items-center gap-[8px]'>
+          <Button onClick={handleSignOut}>Sign out</Button>
+          <Button onClick={() => setShowResetPasswordModal(true)}>Reset password</Button>
+        </div>
+      )}
 
       {/* Password Reset Confirmation Modal */}
       <Modal open={showResetPasswordModal} onOpenChange={setShowResetPasswordModal}>

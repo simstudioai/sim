@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
-import { isHosted } from '@/lib/core/config/environment'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { getAllBlocks } from '@/blocks'
 import { BlockType } from '@/executor/constants'
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'

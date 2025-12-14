@@ -1,6 +1,6 @@
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
-import { isHosted } from './lib/core/config/environment'
+import { isHosted } from './lib/core/config/feature-flags'
 import { generateRuntimeCSP } from './lib/core/security/csp'
 import { createLogger } from './lib/logs/console/logger'
 

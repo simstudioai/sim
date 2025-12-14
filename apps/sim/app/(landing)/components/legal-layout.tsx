@@ -1,6 +1,6 @@
 'use client'
 
-import { isHosted } from '@/lib/core/config/environment'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import Footer from '@/app/(landing)/components/footer/footer'
 import Nav from '@/app/(landing)/components/nav/nav'

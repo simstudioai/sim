@@ -38,13 +38,19 @@ import {
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
 } from '@/lib/billing/webhooks/subscription'
-import { env, isTruthy } from '@/lib/core/config/env'
-import { isBillingEnabled, isEmailVerificationEnabled } from '@/lib/core/config/environment'
+import { env } from '@/lib/core/config/env'
+import {
+  isAuthDisabled,
+  isBillingEnabled,
+  isEmailVerificationEnabled,
+  isRegistrationDisabled,
+} from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { createAnonymousSession, ensureAnonymousUserExists } from './anonymous'
 import { SSO_TRUSTED_PROVIDERS } from './sso/constants'
 
 const logger = createLogger('Auth')
@@ -270,7 +276,7 @@ export const auth = betterAuth({
   },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
-      if (ctx.path.startsWith('/sign-up') && isTruthy(env.DISABLE_REGISTRATION))
+      if (ctx.path.startsWith('/sign-up') && isRegistrationDisabled)
         throw new Error('Registration is disabled, please contact your admin.')
 
       if (
@@ -2185,6 +2191,11 @@ export const auth = betterAuth({
 })
 
 export async function getSession() {
+  if (isAuthDisabled) {
+    await ensureAnonymousUserExists()
+    return createAnonymousSession()
+  }
+
   const hdrs = await headers()
   return await auth.api.getSession({
     headers: hdrs,

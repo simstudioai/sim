@@ -1,5 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
+import { ANONYMOUS_USER_ID } from '@/lib/auth/anonymous'
+import { isAuthDisabled } from '@/lib/core/config/feature-flags'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('V1Auth')
@@ -13,6 +15,14 @@ export interface AuthResult {
 }
 
 export async function authenticateV1Request(request: NextRequest): Promise<AuthResult> {
+  if (isAuthDisabled) {
+    return {
+      authenticated: true,
+      userId: ANONYMOUS_USER_ID,
+      keyType: 'personal',
+    }
+  }
+
   const apiKey = request.headers.get('x-api-key')
 
   if (!apiKey) {

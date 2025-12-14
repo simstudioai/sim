@@ -1,7 +1,7 @@
 import type { Server as HttpServer } from 'http'
 import { Server } from 'socket.io'
 import { env } from '@/lib/core/config/env'
-import { isProd } from '@/lib/core/config/environment'
+import { isProd } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
 

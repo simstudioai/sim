@@ -26,7 +26,7 @@ import { McpIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionStatus } from '@/lib/billing/client'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { isHosted } from '@/lib/core/config/environment'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { getUserRole } from '@/lib/workspaces/organization'
 import {
   ApiKeys,

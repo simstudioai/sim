@@ -36,6 +36,31 @@ export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
 export const isEmailVerificationEnabled = isTruthy(env.EMAIL_VERIFICATION_ENABLED)
 
 /**
+ * Is authentication disabled (for self-hosted deployments behind private networks)
+ */
+export const isAuthDisabled = isTruthy(env.DISABLE_AUTH)
+
+/**
+ * Is user registration disabled
+ */
+export const isRegistrationDisabled = isTruthy(env.DISABLE_REGISTRATION)
+
+/**
+ * Is Trigger.dev enabled for async job processing
+ */
+export const isTriggerDevEnabled = isTruthy(env.TRIGGER_DEV_ENABLED)
+
+/**
+ * Is SSO enabled for enterprise authentication
+ */
+export const isSsoEnabled = isTruthy(env.SSO_ENABLED)
+
+/**
+ * Is E2B enabled for remote code execution
+ */
+export const isE2bEnabled = isTruthy(env.E2B_ENABLED)
+
+/**
  * Get cost multiplier based on environment
  */
 export function getCostMultiplier(): number {

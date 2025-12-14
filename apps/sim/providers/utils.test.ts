@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import * as environmentModule from '@/lib/core/config/environment'
+import * as environmentModule from '@/lib/core/config/feature-flags'
 import {
   calculateCost,
   extractAndParseJSON,
