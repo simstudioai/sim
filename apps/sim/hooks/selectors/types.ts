@@ -23,6 +23,9 @@ export type SelectorKey =
   | 'microsoft.planner'
   | 'google.drive'
   | 'knowledge.documents'
+  | 'webflow.sites'
+  | 'webflow.collections'
+  | 'webflow.items'
 
 export interface SelectorOption {
   id: string
@@ -43,6 +46,8 @@ export interface SelectorContext {
   planId?: string
   mimeType?: string
   fileId?: string
+  siteId?: string
+  collectionId?: string
 }
 
 export interface SelectorQueryArgs {

@@ -4,7 +4,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
-const logger = createLogger('WebflowCollectionsAPI')
+const logger = createLogger('WebflowItemsAPI')
 
 export const dynamic = 'force-dynamic'
 
@@ -12,16 +12,16 @@ export async function POST(request: Request) {
   try {
     const requestId = generateRequestId()
     const body = await request.json()
-    const { credential, workflowId, siteId } = body
+    const { credential, workflowId, collectionId, search } = body
 
     if (!credential) {
       logger.error('Missing credential in request')
       return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
     }
 
-    if (!siteId) {
-      logger.error('Missing siteId in request')
-      return NextResponse.json({ error: 'Site ID is required' }, { status: 400 })
+    if (!collectionId) {
+      logger.error('Missing collectionId in request')
+      return NextResponse.json({ error: 'Collection ID is required' }, { status: 400 })
     }
 
     const authz = await authorizeCredentialUse(request as any, {
@@ -51,39 +51,53 @@ export async function POST(request: Request) {
       )
     }
 
-    const response = await fetch(`https://api.webflow.com/v2/sites/${siteId}/collections`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        accept: 'application/json',
-      },
-    })
+    const response = await fetch(
+      `https://api.webflow.com/v2/collections/${collectionId}/items?limit=100`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          accept: 'application/json',
+        },
+      }
+    )
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      logger.error('Failed to fetch Webflow collections', {
+      logger.error('Failed to fetch Webflow items', {
         status: response.status,
         error: errorData,
-        siteId,
+        collectionId,
       })
       return NextResponse.json(
-        { error: 'Failed to fetch Webflow collections', details: errorData },
+        { error: 'Failed to fetch Webflow items', details: errorData },
         { status: response.status }
       )
     }
 
     const data = await response.json()
-    const collections = data.collections || []
+    const items = data.items || []
 
-    const formattedCollections = collections.map((collection: any) => ({
-      id: collection.id,
-      name: collection.displayName || collection.slug || collection.id,
-    }))
+    let formattedItems = items.map((item: any) => {
+      const fieldData = item.fieldData || {}
+      const name = fieldData.name || fieldData.title || fieldData.slug || item.id
+      return {
+        id: item.id,
+        name,
+      }
+    })
 
-    return NextResponse.json({ collections: formattedCollections })
+    if (search) {
+      const searchLower = search.toLowerCase()
+      formattedItems = formattedItems.filter((item: { id: string; name: string }) =>
+        item.name.toLowerCase().includes(searchLower)
+      )
+    }
+
+    return NextResponse.json({ items: formattedItems })
   } catch (error) {
-    logger.error('Error processing Webflow collections request:', error)
+    logger.error('Error processing Webflow items request:', error)
     return NextResponse.json(
-      { error: 'Failed to retrieve Webflow collections', details: (error as Error).message },
+      { error: 'Failed to retrieve Webflow items', details: (error as Error).message },
       { status: 500 }
     )
   }
