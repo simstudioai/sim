@@ -1,5 +1,6 @@
 export interface WebflowBaseParams {
   accessToken: string
+  siteId: string
   collectionId: string
 }
 

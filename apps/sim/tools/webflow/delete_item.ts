@@ -20,6 +20,12 @@ export const webflowDeleteItemTool: ToolConfig<WebflowDeleteItemParams, WebflowD
         visibility: 'hidden',
         description: 'OAuth access token',
       },
+      siteId: {
+        type: 'string',
+        required: true,
+        visibility: 'user-only',
+        description: 'ID of the Webflow site',
+      },
       collectionId: {
         type: 'string',
         required: true,
@@ -29,7 +35,7 @@ export const webflowDeleteItemTool: ToolConfig<WebflowDeleteItemParams, WebflowD
       itemId: {
         type: 'string',
         required: true,
-        visibility: 'user-or-llm',
+        visibility: 'user-only',
         description: 'ID of the item to delete',
       },
     },

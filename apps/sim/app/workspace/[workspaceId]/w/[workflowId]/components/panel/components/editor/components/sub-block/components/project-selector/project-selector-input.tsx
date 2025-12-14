@@ -43,14 +43,12 @@ export function ProjectSelectorInput({
 
   // Use previewContextValues if provided (for tools inside agent blocks), otherwise use store values
   const connectedCredential = previewContextValues?.credential ?? connectedCredentialFromStore
-  const linearCredential = previewContextValues?.credential ?? connectedCredentialFromStore
   const linearTeamId = previewContextValues?.teamId ?? linearTeamIdFromStore
   const jiraDomain = previewContextValues?.domain ?? jiraDomainFromStore
 
   // Derive provider from serviceId using OAuth config
   const serviceId = subBlock.serviceId || ''
   const effectiveProviderId = useMemo(() => getProviderIdFromServiceId(serviceId), [serviceId])
-  const isLinear = serviceId === 'linear'
 
   const { isForeignCredential } = useForeignCredential(
     effectiveProviderId,
@@ -65,7 +63,6 @@ export function ProjectSelectorInput({
   })
 
   // Jira/Discord upstream fields - use values from previewContextValues or store
-  const jiraCredential = connectedCredential
   const domain = (jiraDomain as string) || ''
 
   // Verify Jira credential belongs to current user; if not, treat as absent
