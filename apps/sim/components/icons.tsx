@@ -3335,6 +3335,14 @@ export function SalesforceIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function ServiceNowIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='#81B5A1'>
+      <path d='M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.18l7.91 3.95L12 12.08 4.09 8.13 12 4.18zM4 9.13l7.78 3.89L20 9.13v5.74l-8.22 4.11L4 14.87V9.13z' />
+    </svg>
+  )
+}
+
 export function ApolloIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
