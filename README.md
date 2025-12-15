@@ -187,6 +187,7 @@ DATABASE_URL="postgresql://postgres:your_password@localhost:5432/simstudio"
 
 Then run the migrations:
 ```bash
+cd apps/sim # Required so drizzle picks correct .env file
 bunx drizzle-kit migrate --config=./drizzle.config.ts
 ```
 
