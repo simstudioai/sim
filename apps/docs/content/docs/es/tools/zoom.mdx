@@ -27,12 +27,14 @@ En Sim, la integración con Zoom permite a tus agentes automatizar la programaci
 - Obtener detalles o invitaciones para cualquier reunión
 - Actualizar o eliminar reuniones existentes directamente desde tus automatizaciones
 
-Estas capacidades te permiten agilizar la colaboración remota, automatizar sesiones de video recurrentes y gestionar el entorno Zoom de tu organización como parte de tus flujos de trabajo.
+Para conectarte a Zoom, arrastra el bloque de Zoom y haz clic en `Connect` para autenticarte con tu cuenta de Zoom. Una vez conectado, puedes usar las herramientas de Zoom para crear, listar, actualizar y eliminar reuniones de Zoom. En cualquier momento, puedes desconectar tu cuenta de Zoom haciendo clic en `Disconnect` en Configuración > Integraciones, y el acceso a tu cuenta de Zoom será revocado inmediatamente.
+
+Estas capacidades te permiten agilizar la colaboración remota, automatizar sesiones de video recurrentes y gestionar el entorno de Zoom de tu organización, todo como parte de tus flujos de trabajo.
 {/* MANUAL-CONTENT-END */}
 
 ## Instrucciones de uso
 
-Integra Zoom en flujos de trabajo. Crea, lista, actualiza y elimina reuniones de Zoom. Obtén detalles de reuniones, invitaciones, grabaciones y participantes. Gestiona grabaciones en la nube de forma programática.
+Integra Zoom en los flujos de trabajo. Crea, lista, actualiza y elimina reuniones de Zoom. Obtén detalles de reuniones, invitaciones, grabaciones y participantes. Gestiona grabaciones en la nube de forma programática.
 
 ## Herramientas
 
@@ -44,12 +46,12 @@ Crear una nueva reunión de Zoom
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `userId` | string | Sí | El ID de usuario o dirección de correo electrónico. Usa "me" para el usuario autenticado. |
+| `userId` | string | Sí | El ID de usuario o dirección de correo electrónico. Use "me" para el usuario autenticado. |
 | `topic` | string | Sí | Tema de la reunión |
 | `type` | number | No | Tipo de reunión: 1=instantánea, 2=programada, 3=recurrente sin hora fija, 8=recurrente con hora fija |
-| `startTime` | string | No | Hora de inicio de la reunión en formato ISO 8601 \(p. ej., 2025-06-03T10:00:00Z\) |
+| `startTime` | string | No | Hora de inicio de la reunión en formato ISO 8601 \(ej., 2025-06-03T10:00:00Z\) |
 | `duration` | number | No | Duración de la reunión en minutos |
-| `timezone` | string | No | Zona horaria para la reunión \(p. ej., America/Los_Angeles\) |
+| `timezone` | string | No | Zona horaria para la reunión \(ej., America/Los_Angeles\) |
 | `password` | string | No | Contraseña de la reunión |
 | `agenda` | string | No | Agenda de la reunión |
 | `hostVideo` | boolean | No | Iniciar con video del anfitrión activado |
@@ -67,13 +69,13 @@ Crear una nueva reunión de Zoom
 
 ### `zoom_list_meetings`
 
-Listar todas las reuniones para un usuario de Zoom
+Listar todas las reuniones de un usuario de Zoom
 
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `userId` | string | Sí | El ID de usuario o dirección de correo electrónico. Use "me" para el usuario autenticado. |
+| `userId` | string | Sí | El ID de usuario o dirección de correo electrónico. Usa "me" para el usuario autenticado. |
 | `type` | string | No | Filtro de tipo de reunión: scheduled, live, upcoming, upcoming_meetings, o previous_meetings |
 | `pageSize` | number | No | Número de registros por página \(máximo 300\) |
 | `nextPageToken` | string | No | Token para paginación para obtener la siguiente página de resultados |
@@ -103,7 +105,7 @@ Obtener detalles de una reunión específica de Zoom
 | --------- | ---- | ----------- |
 | `meeting` | object | Los detalles de la reunión |
 
-### `zoom_update_meeting`
+Obtener detalles de una reunión específica de Zoom
 
 Actualizar una reunión existente de Zoom
 
@@ -122,9 +124,9 @@ Actualizar una reunión existente de Zoom
 | `hostVideo` | boolean | No | Iniciar con video del anfitrión activado |
 | `participantVideo` | boolean | No | Iniciar con video de participantes activado |
 | `joinBeforeHost` | boolean | No | Permitir que los participantes se unan antes que el anfitrión |
-| `muteUponEntry` | boolean | No | Silenciar a los participantes al entrar |
+| `muteUponEntry` | boolean | No | Silenciar participantes al entrar |
 | `waitingRoom` | boolean | No | Habilitar sala de espera |
-| `autoRecording` | string | No | Configuración de grabación automática: local, en la nube o ninguna |
+| `autoRecording` | string | No | Configuración de grabación automática: local, cloud o none |
 
 #### Salida
 
@@ -132,7 +134,7 @@ Actualizar una reunión existente de Zoom
 | --------- | ---- | ----------- |
 | `success` | boolean | Si la reunión se actualizó correctamente |
 
-### `zoom_delete_meeting`
+Eliminar una reunión de Zoom
 
 Eliminar o cancelar una reunión de Zoom
 
@@ -142,14 +144,14 @@ Eliminar o cancelar una reunión de Zoom
 | --------- | ---- | -------- | ----------- |
 | `meetingId` | string | Sí | El ID de la reunión a eliminar |
 | `occurrenceId` | string | No | ID de ocurrencia para eliminar una ocurrencia específica de una reunión recurrente |
-| `scheduleForReminder` | boolean | No | Enviar correo electrónico de recordatorio de cancelación a los inscritos |
-| `cancelMeetingReminder` | boolean | No | Enviar correo electrónico de cancelación a los inscritos y anfitriones alternativos |
+| `scheduleForReminder` | boolean | No | Enviar correo electrónico de recordatorio de cancelación a los registrados |
+| `cancelMeetingReminder` | boolean | No | Enviar correo electrónico de cancelación a los registrados y anfitriones alternativos |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Indica si la reunión se eliminó correctamente |
+| `success` | boolean | Si la reunión se eliminó correctamente |
 
 ### `zoom_get_meeting_invitation`
 
@@ -175,10 +177,10 @@ Listar todas las grabaciones en la nube para un usuario de Zoom
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `userId` | string | Sí | El ID de usuario o dirección de correo electrónico. Use "me" para el usuario autenticado. |
-| `from` | string | No | Fecha de inicio en formato aaaa-mm-dd \(dentro de los últimos 6 meses\) |
+| `userId` | string | Sí | El ID de usuario o dirección de correo electrónico. Usa "me" para el usuario autenticado. |
+| `from` | string | No | Fecha de inicio en formato aaaa-mm-dd (dentro de los últimos 6 meses) |
 | `to` | string | No | Fecha de fin en formato aaaa-mm-dd |
-| `pageSize` | number | No | Número de registros por página \(máximo 300\) |
+| `pageSize` | number | No | Número de registros por página (máx. 300) |
 | `nextPageToken` | string | No | Token para paginación para obtener la siguiente página de resultados |
 | `trash` | boolean | No | Establecer como true para listar grabaciones de la papelera |
 
@@ -189,9 +191,9 @@ Listar todas las grabaciones en la nube para un usuario de Zoom
 | `recordings` | array | Lista de grabaciones |
 | `pageInfo` | object | Información de paginación |
 
-### `zoom_get_meeting_recordings`
+Obtener todas las grabaciones para una reunión específica de Zoom
 
-Obtener todas las grabaciones de una reunión específica de Zoom
+Obtener todas las grabaciones para una reunión específica de Zoom
 
 #### Entrada
 
@@ -199,7 +201,7 @@ Obtener todas las grabaciones de una reunión específica de Zoom
 | --------- | ---- | -------- | ----------- |
 | `meetingId` | string | Sí | El ID de la reunión o UUID de la reunión |
 | `includeFolderItems` | boolean | No | Incluir elementos dentro de una carpeta |
-| `ttl` | number | No | Tiempo de vida para las URLs de descarga en segundos \(máx. 604800\) |
+| `ttl` | number | No | Tiempo de vida para URLs de descarga en segundos \(máx. 604800\) |
 
 #### Salida
 
@@ -207,9 +209,9 @@ Obtener todas las grabaciones de una reunión específica de Zoom
 | --------- | ---- | ----------- |
 | `recording` | object | La grabación de la reunión con todos los archivos |
 
-### `zoom_delete_recording`
+Eliminar grabaciones en la nube para una reunión de Zoom
 
-Eliminar grabaciones en la nube de una reunión de Zoom
+Eliminar grabaciones en la nube para una reunión de Zoom
 
 #### Entrada
 
@@ -225,7 +227,7 @@ Eliminar grabaciones en la nube de una reunión de Zoom
 | --------- | ---- | ----------- |
 | `success` | boolean | Si la grabación se eliminó correctamente |
 
-### `zoom_list_past_participants`
+Listar participantes de una reunión pasada de Zoom
 
 Listar participantes de una reunión pasada de Zoom
 
@@ -233,7 +235,7 @@ Listar participantes de una reunión pasada de Zoom
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `meetingId` | string | Sí | El ID o UUID de la reunión pasada |
+| `meetingId` | string | Sí | El ID de la reunión pasada o UUID |
 | `pageSize` | number | No | Número de registros por página \(máx. 300\) |
 | `nextPageToken` | string | No | Token para paginación para obtener la siguiente página de resultados |
 
