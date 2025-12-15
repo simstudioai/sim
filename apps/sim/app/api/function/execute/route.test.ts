@@ -228,6 +228,20 @@ describe('Function Execute API Route', () => {
       expect(data.output).toHaveProperty('executionTime')
     })
 
+    it.concurrent('should return computed result for multi-line code', async () => {
+      const req = createMockRequest('POST', {
+        code: 'const a = 1;\nconst b = 2;\nconst c = 3;\nconst d = 4;\nreturn a + b + c + d;',
+        timeout: 5000,
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.output.result).toBe(10)
+    })
+
     it.concurrent('should handle missing code parameter', async () => {
       const req = createMockRequest('POST', {
         timeout: 5000,
@@ -482,20 +496,6 @@ describe('Function Execute API Route', () => {
       expect(response.status).toBe(500)
       expect(data.success).toBe(false)
       expect(data.error).toContain('Custom error message')
-    })
-
-    it('should return result for valid code', async () => {
-      const req = createMockRequest('POST', {
-        code: 'const a = 1;\nconst b = 2;\nconst c = 3;\nconst d = 4;\nreturn a + b + c + d;',
-        timeout: 5000,
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(data.output.result).toBe(10)
     })
 
     it.concurrent('should provide helpful suggestions for common syntax errors', async () => {

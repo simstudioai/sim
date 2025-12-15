@@ -12,7 +12,6 @@ export const MAX_DURATION = 210
 
 const logger = createLogger('FunctionExecuteAPI')
 
-// Constants for E2B code wrapping line counts
 const E2B_JS_WRAPPER_LINES = 3 // Lines before user code: ';(async () => {', '  try {', '    const __sim_result = await (async () => {'
 const E2B_PYTHON_WRAPPER_LINES = 1 // Lines before user code: 'def __sim_main__():'
 
@@ -905,7 +904,6 @@ export async function POST(req: NextRequest) {
       contextVariables,
       timeoutMs: timeout,
       requestId,
-      userCodeStartLine,
     })
 
     const executionTime = Date.now() - startTime

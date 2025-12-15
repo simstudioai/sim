@@ -11,7 +11,6 @@ export interface IsolatedVMExecutionRequest {
   contextVariables: Record<string, unknown>
   timeoutMs: number
   requestId: string
-  userCodeStartLine: number
 }
 
 export interface IsolatedVMExecutionResult {
@@ -68,11 +67,13 @@ async function secureFetch(
 /**
  * Convert isolated-vm error info to a format compatible with the route's error handling
  */
-function convertToCompatibleError(
-  errorInfo: { message: string; name: string; stack?: string },
-  userCodeStartLine: number
-): IsolatedVMError {
-  let { message, name, stack } = errorInfo
+function convertToCompatibleError(errorInfo: {
+  message: string
+  name: string
+  stack?: string
+}): IsolatedVMError {
+  const { message, name } = errorInfo
+  let { stack } = errorInfo
 
   if (stack) {
     stack = stack.replace(/<isolated-vm>:(\d+):(\d+)/g, (_, line, col) => {
@@ -94,7 +95,7 @@ function convertToCompatibleError(
 export async function executeInIsolatedVM(
   req: IsolatedVMExecutionRequest
 ): Promise<IsolatedVMExecutionResult> {
-  const { code, params, envVars, contextVariables, timeoutMs, requestId, userCodeStartLine } = req
+  const { code, params, envVars, contextVariables, timeoutMs, requestId } = req
 
   const stdoutChunks: string[] = []
   let isolate: ivm.Isolate | null = null
@@ -224,7 +225,7 @@ export async function executeInIsolatedVM(
         if (parsed.success) {
           result = parsed.result
         } else if (parsed.errorInfo) {
-          error = convertToCompatibleError(parsed.errorInfo, userCodeStartLine)
+          error = convertToCompatibleError(parsed.errorInfo)
         } else {
           error = { message: 'Unknown error', name: 'Error' }
         }
@@ -264,7 +265,7 @@ export async function executeInIsolatedVM(
       return {
         result: null,
         stdout,
-        error: convertToCompatibleError(errorInfo, userCodeStartLine),
+        error: convertToCompatibleError(errorInfo),
       }
     }
 
