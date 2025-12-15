@@ -630,11 +630,17 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   // If user provided a key, use it as a fallback
   const hasUserKey = !!userProvidedKey
 
-  // Ollama models don't require API keys - they run locally
+  // Ollama and vLLM models don't require API keys
   const isOllamaModel =
     provider === 'ollama' || useProvidersStore.getState().providers.ollama.models.includes(model)
   if (isOllamaModel) {
     return 'empty' // Ollama uses 'empty' as a placeholder API key
+  }
+
+  const isVllmModel =
+    provider === 'vllm' || useProvidersStore.getState().providers.vllm.models.includes(model)
+  if (isVllmModel) {
+    return userProvidedKey || 'empty' // vLLM uses 'empty' as a placeholder if no key provided
   }
 
   // Use server key rotation for all OpenAI models, Anthropic's Claude models, and Google's Gemini models on the hosted platform
