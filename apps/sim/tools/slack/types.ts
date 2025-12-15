@@ -69,6 +69,13 @@ export interface SlackGetUserParams extends SlackBaseParams {
   userId: string
 }
 
+export interface SlackDMParams extends SlackBaseParams {
+  userId: string
+  text: string
+  thread_ts?: string
+  files?: any[]
+}
+
 export interface SlackMessageResponse extends ToolResponse {
   output: {
     // Legacy properties for backward compatibility
@@ -299,6 +306,15 @@ export interface SlackGetUserResponse extends ToolResponse {
   }
 }
 
+export interface SlackDMResponse extends ToolResponse {
+  output: {
+    message: SlackMessage
+    ts: string
+    channel: string
+    fileCount?: number
+  }
+}
+
 export type SlackResponse =
   | SlackCanvasResponse
   | SlackMessageReaderResponse
@@ -311,3 +327,4 @@ export type SlackResponse =
   | SlackListMembersResponse
   | SlackListUsersResponse
   | SlackGetUserResponse
+  | SlackDMResponse

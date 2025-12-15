@@ -1,11 +1,11 @@
-import type { SlackMessageParams, SlackMessageResponse } from '@/tools/slack/types'
+import type { SlackDMParams, SlackDMResponse } from '@/tools/slack/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageResponse> = {
-  id: 'slack_message',
-  name: 'Slack Channel Message',
+export const slackDMTool: ToolConfig<SlackDMParams, SlackDMResponse> = {
+  id: 'slack_dm',
+  name: 'Slack DM',
   description:
-    'Send messages to Slack channels through the Slack API. Supports Slack mrkdwn formatting.',
+    'Send direct messages to Slack users through the Slack API. Supports Slack mrkdwn formatting.',
   version: '1.0.0',
 
   oauth: {
@@ -32,11 +32,11 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
       visibility: 'hidden',
       description: 'OAuth access token or bot token for Slack API',
     },
-    channel: {
+    userId: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Target Slack channel (e.g., #general)',
+      description: 'Target Slack user ID to send the direct message to',
     },
     text: {
       type: 'string',
@@ -59,15 +59,15 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
   },
 
   request: {
-    url: '/api/tools/slack/send-message',
+    url: '/api/tools/slack/send-dm',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params: SlackMessageParams) => {
+    body: (params: SlackDMParams) => {
       return {
         accessToken: params.accessToken || params.botToken,
-        channel: params.channel,
+        userId: params.userId,
         text: params.text,
         thread_ts: params.thread_ts || undefined,
         files: params.files || null,
@@ -78,7 +78,7 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!data.success) {
-      throw new Error(data.error || 'Failed to send Slack message')
+      throw new Error(data.error || 'Failed to send Slack DM')
     }
     return {
       success: true,
@@ -91,9 +91,8 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
       type: 'object',
       description: 'Complete message object with all properties returned by Slack',
     },
-    // Legacy properties for backward compatibility
     ts: { type: 'string', description: 'Message timestamp' },
-    channel: { type: 'string', description: 'Channel ID where message was sent' },
+    channel: { type: 'string', description: 'DM channel ID where message was sent' },
     fileCount: {
       type: 'number',
       description: 'Number of files uploaded (when files are attached)',

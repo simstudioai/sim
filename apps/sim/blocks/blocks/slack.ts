@@ -23,7 +23,8 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        { label: 'Send Message', id: 'send' },
+        { label: 'Send Channel Message', id: 'send' },
+        { label: 'Send DM', id: 'dm' },
         { label: 'Create Canvas', id: 'canvas' },
         { label: 'Read Messages', id: 'read' },
         { label: 'List Channels', id: 'list_channels' },
@@ -60,6 +61,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         'groups:history',
         'chat:write',
         'chat:write.public',
+        'im:write',
         'users:read',
         'files:write',
         'files:read',
@@ -96,7 +98,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
       condition: {
         field: 'operation',
-        value: ['list_channels', 'list_users', 'get_user'],
+        value: ['list_channels', 'list_users', 'get_user', 'dm'],
         not: true,
       },
     },
@@ -110,9 +112,21 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['list_channels', 'list_users', 'get_user'],
+        value: ['list_channels', 'list_users', 'get_user', 'dm'],
         not: true,
       },
+    },
+    // DM recipient user ID
+    {
+      id: 'dmUserId',
+      title: 'User ID',
+      type: 'short-input',
+      placeholder: 'Enter Slack user ID to DM (e.g., U1234567890)',
+      condition: {
+        field: 'operation',
+        value: 'dm',
+      },
+      required: true,
     },
     {
       id: 'text',
@@ -121,7 +135,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       placeholder: 'Enter your message (supports Slack mrkdwn)',
       condition: {
         field: 'operation',
-        value: 'send',
+        value: ['send', 'dm'],
       },
       required: true,
     },
@@ -133,7 +147,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       placeholder: 'Reply to thread (e.g., 1405894322.002768)',
       condition: {
         field: 'operation',
-        value: 'send',
+        value: ['send', 'dm'],
       },
       required: false,
     },
@@ -144,7 +158,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       type: 'file-upload',
       canonicalParamId: 'files',
       placeholder: 'Upload files to attach',
-      condition: { field: 'operation', value: 'send' },
+      condition: { field: 'operation', value: ['send', 'dm'] },
       mode: 'basic',
       multiple: true,
       required: false,
@@ -156,7 +170,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       type: 'short-input',
       canonicalParamId: 'files',
       placeholder: 'Reference files from previous blocks',
-      condition: { field: 'operation', value: 'send' },
+      condition: { field: 'operation', value: ['send', 'dm'] },
       mode: 'advanced',
       required: false,
     },
@@ -370,6 +384,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
   tools: {
     access: [
       'slack_message',
+      'slack_dm',
       'slack_canvas',
       'slack_message_reader',
       'slack_list_channels',
@@ -386,6 +401,8 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         switch (params.operation) {
           case 'send':
             return 'slack_message'
+          case 'dm':
+            return 'slack_dm'
           case 'canvas':
             return 'slack_canvas'
           case 'read':
@@ -418,6 +435,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
           operation,
           channel,
           manualChannel,
+          dmUserId,
           text,
           title,
           content,
@@ -444,7 +462,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         const effectiveChannel = (channel || manualChannel || '').trim()
 
         // Operations that don't require a channel
-        const noChannelOperations = ['list_channels', 'list_users', 'get_user']
+        const noChannelOperations = ['list_channels', 'list_users', 'get_user', 'dm']
 
         // Channel is required for most operations
         if (!effectiveChannel && !noChannelOperations.includes(operation)) {
@@ -487,6 +505,27 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
             const fileParam = attachmentFiles || files
             if (fileParam) {
               baseParams.files = fileParam
+            }
+            break
+          }
+
+          case 'dm': {
+            if (!dmUserId || dmUserId.trim() === '') {
+              throw new Error('User ID is required for DM operation')
+            }
+            if (!text || text.trim() === '') {
+              throw new Error('Message text is required for DM operation')
+            }
+            baseParams.userId = dmUserId
+            baseParams.text = text
+            // Add thread_ts if provided
+            if (threadTs) {
+              baseParams.thread_ts = threadTs
+            }
+            // Add files if provided
+            const dmFileParam = attachmentFiles || files
+            if (dmFileParam) {
+              baseParams.files = dmFileParam
             }
             break
           }
@@ -596,6 +635,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     botToken: { type: 'string', description: 'Bot token' },
     channel: { type: 'string', description: 'Channel identifier' },
     manualChannel: { type: 'string', description: 'Manual channel identifier' },
+    dmUserId: { type: 'string', description: 'User ID for DM recipient' },
     text: { type: 'string', description: 'Message text' },
     attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
     files: { type: 'array', description: 'Files to attach (UserFile array)' },
