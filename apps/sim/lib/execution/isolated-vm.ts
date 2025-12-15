@@ -28,7 +28,21 @@ export interface IsolatedVMError {
   message: string
   name: string
   stack?: string
+  line?: number
+  column?: number
+  lineContent?: string
 }
+
+/**
+ * Number of lines added before user code in the wrapper.
+ * The wrapper structure is:
+ * Line 1: (empty - newline after template literal backtick)
+ * Line 2: (async () => {
+ * Line 3:   try {
+ * Line 4:     const __userResult = await (async () => {
+ * Line 5+: user code starts here
+ */
+const USER_CODE_START_LINE = 4
 
 /**
  * Secure fetch wrapper that validates URLs to prevent SSRF attacks
@@ -70,27 +84,95 @@ async function secureFetch(
 }
 
 /**
+ * Extract line and column from error stack or message
+ */
+function extractLineInfo(errorMessage: string, stack?: string): { line?: number; column?: number } {
+  if (stack) {
+    const stackMatch = stack.match(/(?:<isolated-vm>|user-function\.js):(\d+):(\d+)/)
+    if (stackMatch) {
+      return {
+        line: Number.parseInt(stackMatch[1], 10),
+        column: Number.parseInt(stackMatch[2], 10),
+      }
+    }
+    const atMatch = stack.match(/at\s+(?:<isolated-vm>|user-function\.js):(\d+):(\d+)/)
+    if (atMatch) {
+      return {
+        line: Number.parseInt(atMatch[1], 10),
+        column: Number.parseInt(atMatch[2], 10),
+      }
+    }
+  }
+
+  const msgMatch = errorMessage.match(/:(\d+):(\d+)/)
+  if (msgMatch) {
+    return {
+      line: Number.parseInt(msgMatch[1], 10),
+      column: Number.parseInt(msgMatch[2], 10),
+    }
+  }
+
+  return {}
+}
+
+/**
  * Convert isolated-vm error info to a format compatible with the route's error handling
  */
-function convertToCompatibleError(errorInfo: {
-  message: string
-  name: string
-  stack?: string
-}): IsolatedVMError {
-  const { message, name } = errorInfo
-  let { stack } = errorInfo
+function convertToCompatibleError(
+  errorInfo: {
+    message: string
+    name: string
+    stack?: string
+  },
+  userCode: string
+): IsolatedVMError {
+  const { name } = errorInfo
+  let { message, stack } = errorInfo
+
+  message = message
+    .replace(/\s*\[user-function\.js:\d+:\d+\]/g, '')
+    .replace(/\s*\[<isolated-vm>:\d+:\d+\]/g, '')
+    .replace(/\s*\(<isolated-vm>:\d+:\d+\)/g, '')
+    .trim()
+
+  const lineInfo = extractLineInfo(errorInfo.message, stack)
+
+  let userLine: number | undefined
+  let lineContent: string | undefined
+
+  if (lineInfo.line !== undefined) {
+    userLine = lineInfo.line - USER_CODE_START_LINE
+    const codeLines = userCode.split('\n')
+    if (userLine > 0 && userLine <= codeLines.length) {
+      lineContent = codeLines[userLine - 1]?.trim()
+    } else if (userLine <= 0) {
+      userLine = 1
+      lineContent = codeLines[0]?.trim()
+    } else {
+      userLine = codeLines.length
+      lineContent = codeLines[codeLines.length - 1]?.trim()
+    }
+  }
 
   if (stack) {
     stack = stack.replace(/<isolated-vm>:(\d+):(\d+)/g, (_, line, col) => {
-      return `user-function.js:${line}:${col}`
+      const adjustedLine = Number.parseInt(line, 10) - USER_CODE_START_LINE
+      return `user-function.js:${Math.max(1, adjustedLine)}:${col}`
     })
-    stack = stack.replace(
-      /at <isolated-vm>:(\d+):(\d+)/g,
-      (_, line, col) => `at user-function.js:${line}:${col}`
-    )
+    stack = stack.replace(/at <isolated-vm>:(\d+):(\d+)/g, (_, line, col) => {
+      const adjustedLine = Number.parseInt(line, 10) - USER_CODE_START_LINE
+      return `at user-function.js:${Math.max(1, adjustedLine)}:${col}`
+    })
   }
 
-  return { message, name, stack }
+  return {
+    message,
+    name,
+    stack,
+    line: userLine,
+    column: lineInfo.column,
+    lineContent,
+  }
 }
 
 /**
@@ -255,7 +337,7 @@ export async function executeInIsolatedVM(
         if (parsed.success) {
           result = parsed.result
         } else if (parsed.errorInfo) {
-          error = convertToCompatibleError(parsed.errorInfo)
+          error = convertToCompatibleError(parsed.errorInfo, code)
         } else {
           error = { message: 'Unknown error', name: 'Error' }
         }
@@ -295,7 +377,7 @@ export async function executeInIsolatedVM(
       return {
         result: null,
         stdout,
-        error: convertToCompatibleError(errorInfo),
+        error: convertToCompatibleError(errorInfo, code),
       }
     }
 
@@ -305,6 +387,8 @@ export async function executeInIsolatedVM(
       error: {
         message: String(err),
         name: 'Error',
+        line: 1,
+        lineContent: code.split('\n')[0]?.trim(),
       },
     }
   } finally {
