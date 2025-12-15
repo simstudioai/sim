@@ -107,9 +107,16 @@ export const anthropicProvider: ProviderConfig = {
             type: 'tool_use',
             id: tc.id,
             name: tc.function?.name || tc.name,
-            input: typeof tc.function?.arguments === 'string'
-              ? JSON.parse(tc.function.arguments)
-              : tc.function?.arguments || tc.arguments || {},
+            input:
+              typeof tc.function?.arguments === 'string'
+                ? (() => {
+                    try {
+                      return JSON.parse(tc.function.arguments)
+                    } catch {
+                      return {}
+                    }
+                  })()
+                : tc.function?.arguments || tc.arguments || {},
           }))
           messages.push({
             role: 'assistant',

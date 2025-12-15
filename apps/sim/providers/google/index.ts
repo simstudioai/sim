@@ -1129,24 +1129,25 @@ function convertToGeminiFormat(request: ProviderRequest): {
         // Convert tool response to Gemini's functionResponse format
         // Gemini uses 'user' role for function responses
         const functionName = (message as any).name || 'function'
-        
+
         let responseData: any
         try {
-          responseData = typeof message.content === 'string' 
-            ? JSON.parse(message.content) 
-            : message.content
+          responseData =
+            typeof message.content === 'string' ? JSON.parse(message.content) : message.content
         } catch {
           responseData = { result: message.content }
         }
 
         contents.push({
           role: 'user',
-          parts: [{
-            functionResponse: {
-              name: functionName,
-              response: responseData,
+          parts: [
+            {
+              functionResponse: {
+                name: functionName,
+                response: responseData,
+              },
             },
-          }],
+          ],
         })
       }
     }

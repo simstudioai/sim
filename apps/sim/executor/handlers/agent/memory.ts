@@ -248,42 +248,6 @@ export class Memory {
   }
 
   /**
-   * Remove orphaned tool messages that don't have a corresponding tool_calls message
-   * This prevents errors like "tool_result without corresponding tool_use"
-   */
-  private removeOrphanedToolMessages(messages: Message[]): Message[] {
-    const result: Message[] = []
-    const seenToolCallIds = new Set<string>()
-
-    // First pass: collect all tool_call IDs from assistant messages with tool_calls
-    for (const msg of messages) {
-      if (msg.role === 'assistant' && msg.tool_calls && Array.isArray(msg.tool_calls)) {
-        for (const tc of msg.tool_calls) {
-          if (tc.id) {
-            seenToolCallIds.add(tc.id)
-          }
-        }
-      }
-    }
-
-    // Second pass: only include tool messages that have a matching tool_calls message
-    for (const msg of messages) {
-      if (msg.role === 'tool') {
-        const toolCallId = (msg as any).tool_call_id
-        if (toolCallId && seenToolCallIds.has(toolCallId)) {
-          result.push(msg)
-        } else {
-          logger.debug('Removing orphaned tool message', { toolCallId })
-        }
-      } else {
-        result.push(msg)
-      }
-    }
-
-    return result
-  }
-
-  /**
    * Apply token-based sliding window to limit conversation by token count
    *
    * System message handling:

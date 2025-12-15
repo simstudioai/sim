@@ -988,7 +988,11 @@ export class AgentBlockHandler implements BlockHandler {
         const executionData = JSON.parse(executionDataHeader)
 
         // If execution data contains content or tool calls, persist to memory
-        if (ctx && inputs && (executionData.output?.content || executionData.output?.toolCalls?.list?.length)) {
+        if (
+          ctx &&
+          inputs &&
+          (executionData.output?.content || executionData.output?.toolCalls?.list?.length)
+        ) {
           const toolCalls = executionData.output?.toolCalls?.list
           const messages = this.buildMessagesForMemory(executionData.output.content, toolCalls)
 
@@ -997,9 +1001,7 @@ export class AgentBlockHandler implements BlockHandler {
             messages.map((message) =>
               memoryService.persistMemoryMessage(ctx, inputs, message, block.id)
             )
-          ).catch((error) =>
-            logger.error('Failed to persist streaming response to memory:', error)
-          )
+          ).catch((error) => logger.error('Failed to persist streaming response to memory:', error))
         }
 
         return {
@@ -1154,7 +1156,10 @@ export class AgentBlockHandler implements BlockHandler {
    * - Tool role messages with results (one per tool call)
    * - Final assistant message with content (if present)
    */
-  private buildMessagesForMemory(content: string | undefined, toolCalls: any[] | undefined): Message[] {
+  private buildMessagesForMemory(
+    content: string | undefined,
+    toolCalls: any[] | undefined
+  ): Message[] {
     const messages: Message[] = []
 
     if (toolCalls?.length) {
@@ -1162,7 +1167,9 @@ export class AgentBlockHandler implements BlockHandler {
       // Use index to ensure uniqueness even for same tool name in same millisecond
       const toolCallsWithIds = toolCalls.map((tc: any, index: number) => ({
         ...tc,
-        _stableId: tc.id || `call_${tc.name}_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 7)}`,
+        _stableId:
+          tc.id ||
+          `call_${tc.name}_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 7)}`,
       }))
 
       // Add assistant message with tool_calls
@@ -1183,7 +1190,8 @@ export class AgentBlockHandler implements BlockHandler {
 
       // Add tool result messages using the same stable IDs
       for (const tc of toolCallsWithIds) {
-        const resultContent = typeof tc.result === 'string' ? tc.result : JSON.stringify(tc.result || {})
+        const resultContent =
+          typeof tc.result === 'string' ? tc.result : JSON.stringify(tc.result || {})
         messages.push({
           role: 'tool',
           content: resultContent,
