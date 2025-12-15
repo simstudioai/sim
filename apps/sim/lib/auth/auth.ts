@@ -24,7 +24,10 @@ import {
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import { handleNewUser } from '@/lib/billing/core/usage'
-import { syncSubscriptionUsageLimits } from '@/lib/billing/organization'
+import {
+  ensureOrganizationForTeamSubscription,
+  syncSubscriptionUsageLimits,
+} from '@/lib/billing/organization'
 import { getPlans } from '@/lib/billing/plans'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -2021,11 +2024,14 @@ export const auth = betterAuth({
                   status: subscription.status,
                 })
 
-                await handleSubscriptionCreated(subscription)
+                const resolvedSubscription =
+                  await ensureOrganizationForTeamSubscription(subscription)
 
-                await syncSubscriptionUsageLimits(subscription)
+                await handleSubscriptionCreated(resolvedSubscription)
 
-                await sendPlanWelcomeEmail(subscription)
+                await syncSubscriptionUsageLimits(resolvedSubscription)
+
+                await sendPlanWelcomeEmail(resolvedSubscription)
               },
               onSubscriptionUpdate: async ({
                 event,
@@ -2040,40 +2046,42 @@ export const auth = betterAuth({
                   plan: subscription.plan,
                 })
 
+                const resolvedSubscription =
+                  await ensureOrganizationForTeamSubscription(subscription)
+
                 try {
-                  await syncSubscriptionUsageLimits(subscription)
+                  await syncSubscriptionUsageLimits(resolvedSubscription)
                 } catch (error) {
                   logger.error('[onSubscriptionUpdate] Failed to sync usage limits', {
-                    subscriptionId: subscription.id,
-                    referenceId: subscription.referenceId,
+                    subscriptionId: resolvedSubscription.id,
+                    referenceId: resolvedSubscription.referenceId,
                     error,
                   })
                 }
 
-                // Sync seat count from Stripe subscription quantity for team plans
-                if (subscription.plan === 'team') {
+                if (resolvedSubscription.plan === 'team') {
                   try {
                     const stripeSubscription = event.data.object as Stripe.Subscription
                     const quantity = stripeSubscription.items?.data?.[0]?.quantity || 1
 
                     const result = await syncSeatsFromStripeQuantity(
-                      subscription.id,
-                      subscription.seats,
+                      resolvedSubscription.id,
+                      resolvedSubscription.seats ?? null,
                       quantity
                     )
 
                     if (result.synced) {
                       logger.info('[onSubscriptionUpdate] Synced seat count from Stripe', {
-                        subscriptionId: subscription.id,
-                        referenceId: subscription.referenceId,
+                        subscriptionId: resolvedSubscription.id,
+                        referenceId: resolvedSubscription.referenceId,
                         previousSeats: result.previousSeats,
                         newSeats: result.newSeats,
                       })
                     }
                   } catch (error) {
                     logger.error('[onSubscriptionUpdate] Failed to sync seat count', {
-                      subscriptionId: subscription.id,
-                      referenceId: subscription.referenceId,
+                      subscriptionId: resolvedSubscription.id,
+                      referenceId: resolvedSubscription.referenceId,
                       error,
                     })
                   }

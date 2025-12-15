@@ -16,7 +16,6 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get organizations where user is owner or admin
     const userOrganizations = await db
       .select({
         id: organization.id,
@@ -32,8 +31,15 @@ export async function GET() {
         )
       )
 
+    const anyMembership = await db
+      .select({ id: member.id })
+      .from(member)
+      .where(eq(member.userId, session.user.id))
+      .limit(1)
+
     return NextResponse.json({
       organizations: userOrganizations,
+      isMemberOfAnyOrg: anyMembership.length > 0,
     })
   } catch (error) {
     logger.error('Failed to fetch organizations', {
