@@ -43,7 +43,6 @@ export async function GET(request: NextRequest) {
   const description = searchParams.get('description') || ''
 
   const baseUrl = new URL(request.url).origin
-  const backgroundImageUrl = `${baseUrl}/static/og-background.png`
 
   const allText = `${title}${category}${description}docs.sim.ai`
   const fontData = await loadGoogleFont('Geist', '400;500;600', allText)
@@ -55,36 +54,49 @@ export async function GET(request: NextRequest) {
         width: '100%',
         display: 'flex',
         flexDirection: 'column',
-        background: 'linear-gradient(315deg, #1e1e3f 0%, #1a1a2e 40%, #0f0f0f 100%)',
+        background: '#0c0c0c',
         position: 'relative',
         fontFamily: 'Geist',
       }}
     >
-      {/* Background texture */}
-      <img
-        src={backgroundImageUrl}
-        alt=''
+      {/* Base gradient layer - very subtle purple tint across the entire image */}
+      <div
         style={{
           position: 'absolute',
           top: 0,
           left: 0,
           width: '100%',
           height: '100%',
-          objectFit: 'cover',
-          opacity: 0.04,
+          background:
+            'radial-gradient(ellipse 150% 100% at 50% 100%, rgba(88, 28, 135, 0.15) 0%, rgba(88, 28, 135, 0.08) 25%, rgba(88, 28, 135, 0.03) 50%, transparent 80%)',
+          display: 'flex',
         }}
       />
 
-      {/* Subtle purple glow from bottom right */}
+      {/* Secondary glow - adds depth without harsh edges */}
       <div
         style={{
           position: 'absolute',
-          bottom: 0,
-          right: 0,
-          width: '50%',
+          top: 0,
+          left: 0,
+          width: '100%',
           height: '100%',
           background:
-            'radial-gradient(ellipse at bottom right, rgba(112, 31, 252, 0.1) 0%, transparent 50%)',
+            'radial-gradient(ellipse 100% 80% at 80% 90%, rgba(112, 31, 252, 0.12) 0%, rgba(112, 31, 252, 0.04) 40%, transparent 70%)',
+          display: 'flex',
+        }}
+      />
+
+      {/* Top darkening - creates natural vignette */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          background:
+            'linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, transparent 40%, transparent 100%)',
           display: 'flex',
         }}
       />
