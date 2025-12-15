@@ -10,11 +10,11 @@ import { LLMCopyButton } from '@/components/page-actions'
 import { StructuredData } from '@/components/structured-data'
 import { CodeBlock } from '@/components/ui/code-block'
 import { Heading } from '@/components/ui/heading'
-import { source } from '@/lib/source'
+import { type Page as SourcePage, source } from '@/lib/source'
 
 export default async function Page(props: { params: Promise<{ slug?: string[]; lang: string }> }) {
   const params = await props.params
-  const page = source.getPage(params.slug, params.lang)
+  const page = source.getPage(params.slug, params.lang) as SourcePage | undefined
   if (!page) notFound()
 
   const MDX = page.data.body
@@ -237,7 +237,7 @@ export async function generateMetadata(props: {
   params: Promise<{ slug?: string[]; lang: string }>
 }) {
   const params = await props.params
-  const page = source.getPage(params.slug, params.lang)
+  const page = source.getPage(params.slug, params.lang) as SourcePage | undefined
   if (!page) notFound()
 
   const baseUrl = 'https://docs.sim.ai'

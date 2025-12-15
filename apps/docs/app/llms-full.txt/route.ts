@@ -1,11 +1,11 @@
 import { getLLMText } from '@/lib/llms'
-import { source } from '@/lib/source'
+import { type Page, source } from '@/lib/source'
 
 export const revalidate = false
 
 export async function GET() {
   try {
-    const pages = source.getPages().filter((page) => {
+    const pages = (source.getPages() as Page[]).filter((page) => {
       if (!page || !page.data || !page.url) return false
 
       const pathParts = page.url.split('/').filter(Boolean)

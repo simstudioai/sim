@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { type NextRequest, NextResponse } from 'next/server'
 import { i18n } from '@/lib/i18n'
 import { getLLMText } from '@/lib/llms'
-import { source } from '@/lib/source'
+import { type Page, source } from '@/lib/source'
 
 export const revalidate = false
 
@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
     pageSlug = slug.slice(1)
   }
 
-  const page = source.getPage(pageSlug, lang)
+  const page = source.getPage(pageSlug, lang) as Page | undefined
   if (!page) notFound()
 
   return new NextResponse(await getLLMText(page), {
