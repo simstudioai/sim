@@ -109,7 +109,7 @@ export default function Footer({ fullWidth = false }: FooterProps) {
               {FOOTER_BLOCKS.map((block) => (
                 <Link
                   key={block}
-                  href={`https://docs.sim.ai/blocks/${block.toLowerCase().replace(' ', '-')}`}
+                  href={`https://docs.sim.ai/blocks/${block.toLowerCase().replaceAll(' ', '-')}`}
                   target='_blank'
                   rel='noopener noreferrer'
                   className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
