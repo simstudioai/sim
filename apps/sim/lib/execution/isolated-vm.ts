@@ -1,8 +1,13 @@
-import ivm from 'isolated-vm'
+import type ivm from 'isolated-vm'
 import { validateProxyUrl } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('IsolatedVMExecution')
+
+async function loadIsolatedVM(): Promise<typeof ivm> {
+  const ivmModule = await import('isolated-vm')
+  return ivmModule.default
+}
 
 export interface IsolatedVMExecutionRequest {
   code: string
@@ -90,7 +95,6 @@ function convertToCompatibleError(errorInfo: {
 
 /**
  * Execute JavaScript code in an isolated V8 isolate
- * This provides true sandboxing that prevents prototype chain escapes
  */
 export async function executeInIsolatedVM(
   req: IsolatedVMExecutionRequest
@@ -99,6 +103,8 @@ export async function executeInIsolatedVM(
 
   const stdoutChunks: string[] = []
   let isolate: ivm.Isolate | null = null
+
+  const ivm = await loadIsolatedVM()
 
   try {
     isolate = new ivm.Isolate({ memoryLimit: 128 })
