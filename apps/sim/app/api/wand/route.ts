@@ -3,11 +3,13 @@ import { userStats, workflow } from '@sim/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import OpenAI, { AzureOpenAI } from 'openai'
+import { getSession } from '@/lib/auth'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
+import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import { getModelPricing } from '@/providers/utils'
 
 export const dynamic = 'force-dynamic'
@@ -135,7 +137,6 @@ async function updateUserStatsForWand(
       costAdded: costToStore,
     })
 
-    // Check if user has hit overage threshold and bill incrementally
     await checkAndBillOverageThreshold(userId)
   } catch (error) {
     logger.error(`[${requestId}] Failed to update user stats for wand usage`, error)
@@ -145,6 +146,12 @@ async function updateUserStatsForWand(
 export async function POST(req: NextRequest) {
   const requestId = generateRequestId()
   logger.info(`[${requestId}] Received wand generation request`)
+
+  const session = await getSession()
+  if (!session?.user?.id) {
+    logger.warn(`[${requestId}] Unauthorized wand generation attempt`)
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+  }
 
   if (!client) {
     logger.error(`[${requestId}] AI client not initialized. Missing API key.`)
@@ -165,6 +172,35 @@ export async function POST(req: NextRequest) {
         { success: false, error: 'Missing required field: prompt.' },
         { status: 400 }
       )
+    }
+
+    if (workflowId) {
+      const [workflowRecord] = await db
+        .select({ workspaceId: workflow.workspaceId, userId: workflow.userId })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1)
+
+      if (!workflowRecord) {
+        logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
+        return NextResponse.json({ success: false, error: 'Workflow not found' }, { status: 404 })
+      }
+
+      if (workflowRecord.workspaceId) {
+        const permission = await verifyWorkspaceMembership(
+          session.user.id,
+          workflowRecord.workspaceId
+        )
+        if (!permission || (permission !== 'admin' && permission !== 'write')) {
+          logger.warn(
+            `[${requestId}] User ${session.user.id} does not have write access to workspace for workflow ${workflowId}`
+          )
+          return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 })
+        }
+      } else if (workflowRecord.userId !== session.user.id) {
+        logger.warn(`[${requestId}] User ${session.user.id} does not own workflow ${workflowId}`)
+        return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 })
+      }
     }
 
     const finalSystemPrompt =
