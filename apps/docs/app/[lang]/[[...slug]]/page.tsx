@@ -18,7 +18,6 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
   const page = source.getPage(params.slug, params.lang)
   if (!page) notFound()
 
-  // Cast to our full page data type which includes MDX properties
   const data = page.data as PageData
   const MDX = data.body
   const baseUrl = 'https://docs.sim.ai'
