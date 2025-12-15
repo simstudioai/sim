@@ -13,6 +13,10 @@ import {
 } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
+import {
+  createEnvVarPattern,
+  createWorkflowVariablePattern,
+} from '@/executor/utils/reference-validation'
 
 interface CodeEditorProps {
   value: string
@@ -132,7 +136,6 @@ export function CodeEditor({
       return highlight(code, languages[language], language)
     }
 
-    // Helper to escape HTML special characters
     const escapeHtml = (text: string) =>
       text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
@@ -143,15 +146,13 @@ export function CodeEditor({
     }> = []
     let processedCode = code
 
-    // Highlight environment variables {{...}}
-    processedCode = processedCode.replace(/\{\{([^}]+)\}\}/g, (match) => {
+    processedCode = processedCode.replace(createEnvVarPattern(), (match) => {
       const placeholder = `__ENV_VAR_${placeholders.length}__`
       placeholders.push({ placeholder, original: match, type: 'env' })
       return placeholder
     })
 
-    // Highlight workflow variables <variable.name>
-    processedCode = processedCode.replace(/<variable\.[^>]+>/g, (match) => {
+    processedCode = processedCode.replace(createWorkflowVariablePattern(), (match) => {
       const placeholder = `__VARIABLE_${placeholders.length}__`
       placeholders.push({ placeholder, original: match, type: 'variable' })
       return placeholder

@@ -5,6 +5,10 @@ import { executeInE2B } from '@/lib/execution/e2b'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
+import {
+  createEnvVarPattern,
+  createWorkflowVariablePattern,
+} from '@/executor/utils/reference-validation'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
@@ -387,8 +391,7 @@ function resolveWorkflowVariables(
 ): string {
   let resolvedCode = code
 
-  // Find all matches with their positions
-  const regex = /<variable\.([^>]+)>/g
+  const regex = createWorkflowVariablePattern()
   let match: RegExpExecArray | null
   const replacements: Array<{
     match: string
@@ -449,49 +452,14 @@ function resolveWorkflowVariables(
   for (let i = replacements.length - 1; i >= 0; i--) {
     const { match: matchStr, index, variableName, variableValue } = replacements[i]
 
-    if (isInsideString(code, index)) {
-      // Inside a string - do direct substitution with stringified value
-      const stringValue =
-        typeof variableValue === 'object' ? JSON.stringify(variableValue) : String(variableValue)
-      resolvedCode =
-        resolvedCode.slice(0, index) + stringValue + resolvedCode.slice(index + matchStr.length)
-    } else {
-      // Outside a string - use variable reference
-      const safeVarName = `__variable_${variableName.replace(/[^a-zA-Z0-9_]/g, '_')}`
-      contextVariables[safeVarName] = variableValue
-      resolvedCode =
-        resolvedCode.slice(0, index) + safeVarName + resolvedCode.slice(index + matchStr.length)
-    }
+    // Use variable reference approach
+    const safeVarName = `__variable_${variableName.replace(/[^a-zA-Z0-9_]/g, '_')}`
+    contextVariables[safeVarName] = variableValue
+    resolvedCode =
+      resolvedCode.slice(0, index) + safeVarName + resolvedCode.slice(index + matchStr.length)
   }
 
   return resolvedCode
-}
-
-/**
- * Checks if a match position is inside a string literal
- */
-function isInsideString(code: string, matchIndex: number): boolean {
-  let inSingleQuote = false
-  let inDoubleQuote = false
-  let inTemplate = false
-
-  for (let i = 0; i < matchIndex; i++) {
-    const char = code[i]
-    const prevChar = i > 0 ? code[i - 1] : ''
-
-    // Skip escaped characters
-    if (prevChar === '\\') continue
-
-    if (char === "'" && !inDoubleQuote && !inTemplate) {
-      inSingleQuote = !inSingleQuote
-    } else if (char === '"' && !inSingleQuote && !inTemplate) {
-      inDoubleQuote = !inDoubleQuote
-    } else if (char === '`' && !inSingleQuote && !inDoubleQuote) {
-      inTemplate = !inTemplate
-    }
-  }
-
-  return inSingleQuote || inDoubleQuote || inTemplate
 }
 
 /**
@@ -505,8 +473,7 @@ function resolveEnvironmentVariables(
 ): string {
   let resolvedCode = code
 
-  // Find all matches with their positions
-  const regex = /\{\{([^}]+)\}\}/g
+  const regex = createEnvVarPattern()
   let match: RegExpExecArray | null
   const replacements: Array<{ match: string; index: number; varName: string; varValue: string }> =
     []
@@ -522,21 +489,13 @@ function resolveEnvironmentVariables(
     })
   }
 
-  // Process replacements in reverse order to maintain correct indices
   for (let i = replacements.length - 1; i >= 0; i--) {
     const { match: matchStr, index, varName, varValue } = replacements[i]
 
-    if (isInsideString(code, index)) {
-      // Inside a string - do direct substitution
-      resolvedCode =
-        resolvedCode.slice(0, index) + varValue + resolvedCode.slice(index + matchStr.length)
-    } else {
-      // Outside a string - use variable reference
-      const safeVarName = `__var_${varName.replace(/[^a-zA-Z0-9_]/g, '_')}`
-      contextVariables[safeVarName] = varValue
-      resolvedCode =
-        resolvedCode.slice(0, index) + safeVarName + resolvedCode.slice(index + matchStr.length)
-    }
+    const safeVarName = `__var_${varName.replace(/[^a-zA-Z0-9_]/g, '_')}`
+    contextVariables[safeVarName] = varValue
+    resolvedCode =
+      resolvedCode.slice(0, index) + safeVarName + resolvedCode.slice(index + matchStr.length)
   }
 
   return resolvedCode
