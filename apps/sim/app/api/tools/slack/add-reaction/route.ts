@@ -12,8 +12,8 @@ const logger = createLogger('SlackAddReactionAPI')
 const SlackAddReactionSchema = z
   .object({
     accessToken: z.string().min(1, 'Access token is required'),
-    channel: z.string().optional(),
-    userId: z.string().optional(),
+    channel: z.string().optional().nullable(),
+    userId: z.string().optional().nullable(),
     timestamp: z.string().min(1, 'Message timestamp is required'),
     name: z.string().min(1, 'Emoji name is required'),
   })

@@ -12,11 +12,11 @@ const logger = createLogger('SlackReadMessagesAPI')
 const SlackReadMessagesSchema = z
   .object({
     accessToken: z.string().min(1, 'Access token is required'),
-    channel: z.string().optional(),
-    userId: z.string().optional(),
-    limit: z.number().optional(),
-    oldest: z.string().optional(),
-    latest: z.string().optional(),
+    channel: z.string().optional().nullable(),
+    userId: z.string().optional().nullable(),
+    limit: z.number().optional().nullable(),
+    oldest: z.string().optional().nullable(),
+    latest: z.string().optional().nullable(),
   })
   .refine((data) => data.channel || data.userId, {
     message: 'Either channel or userId is required',

@@ -12,8 +12,8 @@ const logger = createLogger('SlackSendMessageAPI')
 const SlackSendMessageSchema = z
   .object({
     accessToken: z.string().min(1, 'Access token is required'),
-    channel: z.string().optional(),
-    userId: z.string().optional(),
+    channel: z.string().optional().nullable(),
+    userId: z.string().optional().nullable(),
     text: z.string().min(1, 'Message text is required'),
     thread_ts: z.string().optional().nullable(),
     files: z.array(z.any()).optional().nullable(),
