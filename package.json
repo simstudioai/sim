@@ -71,6 +71,7 @@
     ]
   },
   "trustedDependencies": [
-    "ffmpeg-static"
+    "ffmpeg-static",
+    "isolated-vm"
   ]
 }

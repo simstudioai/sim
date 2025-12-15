@@ -1,9 +1,8 @@
-import { createContext, Script } from 'vm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { isE2bEnabled } from '@/lib/core/config/feature-flags'
-import { validateProxyUrl } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { executeInE2B } from '@/lib/execution/e2b'
+import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
 export const dynamic = 'force-dynamic'
@@ -12,29 +11,6 @@ export const runtime = 'nodejs'
 export const MAX_DURATION = 210
 
 const logger = createLogger('FunctionExecuteAPI')
-
-function createSecureFetch(requestId: string) {
-  const originalFetch = (globalThis as any).fetch || require('node-fetch').default
-
-  return async function secureFetch(input: any, init?: any) {
-    const url = typeof input === 'string' ? input : input?.url || input
-
-    if (!url || typeof url !== 'string') {
-      throw new Error('Invalid URL provided to fetch')
-    }
-
-    const validation = validateProxyUrl(url)
-    if (!validation.isValid) {
-      logger.warn(`[${requestId}] Blocked fetch request due to SSRF validation`, {
-        url: url.substring(0, 100),
-        error: validation.error,
-      })
-      throw new Error(`Security Error: ${validation.error}`)
-    }
-
-    return originalFetch(input, init)
-  }
-}
 
 // Constants for E2B code wrapping line counts
 const E2B_JS_WRAPPER_LINES = 3 // Lines before user code: ';(async () => {', '  try {', '    const __sim_result = await (async () => {'
@@ -899,29 +875,11 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const executionMethod = 'vm'
-    const context = createContext({
-      params: executionParams,
-      environmentVariables: envVars,
-      ...contextVariables,
-      fetch: createSecureFetch(requestId),
-      console: {
-        log: (...args: any[]) => {
-          const logMessage = `${args
-            .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
-            .join(' ')}\n`
-          stdout += logMessage
-        },
-        error: (...args: any[]) => {
-          const errorMessage = `${args
-            .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
-            .join(' ')}\n`
-          logger.error(`[${requestId}] Code Console Error: ${errorMessage}`)
-          stdout += `ERROR: ${errorMessage}`
-        },
-      },
-    })
+    // Use isolated-vm for secure sandboxed execution
+    // This prevents prototype chain escapes that could access process.env or execute arbitrary code
+    const executionMethod = 'isolated-vm'
 
+    // Build wrapper lines like the old vm implementation for line number compatibility
     const wrapperLines = ['(async () => {', '  try {']
     if (isCustomTool) {
       wrapperLines.push('    // For custom tools, make parameters directly accessible')
@@ -930,36 +888,86 @@ export async function POST(req: NextRequest) {
       })
     }
     userCodeStartLine = wrapperLines.length + 1
-    const fullScript = [
-      ...wrapperLines,
-      `    ${resolvedCode.split('\n').join('\n    ')}`,
-      '  } catch (error) {',
-      '    console.error(error);',
-      '    throw error;',
-      '  }',
-      '})()',
-    ].join('\n')
 
-    const script = new Script(fullScript, {
-      filename: 'user-function.js',
-      lineOffset: 0,
-      columnOffset: 0,
-    })
+    // For custom tools, prepend parameter destructuring to the code
+    let codeToExecute = resolvedCode
+    if (isCustomTool) {
+      const paramDestructuring = Object.keys(executionParams)
+        .map((key) => `const ${key} = params.${key};`)
+        .join('\n')
+      codeToExecute = `${paramDestructuring}\n${resolvedCode}`
+    }
 
-    const result = await script.runInContext(context, {
-      timeout,
-      displayErrors: true,
-      breakOnSigint: true,
+    const isolatedResult = await executeInIsolatedVM({
+      code: codeToExecute,
+      params: executionParams,
+      envVars,
+      contextVariables,
+      timeoutMs: timeout,
+      requestId,
+      userCodeStartLine,
     })
 
     const executionTime = Date.now() - startTime
+
+    if (isolatedResult.error) {
+      const errorObj = {
+        message: isolatedResult.error.message,
+        name: isolatedResult.error.name,
+        stack: isolatedResult.error.stack,
+      }
+
+      logger.error(`[${requestId}] Function execution failed in isolated-vm`, {
+        error: isolatedResult.error,
+        executionTime,
+      })
+
+      const enhancedError = extractEnhancedError(errorObj, userCodeStartLine, resolvedCode)
+      const userFriendlyErrorMessage = createUserFriendlyErrorMessage(
+        enhancedError,
+        requestId,
+        resolvedCode
+      )
+
+      logger.error(`[${requestId}] Enhanced error details`, {
+        originalMessage: errorObj.message,
+        enhancedMessage: userFriendlyErrorMessage,
+        line: enhancedError.line,
+        column: enhancedError.column,
+        lineContent: enhancedError.lineContent,
+        errorType: enhancedError.name,
+        userCodeStartLine,
+      })
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: userFriendlyErrorMessage,
+          output: {
+            result: null,
+            stdout: cleanStdout(isolatedResult.stdout),
+            executionTime,
+          },
+          debug: {
+            line: enhancedError.line,
+            column: enhancedError.column,
+            errorType: enhancedError.name,
+            lineContent: enhancedError.lineContent,
+            stack: enhancedError.stack,
+          },
+        },
+        { status: 500 }
+      )
+    }
+
+    stdout = isolatedResult.stdout
     logger.info(`[${requestId}] Function executed successfully using ${executionMethod}`, {
       executionTime,
     })
 
     return NextResponse.json({
       success: true,
-      output: { result, stdout: cleanStdout(stdout), executionTime },
+      output: { result: isolatedResult.result, stdout: cleanStdout(stdout), executionTime },
     })
   } catch (error: any) {
     const executionTime = Date.now() - startTime
