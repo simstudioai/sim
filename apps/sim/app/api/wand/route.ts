@@ -3,6 +3,7 @@ import { userStats, workflow } from '@sim/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import OpenAI, { AzureOpenAI } from 'openai'
+import { getSession } from '@/lib/auth'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-flags'
@@ -135,7 +136,6 @@ async function updateUserStatsForWand(
       costAdded: costToStore,
     })
 
-    // Check if user has hit overage threshold and bill incrementally
     await checkAndBillOverageThreshold(userId)
   } catch (error) {
     logger.error(`[${requestId}] Failed to update user stats for wand usage`, error)
@@ -145,6 +145,12 @@ async function updateUserStatsForWand(
 export async function POST(req: NextRequest) {
   const requestId = generateRequestId()
   logger.info(`[${requestId}] Received wand generation request`)
+
+  const session = await getSession()
+  if (!session?.user?.id) {
+    logger.warn(`[${requestId}] Unauthorized wand generation attempt`)
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+  }
 
   if (!client) {
     logger.error(`[${requestId}] AI client not initialized. Missing API key.`)
