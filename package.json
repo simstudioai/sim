@@ -28,8 +28,8 @@
   "overrides": {
     "react": "19.2.1",
     "react-dom": "19.2.1",
-    "next": "16.0.9",
-    "@next/env": "16.0.9",
+    "next": "16.1.0-canary.21",
+    "@next/env": "16.1.0-canary.21",
     "drizzle-orm": "^0.44.5",
     "postgres": "^3.4.5"
   },
