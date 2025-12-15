@@ -9,6 +9,7 @@ import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
+import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import { getModelPricing } from '@/providers/utils'
 
 export const dynamic = 'force-dynamic'
@@ -171,6 +172,32 @@ export async function POST(req: NextRequest) {
         { success: false, error: 'Missing required field: prompt.' },
         { status: 400 }
       )
+    }
+
+    if (workflowId) {
+      const [workflowRecord] = await db
+        .select({ workspaceId: workflow.workspaceId })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1)
+
+      if (!workflowRecord) {
+        logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
+        return NextResponse.json({ success: false, error: 'Workflow not found' }, { status: 404 })
+      }
+
+      if (workflowRecord.workspaceId) {
+        const permission = await verifyWorkspaceMembership(
+          session.user.id,
+          workflowRecord.workspaceId
+        )
+        if (!permission || (permission !== 'admin' && permission !== 'write')) {
+          logger.warn(
+            `[${requestId}] User ${session.user.id} does not have write access to workspace for workflow ${workflowId}`
+          )
+          return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 })
+        }
+      }
     }
 
     const finalSystemPrompt =
