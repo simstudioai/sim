@@ -73,6 +73,7 @@
   },
   "trustedDependencies": [
     "ffmpeg-static",
-    "isolated-vm"
+    "isolated-vm",
+    "sharp"
   ]
 }

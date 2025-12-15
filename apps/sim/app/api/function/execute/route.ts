@@ -325,7 +325,7 @@ function createUserFriendlyErrorMessage(
 ): string {
   let errorMessage = enhanced.message
 
-  // Add line information if available (without column number to match production format)
+  // Add line information if available
   if (enhanced.line !== undefined) {
     let lineInfo = `Line ${enhanced.line}`
 
