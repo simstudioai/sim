@@ -229,6 +229,7 @@ export const auth = betterAuth({
         'hubspot',
         'linkedin',
         'spotify',
+        'figma',
 
         // Common SSO provider patterns
         ...SSO_TRUSTED_PROVIDERS,
@@ -1955,6 +1956,53 @@ export const auth = betterAuth({
             } catch (error) {
               logger.error('Error in WordPress.com getUserInfo:', { error })
               return null
+            }
+          },
+        },
+
+        // Figma provider
+        {
+          providerId: 'figma',
+          clientId: env.FIGMA_CLIENT_ID as string,
+          clientSecret: env.FIGMA_CLIENT_SECRET as string,
+          authorizationUrl: 'https://www.figma.com/oauth',
+          tokenUrl: 'https://api.figma.com/v1/oauth/token',
+          userInfoUrl: 'https://api.figma.com/v1/me',
+          scopes: [
+            'current_user:read',
+            'file_content:read',
+            'file_metadata:read',
+            'file_comments:read',
+            'file_comments:write',
+            'library_content:read',
+          ],
+          responseType: 'code',
+          pkce: false,
+          accessType: 'offline',
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/figma`,
+          getUserInfo: async (tokens) => {
+            const response = await fetch('https://api.figma.com/v1/me', {
+              headers: {
+                Authorization: `Bearer ${tokens.accessToken}`,
+              },
+            })
+
+            if (!response.ok) {
+              logger.error('Failed to fetch Figma user info', {
+                status: response.status,
+              })
+              return null
+            }
+
+            const profile = await response.json()
+
+            return {
+              id: profile.id,
+              name: profile.handle || profile.email || 'Figma User',
+              email: profile.email,
+              emailVerified: !!profile.email,
+              image: profile.img_url,
             }
           },
         },

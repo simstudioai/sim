@@ -185,6 +185,15 @@ import {
   exaResearchTool,
   exaSearchTool,
 } from '@/tools/exa'
+import {
+  figmaAddCommentTool,
+  figmaExportImagesTool,
+  figmaGetComponentsTool,
+  figmaGetFileTool,
+  figmaGetNodesTool,
+  figmaGetStylesTool,
+  figmaListCommentsTool,
+} from '@/tools/figma'
 import { fileParseTool } from '@/tools/file'
 import {
   firecrawlCrawlTool,
@@ -1379,6 +1388,13 @@ export const tools: Record<string, ToolConfig> = {
   firecrawl_crawl: firecrawlCrawlTool,
   firecrawl_map: firecrawlMapTool,
   firecrawl_extract: firecrawlExtractTool,
+  figma_get_file: figmaGetFileTool,
+  figma_get_nodes: figmaGetNodesTool,
+  figma_export_images: figmaExportImagesTool,
+  figma_list_comments: figmaListCommentsTool,
+  figma_add_comment: figmaAddCommentTool,
+  figma_get_components: figmaGetComponentsTool,
+  figma_get_styles: figmaGetStylesTool,
   grafana_get_dashboard: grafanaGetDashboardTool,
   grafana_list_dashboards: grafanaListDashboardsTool,
   grafana_create_dashboard: grafanaCreateDashboardTool,

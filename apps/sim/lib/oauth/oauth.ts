@@ -5,6 +5,7 @@ import {
   ConfluenceIcon,
   // DiscordIcon,
   DropboxIcon,
+  FigmaIcon,
   GithubIcon,
   GmailIcon,
   GoogleCalendarIcon,
@@ -72,6 +73,7 @@ export type OAuthProvider =
   | 'zoom'
   | 'wordpress'
   | 'spotify'
+  | 'figma'
   | string
 
 export type OAuthService =
@@ -114,6 +116,7 @@ export type OAuthService =
   | 'zoom'
   | 'wordpress'
   | 'spotify'
+  | 'figma'
 
 export interface OAuthProviderConfig {
   id: OAuthProvider
@@ -930,6 +933,30 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'spotify',
   },
+  figma: {
+    id: 'figma',
+    name: 'Figma',
+    icon: (props) => FigmaIcon(props),
+    services: {
+      figma: {
+        id: 'figma',
+        name: 'Figma',
+        description: 'Access Figma designs, components, styles, and assets.',
+        providerId: 'figma',
+        icon: (props) => FigmaIcon(props),
+        baseProviderIcon: (props) => FigmaIcon(props),
+        scopes: [
+          'current_user:read',
+          'file_content:read',
+          'file_metadata:read',
+          'file_comments:read',
+          'file_comments:write',
+          'library_content:read',
+        ],
+      },
+    },
+    defaultService: 'figma',
+  },
 }
 
 /**
@@ -1519,6 +1546,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: true,
+        supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'figma': {
+      const { clientId, clientSecret } = getCredentials(
+        env.FIGMA_CLIENT_ID,
+        env.FIGMA_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://api.figma.com/v1/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
         supportsRefreshTokenRotation: false,
       }
     }

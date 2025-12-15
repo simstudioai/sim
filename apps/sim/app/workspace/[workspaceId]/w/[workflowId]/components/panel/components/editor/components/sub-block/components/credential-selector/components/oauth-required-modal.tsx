@@ -225,7 +225,6 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'activities:full': 'Full access to manage your Pipedrive activities',
   'mail:read': 'Read your Pipedrive emails',
   'mail:full': 'Full access to manage your Pipedrive emails',
-  'projects:read': 'Read your Pipedrive projects',
   'projects:full': 'Full access to manage your Pipedrive projects',
   'webhooks:read': 'Read your Pipedrive webhooks',
   'webhooks:full': 'Full access to manage your Pipedrive webhooks',
@@ -280,6 +279,13 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'user-follow-modify': 'Follow and unfollow artists and users',
   'user-read-playback-position': 'View your playback position in podcasts',
   'ugc-image-upload': 'Upload images to your Spotify playlists',
+  // Figma scopes
+  'current_user:read': 'Read your name, email, and profile image',
+  'file_content:read': 'Read file contents and design data',
+  'file_metadata:read': 'Read file metadata like name and last modified',
+  'file_comments:read': 'Read comments on design files',
+  'file_comments:write': 'Add and manage comments on design files',
+  'library_content:read': 'Read published components and styles',
 }
 
 function getScopeDescription(scope: string): string {
