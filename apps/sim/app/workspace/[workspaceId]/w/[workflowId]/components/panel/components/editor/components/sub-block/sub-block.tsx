@@ -157,6 +157,7 @@ const renderLabel = (
     isWandEnabled: boolean
     isPreview: boolean
     isStreaming: boolean
+    disabled: boolean
     onSearchClick: () => void
     onSearchBlur: () => void
     onSearchChange: (value: string) => void
@@ -175,6 +176,7 @@ const renderLabel = (
     isWandEnabled,
     isPreview,
     isStreaming,
+    disabled,
     onSearchClick,
     onSearchBlur,
     onSearchChange,
@@ -208,7 +210,7 @@ const renderLabel = (
       </div>
 
       {/* Wand inline prompt */}
-      {isWandEnabled && !isPreview && (
+      {isWandEnabled && !isPreview && !disabled && (
         <div className='flex min-w-0 flex-1 items-center justify-end pr-[4px]'>
           {!isSearchActive ? (
             <Button
@@ -824,6 +826,7 @@ function SubBlockComponent({
           isWandEnabled,
           isPreview,
           isStreaming: wandControlRef.current?.isWandStreaming ?? false,
+          disabled: isDisabled,
           onSearchClick: handleSearchClick,
           onSearchBlur: handleSearchBlur,
           onSearchChange: handleSearchChange,
