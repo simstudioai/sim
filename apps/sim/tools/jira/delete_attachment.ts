@@ -127,13 +127,7 @@ export const jiraDeleteAttachmentTool: ToolConfig<
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
-      type: 'object',
-      description: 'Deletion details with timestamp, attachment ID, and success status',
-    },
+    ts: { type: 'string', description: 'Timestamp of the operation' },
+    attachmentId: { type: 'string', description: 'Deleted attachment ID' },
   },
 }

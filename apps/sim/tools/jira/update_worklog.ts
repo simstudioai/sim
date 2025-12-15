@@ -188,14 +188,8 @@ export const jiraUpdateWorklogTool: ToolConfig<JiraUpdateWorklogParams, JiraUpda
     },
 
     outputs: {
-      success: {
-        type: 'boolean',
-        description: 'Operation success status',
-      },
-      output: {
-        type: 'object',
-        description:
-          'Worklog update details with timestamp, issue key, worklog ID, and success status',
-      },
+      ts: { type: 'string', description: 'Timestamp of the operation' },
+      issueKey: { type: 'string', description: 'Issue key' },
+      worklogId: { type: 'string', description: 'Updated worklog ID' },
     },
   }

@@ -204,13 +204,10 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
+    issues: {
       type: 'array',
-      description: 'Array of Jira issues with summary, description, created and updated timestamps',
+      description:
+        'Array of Jira issues with ts, summary, description, created, and updated timestamps',
     },
   },
 }
