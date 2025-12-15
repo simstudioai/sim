@@ -874,11 +874,8 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Use isolated-vm for secure sandboxed execution
-    // This prevents prototype chain escapes that could access process.env or execute arbitrary code
     const executionMethod = 'isolated-vm'
 
-    // Build wrapper lines like the old vm implementation for line number compatibility
     const wrapperLines = ['(async () => {', '  try {']
     if (isCustomTool) {
       wrapperLines.push('    // For custom tools, make parameters directly accessible')
@@ -888,7 +885,6 @@ export async function POST(req: NextRequest) {
     }
     userCodeStartLine = wrapperLines.length + 1
 
-    // For custom tools, prepend parameter destructuring to the code
     let codeToExecute = resolvedCode
     if (isCustomTool) {
       const paramDestructuring = Object.keys(executionParams)

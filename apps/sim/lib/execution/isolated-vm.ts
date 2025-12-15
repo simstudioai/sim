@@ -156,9 +156,21 @@ export async function executeInIsolatedVM(
 
       // Set up fetch function that uses the host's secure fetch
       async function fetch(url, options) {
-        const optionsJson = options ? JSON.stringify(options) : undefined;
+        let optionsJson;
+        if (options) {
+          try {
+            optionsJson = JSON.stringify(options);
+          } catch {
+            throw new Error('fetch options must be JSON-serializable');
+          }
+        }
         const resultJson = await __fetchRef.apply(undefined, [url, optionsJson], { result: { promise: true } });
-        const result = JSON.parse(resultJson);
+        let result;
+        try {
+          result = JSON.parse(resultJson);
+        } catch {
+          throw new Error('Invalid fetch response');
+        }
 
         if (result.error) {
           throw new Error(result.error);
@@ -174,19 +186,31 @@ export async function executeInIsolatedVM(
             entries: () => Object.entries(result.headers),
           },
           text: async () => result.body,
-          json: async () => JSON.parse(result.body),
+          json: async () => {
+            try {
+              return JSON.parse(result.body);
+            } catch (e) {
+              throw new Error('Failed to parse response as JSON: ' + e.message);
+            }
+          },
           blob: async () => { throw new Error('blob() not supported in sandbox'); },
           arrayBuffer: async () => { throw new Error('arrayBuffer() not supported in sandbox'); },
         };
       }
 
-      // Prevent access to dangerous globals
+      // Prevent access to dangerous globals with stronger protection
       const undefined_globals = [
         'Isolate', 'Context', 'Script', 'Module', 'Callback', 'Reference',
         'ExternalCopy', 'process', 'require', 'module', 'exports', '__dirname', '__filename'
       ];
       for (const name of undefined_globals) {
-        try { global[name] = undefined; } catch {}
+        try {
+          Object.defineProperty(global, name, {
+            value: undefined,
+            writable: false,
+            configurable: false
+          });
+        } catch {}
       }
     `
 

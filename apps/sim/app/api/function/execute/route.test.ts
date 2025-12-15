@@ -30,7 +30,6 @@ vi.mock('@/lib/execution/isolated-vm', () => ({
     }
 
     try {
-      // Detect constructor chain escape attempts (simulates isolated-vm security)
       const escapePattern = /this\.constructor\.constructor|\.constructor\s*\(/
       if (escapePattern.test(code)) {
         return { result: undefined, stdout: '' }
@@ -139,12 +138,11 @@ describe('Function Execute API Route', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      if (response.status === 200) {
+      if (response.status === 500) {
+        expect(data.success).toBe(false)
+      } else {
         const result = data.output?.result
-        if (result !== undefined && result !== null && typeof result === 'object') {
-          expect(result).not.toHaveProperty('OPENAI_API_KEY')
-          expect(result).not.toHaveProperty('EXA_API_KEY')
-        }
+        expect(result === undefined || result === null).toBe(true)
       }
     })
 
