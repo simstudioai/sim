@@ -10,6 +10,7 @@ import type {
 const SELECTOR_STALE = 60 * 1000
 
 type SlackChannel = { id: string; name: string }
+type SlackUser = { id: string; name: string; real_name: string }
 type FolderResponse = { id: string; name: string }
 type PlannerTask = { id: string; title: string }
 
@@ -56,6 +57,30 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       return (data.channels || []).map((channel) => ({
         id: channel.id,
         label: `#${channel.name}`,
+      }))
+    },
+  },
+  'slack.users': {
+    key: 'slack.users',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'slack.users',
+      context.credentialId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.credentialId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const body = JSON.stringify({
+        credential: context.credentialId,
+        workflowId: context.workflowId,
+      })
+      const data = await fetchJson<{ users: SlackUser[] }>('/api/tools/slack/users', {
+        method: 'POST',
+        body,
+      })
+      return (data.users || []).map((user) => ({
+        id: user.id,
+        label: user.real_name || user.name,
       }))
     },
   },

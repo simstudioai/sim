@@ -3,17 +3,23 @@ import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
+import { openDMChannel } from '../utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SlackUpdateMessageAPI')
 
-const SlackUpdateMessageSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  channel: z.string().min(1, 'Channel ID is required'),
-  timestamp: z.string().min(1, 'Message timestamp is required'),
-  text: z.string().min(1, 'Message text is required'),
-})
+const SlackUpdateMessageSchema = z
+  .object({
+    accessToken: z.string().min(1, 'Access token is required'),
+    channel: z.string().optional(),
+    userId: z.string().optional(),
+    timestamp: z.string().min(1, 'Message timestamp is required'),
+    text: z.string().min(1, 'Message text is required'),
+  })
+  .refine((data) => data.channel || data.userId, {
+    message: 'Either channel or userId is required',
+  })
 
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
@@ -42,8 +48,19 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = SlackUpdateMessageSchema.parse(body)
 
+    let channel = validatedData.channel
+    if (!channel && validatedData.userId) {
+      logger.info(`[${requestId}] Opening DM channel for user: ${validatedData.userId}`)
+      channel = await openDMChannel(
+        validatedData.accessToken,
+        validatedData.userId,
+        requestId,
+        logger
+      )
+    }
+
     logger.info(`[${requestId}] Updating Slack message`, {
-      channel: validatedData.channel,
+      channel,
       timestamp: validatedData.timestamp,
     })
 
@@ -54,7 +71,7 @@ export async function POST(request: NextRequest) {
         Authorization: `Bearer ${validatedData.accessToken}`,
       },
       body: JSON.stringify({
-        channel: validatedData.channel,
+        channel,
         ts: validatedData.timestamp,
         text: validatedData.text,
       }),

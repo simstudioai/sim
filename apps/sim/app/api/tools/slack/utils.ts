@@ -200,7 +200,8 @@ export async function openDMChannel(
 
 export interface SlackMessageParams {
   accessToken: string
-  channel: string
+  channel?: string
+  userId?: string
   text: string
   threadTs?: string | null
   files?: any[] | null
@@ -208,7 +209,7 @@ export interface SlackMessageParams {
 
 /**
  * Sends a Slack message with optional file attachments
- * This is the main function that handles the complete flow of sending messages
+ * Supports both channel messages and direct messages via userId
  */
 export async function sendSlackMessage(
   params: SlackMessageParams,
@@ -219,7 +220,17 @@ export async function sendSlackMessage(
   output?: { message: any; ts: string; channel: string; fileCount?: number }
   error?: string
 }> {
-  const { accessToken, channel, text, threadTs, files } = params
+  const { accessToken, text, threadTs, files } = params
+  let { channel } = params
+
+  if (!channel && params.userId) {
+    logger.info(`[${requestId}] Opening DM channel for user: ${params.userId}`)
+    channel = await openDMChannel(accessToken, params.userId, requestId, logger)
+  }
+
+  if (!channel) {
+    return { success: false, error: 'Either channel or userId is required' }
+  }
 
   // No files - simple message
   if (!files || files.length === 0) {

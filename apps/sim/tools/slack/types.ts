@@ -7,7 +7,8 @@ export interface SlackBaseParams {
 }
 
 export interface SlackMessageParams extends SlackBaseParams {
-  channel: string
+  channel?: string
+  userId?: string
   text: string
   thread_ts?: string
   files?: any[]
@@ -21,7 +22,8 @@ export interface SlackCanvasParams extends SlackBaseParams {
 }
 
 export interface SlackMessageReaderParams extends SlackBaseParams {
-  channel: string
+  channel?: string
+  userId?: string
   limit?: number
   oldest?: string
   latest?: string
@@ -33,18 +35,21 @@ export interface SlackDownloadParams extends SlackBaseParams {
 }
 
 export interface SlackUpdateMessageParams extends SlackBaseParams {
-  channel: string
+  channel?: string
+  userId?: string
   timestamp: string
   text: string
 }
 
 export interface SlackDeleteMessageParams extends SlackBaseParams {
-  channel: string
+  channel?: string
+  userId?: string
   timestamp: string
 }
 
 export interface SlackAddReactionParams extends SlackBaseParams {
-  channel: string
+  channel?: string
+  userId?: string
   timestamp: string
   name: string
 }
@@ -67,13 +72,6 @@ export interface SlackListUsersParams extends SlackBaseParams {
 
 export interface SlackGetUserParams extends SlackBaseParams {
   userId: string
-}
-
-export interface SlackDMParams extends SlackBaseParams {
-  userId: string
-  text: string
-  thread_ts?: string
-  files?: any[]
 }
 
 export interface SlackMessageResponse extends ToolResponse {
@@ -306,15 +304,6 @@ export interface SlackGetUserResponse extends ToolResponse {
   }
 }
 
-export interface SlackDMResponse extends ToolResponse {
-  output: {
-    message: SlackMessage
-    ts: string
-    channel: string
-    fileCount?: number
-  }
-}
-
 export type SlackResponse =
   | SlackCanvasResponse
   | SlackMessageReaderResponse
@@ -327,4 +316,3 @@ export type SlackResponse =
   | SlackListMembersResponse
   | SlackListUsersResponse
   | SlackGetUserResponse
-  | SlackDMResponse

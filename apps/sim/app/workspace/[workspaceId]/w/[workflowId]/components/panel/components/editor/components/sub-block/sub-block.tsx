@@ -39,6 +39,7 @@ import {
   TimeInput,
   ToolInput,
   TriggerSave,
+  UserSelectorInput,
   VariablesInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
@@ -734,6 +735,17 @@ function SubBlockComponent({
       case 'channel-selector':
         return (
           <ChannelSelectorInput
+            blockId={blockId}
+            subBlock={config}
+            disabled={isDisabled}
+            isPreview={isPreview}
+            previewValue={previewValue}
+          />
+        )
+
+      case 'user-selector':
+        return (
+          <UserSelectorInput
             blockId={blockId}
             subBlock={config}
             disabled={isDisabled}

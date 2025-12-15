@@ -9,13 +9,18 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SlackSendMessageAPI')
 
-const SlackSendMessageSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  channel: z.string().min(1, 'Channel is required'),
-  text: z.string().min(1, 'Message text is required'),
-  thread_ts: z.string().optional().nullable(),
-  files: z.array(z.any()).optional().nullable(),
-})
+const SlackSendMessageSchema = z
+  .object({
+    accessToken: z.string().min(1, 'Access token is required'),
+    channel: z.string().optional(),
+    userId: z.string().optional(),
+    text: z.string().min(1, 'Message text is required'),
+    thread_ts: z.string().optional().nullable(),
+    files: z.array(z.any()).optional().nullable(),
+  })
+  .refine((data) => data.channel || data.userId, {
+    message: 'Either channel or userId is required',
+  })
 
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
@@ -41,8 +46,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = SlackSendMessageSchema.parse(body)
 
+    const isDM = !!validatedData.userId
     logger.info(`[${requestId}] Sending Slack message`, {
       channel: validatedData.channel,
+      userId: validatedData.userId,
+      isDM,
       hasFiles: !!(validatedData.files && validatedData.files.length > 0),
       fileCount: validatedData.files?.length || 0,
     })
@@ -51,6 +59,7 @@ export async function POST(request: NextRequest) {
       {
         accessToken: validatedData.accessToken,
         channel: validatedData.channel,
+        userId: validatedData.userId,
         text: validatedData.text,
         threadTs: validatedData.thread_ts,
         files: validatedData.files,

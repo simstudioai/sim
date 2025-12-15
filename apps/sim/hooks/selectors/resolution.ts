@@ -32,6 +32,8 @@ export function resolveSelectorForSubBlock(
       return resolveFolderSelector(subBlock, args)
     case 'channel-selector':
       return resolveChannelSelector(subBlock, args)
+    case 'user-selector':
+      return resolveUserSelector(subBlock, args)
     case 'project-selector':
       return resolveProjectSelector(subBlock, args)
     case 'document-selector':
@@ -152,6 +154,21 @@ function resolveChannelSelector(
   }
   return {
     key: 'slack.channels',
+    context: buildBaseContext(args),
+    allowSearch: true,
+  }
+}
+
+function resolveUserSelector(
+  subBlock: SubBlockConfig,
+  args: SelectorResolutionArgs
+): SelectorResolution {
+  const serviceId = subBlock.serviceId
+  if (serviceId !== 'slack') {
+    return { key: null, context: buildBaseContext(args), allowSearch: true }
+  }
+  return {
+    key: 'slack.users',
     context: buildBaseContext(args),
     allowSearch: true,
   }

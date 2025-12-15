@@ -33,9 +33,15 @@ export const slackAddReactionTool: ToolConfig<SlackAddReactionParams, SlackAddRe
     },
     channel: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'Channel ID where the message was posted (e.g., C1234567890)',
+    },
+    userId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'User ID for DM messages (e.g., U1234567890)',
     },
     timestamp: {
       type: 'string',
@@ -60,6 +66,7 @@ export const slackAddReactionTool: ToolConfig<SlackAddReactionParams, SlackAddRe
     body: (params: SlackAddReactionParams) => ({
       accessToken: params.accessToken || params.botToken,
       channel: params.channel,
+      userId: params.userId,
       timestamp: params.timestamp,
       name: params.name,
     }),
