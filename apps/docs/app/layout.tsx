@@ -5,7 +5,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 }
 
 export const metadata = {
-  title: 'P2 Agents',
+  metadataBase: new URL('https://docs.sim.ai'),
+  title: {
+    default: 'Sim Documentation - Visual Workflow Builder for AI Applications',
+    template: '%s',
+  },
   description:
     'Comprehensive documentation for Sim - the visual workflow builder for AI applications. Create powerful AI agents, automation workflows, and data processing pipelines by connecting blocks on a canvas—no coding required.',
   keywords: [
