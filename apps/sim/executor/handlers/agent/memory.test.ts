@@ -32,7 +32,7 @@ describe('Memory', () => {
   })
 
   describe('applySlidingWindow (message-based)', () => {
-    it('should keep last N conversation messages', () => {
+    it('should keep last N turns (turn = user message + assistant response)', () => {
       const messages: Message[] = [
         { role: 'system', content: 'System prompt' },
         { role: 'user', content: 'Message 1' },
@@ -43,9 +43,10 @@ describe('Memory', () => {
         { role: 'assistant', content: 'Response 3' },
       ]
 
-      const result = (memoryService as any).applySlidingWindow(messages, '4')
+      // Limit to 2 turns: should keep turns 2 and 3
+      const result = (memoryService as any).applySlidingWindow(messages, '2')
 
-      expect(result.length).toBe(5)
+      expect(result.length).toBe(5) // system + 2 turns (4 messages)
       expect(result[0].role).toBe('system')
       expect(result[0].content).toBe('System prompt')
       expect(result[1].content).toBe('Message 2')
@@ -113,19 +114,18 @@ describe('Memory', () => {
     it('should preserve first system message and exclude it from token count', () => {
       const messages: Message[] = [
         { role: 'system', content: 'A' }, // System message - always preserved
-        { role: 'user', content: 'B' }, // ~1 token
-        { role: 'assistant', content: 'C' }, // ~1 token
-        { role: 'user', content: 'D' }, // ~1 token
+        { role: 'user', content: 'B' }, // ~1 token (turn 1)
+        { role: 'assistant', content: 'C' }, // ~1 token (turn 1)
+        { role: 'user', content: 'D' }, // ~1 token (turn 2)
       ]
 
-      // Limit to 2 tokens - should fit system message + last 2 conversation messages (D, C)
+      // Limit to 2 tokens - fits turn 2 (D=1 token), but turn 1 (B+C=2 tokens) would exceed
       const result = (memoryService as any).applySlidingWindowByTokens(messages, '2', 'gpt-4o')
 
-      // Should have: system message + 2 conversation messages = 3 total
-      expect(result.length).toBe(3)
+      // Should have: system message + turn 2 (1 message) = 2 total
+      expect(result.length).toBe(2)
       expect(result[0].role).toBe('system') // First system message preserved
-      expect(result[1].content).toBe('C') // Second most recent conversation message
-      expect(result[2].content).toBe('D') // Most recent conversation message
+      expect(result[1].content).toBe('D') // Most recent turn
     })
 
     it('should process messages from newest to oldest', () => {
@@ -249,29 +249,29 @@ describe('Memory', () => {
   })
 
   describe('Token-based vs Message-based comparison', () => {
-    it('should produce different results for same message count limit', () => {
+    it('should produce different results based on turn limits vs token limits', () => {
       const messages: Message[] = [
-        { role: 'user', content: 'A' }, // Short message (~1 token)
+        { role: 'user', content: 'A' }, // Short message (~1 token) - turn 1
         {
           role: 'assistant',
           content: 'This is a much longer response that takes many more tokens',
-        }, // Long message (~15 tokens)
-        { role: 'user', content: 'B' }, // Short message (~1 token)
+        }, // Long message (~15 tokens) - turn 1
+        { role: 'user', content: 'B' }, // Short message (~1 token) - turn 2
       ]
 
-      // Message-based: last 2 messages
-      const messageResult = (memoryService as any).applySlidingWindow(messages, '2')
-      expect(messageResult.length).toBe(2)
+      // Turn-based with limit 1: keeps last turn only
+      const messageResult = (memoryService as any).applySlidingWindow(messages, '1')
+      expect(messageResult.length).toBe(1) // Only turn 2 (message B)
 
-      // Token-based: with limit of 10 tokens, might fit all 3 messages or just last 2
+      // Token-based: with limit of 10 tokens, fits turn 2 (1 token) but not turn 1 (~16 tokens)
       const tokenResult = (memoryService as any).applySlidingWindowByTokens(
         messages,
         '10',
         'gpt-4o'
       )
 
-      // The long message should affect what fits
-      expect(tokenResult.length).toBeGreaterThanOrEqual(1)
+      // Both should only fit the last turn due to the long assistant message
+      expect(tokenResult.length).toBe(1)
     })
   })
 })
