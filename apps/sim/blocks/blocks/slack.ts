@@ -142,7 +142,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       id: 'dmUserId',
       title: 'User',
       type: 'user-selector',
-      canonicalParamId: 'userId',
+      canonicalParamId: 'dmUserId',
       serviceId: 'slack',
       placeholder: 'Select Slack user',
       mode: 'basic',
@@ -156,7 +156,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       id: 'manualDmUserId',
       title: 'User ID',
       type: 'short-input',
-      canonicalParamId: 'userId',
+      canonicalParamId: 'dmUserId',
       placeholder: 'Enter Slack user ID (e.g., U1234567890)',
       mode: 'advanced',
       condition: {
@@ -615,12 +615,6 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
           }
 
           case 'update':
-            console.log('[Slack Block Debug] update params:', {
-              updateTimestamp,
-              updateText,
-              hasUpdateTimestamp: 'updateTimestamp' in params,
-              allParamKeys: Object.keys(params),
-            })
             if (!updateTimestamp || !updateText) {
               throw new Error('Timestamp and text are required for update operation')
             }
