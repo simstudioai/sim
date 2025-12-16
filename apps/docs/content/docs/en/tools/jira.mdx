@@ -51,8 +51,13 @@ Retrieve detailed information about a specific Jira issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Jira issue details with issue key, summary, description, created and updated timestamps |
+| `ts` | string | Timestamp of the operation |
+| `issueKey` | string | Issue key \(e.g., PROJ-123\) |
+| `summary` | string | Issue summary |
+| `description` | json | Issue description content |
+| `created` | string | Issue creation timestamp |
+| `updated` | string | Issue last updated timestamp |
+| `issue` | json | Complete issue object with all fields |
 
 ### `jira_update`
 
@@ -76,8 +81,9 @@ Update a Jira issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Updated Jira issue details with timestamp, issue key, summary, and success status |
+| `ts` | string | Timestamp of the operation |
+| `issueKey` | string | Updated issue key \(e.g., PROJ-123\) |
+| `summary` | string | Issue summary after update |
 
 ### `jira_write`
 
@@ -100,8 +106,10 @@ Write a Jira issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Created Jira issue details with timestamp, issue key, summary, success status, and URL |
+| `ts` | string | Timestamp of the operation |
+| `issueKey` | string | Created issue key \(e.g., PROJ-123\) |
+| `summary` | string | Issue summary |
+| `url` | string | URL to the created issue |
 
 ### `jira_bulk_read`
 
@@ -119,8 +127,7 @@ Retrieve multiple Jira issues in bulk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | array | Array of Jira issues with summary, description, created and updated timestamps |
+| `issues` | array | Array of Jira issues with ts, summary, description, created, and updated timestamps |
 
 ### `jira_delete_issue`
 
@@ -139,8 +146,8 @@ Delete a Jira issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deleted issue details with timestamp, issue key, and success status |
+| `ts` | string | Timestamp of the operation |
+| `issueKey` | string | Deleted issue key |
 
 ### `jira_assign_issue`
 
@@ -159,8 +166,9 @@ Assign a Jira issue to a user
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Assignment details with timestamp, issue key, assignee ID, and success status |
+| `ts` | string | Timestamp of the operation |
+| `issueKey` | string | Issue key that was assigned |
+| `assigneeId` | string | Account ID of the assignee |
 
 ### `jira_transition_issue`
 
@@ -180,8 +188,9 @@ Move a Jira issue between workflow statuses (e.g., To Do -> In Progress)
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Transition details with timestamp, issue key, transition ID, and success status |
+| `ts` | string | Timestamp of the operation |
+| `issueKey` | string | Issue key that was transitioned |
+| `transitionId` | string | Applied transition ID |
 
 ### `jira_search_issues`
 
@@ -202,8 +211,11 @@ Search for Jira issues using JQL (Jira Query Language)
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Search results with timestamp, total count, pagination details, and array of matching issues |
+| `ts` | string | Timestamp of the operation |
+| `total` | number | Total number of matching issues |
+| `startAt` | number | Pagination start index |
+| `maxResults` | number | Maximum results per page |
+| `issues` | array | Array of matching issues with key, summary, status, assignee, created, updated |
 
 ### `jira_add_comment`
 
@@ -222,8 +234,10 @@ Add a comment to a Jira issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Comment details with timestamp, issue key, comment ID, body, and success status |
+| `ts` | string | Timestamp of the operation |
+| `issueKey` | string | Issue key the comment was added to |
+| `commentId` | string | Created comment ID |
+| `body` | string | Comment text content |
 
 ### `jira_get_comments`
 
@@ -243,8 +257,10 @@ Get all comments from a Jira issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Comments data with timestamp, issue key, total count, and array of comments |
+| `ts` | string | Timestamp of the operation |
+| `issueKey` | string | Issue key |
+| `total` | number | Total number of comments |
+| `comments` | array | Array of comments with id, author, body, created, updated |
 
 ### `jira_update_comment`
 
@@ -264,8 +280,10 @@ Update an existing comment on a Jira issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Updated comment details with timestamp, issue key, comment ID, body text, and success status |
+| `ts` | string | Timestamp of the operation |
+| `issueKey` | string | Issue key |
+| `commentId` | string | Updated comment ID |
+| `body` | string | Updated comment text |
 
 ### `jira_delete_comment`
 
@@ -284,8 +302,9 @@ Delete a comment from a Jira issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion details with timestamp, issue key, comment ID, and success status |
+| `ts` | string | Timestamp of the operation |
+| `issueKey` | string | Issue key |
+| `commentId` | string | Deleted comment ID |
 
 ### `jira_get_attachments`
 
@@ -303,8 +322,9 @@ Get all attachments from a Jira issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Attachments data with timestamp, issue key, and array of attachments |
+| `ts` | string | Timestamp of the operation |
+| `issueKey` | string | Issue key |
+| `attachments` | array | Array of attachments with id, filename, size, mimeType, created, author |
 
 ### `jira_delete_attachment`
 
@@ -322,8 +342,8 @@ Delete an attachment from a Jira issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion details with timestamp, attachment ID, and success status |
+| `ts` | string | Timestamp of the operation |
+| `attachmentId` | string | Deleted attachment ID |
 
 ### `jira_add_worklog`
 
@@ -344,8 +364,10 @@ Add a time tracking worklog entry to a Jira issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Worklog details with timestamp, issue key, worklog ID, time spent in seconds, and success status |
+| `ts` | string | Timestamp of the operation |
+| `issueKey` | string | Issue key the worklog was added to |
+| `worklogId` | string | Created worklog ID |
+| `timeSpentSeconds` | number | Time spent in seconds |
 
 ### `jira_get_worklogs`
 
@@ -365,8 +387,10 @@ Get all worklog entries from a Jira issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Worklogs data with timestamp, issue key, total count, and array of worklogs |
+| `ts` | string | Timestamp of the operation |
+| `issueKey` | string | Issue key |
+| `total` | number | Total number of worklogs |
+| `worklogs` | array | Array of worklogs with id, author, timeSpentSeconds, timeSpent, comment, created, updated, started |
 
 ### `jira_update_worklog`
 
@@ -388,8 +412,9 @@ Update an existing worklog entry on a Jira issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Worklog update details with timestamp, issue key, worklog ID, and success status |
+| `ts` | string | Timestamp of the operation |
+| `issueKey` | string | Issue key |
+| `worklogId` | string | Updated worklog ID |
 
 ### `jira_delete_worklog`
 
@@ -408,8 +433,9 @@ Delete a worklog entry from a Jira issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion details with timestamp, issue key, worklog ID, and success status |
+| `ts` | string | Timestamp of the operation |
+| `issueKey` | string | Issue key |
+| `worklogId` | string | Deleted worklog ID |
 
 ### `jira_create_issue_link`
 
@@ -430,8 +456,11 @@ Create a link relationship between two Jira issues
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Issue link details with timestamp, inward issue key, outward issue key, link type, and success status |
+| `ts` | string | Timestamp of the operation |
+| `inwardIssue` | string | Inward issue key |
+| `outwardIssue` | string | Outward issue key |
+| `linkType` | string | Type of issue link |
+| `linkId` | string | Created link ID |
 
 ### `jira_delete_issue_link`
 
@@ -449,8 +478,8 @@ Delete a link between two Jira issues
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion details with timestamp, link ID, and success status |
+| `ts` | string | Timestamp of the operation |
+| `linkId` | string | Deleted link ID |
 
 ### `jira_add_watcher`
 
@@ -469,8 +498,9 @@ Add a watcher to a Jira issue to receive notifications about updates
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Watcher details with timestamp, issue key, watcher account ID, and success status |
+| `ts` | string | Timestamp of the operation |
+| `issueKey` | string | Issue key |
+| `watcherAccountId` | string | Added watcher account ID |
 
 ### `jira_remove_watcher`
 
@@ -489,8 +519,9 @@ Remove a watcher from a Jira issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Removal details with timestamp, issue key, watcher account ID, and success status |
+| `ts` | string | Timestamp of the operation |
+| `issueKey` | string | Issue key |
+| `watcherAccountId` | string | Removed watcher account ID |
 
 
 
