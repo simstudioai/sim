@@ -615,6 +615,12 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
           }
 
           case 'update':
+            console.log('[Slack Block Debug] update params:', {
+              updateTimestamp,
+              updateText,
+              hasUpdateTimestamp: 'updateTimestamp' in params,
+              allParamKeys: Object.keys(params),
+            })
             if (!updateTimestamp || !updateText) {
               throw new Error('Timestamp and text are required for update operation')
             }
