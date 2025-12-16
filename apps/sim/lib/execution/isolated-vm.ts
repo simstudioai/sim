@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from 'node:child_process'
+import { type ChildProcess, execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -6,6 +6,19 @@ import { validateProxyUrl } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('IsolatedVMExecution')
+
+let nodeAvailable: boolean | null = null
+
+function checkNodeAvailable(): boolean {
+  if (nodeAvailable !== null) return nodeAvailable
+  try {
+    execSync('node --version', { stdio: 'ignore' })
+    nodeAvailable = true
+  } catch {
+    nodeAvailable = false
+  }
+  return nodeAvailable
+}
 
 export interface IsolatedVMExecutionRequest {
   code: string
@@ -171,6 +184,16 @@ async function ensureWorker(): Promise<void> {
   if (workerReadyPromise) return workerReadyPromise
 
   workerReadyPromise = new Promise<void>((resolve, reject) => {
+    if (!checkNodeAvailable()) {
+      reject(
+        new Error(
+          'Node.js is required for code execution but was not found. ' +
+            'Please install Node.js (v20+) from https://nodejs.org'
+        )
+      )
+      return
+    }
+
     const currentDir = path.dirname(fileURLToPath(import.meta.url))
     const workerPath = path.join(currentDir, 'isolated-vm-worker.cjs')
 
@@ -179,53 +202,54 @@ async function ensureWorker(): Promise<void> {
       return
     }
 
-    worker = spawn(process.execPath, [workerPath], {
-      stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
-      serialization: 'json',
-    })
+    import('node:child_process').then(({ spawn }) => {
+      worker = spawn('node', [workerPath], {
+        stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
+        serialization: 'json',
+      })
 
-    worker.on('message', handleWorkerMessage)
+      worker.on('message', handleWorkerMessage)
 
-    const startTimeout = setTimeout(() => {
-      worker?.kill()
-      worker = null
-      workerReady = false
-      workerReadyPromise = null
-      reject(new Error('Worker failed to start within timeout'))
-    }, 10000)
+      const startTimeout = setTimeout(() => {
+        worker?.kill()
+        worker = null
+        workerReady = false
+        workerReadyPromise = null
+        reject(new Error('Worker failed to start within timeout'))
+      }, 10000)
 
-    const readyHandler = (message: unknown) => {
-      if (
-        typeof message === 'object' &&
-        message !== null &&
-        (message as { type?: string }).type === 'ready'
-      ) {
-        workerReady = true
-        clearTimeout(startTimeout)
-        worker?.off('message', readyHandler)
-        resolve()
+      const readyHandler = (message: unknown) => {
+        if (
+          typeof message === 'object' &&
+          message !== null &&
+          (message as { type?: string }).type === 'ready'
+        ) {
+          workerReady = true
+          clearTimeout(startTimeout)
+          worker?.off('message', readyHandler)
+          resolve()
+        }
       }
-    }
-    worker.on('message', readyHandler)
+      worker.on('message', readyHandler)
 
-    worker.on('exit', (code) => {
-      logger.warn('Isolated-vm worker exited', { code })
-      if (workerIdleTimeout) {
-        clearTimeout(workerIdleTimeout)
-        workerIdleTimeout = null
-      }
-      worker = null
-      workerReady = false
-      workerReadyPromise = null
-      for (const [id, pending] of pendingExecutions) {
-        clearTimeout(pending.timeout)
-        pending.resolve({
-          result: null,
-          stdout: '',
-          error: { message: 'Worker process exited unexpectedly', name: 'WorkerError' },
-        })
-        pendingExecutions.delete(id)
-      }
+      worker.on('exit', () => {
+        if (workerIdleTimeout) {
+          clearTimeout(workerIdleTimeout)
+          workerIdleTimeout = null
+        }
+        worker = null
+        workerReady = false
+        workerReadyPromise = null
+        for (const [id, pending] of pendingExecutions) {
+          clearTimeout(pending.timeout)
+          pending.resolve({
+            result: null,
+            stdout: '',
+            error: { message: 'Worker process exited unexpectedly', name: 'WorkerError' },
+          })
+          pendingExecutions.delete(id)
+        }
+      })
     })
   })
 
