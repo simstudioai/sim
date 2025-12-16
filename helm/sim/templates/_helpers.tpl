@@ -204,8 +204,14 @@ Validate required secrets and reject default placeholder values
 {{- if and .Values.postgresql.enabled (eq .Values.postgresql.auth.password "CHANGE-ME-SECURE-PASSWORD") }}
 {{- fail "postgresql.auth.password must not use the default placeholder value. Set a secure password for production" }}
 {{- end }}
+{{- if and .Values.postgresql.enabled (regexMatch "[/:@#?&=+]" .Values.postgresql.auth.password) }}
+{{- fail "postgresql.auth.password contains URL-special characters (/:@#?&=+) which will break the DATABASE_URL. Use a password with only alphanumeric characters. Generate with: openssl rand -hex 16" }}
+{{- end }}
 {{- if and .Values.externalDatabase.enabled (not .Values.externalDatabase.password) }}
 {{- fail "externalDatabase.password is required when using external database" }}
+{{- end }}
+{{- if and .Values.externalDatabase.enabled .Values.externalDatabase.password (regexMatch "[/:@#?&=+]" .Values.externalDatabase.password) }}
+{{- fail "externalDatabase.password contains URL-special characters (/:@#?&=+) which will break the DATABASE_URL. Use a password with only alphanumeric characters." }}
 {{- end }}
 {{- end }}
 

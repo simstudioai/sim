@@ -4,16 +4,19 @@
 # Global configuration
 global:
   imageRegistry: "ghcr.io"
-  storageClass: "managed-csi-premium"
+  # Use "managed-csi-premium" for Premium SSD (requires Premium storage-capable VMs like Standard_DS*)
+  # Use "managed-csi" for Standard SSD (works with all VM types)
+  storageClass: "managed-csi"
 
 # Main application
 app:
   enabled: true
-  replicaCount: 1
-  
-  # Node selector for application pods (customize based on your AKS node labels)
-  nodeSelector:
-    node-role: application
+  replicaCount: 2
+
+  # Node selector for application pods
+  # Uncomment and customize based on your AKS node labels:
+  # nodeSelector:
+  #   agentpool: "application"
   
   resources:
     limits:
@@ -26,8 +29,8 @@ app:
   env:
     NEXT_PUBLIC_APP_URL: "https://simstudio.acme.com"
     BETTER_AUTH_URL: "https://simstudio.acme.com"
-    SOCKET_SERVER_URL: "https://simstudio-ws.acme.com"
-    NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"
+    # SOCKET_SERVER_URL is auto-detected (uses internal service http://sim-realtime:3002)
+    NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"  # Public WebSocket URL for browsers
     
     # Security settings (REQUIRED - replace with your own secure secrets)
     # Generate using: openssl rand -hex 32
@@ -46,11 +49,12 @@ app:
 # Realtime service
 realtime:
   enabled: true
-  replicaCount: 1
-  
-  # Node selector for application pods (customize based on your AKS node labels)
-  nodeSelector:
-    node-role: application
+  replicaCount: 2
+
+  # Node selector for realtime pods
+  # Uncomment and customize based on your AKS node labels:
+  # nodeSelector:
+  #   agentpool: "application"
   
   resources:
     limits:
@@ -74,10 +78,11 @@ migrations:
 # PostgreSQL database
 postgresql:
   enabled: true
-  
-  # Node selector for database pods (recommended: memory-optimized VM sizes)
-  nodeSelector:
-    node-role: datalake
+
+  # Node selector for database pods
+  # Uncomment and customize (recommended: memory-optimized VM sizes):
+  # nodeSelector:
+  #   agentpool: "database"
   
   # Database authentication (REQUIRED - set secure credentials)
   auth:
@@ -93,15 +98,15 @@ postgresql:
       memory: "1Gi"
       cpu: "500m"
   
-  # Persistent storage using Azure Premium SSD
+  # Persistent storage using Azure Managed Disk
   persistence:
     enabled: true
-    storageClass: "managed-csi-premium"
+    storageClass: "managed-csi"
     size: 10Gi
   
-  # SSL/TLS configuration (recommended for production)
+  # SSL/TLS configuration (requires cert-manager to be installed)
   tls:
-    enabled: true
+    enabled: false  # Set to true if cert-manager is installed
     certificatesSecret: postgres-tls-secret
   
   # PostgreSQL performance tuning for Azure infrastructure
@@ -112,13 +117,15 @@ postgresql:
     minWalSize: "80MB"
 
 # Ollama AI models with GPU acceleration (Azure NC-series VMs)
+# Set ollama.enabled: false if you don't need local AI models
 ollama:
-  enabled: true
+  enabled: false
   replicaCount: 1
-  
-  # GPU node targeting (recommended: NC6s_v3 or NC12s_v3 VMs)
-  nodeSelector:
-    accelerator: nvidia
+
+  # GPU node targeting - uncomment and customize for GPU node pools
+  # Recommended: NC6s_v3 or NC12s_v3 VMs
+  # nodeSelector:
+  #   agentpool: "gpu"
   
   tolerations:
     - key: "sku"
@@ -139,7 +146,7 @@ ollama:
       memory: "4Gi"
       cpu: "1000m"
   
-  # High-performance storage for AI models
+  # High-performance storage for AI models (use managed-csi-premium for GPU workloads)
   persistence:
     enabled: true
     storageClass: "managed-csi-premium"

@@ -10,11 +10,11 @@ global:
 app:
   enabled: true
   replicaCount: 2
-  
-  # Node selector for application pods (customize based on your GKE node labels)
-  nodeSelector:
-    kubernetes.io/arch: amd64
-    cloud.google.com/gke-nodepool: "default-pool"
+
+  # Node selector for application pods
+  # Uncomment and customize based on your GKE node labels:
+  # nodeSelector:
+  #   cloud.google.com/gke-nodepool: "default-pool"
   
   resources:
     limits:
@@ -28,8 +28,8 @@ app:
   env:
     NEXT_PUBLIC_APP_URL: "https://simstudio.acme.com"
     BETTER_AUTH_URL: "https://simstudio.acme.com"
-    SOCKET_SERVER_URL: "https://simstudio-ws.acme.com"
-    NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"
+    # SOCKET_SERVER_URL is auto-detected (uses internal service http://sim-realtime:3002)
+    NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"  # Public WebSocket URL for browsers
     
     # Security settings (REQUIRED - replace with your own secure secrets)
     # Generate using: openssl rand -hex 32
@@ -53,11 +53,11 @@ app:
 realtime:
   enabled: true
   replicaCount: 2
-  
-  # Node selector for realtime pods (customize based on your GKE node labels)
-  nodeSelector:
-    kubernetes.io/arch: amd64
-    cloud.google.com/gke-nodepool: "default-pool"
+
+  # Node selector for realtime pods
+  # Uncomment and customize based on your GKE node labels:
+  # nodeSelector:
+  #   cloud.google.com/gke-nodepool: "default-pool"
   
   resources:
     limits:
@@ -90,11 +90,11 @@ migrations:
 # PostgreSQL database
 postgresql:
   enabled: true
-  
-  # Node selector for database pods (recommended: memory-optimized machine types)
-  nodeSelector:
-    cloud.google.com/gke-nodepool: "database-pool"
-    cloud.google.com/machine-family: "n2"
+
+  # Node selector for database pods
+  # Uncomment and customize (recommended: memory-optimized machine types):
+  # nodeSelector:
+  #   cloud.google.com/gke-nodepool: "database-pool"
   
   # Database authentication (REQUIRED - set secure credentials)
   auth:
@@ -119,9 +119,9 @@ postgresql:
     accessModes:
       - ReadWriteOnce
   
-  # SSL/TLS configuration
+  # SSL/TLS configuration (requires cert-manager to be installed)
   tls:
-    enabled: true
+    enabled: false  # Set to true if cert-manager is installed
     certificatesSecret: postgres-tls-secret
   
   # PostgreSQL performance tuning for GCP infrastructure
@@ -132,14 +132,16 @@ postgresql:
     minWalSize: "160MB"
 
 # Ollama AI models with GPU acceleration (GCP GPU instances)
+# Set ollama.enabled: false if you don't need local AI models
 ollama:
-  enabled: true
+  enabled: false
   replicaCount: 1
-  
-  # GPU node targeting (recommended: T4 or V100 GPU instances)
-  nodeSelector:
-    cloud.google.com/gke-nodepool: "gpu-pool"
-    cloud.google.com/gke-accelerator: "nvidia-tesla-t4"
+
+  # GPU node targeting - uncomment and customize for GPU node pools
+  # Recommended: T4 or V100 GPU instances
+  # nodeSelector:
+  #   cloud.google.com/gke-nodepool: "gpu-pool"
+  #   cloud.google.com/gke-accelerator: "nvidia-tesla-t4"
   
   tolerations:
     - key: "nvidia.com/gpu"
