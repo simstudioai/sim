@@ -46,6 +46,11 @@ export const createTool: ToolConfig<ServiceNowCreateParams, ServiceNowCreateResp
   description: 'Create a new record in a ServiceNow table',
   version: '1.0.0',
 
+  oauth: {
+    required: false,
+    provider: 'servicenow',
+  },
+
   params: {
     instanceUrl: {
       type: 'string',
@@ -93,7 +98,11 @@ export const createTool: ToolConfig<ServiceNowCreateParams, ServiceNowCreateResp
 
   request: {
     url: (params) => {
-      const baseUrl = params.instanceUrl.replace(/\/$/, '')
+      // Use instanceUrl if provided, otherwise fall back to idToken (stored instance URL from OAuth)
+      const baseUrl = (params.instanceUrl || params.idToken || '').replace(/\/$/, '')
+      if (!baseUrl) {
+        throw new Error('ServiceNow instance URL is required')
+      }
       return `${baseUrl}/api/now/table/${params.tableName}`
     },
     method: 'POST',

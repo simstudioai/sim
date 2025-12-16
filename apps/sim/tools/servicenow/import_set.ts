@@ -53,12 +53,17 @@ export const importSetTool: ToolConfig<
   description: 'Bulk import data into ServiceNow using Import Set API',
   version: '1.0.0',
 
+  oauth: {
+    required: false,
+    provider: 'servicenow',
+  },
+
   params: {
     instanceUrl: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
-      description: 'ServiceNow instance URL (e.g., https://instance.service-now.com)',
+      description: 'ServiceNow instance URL (auto-detected from OAuth if not provided)',
     },
     authMethod: {
       type: 'string',
@@ -119,7 +124,11 @@ export const importSetTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.instanceUrl.replace(/\/$/, '')
+      // Use instanceUrl if provided, otherwise fall back to idToken (stored instance URL from OAuth)
+      const baseUrl = (params.instanceUrl || params.idToken || '').replace(/\/$/, '')
+      if (!baseUrl) {
+        throw new Error('ServiceNow instance URL is required')
+      }
       let url = `${baseUrl}/api/now/import/${params.tableName}`
 
       const queryParams = new URLSearchParams()

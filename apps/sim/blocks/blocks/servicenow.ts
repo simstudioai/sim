@@ -25,7 +25,7 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
         { label: 'Read Records', id: 'read' },
         { label: 'Update Record', id: 'update' },
         { label: 'Delete Record', id: 'delete' },
-        { label: 'Import Set', id: 'import_set' },
+        //{ label: 'Import Set', id: 'import_set' },
       ],
       value: () => 'read',
     },
@@ -51,17 +51,16 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
       description: 'Your ServiceNow instance URL',
     },
     // OAuth Credential (Sim Bot)
- //   {
-    //   id: 'credential',
-    //   title: 'ServiceNow Account',
-    //   type: 'oauth-input',
-    //   provider: 'servicenow',
-    //   serviceId: 'servicenow',
-    //   requiredScopes: [],
-    //   placeholder: 'Select ServiceNow account',
-    //   condition: { field: 'authMethod', value: 'oauth' },
-    //   required: true,
-    // },
+    {
+      id: 'credential',
+      title: 'ServiceNow Account',
+      type: 'oauth-input',
+      serviceId: 'servicenow',
+      requiredScopes: ['useraccount'],
+      placeholder: 'Select ServiceNow account',
+      condition: { field: 'authMethod', value: 'oauth' },
+      required: true,
+    },
     // Basic Auth: Username
     {
       id: 'username',
@@ -212,8 +211,8 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
             return 'servicenow_update'
           case 'delete':
             return 'servicenow_delete'
-          case 'import_set':
-            return 'servicenow_import_set'
+          // case 'import_set':
+          //   return 'servicenow_import_set'
           default:
             throw new Error(`Invalid ServiceNow operation: ${params.operation}`)
         }

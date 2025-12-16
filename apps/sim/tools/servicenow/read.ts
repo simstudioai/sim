@@ -24,24 +24,41 @@ export const readTool: ToolConfig<ServiceNowReadParams, ServiceNowReadResponse> 
   description: 'Read records from a ServiceNow table',
   version: '1.0.0',
 
+  oauth: {
+    required: false,
+    provider: 'servicenow',
+  },
+
   params: {
     instanceUrl: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
-      description: 'ServiceNow instance URL',
+      description: 'ServiceNow instance URL (auto-detected from OAuth if not provided)',
+    },
+    authMethod: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Authentication method (oauth or basic)',
+    },
+    credential: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'ServiceNow OAuth credential ID',
     },
     username: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
-      description: 'ServiceNow username',
+      description: 'ServiceNow username (for Basic Auth)',
     },
     password: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
-      description: 'ServiceNow password',
+      description: 'ServiceNow password (for Basic Auth)',
     },
     tableName: {
       type: 'string',
@@ -83,7 +100,11 @@ export const readTool: ToolConfig<ServiceNowReadParams, ServiceNowReadResponse> 
 
   request: {
     url: (params) => {
-      const baseUrl = params.instanceUrl.replace(/\/$/, '')
+      // Use instanceUrl if provided, otherwise fall back to idToken (stored instance URL from OAuth)
+      const baseUrl = (params.instanceUrl || params.idToken || '').replace(/\/$/, '')
+      if (!baseUrl) {
+        throw new Error('ServiceNow instance URL is required')
+      }
       let url = `${baseUrl}/api/now/table/${params.tableName}`
 
       const queryParams = new URLSearchParams()
@@ -111,6 +132,17 @@ export const readTool: ToolConfig<ServiceNowReadParams, ServiceNowReadResponse> 
     },
     method: 'GET',
     headers: (params) => {
+      // Support both OAuth and Basic Auth
+      if (params.accessToken) {
+        return {
+          Authorization: `Bearer ${params.accessToken}`,
+          Accept: 'application/json',
+        }
+      }
+      // Fall back to Basic Auth
+      if (!params.username || !params.password) {
+        throw new Error('Either OAuth credential or username/password is required')
+      }
       const credentials = encodeBasicAuth(params.username, params.password)
       return {
         Authorization: `Basic ${credentials}`,
