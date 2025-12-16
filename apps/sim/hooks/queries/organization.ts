@@ -21,18 +21,17 @@ export const organizationKeys = {
 
 /**
  * Fetch all organizations for the current user
+ * Note: Billing data is fetched separately via useSubscriptionData() to avoid duplicate calls
  */
 async function fetchOrganizations() {
-  const [orgsResponse, activeOrgResponse, billingResponse] = await Promise.all([
+  const [orgsResponse, activeOrgResponse] = await Promise.all([
     client.organization.list(),
     client.organization.getFullOrganization(),
-    fetch('/api/billing?context=user').then((r) => r.json()),
   ])
 
   return {
     organizations: orgsResponse.data || [],
     activeOrganization: activeOrgResponse.data,
-    billingData: billingResponse,
   }
 }
 
