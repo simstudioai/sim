@@ -224,8 +224,9 @@ export function General({ onOpenChange }: GeneralProps) {
     }
   }
 
-  const handleThemeChange = async (value: string) => {
-    await updateSetting.mutateAsync({ key: 'theme', value: value as 'system' | 'light' | 'dark' })
+  const handleThemeChange = async (checked: boolean) => {
+    const newTheme = checked ? 'dark' : 'light'
+    await updateSetting.mutateAsync({ key: 'theme', value: newTheme })
   }
 
   const handleAutoConnectChange = async (checked: boolean) => {
@@ -384,27 +385,18 @@ export function General({ onOpenChange }: GeneralProps) {
       </div>
       {uploadError && <p className='text-[13px] text-[var(--text-error)]'>{uploadError}</p>}
 
-      {/* <div className='flex items-center justify-between border-b pb-[12px]'>
-        <Label htmlFor='theme-select'>Theme</Label>
-        <div className='w-[100px]'>
-          <Combobox
-            size='sm'
-            align='end'
-            dropdownWidth={140}
-            value={settings?.theme}
-            onChange={handleThemeChange}
-            disabled={updateSetting.isPending}
-            placeholder='Select theme'
-            options={[
-              { label: 'System', value: 'system' },
-              { label: 'Light', value: 'light' },
-              { label: 'Dark', value: 'dark' },
-            ]}
-          />
-        </div>
-      </div> */}
+      <div className='flex items-center justify-between'>
+        <Label htmlFor='dark-mode'>Dark Mode</Label>
+        <Switch
+          id='dark-mode'
+          // Check if theme is specifically set to dark
+          checked={settings?.theme === 'dark'}
+          onCheckedChange={handleThemeChange}
+          disabled={updateSetting.isPending}
+        />
+      </div>
 
-      <div className='flex items-center justify-between pt-[12px]'>
+      <div className='flex items-center justify-between'>
         <Label htmlFor='auto-connect'>Auto-connect on drop</Label>
         <Switch
           id='auto-connect'

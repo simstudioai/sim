@@ -717,7 +717,7 @@ input[type="search"]::-ms-clear {
     --brand-accent-hex: #6f3dfa;
     --brand-accent-hover-hex: #6f3dfa;
     --brand-background-hex: #ffffff;
-    --surface-elevated: #202020;
+    --surface-elevated: #ffffff; 
   }
 
   .dark {

@@ -29,7 +29,7 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
       enableSystem={false}
       disableTransitionOnChange
       storageKey='sim-theme'
-      forcedTheme={isLightModePage ? 'light' : 'dark'}
+      forcedTheme={isLightModePage ? 'light' : undefined}
       {...props}
     >
       {children}
