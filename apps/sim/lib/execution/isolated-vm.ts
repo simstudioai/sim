@@ -37,8 +37,36 @@ interface PendingExecution {
 let worker: ChildProcess | null = null
 let workerReady = false
 let workerReadyPromise: Promise<void> | null = null
+let workerIdleTimeout: ReturnType<typeof setTimeout> | null = null
 const pendingExecutions = new Map<number, PendingExecution>()
 let executionIdCounter = 0
+
+const WORKER_IDLE_TIMEOUT_MS = 60000
+
+function cleanupWorker() {
+  if (workerIdleTimeout) {
+    clearTimeout(workerIdleTimeout)
+    workerIdleTimeout = null
+  }
+  if (worker) {
+    worker.kill()
+    worker = null
+  }
+  workerReady = false
+  workerReadyPromise = null
+}
+
+function resetIdleTimeout() {
+  if (workerIdleTimeout) {
+    clearTimeout(workerIdleTimeout)
+  }
+  workerIdleTimeout = setTimeout(() => {
+    if (pendingExecutions.size === 0) {
+      logger.info('Cleaning up idle isolated-vm worker')
+      cleanupWorker()
+    }
+  }, WORKER_IDLE_TIMEOUT_MS)
+}
 
 /**
  * Secure fetch wrapper that validates URLs to prevent SSRF attacks
@@ -126,6 +154,10 @@ async function ensureWorker(): Promise<void> {
     worker.on('message', handleWorkerMessage)
 
     const startTimeout = setTimeout(() => {
+      worker?.kill()
+      worker = null
+      workerReady = false
+      workerReadyPromise = null
       reject(new Error('Worker failed to start within timeout'))
     }, 10000)
 
@@ -143,6 +175,10 @@ async function ensureWorker(): Promise<void> {
 
     worker.on('exit', (code) => {
       logger.warn('Isolated-vm worker exited', { code })
+      if (workerIdleTimeout) {
+        clearTimeout(workerIdleTimeout)
+        workerIdleTimeout = null
+      }
       worker = null
       workerReady = false
       workerReadyPromise = null
@@ -187,5 +223,6 @@ export async function executeInIsolatedVM(
 
     pendingExecutions.set(executionId, { resolve, reject, timeout })
     worker!.send({ type: 'execute', executionId, request: req })
+    resetIdleTimeout()
   })
 }
