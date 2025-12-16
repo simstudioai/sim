@@ -1,4 +1,6 @@
 import { type ChildProcess, fork } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
 import { validateProxyUrl } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -158,7 +160,16 @@ async function ensureWorker(): Promise<void> {
   if (workerReadyPromise) return workerReadyPromise
 
   workerReadyPromise = new Promise<void>((resolve, reject) => {
-    const workerPath = new URL('./isolated-vm-worker.cjs', import.meta.url).pathname
+    const workerPath = path.join(process.cwd(), 'apps/sim/lib/execution/isolated-vm-worker.cjs')
+
+    if (!fs.existsSync(workerPath)) {
+      reject(
+        new Error(
+          `Worker file not found at ${workerPath}. Ensure the file exists and process.cwd() (${process.cwd()}) is correct.`
+        )
+      )
+      return
+    }
 
     worker = fork(workerPath, [], {
       stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
