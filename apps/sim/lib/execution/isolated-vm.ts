@@ -1,4 +1,4 @@
-import { type ChildProcess, fork } from 'node:child_process'
+import { type ChildProcess, spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { validateProxyUrl } from '@/lib/core/security/input-validation'
@@ -160,7 +160,14 @@ async function ensureWorker(): Promise<void> {
   if (workerReadyPromise) return workerReadyPromise
 
   workerReadyPromise = new Promise<void>((resolve, reject) => {
-    const workerPath = path.join(process.cwd(), 'apps/sim/lib/execution/isolated-vm-worker.cjs')
+    const workerPath = path.resolve(
+      process.cwd(),
+      'apps',
+      'sim',
+      'lib',
+      'execution',
+      'isolated-vm-worker.cjs'
+    )
 
     if (!fs.existsSync(workerPath)) {
       reject(
@@ -171,7 +178,7 @@ async function ensureWorker(): Promise<void> {
       return
     }
 
-    worker = fork(workerPath, [], {
+    worker = spawn(process.execPath, [workerPath], {
       stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
       serialization: 'json',
     })
