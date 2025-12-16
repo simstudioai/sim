@@ -46,6 +46,11 @@ export async function POST(request: NextRequest) {
     )
 
     const body = await request.json()
+    logger.info(`[${requestId}] Raw request body:`, {
+      hasTimestamp: 'timestamp' in body,
+      timestamp: body.timestamp,
+      timestampType: typeof body.timestamp,
+    })
     const validatedData = SlackUpdateMessageSchema.parse(body)
 
     let channel = validatedData.channel
