@@ -1,12 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { createLogger } from '@/lib/logs/console/logger'
 
 export const dynamic = 'force-dynamic'
-
-const logger = createLogger('SlackDeleteMessageAPI')
 
 const SlackDeleteMessageSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
@@ -15,13 +11,10 @@ const SlackDeleteMessageSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  const requestId = generateRequestId()
-
   try {
     const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success) {
-      logger.warn(`[${requestId}] Unauthorized Slack delete message attempt: ${authResult.error}`)
       return NextResponse.json(
         {
           success: false,
@@ -31,20 +24,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    logger.info(
-      `[${requestId}] Authenticated Slack delete message request via ${authResult.authType}`,
-      {
-        userId: authResult.userId,
-      }
-    )
-
     const body = await request.json()
     const validatedData = SlackDeleteMessageSchema.parse(body)
-
-    logger.info(`[${requestId}] Deleting Slack message`, {
-      channel: validatedData.channel,
-      timestamp: validatedData.timestamp,
-    })
 
     const slackResponse = await fetch('https://slack.com/api/chat.delete', {
       method: 'POST',
@@ -61,7 +42,6 @@ export async function POST(request: NextRequest) {
     const data = await slackResponse.json()
 
     if (!data.ok) {
-      logger.error(`[${requestId}] Slack API error:`, data)
       return NextResponse.json(
         {
           success: false,
@@ -70,11 +50,6 @@ export async function POST(request: NextRequest) {
         { status: slackResponse.status }
       )
     }
-
-    logger.info(`[${requestId}] Message deleted successfully`, {
-      channel: data.channel,
-      timestamp: data.ts,
-    })
 
     return NextResponse.json({
       success: true,
@@ -88,7 +63,6 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
       return NextResponse.json(
         {
           success: false,
@@ -99,7 +73,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    logger.error(`[${requestId}] Error deleting Slack message:`, error)
     return NextResponse.json(
       {
         success: false,

@@ -1,12 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { createLogger } from '@/lib/logs/console/logger'
 
 export const dynamic = 'force-dynamic'
-
-const logger = createLogger('SlackAddReactionAPI')
 
 const SlackAddReactionSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
@@ -16,13 +12,10 @@ const SlackAddReactionSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  const requestId = generateRequestId()
-
   try {
     const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success) {
-      logger.warn(`[${requestId}] Unauthorized Slack add reaction attempt: ${authResult.error}`)
       return NextResponse.json(
         {
           success: false,
@@ -32,21 +25,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    logger.info(
-      `[${requestId}] Authenticated Slack add reaction request via ${authResult.authType}`,
-      {
-        userId: authResult.userId,
-      }
-    )
-
     const body = await request.json()
     const validatedData = SlackAddReactionSchema.parse(body)
-
-    logger.info(`[${requestId}] Adding Slack reaction`, {
-      channel: validatedData.channel,
-      timestamp: validatedData.timestamp,
-      emoji: validatedData.name,
-    })
 
     const slackResponse = await fetch('https://slack.com/api/reactions.add', {
       method: 'POST',
@@ -64,7 +44,6 @@ export async function POST(request: NextRequest) {
     const data = await slackResponse.json()
 
     if (!data.ok) {
-      logger.error(`[${requestId}] Slack API error:`, data)
       return NextResponse.json(
         {
           success: false,
@@ -73,12 +52,6 @@ export async function POST(request: NextRequest) {
         { status: slackResponse.status }
       )
     }
-
-    logger.info(`[${requestId}] Reaction added successfully`, {
-      channel: validatedData.channel,
-      timestamp: validatedData.timestamp,
-      reaction: validatedData.name,
-    })
 
     return NextResponse.json({
       success: true,
@@ -93,7 +66,6 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
       return NextResponse.json(
         {
           success: false,
@@ -104,7 +76,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    logger.error(`[${requestId}] Error adding Slack reaction:`, error)
     return NextResponse.json(
       {
         success: false,

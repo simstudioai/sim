@@ -117,7 +117,8 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         not: true,
         and: {
           field: 'destinationType',
-          value: 'channel',
+          value: 'dm',
+          not: true,
         },
       },
     },
@@ -134,7 +135,8 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         not: true,
         and: {
           field: 'destinationType',
-          value: 'channel',
+          value: 'dm',
+          not: true,
         },
       },
     },
