@@ -12,6 +12,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { McpClient } from '@/lib/mcp/client'
 import type {
   McpServerConfig,
+  McpServerStatusConfig,
   McpServerSummary,
   McpTool,
   McpToolCall,
@@ -42,7 +43,7 @@ interface CacheStats {
 
 class McpService {
   private toolCache = new Map<string, ToolCache>()
-  private readonly cacheTimeout = MCP_CONSTANTS.CACHE_TIMEOUT // 30 seconds
+  private readonly cacheTimeout = MCP_CONSTANTS.CACHE_TIMEOUT // 5 minutes
   private readonly maxCacheSize = MCP_CONSTANTS.MAX_CACHE_SIZE // 1000
   private cleanupInterval: NodeJS.Timeout | null = null
   private cacheHits = 0
@@ -386,6 +387,81 @@ class McpService {
   }
 
   /**
+   * Update server connection status after discovery attempt
+   */
+  private async updateServerStatus(
+    serverId: string,
+    workspaceId: string,
+    success: boolean,
+    error?: string,
+    toolCount?: number
+  ): Promise<void> {
+    try {
+      const [currentServer] = await db
+        .select({ statusConfig: mcpServers.statusConfig })
+        .from(mcpServers)
+        .where(
+          and(
+            eq(mcpServers.id, serverId),
+            eq(mcpServers.workspaceId, workspaceId),
+            isNull(mcpServers.deletedAt)
+          )
+        )
+        .limit(1)
+
+      const currentConfig: McpServerStatusConfig =
+        (currentServer?.statusConfig as McpServerStatusConfig | null) ?? {
+          consecutiveFailures: 0,
+          lastSuccessfulDiscovery: null,
+        }
+
+      const now = new Date()
+
+      if (success) {
+        await db
+          .update(mcpServers)
+          .set({
+            connectionStatus: 'connected',
+            lastConnected: now,
+            lastError: null,
+            toolCount: toolCount ?? 0,
+            lastToolsRefresh: now,
+            statusConfig: {
+              consecutiveFailures: 0,
+              lastSuccessfulDiscovery: now.toISOString(),
+            },
+            updatedAt: now,
+          })
+          .where(eq(mcpServers.id, serverId))
+      } else {
+        const newFailures = currentConfig.consecutiveFailures + 1
+        const isErrorState = newFailures >= MCP_CONSTANTS.MAX_CONSECUTIVE_FAILURES
+
+        await db
+          .update(mcpServers)
+          .set({
+            connectionStatus: isErrorState ? 'error' : 'disconnected',
+            lastError: error || 'Unknown error',
+            statusConfig: {
+              consecutiveFailures: newFailures,
+              lastSuccessfulDiscovery: currentConfig.lastSuccessfulDiscovery,
+            },
+            updatedAt: now,
+          })
+          .where(eq(mcpServers.id, serverId))
+
+        if (isErrorState) {
+          logger.warn(
+            `Server ${serverId} marked as error after ${newFailures} consecutive failures`
+          )
+        }
+      }
+    } catch (err) {
+      logger.error(`Failed to update server status for ${serverId}:`, err)
+    }
+  }
+
+  /**
    * Discover tools from all workspace servers
    */
   async discoverTools(
@@ -425,7 +501,7 @@ class McpService {
             logger.debug(
               `[${requestId}] Discovered ${tools.length} tools from server ${config.name}`
             )
-            return tools
+            return { serverId: config.id, tools }
           } finally {
             await client.disconnect()
           }
@@ -433,16 +509,36 @@ class McpService {
       )
 
       let failedCount = 0
+      const statusUpdates: Promise<void>[] = []
+
       results.forEach((result, index) => {
+        const server = servers[index]
         if (result.status === 'fulfilled') {
-          allTools.push(...result.value)
+          allTools.push(...result.value.tools)
+          statusUpdates.push(
+            this.updateServerStatus(
+              server.id!,
+              workspaceId,
+              true,
+              undefined,
+              result.value.tools.length
+            )
+          )
         } else {
           failedCount++
+          const errorMessage =
+            result.reason instanceof Error ? result.reason.message : 'Unknown error'
           logger.warn(
-            `[${requestId}] Failed to discover tools from server ${servers[index].name}:`,
+            `[${requestId}] Failed to discover tools from server ${server.name}:`,
             result.reason
           )
+          statusUpdates.push(this.updateServerStatus(server.id!, workspaceId, false, errorMessage))
         }
+      })
+
+      // Update server statuses in parallel (don't block on this)
+      Promise.allSettled(statusUpdates).catch((err) => {
+        logger.error(`[${requestId}] Error updating server statuses:`, err)
       })
 
       if (failedCount === 0) {

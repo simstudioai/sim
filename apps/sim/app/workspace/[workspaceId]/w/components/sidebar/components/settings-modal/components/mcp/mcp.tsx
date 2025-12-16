@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { Plus, Search } from 'lucide-react'
+import { AlertCircle, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -44,6 +44,9 @@ interface McpServer {
   name?: string
   transport?: string
   url?: string
+  connectionStatus?: 'connected' | 'disconnected' | 'error'
+  lastError?: string | null
+  lastConnected?: string
 }
 
 const logger = createLogger('McpSettings')
@@ -297,9 +300,6 @@ export function MCP() {
     setShowDeleteDialog(true)
   }, [])
 
-  /**
-   * Confirms and executes the server deletion.
-   */
   const confirmDeleteServer = useCallback(async () => {
     if (!serverToDelete) return
 
@@ -460,6 +460,20 @@ export function MCP() {
                 <p className='break-all font-mono text-[13px] text-[var(--text-secondary)]'>
                   {server.url}
                 </p>
+              </div>
+            )}
+
+            {server.connectionStatus === 'error' && (
+              <div className='flex items-start gap-[8px] rounded-[8px] border border-red-200 bg-red-50 p-[12px] dark:border-red-800/50 dark:bg-red-950/20'>
+                <AlertCircle className='mt-[1px] h-4 w-4 flex-shrink-0 text-red-500 dark:text-red-400' />
+                <div className='flex flex-col gap-[2px]'>
+                  <span className='font-medium text-[13px] text-red-800 dark:text-red-300'>
+                    Connection Error
+                  </span>
+                  <span className='text-[13px] text-red-700 dark:text-red-400'>
+                    {server.lastError || 'Failed to connect to server'}
+                  </span>
+                </div>
               </div>
             )}
 

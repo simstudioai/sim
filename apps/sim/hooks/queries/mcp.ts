@@ -1,20 +1,17 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createLogger } from '@/lib/logs/console/logger'
+import type { McpServerStatusConfig } from '@/lib/mcp/types'
 
 const logger = createLogger('McpQueries')
 
-/**
- * Query key factories for MCP-related queries
- */
+export type { McpServerStatusConfig }
+
 export const mcpKeys = {
   all: ['mcp'] as const,
   servers: (workspaceId: string) => [...mcpKeys.all, 'servers', workspaceId] as const,
   tools: (workspaceId: string) => [...mcpKeys.all, 'tools', workspaceId] as const,
 }
 
-/**
- * MCP Server Types
- */
 export interface McpServer {
   id: string
   workspaceId: string
@@ -25,9 +22,11 @@ export interface McpServer {
   headers?: Record<string, string>
   enabled: boolean
   connectionStatus?: 'connected' | 'disconnected' | 'error'
-  lastError?: string
+  lastError?: string | null
+  statusConfig?: McpServerStatusConfig
   toolCount?: number
   lastToolsRefresh?: string
+  lastConnected?: string
   createdAt: string
   updatedAt: string
   deletedAt?: string
@@ -213,7 +212,7 @@ export function useDeleteMcpServer() {
 interface UpdateMcpServerParams {
   workspaceId: string
   serverId: string
-  updates: Partial<McpServerConfig>
+  updates: Partial<McpServerConfig & { enabled?: boolean }>
 }
 
 export function useUpdateMcpServer() {
@@ -221,8 +220,20 @@ export function useUpdateMcpServer() {
 
   return useMutation({
     mutationFn: async ({ workspaceId, serverId, updates }: UpdateMcpServerParams) => {
+      const response = await fetch(`/api/mcp/servers/${serverId}?workspaceId=${workspaceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update MCP server')
+      }
+
       logger.info(`Updated MCP server: ${serverId} in workspace: ${workspaceId}`)
-      return { serverId, updates }
+      return data.data?.server
     },
     onMutate: async ({ workspaceId, serverId, updates }) => {
       await queryClient.cancelQueries({ queryKey: mcpKeys.servers(workspaceId) })
@@ -249,6 +260,7 @@ export function useUpdateMcpServer() {
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mcpKeys.tools(variables.workspaceId) })
     },
   })
 }

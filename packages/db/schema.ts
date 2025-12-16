@@ -1547,6 +1547,13 @@ export const mcpServers = pgTable(
     connectionStatus: text('connection_status').default('disconnected'),
     lastError: text('last_error'),
 
+    statusConfig: json('status_config')
+      .$type<{
+        consecutiveFailures: number
+        lastSuccessfulDiscovery: string | null
+      }>()
+      .default({ consecutiveFailures: 0, lastSuccessfulDiscovery: null }),
+
     toolCount: integer('tool_count').default(0),
     lastToolsRefresh: timestamp('last_tools_refresh'),
     totalRequests: integer('total_requests').default(0),

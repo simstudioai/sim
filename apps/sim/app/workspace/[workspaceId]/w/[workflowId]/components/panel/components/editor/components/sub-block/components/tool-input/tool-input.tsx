@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Loader2, PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
+  Badge,
   Combobox,
   Popover,
   PopoverContent,
@@ -12,6 +13,7 @@ import {
   PopoverSearch,
   PopoverSection,
   PopoverTrigger,
+  Tooltip,
 } from '@/components/emcn'
 import { McpIcon } from '@/components/icons'
 import { Switch } from '@/components/ui/switch'
@@ -55,6 +57,7 @@ import {
   type CustomTool as CustomToolDefinition,
   useCustomTools,
 } from '@/hooks/queries/custom-tools'
+import { useMcpServers } from '@/hooks/queries/mcp'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useMcpTools } from '@/hooks/use-mcp-tools'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
@@ -801,6 +804,37 @@ export function ToolInput({
     error: mcpError,
     refreshTools,
   } = useMcpTools(workspaceId)
+
+  const { data: mcpServers = [] } = useMcpServers(workspaceId)
+
+  const getMcpToolUnavailableReason = useCallback(
+    (tool: StoredTool): string | null => {
+      if (tool.type !== 'mcp') return null
+      const serverId = tool.params?.serverId as string | undefined
+      if (!serverId) return 'Server not configured'
+
+      const server = mcpServers.find((s) => s.id === serverId)
+      if (!server) return 'Server not found'
+      if (server.connectionStatus === 'error') {
+        return server.lastError || 'Server connection error'
+      }
+
+      const toolExists = mcpTools.some(
+        (t) => t.serverId === serverId && t.name === tool.params?.toolName
+      )
+      if (!toolExists) return 'Tool not found on server'
+
+      return null
+    },
+    [mcpTools, mcpServers]
+  )
+
+  const isMcpToolUnavailable = useCallback(
+    (tool: StoredTool): boolean => {
+      return getMcpToolUnavailableReason(tool) !== null
+    },
+    [getMcpToolUnavailableReason]
+  )
 
   // Reset search query when popover opens
   useEffect(() => {
@@ -2010,6 +2044,8 @@ export function ToolInput({
                   onClick={() => {
                     if (isCustomTool) {
                       handleEditCustomTool(toolIndex)
+                    } else if (isMcpTool && isMcpToolUnavailable(tool)) {
+                      return
                     } else {
                       toggleToolExpansion(toolIndex)
                     }
@@ -2040,9 +2076,29 @@ export function ToolInput({
                     <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
                       {isCustomTool ? customToolTitle : tool.title}
                     </span>
+                    {isMcpTool && isMcpToolUnavailable(tool) && (
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Badge
+                            variant='outline'
+                            style={{
+                              borderColor: 'var(--warning)',
+                              color: 'var(--warning)',
+                            }}
+                          >
+                            unavailable
+                          </Badge>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>
+                          <span className='text-sm'>
+                            {getMcpToolUnavailableReason(tool) || 'Tool unavailable'}
+                          </span>
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                    )}
                   </div>
                   <div className='flex flex-shrink-0 items-center gap-[8px]'>
-                    {supportsToolControl && (
+                    {supportsToolControl && !(isMcpTool && isMcpToolUnavailable(tool)) && (
                       <Popover
                         open={usageControlPopoverIndex === toolIndex}
                         onOpenChange={(open) =>

@@ -6,6 +6,11 @@
 // Modern MCP uses Streamable HTTP which handles both HTTP POST and SSE responses
 export type McpTransport = 'streamable-http'
 
+export interface McpServerStatusConfig {
+  consecutiveFailures: number
+  lastSuccessfulDiscovery: string | null
+}
+
 export interface McpServerConfig {
   id: string
   name: string
@@ -20,6 +25,7 @@ export interface McpServerConfig {
   timeout?: number
   retries?: number
   enabled?: boolean
+  statusConfig?: McpServerStatusConfig
   createdAt?: string
   updatedAt?: string
 }
@@ -113,8 +119,8 @@ export class McpError extends Error {
 }
 
 export class McpConnectionError extends McpError {
-  constructor(message: string, serverId: string) {
-    super(`MCP Connection Error for server ${serverId}: ${message}`)
+  constructor(message: string, serverName: string) {
+    super(`Failed to connect to "${serverName}": ${message}`)
     this.name = 'McpConnectionError'
   }
 }
