@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
 import type { FieldDiffStatus } from '@/lib/workflows/diff/types'
 import {
-  ChannelSelectorInput,
   CheckboxList,
   Code,
   ComboBox,
@@ -32,6 +31,7 @@ import {
   ResponseFormat,
   ScheduleSave,
   ShortInput,
+  SlackSelectorInput,
   SliderInput,
   Switch,
   Table,
@@ -732,8 +732,9 @@ function SubBlockComponent({
         )
 
       case 'channel-selector':
+      case 'user-selector':
         return (
-          <ChannelSelectorInput
+          <SlackSelectorInput
             blockId={blockId}
             subBlock={config}
             disabled={isDisabled}

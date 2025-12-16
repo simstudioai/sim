@@ -3,6 +3,7 @@ import type { QueryKey } from '@tanstack/react-query'
 
 export type SelectorKey =
   | 'slack.channels'
+  | 'slack.users'
   | 'gmail.labels'
   | 'outlook.folders'
   | 'google.calendar'

@@ -59,6 +59,7 @@ export type SubBlockType =
   | 'file-selector' // File selector for Google Drive, etc.
   | 'project-selector' // Project selector for Jira, Discord, etc.
   | 'channel-selector' // Channel selector for Slack, Discord, etc.
+  | 'user-selector' // User selector for Slack, etc.
   | 'folder-selector' // Folder selector for Gmail, etc.
   | 'knowledge-base-selector' // Knowledge base selector
   | 'knowledge-tag-filters' // Multiple tag filters for knowledge bases
@@ -85,6 +86,7 @@ export type SubBlockType =
 export const SELECTOR_TYPES_HYDRATION_REQUIRED: SubBlockType[] = [
   'oauth-input',
   'channel-selector',
+  'user-selector',
   'file-selector',
   'folder-selector',
   'project-selector',
