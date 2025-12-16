@@ -1,4 +1,4 @@
-import { type ChildProcess, execSync, spawn } from 'node:child_process'
+import { type ChildProcess, execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -202,52 +202,54 @@ async function ensureWorker(): Promise<void> {
       return
     }
 
-    worker = spawn('node', [workerPath], {
-      stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
-      serialization: 'json',
-    })
+    import('node:child_process').then(({ spawn }) => {
+      worker = spawn('node', [workerPath], {
+        stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
+        serialization: 'json',
+      })
 
-    worker.on('message', handleWorkerMessage)
+      worker.on('message', handleWorkerMessage)
 
-    const startTimeout = setTimeout(() => {
-      worker?.kill()
-      worker = null
-      workerReady = false
-      workerReadyPromise = null
-      reject(new Error('Worker failed to start within timeout'))
-    }, 10000)
+      const startTimeout = setTimeout(() => {
+        worker?.kill()
+        worker = null
+        workerReady = false
+        workerReadyPromise = null
+        reject(new Error('Worker failed to start within timeout'))
+      }, 10000)
 
-    const readyHandler = (message: unknown) => {
-      if (
-        typeof message === 'object' &&
-        message !== null &&
-        (message as { type?: string }).type === 'ready'
-      ) {
-        workerReady = true
-        clearTimeout(startTimeout)
-        worker?.off('message', readyHandler)
-        resolve()
+      const readyHandler = (message: unknown) => {
+        if (
+          typeof message === 'object' &&
+          message !== null &&
+          (message as { type?: string }).type === 'ready'
+        ) {
+          workerReady = true
+          clearTimeout(startTimeout)
+          worker?.off('message', readyHandler)
+          resolve()
+        }
       }
-    }
-    worker.on('message', readyHandler)
+      worker.on('message', readyHandler)
 
-    worker.on('exit', () => {
-      if (workerIdleTimeout) {
-        clearTimeout(workerIdleTimeout)
-        workerIdleTimeout = null
-      }
-      worker = null
-      workerReady = false
-      workerReadyPromise = null
-      for (const [id, pending] of pendingExecutions) {
-        clearTimeout(pending.timeout)
-        pending.resolve({
-          result: null,
-          stdout: '',
-          error: { message: 'Worker process exited unexpectedly', name: 'WorkerError' },
-        })
-        pendingExecutions.delete(id)
-      }
+      worker.on('exit', () => {
+        if (workerIdleTimeout) {
+          clearTimeout(workerIdleTimeout)
+          workerIdleTimeout = null
+        }
+        worker = null
+        workerReady = false
+        workerReadyPromise = null
+        for (const [id, pending] of pendingExecutions) {
+          clearTimeout(pending.timeout)
+          pending.resolve({
+            result: null,
+            stdout: '',
+            error: { message: 'Worker process exited unexpectedly', name: 'WorkerError' },
+          })
+          pendingExecutions.delete(id)
+        }
+      })
     })
   })
 
