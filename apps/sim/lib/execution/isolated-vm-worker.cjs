@@ -143,7 +143,13 @@ async function executeCode(request) {
           }
         }, FETCH_TIMEOUT_MS)
         pendingFetches.set(fetchId, { resolve, timeout })
-        process.send({ type: 'fetch', fetchId, requestId, url, optionsJson })
+        if (process.send && process.connected) {
+          process.send({ type: 'fetch', fetchId, requestId, url, optionsJson })
+        } else {
+          clearTimeout(timeout)
+          pendingFetches.delete(fetchId)
+          resolve(JSON.stringify({ error: 'Parent process disconnected' }))
+        }
       })
     })
     await jail.set('__fetchRef', fetchCallback)
@@ -314,17 +320,38 @@ async function executeCode(request) {
 }
 
 process.on('message', async (msg) => {
-  if (msg.type === 'execute') {
-    const result = await executeCode(msg.request)
-    process.send({ type: 'result', executionId: msg.executionId, result })
-  } else if (msg.type === 'fetchResponse') {
-    const pending = pendingFetches.get(msg.fetchId)
-    if (pending) {
-      clearTimeout(pending.timeout)
-      pendingFetches.delete(msg.fetchId)
-      pending.resolve(msg.response)
+  try {
+    if (msg.type === 'execute') {
+      const result = await executeCode(msg.request)
+      if (process.send && process.connected) {
+        process.send({ type: 'result', executionId: msg.executionId, result })
+      }
+    } else if (msg.type === 'fetchResponse') {
+      const pending = pendingFetches.get(msg.fetchId)
+      if (pending) {
+        clearTimeout(pending.timeout)
+        pendingFetches.delete(msg.fetchId)
+        pending.resolve(msg.response)
+      }
+    }
+  } catch (err) {
+    if (msg.type === 'execute' && process.send && process.connected) {
+      process.send({
+        type: 'result',
+        executionId: msg.executionId,
+        result: {
+          result: null,
+          stdout: '',
+          error: {
+            message: err instanceof Error ? err.message : 'Worker error',
+            name: 'WorkerError',
+          },
+        },
+      })
     }
   }
 })
 
-process.send({ type: 'ready' })
+if (process.send) {
+  process.send({ type: 'ready' })
+}

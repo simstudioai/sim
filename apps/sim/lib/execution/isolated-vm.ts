@@ -1,6 +1,7 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { validateProxyUrl } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -140,14 +141,24 @@ function handleWorkerMessage(message: unknown) {
     }
     secureFetch(requestId, url, options)
       .then((response) => {
-        worker?.send({ type: 'fetchResponse', fetchId, response })
+        try {
+          worker?.send({ type: 'fetchResponse', fetchId, response })
+        } catch (err) {
+          logger.error('Failed to send fetch response to worker', { err, fetchId })
+        }
       })
       .catch((err) => {
-        worker?.send({
-          type: 'fetchResponse',
-          fetchId,
-          response: JSON.stringify({ error: err instanceof Error ? err.message : 'Fetch failed' }),
-        })
+        try {
+          worker?.send({
+            type: 'fetchResponse',
+            fetchId,
+            response: JSON.stringify({
+              error: err instanceof Error ? err.message : 'Fetch failed',
+            }),
+          })
+        } catch (sendErr) {
+          logger.error('Failed to send fetch error to worker', { sendErr, fetchId })
+        }
       })
   }
 }
@@ -160,21 +171,11 @@ async function ensureWorker(): Promise<void> {
   if (workerReadyPromise) return workerReadyPromise
 
   workerReadyPromise = new Promise<void>((resolve, reject) => {
-    const workerPath = path.resolve(
-      process.cwd(),
-      'apps',
-      'sim',
-      'lib',
-      'execution',
-      'isolated-vm-worker.cjs'
-    )
+    const currentDir = path.dirname(fileURLToPath(import.meta.url))
+    const workerPath = path.join(currentDir, 'isolated-vm-worker.cjs')
 
     if (!fs.existsSync(workerPath)) {
-      reject(
-        new Error(
-          `Worker file not found at ${workerPath}. Ensure the file exists and process.cwd() (${process.cwd()}) is correct.`
-        )
-      )
+      reject(new Error(`Worker file not found at ${workerPath}`))
       return
     }
 
