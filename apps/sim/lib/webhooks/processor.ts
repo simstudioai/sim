@@ -1,5 +1,4 @@
 import { db, webhook, workflow } from '@sim/db'
-import { tasks } from '@trigger.dev/sdk'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'

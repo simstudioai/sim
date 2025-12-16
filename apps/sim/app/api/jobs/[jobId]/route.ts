@@ -1,4 +1,3 @@
-import { runs } from '@trigger.dev/sdk'
 import { type NextRequest, NextResponse } from 'next/server'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { getSession } from '@/lib/auth'

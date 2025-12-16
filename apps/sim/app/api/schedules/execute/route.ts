@@ -1,5 +1,4 @@
 import { db, workflowSchedule } from '@sim/db'
-import { tasks } from '@trigger.dev/sdk'
 import { and, eq, isNull, lt, lte, not, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
