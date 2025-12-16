@@ -125,6 +125,7 @@ import { WaitBlock } from '@/blocks/blocks/wait'
 import { WealthboxBlock } from '@/blocks/blocks/wealthbox'
 import { WebflowBlock } from '@/blocks/blocks/webflow'
 import { WebhookBlock } from '@/blocks/blocks/webhook'
+import { WebhookNotificationBlock } from '@/blocks/blocks/webhook_notification'
 import { WhatsAppBlock } from '@/blocks/blocks/whatsapp'
 import { WikipediaBlock } from '@/blocks/blocks/wikipedia'
 import { WordPressBlock } from '@/blocks/blocks/wordpress'
@@ -268,6 +269,7 @@ export const registry: Record<string, BlockConfig> = {
   wealthbox: WealthboxBlock,
   webflow: WebflowBlock,
   webhook: WebhookBlock,
+  webhook_notification: WebhookNotificationBlock,
   whatsapp: WhatsAppBlock,
   wikipedia: WikipediaBlock,
   wordpress: WordPressBlock,
