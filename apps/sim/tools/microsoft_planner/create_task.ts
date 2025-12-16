@@ -143,7 +143,6 @@ export const createTaskTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the task was created successfully' },
     task: { type: 'object', description: 'The created task object with all properties' },
     metadata: { type: 'object', description: 'Metadata including planId, taskId, and taskUrl' },
   },

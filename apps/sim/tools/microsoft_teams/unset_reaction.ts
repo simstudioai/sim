@@ -57,7 +57,6 @@ export const unsetReactionTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the reaction was removed successfully' },
     reactionType: { type: 'string', description: 'The emoji that was removed' },
     messageId: { type: 'string', description: 'ID of the message' },
   },

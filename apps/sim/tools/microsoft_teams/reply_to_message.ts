@@ -51,7 +51,6 @@ export const replyToMessageTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the reply was successful' },
     messageId: { type: 'string', description: 'ID of the reply message' },
     updatedContent: { type: 'boolean', description: 'Whether content was successfully sent' },
   },

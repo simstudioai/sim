@@ -228,7 +228,6 @@ export const updateTaskTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the task was updated successfully' },
     message: { type: 'string', description: 'Success message when task is updated' },
     task: { type: 'object', description: 'The updated task object with all properties' },
     taskId: { type: 'string', description: 'ID of the updated task' },

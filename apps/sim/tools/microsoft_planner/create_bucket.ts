@@ -93,7 +93,6 @@ export const createBucketTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the bucket was created successfully' },
     bucket: { type: 'object', description: 'The created bucket object with all properties' },
     metadata: { type: 'object', description: 'Metadata including bucketId and planId' },
   },

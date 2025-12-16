@@ -39,7 +39,6 @@ export const listChannelMembersTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the listing was successful' },
     members: { type: 'array', description: 'Array of channel members' },
     memberCount: { type: 'number', description: 'Total number of members' },
   },

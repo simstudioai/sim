@@ -33,7 +33,6 @@ export const listTeamMembersTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the listing was successful' },
     members: { type: 'array', description: 'Array of team members' },
     memberCount: { type: 'number', description: 'Total number of members' },
   },

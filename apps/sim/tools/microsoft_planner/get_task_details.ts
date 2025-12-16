@@ -76,10 +76,6 @@ export const getTaskDetailsTool: ToolConfig<
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Whether the task details were retrieved successfully',
-    },
     taskDetails: {
       type: 'object',
       description: 'The task details including description, checklist, and references',

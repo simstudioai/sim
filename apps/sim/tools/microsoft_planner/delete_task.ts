@@ -92,7 +92,6 @@ export const deleteTaskTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the task was deleted successfully' },
     deleted: { type: 'boolean', description: 'Confirmation of deletion' },
     metadata: { type: 'object', description: 'Additional metadata' },
   },

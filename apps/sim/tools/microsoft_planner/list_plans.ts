@@ -67,7 +67,6 @@ export const listPlansTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether plans were retrieved successfully' },
     plans: { type: 'array', description: 'Array of plan objects shared with the current user' },
     metadata: { type: 'object', description: 'Metadata including userId and count' },
   },

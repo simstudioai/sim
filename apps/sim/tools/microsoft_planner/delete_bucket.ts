@@ -92,7 +92,6 @@ export const deleteBucketTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the bucket was deleted successfully' },
     deleted: { type: 'boolean', description: 'Confirmation of deletion' },
     metadata: { type: 'object', description: 'Additional metadata' },
   },

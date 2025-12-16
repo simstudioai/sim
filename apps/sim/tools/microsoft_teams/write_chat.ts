@@ -42,7 +42,6 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Teams chat message send success status' },
     messageId: { type: 'string', description: 'Unique identifier for the sent message' },
     chatId: { type: 'string', description: 'ID of the chat where message was sent' },
     createdTime: { type: 'string', description: 'Timestamp when message was created' },

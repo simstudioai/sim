@@ -217,7 +217,6 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Teams channel read operation success status' },
     messageCount: { type: 'number', description: 'Number of messages retrieved from channel' },
     teamId: { type: 'string', description: 'ID of the team that was read from' },
     channelId: { type: 'string', description: 'ID of the channel that was read from' },

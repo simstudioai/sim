@@ -48,7 +48,6 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Teams channel message send success status' },
     messageId: { type: 'string', description: 'Unique identifier for the sent message' },
     teamId: { type: 'string', description: 'ID of the team where message was sent' },
     channelId: { type: 'string', description: 'ID of the channel where message was sent' },

@@ -51,7 +51,6 @@ export const getMessageTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the retrieval was successful' },
     content: { type: 'string', description: 'The message content' },
     metadata: { type: 'object', description: 'Message metadata including sender, timestamp, etc.' },
   },

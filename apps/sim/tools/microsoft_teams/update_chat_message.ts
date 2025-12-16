@@ -45,7 +45,6 @@ export const updateChatMessageTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the update was successful' },
     messageId: { type: 'string', description: 'ID of the updated message' },
     updatedContent: { type: 'boolean', description: 'Whether content was successfully updated' },
   },

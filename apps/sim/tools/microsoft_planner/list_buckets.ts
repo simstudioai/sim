@@ -76,7 +76,6 @@ export const listBucketsTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether buckets were retrieved successfully' },
     buckets: { type: 'array', description: 'Array of bucket objects' },
     metadata: { type: 'object', description: 'Metadata including planId and count' },
   },

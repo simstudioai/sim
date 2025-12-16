@@ -57,7 +57,6 @@ export const setReactionTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the reaction was added successfully' },
     reactionType: { type: 'string', description: 'The emoji that was added' },
     messageId: { type: 'string', description: 'ID of the message' },
   },

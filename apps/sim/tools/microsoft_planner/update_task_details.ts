@@ -165,10 +165,6 @@ export const updateTaskDetailsTool: ToolConfig<
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Whether the task details were updated successfully',
-    },
     taskDetails: {
       type: 'object',
       description: 'The updated task details object with all properties',

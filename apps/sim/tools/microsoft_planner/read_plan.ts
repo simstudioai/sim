@@ -74,7 +74,6 @@ export const readPlanTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the plan was retrieved successfully' },
     plan: { type: 'object', description: 'The plan object with all properties' },
     metadata: { type: 'object', description: 'Metadata including planId and planUrl' },
   },

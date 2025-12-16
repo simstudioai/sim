@@ -39,7 +39,6 @@ export const deleteChatMessageTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the deletion was successful' },
     deleted: { type: 'boolean', description: 'Confirmation of deletion' },
     messageId: { type: 'string', description: 'ID of the deleted message' },
   },
