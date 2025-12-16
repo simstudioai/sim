@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from 'node:child_process'
+import { type ChildProcess, execSync, spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -6,6 +6,19 @@ import { validateProxyUrl } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('IsolatedVMExecution')
+
+let nodeAvailable: boolean | null = null
+
+function checkNodeAvailable(): boolean {
+  if (nodeAvailable !== null) return nodeAvailable
+  try {
+    execSync('node --version', { stdio: 'ignore' })
+    nodeAvailable = true
+  } catch {
+    nodeAvailable = false
+  }
+  return nodeAvailable
+}
 
 export interface IsolatedVMExecutionRequest {
   code: string
@@ -171,6 +184,16 @@ async function ensureWorker(): Promise<void> {
   if (workerReadyPromise) return workerReadyPromise
 
   workerReadyPromise = new Promise<void>((resolve, reject) => {
+    if (!checkNodeAvailable()) {
+      reject(
+        new Error(
+          'Node.js is required for code execution but was not found. ' +
+            'Please install Node.js (v20+) from https://nodejs.org'
+        )
+      )
+      return
+    }
+
     const currentDir = path.dirname(fileURLToPath(import.meta.url))
     const workerPath = path.join(currentDir, 'isolated-vm-worker.cjs')
 
