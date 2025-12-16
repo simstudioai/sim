@@ -30,7 +30,6 @@ export interface IsolatedVMError {
 
 interface PendingExecution {
   resolve: (result: IsolatedVMExecutionResult) => void
-  reject: (error: Error) => void
   timeout: ReturnType<typeof setTimeout>
 }
 
@@ -107,11 +106,6 @@ function handleWorkerMessage(message: unknown) {
   if (typeof message !== 'object' || message === null) return
   const msg = message as Record<string, unknown>
 
-  if (msg.type === 'ready') {
-    workerReady = true
-    return
-  }
-
   if (msg.type === 'result') {
     const pending = pendingExecutions.get(msg.executionId as number)
     if (pending) {
@@ -129,10 +123,30 @@ function handleWorkerMessage(message: unknown) {
       url: string
       optionsJson?: string
     }
-    const options = optionsJson ? JSON.parse(optionsJson) : undefined
-    secureFetch(requestId, url, options).then((response) => {
-      worker?.send({ type: 'fetchResponse', fetchId, response })
-    })
+    let options: RequestInit | undefined
+    if (optionsJson) {
+      try {
+        options = JSON.parse(optionsJson)
+      } catch {
+        worker?.send({
+          type: 'fetchResponse',
+          fetchId,
+          response: JSON.stringify({ error: 'Invalid fetch options JSON' }),
+        })
+        return
+      }
+    }
+    secureFetch(requestId, url, options)
+      .then((response) => {
+        worker?.send({ type: 'fetchResponse', fetchId, response })
+      })
+      .catch((err) => {
+        worker?.send({
+          type: 'fetchResponse',
+          fetchId,
+          response: JSON.stringify({ error: err instanceof Error ? err.message : 'Fetch failed' }),
+        })
+      })
   }
 }
 
@@ -184,7 +198,11 @@ async function ensureWorker(): Promise<void> {
       workerReadyPromise = null
       for (const [id, pending] of pendingExecutions) {
         clearTimeout(pending.timeout)
-        pending.reject(new Error('Worker process exited unexpectedly'))
+        pending.resolve({
+          result: null,
+          stdout: '',
+          error: { message: 'Worker process exited unexpectedly', name: 'WorkerError' },
+        })
         pendingExecutions.delete(id)
       }
     })
@@ -194,11 +212,18 @@ async function ensureWorker(): Promise<void> {
 }
 
 /**
- * Execute JavaScript code in an isolated V8 isolate via Node.js subprocess
+ * Execute JavaScript code in an isolated V8 isolate via Node.js subprocess.
+ * The worker's V8 isolate enforces timeoutMs internally. The parent timeout
+ * (timeoutMs + 1000) is a safety buffer for IPC communication.
  */
 export async function executeInIsolatedVM(
   req: IsolatedVMExecutionRequest
 ): Promise<IsolatedVMExecutionResult> {
+  if (workerIdleTimeout) {
+    clearTimeout(workerIdleTimeout)
+    workerIdleTimeout = null
+  }
+
   await ensureWorker()
 
   if (!worker) {
@@ -211,7 +236,7 @@ export async function executeInIsolatedVM(
 
   const executionId = ++executionIdCounter
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const timeout = setTimeout(() => {
       pendingExecutions.delete(executionId)
       resolve({
@@ -221,8 +246,21 @@ export async function executeInIsolatedVM(
       })
     }, req.timeoutMs + 1000)
 
-    pendingExecutions.set(executionId, { resolve, reject, timeout })
-    worker!.send({ type: 'execute', executionId, request: req })
+    pendingExecutions.set(executionId, { resolve, timeout })
+
+    try {
+      worker!.send({ type: 'execute', executionId, request: req })
+    } catch {
+      clearTimeout(timeout)
+      pendingExecutions.delete(executionId)
+      resolve({
+        result: null,
+        stdout: '',
+        error: { message: 'Failed to send execution request to worker', name: 'WorkerError' },
+      })
+      return
+    }
+
     resetIdleTimeout()
   })
 }

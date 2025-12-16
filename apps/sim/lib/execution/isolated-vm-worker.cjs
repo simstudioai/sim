@@ -8,6 +8,7 @@ const ivm = require('isolated-vm')
 const USER_CODE_START_LINE = 4
 const pendingFetches = new Map()
 let fetchIdCounter = 0
+const FETCH_TIMEOUT_MS = 30000
 
 /**
  * Extract line and column from error stack or message
@@ -135,7 +136,13 @@ async function executeCode(request) {
     const fetchCallback = new ivm.Reference(async (url, optionsJson) => {
       return new Promise((resolve) => {
         const fetchId = ++fetchIdCounter
-        pendingFetches.set(fetchId, resolve)
+        const timeout = setTimeout(() => {
+          if (pendingFetches.has(fetchId)) {
+            pendingFetches.delete(fetchId)
+            resolve(JSON.stringify({ error: 'Fetch request timed out' }))
+          }
+        }, FETCH_TIMEOUT_MS)
+        pendingFetches.set(fetchId, { resolve, timeout })
         process.send({ type: 'fetch', fetchId, requestId, url, optionsJson })
       })
     })
@@ -306,16 +313,16 @@ async function executeCode(request) {
   }
 }
 
-// IPC message handler
 process.on('message', async (msg) => {
   if (msg.type === 'execute') {
     const result = await executeCode(msg.request)
     process.send({ type: 'result', executionId: msg.executionId, result })
   } else if (msg.type === 'fetchResponse') {
-    const resolve = pendingFetches.get(msg.fetchId)
-    if (resolve) {
+    const pending = pendingFetches.get(msg.fetchId)
+    if (pending) {
+      clearTimeout(pending.timeout)
       pendingFetches.delete(msg.fetchId)
-      resolve(msg.response)
+      pending.resolve(msg.response)
     }
   }
 })
