@@ -156,6 +156,15 @@ export const ScheduleBlock: BlockConfig = {
     },
 
     {
+      id: 'inputFormat',
+      title: 'Input Format',
+      type: 'input-format',
+      description:
+        'Define input parameters that will be available when the schedule triggers. Use Value to set default values for scheduled executions.',
+      mode: 'trigger',
+    },
+
+    {
       id: 'scheduleSave',
       type: 'schedule-save',
       mode: 'trigger',
