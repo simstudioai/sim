@@ -1,7 +1,6 @@
 import crypto, { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase, knowledgeBaseTagDefinitions } from '@sim/db/schema'
-import { tasks } from '@trigger.dev/sdk'
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import { getStorageMethod, isRedisStorage } from '@/lib/core/storage'
