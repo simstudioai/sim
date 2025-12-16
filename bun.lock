@@ -18,6 +18,7 @@
         "isolated-vm": "6.0.2",
         "mongodb": "6.19.0",
         "neo4j-driver": "6.0.1",
+        "next-runtime-env": "3.3.0",
         "nodemailer": "7.0.11",
         "onedollarstats": "0.0.10",
         "postgres": "^3.4.5",
@@ -28,7 +29,7 @@
       },
       "devDependencies": {
         "@biomejs/biome": "2.0.0-beta.5",
-        "@next/env": "16.0.9",
+        "@next/env": "16.1.0-canary.21",
         "@octokit/rest": "^21.0.0",
         "@tailwindcss/typography": "0.5.19",
         "@types/nodemailer": "7.0.4",
