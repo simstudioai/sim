@@ -175,7 +175,7 @@ async function ensureWorker(): Promise<void> {
       reject(new Error('Worker failed to start within timeout'))
     }, 10000)
 
-    worker.once('message', (message) => {
+    const readyHandler = (message: unknown) => {
       if (
         typeof message === 'object' &&
         message !== null &&
@@ -183,9 +183,11 @@ async function ensureWorker(): Promise<void> {
       ) {
         workerReady = true
         clearTimeout(startTimeout)
+        worker?.off('message', readyHandler)
         resolve()
       }
-    })
+    }
+    worker.on('message', readyHandler)
 
     worker.on('exit', (code) => {
       logger.warn('Isolated-vm worker exited', { code })
