@@ -24,7 +24,6 @@ import {
   type OAuthService,
 } from '@/lib/oauth/oauth'
 import {
-  ChannelSelectorInput,
   CheckboxList,
   Code,
   ComboBox,
@@ -33,6 +32,7 @@ import {
   LongInput,
   ProjectSelectorInput,
   ShortInput,
+  SlackSelectorInput,
   SliderInput,
   Table,
   TimeInput,
@@ -520,7 +520,7 @@ function ChannelSelectorSyncWrapper({
 }) {
   return (
     <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
-      <ChannelSelectorInput
+      <SlackSelectorInput
         blockId={blockId}
         subBlock={{
           id: paramId,
@@ -530,7 +530,7 @@ function ChannelSelectorSyncWrapper({
           placeholder: uiComponent.placeholder,
           dependsOn: uiComponent.dependsOn,
         }}
-        onChannelSelect={onChange}
+        onSelect={onChange}
         disabled={disabled}
         previewContextValues={previewContextValues}
       />

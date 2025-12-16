@@ -48,8 +48,13 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 包含问题键、摘要、描述、创建和更新时间戳的 Jira 问题详细信息 |
+| `ts` | 字符串 | 操作的时间戳 |
+| `issueKey` | 字符串 | 问题键 \(例如：PROJ-123\) |
+| `summary` | 字符串 | 问题摘要 |
+| `description` | JSON | 问题描述内容 |
+| `created` | 字符串 | 问题创建的时间戳 |
+| `updated` | 字符串 | 问题最后更新的时间戳 |
+| `issue` | JSON | 包含所有字段的完整问题对象 |
 
 ### `jira_update`
 
@@ -73,8 +78,9 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 更新的 Jira 问题详情，包括时间戳、问题键、摘要和成功状态 |
+| `ts` | 字符串 | 操作的时间戳 |
+| `issueKey` | 字符串 | 更新后的问题键 \(例如：PROJ-123\) |
+| `summary` | 字符串 | 更新后的问题摘要 |
 
 ### `jira_write`
 
@@ -97,8 +103,10 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 创建的 Jira 问题详情，包括时间戳、问题键、摘要、成功状态和 URL |
+| `ts` | 字符串 | 操作的时间戳 |
+| `issueKey` | 字符串 | 创建的问题键 \(例如：PROJ-123\) |
+| `summary` | 字符串 | 问题摘要 |
+| `url` | 字符串 | 创建的问题的 URL |
 
 ### `jira_bulk_read`
 
@@ -116,8 +124,7 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | array | 包含 Jira 问题的数组，包括摘要、描述、创建和更新的时间戳 |
+| `issues` | 数组 | 包含时间戳、摘要、描述、创建和更新时间戳的 Jira 问题数组 |
 
 ### `jira_delete_issue`
 
@@ -136,8 +143,8 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 删除的问题详情，包括时间戳、问题键和成功状态 |
+| `ts` | 字符串 | 操作的时间戳 |
+| `issueKey` | 字符串 | 删除的问题键 |
 
 ### `jira_assign_issue`
 
@@ -156,8 +163,9 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 分配详情，包括时间戳、问题键、分配人 ID 和成功状态 |
+| `ts` | 字符串 | 操作的时间戳 |
+| `issueKey` | 字符串 | 被分配的任务键 |
+| `assigneeId` | 字符串 | 分配者的账户 ID |
 
 ### `jira_transition_issue`
 
@@ -177,8 +185,9 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 转换详情，包括时间戳、问题键、转换 ID 和成功状态 |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 已转换的问题键 |
+| `transitionId` | string | 应用的转换 ID |
 
 ### `jira_search_issues`
 
@@ -199,8 +208,11 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 搜索结果，包括时间戳、总数、分页详情和匹配问题的数组 |
+| `ts` | string | 操作的时间戳 |
+| `total` | number | 匹配问题的总数 |
+| `startAt` | number | 分页起始索引 |
+| `maxResults` | number | 每页的最大结果数 |
+| `issues` | array | 包含键、摘要、状态、负责人、创建时间和更新时间的匹配问题数组 |
 
 ### `jira_add_comment`
 
@@ -219,8 +231,10 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 评论详情，包括时间戳、问题键、评论 ID、正文和成功状态 |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 添加评论的问题键 |
+| `commentId` | string | 创建的评论 ID |
+| `body` | string | 评论的文本内容 |
 
 ### `jira_get_comments`
 
@@ -240,8 +254,10 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 评论数据，包括时间戳、问题键、总数和评论数组 |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 问题键 |
+| `total` | number | 评论的总数 |
+| `comments` | array | 包含 ID、作者、正文、创建时间和更新时间的评论数组 |
 
 ### `jira_update_comment`
 
@@ -261,8 +277,10 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 更新的评论详情，包括时间戳、问题键、评论 ID、正文文本和成功状态 |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 问题键 |
+| `commentId` | string | 更新的评论 ID |
+| `body` | string | 更新的评论文本 |
 
 ### `jira_delete_comment`
 
@@ -281,8 +299,9 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 删除详情，包括时间戳、问题键、评论 ID 和成功状态 |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 问题键 |
+| `commentId` | string | 已删除的评论 ID |
 
 ### `jira_get_attachments`
 
@@ -300,8 +319,9 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 附件数据，包括时间戳、问题键和附件数组 |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 问题键 |
+| `attachments` | array | 附件数组，包括 id、文件名、大小、mimeType、创建时间、作者 |
 
 ### `jira_delete_attachment`
 
@@ -319,8 +339,8 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 删除详情，包括时间戳、附件 ID 和成功状态 |
+| `ts` | string | 操作的时间戳 |
+| `attachmentId` | string | 已删除的附件 ID |
 
 ### `jira_add_worklog`
 
@@ -341,8 +361,10 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 工作日志详情，包括时间戳、问题键、工作日志 ID、花费的时间（以秒为单位）和成功状态 |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 添加工作日志的相关问题键 |
+| `worklogId` | string | 创建的工作日志 ID |
+| `timeSpentSeconds` | number | 花费的时间（以秒为单位） |
 
 ### `jira_get_worklogs`
 
@@ -362,8 +384,10 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 包含时间戳、问题键、总数和工作日志数组的工作日志数据 |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 问题键 |
+| `total` | number | 工作日志的总数 |
+| `worklogs` | array | 工作日志数组，包括 id、作者、timeSpentSeconds、timeSpent、评论、创建时间、更新时间、开始时间 |
 
 ### `jira_update_worklog`
 
@@ -385,8 +409,9 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 包含时间戳、问题键、工作日志 ID 和成功状态的工作日志更新详情 |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 问题键 |
+| `worklogId` | string | 更新的工作日志 ID |
 
 ### `jira_delete_worklog`
 
@@ -405,8 +430,9 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 删除详情，包括时间戳、问题键、工作日志 ID 和成功状态 |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 问题键 |
+| `worklogId` | string | 已删除的工作日志 ID |
 
 ### `jira_create_issue_link`
 
@@ -427,8 +453,11 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 问题链接详情，包括时间戳、内部问题键、外部问题键、链接类型和成功状态 |
+| `ts` | string | 操作的时间戳 |
+| `inwardIssue` | string | 内部问题键 |
+| `outwardIssue` | string | 外部问题键 |
+| `linkType` | string | 问题链接的类型 |
+| `linkId` | string | 创建的链接 ID |
 
 ### `jira_delete_issue_link`
 
@@ -446,8 +475,8 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 删除详情，包括时间戳、链接 ID 和成功状态 |
+| `ts` | string | 操作的时间戳 |
+| `linkId` | string | 已删除的链接 ID |
 
 ### `jira_add_watcher`
 
@@ -466,8 +495,9 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 观察者详情，包括时间戳、问题键、观察者账户 ID 和成功状态 |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 问题键 |
+| `watcherAccountId` | string | 添加的观察者账户 ID |
 
 ### `jira_remove_watcher`
 
@@ -486,8 +516,9 @@ Jira 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 移除详情，包括时间戳、问题键、观察者账户 ID 和成功状态 |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 问题键 |
+| `watcherAccountId` | string | 移除的观察者账户 ID |
 
 ## 注意事项
 

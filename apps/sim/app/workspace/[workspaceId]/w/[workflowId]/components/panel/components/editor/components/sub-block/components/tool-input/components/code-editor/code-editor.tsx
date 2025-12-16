@@ -13,6 +13,10 @@ import {
 } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
+import {
+  createEnvVarPattern,
+  createWorkflowVariablePattern,
+} from '@/executor/utils/reference-validation'
 
 interface CodeEditorProps {
   value: string
@@ -132,12 +136,25 @@ export function CodeEditor({
       return highlight(code, languages[language], language)
     }
 
-    const placeholders: Array<{ placeholder: string; original: string; type: 'env' | 'param' }> = []
+    const escapeHtml = (text: string) =>
+      text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+    const placeholders: Array<{
+      placeholder: string
+      original: string
+      type: 'env' | 'param' | 'variable'
+    }> = []
     let processedCode = code
 
-    processedCode = processedCode.replace(/\{\{([^}]+)\}\}/g, (match) => {
+    processedCode = processedCode.replace(createEnvVarPattern(), (match) => {
       const placeholder = `__ENV_VAR_${placeholders.length}__`
       placeholders.push({ placeholder, original: match, type: 'env' })
+      return placeholder
+    })
+
+    processedCode = processedCode.replace(createWorkflowVariablePattern(), (match) => {
+      const placeholder = `__VARIABLE_${placeholders.length}__`
+      placeholders.push({ placeholder, original: match, type: 'variable' })
       return placeholder
     })
 
@@ -156,9 +173,10 @@ export function CodeEditor({
     let highlighted = highlight(processedCode, languages[language], language)
 
     placeholders.forEach(({ placeholder, original, type }) => {
+      const escapedOriginal = type === 'variable' ? escapeHtml(original) : original
       const replacement =
-        type === 'env'
-          ? `<span style="color: #34B5FF;">${original}</span>`
+        type === 'env' || type === 'variable'
+          ? `<span style="color: #34B5FF;">${escapedOriginal}</span>`
           : `<span style="color: #34B5FF; font-weight: 500;">${original}</span>`
 
       highlighted = highlighted.replace(placeholder, replacement)

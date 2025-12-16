@@ -191,14 +191,9 @@ export const jiraAddWorklogTool: ToolConfig<JiraAddWorklogParams, JiraAddWorklog
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
-      type: 'object',
-      description:
-        'Worklog details with timestamp, issue key, worklog ID, time spent in seconds, and success status',
-    },
+    ts: { type: 'string', description: 'Timestamp of the operation' },
+    issueKey: { type: 'string', description: 'Issue key the worklog was added to' },
+    worklogId: { type: 'string', description: 'Created worklog ID' },
+    timeSpentSeconds: { type: 'number', description: 'Time spent in seconds' },
   },
 }

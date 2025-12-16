@@ -5,7 +5,7 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
   id: 'slack_message',
   name: 'Slack Message',
   description:
-    'Send messages to Slack channels or users through the Slack API. Supports Slack mrkdwn formatting.',
+    'Send messages to Slack channels or direct messages. Supports Slack mrkdwn formatting.',
   version: '1.0.0',
 
   oauth: {
@@ -34,9 +34,15 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
     },
     channel: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'Target Slack channel (e.g., #general)',
+    },
+    userId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Target Slack user ID for direct messages (e.g., U1234567890)',
     },
     text: {
       type: 'string',
@@ -68,6 +74,7 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
       return {
         accessToken: params.accessToken || params.botToken,
         channel: params.channel,
+        userId: params.userId,
         text: params.text,
         thread_ts: params.thread_ts || undefined,
         files: params.files || null,

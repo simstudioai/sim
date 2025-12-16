@@ -170,14 +170,9 @@ export const jiraUpdateCommentTool: ToolConfig<JiraUpdateCommentParams, JiraUpda
     },
 
     outputs: {
-      success: {
-        type: 'boolean',
-        description: 'Operation success status',
-      },
-      output: {
-        type: 'object',
-        description:
-          'Updated comment details with timestamp, issue key, comment ID, body text, and success status',
-      },
+      ts: { type: 'string', description: 'Timestamp of the operation' },
+      issueKey: { type: 'string', description: 'Issue key' },
+      commentId: { type: 'string', description: 'Updated comment ID' },
+      body: { type: 'string', description: 'Updated comment text' },
     },
   }

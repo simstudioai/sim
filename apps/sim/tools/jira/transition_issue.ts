@@ -200,14 +200,8 @@ export const jiraTransitionIssueTool: ToolConfig<
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
-      type: 'object',
-      description:
-        'Transition details with timestamp, issue key, transition ID, and success status',
-    },
+    ts: { type: 'string', description: 'Timestamp of the operation' },
+    issueKey: { type: 'string', description: 'Issue key that was transitioned' },
+    transitionId: { type: 'string', description: 'Applied transition ID' },
   },
 }

@@ -9,30 +9,51 @@ import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
-import type { SelectorContext } from '@/hooks/selectors/types'
+import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 
-interface ChannelSelectorInputProps {
+type SlackSelectorType = 'channel-selector' | 'user-selector'
+
+const SELECTOR_CONFIG: Record<
+  SlackSelectorType,
+  { selectorKey: SelectorKey; placeholder: string; label: string }
+> = {
+  'channel-selector': {
+    selectorKey: 'slack.channels',
+    placeholder: 'Select Slack channel',
+    label: 'Channel',
+  },
+  'user-selector': {
+    selectorKey: 'slack.users',
+    placeholder: 'Select Slack user',
+    label: 'User',
+  },
+}
+
+interface SlackSelectorInputProps {
   blockId: string
   subBlock: SubBlockConfig
   disabled?: boolean
-  onChannelSelect?: (channelId: string) => void
+  onSelect?: (value: string) => void
   isPreview?: boolean
   previewValue?: any | null
   previewContextValues?: Record<string, any>
 }
 
-export function ChannelSelectorInput({
+export function SlackSelectorInput({
   blockId,
   subBlock,
   disabled = false,
-  onChannelSelect,
+  onSelect,
   isPreview = false,
   previewValue,
   previewContextValues,
-}: ChannelSelectorInputProps) {
+}: SlackSelectorInputProps) {
+  const selectorType = subBlock.type as SlackSelectorType
+  const config = SELECTOR_CONFIG[selectorType]
+
   const params = useParams()
   const workflowIdFromUrl = (params?.workflowId as string) || ''
-  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
+  const [storeValue] = useSubBlockValue(blockId, subBlock.id)
   const [authMethod] = useSubBlockValue(blockId, 'authMethod')
   const [botToken] = useSubBlockValue(blockId, 'botToken')
   const [connectedCredential] = useSubBlockValue(blockId, 'credential')
@@ -40,37 +61,32 @@ export function ChannelSelectorInput({
   const effectiveAuthMethod = previewContextValues?.authMethod ?? authMethod
   const effectiveBotToken = previewContextValues?.botToken ?? botToken
   const effectiveCredential = previewContextValues?.credential ?? connectedCredential
-  const [_channelInfo, setChannelInfo] = useState<string | null>(null)
+  const [_selectedValue, setSelectedValue] = useState<string | null>(null)
 
-  // Use serviceId to identify the service and derive providerId for credential lookup
   const serviceId = subBlock.serviceId || ''
   const effectiveProviderId = useMemo(() => getProviderIdFromServiceId(serviceId), [serviceId])
   const isSlack = serviceId === 'slack'
 
-  // Central dependsOn gating
   const { finalDisabled, dependsOn } = useDependsOnGate(blockId, subBlock, {
     disabled,
     isPreview,
     previewContextValues,
   })
 
-  // Choose credential strictly based on auth method - use effective values
   const credential: string =
     (effectiveAuthMethod as string) === 'bot_token'
       ? (effectiveBotToken as string) || ''
       : (effectiveCredential as string) || ''
 
-  // Determine if connected OAuth credential is foreign (not applicable for bot tokens)
   const { isForeignCredential } = useForeignCredential(
     effectiveProviderId,
     (effectiveAuthMethod as string) === 'bot_token' ? '' : (effectiveCredential as string) || ''
   )
 
-  // Get the current value from the store or prop value if in preview mode (same pattern as file-selector)
   useEffect(() => {
     const val = isPreview && previewValue !== undefined ? previewValue : storeValue
     if (typeof val === 'string') {
-      setChannelInfo(val)
+      setSelectedValue(val)
     }
   }, [isPreview, previewValue, storeValue])
 
@@ -91,11 +107,14 @@ export function ChannelSelectorInput({
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <div className='w-full rounded border p-4 text-center text-muted-foreground text-sm'>
-            Channel selector not supported for service: {serviceId || 'unknown'}
+            {config.label} selector not supported for service: {serviceId || 'unknown'}
           </div>
         </Tooltip.Trigger>
         <Tooltip.Content side='top'>
-          <p>This channel selector is not yet implemented for {serviceId || 'unknown'}</p>
+          <p>
+            This {config.label.toLowerCase()} selector is not yet implemented for{' '}
+            {serviceId || 'unknown'}
+          </p>
         </Tooltip.Content>
       </Tooltip.Root>
     )
@@ -108,16 +127,16 @@ export function ChannelSelectorInput({
           <SelectorCombobox
             blockId={blockId}
             subBlock={subBlock}
-            selectorKey='slack.channels'
+            selectorKey={config.selectorKey}
             selectorContext={context}
             disabled={finalDisabled || shouldForceDisable || isForeignCredential}
             isPreview={isPreview}
             previewValue={previewValue ?? null}
-            placeholder={subBlock.placeholder || 'Select Slack channel'}
+            placeholder={subBlock.placeholder || config.placeholder}
             onOptionChange={(value) => {
-              setChannelInfo(value)
+              setSelectedValue(value)
               if (!isPreview) {
-                onChannelSelect?.(value)
+                onSelect?.(value)
               }
             }}
           />

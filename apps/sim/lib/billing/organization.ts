@@ -76,9 +76,6 @@ async function createOrganizationWithOwner(
   return newOrg.id
 }
 
-/**
- * Create organization for team/enterprise plan upgrade
- */
 export async function createOrganizationForTeamPlan(
   userId: string,
   userName?: string,
@@ -86,13 +83,11 @@ export async function createOrganizationForTeamPlan(
   organizationSlug?: string
 ): Promise<string> {
   try {
-    // Check if user already owns an organization
     const existingOrgId = await getUserOwnedOrganization(userId)
     if (existingOrgId) {
       return existingOrgId
     }
 
-    // Create new organization (same naming for both team and enterprise)
     const organizationName = userName || `${userEmail || 'User'}'s Team`
     const slug = organizationSlug || `${userId}-team-${Date.now()}`
 
@@ -115,6 +110,84 @@ export async function createOrganizationForTeamPlan(
     })
     throw error
   }
+}
+
+export async function ensureOrganizationForTeamSubscription(
+  subscription: SubscriptionData
+): Promise<SubscriptionData> {
+  if (subscription.plan !== 'team') {
+    return subscription
+  }
+
+  if (subscription.referenceId.startsWith('org_')) {
+    return subscription
+  }
+
+  const userId = subscription.referenceId
+
+  logger.info('Creating organization for team subscription', {
+    subscriptionId: subscription.id,
+    userId,
+  })
+
+  const existingMembership = await db
+    .select({
+      id: schema.member.id,
+      organizationId: schema.member.organizationId,
+      role: schema.member.role,
+    })
+    .from(schema.member)
+    .where(eq(schema.member.userId, userId))
+    .limit(1)
+
+  if (existingMembership.length > 0) {
+    const membership = existingMembership[0]
+    if (membership.role === 'owner' || membership.role === 'admin') {
+      logger.info('User already owns/admins an org, using it', {
+        userId,
+        organizationId: membership.organizationId,
+      })
+
+      await db
+        .update(schema.subscription)
+        .set({ referenceId: membership.organizationId })
+        .where(eq(schema.subscription.id, subscription.id))
+
+      return { ...subscription, referenceId: membership.organizationId }
+    }
+
+    logger.error('User is member of org but not owner/admin - cannot create team subscription', {
+      userId,
+      existingOrgId: membership.organizationId,
+      subscriptionId: subscription.id,
+    })
+    throw new Error('User is already member of another organization')
+  }
+
+  const [userData] = await db
+    .select({ name: schema.user.name, email: schema.user.email })
+    .from(schema.user)
+    .where(eq(schema.user.id, userId))
+    .limit(1)
+
+  const orgId = await createOrganizationForTeamPlan(
+    userId,
+    userData?.name || undefined,
+    userData?.email || undefined
+  )
+
+  await db
+    .update(schema.subscription)
+    .set({ referenceId: orgId })
+    .where(eq(schema.subscription.id, subscription.id))
+
+  logger.info('Created organization and updated subscription referenceId', {
+    subscriptionId: subscription.id,
+    userId,
+    organizationId: orgId,
+  })
+
+  return { ...subscription, referenceId: orgId }
 }
 
 /**

@@ -53,7 +53,7 @@ Slackをワークフローに統合します。メッセージの送信、更新
 
 ### `slack_message`
 
-Slack APIを通じてSlackチャンネルまたはユーザーにメッセージを送信します。Slack mrkdwnフォーマットをサポートしています。
+Slackチャンネルまたはダイレクトメッセージにメッセージを送信します。Slack mrkdwn形式をサポートしています。
 
 #### 入力
 
@@ -61,7 +61,8 @@ Slack APIを通じてSlackチャンネルまたはユーザーにメッセージ
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | いいえ | 認証方法：oauthまたはbot_token |
 | `botToken` | string | いいえ | カスタムボット用のボットトークン |
-| `channel` | string | はい | 対象のSlackチャンネル（例：#general） |
+| `channel` | string | いいえ | 対象のSlackチャンネル（例：#general） |
+| `userId` | string | いいえ | ダイレクトメッセージ用の対象SlackユーザーID（例：U1234567890） |
 | `text` | string | はい | 送信するメッセージテキスト（Slack mrkdwn形式をサポート） |
 | `thread_ts` | string | いいえ | 返信するスレッドのタイムスタンプ（スレッド返信を作成） |
 | `files` | file[] | いいえ | メッセージに添付するファイル |
@@ -108,7 +109,8 @@ Slackチャンネルから最新のメッセージを読み取ります。フィ
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | いいえ | 認証方法：oauthまたはbot_token |
 | `botToken` | string | いいえ | カスタムボット用のボットトークン |
-| `channel` | string | はい | メッセージを読み取るSlackチャンネル（例：#general） |
+| `channel` | string | いいえ | メッセージを読み取るSlackチャンネル（例：#general） |
+| `userId` | string | いいえ | DMの会話用のユーザーID（例：U1234567890） |
 | `limit` | number | いいえ | 取得するメッセージ数（デフォルト：10、最大：100） |
 | `oldest` | string | いいえ | 時間範囲の開始（タイムスタンプ） |
 | `latest` | string | いいえ | 時間範囲の終了（タイムスタンプ） |

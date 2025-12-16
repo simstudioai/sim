@@ -135,14 +135,8 @@ export const jiraRemoveWatcherTool: ToolConfig<JiraRemoveWatcherParams, JiraRemo
     },
 
     outputs: {
-      success: {
-        type: 'boolean',
-        description: 'Operation success status',
-      },
-      output: {
-        type: 'object',
-        description:
-          'Removal details with timestamp, issue key, watcher account ID, and success status',
-      },
+      ts: { type: 'string', description: 'Timestamp of the operation' },
+      issueKey: { type: 'string', description: 'Issue key' },
+      watcherAccountId: { type: 'string', description: 'Removed watcher account ID' },
     },
   }

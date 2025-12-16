@@ -316,16 +316,14 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
       queryKey: organizationKeys.lists(),
       queryFn: async () => {
         const { client } = await import('@/lib/auth/auth-client')
-        const [orgsResponse, activeOrgResponse, billingResponse] = await Promise.all([
+        const [orgsResponse, activeOrgResponse] = await Promise.all([
           client.organization.list(),
           client.organization.getFullOrganization(),
-          fetch('/api/billing?context=user').then((r) => r.json()),
         ])
 
         return {
           organizations: orgsResponse.data || [],
           activeOrganization: activeOrgResponse.data,
-          billingData: billingResponse,
         }
       },
       staleTime: 30 * 1000,

@@ -93,8 +93,10 @@ describe('Socket Server Index Integration', () => {
         clearTimeout(timeout)
         if (err.code === 'EADDRINUSE') {
           PORT = 3333 + Math.floor(Math.random() * 1000)
-          httpServer.listen(PORT, '0.0.0.0', () => {
-            resolve()
+          httpServer.close(() => {
+            httpServer.listen(PORT, '0.0.0.0', () => {
+              resolve()
+            })
           })
         } else {
           reject(err)

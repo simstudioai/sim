@@ -52,7 +52,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ### `slack_message`
 
-通过 Slack API 向 Slack 频道或用户发送消息。支持 Slack mrkdwn 格式化。
+向 Slack 频道或直接消息发送消息。支持 Slack mrkdwn 格式。
 
 #### 输入
 
@@ -60,10 +60,11 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | 否 | 认证方法：oauth 或 bot_token |
 | `botToken` | string | 否 | 自定义 Bot 的令牌 |
-| `channel` | string | 是 | 目标 Slack 频道（例如，#general） |
+| `channel` | string | 否 | 目标 Slack 频道（例如，#general） |
+| `userId` | string | 否 | 目标 Slack 用户 ID，用于直接消息（例如，U1234567890） |
 | `text` | string | 是 | 要发送的消息文本（支持 Slack mrkdwn 格式） |
-| `thread_ts` | string | 否 | 要回复的线程时间戳（创建线程回复） |
-| `files` | file[] | 否 | 要附加到消息的文件 |
+| `thread_ts` | string | 否 | 回复的线程时间戳（创建线程回复） |
+| `files` | file[] | 否 | 附加到消息的文件 |
 
 #### 输出
 
@@ -103,11 +104,12 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 #### 输入
 
-| 参数 | 类型 | 必需 | 描述 |
+| 参数 | 类型 | 是否必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | 否 | 认证方法：oauth 或 bot_token |
-| `botToken` | string | 否 | 自定义 Bot 的 Bot token |
-| `channel` | string | 是 | 要读取消息的 Slack 频道（例如：#general） |
+| `botToken` | string | 否 | 自定义 Bot 的令牌 |
+| `channel` | string | 否 | 要读取消息的 Slack 频道（例如，#general） |
+| `userId` | string | 否 | DM 对话的用户 ID（例如，U1234567890） |
 | `limit` | number | 否 | 要检索的消息数量（默认：10，最大：100） |
 | `oldest` | string | 否 | 时间范围的开始（时间戳） |
 | `latest` | string | 否 | 时间范围的结束（时间戳） |

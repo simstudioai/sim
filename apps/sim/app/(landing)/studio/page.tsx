@@ -76,6 +76,7 @@ export default async function StudioIndex({
                   className='h-48 w-full object-cover'
                   sizes='(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw'
                   loading='lazy'
+                  unoptimized
                 />
                 <div className='flex flex-1 flex-col p-4'>
                   <div className='mb-2 text-gray-600 text-xs'>

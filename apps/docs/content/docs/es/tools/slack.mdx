@@ -54,7 +54,7 @@ Integra Slack en el flujo de trabajo. Puede enviar, actualizar y eliminar mensaj
 
 ### `slack_message`
 
-Envía mensajes a canales o usuarios de Slack a través de la API de Slack. Compatible con el formato mrkdwn de Slack.
+Envía mensajes a canales de Slack o mensajes directos. Compatible con el formato mrkdwn de Slack.
 
 #### Entrada
 
@@ -62,9 +62,10 @@ Envía mensajes a canales o usuarios de Slack a través de la API de Slack. Comp
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | No | Método de autenticación: oauth o bot_token |
 | `botToken` | string | No | Token del bot para Bot personalizado |
-| `channel` | string | Sí | Canal de Slack objetivo (p. ej., #general) |
+| `channel` | string | No | Canal de Slack objetivo (p. ej., #general) |
+| `userId` | string | No | ID de usuario de Slack objetivo para mensajes directos (p. ej., U1234567890) |
 | `text` | string | Sí | Texto del mensaje a enviar (admite formato mrkdwn de Slack) |
-| `thread_ts` | string | No | Marca de tiempo del hilo para responder (crea respuesta en hilo) |
+| `thread_ts` | string | No | Marca de tiempo del hilo al que responder (crea respuesta en hilo) |
 | `files` | file[] | No | Archivos para adjuntar al mensaje |
 
 #### Salida
@@ -109,7 +110,8 @@ Lee los últimos mensajes de los canales de Slack. Recupera el historial de conv
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | No | Método de autenticación: oauth o bot_token |
 | `botToken` | string | No | Token del bot para Bot personalizado |
-| `channel` | string | Sí | Canal de Slack del que leer mensajes (p. ej., #general) |
+| `channel` | string | No | Canal de Slack del que leer mensajes (p. ej., #general) |
+| `userId` | string | No | ID de usuario para conversación por MD (p. ej., U1234567890) |
 | `limit` | number | No | Número de mensajes a recuperar (predeterminado: 10, máx: 100) |
 | `oldest` | string | No | Inicio del rango de tiempo (marca de tiempo) |
 | `latest` | string | No | Fin del rango de tiempo (marca de tiempo) |

@@ -79,7 +79,15 @@ export const vllmProvider: ProviderConfig = {
     }
 
     try {
-      const response = await fetch(`${baseUrl}/v1/models`)
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+
+      if (env.VLLM_API_KEY) {
+        headers.Authorization = `Bearer ${env.VLLM_API_KEY}`
+      }
+
+      const response = await fetch(`${baseUrl}/v1/models`, { headers })
       if (!response.ok) {
         useProvidersStore.getState().setProviderModels('vllm', [])
         logger.warn('vLLM service is not available. The provider will be disabled.')

@@ -7,7 +7,8 @@ export interface SlackBaseParams {
 }
 
 export interface SlackMessageParams extends SlackBaseParams {
-  channel: string
+  channel?: string
+  userId?: string
   text: string
   thread_ts?: string
   files?: any[]
@@ -21,7 +22,8 @@ export interface SlackCanvasParams extends SlackBaseParams {
 }
 
 export interface SlackMessageReaderParams extends SlackBaseParams {
-  channel: string
+  channel?: string
+  userId?: string
   limit?: number
   oldest?: string
   latest?: string

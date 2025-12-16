@@ -130,14 +130,9 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
-      type: 'object',
-      description:
-        'Created Jira issue details with timestamp, issue key, summary, success status, and URL',
-    },
+    ts: { type: 'string', description: 'Timestamp of the operation' },
+    issueKey: { type: 'string', description: 'Created issue key (e.g., PROJ-123)' },
+    summary: { type: 'string', description: 'Issue summary' },
+    url: { type: 'string', description: 'URL to the created issue' },
   },
 }

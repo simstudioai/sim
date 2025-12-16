@@ -54,7 +54,7 @@ Integriert Slack in den Workflow. Kann Nachrichten senden, aktualisieren und lö
 
 ### `slack_message`
 
-Senden Sie Nachrichten an Slack-Kanäle oder Benutzer über die Slack-API. Unterstützt Slack mrkdwn-Formatierung.
+Sende Nachrichten an Slack-Kanäle oder Direktnachrichten. Unterstützt Slack mrkdwn-Formatierung.
 
 #### Eingabe
 
@@ -62,8 +62,9 @@ Senden Sie Nachrichten an Slack-Kanäle oder Benutzer über die Slack-API. Unter
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | Nein | Authentifizierungsmethode: oauth oder bot_token |
 | `botToken` | string | Nein | Bot-Token für benutzerdefinierten Bot |
-| `channel` | string | Ja | Ziel-Slack-Kanal \(z.B. #general\) |
-| `text` | string | Ja | Nachrichtentext zum Senden \(unterstützt Slack mrkdwn-Formatierung\) |
+| `channel` | string | Nein | Ziel-Slack-Kanal \(z.B. #general\) |
+| `userId` | string | Nein | Ziel-Slack-Benutzer-ID für Direktnachrichten \(z.B. U1234567890\) |
+| `text` | string | Ja | Zu sendender Nachrichtentext \(unterstützt Slack mrkdwn-Formatierung\) |
 | `thread_ts` | string | Nein | Thread-Zeitstempel für Antworten \(erstellt Thread-Antwort\) |
 | `files` | file[] | Nein | Dateien, die an die Nachricht angehängt werden sollen |
 
@@ -109,10 +110,11 @@ Lesen Sie die neuesten Nachrichten aus Slack-Kanälen. Rufen Sie den Konversatio
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | Nein | Authentifizierungsmethode: oauth oder bot_token |
 | `botToken` | string | Nein | Bot-Token für benutzerdefinierten Bot |
-| `channel` | string | Ja | Slack-Kanal, aus dem Nachrichten gelesen werden sollen (z.B. #general) |
-| `limit` | number | Nein | Anzahl der abzurufenden Nachrichten (Standard: 10, max: 100) |
-| `oldest` | string | Nein | Beginn des Zeitraums (Zeitstempel) |
-| `latest` | string | Nein | Ende des Zeitraums (Zeitstempel) |
+| `channel` | string | Nein | Slack-Kanal, aus dem Nachrichten gelesen werden sollen \(z.B. #general\) |
+| `userId` | string | Nein | Benutzer-ID für DM-Konversation \(z.B. U1234567890\) |
+| `limit` | number | Nein | Anzahl der abzurufenden Nachrichten \(Standard: 10, max: 100\) |
+| `oldest` | string | Nein | Beginn des Zeitraums \(Zeitstempel\) |
+| `latest` | string | Nein | Ende des Zeitraums \(Zeitstempel\) |
 
 #### Ausgabe
 

@@ -48,8 +48,13 @@ Jiraをワークフローに統合します。課題の読み取り、書き込�
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 課題キー、要約、説明、作成日時、更新日時を含むJira課題の詳細 |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー（例：PROJ-123） |
+| `summary` | string | 課題の要約 |
+| `description` | json | 課題の説明内容 |
+| `created` | string | 課題作成タイムスタンプ |
+| `updated` | string | 課題最終更新タイムスタンプ |
+| `issue` | json | すべてのフィールドを含む完全な課題オブジェクト |
 
 ### `jira_update`
 
@@ -73,8 +78,9 @@ Jira課題を更新する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、課題キー、要約、成功ステータスを含む更新されたJira課題の詳細 |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 更新された課題キー（例：PROJ-123） |
+| `summary` | string | 更新後の課題要約 |
 
 ### `jira_write`
 
@@ -97,8 +103,10 @@ Jira課題を作成する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、課題キー、要約、成功ステータス、URLを含む作成されたJira課題の詳細 |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 作成された課題キー（例：PROJ-123） |
+| `summary` | string | 課題の要約 |
+| `url` | string | 作成された課題へのURL |
 
 ### `jira_bulk_read`
 
@@ -116,8 +124,7 @@ Jira課題を作成する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | array | 概要、説明、作成日時、更新日時を含むJiraの課題の配列 |
+| `issues` | array | タイムスタンプ、要約、説明、作成日時、更新日時を含むJira課題の配列 |
 
 ### `jira_delete_issue`
 
@@ -136,8 +143,8 @@ Jira課題を削除する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、課題キー、成功ステータスを含む削除された課題の詳細 |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 削除された課題キー |
 
 ### `jira_assign_issue`
 
@@ -156,8 +163,9 @@ Jira課題をユーザーに割り当てる
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、課題キー、担当者ID、成功ステータスを含む割り当ての詳細 |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 割り当てられた課題キー |
+| `assigneeId` | string | 担当者のアカウントID |
 
 ### `jira_transition_issue`
 
@@ -177,8 +185,9 @@ Jira課題をワークフローステータス間で移動する（例：To Do �
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、課題キー、移行ID、成功ステータスを含む移行の詳細 |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 遷移した課題キー |
+| `transitionId` | string | 適用されたトランジションID |
 
 ### `jira_search_issues`
 
@@ -199,8 +208,11 @@ JQL（Jira Query Language）を使用してJira課題を検索する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、合計数、ページネーション詳細、一致する課題の配列を含む検索結果 |
+| `ts` | string | 操作のタイムスタンプ |
+| `total` | number | 一致する課題の総数 |
+| `startAt` | number | ページネーション開始インデックス |
+| `maxResults` | number | ページあたりの最大結果数 |
+| `issues` | array | キー、要約、ステータス、担当者、作成日時、更新日時を含む一致する課題の配列 |
 
 ### `jira_add_comment`
 
@@ -219,8 +231,10 @@ Jira課題にコメントを追加する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、課題キー、コメントID、本文、成功ステータスを含むコメント詳細 |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | コメントが追加された課題キー |
+| `commentId` | string | 作成されたコメントID |
+| `body` | string | コメントのテキスト内容 |
 
 ### `jira_get_comments`
 
@@ -240,8 +254,10 @@ Jira課題からすべてのコメントを取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、課題キー、合計数、コメントの配列を含むコメントデータ |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー |
+| `total` | number | コメントの総数 |
+| `comments` | array | ID、作成者、本文、作成日時、更新日時を含むコメントの配列 |
 
 ### `jira_update_comment`
 
@@ -261,8 +277,10 @@ Jira課題の既存コメントを更新する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、課題キー、コメントID、本文テキスト、成功ステータスを含む更新されたコメントの詳細 |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー |
+| `commentId` | string | 更新されたコメントID |
+| `body` | string | 更新されたコメントテキスト |
 
 ### `jira_delete_comment`
 
@@ -281,8 +299,9 @@ Jira課題からコメントを削除する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、課題キー、コメントID、成功ステータスを含む削除の詳細 |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー |
+| `commentId` | string | 削除されたコメントID |
 
 ### `jira_get_attachments`
 
@@ -300,8 +319,9 @@ Jira課題からすべての添付ファイルを取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、課題キー、添付ファイルの配列を含む添付ファイルデータ |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー |
+| `attachments` | array | ID、ファイル名、サイズ、MIMEタイプ、作成日時、作成者を含む添付ファイルの配列 |
 
 ### `jira_delete_attachment`
 
@@ -319,8 +339,8 @@ Jira課題から添付ファイルを削除する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、添付ファイルID、成功ステータスを含む削除の詳細 |
+| `ts` | string | 操作のタイムスタンプ |
+| `attachmentId` | string | 削除された添付ファイルID |
 
 ### `jira_add_worklog`
 
@@ -341,8 +361,10 @@ Jira課題に作業時間記録エントリを追加する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、課題キー、作業ログID、秒単位の作業時間、成功ステータスを含む作業ログの詳細 |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 作業ログが追加された課題キー |
+| `worklogId` | string | 作成された作業ログID |
+| `timeSpentSeconds` | number | 秒単位の作業時間 |
 
 ### `jira_get_worklogs`
 
@@ -362,8 +384,10 @@ Jira課題からすべての作業ログエントリを取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、課題キー、合計数、作業ログの配列を含む作業ログデータ |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー |
+| `total` | number | 作業ログの総数 |
+| `worklogs` | array | ID、作成者、秒単位の作業時間、作業時間、コメント、作成日時、更新日時、開始日時を含む作業ログの配列 |
 
 ### `jira_update_worklog`
 
@@ -385,8 +409,9 @@ Jira課題の既存の作業ログエントリを更新する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、課題キー、作業ログID、成功ステータスを含む作業ログ更新の詳細 |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー |
+| `worklogId` | string | 更新された作業ログID |
 
 ### `jira_delete_worklog`
 
@@ -405,8 +430,9 @@ Jira課題から作業ログエントリを削除する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、課題キー、作業ログID、成功ステータスを含む削除の詳細 |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー |
+| `worklogId` | string | 削除された作業ログID |
 
 ### `jira_create_issue_link`
 
@@ -427,8 +453,11 @@ Jira課題から作業ログエントリを削除する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、インワード課題キー、アウトワード課題キー、リンクタイプ、成功ステータスを含む課題リンクの詳細 |
+| `ts` | string | 操作のタイムスタンプ |
+| `inwardIssue` | string | インワード課題キー |
+| `outwardIssue` | string | アウトワード課題キー |
+| `linkType` | string | 課題リンクのタイプ |
+| `linkId` | string | 作成されたリンクID |
 
 ### `jira_delete_issue_link`
 
@@ -446,8 +475,8 @@ Jira課題から作業ログエントリを削除する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、リンクID、成功ステータスを含む削除の詳細 |
+| `ts` | string | 操作のタイムスタンプ |
+| `linkId` | string | 削除されたリンクID |
 
 ### `jira_add_watcher`
 
@@ -466,8 +495,9 @@ Jira課題から作業ログエントリを削除する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、課題キー、ウォッチャーアカウントID、成功ステータスを含むウォッチャーの詳細 |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー |
+| `watcherAccountId` | string | 追加されたウォッチャーのアカウントID |
 
 ### `jira_remove_watcher`
 
@@ -486,8 +516,9 @@ Jira課題からウォッチャーを削除する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | タイムスタンプ、課題キー、ウォッチャーアカウントID、成功ステータスを含む削除詳細 |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー |
+| `watcherAccountId` | string | 削除されたウォッチャーのアカウントID |
 
 ## 注意事項
 

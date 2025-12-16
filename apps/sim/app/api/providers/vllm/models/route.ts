@@ -20,10 +20,16 @@ export async function GET(request: NextRequest) {
       baseUrl,
     })
 
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+
+    if (env.VLLM_API_KEY) {
+      headers.Authorization = `Bearer ${env.VLLM_API_KEY}`
+    }
+
     const response = await fetch(`${baseUrl}/v1/models`, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       next: { revalidate: 60 },
     })
 
@@ -50,7 +56,6 @@ export async function GET(request: NextRequest) {
       baseUrl,
     })
 
-    // Return empty array instead of error to avoid breaking the UI
     return NextResponse.json({ models: [] })
   }
 }

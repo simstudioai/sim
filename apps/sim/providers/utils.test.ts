@@ -53,19 +53,20 @@ describe('getApiKey', () => {
     module.require = originalRequire
   })
 
-  it('should return user-provided key when not in hosted environment', () => {
+  it.concurrent('should return user-provided key when not in hosted environment', () => {
     isHostedSpy.mockReturnValue(false)
 
-    // For OpenAI
     const key1 = getApiKey('openai', 'gpt-4', 'user-key-openai')
     expect(key1).toBe('user-key-openai')
 
-    // For Anthropic
     const key2 = getApiKey('anthropic', 'claude-3', 'user-key-anthropic')
     expect(key2).toBe('user-key-anthropic')
+
+    const key3 = getApiKey('google', 'gemini-2.5-flash', 'user-key-google')
+    expect(key3).toBe('user-key-google')
   })
 
-  it('should throw error if no key provided in non-hosted environment', () => {
+  it.concurrent('should throw error if no key provided in non-hosted environment', () => {
     isHostedSpy.mockReturnValue(false)
 
     expect(() => getApiKey('openai', 'gpt-4')).toThrow('API key is required for openai gpt-4')
@@ -74,63 +75,87 @@ describe('getApiKey', () => {
     )
   })
 
-  it('should fall back to user key in hosted environment if rotation fails', () => {
+  it.concurrent('should fall back to user key in hosted environment if rotation fails', () => {
     isHostedSpy.mockReturnValue(true)
 
     module.require = vi.fn(() => {
       throw new Error('Rotation failed')
     })
 
-    // Use gpt-4o which IS in the hosted models list
     const key = getApiKey('openai', 'gpt-4o', 'user-fallback-key')
     expect(key).toBe('user-fallback-key')
   })
 
-  it('should throw error in hosted environment if rotation fails and no user key', () => {
-    isHostedSpy.mockReturnValue(true)
+  it.concurrent(
+    'should throw error in hosted environment if rotation fails and no user key',
+    () => {
+      isHostedSpy.mockReturnValue(true)
 
-    module.require = vi.fn(() => {
-      throw new Error('Rotation failed')
-    })
+      module.require = vi.fn(() => {
+        throw new Error('Rotation failed')
+      })
 
-    // Use gpt-4o which IS in the hosted models list
-    expect(() => getApiKey('openai', 'gpt-4o')).toThrow('No API key available for openai gpt-4o')
+      expect(() => getApiKey('openai', 'gpt-4o')).toThrow('No API key available for openai gpt-4o')
+    }
+  )
+
+  it.concurrent(
+    'should require user key for non-OpenAI/Anthropic providers even in hosted environment',
+    () => {
+      isHostedSpy.mockReturnValue(true)
+
+      const key = getApiKey('other-provider', 'some-model', 'user-key')
+      expect(key).toBe('user-key')
+
+      expect(() => getApiKey('other-provider', 'some-model')).toThrow(
+        'API key is required for other-provider some-model'
+      )
+    }
+  )
+
+  it.concurrent(
+    'should require user key for models NOT in hosted list even if provider matches',
+    () => {
+      isHostedSpy.mockReturnValue(true)
+
+      const key1 = getApiKey('anthropic', 'claude-sonnet-4-20250514', 'user-key-anthropic')
+      expect(key1).toBe('user-key-anthropic')
+
+      expect(() => getApiKey('anthropic', 'claude-sonnet-4-20250514')).toThrow(
+        'API key is required for anthropic claude-sonnet-4-20250514'
+      )
+
+      const key2 = getApiKey('openai', 'gpt-4o-2024-08-06', 'user-key-openai')
+      expect(key2).toBe('user-key-openai')
+
+      expect(() => getApiKey('openai', 'gpt-4o-2024-08-06')).toThrow(
+        'API key is required for openai gpt-4o-2024-08-06'
+      )
+    }
+  )
+
+  it.concurrent('should return empty for ollama provider without requiring API key', () => {
+    isHostedSpy.mockReturnValue(false)
+
+    const key = getApiKey('ollama', 'llama2')
+    expect(key).toBe('empty')
+
+    const key2 = getApiKey('ollama', 'codellama', 'user-key')
+    expect(key2).toBe('empty')
   })
 
-  it('should require user key for non-OpenAI/Anthropic providers even in hosted environment', () => {
-    isHostedSpy.mockReturnValue(true)
+  it.concurrent(
+    'should return empty or user-provided key for vllm provider without requiring API key',
+    () => {
+      isHostedSpy.mockReturnValue(false)
 
-    const key = getApiKey('other-provider', 'some-model', 'user-key')
-    expect(key).toBe('user-key')
+      const key = getApiKey('vllm', 'vllm/qwen-3')
+      expect(key).toBe('empty')
 
-    expect(() => getApiKey('other-provider', 'some-model')).toThrow(
-      'API key is required for other-provider some-model'
-    )
-  })
-
-  it('should require user key for models NOT in hosted list even if provider matches', () => {
-    isHostedSpy.mockReturnValue(true)
-
-    // Models with version suffixes that are NOT in the hosted list should require user API key
-    // even though they're from anthropic/openai providers
-
-    // User provides their own key - should work
-    const key1 = getApiKey('anthropic', 'claude-sonnet-4-20250514', 'user-key-anthropic')
-    expect(key1).toBe('user-key-anthropic')
-
-    // No user key - should throw, NOT use server key
-    expect(() => getApiKey('anthropic', 'claude-sonnet-4-20250514')).toThrow(
-      'API key is required for anthropic claude-sonnet-4-20250514'
-    )
-
-    // Same for OpenAI versioned models not in list
-    const key2 = getApiKey('openai', 'gpt-4o-2024-08-06', 'user-key-openai')
-    expect(key2).toBe('user-key-openai')
-
-    expect(() => getApiKey('openai', 'gpt-4o-2024-08-06')).toThrow(
-      'API key is required for openai gpt-4o-2024-08-06'
-    )
-  })
+      const key2 = getApiKey('vllm', 'vllm/llama', 'user-key')
+      expect(key2).toBe('user-key')
+    }
+  )
 })
 
 describe('Model Capabilities', () => {
@@ -202,7 +227,6 @@ describe('Model Capabilities', () => {
     it.concurrent(
       'should inherit temperature support from provider for dynamically fetched models',
       () => {
-        // OpenRouter models should inherit temperature support from provider capabilities
         expect(supportsTemperature('openrouter/anthropic/claude-3.5-sonnet')).toBe(true)
         expect(supportsTemperature('openrouter/openai/gpt-4')).toBe(true)
       }

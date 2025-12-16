@@ -27,12 +27,14 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 - 检索任何会议的详情或邀请
 - 直接从您的自动化中更新或删除现有会议
 
-这些功能使您能够简化远程协作、自动化定期视频会议，并将您的组织 Zoom 环境管理整合到工作流程中。
+要连接到 Zoom，请拖放 Zoom 模块并点击 `Connect`，使用您的 Zoom 账户进行认证。连接后，您可以使用 Zoom 工具创建、列出、更新和删除 Zoom 会议。您可以随时通过点击“设置 > 集成”中的 `Disconnect` 断开您的 Zoom 账户连接，您的 Zoom 账户访问权限将立即被撤销。
+
+这些功能使您能够简化远程协作、自动化定期视频会议，并在工作流中管理您的组织的 Zoom 环境。
 {/* MANUAL-CONTENT-END */}
 
 ## 使用说明
 
-将 Zoom 集成到工作流程中。创建、列出、更新和删除 Zoom 会议。获取会议详情、邀请、录制内容和参与者信息。以编程方式管理云录制内容。
+将 Zoom 集成到工作流中。创建、列出、更新和删除 Zoom 会议。获取会议详情、邀请、录制和参与者信息。以编程方式管理云录制。
 
 ## 工具
 
@@ -46,18 +48,18 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | -------- | ----------- |
 | `userId` | string | 是 | 用户 ID 或电子邮件地址。使用 "me" 表示已认证用户。 |
 | `topic` | string | 是 | 会议主题 |
-| `type` | number | 否 | 会议类型：1=即时，2=计划，3=无固定时间的定期会议，8=有固定时间的定期会议 |
-| `startTime` | string | 否 | ISO 8601 格式的会议开始时间 \(例如：2025-06-03T10:00:00Z\) |
+| `type` | number | 否 | 会议类型：1=即时会议，2=预定会议，3=无固定时间的循环会议，8=有固定时间的循环会议 |
+| `startTime` | string | 否 | 会议开始时间，采用 ISO 8601 格式 \(例如：2025-06-03T10:00:00Z\) |
 | `duration` | number | 否 | 会议时长（分钟） |
 | `timezone` | string | 否 | 会议的时区 \(例如：America/Los_Angeles\) |
 | `password` | string | 否 | 会议密码 |
 | `agenda` | string | 否 | 会议议程 |
-| `hostVideo` | boolean | 否 | 主持人视频开启时开始 |
-| `participantVideo` | boolean | 否 | 参与者视频开启时开始 |
-| `joinBeforeHost` | boolean | 否 | 允许参与者在主持人之前加入 |
+| `hostVideo` | boolean | 否 | 主持人视频开启时开始会议 |
+| `participantVideo` | boolean | 否 | 参与者视频开启时开始会议 |
+| `joinBeforeHost` | boolean | 否 | 允许参与者在主持人之前加入会议 |
 | `muteUponEntry` | boolean | 否 | 参与者进入时静音 |
 | `waitingRoom` | boolean | 否 | 启用等候室 |
-| `autoRecording` | string | 否 | 自动录制设置：本地、云或无 |
+| `autoRecording` | string | 否 | 自动录制设置：本地、云端或无 |
 
 #### 输出
 
@@ -94,14 +96,14 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `meetingId` | string | 是 | 会议 ID |
-| `occurrenceId` | string | 否 | 循环会议的发生 ID |
-| `showPreviousOccurrences` | boolean | 否 | 显示循环会议的先前发生记录 |
+| `occurrenceId` | string | 否 | 定期会议的发生 ID |
+| `showPreviousOccurrences` | boolean | 否 | 显示定期会议的先前发生记录 |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `meeting` | object | 会议详情 |
+| `meeting` | object | 会议详细信息 |
 
 ### `zoom_update_meeting`
 
@@ -113,7 +115,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | -------- | ----------- |
 | `meetingId` | string | 是 | 要更新的会议 ID |
 | `topic` | string | 否 | 会议主题 |
-| `type` | number | 否 | 会议类型：1=即时会议，2=预定会议，3=无固定时间的循环会议，8=固定时间的循环会议 |
+| `type` | number | 否 | 会议类型：1=即时，2=计划，3=无固定时间的定期会议，8=有固定时间的定期会议 |
 | `startTime` | string | 否 | ISO 8601 格式的会议开始时间 \(例如：2025-06-03T10:00:00Z\) |
 | `duration` | number | 否 | 会议时长（分钟） |
 | `timezone` | string | 否 | 会议的时区 \(例如：America/Los_Angeles\) |
@@ -124,7 +126,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `joinBeforeHost` | boolean | 否 | 允许参与者在主持人之前加入 |
 | `muteUponEntry` | boolean | 否 | 参与者进入时静音 |
 | `waitingRoom` | boolean | 否 | 启用等候室 |
-| `autoRecording` | string | 否 | 自动录制设置：本地、云端或无 |
+| `autoRecording` | string | 否 | 自动录制设置：本地、云或无 |
 
 #### 输出
 
@@ -141,7 +143,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `meetingId` | string | 是 | 要删除的会议 ID |
-| `occurrenceId` | string | 否 | 删除循环会议中特定场次的场次 ID |
+| `occurrenceId` | string | 否 | 删除定期会议的特定场次的场次 ID |
 | `scheduleForReminder` | boolean | 否 | 向注册者发送取消提醒邮件 |
 | `cancelMeetingReminder` | boolean | 否 | 向注册者和替代主持人发送取消邮件 |
 
@@ -175,10 +177,10 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `userId` | string | 是 | 用户 ID 或电子邮件地址。对于已认证用户，请使用 "me"。 |
-| `from` | string | 否 | 开始日期，格式为 yyyy-mm-dd（最近 6 个月内） |
+| `userId` | string | 是 | 用户 ID 或电子邮件地址。使用 "me" 表示已认证用户。 |
+| `from` | string | 否 | 开始日期，格式为 yyyy-mm-dd \(最近 6 个月内\) |
 | `to` | string | 否 | 结束日期，格式为 yyyy-mm-dd |
-| `pageSize` | number | 否 | 每页记录数（最大 300） |
+| `pageSize` | number | 否 | 每页记录数 \(最大 300\) |
 | `nextPageToken` | string | 否 | 分页令牌，用于获取下一页结果 |
 | `trash` | boolean | 否 | 设置为 true 以列出回收站中的录制 |
 
@@ -191,39 +193,39 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ### `zoom_get_meeting_recordings`
 
-获取特定 Zoom 会议的所有录制内容
+获取特定 Zoom 会议的所有录制
 
 #### 输入
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `meetingId` | string | 是 | 会议 ID 或会议 UUID |
-| `includeFolderItems` | boolean | 否 | 包括文件夹内的项目 |
+| `includeFolderItems` | boolean | 否 | 包括文件夹中的项目 |
 | `ttl` | number | 否 | 下载 URL 的有效时间（秒）\(最大值 604800\) |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `recording` | object | 包含所有文件的会议录制内容 |
+| `recording` | object | 包含所有文件的会议录制 |
 
 ### `zoom_delete_recording`
 
-删除 Zoom 会议的云录制内容
+删除 Zoom 会议的云录制
 
 #### 输入
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `meetingId` | string | 是 | 会议 ID 或会议 UUID |
-| `recordingId` | string | 否 | 要删除的特定录制文件 ID。如果未提供，则删除所有录制内容。 |
+| `recordingId` | string | 否 | 要删除的特定录制文件 ID。如果未提供，则删除所有录制。 |
 | `action` | string | 否 | 删除操作："trash" \(移至回收站\) 或 "delete" \(永久删除\) |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 录制内容是否成功删除 |
+| `success` | boolean | 录制是否成功删除 |
 
 ### `zoom_list_past_participants`
 
@@ -241,10 +243,10 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `participants` | 数组 | 会议参与者列表 |
-| `pageInfo` | 对象 | 分页信息 |
+| `participants` | array | 会议参与者列表 |
+| `pageInfo` | object | 分页信息 |
 
 ## 注意事项
 
-- 类别：`tools`
-- 类型：`zoom`
+- 类别: `tools`
+- 类型: `zoom`

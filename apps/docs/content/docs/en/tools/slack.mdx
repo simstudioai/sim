@@ -56,7 +56,7 @@ Integrate Slack into the workflow. Can send, update, and delete messages, create
 
 ### `slack_message`
 
-Send messages to Slack channels or users through the Slack API. Supports Slack mrkdwn formatting.
+Send messages to Slack channels or direct messages. Supports Slack mrkdwn formatting.
 
 #### Input
 
@@ -64,7 +64,8 @@ Send messages to Slack channels or users through the Slack API. Supports Slack m
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | No | Authentication method: oauth or bot_token |
 | `botToken` | string | No | Bot token for Custom Bot |
-| `channel` | string | Yes | Target Slack channel \(e.g., #general\) |
+| `channel` | string | No | Target Slack channel \(e.g., #general\) |
+| `userId` | string | No | Target Slack user ID for direct messages \(e.g., U1234567890\) |
 | `text` | string | Yes | Message text to send \(supports Slack mrkdwn formatting\) |
 | `thread_ts` | string | No | Thread timestamp to reply to \(creates thread reply\) |
 | `files` | file[] | No | Files to attach to the message |
@@ -111,7 +112,8 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | No | Authentication method: oauth or bot_token |
 | `botToken` | string | No | Bot token for Custom Bot |
-| `channel` | string | Yes | Slack channel to read messages from \(e.g., #general\) |
+| `channel` | string | No | Slack channel to read messages from \(e.g., #general\) |
+| `userId` | string | No | User ID for DM conversation \(e.g., U1234567890\) |
 | `limit` | number | No | Number of messages to retrieve \(default: 10, max: 100\) |
 | `oldest` | string | No | Start of time range \(timestamp\) |
 | `latest` | string | No | End of time range \(timestamp\) |

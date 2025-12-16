@@ -762,7 +762,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
   outputs: {
     // Common outputs across all Jira operations
     ts: { type: 'string', description: 'Timestamp of the operation' },
-    success: { type: 'boolean', description: 'Whether the operation was successful' },
 
     // jira_retrieve (read) outputs
     issueKey: { type: 'string', description: 'Issue key (e.g., PROJ-123)' },
