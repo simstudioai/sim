@@ -91,6 +91,10 @@ import { RouterBlock } from '@/blocks/blocks/router'
 import { RssBlock } from '@/blocks/blocks/rss'
 import { S3Block } from '@/blocks/blocks/s3'
 import { SalesforceBlock } from '@/blocks/blocks/salesforce'
+import { ScheduleBlock } from '@/blocks/blocks/schedule'
+import { SearchBlock } from '@/blocks/blocks/search'
+import { SendGridBlock } from '@/blocks/blocks/sendgrid'
+import { SentryBlock } from '@/blocks/blocks/sentry'
 import { SerperBlock } from '@/blocks/blocks/serper'
 import { ServiceNowBlock } from '@/blocks/blocks/servicenow'
 import { SftpBlock } from '@/blocks/blocks/sftp'
@@ -231,6 +235,10 @@ export const registry: Record<string, BlockConfig> = {
   router: RouterBlock,
   s3: S3Block,
   salesforce: SalesforceBlock,
+  schedule: ScheduleBlock,
+  search: SearchBlock,
+  sendgrid: SendGridBlock,
+  sentry: SentryBlock,
   servicenow: ServiceNowBlock,
   serper: SerperBlock,
   sharepoint: SharepointBlock,
