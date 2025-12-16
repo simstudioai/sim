@@ -895,11 +895,12 @@ export async function POST(req: NextRequest) {
     userCodeStartLine = wrapperLines.length + 1
 
     let codeToExecute = resolvedCode
+    let prependedLineCount = 0
     if (isCustomTool) {
-      const paramDestructuring = Object.keys(executionParams)
-        .map((key) => `const ${key} = params.${key};`)
-        .join('\n')
+      const paramKeys = Object.keys(executionParams)
+      const paramDestructuring = paramKeys.map((key) => `const ${key} = params.${key};`).join('\n')
       codeToExecute = `${paramDestructuring}\n${resolvedCode}`
+      prependedLineCount = paramKeys.length
     }
 
     const isolatedResult = await executeInIsolatedVM({
@@ -920,14 +921,25 @@ export async function POST(req: NextRequest) {
       })
 
       const ivmError = isolatedResult.error
+      // Adjust line number for prepended param destructuring in custom tools
+      let adjustedLine = ivmError.line
+      let adjustedLineContent = ivmError.lineContent
+      if (prependedLineCount > 0 && ivmError.line !== undefined) {
+        adjustedLine = Math.max(1, ivmError.line - prependedLineCount)
+        // Get line content from original user code, not the prepended code
+        const codeLines = resolvedCode.split('\n')
+        if (adjustedLine <= codeLines.length) {
+          adjustedLineContent = codeLines[adjustedLine - 1]?.trim()
+        }
+      }
       const enhancedError: EnhancedError = {
         message: ivmError.message,
         name: ivmError.name,
         stack: ivmError.stack,
         originalError: ivmError,
-        line: ivmError.line,
+        line: adjustedLine,
         column: ivmError.column,
-        lineContent: ivmError.lineContent,
+        lineContent: adjustedLineContent,
       }
 
       const userFriendlyErrorMessage = createUserFriendlyErrorMessage(
