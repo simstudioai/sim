@@ -48,8 +48,13 @@ Recupera información detallada sobre una incidencia específica de Jira
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles de la incidencia de Jira con clave de incidencia, resumen, descripción, marcas de tiempo de creación y actualización |
+| `ts` | string | Marca de tiempo de la operación |
+| `issueKey` | string | Clave de la incidencia (p. ej., PROJ-123) |
+| `summary` | string | Resumen de la incidencia |
+| `description` | json | Contenido de la descripción de la incidencia |
+| `created` | string | Marca de tiempo de creación de la incidencia |
+| `updated` | string | Marca de tiempo de última actualización de la incidencia |
+| `issue` | json | Objeto completo de la incidencia con todos los campos |
 
 ### `jira_update`
 
@@ -73,8 +78,9 @@ Actualizar una incidencia de Jira
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles actualizados de la incidencia de Jira con marca de tiempo, clave de incidencia, resumen y estado de éxito |
+| `ts` | string | Marca de tiempo de la operación |
+| `issueKey` | string | Clave de la incidencia actualizada (p. ej., PROJ-123) |
+| `summary` | string | Resumen de la incidencia después de la actualización |
 
 ### `jira_write`
 
@@ -97,8 +103,10 @@ Escribir una incidencia de Jira
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles de la incidencia de Jira creada con marca de tiempo, clave de incidencia, resumen, estado de éxito y URL |
+| `ts` | string | Marca de tiempo de la operación |
+| `issueKey` | string | Clave de la incidencia creada (p. ej., PROJ-123) |
+| `summary` | string | Resumen de la incidencia |
+| `url` | string | URL de la incidencia creada |
 
 ### `jira_bulk_read`
 
@@ -116,8 +124,7 @@ Recuperar múltiples incidencias de Jira en bloque
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | array | Array de incidencias de Jira con resumen, descripción, marcas de tiempo de creación y actualización |
+| `issues` | array | Array de incidencias de Jira con marca de tiempo, resumen, descripción, y marcas de tiempo de creación y actualización |
 
 ### `jira_delete_issue`
 
@@ -136,8 +143,8 @@ Eliminar una incidencia de Jira
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles de la incidencia eliminada con marca de tiempo, clave de incidencia y estado de éxito |
+| `ts` | string | Marca de tiempo de la operación |
+| `issueKey` | string | Clave de la incidencia eliminada |
 
 ### `jira_assign_issue`
 
@@ -156,8 +163,9 @@ Asignar una incidencia de Jira a un usuario
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles de la asignación con marca de tiempo, clave de incidencia, ID del asignado y estado de éxito |
+| `ts` | string | Marca de tiempo de la operación |
+| `issueKey` | string | Clave de la incidencia que fue asignada |
+| `assigneeId` | string | ID de cuenta del asignado |
 
 ### `jira_transition_issue`
 
@@ -177,8 +185,9 @@ Mover una incidencia de Jira entre estados de flujo de trabajo (p. ej., Pendient
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles de la transición con marca de tiempo, clave de incidencia, ID de transición y estado de éxito |
+| `ts` | string | Marca de tiempo de la operación |
+| `issueKey` | string | Clave de incidencia que fue transicionada |
+| `transitionId` | string | ID de transición aplicada |
 
 ### `jira_search_issues`
 
@@ -199,8 +208,11 @@ Buscar incidencias de Jira usando JQL (Jira Query Language)
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Resultados de búsqueda con marca de tiempo, recuento total, detalles de paginación y array de incidencias coincidentes |
+| `ts` | string | Marca de tiempo de la operación |
+| `total` | number | Número total de incidencias coincidentes |
+| `startAt` | number | Índice de inicio de paginación |
+| `maxResults` | number | Máximo de resultados por página |
+| `issues` | array | Array de incidencias coincidentes con clave, resumen, estado, asignado, creado, actualizado |
 
 ### `jira_add_comment`
 
@@ -219,8 +231,10 @@ Añadir un comentario a una incidencia de Jira
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles del comentario con marca de tiempo, clave de incidencia, ID del comentario, cuerpo y estado de éxito |
+| `ts` | string | Marca de tiempo de la operación |
+| `issueKey` | string | Clave de incidencia a la que se añadió el comentario |
+| `commentId` | string | ID del comentario creado |
+| `body` | string | Contenido de texto del comentario |
 
 ### `jira_get_comments`
 
@@ -240,8 +254,10 @@ Obtener todos los comentarios de una incidencia de Jira
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos de comentarios con marca de tiempo, clave de incidencia, recuento total y array de comentarios |
+| `ts` | string | Marca de tiempo de la operación |
+| `issueKey` | string | Clave de incidencia |
+| `total` | number | Número total de comentarios |
+| `comments` | array | Array de comentarios con id, autor, cuerpo, creado, actualizado |
 
 ### `jira_update_comment`
 
@@ -261,8 +277,10 @@ Actualizar un comentario existente en una incidencia de Jira
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles del comentario actualizado con marca de tiempo, clave de incidencia, ID de comentario, texto del cuerpo y estado de éxito |
+| `ts` | string | Marca de tiempo de la operación |
+| `issueKey` | string | Clave de incidencia |
+| `commentId` | string | ID del comentario actualizado |
+| `body` | string | Texto actualizado del comentario |
 
 ### `jira_delete_comment`
 
@@ -281,8 +299,9 @@ Eliminar un comentario de una incidencia de Jira
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles de eliminación con marca de tiempo, clave de incidencia, ID de comentario y estado de éxito |
+| `ts` | string | Marca de tiempo de la operación |
+| `issueKey` | string | Clave de incidencia |
+| `commentId` | string | ID del comentario eliminado |
 
 ### `jira_get_attachments`
 
@@ -300,8 +319,9 @@ Obtener todos los adjuntos de una incidencia de Jira
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos de adjuntos con marca de tiempo, clave de incidencia y array de adjuntos |
+| `ts` | string | Marca de tiempo de la operación |
+| `issueKey` | string | Clave de incidencia |
+| `attachments` | array | Array de adjuntos con id, nombre de archivo, tamaño, tipo MIME, fecha de creación y autor |
 
 ### `jira_delete_attachment`
 
@@ -319,8 +339,8 @@ Eliminar un adjunto de una incidencia de Jira
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles de eliminación con marca de tiempo, ID de adjunto y estado de éxito |
+| `ts` | string | Marca de tiempo de la operación |
+| `attachmentId` | string | ID del adjunto eliminado |
 
 ### `jira_add_worklog`
 
@@ -341,8 +361,10 @@ Añadir una entrada de registro de trabajo de seguimiento de tiempo a una incide
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles del registro de trabajo con marca de tiempo, clave de incidencia, ID del registro de trabajo, tiempo dedicado en segundos y estado de éxito |
+| `ts` | string | Marca de tiempo de la operación |
+| `issueKey` | string | Clave de incidencia a la que se añadió el registro de trabajo |
+| `worklogId` | string | ID del registro de trabajo creado |
+| `timeSpentSeconds` | number | Tiempo empleado en segundos |
 
 ### `jira_get_worklogs`
 
@@ -362,8 +384,10 @@ Obtener todas las entradas de registro de trabajo de una incidencia de Jira
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Datos de registros de trabajo con marca de tiempo, clave de incidencia, recuento total y array de registros de trabajo |
+| `ts` | string | Marca de tiempo de la operación |
+| `issueKey` | string | Clave de incidencia |
+| `total` | number | Número total de registros de trabajo |
+| `worklogs` | array | Array de registros de trabajo con id, autor, segundos empleados, tiempo empleado, comentario, fecha de creación, actualización e inicio |
 
 ### `jira_update_worklog`
 
@@ -385,8 +409,9 @@ Actualizar una entrada existente de registro de trabajo en una incidencia de Jir
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles de actualización del registro de trabajo con marca de tiempo, clave de incidencia, ID de registro de trabajo y estado de éxito |
+| `ts` | string | Marca de tiempo de la operación |
+| `issueKey` | string | Clave de incidencia |
+| `worklogId` | string | ID del registro de trabajo actualizado |
 
 ### `jira_delete_worklog`
 
@@ -405,8 +430,9 @@ Eliminar una entrada de registro de trabajo de una incidencia de Jira
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles de eliminación con marca de tiempo, clave de incidencia, ID de registro de trabajo y estado de éxito |
+| `ts` | string | Marca de tiempo de la operación |
+| `issueKey` | string | Clave de incidencia |
+| `worklogId` | string | ID del registro de trabajo eliminado |
 
 ### `jira_create_issue_link`
 
@@ -427,8 +453,11 @@ Crear una relación de enlace entre dos incidencias de Jira
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles del enlace de incidencia con marca de tiempo, clave de incidencia de entrada, clave de incidencia de salida, tipo de enlace y estado de éxito |
+| `ts` | string | Marca de tiempo de la operación |
+| `inwardIssue` | string | Clave de incidencia de entrada |
+| `outwardIssue` | string | Clave de incidencia de salida |
+| `linkType` | string | Tipo de enlace de incidencia |
+| `linkId` | string | ID del enlace creado |
 
 ### `jira_delete_issue_link`
 
@@ -446,8 +475,8 @@ Eliminar un enlace entre dos incidencias de Jira
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles de eliminación con marca de tiempo, ID del enlace y estado de éxito |
+| `ts` | string | Marca de tiempo de la operación |
+| `linkId` | string | ID del enlace eliminado |
 
 ### `jira_add_watcher`
 
@@ -466,8 +495,9 @@ Añadir un observador a una incidencia de Jira para recibir notificaciones sobre
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles del observador con marca de tiempo, clave de incidencia, ID de cuenta del observador y estado de éxito |
+| `ts` | string | Marca de tiempo de la operación |
+| `issueKey` | string | Clave de incidencia |
+| `watcherAccountId` | string | ID de cuenta del observador añadido |
 
 ### `jira_remove_watcher`
 
@@ -486,8 +516,9 @@ Eliminar un observador de una incidencia de Jira
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | object | Detalles de eliminación con marca de tiempo, clave de incidencia, ID de cuenta del observador y estado de éxito |
+| `ts` | string | Marca de tiempo de la operación |
+| `issueKey` | string | Clave de incidencia |
+| `watcherAccountId` | string | ID de cuenta del observador eliminado |
 
 ## Notas
 
