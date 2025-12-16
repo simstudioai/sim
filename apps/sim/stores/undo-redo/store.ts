@@ -45,12 +45,16 @@ function getStackKey(workflowId: string, userId: string): string {
 
 /**
  * Custom storage adapter for Zustand's persist middleware.
- * We need this wrapper to gracefully handle 'QuotaExceededError' when localStorage is full.
- * Without this, the default storage engine would throw and crash the application.
+ * We need this wrapper to gracefully handle 'QuotaExceededError' when localStorage is full,
+ * and to properly handle SSR/Node.js environments.
+ *
+ * Note: We use `typeof window === 'undefined'` instead of `typeof localStorage === 'undefined'`
+ * because Node.js 25.2.0+ defines localStorage as a native object that throws SecurityError
+ * when accessed without the `--localstorage-file` flag.
  */
 const safeStorageAdapter = {
   getItem: (name: string): string | null => {
-    if (typeof localStorage === 'undefined') return null
+    if (typeof window === 'undefined') return null
     try {
       return localStorage.getItem(name)
     } catch (e) {
@@ -59,7 +63,7 @@ const safeStorageAdapter = {
     }
   },
   setItem: (name: string, value: string): void => {
-    if (typeof localStorage === 'undefined') return
+    if (typeof window === 'undefined') return
     try {
       localStorage.setItem(name, value)
     } catch (e) {
@@ -68,7 +72,7 @@ const safeStorageAdapter = {
     }
   },
   removeItem: (name: string): void => {
-    if (typeof localStorage === 'undefined') return
+    if (typeof window === 'undefined') return
     try {
       localStorage.removeItem(name)
     } catch (e) {

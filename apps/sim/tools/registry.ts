@@ -967,6 +967,13 @@ import {
   sftpUploadTool,
 } from '@/tools/sftp'
 import {
+  servicenowCreateTool,
+  servicenowReadTool,
+  servicenowUpdateTool,
+  servicenowDeleteTool,
+  servicenowImportSetTool,
+} from '@/tools/servicenow'
+import {
   sharepointAddListItemTool,
   sharepointCreateListTool,
   sharepointCreatePageTool,
@@ -1520,6 +1527,11 @@ export const tools: Record<string, ToolConfig> = {
   github_repo_info: githubRepoInfoTool,
   github_latest_commit: githubLatestCommitTool,
   serper_search: serperSearchTool,
+  servicenow_create: servicenowCreateTool,
+  servicenow_read: servicenowReadTool,
+  servicenow_update: servicenowUpdateTool,
+  servicenow_delete: servicenowDeleteTool,
+  servicenow_import_set: servicenowImportSetTool,
   tavily_search: tavilySearchTool,
   tavily_extract: tavilyExtractTool,
   tavily_crawl: tavilyCrawlTool,

@@ -1,4 +1,3 @@
-import { tasks } from '@trigger.dev/sdk'
 import { type NextRequest, NextResponse } from 'next/server'
 import { validate as uuidValidate, v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
@@ -253,6 +252,8 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
   }
 
   try {
+    // Dynamic import to avoid localStorage initialization error on module load
+    const { tasks } = await import('@trigger.dev/sdk')
     const handle = await tasks.trigger('workflow-execution', payload)
 
     logger.info(`[${requestId}] Queued async workflow execution`, {

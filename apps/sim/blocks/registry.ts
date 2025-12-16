@@ -104,6 +104,7 @@ import { SmtpBlock } from '@/blocks/blocks/smtp'
 import { SpotifyBlock } from '@/blocks/blocks/spotify'
 import { SSHBlock } from '@/blocks/blocks/ssh'
 import { StagehandBlock } from '@/blocks/blocks/stagehand'
+import { ServiceNowBlock } from '@/blocks/blocks/servicenow'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
 import { StarterBlock } from '@/blocks/blocks/starter'
 import { StripeBlock } from '@/blocks/blocks/stripe'
@@ -234,10 +235,7 @@ export const registry: Record<string, BlockConfig> = {
   router: RouterBlock,
   s3: S3Block,
   salesforce: SalesforceBlock,
-  schedule: ScheduleBlock,
-  search: SearchBlock,
-  sendgrid: SendGridBlock,
-  sentry: SentryBlock,
+  servicenow: ServiceNowBlock,
   serper: SerperBlock,
   sharepoint: SharepointBlock,
   shopify: ShopifyBlock,
