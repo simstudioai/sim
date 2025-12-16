@@ -179,7 +179,7 @@ async function ensureWorker(): Promise<void> {
       return
     }
 
-    worker = spawn(process.execPath, [workerPath], {
+    worker = spawn('node', [workerPath], {
       stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
       serialization: 'json',
     })
@@ -208,8 +208,7 @@ async function ensureWorker(): Promise<void> {
     }
     worker.on('message', readyHandler)
 
-    worker.on('exit', (code) => {
-      logger.warn('Isolated-vm worker exited', { code })
+    worker.on('exit', () => {
       if (workerIdleTimeout) {
         clearTimeout(workerIdleTimeout)
         workerIdleTimeout = null
