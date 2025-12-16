@@ -106,6 +106,7 @@ export async function GET(request: NextRequest) {
           accountId: accountData.accountId,
           accessToken: accountData.accessToken,
           refreshToken: accountData.refreshToken || undefined,
+          accessTokenExpiresAt: accountData.accessTokenExpiresAt,
           scope: accountData.scope,
           idToken: accountData.idToken,
           createdAt: now,
@@ -113,6 +114,7 @@ export async function GET(request: NextRequest) {
         },
         { provider: 'ServiceNow', identifier: instanceUrl }
       )
+      logger.info('Created new ServiceNow account')
     }
 
     // Get return URL from cookie

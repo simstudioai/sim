@@ -18,6 +18,7 @@ interface AccountInsertData {
   updatedAt: Date
   refreshToken?: string
   idToken?: string
+  accessTokenExpiresAt?: Date
 }
 
 /**
