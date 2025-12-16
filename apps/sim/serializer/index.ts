@@ -547,7 +547,6 @@ export class Serializer {
     // Iterate through the tool's parameters, not the block's subBlocks
     Object.entries(currentTool.params || {}).forEach(([paramId, paramConfig]) => {
       if (paramConfig.required && paramConfig.visibility === 'user-only') {
-        // Find ALL subblock configs with this ID (there may be multiple with different conditions)
         const matchingConfigs = blockConfig.subBlocks?.filter((sb: any) => sb.id === paramId) || []
 
         let shouldValidateParam = true
@@ -555,18 +554,14 @@ export class Serializer {
         if (matchingConfigs.length > 0) {
           const isAdvancedMode = block.advancedMode ?? false
 
-          // Check if ANY matching config's condition is met and requires validation
           shouldValidateParam = matchingConfigs.some((subBlockConfig: any) => {
             const includedByMode = shouldIncludeField(subBlockConfig, isAdvancedMode)
 
-            // Check visibility condition
             const includedByCondition = evaluateCondition(subBlockConfig.condition, params)
 
-            // Check if field is required based on its required condition (if it's a condition object)
             const isRequired = (() => {
               if (!subBlockConfig.required) return false
               if (typeof subBlockConfig.required === 'boolean') return subBlockConfig.required
-              // If required is a condition object, evaluate it
               return evaluateCondition(subBlockConfig.required, params)
             })()
 
@@ -580,7 +575,6 @@ export class Serializer {
 
         const fieldValue = params[paramId]
         if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
-          // Find the first matching config with a met condition for the display name
           const activeConfig = matchingConfigs.find(
             (config: any) =>
               shouldIncludeField(config, block.advancedMode ?? false) &&
@@ -614,8 +608,6 @@ export class Serializer {
       const accessibleIds = new Set<string>(ancestorIds)
       accessibleIds.add(blockId)
 
-      // Only add starter block if it's actually upstream (already in ancestorIds)
-      // Don't add it just because it exists on the canvas
       if (starterBlock && ancestorIds.includes(starterBlock.id)) {
         accessibleIds.add(starterBlock.id)
       }
