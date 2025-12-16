@@ -35,21 +35,18 @@ export interface SlackDownloadParams extends SlackBaseParams {
 }
 
 export interface SlackUpdateMessageParams extends SlackBaseParams {
-  channel?: string
-  userId?: string
+  channel: string
   timestamp: string
   text: string
 }
 
 export interface SlackDeleteMessageParams extends SlackBaseParams {
-  channel?: string
-  userId?: string
+  channel: string
   timestamp: string
 }
 
 export interface SlackAddReactionParams extends SlackBaseParams {
-  channel?: string
-  userId?: string
+  channel: string
   timestamp: string
   name: string
 }

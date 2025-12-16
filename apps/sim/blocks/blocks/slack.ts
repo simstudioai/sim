@@ -59,7 +59,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       value: () => 'channel',
       condition: {
         field: 'operation',
-        value: ['send', 'read', 'update', 'delete', 'react'],
+        value: ['send', 'read'],
       },
     },
     {
@@ -496,7 +496,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         const effectiveUserId = (dmUserId || manualDmUserId || '').trim()
 
         const noChannelOperations = ['list_channels', 'list_users', 'get_user']
-        const dmSupportedOperations = ['send', 'read', 'update', 'delete', 'react']
+        const dmSupportedOperations = ['send', 'read']
 
         if (isDM && dmSupportedOperations.includes(operation)) {
           if (!effectiveUserId) {

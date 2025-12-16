@@ -47,12 +47,6 @@ export async function POST(request: NextRequest) {
     )
 
     const body = await request.json()
-
-    logger.info(`[${requestId}] Raw request body`, {
-      limit: body.limit,
-      limitType: typeof body.limit,
-    })
-
     const validatedData = SlackReadMessagesSchema.parse(body)
 
     let channel = validatedData.channel
