@@ -102,11 +102,15 @@ const SModalContent = React.forwardRef<
 SModalContent.displayName = 'SModalContent'
 
 /**
- * Sidebar container.
+ * Sidebar container with scrollable content.
  */
 const SModalSidebar = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('flex w-[166px] flex-col py-[12px]', className)} {...props} />
+    <div
+      ref={ref}
+      className={cn('flex min-h-0 w-[166px] flex-col overflow-y-auto py-[12px]', className)}
+      {...props}
+    />
   )
 )
 

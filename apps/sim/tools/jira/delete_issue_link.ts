@@ -127,13 +127,7 @@ export const jiraDeleteIssueLinkTool: ToolConfig<
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
-      type: 'object',
-      description: 'Deletion details with timestamp, link ID, and success status',
-    },
+    ts: { type: 'string', description: 'Timestamp of the operation' },
+    linkId: { type: 'string', description: 'Deleted link ID' },
   },
 }

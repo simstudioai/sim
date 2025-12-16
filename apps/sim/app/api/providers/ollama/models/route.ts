@@ -45,7 +45,6 @@ export async function GET(request: NextRequest) {
       host: OLLAMA_HOST,
     })
 
-    // Return empty array instead of error to avoid breaking the UI
     return NextResponse.json({ models: [] })
   }
 }

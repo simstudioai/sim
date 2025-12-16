@@ -13,6 +13,7 @@ export const mdxComponents: MDXRemoteProps['components'] = {
       className={clsx('h-auto w-full rounded-lg', props.className)}
       sizes='(max-width: 768px) 100vw, 800px'
       loading='lazy'
+      unoptimized
     />
   ),
   h2: (props: any) => (

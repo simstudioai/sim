@@ -37,9 +37,15 @@ export const slackMessageReaderTool: ToolConfig<
     },
     channel: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'Slack channel to read messages from (e.g., #general)',
+    },
+    userId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'User ID for DM conversation (e.g., U1234567890)',
     },
     limit: {
       type: 'number',
@@ -62,110 +68,31 @@ export const slackMessageReaderTool: ToolConfig<
   },
 
   request: {
-    url: (params: SlackMessageReaderParams) => {
-      const url = new URL('https://slack.com/api/conversations.history')
-      url.searchParams.append('channel', params.channel)
-      // Cap limit at 15 due to Slack API restrictions for non-Marketplace apps
-      const limit = params.limit ? Number(params.limit) : 10
-      url.searchParams.append('limit', String(Math.min(limit, 15)))
-
-      if (params.oldest) {
-        url.searchParams.append('oldest', params.oldest)
-      }
-      if (params.latest) {
-        url.searchParams.append('latest', params.latest)
-      }
-
-      return url.toString()
-    },
-    method: 'GET',
-    headers: (params: SlackMessageReaderParams) => ({
+    url: '/api/tools/slack/read-messages',
+    method: 'POST',
+    headers: () => ({
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken || params.botToken}`,
+    }),
+    body: (params: SlackMessageReaderParams) => ({
+      accessToken: params.accessToken || params.botToken,
+      channel: params.channel,
+      userId: params.userId,
+      limit: params.limit,
+      oldest: params.oldest,
+      latest: params.latest,
     }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!data.ok) {
-      if (data.error === 'not_in_channel') {
-        throw new Error(
-          'Bot is not in the channel. Please invite the Sim bot to your Slack channel by typing: /invite @Sim Studio'
-        )
-      }
-      if (data.error === 'channel_not_found') {
-        throw new Error('Channel not found. Please check the channel ID and try again.')
-      }
-      if (data.error === 'missing_scope') {
-        throw new Error(
-          'Missing required permissions. Please reconnect your Slack account with the necessary scopes (channels:history, groups:history).'
-        )
-      }
+    if (!data.success) {
       throw new Error(data.error || 'Failed to fetch messages from Slack')
     }
 
-    const messages = (data.messages || []).map((message: any) => ({
-      // Core properties
-      type: message.type || 'message',
-      ts: message.ts,
-      text: message.text || '',
-      user: message.user,
-      bot_id: message.bot_id,
-      username: message.username,
-      channel: message.channel,
-      team: message.team,
-
-      // Thread properties
-      thread_ts: message.thread_ts,
-      parent_user_id: message.parent_user_id,
-      reply_count: message.reply_count,
-      reply_users_count: message.reply_users_count,
-      latest_reply: message.latest_reply,
-      subscribed: message.subscribed,
-      last_read: message.last_read,
-      unread_count: message.unread_count,
-
-      // Message subtype
-      subtype: message.subtype,
-
-      // Reactions and interactions
-      reactions: message.reactions?.map((reaction: any) => ({
-        name: reaction.name,
-        count: reaction.count,
-        users: reaction.users || [],
-      })),
-      is_starred: message.is_starred,
-      pinned_to: message.pinned_to,
-
-      // Content attachments
-      files: message.files?.map((file: any) => ({
-        id: file.id,
-        name: file.name,
-        mimetype: file.mimetype,
-        size: file.size,
-        url_private: file.url_private,
-        permalink: file.permalink,
-        mode: file.mode,
-      })),
-      attachments: message.attachments,
-      blocks: message.blocks,
-
-      // Metadata
-      edited: message.edited
-        ? {
-            user: message.edited.user,
-            ts: message.edited.ts,
-          }
-        : undefined,
-      permalink: message.permalink,
-    }))
-
     return {
       success: true,
-      output: {
-        messages,
-      },
+      output: data.output,
     }
   },
 

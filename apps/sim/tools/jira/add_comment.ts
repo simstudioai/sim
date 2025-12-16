@@ -163,14 +163,9 @@ export const jiraAddCommentTool: ToolConfig<JiraAddCommentParams, JiraAddComment
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
-      type: 'object',
-      description:
-        'Comment details with timestamp, issue key, comment ID, body, and success status',
-    },
+    ts: { type: 'string', description: 'Timestamp of the operation' },
+    issueKey: { type: 'string', description: 'Issue key the comment was added to' },
+    commentId: { type: 'string', description: 'Created comment ID' },
+    body: { type: 'string', description: 'Comment text content' },
   },
 }

@@ -251,10 +251,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
               position,
             },
           },
-          edges: [...state.edges],
         }))
-        get().updateLastSaved()
-        // No sync for position updates to avoid excessive syncing during drag
       },
 
       updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => {

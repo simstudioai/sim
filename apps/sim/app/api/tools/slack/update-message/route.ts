@@ -10,7 +10,7 @@ const logger = createLogger('SlackUpdateMessageAPI')
 
 const SlackUpdateMessageSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
-  channel: z.string().min(1, 'Channel ID is required'),
+  channel: z.string().min(1, 'Channel is required'),
   timestamp: z.string().min(1, 'Message timestamp is required'),
   text: z.string().min(1, 'Message text is required'),
 })

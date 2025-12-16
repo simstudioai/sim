@@ -27,10 +27,12 @@ Simでは、Zoom統合によりエージェントがスケジュール設定と�
 - 任意の会議の詳細や招待状を取得
 - 自動化から直接既存の会議を更新または削除
 
-これらの機能により、リモートコラボレーションの効率化、定期的なビデオセッションの自動化、ワークフローの一部として組織のZoom環境を管理することができます。
+Zoomに接続するには、Zoomブロックをドロップして `Connect` をクリックし、Zoomアカウントで認証します。接続後、Zoomツールを使用してZoomミーティングの作成、一覧表示、更新、削除ができます。いつでも設定 > 統合から `Disconnect` をクリックしてZoomアカウントの接続を解除でき、Zoomアカウントへのアクセスは直ちに取り消されます。
+
+これらの機能により、リモートコラボレーションの効率化、定期的なビデオセッションの自動化、組織のZoom環境の管理をワークフローの一部として行うことができます。
 {/* MANUAL-CONTENT-END */}
 
-## 使用方法
+## 使用手順
 
 Zoomをワークフローに統合します。Zoomミーティングの作成、一覧表示、更新、削除ができます。ミーティングの詳細、招待状、録画、参加者を取得します。クラウド録画をプログラムで管理します。
 
@@ -42,11 +44,11 @@ Zoomをワークフローに統合します。Zoomミーティングの作成、
 
 #### 入力
 
-| パラメータ | 種類 | 必須 | 説明 |
+| パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `userId` | string | はい | ユーザーIDまたはメールアドレス。認証済みユーザーの場合は「me」を使用。 |
 | `topic` | string | はい | ミーティングのトピック |
-| `type` | number | いいえ | ミーティングタイプ: 1=即時、2=予定、3=固定時間なしの定期的、8=固定時間の定期的 |
+| `type` | number | いいえ | ミーティングタイプ: 1=即時、2=予定済み、3=固定時間なしの定期的、8=固定時間の定期的 |
 | `startTime` | string | いいえ | ISO 8601形式のミーティング開始時間（例：2025-06-03T10:00:00Z） |
 | `duration` | number | いいえ | ミーティング時間（分） |
 | `timezone` | string | いいえ | ミーティングのタイムゾーン（例：America/Los_Angeles） |
@@ -56,8 +58,8 @@ Zoomをワークフローに統合します。Zoomミーティングの作成、
 | `participantVideo` | boolean | いいえ | 参加者のビデオをオンにして開始 |
 | `joinBeforeHost` | boolean | いいえ | ホスト前の参加者の入室を許可 |
 | `muteUponEntry` | boolean | いいえ | 入室時に参加者をミュート |
-| `waitingRoom` | boolean | いいえ | 待機室を有効化 |
-| `autoRecording` | string | いいえ | 自動録画設定：local、cloud、またはnone |
+| `waitingRoom` | boolean | いいえ | 待機室を有効にする |
+| `autoRecording` | string | いいえ | 自動録画設定: local、cloud、またはnone |
 
 #### 出力
 
@@ -67,14 +69,14 @@ Zoomをワークフローに統合します。Zoomミーティングの作成、
 
 ### `zoom_list_meetings`
 
-Zoomユーザーのすべてのミーティングを一覧表示する
+Zoomユーザーのすべてのミーティングをリスト表示する
 
 #### 入力
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `userId` | string | はい | ユーザーIDまたはメールアドレス。認証済みユーザーの場合は「me」を使用。 |
-| `type` | string | いいえ | ミーティングタイプフィルター: scheduled、live、upcoming、upcoming_meetings、または previous_meetings |
+| `type` | string | いいえ | ミーティングタイプフィルター: scheduled、live、upcoming、upcoming_meetings、またはprevious_meetings |
 | `pageSize` | number | いいえ | ページあたりのレコード数（最大300） |
 | `nextPageToken` | string | いいえ | 次のページの結果を取得するためのページネーショントークン |
 
@@ -94,8 +96,8 @@ Zoomユーザーのすべてのミーティングを一覧表示する
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `meetingId` | string | はい | ミーティングID |
-| `occurrenceId` | string | いいえ | 定期的なミーティングの開催ID |
-| `showPreviousOccurrences` | boolean | いいえ | 定期的なミーティングの過去の開催を表示 |
+| `occurrenceId` | string | いいえ | 定期的なミーティングの発生ID |
+| `showPreviousOccurrences` | boolean | いいえ | 定期的なミーティングの過去の発生を表示 |
 
 #### 出力
 
@@ -103,17 +105,17 @@ Zoomユーザーのすべてのミーティングを一覧表示する
 | --------- | ---- | ----------- |
 | `meeting` | object | ミーティングの詳細 |
 
-### `zoom_update_meeting`
+特定のZoomミーティングの詳細を取得する
 
 既存のZoomミーティングを更新する
 
 #### 入力
 
-| パラメータ | 型 | 必須 | 説明 |
+| パラメータ | 種類 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `meetingId` | string | はい | 更新するミーティングID |
 | `topic` | string | いいえ | ミーティングのトピック |
-| `type` | number | いいえ | ミーティングタイプ: 1=インスタント、2=予定済み、3=定期的（固定時間なし）、8=定期的（固定時間） |
+| `type` | number | いいえ | ミーティングタイプ: 1=即時、2=予定、3=固定時間なしの定期的、8=固定時間の定期的 |
 | `startTime` | string | いいえ | ISO 8601形式のミーティング開始時間（例：2025-06-03T10:00:00Z） |
 | `duration` | number | いいえ | ミーティング時間（分） |
 | `timezone` | string | いいえ | ミーティングのタイムゾーン（例：America/Los_Angeles） |
@@ -121,10 +123,10 @@ Zoomユーザーのすべてのミーティングを一覧表示する
 | `agenda` | string | いいえ | ミーティングの議題 |
 | `hostVideo` | boolean | いいえ | ホストのビデオをオンにして開始 |
 | `participantVideo` | boolean | いいえ | 参加者のビデオをオンにして開始 |
-| `joinBeforeHost` | boolean | いいえ | ホストより前の参加者の入室を許可 |
+| `joinBeforeHost` | boolean | いいえ | ホスト前の参加者の入室を許可 |
 | `muteUponEntry` | boolean | いいえ | 入室時に参加者をミュート |
-| `waitingRoom` | boolean | いいえ | 待機室を有効にする |
-| `autoRecording` | string | いいえ | 自動録画設定：ローカル、クラウド、または無し |
+| `waitingRoom` | boolean | いいえ | 待機室を有効化 |
+| `autoRecording` | string | いいえ | 自動録画設定：local、cloud、またはnone |
 
 #### 出力
 
@@ -132,17 +134,17 @@ Zoomユーザーのすべてのミーティングを一覧表示する
 | --------- | ---- | ----------- |
 | `success` | boolean | ミーティングが正常に更新されたかどうか |
 
-### `zoom_delete_meeting`
+Zoomミーティングを削除またはキャンセルする
 
 Zoomミーティングを削除またはキャンセルする
 
 #### 入力
 
-| パラメータ | 型 | 必須 | 説明 |
+| パラメータ | 種類 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `meetingId` | string | はい | 削除するミーティングID |
-| `occurrenceId` | string | いいえ | 定期的なミーティングの特定の回を削除するための発生ID |
-| `scheduleForReminder` | boolean | いいえ | 登録者にキャンセルリマインダーメールを送信 |
+| `occurrenceId` | string | いいえ | 定期的なミーティングの特定の回を削除するための回数ID |
+| `scheduleForReminder` | boolean | いいえ | 登録者にキャンセルのリマインダーメールを送信 |
 | `cancelMeetingReminder` | boolean | いいえ | 登録者と代替ホストにキャンセルメールを送信 |
 
 #### 出力
@@ -169,18 +171,18 @@ Zoomミーティングの招待テキストを取得する
 
 ### `zoom_list_recordings`
 
-Zoomユーザーのすべてのクラウド録画をリスト表示する
+Zoomユーザーのすべてのクラウド録画を一覧表示する
 
 #### 入力
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `userId` | string | はい | ユーザーIDまたはメールアドレス。認証済みユーザーの場合は「me」を使用。 |
-| `from` | string | いいえ | 開始日（yyyy-mm-dd形式）\(過去6ヶ月以内\) |
+| `from` | string | いいえ | 開始日（yyyy-mm-dd形式）（過去6ヶ月以内） |
 | `to` | string | いいえ | 終了日（yyyy-mm-dd形式） |
-| `pageSize` | number | いいえ | ページあたりのレコード数（最大300） |
+| `pageSize` | number | いいえ | 1ページあたりのレコード数（最大300） |
 | `nextPageToken` | string | いいえ | 次のページの結果を取得するためのページネーショントークン |
-| `trash` | boolean | いいえ | ゴミ箱から録画をリスト表示するにはtrueに設定 |
+| `trash` | boolean | いいえ | ゴミ箱から録画を一覧表示するにはtrueに設定 |
 
 #### 出力
 
@@ -189,9 +191,9 @@ Zoomユーザーのすべてのクラウド録画をリスト表示する
 | `recordings` | array | 録画のリスト |
 | `pageInfo` | object | ページネーション情報 |
 
-### `zoom_get_meeting_recordings`
+特定のZoomミーティングのすべての録画を取得する
 
-特定のZoomミーティングの全ての録画を取得する
+特定のZoomミーティングのすべての録画を取得する
 
 #### 入力
 
@@ -207,7 +209,7 @@ Zoomユーザーのすべてのクラウド録画をリスト表示する
 | --------- | ---- | ----------- |
 | `recording` | object | すべてのファイルを含むミーティング録画 |
 
-### `zoom_delete_recording`
+Zoomミーティングのクラウド録画を削除する
 
 Zoomミーティングのクラウド録画を削除する
 
@@ -225,7 +227,7 @@ Zoomミーティングのクラウド録画を削除する
 | --------- | ---- | ----------- |
 | `success` | boolean | 録画が正常に削除されたかどうか |
 
-### `zoom_list_past_participants`
+過去のZoomミーティングの参加者を一覧表示する
 
 過去のZoomミーティングの参加者を一覧表示する
 
@@ -235,16 +237,16 @@ Zoomミーティングのクラウド録画を削除する
 | --------- | ---- | -------- | ----------- |
 | `meetingId` | string | はい | 過去のミーティングIDまたはUUID |
 | `pageSize` | number | いいえ | ページあたりのレコード数（最大300） |
-| `nextPageToken` | string | いいえ | 結果の次のページを取得するためのページネーショントークン |
+| `nextPageToken` | string | いいえ | 結果の次のページを取得するための改ページトークン |
 
 #### 出力
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `participants` | array | 会議参加者のリスト |
+| `participants` | array | ミーティング参加者のリスト |
 | `pageInfo` | object | ページネーション情報 |
 
 ## 注意事項
 
-- カテゴリー: `tools`
+- カテゴリ: `tools`
 - タイプ: `zoom`

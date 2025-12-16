@@ -398,7 +398,7 @@ function InputOutputSection({
   }, [data])
 
   return (
-    <div className='flex flex-col gap-[8px]'>
+    <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden'>
       <div
         className='group flex cursor-pointer items-center justify-between'
         onClick={() => onToggle(sectionKey)}
@@ -436,7 +436,7 @@ function InputOutputSection({
         <Code.Viewer
           code={jsonString}
           language='json'
-          className='!bg-[var(--surface-3)] min-h-0 overflow-hidden rounded-[6px] border-0'
+          className='!bg-[var(--surface-3)] min-h-0 max-w-full rounded-[6px] border-0 [word-break:break-all]'
           wrapText
         />
       )}
@@ -477,7 +477,7 @@ function NestedBlockItem({
   const isChildrenExpanded = expandedChildren.has(spanId)
 
   return (
-    <div className='flex flex-col gap-[8px]'>
+    <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden'>
       <ExpandableRowHeader
         name={span.name}
         duration={span.duration || 0}
@@ -502,7 +502,7 @@ function NestedBlockItem({
 
       {/* Nested children */}
       {hasChildren && isChildrenExpanded && (
-        <div className='mt-[2px] flex flex-col gap-[10px] border-[var(--border)] border-l-2 pl-[10px]'>
+        <div className='mt-[2px] flex min-w-0 flex-col gap-[10px] overflow-hidden border-[var(--border)] border-l-2 pl-[10px]'>
           {span.children!.map((child, childIndex) => (
             <NestedBlockItem
               key={child.id || `${spanId}-child-${childIndex}`}
@@ -617,7 +617,7 @@ function TraceSpanItem({
 
   return (
     <>
-      <div className='flex flex-col gap-[8px] rounded-[6px] bg-[var(--surface-1)] px-[10px] py-[8px]'>
+      <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden rounded-[6px] bg-[var(--surface-1)] px-[10px] py-[8px]'>
         <ExpandableRowHeader
           name={span.name}
           duration={duration}
@@ -642,7 +642,7 @@ function TraceSpanItem({
 
         {/* For workflow blocks, keep children nested within the card (not as separate cards) */}
         {!isFirstSpan && isWorkflowBlock && inlineChildren.length > 0 && isCardExpanded && (
-          <div className='mt-[2px] flex flex-col gap-[10px] border-[var(--border)] border-l-2 pl-[10px]'>
+          <div className='mt-[2px] flex min-w-0 flex-col gap-[10px] overflow-hidden border-[var(--border)] border-l-2 pl-[10px]'>
             {inlineChildren.map((childSpan, index) => (
               <NestedBlockItem
                 key={childSpan.id || `${spanId}-nested-${index}`}
@@ -662,7 +662,7 @@ function TraceSpanItem({
 
         {/* For non-workflow blocks, render inline children/tool calls */}
         {!isFirstSpan && !isWorkflowBlock && isCardExpanded && (
-          <div className='mt-[2px] flex flex-col gap-[10px] border-[var(--border)] border-l-2 pl-[10px]'>
+          <div className='mt-[2px] flex min-w-0 flex-col gap-[10px] overflow-hidden border-[var(--border)] border-l-2 pl-[10px]'>
             {[...toolCallSpans, ...inlineChildren].map((childSpan, index) => {
               const childId = childSpan.id || `${spanId}-inline-${index}`
               const childIsError = childSpan.status === 'error'
@@ -677,7 +677,10 @@ function TraceSpanItem({
               )
 
               return (
-                <div key={`inline-${childId}`} className='flex flex-col gap-[8px]'>
+                <div
+                  key={`inline-${childId}`}
+                  className='flex min-w-0 flex-col gap-[8px] overflow-hidden'
+                >
                   <ExpandableRowHeader
                     name={childSpan.name}
                     duration={childSpan.duration || 0}
@@ -727,7 +730,7 @@ function TraceSpanItem({
 
                   {/* Nested children */}
                   {showChildrenInProgressBar && hasNestedChildren && isNestedExpanded && (
-                    <div className='mt-[2px] flex flex-col gap-[10px] border-[var(--border)] border-l-2 pl-[10px]'>
+                    <div className='mt-[2px] flex min-w-0 flex-col gap-[10px] overflow-hidden border-[var(--border)] border-l-2 pl-[10px]'>
                       {childSpan.children!.map((nestedChild, nestedIndex) => (
                         <NestedBlockItem
                           key={nestedChild.id || `${childId}-nested-${nestedIndex}`}
@@ -809,9 +812,9 @@ export function TraceSpans({ traceSpans, totalDuration = 0 }: TraceSpansProps) {
   }
 
   return (
-    <div className='flex w-full flex-col gap-[6px] rounded-[6px] bg-[var(--surface-2)] px-[10px] py-[8px]'>
+    <div className='flex w-full min-w-0 flex-col gap-[6px] overflow-hidden rounded-[6px] bg-[var(--surface-2)] px-[10px] py-[8px]'>
       <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>Trace Span</span>
-      <div className='flex flex-col gap-[8px]'>
+      <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden'>
         {normalizedSpans.map((span, index) => (
           <TraceSpanItem
             key={span.id || index}
