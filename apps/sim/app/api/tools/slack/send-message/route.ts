@@ -58,11 +58,11 @@ export async function POST(request: NextRequest) {
     const result = await sendSlackMessage(
       {
         accessToken: validatedData.accessToken,
-        channel: validatedData.channel,
-        userId: validatedData.userId,
+        channel: validatedData.channel ?? undefined,
+        userId: validatedData.userId ?? undefined,
         text: validatedData.text,
-        threadTs: validatedData.thread_ts,
-        files: validatedData.files,
+        threadTs: validatedData.thread_ts ?? undefined,
+        files: validatedData.files ?? undefined,
       },
       requestId,
       logger
