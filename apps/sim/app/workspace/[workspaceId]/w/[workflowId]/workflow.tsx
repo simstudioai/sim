@@ -2154,11 +2154,13 @@ const WorkflowContent = React.memo(() => {
   return (
     <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--bg)]'>
       <div className='relative h-full w-full flex-1 bg-[var(--bg)]'>
-        {/* Loading spinner - always mounted, z-[5] to stay below fixed panel/terminal (z-10) */}
+        {/* Loading spinner - always mounted, animation paused when hidden to avoid overhead */}
         <div
           className={`absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)] transition-opacity duration-150 ${isWorkflowReady ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
         >
-          <div className='h-[18px] w-[18px] animate-spin rounded-full border-[1.5px] border-muted-foreground border-t-transparent' />
+          <div
+            className={`h-[18px] w-[18px] rounded-full border-[1.5px] border-muted-foreground border-t-transparent ${isWorkflowReady ? '' : 'animate-spin'}`}
+          />
         </div>
 
         {isWorkflowReady && (
