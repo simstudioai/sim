@@ -402,7 +402,6 @@ export class Serializer {
 
     // Second pass: filter by mode and conditions
     Object.entries(block.subBlocks).forEach(([id, subBlock]) => {
-      // Find ALL subblock configs with this ID (there may be multiple with different conditions)
       const matchingConfigs = blockConfig.subBlocks.filter((config) => config.id === id)
 
       // Include field if it matches current mode OR if it's the starter inputFormat with values
@@ -417,9 +416,6 @@ export class Serializer {
       const isLegacyAgentField =
         isAgentBlock && ['systemPrompt', 'userPrompt', 'memories'].includes(id)
 
-      // Check if ANY matching config's condition is met (for fields with same ID but different conditions)
-      // This handles blocks like Google Sheets where "values" field appears multiple times
-      // with different operation conditions (write, update, append)
       const anyConditionMet =
         matchingConfigs.length === 0
           ? true
