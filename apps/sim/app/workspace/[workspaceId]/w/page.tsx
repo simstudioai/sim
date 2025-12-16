@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { Panel, Terminal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
@@ -59,9 +58,7 @@ export default function WorkflowsPage() {
     <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--bg)]'>
       <div className='relative h-full w-full flex-1 bg-[var(--bg)]'>
         <div className='workflow-container flex h-full items-center justify-center bg-[var(--bg)]'>
-          <div className='flex flex-col items-center gap-3'>
-            <Loader2 className='h-5 w-5 animate-spin text-muted-foreground' />
-          </div>
+          <div className='h-[18px] w-[18px] animate-spin rounded-full border-[1.5px] border-muted-foreground border-t-transparent' />
         </div>
         <Panel />
       </div>

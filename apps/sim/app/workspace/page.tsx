@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -118,9 +117,7 @@ export default function WorkspacePage() {
   if (isPending) {
     return (
       <div className='flex h-screen w-full items-center justify-center'>
-        <div className='flex flex-col items-center justify-center text-center align-middle'>
-          <Loader2 className='h-5 w-5 animate-spin text-muted-foreground' />
-        </div>
+        <div className='h-[18px] w-[18px] animate-spin rounded-full border-[1.5px] border-muted-foreground border-t-transparent' />
       </div>
     )
   }

@@ -14,7 +14,6 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { Loader2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/other/oauth-request-access'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -2152,104 +2151,87 @@ const WorkflowContent = React.memo(() => {
     }
   }, [collaborativeSetSubblockValue])
 
-  const showSkeletonUI = !isWorkflowReady
-
-  if (showSkeletonUI) {
-    return (
-      <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--bg)]'>
-        <div className='relative h-full w-full flex-1 bg-[var(--bg)]'>
-          <div className='workflow-container flex h-full items-center justify-center bg-[var(--bg)]'>
-            <div className='flex flex-col items-center gap-3'>
-              <Loader2 className='h-5 w-5 animate-spin text-muted-foreground' />
-            </div>
-          </div>
-        </div>
-        <Panel />
-        <Terminal />
-      </div>
-    )
-  }
-
   return (
     <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--bg)]'>
       <div className='relative h-full w-full flex-1 bg-[var(--bg)]'>
-        {/* Training Controls - for recording workflow edits */}
-        {showTrainingModal && <TrainingModal />}
+        {/* Loading spinner - always mounted, z-[5] to stay below fixed panel/terminal (z-10) */}
+        <div
+          className={`absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)] transition-opacity duration-150 ${isWorkflowReady ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
+        >
+          <div className='h-[18px] w-[18px] animate-spin rounded-full border-[1.5px] border-muted-foreground border-t-transparent' />
+        </div>
 
-        <ReactFlow
-          nodes={displayNodes}
-          edges={edgesWithSelection}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={effectivePermissions.canEdit ? onConnect : undefined}
-          onConnectStart={effectivePermissions.canEdit ? onConnectStart : undefined}
-          onConnectEnd={effectivePermissions.canEdit ? onConnectEnd : undefined}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          onDrop={effectivePermissions.canEdit ? onDrop : undefined}
-          onDragOver={effectivePermissions.canEdit ? onDragOver : undefined}
-          onInit={(instance) => {
-            // Single RAF ensures nodes are measured before fitView calculates viewport
-            // Then reveal canvas to prevent any visual jank
-            requestAnimationFrame(() => {
-              instance.fitView(reactFlowFitViewOptions)
-              setIsCanvasReady(true)
-            })
-          }}
-          fitViewOptions={reactFlowFitViewOptions}
-          minZoom={0.1}
-          maxZoom={1.3}
-          panOnScroll
-          defaultEdgeOptions={defaultEdgeOptions}
-          proOptions={reactFlowProOptions}
-          connectionLineStyle={connectionLineStyle}
-          connectionLineType={ConnectionLineType.SmoothStep}
-          onNodeClick={(e, _node) => {
-            e.stopPropagation()
-          }}
-          onPaneClick={onPaneClick}
-          onEdgeClick={onEdgeClick}
-          onPointerMove={handleCanvasPointerMove}
-          onPointerLeave={handleCanvasPointerLeave}
-          elementsSelectable={true}
-          selectNodesOnDrag={false}
-          nodesConnectable={effectivePermissions.canEdit}
-          nodesDraggable={effectivePermissions.canEdit}
-          draggable={false}
-          noWheelClassName='allow-scroll'
-          edgesFocusable={true}
-          edgesUpdatable={effectivePermissions.canEdit}
-          className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${isCanvasReady ? 'opacity-100' : 'opacity-0'}`}
-          onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
-          onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
-          onNodeDragStart={effectivePermissions.canEdit ? onNodeDragStart : undefined}
-          snapToGrid={false}
-          snapGrid={snapGrid}
-          elevateEdgesOnSelect={true}
-          // Disabled onlyRenderVisibleElements - the mounting cost of blocks (with their
-          // many hooks/queries) when zooming out exceeds the rendering cost of keeping
-          // all blocks mounted. This trades memory for smooth zoom performance.
-          onlyRenderVisibleElements={false}
-          deleteKeyCode={null}
-          elevateNodesOnSelect={true}
-          autoPanOnConnect={effectivePermissions.canEdit}
-          autoPanOnNodeDrag={effectivePermissions.canEdit}
-        />
+        {isWorkflowReady && (
+          <>
+            {showTrainingModal && <TrainingModal />}
 
-        <Cursors />
+            <ReactFlow
+              nodes={displayNodes}
+              edges={edgesWithSelection}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={effectivePermissions.canEdit ? onConnect : undefined}
+              onConnectStart={effectivePermissions.canEdit ? onConnectStart : undefined}
+              onConnectEnd={effectivePermissions.canEdit ? onConnectEnd : undefined}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              onDrop={effectivePermissions.canEdit ? onDrop : undefined}
+              onDragOver={effectivePermissions.canEdit ? onDragOver : undefined}
+              onInit={(instance) => {
+                requestAnimationFrame(() => {
+                  instance.fitView(reactFlowFitViewOptions)
+                  setIsCanvasReady(true)
+                })
+              }}
+              fitViewOptions={reactFlowFitViewOptions}
+              minZoom={0.1}
+              maxZoom={1.3}
+              panOnScroll
+              defaultEdgeOptions={defaultEdgeOptions}
+              proOptions={reactFlowProOptions}
+              connectionLineStyle={connectionLineStyle}
+              connectionLineType={ConnectionLineType.SmoothStep}
+              onNodeClick={(e, _node) => {
+                e.stopPropagation()
+              }}
+              onPaneClick={onPaneClick}
+              onEdgeClick={onEdgeClick}
+              onPointerMove={handleCanvasPointerMove}
+              onPointerLeave={handleCanvasPointerLeave}
+              elementsSelectable={true}
+              selectNodesOnDrag={false}
+              nodesConnectable={effectivePermissions.canEdit}
+              nodesDraggable={effectivePermissions.canEdit}
+              draggable={false}
+              noWheelClassName='allow-scroll'
+              edgesFocusable={true}
+              edgesUpdatable={effectivePermissions.canEdit}
+              className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${isCanvasReady ? 'opacity-100' : 'opacity-0'}`}
+              onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
+              onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
+              onNodeDragStart={effectivePermissions.canEdit ? onNodeDragStart : undefined}
+              snapToGrid={false}
+              snapGrid={snapGrid}
+              elevateEdgesOnSelect={true}
+              onlyRenderVisibleElements={false}
+              deleteKeyCode={null}
+              elevateNodesOnSelect={true}
+              autoPanOnConnect={effectivePermissions.canEdit}
+              autoPanOnNodeDrag={effectivePermissions.canEdit}
+            />
 
-        {/* Floating chat modal - lazy loaded */}
-        <Suspense fallback={null}>
-          <LazyChat />
-        </Suspense>
+            <Cursors />
 
-        {/* Show DiffControls if diff is available (regardless of current view mode) */}
-        <DiffControls />
+            <Suspense fallback={null}>
+              <LazyChat />
+            </Suspense>
 
-        {/* Notifications display */}
+            <DiffControls />
+          </>
+        )}
+
         <Notifications />
 
-        {/* Trigger list for empty workflows - only show after workflow has loaded and hydrated */}
         {isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && <CommandList />}
 
         <Panel />
