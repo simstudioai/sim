@@ -188,13 +188,13 @@ export const jiraGetWorklogsTool: ToolConfig<JiraGetWorklogsParams, JiraGetWorkl
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
-      type: 'object',
-      description: 'Worklogs data with timestamp, issue key, total count, and array of worklogs',
+    ts: { type: 'string', description: 'Timestamp of the operation' },
+    issueKey: { type: 'string', description: 'Issue key' },
+    total: { type: 'number', description: 'Total number of worklogs' },
+    worklogs: {
+      type: 'array',
+      description:
+        'Array of worklogs with id, author, timeSpentSeconds, timeSpent, comment, created, updated, started',
     },
   },
 }

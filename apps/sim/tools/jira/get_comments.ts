@@ -179,13 +179,12 @@ export const jiraGetCommentsTool: ToolConfig<JiraGetCommentsParams, JiraGetComme
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
-      type: 'object',
-      description: 'Comments data with timestamp, issue key, total count, and array of comments',
+    ts: { type: 'string', description: 'Timestamp of the operation' },
+    issueKey: { type: 'string', description: 'Issue key' },
+    total: { type: 'number', description: 'Total number of comments' },
+    comments: {
+      type: 'array',
+      description: 'Array of comments with id, author, body, created, updated',
     },
   },
 }

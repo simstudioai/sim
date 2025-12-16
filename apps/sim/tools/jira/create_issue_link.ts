@@ -201,14 +201,10 @@ export const jiraCreateIssueLinkTool: ToolConfig<
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
-      type: 'object',
-      description:
-        'Issue link details with timestamp, inward issue key, outward issue key, link type, and success status',
-    },
+    ts: { type: 'string', description: 'Timestamp of the operation' },
+    inwardIssue: { type: 'string', description: 'Inward issue key' },
+    outwardIssue: { type: 'string', description: 'Outward issue key' },
+    linkType: { type: 'string', description: 'Type of issue link' },
+    linkId: { type: 'string', description: 'Created link ID' },
   },
 }

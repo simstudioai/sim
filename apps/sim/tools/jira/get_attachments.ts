@@ -131,13 +131,11 @@ export const jiraGetAttachmentsTool: ToolConfig<
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
-      type: 'object',
-      description: 'Attachments data with timestamp, issue key, and array of attachments',
+    ts: { type: 'string', description: 'Timestamp of the operation' },
+    issueKey: { type: 'string', description: 'Issue key' },
+    attachments: {
+      type: 'array',
+      description: 'Array of attachments with id, filename, size, mimeType, created, author',
     },
   },
 }

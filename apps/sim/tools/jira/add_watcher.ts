@@ -141,14 +141,8 @@ export const jiraAddWatcherTool: ToolConfig<JiraAddWatcherParams, JiraAddWatcher
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
-      type: 'object',
-      description:
-        'Watcher details with timestamp, issue key, watcher account ID, and success status',
-    },
+    ts: { type: 'string', description: 'Timestamp of the operation' },
+    issueKey: { type: 'string', description: 'Issue key' },
+    watcherAccountId: { type: 'string', description: 'Added watcher account ID' },
   },
 }
