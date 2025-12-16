@@ -58,7 +58,7 @@ COPY packages ./packages
 # Required for standalone nextjs build
 WORKDIR /app/apps/sim
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
-    bun install sharp
+    HUSKY=0 bun install sharp
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     VERCEL_TELEMETRY_DISABLED=1 \
