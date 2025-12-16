@@ -402,8 +402,8 @@ export class Serializer {
 
     // Second pass: filter by mode and conditions
     Object.entries(block.subBlocks).forEach(([id, subBlock]) => {
-      // Find the corresponding subblock config to check its mode and condition
-      const subBlockConfig = blockConfig.subBlocks.find((config) => config.id === id)
+      // Find ALL subblock configs with this ID (there may be multiple with different conditions)
+      const matchingConfigs = blockConfig.subBlocks.filter((config) => config.id === id)
 
       // Include field if it matches current mode OR if it's the starter inputFormat with values
       const hasStarterInputFormatValues =
@@ -417,13 +417,20 @@ export class Serializer {
       const isLegacyAgentField =
         isAgentBlock && ['systemPrompt', 'userPrompt', 'memories'].includes(id)
 
-      // Check if field's condition is met (conditionally-hidden fields should be excluded)
-      const conditionMet = subBlockConfig
-        ? evaluateCondition(subBlockConfig.condition, allValues)
-        : true
+      // Check if ANY matching config's condition is met (for fields with same ID but different conditions)
+      // This handles blocks like Google Sheets where "values" field appears multiple times
+      // with different operation conditions (write, update, append)
+      const anyConditionMet =
+        matchingConfigs.length === 0
+          ? true
+          : matchingConfigs.some(
+              (config) =>
+                shouldIncludeField(config, isAdvancedMode) &&
+                evaluateCondition(config.condition, allValues)
+            )
 
       if (
-        (subBlockConfig && shouldIncludeField(subBlockConfig, isAdvancedMode) && conditionMet) ||
+        (matchingConfigs.length > 0 && anyConditionMet) ||
         hasStarterInputFormatValues ||
         isLegacyAgentField
       ) {
@@ -540,26 +547,31 @@ export class Serializer {
     // Iterate through the tool's parameters, not the block's subBlocks
     Object.entries(currentTool.params || {}).forEach(([paramId, paramConfig]) => {
       if (paramConfig.required && paramConfig.visibility === 'user-only') {
-        const subBlockConfig = blockConfig.subBlocks?.find((sb: any) => sb.id === paramId)
+        // Find ALL subblock configs with this ID (there may be multiple with different conditions)
+        const matchingConfigs = blockConfig.subBlocks?.filter((sb: any) => sb.id === paramId) || []
 
         let shouldValidateParam = true
 
-        if (subBlockConfig) {
+        if (matchingConfigs.length > 0) {
           const isAdvancedMode = block.advancedMode ?? false
-          const includedByMode = shouldIncludeField(subBlockConfig, isAdvancedMode)
 
-          // Check visibility condition
-          const includedByCondition = evaluateCondition(subBlockConfig.condition, params)
+          // Check if ANY matching config's condition is met and requires validation
+          shouldValidateParam = matchingConfigs.some((subBlockConfig: any) => {
+            const includedByMode = shouldIncludeField(subBlockConfig, isAdvancedMode)
 
-          // Check if field is required based on its required condition (if it's a condition object)
-          const isRequired = (() => {
-            if (!subBlockConfig.required) return false
-            if (typeof subBlockConfig.required === 'boolean') return subBlockConfig.required
-            // If required is a condition object, evaluate it
-            return evaluateCondition(subBlockConfig.required, params)
-          })()
+            // Check visibility condition
+            const includedByCondition = evaluateCondition(subBlockConfig.condition, params)
 
-          shouldValidateParam = includedByMode && includedByCondition && isRequired
+            // Check if field is required based on its required condition (if it's a condition object)
+            const isRequired = (() => {
+              if (!subBlockConfig.required) return false
+              if (typeof subBlockConfig.required === 'boolean') return subBlockConfig.required
+              // If required is a condition object, evaluate it
+              return evaluateCondition(subBlockConfig.required, params)
+            })()
+
+            return includedByMode && includedByCondition && isRequired
+          })
         }
 
         if (!shouldValidateParam) {
@@ -568,7 +580,13 @@ export class Serializer {
 
         const fieldValue = params[paramId]
         if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
-          const displayName = subBlockConfig?.title || paramId
+          // Find the first matching config with a met condition for the display name
+          const activeConfig = matchingConfigs.find(
+            (config: any) =>
+              shouldIncludeField(config, block.advancedMode ?? false) &&
+              evaluateCondition(config.condition, params)
+          )
+          const displayName = activeConfig?.title || paramId
           missingFields.push(displayName)
         }
       }
