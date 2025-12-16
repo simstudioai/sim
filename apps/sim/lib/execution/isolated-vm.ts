@@ -1,13 +1,8 @@
-import type ivm from 'isolated-vm'
+import { type ChildProcess, fork } from 'node:child_process'
 import { validateProxyUrl } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('IsolatedVMExecution')
-
-async function loadIsolatedVM(): Promise<typeof ivm> {
-  const ivmModule = await import('isolated-vm')
-  return ivmModule.default
-}
 
 export interface IsolatedVMExecutionRequest {
   code: string
@@ -33,367 +28,160 @@ export interface IsolatedVMError {
   lineContent?: string
 }
 
-/**
- * Number of lines added before user code in the wrapper.
- * The wrapper structure is:
- * Line 1: (empty - newline after template literal backtick)
- * Line 2: (async () => {
- * Line 3:   try {
- * Line 4:     const __userResult = await (async () => {
- * Line 5+: user code starts here
- */
-const USER_CODE_START_LINE = 4
+interface PendingExecution {
+  resolve: (result: IsolatedVMExecutionResult) => void
+  reject: (error: Error) => void
+  timeout: ReturnType<typeof setTimeout>
+}
+
+let worker: ChildProcess | null = null
+let workerReady = false
+let workerReadyPromise: Promise<void> | null = null
+const pendingExecutions = new Map<number, PendingExecution>()
+let executionIdCounter = 0
 
 /**
  * Secure fetch wrapper that validates URLs to prevent SSRF attacks
  */
-async function secureFetch(
-  requestId: string,
-  url: string,
-  options?: RequestInit
-): Promise<{
-  ok: boolean
-  status: number
-  statusText: string
-  body: string
-  headers: Record<string, string>
-}> {
+async function secureFetch(requestId: string, url: string, options?: RequestInit): Promise<string> {
   const validation = validateProxyUrl(url)
   if (!validation.isValid) {
     logger.warn(`[${requestId}] Blocked fetch request due to SSRF validation`, {
       url: url.substring(0, 100),
       error: validation.error,
     })
-    throw new Error(`Security Error: ${validation.error}`)
+    return JSON.stringify({ error: `Security Error: ${validation.error}` })
   }
 
-  const response = await fetch(url, options)
-  const body = await response.text()
-  const headers: Record<string, string> = {}
-  response.headers.forEach((value, key) => {
-    headers[key] = value
+  try {
+    const response = await fetch(url, options)
+    const body = await response.text()
+    const headers: Record<string, string> = {}
+    response.headers.forEach((value, key) => {
+      headers[key] = value
+    })
+    return JSON.stringify({
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      body,
+      headers,
+    })
+  } catch (error: unknown) {
+    return JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown fetch error' })
+  }
+}
+
+/**
+ * Handle IPC messages from the Node.js worker
+ */
+function handleWorkerMessage(message: unknown) {
+  if (typeof message !== 'object' || message === null) return
+  const msg = message as Record<string, unknown>
+
+  if (msg.type === 'ready') {
+    workerReady = true
+    return
+  }
+
+  if (msg.type === 'result') {
+    const pending = pendingExecutions.get(msg.executionId as number)
+    if (pending) {
+      clearTimeout(pending.timeout)
+      pendingExecutions.delete(msg.executionId as number)
+      pending.resolve(msg.result as IsolatedVMExecutionResult)
+    }
+    return
+  }
+
+  if (msg.type === 'fetch') {
+    const { fetchId, requestId, url, optionsJson } = msg as {
+      fetchId: number
+      requestId: string
+      url: string
+      optionsJson?: string
+    }
+    const options = optionsJson ? JSON.parse(optionsJson) : undefined
+    secureFetch(requestId, url, options).then((response) => {
+      worker?.send({ type: 'fetchResponse', fetchId, response })
+    })
+  }
+}
+
+/**
+ * Start the Node.js worker process
+ */
+async function ensureWorker(): Promise<void> {
+  if (workerReady && worker) return
+  if (workerReadyPromise) return workerReadyPromise
+
+  workerReadyPromise = new Promise<void>((resolve, reject) => {
+    const workerPath = new URL('./isolated-vm-worker.cjs', import.meta.url).pathname
+
+    worker = fork(workerPath, [], {
+      stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
+      serialization: 'json',
+    })
+
+    worker.on('message', handleWorkerMessage)
+
+    const startTimeout = setTimeout(() => {
+      reject(new Error('Worker failed to start within timeout'))
+    }, 10000)
+
+    const checkReady = setInterval(() => {
+      if (workerReady) {
+        clearInterval(checkReady)
+        clearTimeout(startTimeout)
+        resolve()
+      }
+    }, 10)
+
+    worker.on('exit', (code) => {
+      logger.warn('Isolated-vm worker exited', { code })
+      worker = null
+      workerReady = false
+      workerReadyPromise = null
+      for (const [id, pending] of pendingExecutions) {
+        clearTimeout(pending.timeout)
+        pending.reject(new Error('Worker process exited unexpectedly'))
+        pendingExecutions.delete(id)
+      }
+    })
   })
 
-  return {
-    ok: response.ok,
-    status: response.status,
-    statusText: response.statusText,
-    body,
-    headers,
-  }
+  return workerReadyPromise
 }
 
 /**
- * Extract line and column from error stack or message
- */
-function extractLineInfo(errorMessage: string, stack?: string): { line?: number; column?: number } {
-  if (stack) {
-    const stackMatch = stack.match(/(?:<isolated-vm>|user-function\.js):(\d+):(\d+)/)
-    if (stackMatch) {
-      return {
-        line: Number.parseInt(stackMatch[1], 10),
-        column: Number.parseInt(stackMatch[2], 10),
-      }
-    }
-    const atMatch = stack.match(/at\s+(?:<isolated-vm>|user-function\.js):(\d+):(\d+)/)
-    if (atMatch) {
-      return {
-        line: Number.parseInt(atMatch[1], 10),
-        column: Number.parseInt(atMatch[2], 10),
-      }
-    }
-  }
-
-  const msgMatch = errorMessage.match(/:(\d+):(\d+)/)
-  if (msgMatch) {
-    return {
-      line: Number.parseInt(msgMatch[1], 10),
-      column: Number.parseInt(msgMatch[2], 10),
-    }
-  }
-
-  return {}
-}
-
-/**
- * Convert isolated-vm error info to a format compatible with the route's error handling
- */
-function convertToCompatibleError(
-  errorInfo: {
-    message: string
-    name: string
-    stack?: string
-  },
-  userCode: string
-): IsolatedVMError {
-  const { name } = errorInfo
-  let { message, stack } = errorInfo
-
-  message = message
-    .replace(/\s*\[user-function\.js:\d+:\d+\]/g, '')
-    .replace(/\s*\[<isolated-vm>:\d+:\d+\]/g, '')
-    .replace(/\s*\(<isolated-vm>:\d+:\d+\)/g, '')
-    .trim()
-
-  const lineInfo = extractLineInfo(errorInfo.message, stack)
-
-  let userLine: number | undefined
-  let lineContent: string | undefined
-
-  if (lineInfo.line !== undefined) {
-    userLine = lineInfo.line - USER_CODE_START_LINE
-    const codeLines = userCode.split('\n')
-    if (userLine > 0 && userLine <= codeLines.length) {
-      lineContent = codeLines[userLine - 1]?.trim()
-    } else if (userLine <= 0) {
-      userLine = 1
-      lineContent = codeLines[0]?.trim()
-    } else {
-      userLine = codeLines.length
-      lineContent = codeLines[codeLines.length - 1]?.trim()
-    }
-  }
-
-  if (stack) {
-    stack = stack.replace(/<isolated-vm>:(\d+):(\d+)/g, (_, line, col) => {
-      const adjustedLine = Number.parseInt(line, 10) - USER_CODE_START_LINE
-      return `user-function.js:${Math.max(1, adjustedLine)}:${col}`
-    })
-    stack = stack.replace(/at <isolated-vm>:(\d+):(\d+)/g, (_, line, col) => {
-      const adjustedLine = Number.parseInt(line, 10) - USER_CODE_START_LINE
-      return `at user-function.js:${Math.max(1, adjustedLine)}:${col}`
-    })
-  }
-
-  return {
-    message,
-    name,
-    stack,
-    line: userLine,
-    column: lineInfo.column,
-    lineContent,
-  }
-}
-
-/**
- * Execute JavaScript code in an isolated V8 isolate
+ * Execute JavaScript code in an isolated V8 isolate via Node.js subprocess
  */
 export async function executeInIsolatedVM(
   req: IsolatedVMExecutionRequest
 ): Promise<IsolatedVMExecutionResult> {
-  const { code, params, envVars, contextVariables, timeoutMs, requestId } = req
+  await ensureWorker()
 
-  const stdoutChunks: string[] = []
-  let isolate: ivm.Isolate | null = null
-
-  const ivm = await loadIsolatedVM()
-
-  try {
-    isolate = new ivm.Isolate({ memoryLimit: 128 })
-    const context = await isolate.createContext()
-
-    const jail = context.global
-
-    await jail.set('global', jail.derefInto())
-
-    const logCallback = new ivm.Callback((...args: unknown[]) => {
-      const message = args
-        .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
-        .join(' ')
-      stdoutChunks.push(`${message}\n`)
-    })
-    await jail.set('__log', logCallback)
-
-    const errorCallback = new ivm.Callback((...args: unknown[]) => {
-      const message = args
-        .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
-        .join(' ')
-      logger.error(`[${requestId}] Code Console Error: ${message}`)
-      stdoutChunks.push(`ERROR: ${message}\n`)
-    })
-    await jail.set('__error', errorCallback)
-
-    await jail.set('params', new ivm.ExternalCopy(params).copyInto())
-
-    await jail.set('environmentVariables', new ivm.ExternalCopy(envVars).copyInto())
-
-    for (const [key, value] of Object.entries(contextVariables)) {
-      await jail.set(key, new ivm.ExternalCopy(value).copyInto())
-    }
-
-    const fetchCallback = new ivm.Reference(async (url: string, optionsJson?: string) => {
-      try {
-        const options = optionsJson ? JSON.parse(optionsJson) : undefined
-        const result = await secureFetch(requestId, url, options)
-        return JSON.stringify(result)
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown fetch error'
-        return JSON.stringify({ error: errorMessage })
-      }
-    })
-    await jail.set('__fetchRef', fetchCallback)
-
-    const bootstrap = `
-      // Set up console object
-      const console = {
-        log: (...args) => __log(...args),
-        error: (...args) => __error(...args),
-        warn: (...args) => __log('WARN:', ...args),
-        info: (...args) => __log(...args),
-      };
-
-      // Set up fetch function that uses the host's secure fetch
-      async function fetch(url, options) {
-        let optionsJson;
-        if (options) {
-          try {
-            optionsJson = JSON.stringify(options);
-          } catch {
-            throw new Error('fetch options must be JSON-serializable');
-          }
-        }
-        const resultJson = await __fetchRef.apply(undefined, [url, optionsJson], { result: { promise: true } });
-        let result;
-        try {
-          result = JSON.parse(resultJson);
-        } catch {
-          throw new Error('Invalid fetch response');
-        }
-
-        if (result.error) {
-          throw new Error(result.error);
-        }
-
-        // Create a Response-like object
-        return {
-          ok: result.ok,
-          status: result.status,
-          statusText: result.statusText,
-          headers: {
-            get: (name) => result.headers[name.toLowerCase()] || null,
-            entries: () => Object.entries(result.headers),
-          },
-          text: async () => result.body,
-          json: async () => {
-            try {
-              return JSON.parse(result.body);
-            } catch (e) {
-              throw new Error('Failed to parse response as JSON: ' + e.message);
-            }
-          },
-          blob: async () => { throw new Error('blob() not supported in sandbox'); },
-          arrayBuffer: async () => { throw new Error('arrayBuffer() not supported in sandbox'); },
-        };
-      }
-
-      // Prevent access to dangerous globals with stronger protection
-      const undefined_globals = [
-        'Isolate', 'Context', 'Script', 'Module', 'Callback', 'Reference',
-        'ExternalCopy', 'process', 'require', 'module', 'exports', '__dirname', '__filename'
-      ];
-      for (const name of undefined_globals) {
-        try {
-          Object.defineProperty(global, name, {
-            value: undefined,
-            writable: false,
-            configurable: false
-          });
-        } catch {}
-      }
-    `
-
-    const bootstrapScript = await isolate.compileScript(bootstrap)
-    await bootstrapScript.run(context)
-
-    const wrappedCode = `
-      (async () => {
-        try {
-          const __userResult = await (async () => {
-            ${code}
-          })();
-          return JSON.stringify({ success: true, result: __userResult });
-        } catch (error) {
-          // Capture full error details including stack trace
-          const errorInfo = {
-            message: error.message || String(error),
-            name: error.name || 'Error',
-            stack: error.stack || ''
-          };
-          console.error(error.stack || error.message || error);
-          return JSON.stringify({ success: false, errorInfo });
-        }
-      })()
-    `
-
-    const userScript = await isolate.compileScript(wrappedCode, { filename: 'user-function.js' })
-    const resultJson = await userScript.run(context, { timeout: timeoutMs, promise: true })
-
-    let result: unknown = null
-    let error: IsolatedVMError | undefined
-
-    if (typeof resultJson === 'string') {
-      try {
-        const parsed = JSON.parse(resultJson)
-        if (parsed.success) {
-          result = parsed.result
-        } else if (parsed.errorInfo) {
-          error = convertToCompatibleError(parsed.errorInfo, code)
-        } else {
-          error = { message: 'Unknown error', name: 'Error' }
-        }
-      } catch {
-        result = resultJson
-      }
-    }
-
-    const stdout = stdoutChunks.join('')
-
-    if (error) {
-      return { result: null, stdout, error }
-    }
-
-    return { result, stdout }
-  } catch (err: unknown) {
-    const stdout = stdoutChunks.join('')
-
-    if (err instanceof Error) {
-      const errorInfo = {
-        message: err.message,
-        name: err.name,
-        stack: err.stack,
-      }
-
-      if (err.message.includes('Script execution timed out')) {
-        return {
-          result: null,
-          stdout,
-          error: {
-            message: `Execution timed out after ${timeoutMs}ms`,
-            name: 'TimeoutError',
-          },
-        }
-      }
-
-      return {
-        result: null,
-        stdout,
-        error: convertToCompatibleError(errorInfo, code),
-      }
-    }
-
+  if (!worker) {
     return {
       result: null,
-      stdout,
-      error: {
-        message: String(err),
-        name: 'Error',
-        line: 1,
-        lineContent: code.split('\n')[0]?.trim(),
-      },
-    }
-  } finally {
-    if (isolate) {
-      isolate.dispose()
+      stdout: '',
+      error: { message: 'Failed to start isolated-vm worker', name: 'WorkerError' },
     }
   }
+
+  const executionId = ++executionIdCounter
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      pendingExecutions.delete(executionId)
+      resolve({
+        result: null,
+        stdout: '',
+        error: { message: `Execution timed out after ${req.timeoutMs}ms`, name: 'TimeoutError' },
+      })
+    }, req.timeoutMs + 1000)
+
+    pendingExecutions.set(executionId, { resolve, reject, timeout })
+    worker!.send({ type: 'execute', executionId, request: req })
+  })
 }

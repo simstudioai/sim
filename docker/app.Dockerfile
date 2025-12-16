@@ -1,24 +1,31 @@
 # ========================================
-# Base Stage: Alpine Linux with Bun
+# Base Stage: Debian-based Bun
 # ========================================
-FROM oven/bun:1.3.3-alpine AS base
+FROM oven/bun:1.3.3-slim AS base
 
 # ========================================
 # Dependencies Stage: Install Dependencies
 # ========================================
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
 WORKDIR /app
+
+# Install Node.js 22 for isolated-vm compilation (requires node-gyp and V8)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ curl ca-certificates \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY package.json bun.lock turbo.json ./
 RUN mkdir -p apps packages/db
 COPY apps/sim/package.json ./apps/sim/package.json
 COPY packages/db/package.json ./packages/db/package.json
 
-# Install turbo globally and dependencies with cache mount for faster builds
+# Install turbo globally, then dependencies, then rebuild isolated-vm for Node.js
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
     bun install -g turbo && \
-    bun install --omit=dev --ignore-scripts
+    HUSKY=0 bun install --omit=dev --ignore-scripts && \
+    cd $(readlink -f node_modules/isolated-vm) && npx node-gyp rebuild --release && cd /app
 
 # ========================================
 # Builder Stage: Build the Application
@@ -78,20 +85,29 @@ RUN bun run build
 FROM base AS runner
 WORKDIR /app
 
-# Install Python and dependencies for guardrails PII detection (cached separately)
-# Also install ffmpeg for audio/video processing in STT
-RUN apk add --no-cache python3 py3-pip bash ffmpeg
+# Install Node.js 22 (for isolated-vm worker), Python, and other runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip python3-venv bash ffmpeg curl ca-certificates \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production
 
-# Create non-root user and group (cached separately)
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001
+# Create non-root user and group
+RUN groupadd -g 1001 nodejs && \
+    useradd -u 1001 -g nodejs nextjs
 
-# Copy application artifacts from builder (these change on every build)
+# Copy application artifacts from builder
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/public ./apps/sim/public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/static ./apps/sim/.next/static
+
+# Copy isolated-vm native module (compiled for Node.js in deps stage)
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/isolated-vm ./node_modules/isolated-vm
+
+# Copy the isolated-vm worker script
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs
 
 # Guardrails setup (files need to be owned by nextjs for runtime)
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/guardrails/setup.sh ./apps/sim/lib/guardrails/setup.sh
