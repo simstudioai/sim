@@ -54,17 +54,18 @@ Intégrez Slack dans le flux de travail. Peut envoyer, mettre à jour et supprim
 
 ### `slack_message`
 
-Envoyez des messages aux canaux ou utilisateurs Slack via l'API Slack. Prend en charge le formatage mrkdwn de Slack.
+Envoyez des messages aux canaux Slack ou en messages directs. Prend en charge le formatage mrkdwn de Slack.
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
 | `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
-| `botToken` | chaîne | Non | Jeton du bot pour le Bot personnalisé |
-| `channel` | chaîne | Oui | Canal Slack cible \(par ex., #general\) |
+| `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
+| `channel` | chaîne | Non | Canal Slack cible \(ex. : #general\) |
+| `userId` | chaîne | Non | ID utilisateur Slack cible pour les messages directs \(ex. : U1234567890\) |
 | `text` | chaîne | Oui | Texte du message à envoyer \(prend en charge le formatage mrkdwn de Slack\) |
-| `thread_ts` | chaîne | Non | Horodatage du fil pour répondre \(crée une réponse dans le fil\) |
+| `thread_ts` | chaîne | Non | Horodatage du fil de discussion auquel répondre \(crée une réponse dans le fil\) |
 | `files` | fichier[] | Non | Fichiers à joindre au message |
 
 #### Sortie
@@ -109,7 +110,8 @@ Lisez les derniers messages des canaux Slack. Récupérez l'historique des conve
 | --------- | ---- | ---------- | ----------- |
 | `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
 | `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
-| `channel` | chaîne | Oui | Canal Slack pour lire les messages \(ex. : #general\) |
+| `channel` | chaîne | Non | Canal Slack pour lire les messages \(ex. : #general\) |
+| `userId` | chaîne | Non | ID utilisateur pour la conversation en MP \(ex. : U1234567890\) |
 | `limit` | nombre | Non | Nombre de messages à récupérer \(par défaut : 10, max : 100\) |
 | `oldest` | chaîne | Non | Début de la plage temporelle \(horodatage\) |
 | `latest` | chaîne | Non | Fin de la plage temporelle \(horodatage\) |
