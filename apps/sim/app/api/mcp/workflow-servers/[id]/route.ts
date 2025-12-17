@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
@@ -51,7 +51,9 @@ export const GET = withMcpAuth<RouteParams>('read')(
         .from(workflowMcpTool)
         .where(eq(workflowMcpTool.serverId, serverId))
 
-      logger.info(`[${requestId}] Found workflow MCP server: ${server.name} with ${tools.length} tools`)
+      logger.info(
+        `[${requestId}] Found workflow MCP server: ${server.name} with ${tools.length} tools`
+      )
 
       return createMcpSuccessResponse({ server, tools })
     } catch (error) {

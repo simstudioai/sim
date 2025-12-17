@@ -208,11 +208,14 @@ export function useUpdateWorkflowMcpServer() {
       name,
       description,
     }: UpdateWorkflowMcpServerParams) => {
-      const response = await fetch(`/api/mcp/workflow-servers/${serverId}?workspaceId=${workspaceId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description }),
-      })
+      const response = await fetch(
+        `/api/mcp/workflow-servers/${serverId}?workspaceId=${workspaceId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, description }),
+        }
+      )
 
       const data = await response.json()
 

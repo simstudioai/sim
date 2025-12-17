@@ -133,11 +133,11 @@ async function syncMcpToolsOnVersionActivate(
     // Check if the activated version has a valid start block
     if (!hasValidStartBlockInState(versionState)) {
       // No start block - remove all MCP tools for this workflow
-      await db
-        .delete(workflowMcpTool)
-        .where(eq(workflowMcpTool.workflowId, workflowId))
-      
-      logger.info(`[${requestId}] Removed ${tools.length} MCP tool(s) - activated version has no start block: ${workflowId}`)
+      await db.delete(workflowMcpTool).where(eq(workflowMcpTool.workflowId, workflowId))
+
+      logger.info(
+        `[${requestId}] Removed ${tools.length} MCP tool(s) - activated version has no start block: ${workflowId}`
+      )
       return
     }
 
@@ -153,7 +153,9 @@ async function syncMcpToolsOnVersionActivate(
       })
       .where(eq(workflowMcpTool.workflowId, workflowId))
 
-    logger.info(`[${requestId}] Synced ${tools.length} MCP tool(s) for workflow version activation: ${workflowId}`)
+    logger.info(
+      `[${requestId}] Synced ${tools.length} MCP tool(s) for workflow version activation: ${workflowId}`
+    )
   } catch (error) {
     logger.error(`[${requestId}] Error syncing MCP tools on version activate:`, error)
     // Don't throw - this is a non-critical operation

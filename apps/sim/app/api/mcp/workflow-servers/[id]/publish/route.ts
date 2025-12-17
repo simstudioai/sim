@@ -54,7 +54,9 @@ export const POST = withMcpAuth<RouteParams>('admin')(
 
       if (tools.length === 0) {
         return createMcpErrorResponse(
-          new Error('Cannot publish server without any tools. Add at least one workflow as a tool first.'),
+          new Error(
+            'Cannot publish server without any tools. Add at least one workflow as a tool first.'
+          ),
           'Server has no tools',
           400
         )

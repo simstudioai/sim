@@ -49,13 +49,15 @@ function mapFieldTypeToJsonSchemaType(fieldType: string | undefined): string {
  * Tool names should be lowercase, alphanumeric with underscores.
  */
 export function sanitizeToolName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9\s_-]/g, '')
-    .replace(/[\s-]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '')
-    .substring(0, 64) || 'workflow_tool'
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s_-]/g, '')
+      .replace(/[\s-]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '')
+      .substring(0, 64) || 'workflow_tool'
+  )
 }
 
 /**

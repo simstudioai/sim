@@ -135,11 +135,11 @@ async function syncMcpToolsOnRevert(
     // Check if the reverted version has a valid start block
     if (!hasValidStartBlockInState(versionState)) {
       // No start block - remove all MCP tools for this workflow
-      await db
-        .delete(workflowMcpTool)
-        .where(eq(workflowMcpTool.workflowId, workflowId))
-      
-      logger.info(`[${requestId}] Removed ${tools.length} MCP tool(s) - reverted version has no start block: ${workflowId}`)
+      await db.delete(workflowMcpTool).where(eq(workflowMcpTool.workflowId, workflowId))
+
+      logger.info(
+        `[${requestId}] Removed ${tools.length} MCP tool(s) - reverted version has no start block: ${workflowId}`
+      )
       return
     }
 
@@ -155,7 +155,9 @@ async function syncMcpToolsOnRevert(
       })
       .where(eq(workflowMcpTool.workflowId, workflowId))
 
-    logger.info(`[${requestId}] Synced ${tools.length} MCP tool(s) for workflow revert: ${workflowId}`)
+    logger.info(
+      `[${requestId}] Synced ${tools.length} MCP tool(s) for workflow revert: ${workflowId}`
+    )
   } catch (error) {
     logger.error(`[${requestId}] Error syncing MCP tools on revert:`, error)
     // Don't throw - this is a non-critical operation

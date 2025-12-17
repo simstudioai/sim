@@ -20,13 +20,15 @@ interface RouteParams {
  * Tool names should be lowercase, alphanumeric with underscores.
  */
 function sanitizeToolName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9\s_-]/g, '')
-    .replace(/[\s-]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '')
-    .substring(0, 64) || 'workflow_tool'
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s_-]/g, '')
+      .replace(/[\s-]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '')
+      .substring(0, 64) || 'workflow_tool'
+  )
 }
 
 /**
@@ -217,7 +219,9 @@ export const POST = withMcpAuth<RouteParams>('write')(
       // Generate tool name and description
       const toolName = body.toolName?.trim() || sanitizeToolName(workflowRecord.name)
       const toolDescription =
-        body.toolDescription?.trim() || workflowRecord.description || `Execute ${workflowRecord.name} workflow`
+        body.toolDescription?.trim() ||
+        workflowRecord.description ||
+        `Execute ${workflowRecord.name} workflow`
 
       // Create the tool
       const toolId = crypto.randomUUID()

@@ -60,7 +60,9 @@ const parseTriggerArrayFromURL = (value: string | null): TriggerType[] => {
   if (!value) return []
   return value
     .split(',')
-    .filter((t): t is TriggerType => ['chat', 'api', 'webhook', 'manual', 'schedule', 'mcp'].includes(t))
+    .filter((t): t is TriggerType =>
+      ['chat', 'api', 'webhook', 'manual', 'schedule', 'mcp'].includes(t)
+    )
 }
 
 const parseStringArrayFromURL = (value: string | null): string[] => {

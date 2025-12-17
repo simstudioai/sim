@@ -179,7 +179,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         <div className='min-h-0 flex-1 overflow-y-auto'>
           <div className='flex flex-col gap-[16px]'>
             <div className='flex flex-col gap-[8px]'>
-              <span className='font-medium text-[13px] text-[var(--text-primary)]'>Server Name</span>
+              <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                Server Name
+              </span>
               <p className='text-[14px] text-[var(--text-secondary)]'>{server.name}</p>
             </div>
 
@@ -317,7 +319,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>
               Are you sure you want to remove{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{toolToDelete?.toolName}</span>{' '}
+              <span className='font-medium text-[var(--text-primary)]'>
+                {toolToDelete?.toolName}
+              </span>{' '}
               from this server?
             </p>
           </ModalBody>
@@ -464,10 +468,14 @@ export function WorkflowMcpServers() {
           <div className='rounded-[8px] border bg-[var(--surface-3)] p-[12px]'>
             <div className='flex flex-col gap-[12px]'>
               <div className='flex flex-col gap-[6px]'>
-                <label className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                <label
+                  htmlFor='mcp-server-name'
+                  className='font-medium text-[13px] text-[var(--text-secondary)]'
+                >
                   Server Name
                 </label>
                 <EmcnInput
+                  id='mcp-server-name'
                   placeholder='e.g., My Workflow Tools'
                   value={formData.name}
                   onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
@@ -476,13 +484,19 @@ export function WorkflowMcpServers() {
               </div>
 
               <div className='flex flex-col gap-[6px]'>
-                <label className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                <label
+                  htmlFor='mcp-server-description'
+                  className='font-medium text-[13px] text-[var(--text-secondary)]'
+                >
                   Description (optional)
                 </label>
                 <EmcnInput
+                  id='mcp-server-description'
                   placeholder='Describe what this server provides...'
                   value={formData.description}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, description: e.target.value }))
+                  }
                   className='h-9'
                 />
               </div>
@@ -551,7 +565,8 @@ export function WorkflowMcpServers() {
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>
               Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{serverToDelete?.name}</span>?{' '}
+              <span className='font-medium text-[var(--text-primary)]'>{serverToDelete?.name}</span>
+              ?{' '}
               <span className='text-[var(--text-error)]'>
                 This will remove all tools and cannot be undone.
               </span>

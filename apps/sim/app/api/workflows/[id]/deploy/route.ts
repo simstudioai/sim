@@ -138,11 +138,11 @@ async function syncMcpToolsOnDeploy(workflowId: string, requestId: string): Prom
     const hasStart = await hasValidStartBlock(workflowId)
     if (!hasStart) {
       // No start block - remove all MCP tools for this workflow
-      await db
-        .delete(workflowMcpTool)
-        .where(eq(workflowMcpTool.workflowId, workflowId))
-      
-      logger.info(`[${requestId}] Removed ${tools.length} MCP tool(s) - workflow no longer has a start block: ${workflowId}`)
+      await db.delete(workflowMcpTool).where(eq(workflowMcpTool.workflowId, workflowId))
+
+      logger.info(
+        `[${requestId}] Removed ${tools.length} MCP tool(s) - workflow no longer has a start block: ${workflowId}`
+      )
       return
     }
 

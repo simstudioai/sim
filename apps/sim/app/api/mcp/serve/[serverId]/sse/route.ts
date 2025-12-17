@@ -3,8 +3,8 @@ import { workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('WorkflowMcpSSE')
@@ -54,10 +54,7 @@ async function validateServer(serverId: string) {
  * GET - SSE endpoint for MCP protocol
  * This establishes a Server-Sent Events connection for bidirectional MCP communication
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<RouteParams> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<RouteParams> }) {
   const { serverId } = await params
 
   try {
@@ -160,10 +157,7 @@ export async function GET(
  * POST - Handle messages sent to the SSE endpoint
  * This is used for the message channel in MCP streamable-http transport
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<RouteParams> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<RouteParams> }) {
   const { serverId } = await params
 
   try {
@@ -224,7 +218,9 @@ export async function POST(
 
       case 'tools/call': {
         // Get the API key from the request to forward to the workflow execute call
-        const apiKey = request.headers.get('X-API-Key') || request.headers.get('Authorization')?.replace('Bearer ', '')
+        const apiKey =
+          request.headers.get('X-API-Key') ||
+          request.headers.get('Authorization')?.replace('Bearer ', '')
         return handleToolsCall(message, serverId, userId, workspaceId, apiKey)
       }
 
@@ -258,10 +254,7 @@ export async function POST(
 /**
  * Handle tools/list method
  */
-async function handleToolsList(
-  id: string | number,
-  serverId: string
-): Promise<NextResponse> {
+async function handleToolsList(id: string | number, serverId: string): Promise<NextResponse> {
   const tools = await db
     .select({
       toolName: workflowMcpTool.toolName,
@@ -369,7 +362,7 @@ async function handleToolsCall(
     const executeHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
     }
-    
+
     // Forward the API key for authentication
     if (apiKey) {
       executeHeaders['X-API-Key'] = apiKey

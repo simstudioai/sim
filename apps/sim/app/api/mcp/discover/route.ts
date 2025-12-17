@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { permissions, workflowMcpServer, workspace } from '@sim/db/schema'
-import { eq, and, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -12,24 +12,24 @@ export const dynamic = 'force-dynamic'
 
 /**
  * GET - Discover all published MCP servers available to the authenticated user
- * 
+ *
  * This endpoint allows external MCP clients to discover available servers
  * using just their API key, without needing to know workspace IDs.
- * 
+ *
  * Authentication: API Key (X-API-Key header) or Session
- * 
+ *
  * Returns all published MCP servers from workspaces the user has access to.
  */
 export async function GET(request: NextRequest) {
   try {
     // Authenticate the request
     const auth = await checkHybridAuth(request, { requireWorkflowId: false })
-    
+
     if (!auth.success || !auth.userId) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Authentication required. Provide X-API-Key header with your Sim API key.' 
+        {
+          success: false,
+          error: 'Authentication required. Provide X-API-Key header with your Sim API key.',
         },
         { status: 401 }
       )
@@ -41,14 +41,9 @@ export async function GET(request: NextRequest) {
     const userWorkspacePermissions = await db
       .select({ entityId: permissions.entityId })
       .from(permissions)
-      .where(
-        and(
-          eq(permissions.userId, userId),
-          eq(permissions.entityType, 'workspace')
-        )
-      )
+      .where(and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace')))
 
-    const workspaceIds = userWorkspacePermissions.map(w => w.entityId)
+    const workspaceIds = userWorkspacePermissions.map((w) => w.entityId)
 
     if (workspaceIds.length === 0) {
       return NextResponse.json({
@@ -87,7 +82,7 @@ export async function GET(request: NextRequest) {
     const baseUrl = getBaseUrl()
 
     // Format response with connection URLs
-    const formattedServers = servers.map(server => ({
+    const formattedServers = servers.map((server) => ({
       id: server.id,
       name: server.name,
       description: server.description,
@@ -119,7 +114,7 @@ export async function GET(request: NextRequest) {
           body: '{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
         },
         callTool: {
-          method: 'POST', 
+          method: 'POST',
           body: '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"TOOL_NAME","arguments":{}}}',
         },
       },

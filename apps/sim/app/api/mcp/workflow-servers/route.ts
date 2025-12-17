@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
-import { workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { workflowMcpServer } from '@sim/db/schema'
+import { eq, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'

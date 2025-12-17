@@ -86,10 +86,7 @@ async function validateServer(serverId: string) {
 /**
  * GET - Server info and capabilities (MCP initialize)
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<RouteParams> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<RouteParams> }) {
   const { serverId } = await params
 
   try {
@@ -122,10 +119,7 @@ export async function GET(
 /**
  * POST - Handle MCP JSON-RPC requests
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<RouteParams> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<RouteParams> }) {
   const { serverId } = await params
 
   try {
@@ -151,10 +145,9 @@ export async function POST(
     const rpcRequest = body as JsonRpcRequest
 
     if (rpcRequest.jsonrpc !== '2.0' || !rpcRequest.method) {
-      return NextResponse.json(
-        createJsonRpcError(rpcRequest?.id || 0, -32600, 'Invalid Request'),
-        { status: 400 }
-      )
+      return NextResponse.json(createJsonRpcError(rpcRequest?.id || 0, -32600, 'Invalid Request'), {
+        status: 400,
+      })
     }
 
     // Handle different MCP methods
@@ -178,7 +171,9 @@ export async function POST(
 
       case 'tools/call': {
         // Get the API key from the request to forward to the workflow execute call
-        const apiKey = request.headers.get('X-API-Key') || request.headers.get('Authorization')?.replace('Bearer ', '')
+        const apiKey =
+          request.headers.get('X-API-Key') ||
+          request.headers.get('Authorization')?.replace('Bearer ', '')
         return handleToolsCall(rpcRequest, serverId, auth.userId, server.workspaceId, apiKey)
       }
 
@@ -193,10 +188,7 @@ export async function POST(
     }
   } catch (error) {
     logger.error('Error handling MCP request:', error)
-    return NextResponse.json(
-      createJsonRpcError(0, -32603, 'Internal error'),
-      { status: 500 }
-    )
+    return NextResponse.json(createJsonRpcError(0, -32603, 'Internal error'), { status: 500 })
   }
 }
 
@@ -236,15 +228,12 @@ async function handleToolsList(
         },
       }))
 
-    return NextResponse.json(
-      createJsonRpcResponse(rpcRequest.id, { tools: mcpTools })
-    )
+    return NextResponse.json(createJsonRpcResponse(rpcRequest.id, { tools: mcpTools }))
   } catch (error) {
     logger.error('Error listing tools:', error)
-    return NextResponse.json(
-      createJsonRpcError(rpcRequest.id, -32603, 'Failed to list tools'),
-      { status: 500 }
-    )
+    return NextResponse.json(createJsonRpcError(rpcRequest.id, -32603, 'Failed to list tools'), {
+      status: 500,
+    })
   }
 }
 
@@ -259,7 +248,9 @@ async function handleToolsCall(
   apiKey?: string | null
 ): Promise<NextResponse> {
   try {
-    const params = rpcRequest.params as { name: string; arguments?: Record<string, unknown> } | undefined
+    const params = rpcRequest.params as
+      | { name: string; arguments?: Record<string, unknown> }
+      | undefined
 
     if (!params?.name) {
       return NextResponse.json(
@@ -318,7 +309,7 @@ async function handleToolsCall(
     const executeHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
     }
-    
+
     // Forward the API key for authentication
     if (apiKey) {
       executeHeaders['X-API-Key'] = apiKey
@@ -362,9 +353,8 @@ async function handleToolsCall(
     )
   } catch (error) {
     logger.error('Error calling tool:', error)
-    return NextResponse.json(
-      createJsonRpcError(rpcRequest.id, -32603, 'Tool execution failed'),
-      { status: 500 }
-    )
+    return NextResponse.json(createJsonRpcError(rpcRequest.id, -32603, 'Tool execution failed'), {
+      status: 500,
+    })
   }
 }

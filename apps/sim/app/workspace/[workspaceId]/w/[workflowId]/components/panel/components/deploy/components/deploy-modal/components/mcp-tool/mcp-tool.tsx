@@ -1,7 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Check, ChevronDown, ChevronRight, Plus, RefreshCw, Server, Trash2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  RefreshCw,
+  Server,
+  Trash2,
+} from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -42,20 +50,24 @@ interface McpToolDeployProps {
  * Sanitize a workflow name to be a valid MCP tool name.
  */
 function sanitizeToolName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9\s_-]/g, '')
-    .replace(/[\s-]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '')
-    .substring(0, 64) || 'workflow_tool'
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s_-]/g, '')
+      .replace(/[\s-]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '')
+      .substring(0, 64) || 'workflow_tool'
+  )
 }
 
 /**
  * Extract input format from workflow blocks using SubBlockStore
  * The actual input format values are stored in useSubBlockStore, not directly in the block structure
  */
-function extractInputFormat(blocks: Record<string, unknown>): Array<{ name: string; type: string }> {
+function extractInputFormat(
+  blocks: Record<string, unknown>
+): Array<{ name: string; type: string }> {
   // Find the starter block
   for (const [blockId, block] of Object.entries(blocks)) {
     if (!block || typeof block !== 'object') continue
@@ -67,7 +79,7 @@ function extractInputFormat(blocks: Record<string, unknown>): Array<{ name: stri
     if (
       blockType === 'starter' ||
       blockType === 'start' ||
-      blockType === 'start_trigger' ||  // This is the unified start block type
+      blockType === 'start_trigger' || // This is the unified start block type
       blockType === 'api' ||
       blockType === 'api_trigger' ||
       blockType === 'input_trigger'
@@ -325,7 +337,10 @@ function ToolOnServer({
             </Badge>
           )}
           {needsUpdate && (
-            <Badge variant='outline' className='border-amber-500/50 bg-amber-500/10 text-[10px] text-amber-500'>
+            <Badge
+              variant='outline'
+              className='border-amber-500/50 bg-amber-500/10 text-[10px] text-amber-500'
+            >
               <AlertTriangle className='mr-[4px] h-[10px] w-[10px]' />
               Needs Update
             </Badge>
@@ -339,7 +354,12 @@ function ToolOnServer({
               disabled={updateToolMutation.isPending}
               className='h-[24px] px-[8px] text-[11px] text-amber-500 hover:text-amber-600'
             >
-              <RefreshCw className={cn('mr-[4px] h-[10px] w-[10px]', updateToolMutation.isPending && 'animate-spin')} />
+              <RefreshCw
+                className={cn(
+                  'mr-[4px] h-[10px] w-[10px]',
+                  updateToolMutation.isPending && 'animate-spin'
+                )}
+              />
               {updateToolMutation.isPending ? 'Updating...' : 'Update'}
             </Button>
           )}
@@ -354,14 +374,18 @@ function ToolOnServer({
       </div>
 
       {showDetails && (
-        <div className='border-t border-[var(--border)] px-[10px] py-[8px]'>
+        <div className='border-[var(--border)] border-t px-[10px] py-[8px]'>
           <div className='flex flex-col gap-[6px]'>
             <div className='flex items-center justify-between'>
               <span className='text-[11px] text-[var(--text-muted)]'>Tool Name</span>
-              <span className='font-mono text-[11px] text-[var(--text-secondary)]'>{tool.toolName}</span>
+              <span className='font-mono text-[11px] text-[var(--text-secondary)]'>
+                {tool.toolName}
+              </span>
             </div>
             <div className='flex items-start justify-between gap-[8px]'>
-              <span className='flex-shrink-0 text-[11px] text-[var(--text-muted)]'>Description</span>
+              <span className='flex-shrink-0 text-[11px] text-[var(--text-muted)]'>
+                Description
+              </span>
               <span className='text-right text-[11px] text-[var(--text-secondary)]'>
                 {tool.toolDescription || '—'}
               </span>
@@ -399,12 +423,16 @@ export function McpToolDeploy({
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
-  const { data: servers = [], isLoading: isLoadingServers, refetch: refetchServers } = useWorkflowMcpServers(workspaceId)
+  const {
+    data: servers = [],
+    isLoading: isLoadingServers,
+    refetch: refetchServers,
+  } = useWorkflowMcpServers(workspaceId)
   const addToolMutation = useAddWorkflowMcpTool()
 
   // Get workflow blocks
   const blocks = useWorkflowStore((state) => state.blocks)
-  
+
   // Find the starter block ID to subscribe to its inputFormat changes
   const starterBlockId = useMemo(() => {
     for (const [blockId, block] of Object.entries(blocks)) {
@@ -414,7 +442,7 @@ export function McpToolDeploy({
       if (
         blockType === 'starter' ||
         blockType === 'start' ||
-        blockType === 'start_trigger' ||  // This is the unified start block type
+        blockType === 'start_trigger' || // This is the unified start block type
         blockType === 'api' ||
         blockType === 'api_trigger' ||
         blockType === 'input_trigger'
@@ -428,7 +456,7 @@ export function McpToolDeploy({
   // Subscribe to the inputFormat value in SubBlockStore for reactivity
   // Use workflowId prop directly (not activeWorkflowId from registry) to ensure we get the correct workflow's data
   const subBlockValues = useSubBlockStore((state) =>
-    workflowId ? state.workflowValues[workflowId] ?? {} : {}
+    workflowId ? (state.workflowValues[workflowId] ?? {}) : {}
   )
 
   // Extract and normalize input format - now reactive to SubBlockStore changes
@@ -436,7 +464,7 @@ export function McpToolDeploy({
     // First try to get from SubBlockStore (where runtime values are stored)
     if (starterBlockId && subBlockValues[starterBlockId]) {
       const inputFormatValue = subBlockValues[starterBlockId].inputFormat
-      
+
       if (Array.isArray(inputFormatValue) && inputFormatValue.length > 0) {
         const filtered = inputFormatValue
           .filter(
@@ -461,7 +489,7 @@ export function McpToolDeploy({
     if (starterBlockId && blocks[starterBlockId]) {
       const startBlock = blocks[starterBlockId]
       const subBlocksValue = startBlock?.subBlocks?.inputFormat?.value as unknown
-      
+
       if (Array.isArray(subBlocksValue) && subBlocksValue.length > 0) {
         const validFields: Array<{ name: string; type: string }> = []
         for (const field of subBlocksValue) {
@@ -497,22 +525,27 @@ export function McpToolDeploy({
   const [showParameterSchema, setShowParameterSchema] = useState(false)
 
   // Track tools data from each server using state instead of hooks in a loop
-  const [serverToolsMap, setServerToolsMap] = useState<Record<string, { tool: WorkflowMcpTool | null; isLoading: boolean }>>({})
+  const [serverToolsMap, setServerToolsMap] = useState<
+    Record<string, { tool: WorkflowMcpTool | null; isLoading: boolean }>
+  >({})
 
   // Stable callback to handle tool data from ServerToolsQuery components
-  const handleServerToolData = useCallback((serverId: string, tool: WorkflowMcpTool | null, isLoading: boolean) => {
-    setServerToolsMap((prev) => {
-      // Only update if data has changed to prevent infinite loops
-      const existing = prev[serverId]
-      if (existing?.tool?.id === tool?.id && existing?.isLoading === isLoading) {
-        return prev
-      }
-      return {
-        ...prev,
-        [serverId]: { tool, isLoading },
-      }
-    })
-  }, [])
+  const handleServerToolData = useCallback(
+    (serverId: string, tool: WorkflowMcpTool | null, isLoading: boolean) => {
+      setServerToolsMap((prev) => {
+        // Only update if data has changed to prevent infinite loops
+        const existing = prev[serverId]
+        if (existing?.tool?.id === tool?.id && existing?.isLoading === isLoading) {
+          return prev
+        }
+        return {
+          ...prev,
+          [serverId]: { tool, isLoading },
+        }
+      })
+    },
+    []
+  )
 
   // Find which servers already have this workflow as a tool and get the tool info
   const serversWithThisWorkflow = useMemo(() => {
@@ -555,7 +588,7 @@ export function McpToolDeploy({
       setSelectedServer(null)
       setToolName('')
       setToolDescription('')
-      
+
       // Refetch servers to update tool count
       refetchServers()
       onAddedToServer?.()
@@ -576,18 +609,21 @@ export function McpToolDeploy({
     onAddedToServer,
   ])
 
-  const handleToolChanged = useCallback((removedServerId?: string) => {
-    // If a tool was removed from a specific server, clear just that entry
-    // The ServerToolsQuery component will re-query and update the map
-    if (removedServerId) {
-      setServerToolsMap((prev) => {
-        const next = { ...prev }
-        delete next[removedServerId]
-        return next
-      })
-    }
-    refetchServers()
-  }, [refetchServers])
+  const handleToolChanged = useCallback(
+    (removedServerId?: string) => {
+      // If a tool was removed from a specific server, clear just that entry
+      // The ServerToolsQuery component will re-query and update the map
+      if (removedServerId) {
+        setServerToolsMap((prev) => {
+          const next = { ...prev }
+          delete next[removedServerId]
+          return next
+        })
+      }
+      refetchServers()
+    },
+    [refetchServers]
+  )
 
   const availableServers = useMemo(() => {
     const addedServerIds = new Set(serversWithThisWorkflow.map((s) => s.server.id))
@@ -646,7 +682,8 @@ export function McpToolDeploy({
 
       <div className='flex flex-col gap-[4px]'>
         <p className='text-[13px] text-[var(--text-secondary)]'>
-          Add this workflow as an MCP tool to make it callable by external MCP clients like Cursor or Claude Desktop.
+          Add this workflow as an MCP tool to make it callable by external MCP clients like Cursor
+          or Claude Desktop.
         </p>
       </div>
 
@@ -655,8 +692,8 @@ export function McpToolDeploy({
         <div className='flex items-center gap-[8px] rounded-[6px] border border-amber-500/30 bg-amber-500/10 px-[10px] py-[8px]'>
           <AlertTriangle className='h-[14px] w-[14px] flex-shrink-0 text-amber-500' />
           <p className='text-[12px] text-amber-600 dark:text-amber-400'>
-            {toolsNeedingUpdate.length} server{toolsNeedingUpdate.length > 1 ? 's have' : ' has'} outdated tool
-            definitions. Click "Update" on each to sync with current parameters.
+            {toolsNeedingUpdate.length} server{toolsNeedingUpdate.length > 1 ? 's have' : ' has'}{' '}
+            outdated tool definitions. Click "Update" on each to sync with current parameters.
           </p>
         </div>
       )}
@@ -677,12 +714,13 @@ export function McpToolDeploy({
             Current Tool Parameters ({inputFormat.length})
           </Label>
         </button>
-        
+
         {showParameterSchema && (
           <div className='rounded-[6px] border bg-[var(--surface-4)] p-[12px]'>
             {inputFormat.length === 0 ? (
               <p className='text-[12px] text-[var(--text-muted)]'>
-                No parameters defined. Add input fields in the Starter block to define tool parameters.
+                No parameters defined. Add input fields in the Starter block to define tool
+                parameters.
               </p>
             ) : (
               <div className='flex flex-col gap-[8px]'>
