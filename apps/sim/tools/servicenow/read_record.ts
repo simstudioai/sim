@@ -2,10 +2,10 @@ import { createLogger } from '@/lib/logs/console/logger'
 import type { ServiceNowReadParams, ServiceNowReadResponse } from '@/tools/servicenow/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('ServiceNowReadTool')
+const logger = createLogger('ServiceNowReadRecordTool')
 
-export const readTool: ToolConfig<ServiceNowReadParams, ServiceNowReadResponse> = {
-  id: 'servicenow_read',
+export const readRecordTool: ToolConfig<ServiceNowReadParams, ServiceNowReadResponse> = {
+  id: 'servicenow_read_record',
   name: 'Read ServiceNow Records',
   description: 'Read records from a ServiceNow table',
   version: '1.0.0',
@@ -131,7 +131,7 @@ export const readTool: ToolConfig<ServiceNowReadParams, ServiceNowReadResponse> 
         },
       }
     } catch (error) {
-      logger.error('ServiceNow read - Error processing response:', { error })
+      logger.error('ServiceNow read record - Error processing response:', { error })
       throw error
     }
   },

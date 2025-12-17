@@ -960,11 +960,10 @@ import {
 } from '@/tools/sentry'
 import { serperSearchTool } from '@/tools/serper'
 import {
-  servicenowCreateTool,
-  servicenowDeleteTool,
-  servicenowImportSetTool,
-  servicenowReadTool,
-  servicenowUpdateTool,
+  servicenowCreateRecordTool,
+  servicenowDeleteRecordTool,
+  servicenowReadRecordTool,
+  servicenowUpdateRecordTool,
 } from '@/tools/servicenow'
 import {
   sftpDeleteTool,
@@ -1527,11 +1526,10 @@ export const tools: Record<string, ToolConfig> = {
   github_repo_info: githubRepoInfoTool,
   github_latest_commit: githubLatestCommitTool,
   serper_search: serperSearchTool,
-  servicenow_create: servicenowCreateTool,
-  servicenow_read: servicenowReadTool,
-  servicenow_update: servicenowUpdateTool,
-  servicenow_delete: servicenowDeleteTool,
-  servicenow_import_set: servicenowImportSetTool,
+  servicenow_create_record: servicenowCreateRecordTool,
+  servicenow_read_record: servicenowReadRecordTool,
+  servicenow_update_record: servicenowUpdateRecordTool,
+  servicenow_delete_record: servicenowDeleteRecordTool,
   tavily_search: tavilySearchTool,
   tavily_extract: tavilyExtractTool,
   tavily_crawl: tavilyCrawlTool,

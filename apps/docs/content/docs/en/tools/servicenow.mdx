@@ -18,7 +18,7 @@ Integrate ServiceNow into your workflow. Can create, read, update, and delete re
 
 ## Tools
 
-### `servicenow_create`
+### `servicenow_create_record`
 
 Create a new record in a ServiceNow table
 
@@ -38,7 +38,7 @@ Create a new record in a ServiceNow table
 | `record` | json | Created ServiceNow record with sys_id and other fields |
 | `metadata` | json | Operation metadata |
 
-### `servicenow_read`
+### `servicenow_read_record`
 
 Read records from a ServiceNow table
 
@@ -62,7 +62,7 @@ Read records from a ServiceNow table
 | `records` | array | Array of ServiceNow records |
 | `metadata` | json | Operation metadata |
 
-### `servicenow_update`
+### `servicenow_update_record`
 
 Update an existing record in a ServiceNow table
 
@@ -83,7 +83,7 @@ Update an existing record in a ServiceNow table
 | `record` | json | Updated ServiceNow record |
 | `metadata` | json | Operation metadata |
 
-### `servicenow_delete`
+### `servicenow_delete_record`
 
 Delete a record from a ServiceNow table
 
@@ -102,30 +102,6 @@ Delete a record from a ServiceNow table
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the deletion was successful |
 | `metadata` | json | Operation metadata |
-
-### `servicenow_import_set`
-
-Bulk import data into ServiceNow using Import Set API
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | No | ServiceNow instance URL \(auto-detected from OAuth if not provided\) |
-| `credential` | string | No | ServiceNow OAuth credential ID |
-| `tableName` | string | Yes | Import set table name \(e.g., u_my_import_set\) or target table name for direct import |
-| `records` | array | Yes | Array of records to import. Each record should be a JSON object with field values. |
-| `transformMap` | string | No | Transform map sys_id to use for data transformation \(optional\) |
-| `batchSize` | number | No | Number of records to import per batch \(default: all records in one batch\) |
-| `importSetId` | string | No | Existing import set sys_id to add records to \(optional\) |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `importSetId` | string | Import set sys_id that was created or used |
-| `records` | array | Array of imported records with their status |
-| `metadata` | json | Import metadata including counts of inserted, updated, ignored, and error records |
 
 
 

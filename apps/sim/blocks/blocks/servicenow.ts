@@ -25,7 +25,6 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
         { label: 'Read Records', id: 'read' },
         { label: 'Update Record', id: 'update' },
         { label: 'Delete Record', id: 'delete' },
-        //{ label: 'Import Set', id: 'import_set' },
       ],
       value: () => 'read',
     },
@@ -66,6 +65,30 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
       placeholder: '{\n  "short_description": "Issue description",\n  "priority": "1"\n}',
       condition: { field: 'operation', value: 'create' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert ServiceNow developer. Generate ServiceNow record field objects as JSON based on the user's request.
+
+### CONTEXT
+ServiceNow records use specific field names depending on the table. Common tables and their key fields include:
+- incident: short_description, description, priority (1-5), urgency (1-3), impact (1-3), caller_id, assignment_group, assigned_to, category, subcategory, state
+- task: short_description, description, priority, assignment_group, assigned_to, state
+- sys_user: user_name, first_name, last_name, email, active, department, title
+- change_request: short_description, description, type, risk, impact, priority, assignment_group
+
+### RULES
+- Output ONLY valid JSON object starting with { and ending with }
+- Use correct ServiceNow field names for the target table
+- Values should be strings unless the field specifically requires another type
+- For reference fields (like caller_id, assigned_to), use sys_id values or display values
+- Do not include sys_id in create operations (it's auto-generated)
+
+### EXAMPLE
+User: "Create a high priority incident for network outage"
+Output: {"short_description": "Network outage", "description": "Network connectivity issue affecting users", "priority": "1", "urgency": "1", "impact": "1", "category": "Network"}`,
+        generationType: 'json-object',
+      },
     },
     // Read-specific: Query options
     {
@@ -122,6 +145,29 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
       placeholder: '{\n  "state": "2",\n  "assigned_to": "user.sys_id"\n}',
       condition: { field: 'operation', value: 'update' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert ServiceNow developer. Generate ServiceNow record update field objects as JSON based on the user's request.
+
+### CONTEXT
+ServiceNow records use specific field names depending on the table. Common update scenarios include:
+- incident: state (1=New, 2=In Progress, 3=On Hold, 6=Resolved, 7=Closed), assigned_to, work_notes, close_notes, close_code
+- task: state, assigned_to, work_notes, percent_complete
+- change_request: state, risk, approval, work_notes
+
+### RULES
+- Output ONLY valid JSON object starting with { and ending with }
+- Include only the fields that need to be updated
+- Use correct ServiceNow field names for the target table
+- For state transitions, use the correct numeric state values
+- work_notes and comments fields append to existing values
+
+### EXAMPLE
+User: "Assign the incident to John and set to in progress"
+Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and starting investigation"}`,
+        generationType: 'json-object',
+      },
     },
     // Delete-specific: sysId
     {
@@ -132,56 +178,25 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
       condition: { field: 'operation', value: 'delete' },
       required: true,
     },
-    // Import Set-specific: Records
-    {
-      id: 'records',
-      title: 'Records (JSON Array)',
-      type: 'code',
-      language: 'json',
-      placeholder:
-        '[\n  {"short_description": "Issue 1", "priority": "1"},\n  {"short_description": "Issue 2", "priority": "2"}\n]',
-      condition: { field: 'operation', value: 'import_set' },
-      required: true,
-      description: 'Array of records to import',
-    },
-    {
-      id: 'transformMap',
-      title: 'Transform Map sys_id',
-      type: 'short-input',
-      placeholder: 'Transform map sys_id (optional)',
-      condition: { field: 'operation', value: 'import_set' },
-      description: 'Transform map to use for data transformation',
-    },
-    {
-      id: 'importSetId',
-      title: 'Import Set sys_id',
-      type: 'short-input',
-      placeholder: 'Existing import set sys_id (optional)',
-      condition: { field: 'operation', value: 'import_set' },
-      description: 'Add records to existing import set',
-    },
   ],
   tools: {
     access: [
-      'servicenow_create',
-      'servicenow_read',
-      'servicenow_update',
-      'servicenow_delete',
-      'servicenow_import_set',
+      'servicenow_create_record',
+      'servicenow_read_record',
+      'servicenow_update_record',
+      'servicenow_delete_record',
     ],
     config: {
       tool: (params) => {
         switch (params.operation) {
           case 'create':
-            return 'servicenow_create'
+            return 'servicenow_create_record'
           case 'read':
-            return 'servicenow_read'
+            return 'servicenow_read_record'
           case 'update':
-            return 'servicenow_update'
+            return 'servicenow_update_record'
           case 'delete':
-            return 'servicenow_delete'
-          // case 'import_set':
-          //   return 'servicenow_import_set'
+            return 'servicenow_delete_record'
           default:
             throw new Error(`Invalid ServiceNow operation: ${params.operation}`)
         }
@@ -197,26 +212,6 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
           } catch (error) {
             throw new Error(
               `Invalid JSON in fields: ${error instanceof Error ? error.message : String(error)}`
-            )
-          }
-        }
-
-        // Parse JSON records if provided for import set
-        let parsedRecords: Array<Record<string, any>> | undefined
-        if (records && operation === 'import_set') {
-          try {
-            parsedRecords =
-              typeof records === 'string'
-                ? JSON.parse(records)
-                : Array.isArray(records)
-                  ? records
-                  : undefined
-            if (!Array.isArray(parsedRecords)) {
-              throw new Error('Records must be an array')
-            }
-          } catch (error) {
-            throw new Error(
-              `Invalid JSON in records: ${error instanceof Error ? error.message : String(error)}`
             )
           }
         }
@@ -238,19 +233,6 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
             fields: parsedFields,
           }
         }
-
-        if (operation === 'import_set') {
-          if (!parsedRecords || parsedRecords.length === 0) {
-            throw new Error(
-              'Records array is required and must not be empty for import set operation'
-            )
-          }
-          return {
-            ...baseParams,
-            records: parsedRecords,
-          }
-        }
-
         return baseParams
       },
     },
@@ -265,18 +247,11 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
     query: { type: 'string', description: 'Query string' },
     limit: { type: 'number', description: 'Result limit' },
     fields: { type: 'json', description: 'Fields object or JSON string' },
-    records: { type: 'json', description: 'Array of records to import (import_set operation)' },
-    transformMap: { type: 'string', description: 'Transform map sys_id (import_set operation)' },
-    importSetId: {
-      type: 'string',
-      description: 'Existing import set sys_id (import_set operation)',
-    },
   },
   outputs: {
     record: { type: 'json', description: 'Single ServiceNow record' },
     records: { type: 'json', description: 'Array of ServiceNow records' },
     success: { type: 'boolean', description: 'Operation success status' },
     metadata: { type: 'json', description: 'Operation metadata' },
-    importSetId: { type: 'string', description: 'Import set sys_id (import_set operation)' },
   },
 }

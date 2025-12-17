@@ -2,10 +2,10 @@ import { createLogger } from '@/lib/logs/console/logger'
 import type { ServiceNowCreateParams, ServiceNowCreateResponse } from '@/tools/servicenow/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('ServiceNowCreateTool')
+const logger = createLogger('ServiceNowCreateRecordTool')
 
-export const createTool: ToolConfig<ServiceNowCreateParams, ServiceNowCreateResponse> = {
-  id: 'servicenow_create',
+export const createRecordTool: ToolConfig<ServiceNowCreateParams, ServiceNowCreateResponse> = {
+  id: 'servicenow_create_record',
   name: 'Create ServiceNow Record',
   description: 'Create a new record in a ServiceNow table',
   version: '1.0.0',
@@ -89,7 +89,7 @@ export const createTool: ToolConfig<ServiceNowCreateParams, ServiceNowCreateResp
         },
       }
     } catch (error) {
-      logger.error('ServiceNow create - Error processing response:', { error })
+      logger.error('ServiceNow create record - Error processing response:', { error })
       throw error
     }
   },

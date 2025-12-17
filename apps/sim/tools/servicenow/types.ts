@@ -73,34 +73,8 @@ export interface ServiceNowDeleteResponse extends ToolResponse {
   }
 }
 
-export interface ServiceNowImportSetParams extends ServiceNowBaseParams {
-  records: Array<Record<string, any>>
-  transformMap?: string
-  batchSize?: number
-  importSetId?: string
-}
-
-export interface ServiceNowImportSetResponse extends ToolResponse {
-  output: {
-    importSetId: string
-    records: Array<{
-      sys_id: string
-      status: string
-      [key: string]: any
-    }>
-    metadata: {
-      totalRecords: number
-      inserted: number
-      updated: number
-      ignored: number
-      errors: number
-    }
-  }
-}
-
 export type ServiceNowResponse =
   | ServiceNowCreateResponse
   | ServiceNowReadResponse
   | ServiceNowUpdateResponse
   | ServiceNowDeleteResponse
-  | ServiceNowImportSetResponse

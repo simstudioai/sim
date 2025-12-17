@@ -1,13 +1,13 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import type { ServiceNowDeleteParams, ServiceNowDeleteResponse } from '@/tools/servicenow/types'
+import type { ServiceNowUpdateParams, ServiceNowUpdateResponse } from '@/tools/servicenow/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('ServiceNowDeleteTool')
+const logger = createLogger('ServiceNowUpdateRecordTool')
 
-export const deleteTool: ToolConfig<ServiceNowDeleteParams, ServiceNowDeleteResponse> = {
-  id: 'servicenow_delete',
-  name: 'Delete ServiceNow Record',
-  description: 'Delete a record from a ServiceNow table',
+export const updateRecordTool: ToolConfig<ServiceNowUpdateParams, ServiceNowUpdateResponse> = {
+  id: 'servicenow_update_record',
+  name: 'Update ServiceNow Record',
+  description: 'Update an existing record in a ServiceNow table',
   version: '1.0.0',
 
   oauth: {
@@ -38,7 +38,13 @@ export const deleteTool: ToolConfig<ServiceNowDeleteParams, ServiceNowDeleteResp
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Record sys_id to delete',
+      description: 'Record sys_id to update',
+    },
+    fields: {
+      type: 'json',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Fields to update (JSON object)',
     },
   },
 
@@ -51,53 +57,54 @@ export const deleteTool: ToolConfig<ServiceNowDeleteParams, ServiceNowDeleteResp
       }
       return `${baseUrl}/api/now/table/${params.tableName}/${params.sysId}`
     },
-    method: 'DELETE',
+    method: 'PATCH',
     headers: (params) => {
       if (!params.accessToken) {
         throw new Error('OAuth access token is required')
       }
       return {
         Authorization: `Bearer ${params.accessToken}`,
+        'Content-Type': 'application/json',
         Accept: 'application/json',
       }
     },
+    body: (params) => {
+      if (!params.fields || typeof params.fields !== 'object') {
+        throw new Error('Fields must be a JSON object')
+      }
+      return params.fields
+    },
   },
 
-  transformResponse: async (response: Response, params?: ServiceNowDeleteParams) => {
+  transformResponse: async (response: Response, params?: ServiceNowUpdateParams) => {
     try {
+      const data = await response.json()
+
       if (!response.ok) {
-        let errorData: any
-        try {
-          errorData = await response.json()
-        } catch {
-          errorData = { status: response.status, statusText: response.statusText }
-        }
-        throw new Error(
-          typeof errorData === 'string'
-            ? errorData
-            : errorData.error?.message || JSON.stringify(errorData)
-        )
+        const error = data.error || data
+        throw new Error(typeof error === 'string' ? error : error.message || JSON.stringify(error))
       }
 
       return {
         success: true,
         output: {
-          success: true,
+          record: data.result,
           metadata: {
-            deletedSysId: params?.sysId || '',
+            recordCount: 1,
+            updatedFields: params ? Object.keys(params.fields || {}) : [],
           },
         },
       }
     } catch (error) {
-      logger.error('ServiceNow delete - Error processing response:', { error })
+      logger.error('ServiceNow update record - Error processing response:', { error })
       throw error
     }
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Whether the deletion was successful',
+    record: {
+      type: 'json',
+      description: 'Updated ServiceNow record',
     },
     metadata: {
       type: 'json',

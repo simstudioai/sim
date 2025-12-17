@@ -1,13 +1,11 @@
-import { createTool } from '@/tools/servicenow/create'
-import { deleteTool } from '@/tools/servicenow/delete'
-import { importSetTool } from '@/tools/servicenow/import_set'
-import { readTool } from '@/tools/servicenow/read'
-import { updateTool } from '@/tools/servicenow/update'
+import { createRecordTool } from '@/tools/servicenow/create_record'
+import { deleteRecordTool } from '@/tools/servicenow/delete_record'
+import { readRecordTool } from '@/tools/servicenow/read_record'
+import { updateRecordTool } from '@/tools/servicenow/update_record'
 
 export {
-  createTool as servicenowCreateTool,
-  readTool as servicenowReadTool,
-  updateTool as servicenowUpdateTool,
-  deleteTool as servicenowDeleteTool,
-  importSetTool as servicenowImportSetTool,
+  createRecordTool as servicenowCreateRecordTool,
+  readRecordTool as servicenowReadRecordTool,
+  updateRecordTool as servicenowUpdateRecordTool,
+  deleteRecordTool as servicenowDeleteRecordTool,
 }
