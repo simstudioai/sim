@@ -75,13 +75,13 @@ export const importSetTool: ToolConfig<ServiceNowImportSetParams, ServiceNowImpo
     username: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'ServiceNow username (Basic Auth)',
     },
     password: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'ServiceNow password (Basic Auth)',
     },
     tableName: {

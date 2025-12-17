@@ -72,13 +72,13 @@ export const createTool: ToolConfig<ServiceNowCreateParams, ServiceNowCreateResp
     username: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'ServiceNow username (Basic Auth)',
     },
     password: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'ServiceNow password (Basic Auth)',
     },
     tableName: {
