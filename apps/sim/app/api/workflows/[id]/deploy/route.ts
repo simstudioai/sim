@@ -1,9 +1,9 @@
-import { db, workflow, workflowDeploymentVersion } from '@sim/db'
+import { db, workflow, workflowDeploymentVersion, workflowMcpTool } from '@sim/db'
 import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { deployWorkflow } from '@/lib/workflows/persistence/utils'
+import { deployWorkflow, loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -11,6 +11,175 @@ const logger = createLogger('WorkflowDeployAPI')
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+/**
+ * Extract input format from workflow blocks and generate MCP tool parameter schema
+ */
+async function generateMcpToolSchema(workflowId: string): Promise<Record<string, unknown>> {
+  try {
+    const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
+    if (!normalizedData?.blocks) {
+      return { type: 'object', properties: {} }
+    }
+
+    // Find the start block
+    const startBlock = Object.values(normalizedData.blocks).find((block: any) => {
+      const blockType = block?.type
+      return (
+        blockType === 'starter' ||
+        blockType === 'start' ||
+        blockType === 'start_trigger' ||
+        blockType === 'api' ||
+        blockType === 'api_trigger' ||
+        blockType === 'input_trigger'
+      )
+    }) as any
+
+    if (!startBlock?.subBlocks?.inputFormat?.value) {
+      return { type: 'object', properties: {} }
+    }
+
+    const inputFormat = startBlock.subBlocks.inputFormat.value
+    if (!Array.isArray(inputFormat) || inputFormat.length === 0) {
+      return { type: 'object', properties: {} }
+    }
+
+    const properties: Record<string, { type: string; description: string }> = {}
+    const required: string[] = []
+
+    for (const field of inputFormat) {
+      if (!field?.name || typeof field.name !== 'string' || !field.name.trim()) continue
+
+      const fieldName = field.name.trim()
+      let jsonType = 'string'
+      switch (field.type) {
+        case 'number':
+          jsonType = 'number'
+          break
+        case 'boolean':
+          jsonType = 'boolean'
+          break
+        case 'object':
+          jsonType = 'object'
+          break
+        case 'array':
+        case 'files':
+          jsonType = 'array'
+          break
+        default:
+          jsonType = 'string'
+      }
+
+      properties[fieldName] = {
+        type: jsonType,
+        description: fieldName,
+      }
+      required.push(fieldName)
+    }
+
+    return {
+      type: 'object',
+      properties,
+      required: required.length > 0 ? required : undefined,
+    }
+  } catch (error) {
+    logger.warn('Error generating MCP tool schema:', error)
+    return { type: 'object', properties: {} }
+  }
+}
+
+/**
+ * Check if a workflow has a valid start block
+ */
+async function hasValidStartBlock(workflowId: string): Promise<boolean> {
+  try {
+    const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
+    if (!normalizedData?.blocks) {
+      return false
+    }
+
+    const startBlock = Object.values(normalizedData.blocks).find((block: any) => {
+      const blockType = block?.type
+      return (
+        blockType === 'starter' ||
+        blockType === 'start' ||
+        blockType === 'start_trigger' ||
+        blockType === 'api' ||
+        blockType === 'api_trigger' ||
+        blockType === 'input_trigger'
+      )
+    })
+
+    return !!startBlock
+  } catch (error) {
+    logger.warn('Error checking for start block:', error)
+    return false
+  }
+}
+
+/**
+ * Update all MCP tools that reference this workflow with the latest parameter schema.
+ * If the workflow no longer has a start block, remove all MCP tools.
+ */
+async function syncMcpToolsOnDeploy(workflowId: string, requestId: string): Promise<void> {
+  try {
+    // Get all MCP tools that use this workflow
+    const tools = await db
+      .select({ id: workflowMcpTool.id })
+      .from(workflowMcpTool)
+      .where(eq(workflowMcpTool.workflowId, workflowId))
+
+    if (tools.length === 0) {
+      logger.debug(`[${requestId}] No MCP tools to sync for workflow: ${workflowId}`)
+      return
+    }
+
+    // Check if workflow still has a valid start block
+    const hasStart = await hasValidStartBlock(workflowId)
+    if (!hasStart) {
+      // No start block - remove all MCP tools for this workflow
+      await db
+        .delete(workflowMcpTool)
+        .where(eq(workflowMcpTool.workflowId, workflowId))
+      
+      logger.info(`[${requestId}] Removed ${tools.length} MCP tool(s) - workflow no longer has a start block: ${workflowId}`)
+      return
+    }
+
+    // Generate the latest parameter schema
+    const parameterSchema = await generateMcpToolSchema(workflowId)
+
+    // Update all tools with the new schema
+    await db
+      .update(workflowMcpTool)
+      .set({
+        parameterSchema,
+        updatedAt: new Date(),
+      })
+      .where(eq(workflowMcpTool.workflowId, workflowId))
+
+    logger.info(`[${requestId}] Synced ${tools.length} MCP tool(s) for workflow: ${workflowId}`)
+  } catch (error) {
+    logger.error(`[${requestId}] Error syncing MCP tools:`, error)
+    // Don't throw - this is a non-critical operation
+  }
+}
+
+/**
+ * Remove all MCP tools that reference this workflow when undeploying
+ */
+async function removeMcpToolsOnUndeploy(workflowId: string, requestId: string): Promise<void> {
+  try {
+    const result = await db
+      .delete(workflowMcpTool)
+      .where(eq(workflowMcpTool.workflowId, workflowId))
+
+    logger.info(`[${requestId}] Removed MCP tools for undeployed workflow: ${workflowId}`)
+  } catch (error) {
+    logger.error(`[${requestId}] Error removing MCP tools:`, error)
+    // Don't throw - this is a non-critical operation
+  }
+}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId()
@@ -119,6 +288,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     logger.info(`[${requestId}] Workflow deployed successfully: ${id}`)
 
+    // Sync MCP tools with the latest parameter schema
+    await syncMcpToolsOnDeploy(id, requestId)
+
     const responseApiKeyInfo = workflowData!.workspaceId
       ? 'Workspace API keys'
       : 'Personal API keys'
@@ -166,6 +338,9 @@ export async function DELETE(
         .set({ isDeployed: false, deployedAt: null })
         .where(eq(workflow.id, id))
     })
+
+    // Remove all MCP tools that reference this workflow
+    await removeMcpToolsOnUndeploy(id, requestId)
 
     logger.info(`[${requestId}] Workflow undeployed successfully: ${id}`)
 

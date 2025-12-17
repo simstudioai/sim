@@ -4,7 +4,7 @@ import { Badge } from '@/components/emcn'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'
 
-const CORE_TRIGGER_TYPES = ['manual', 'api', 'schedule', 'chat', 'webhook'] as const
+const CORE_TRIGGER_TYPES = ['manual', 'api', 'schedule', 'chat', 'webhook', 'mcp'] as const
 const RUNNING_COLOR = '#22c55e' as const
 const PENDING_COLOR = '#f59e0b' as const
 

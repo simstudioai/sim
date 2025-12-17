@@ -43,7 +43,7 @@ const PRIMARY_BUTTON_STYLES =
 
 type NotificationType = 'webhook' | 'email' | 'slack'
 type LogLevel = 'info' | 'error'
-type TriggerType = 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
+type TriggerType = 'api' | 'webhook' | 'schedule' | 'manual' | 'chat' | 'mcp'
 type AlertRule =
   | 'none'
   | 'consecutive_failures'
@@ -84,7 +84,7 @@ interface NotificationSettingsProps {
 }
 
 const LOG_LEVELS: LogLevel[] = ['info', 'error']
-const TRIGGER_TYPES: TriggerType[] = ['api', 'webhook', 'schedule', 'manual', 'chat']
+const TRIGGER_TYPES: TriggerType[] = ['api', 'webhook', 'schedule', 'manual', 'chat', 'mcp']
 
 function formatAlertConfigLabel(config: {
   rule: AlertRule
@@ -137,7 +137,7 @@ export function NotificationSettings({
     workflowIds: [] as string[],
     allWorkflows: true,
     levelFilter: ['info', 'error'] as LogLevel[],
-    triggerFilter: ['api', 'webhook', 'schedule', 'manual', 'chat'] as TriggerType[],
+    triggerFilter: ['api', 'webhook', 'schedule', 'manual', 'chat', 'mcp'] as TriggerType[],
     includeFinalOutput: false,
     includeTraceSpans: false,
     includeRateLimits: false,
@@ -207,7 +207,7 @@ export function NotificationSettings({
       workflowIds: [],
       allWorkflows: true,
       levelFilter: ['info', 'error'],
-      triggerFilter: ['api', 'webhook', 'schedule', 'manual', 'chat'],
+      triggerFilter: ['api', 'webhook', 'schedule', 'manual', 'chat', 'mcp'],
       includeFinalOutput: false,
       includeTraceSpans: false,
       includeRateLimits: false,

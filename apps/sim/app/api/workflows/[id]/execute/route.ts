@@ -30,7 +30,7 @@ const logger = createLogger('WorkflowExecuteAPI')
 
 const ExecuteWorkflowSchema = z.object({
   selectedOutputs: z.array(z.string()).optional().default([]),
-  triggerType: z.enum(['api', 'webhook', 'schedule', 'manual', 'chat']).optional(),
+  triggerType: z.enum(['api', 'webhook', 'schedule', 'manual', 'chat', 'mcp']).optional(),
   stream: z.boolean().optional(),
   useDraftState: z.boolean().optional(),
   input: z.any().optional(),
@@ -227,7 +227,7 @@ type AsyncExecutionParams = {
   workflowId: string
   userId: string
   input: any
-  triggerType: 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
+  triggerType: 'api' | 'webhook' | 'schedule' | 'manual' | 'chat' | 'mcp'
 }
 
 /**
@@ -370,14 +370,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     })
 
     const executionId = uuidv4()
-    type LoggingTriggerType = 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
+    type LoggingTriggerType = 'api' | 'webhook' | 'schedule' | 'manual' | 'chat' | 'mcp'
     let loggingTriggerType: LoggingTriggerType = 'manual'
     if (
       triggerType === 'api' ||
       triggerType === 'chat' ||
       triggerType === 'webhook' ||
       triggerType === 'schedule' ||
-      triggerType === 'manual'
+      triggerType === 'manual' ||
+      triggerType === 'mcp'
     ) {
       loggingTriggerType = triggerType as LoggingTriggerType
     }

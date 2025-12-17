@@ -24,6 +24,7 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { ApiDeploy } from './components/api/api'
 import { ChatDeploy, type ExistingChat } from './components/chat/chat'
 import { GeneralDeploy } from './components/general/general'
+import { McpToolDeploy } from './components/mcp-tool/mcp-tool'
 import { TemplateDeploy } from './components/template/template'
 
 const logger = createLogger('DeployModal')
@@ -49,7 +50,7 @@ interface WorkflowDeploymentInfo {
   needsRedeployment: boolean
 }
 
-type TabView = 'general' | 'api' | 'chat' | 'template'
+type TabView = 'general' | 'api' | 'chat' | 'template' | 'mcp-tool'
 
 export function DeployModal({
   open,
@@ -552,6 +553,7 @@ export function DeployModal({
               <ModalTabsTrigger value='api'>API</ModalTabsTrigger>
               <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
               <ModalTabsTrigger value='template'>Template</ModalTabsTrigger>
+              <ModalTabsTrigger value='mcp-tool'>MCP Tool</ModalTabsTrigger>
             </ModalTabsList>
 
             <ModalBody className='min-h-0 flex-1'>
@@ -607,6 +609,17 @@ export function DeployModal({
                     onSubmittingChange={setTemplateSubmitting}
                     onExistingTemplateChange={setHasExistingTemplate}
                     onTemplateStatusChange={setTemplateStatus}
+                  />
+                )}
+              </ModalTabsContent>
+
+              <ModalTabsContent value='mcp-tool'>
+                {workflowId && (
+                  <McpToolDeploy
+                    workflowId={workflowId}
+                    workflowName={workflowMetadata?.name || 'Workflow'}
+                    workflowDescription={workflowMetadata?.description}
+                    isDeployed={isDeployed}
                   />
                 )}
               </ModalTabsContent>

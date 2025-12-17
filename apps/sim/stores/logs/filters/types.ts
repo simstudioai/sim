@@ -166,7 +166,7 @@ export type TimeRange =
   | 'Past 30 days'
   | 'All time'
 export type LogLevel = 'error' | 'info' | 'running' | 'pending' | 'all'
-export type TriggerType = 'chat' | 'api' | 'webhook' | 'manual' | 'schedule' | 'all' | string
+export type TriggerType = 'chat' | 'api' | 'webhook' | 'manual' | 'schedule' | 'mcp' | 'all' | string
 
 export interface FilterState {
   // Workspace context

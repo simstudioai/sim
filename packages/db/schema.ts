@@ -1598,3 +1598,62 @@ export const ssoProvider = pgTable(
     organizationIdIdx: index('sso_provider_organization_id_idx').on(table.organizationId),
   })
 )
+
+/**
+ * Workflow MCP Servers - User-created MCP servers that expose workflows as tools.
+ * These servers can be published and accessed by external MCP clients via OAuth.
+ */
+export const workflowMcpServer = pgTable(
+  'workflow_mcp_server',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    isPublished: boolean('is_published').notNull().default(false),
+    publishedAt: timestamp('published_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceIdIdx: index('workflow_mcp_server_workspace_id_idx').on(table.workspaceId),
+    createdByIdx: index('workflow_mcp_server_created_by_idx').on(table.createdBy),
+    isPublishedIdx: index('workflow_mcp_server_is_published_idx').on(table.isPublished),
+  })
+)
+
+/**
+ * Workflow MCP Tools - Workflows registered as tools within a Workflow MCP Server.
+ * Each tool maps to a deployed workflow's execute endpoint.
+ */
+export const workflowMcpTool = pgTable(
+  'workflow_mcp_tool',
+  {
+    id: text('id').primaryKey(),
+    serverId: text('server_id')
+      .notNull()
+      .references(() => workflowMcpServer.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    toolName: text('tool_name').notNull(),
+    toolDescription: text('tool_description'),
+    parameterSchema: json('parameter_schema').notNull().default('{}'),
+    isEnabled: boolean('is_enabled').notNull().default(true),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    serverIdIdx: index('workflow_mcp_tool_server_id_idx').on(table.serverId),
+    workflowIdIdx: index('workflow_mcp_tool_workflow_id_idx').on(table.workflowId),
+    serverWorkflowUnique: uniqueIndex('workflow_mcp_tool_server_workflow_unique').on(
+      table.serverId,
+      table.workflowId
+    ),
+  })
+)

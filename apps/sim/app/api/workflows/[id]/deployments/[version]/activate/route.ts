@@ -1,4 +1,4 @@
-import { db, workflow, workflowDeploymentVersion } from '@sim/db'
+import { db, workflow, workflowDeploymentVersion, workflowMcpTool } from '@sim/db'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -10,6 +10,155 @@ const logger = createLogger('WorkflowActivateDeploymentAPI')
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+/**
+ * Extract input format from a deployment version state and generate MCP tool parameter schema
+ */
+function generateMcpToolSchemaFromState(state: any): Record<string, unknown> {
+  try {
+    if (!state?.blocks) {
+      return { type: 'object', properties: {} }
+    }
+
+    // Find the start block in the deployed state
+    const startBlock = Object.values(state.blocks).find((block: any) => {
+      const blockType = block?.type
+      return (
+        blockType === 'starter' ||
+        blockType === 'start' ||
+        blockType === 'start_trigger' ||
+        blockType === 'api' ||
+        blockType === 'api_trigger' ||
+        blockType === 'input_trigger'
+      )
+    }) as any
+
+    if (!startBlock?.subBlocks?.inputFormat?.value) {
+      return { type: 'object', properties: {} }
+    }
+
+    const inputFormat = startBlock.subBlocks.inputFormat.value
+    if (!Array.isArray(inputFormat) || inputFormat.length === 0) {
+      return { type: 'object', properties: {} }
+    }
+
+    const properties: Record<string, { type: string; description: string }> = {}
+    const required: string[] = []
+
+    for (const field of inputFormat) {
+      if (!field?.name || typeof field.name !== 'string' || !field.name.trim()) continue
+
+      const fieldName = field.name.trim()
+      let jsonType = 'string'
+      switch (field.type) {
+        case 'number':
+          jsonType = 'number'
+          break
+        case 'boolean':
+          jsonType = 'boolean'
+          break
+        case 'object':
+          jsonType = 'object'
+          break
+        case 'array':
+        case 'files':
+          jsonType = 'array'
+          break
+        default:
+          jsonType = 'string'
+      }
+
+      properties[fieldName] = {
+        type: jsonType,
+        description: fieldName,
+      }
+      required.push(fieldName)
+    }
+
+    return {
+      type: 'object',
+      properties,
+      required: required.length > 0 ? required : undefined,
+    }
+  } catch (error) {
+    logger.warn('Error generating MCP tool schema from state:', error)
+    return { type: 'object', properties: {} }
+  }
+}
+
+/**
+ * Check if a version state has a valid start block
+ */
+function hasValidStartBlockInState(state: any): boolean {
+  if (!state?.blocks) {
+    return false
+  }
+
+  const startBlock = Object.values(state.blocks).find((block: any) => {
+    const blockType = block?.type
+    return (
+      blockType === 'starter' ||
+      blockType === 'start' ||
+      blockType === 'start_trigger' ||
+      blockType === 'api' ||
+      blockType === 'api_trigger' ||
+      blockType === 'input_trigger'
+    )
+  })
+
+  return !!startBlock
+}
+
+/**
+ * Sync MCP tools when activating a deployment version.
+ * If the version has no start block, remove all MCP tools.
+ */
+async function syncMcpToolsOnVersionActivate(
+  workflowId: string,
+  versionState: any,
+  requestId: string
+): Promise<void> {
+  try {
+    // Get all MCP tools that use this workflow
+    const tools = await db
+      .select({ id: workflowMcpTool.id })
+      .from(workflowMcpTool)
+      .where(eq(workflowMcpTool.workflowId, workflowId))
+
+    if (tools.length === 0) {
+      logger.debug(`[${requestId}] No MCP tools to sync for workflow: ${workflowId}`)
+      return
+    }
+
+    // Check if the activated version has a valid start block
+    if (!hasValidStartBlockInState(versionState)) {
+      // No start block - remove all MCP tools for this workflow
+      await db
+        .delete(workflowMcpTool)
+        .where(eq(workflowMcpTool.workflowId, workflowId))
+      
+      logger.info(`[${requestId}] Removed ${tools.length} MCP tool(s) - activated version has no start block: ${workflowId}`)
+      return
+    }
+
+    // Generate the parameter schema from the activated version's state
+    const parameterSchema = generateMcpToolSchemaFromState(versionState)
+
+    // Update all tools with the new schema
+    await db
+      .update(workflowMcpTool)
+      .set({
+        parameterSchema,
+        updatedAt: new Date(),
+      })
+      .where(eq(workflowMcpTool.workflowId, workflowId))
+
+    logger.info(`[${requestId}] Synced ${tools.length} MCP tool(s) for workflow version activation: ${workflowId}`)
+  } catch (error) {
+    logger.error(`[${requestId}] Error syncing MCP tools on version activate:`, error)
+    // Don't throw - this is a non-critical operation
+  }
+}
 
 export async function POST(
   request: NextRequest,
@@ -30,6 +179,18 @@ export async function POST(
     }
 
     const now = new Date()
+
+    // Get the state of the version being activated for MCP tool sync
+    const [versionData] = await db
+      .select({ state: workflowDeploymentVersion.state })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, id),
+          eq(workflowDeploymentVersion.version, versionNum)
+        )
+      )
+      .limit(1)
 
     await db.transaction(async (tx) => {
       await tx
@@ -64,6 +225,11 @@ export async function POST(
 
       await tx.update(workflow).set(updateData).where(eq(workflow.id, id))
     })
+
+    // Sync MCP tools with the activated version's parameter schema
+    if (versionData?.state) {
+      await syncMcpToolsOnVersionActivate(id, versionData.state, requestId)
+    }
 
     return createSuccessResponse({ success: true, deployedAt: now })
   } catch (error: any) {
