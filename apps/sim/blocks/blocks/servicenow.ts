@@ -8,6 +8,7 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
   name: 'ServiceNow',
   description: 'Create, read, update, delete, and bulk import ServiceNow records',
   authMode: AuthMode.OAuth,
+  hideFromToolbar: true,
   longDescription:
     'Integrate ServiceNow into your workflow. Can create, read, update, and delete records in any ServiceNow table (incidents, tasks, users, etc.). Supports bulk import operations for data migration and ETL.',
   docsLink: 'https://docs.sim.ai/tools/servicenow',
