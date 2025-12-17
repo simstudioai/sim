@@ -1,18 +1,18 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import { ArrowUp, Bell, Library, Loader2, MoreHorizontal, RefreshCw } from 'lucide-react'
+import { ArrowUp, Bell, Library, MoreHorizontal, RefreshCw } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
   Combobox,
   type ComboboxOption,
+  Loader,
   Popover,
   PopoverContent,
   PopoverItem,
   PopoverScrollArea,
   PopoverTrigger,
-  Tooltip,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
@@ -330,22 +330,18 @@ export function LogsToolbar({
           </Popover>
 
           {/* Refresh button */}
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Button
-                variant='default'
-                className={cn('h-[32px] w-[32px] rounded-[6px] p-0', isRefreshing && 'opacity-50')}
-                onClick={isRefreshing ? undefined : onRefresh}
-              >
-                {isRefreshing ? (
-                  <Loader2 className='h-[14px] w-[14px] animate-spin' />
-                ) : (
-                  <RefreshCw className='h-[14px] w-[14px]' />
-                )}
-              </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content>{isRefreshing ? 'Refreshing...' : 'Refresh'}</Tooltip.Content>
-          </Tooltip.Root>
+          <Button
+            variant='default'
+            className='h-[32px] rounded-[6px] px-[10px]'
+            onClick={isRefreshing ? undefined : onRefresh}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? (
+              <Loader className='h-[14px] w-[14px]' animate />
+            ) : (
+              <RefreshCw className='h-[14px] w-[14px]' />
+            )}
+          </Button>
 
           {/* Live button */}
           <Button

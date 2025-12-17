@@ -1,0 +1,20 @@
+/**
+ * Loader icon animation
+ * Continuous spinning animation for loading states
+ * Uses GPU acceleration for smooth performance
+ */
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animated-loader-svg {
+  animation: spin 1s linear infinite;
+  transform-origin: center center;
+  will-change: transform;
+}
