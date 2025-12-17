@@ -29,19 +29,9 @@ export function convertLoopBlockToLoop(
   // This allows switching between loop types without losing data
 
   // For for/forEach loops, read from collection (block data) and map to forEachItems (loops store)
-  let forEachItems: any = loopBlock.data?.collection || ''
-  if (typeof forEachItems === 'string' && forEachItems.trim()) {
-    const trimmed = forEachItems.trim()
-    // Try to parse if it looks like JSON
-    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-      try {
-        forEachItems = JSON.parse(trimmed)
-      } catch {
-        // Keep as string if parsing fails - will be evaluated at runtime
-      }
-    }
-  }
-  loop.forEachItems = forEachItems
+  // Keep as string - the executor's resolveForEachItems handles parsing at runtime
+  // Parsing here causes cursor position issues in the UI editor (JSON.stringify creates new strings on each render)
+  loop.forEachItems = loopBlock.data?.collection || ''
 
   // For while loops, use whileCondition
   loop.whileCondition = loopBlock.data?.whileCondition || ''
