@@ -13,6 +13,9 @@ export interface ServiceNowBaseParams {
   credential?: string
   accessToken?: string
   idToken?: string // Stores the instance URL from OAuth
+  // Client credentials for token refresh
+  clientId?: string
+  clientSecret?: string
 }
 
 export interface ServiceNowCreateParams extends ServiceNowBaseParams {

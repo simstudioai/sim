@@ -12,13 +12,34 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useOAuthCredentialDetail, useOAuthCredentials } from '@/hooks/queries/oauth-credentials'
 import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
+import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('CredentialSelector')
+
+/**
+ * Resolves environment variables with {{VAR_NAME}} syntax in a string
+ */
+function resolveEnvVars(value: string, envVars: Record<string, string>): string {
+  if (!value) return value
+  const envMatches = value.match(/\{\{([^}]+)\}\}/g)
+  if (!envMatches) return value
+
+  let resolvedValue = value
+  for (const match of envMatches) {
+    const envKey = match.slice(2, -2).trim()
+    const envValue = envVars[envKey]
+    if (envValue !== undefined) {
+      resolvedValue = resolvedValue.replaceAll(match, envValue)
+    }
+  }
+  return resolvedValue
+}
 
 interface CredentialSelectorProps {
   blockId: string
@@ -44,6 +65,40 @@ export function CredentialSelector({
   const requiredScopes = subBlock.requiredScopes || []
   const label = subBlock.placeholder || 'Select credential'
   const serviceId = subBlock.serviceId || ''
+
+  // Get ServiceNow-specific credentials from block values (for passing to OAuth modal)
+  const [instanceUrl] = useSubBlockValue<string | null>(blockId, 'instanceUrl')
+  const [clientId] = useSubBlockValue<string | null>(blockId, 'clientId')
+  const [clientSecret] = useSubBlockValue<string | null>(blockId, 'clientSecret')
+
+  // Get environment variables for resolving {{VAR}} patterns
+  const envVariables = useEnvironmentStore((state) => state.variables)
+  const envVars = useMemo(() => {
+    return Object.entries(envVariables).reduce(
+      (acc, [key, variable]) => {
+        acc[key] = variable.value
+        return acc
+      },
+      {} as Record<string, string>
+    )
+  }, [envVariables])
+
+  // Resolve environment variables in ServiceNow credentials
+  const resolvedServicenowCredentials = useMemo(() => {
+    if (serviceId !== 'servicenow') return undefined
+    return {
+      instanceUrl: resolveEnvVars(instanceUrl || '', envVars),
+      clientId: resolveEnvVars(clientId || '', envVars),
+      clientSecret: resolveEnvVars(clientSecret || '', envVars),
+    }
+  }, [serviceId, instanceUrl, clientId, clientSecret, envVars])
+
+  // Use dependsOn gate to check if all required dependencies are satisfied
+  const { depsSatisfied, dependsOn } = useDependsOnGate(blockId, subBlock, { disabled, isPreview })
+  const hasDependencies = dependsOn.length > 0
+
+  // Disable the credential selector if dependencies are not satisfied
+  const effectiveDisabled = disabled || (hasDependencies && !depsSatisfied)
 
   const effectiveValue = isPreview && previewValue !== undefined ? previewValue : storeValue
   const selectedId = typeof effectiveValue === 'string' ? effectiveValue : ''
@@ -130,7 +185,7 @@ export function CredentialSelector({
   const needsUpdate =
     hasSelection &&
     missingRequiredScopes.length > 0 &&
-    !disabled &&
+    !effectiveDisabled &&
     !isPreview &&
     !credentialsLoading
 
@@ -230,8 +285,10 @@ export function CredentialSelector({
         selectedValue={selectedId}
         onChange={handleComboboxChange}
         onOpenChange={handleOpenChange}
-        placeholder={label}
-        disabled={disabled}
+        placeholder={
+          hasDependencies && !depsSatisfied ? 'Fill in required fields above first' : label
+        }
+        disabled={effectiveDisabled}
         editable={true}
         filterOptions={true}
         isLoading={credentialsLoading}
@@ -255,6 +312,7 @@ export function CredentialSelector({
           requiredScopes={getCanonicalScopesForProvider(effectiveProviderId)}
           newScopes={missingRequiredScopes}
           serviceId={serviceId}
+          servicenowCredentials={resolvedServicenowCredentials}
         />
       )}
     </>

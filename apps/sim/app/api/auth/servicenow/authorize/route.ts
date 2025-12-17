@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -38,17 +37,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const clientId = env.SERVICENOW_CLIENT_ID
-
-    if (!clientId) {
-      logger.error('SERVICENOW_CLIENT_ID not configured')
-      return NextResponse.json({ error: 'ServiceNow client ID not configured' }, { status: 500 })
-    }
-
     const instanceUrl = request.nextUrl.searchParams.get('instanceUrl')
+    const clientId = request.nextUrl.searchParams.get('clientId')
+    const clientSecret = request.nextUrl.searchParams.get('clientSecret')
     const returnUrl = request.nextUrl.searchParams.get('returnUrl')
 
-    if (!instanceUrl) {
+    // If any required parameter is missing, show the form
+    if (!instanceUrl || !clientId || !clientSecret) {
       const returnUrlParam = returnUrl ? encodeURIComponent(returnUrl) : ''
       return new NextResponse(
         `<!DOCTYPE html>
@@ -63,9 +58,11 @@ export async function GET(request: NextRequest) {
         display: flex;
         align-items: center;
         justify-content: center;
-        height: 100vh;
+        min-height: 100vh;
         margin: 0;
         background: linear-gradient(135deg, #81B5A1 0%, #5A8A75 100%);
+        padding: 20px;
+        box-sizing: border-box;
       }
       .container {
         background: white;
@@ -74,7 +71,7 @@ export async function GET(request: NextRequest) {
         box-shadow: 0 10px 40px rgba(0,0,0,0.1);
         text-align: center;
         max-width: 450px;
-        width: 90%;
+        width: 100%;
       }
       h2 {
         color: #111827;
@@ -84,13 +81,23 @@ export async function GET(request: NextRequest) {
         color: #6b7280;
         margin: 0 0 1.5rem 0;
       }
+      .form-group {
+        text-align: left;
+        margin-bottom: 1rem;
+      }
+      label {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #374151;
+        margin-bottom: 0.25rem;
+      }
       input {
         width: 100%;
         padding: 0.75rem;
         border: 1px solid #d1d5db;
         border-radius: 8px;
         font-size: 1rem;
-        margin-bottom: 1rem;
         box-sizing: border-box;
       }
       input:focus {
@@ -108,14 +115,15 @@ export async function GET(request: NextRequest) {
         font-size: 1rem;
         cursor: pointer;
         font-weight: 500;
+        margin-top: 0.5rem;
       }
       button:hover {
         background: #6A9A87;
       }
       .help {
-        font-size: 0.875rem;
+        font-size: 0.75rem;
         color: #9ca3af;
-        margin-top: 1rem;
+        margin-top: 0.25rem;
       }
       .error {
         color: #dc2626;
@@ -128,18 +136,41 @@ export async function GET(request: NextRequest) {
   <body>
     <div class="container">
       <h2>Connect Your ServiceNow Instance</h2>
-      <p>Enter your ServiceNow instance URL to continue</p>
+      <p>Enter your ServiceNow credentials to continue</p>
       <div id="error" class="error"></div>
       <form onsubmit="handleSubmit(event)">
-        <input
-          type="text"
-          id="instanceUrl"
-          placeholder="https://mycompany.service-now.com"
-          required
-        />
+        <div class="form-group">
+          <label for="instanceUrl">Instance URL</label>
+          <input
+            type="text"
+            id="instanceUrl"
+            placeholder="https://mycompany.service-now.com"
+            required
+          />
+          <p class="help">Your ServiceNow instance URL (e.g., https://yourcompany.service-now.com)</p>
+        </div>
+        <div class="form-group">
+          <label for="clientId">Client ID</label>
+          <input
+            type="text"
+            id="clientId"
+            placeholder="Enter your OAuth Client ID"
+            required
+          />
+          <p class="help">OAuth Client ID from your ServiceNow Application Registry</p>
+        </div>
+        <div class="form-group">
+          <label for="clientSecret">Client Secret</label>
+          <input
+            type="password"
+            id="clientSecret"
+            placeholder="Enter your OAuth Client Secret"
+            required
+          />
+          <p class="help">OAuth Client Secret from your ServiceNow Application Registry</p>
+        </div>
         <button type="submit">Connect Instance</button>
       </form>
-      <p class="help">Your instance URL looks like: https://yourcompany.service-now.com</p>
     </div>
 
     <script>
@@ -148,6 +179,8 @@ export async function GET(request: NextRequest) {
         e.preventDefault();
         const errorEl = document.getElementById('error');
         let instanceUrl = document.getElementById('instanceUrl').value.trim();
+        const clientId = document.getElementById('clientId').value.trim();
+        const clientSecret = document.getElementById('clientSecret').value.trim();
 
         // Ensure https:// prefix
         if (!instanceUrl.startsWith('https://') && !instanceUrl.startsWith('http://')) {
@@ -170,7 +203,21 @@ export async function GET(request: NextRequest) {
           return;
         }
 
+        if (!clientId) {
+          errorEl.textContent = 'Please enter your Client ID';
+          errorEl.style.display = 'block';
+          return;
+        }
+
+        if (!clientSecret) {
+          errorEl.textContent = 'Please enter your Client Secret';
+          errorEl.style.display = 'block';
+          return;
+        }
+
         let url = window.location.pathname + '?instanceUrl=' + encodeURIComponent(instanceUrl);
+        url += '&clientId=' + encodeURIComponent(clientId);
+        url += '&clientSecret=' + encodeURIComponent(clientSecret);
         if (returnUrl) {
           url += '&returnUrl=' + returnUrl;
         }
@@ -229,7 +276,7 @@ export async function GET(request: NextRequest) {
 
     const response = NextResponse.redirect(oauthUrl)
 
-    // Store state and instance URL in cookies for validation in callback
+    // Store state, instance URL, and credentials in cookies for validation in callback
     response.cookies.set('servicenow_oauth_state', state, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -239,6 +286,23 @@ export async function GET(request: NextRequest) {
     })
 
     response.cookies.set('servicenow_instance_url', cleanInstanceUrl, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 10,
+      path: '/',
+    })
+
+    // Store client credentials in cookies for the callback to use
+    response.cookies.set('servicenow_client_id', clientId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 10,
+      path: '/',
+    })
+
+    response.cookies.set('servicenow_client_secret', clientSecret, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

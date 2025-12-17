@@ -1,14 +1,11 @@
 import { ServiceNowIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
 import type { ServiceNowResponse } from '@/tools/servicenow/types'
 
 export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
   type: 'servicenow',
   name: 'ServiceNow',
   description: 'Create, read, update, delete, and bulk import ServiceNow records',
-  authMode: AuthMode.OAuth,
-  hideFromToolbar: true,
   longDescription:
     'Integrate ServiceNow into your workflow. Can create, read, update, and delete records in any ServiceNow table (incidents, tasks, users, etc.). Supports bulk import operations for data migration and ETL.',
   docsLink: 'https://docs.sim.ai/tools/servicenow',
@@ -36,7 +33,26 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
       type: 'short-input',
       placeholder: 'https://instance.service-now.com',
       required: true,
-      description: 'Your ServiceNow instance URL',
+      description: 'Your ServiceNow instance URL (e.g., https://yourcompany.service-now.com)',
+    },
+    // Client ID
+    {
+      id: 'clientId',
+      title: 'Client ID',
+      type: 'short-input',
+      placeholder: 'Enter your ServiceNow OAuth Client ID',
+      required: true,
+      description: 'OAuth Client ID from your ServiceNow Application Registry',
+    },
+    // Client Secret
+    {
+      id: 'clientSecret',
+      title: 'Client Secret',
+      type: 'short-input',
+      placeholder: 'Enter your ServiceNow OAuth Client Secret',
+      password: true,
+      required: true,
+      description: 'OAuth Client Secret from your ServiceNow Application Registry',
     },
     // OAuth Credential
     {
@@ -47,6 +63,7 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
       requiredScopes: ['useraccount'],
       placeholder: 'Select ServiceNow account',
       required: true,
+      dependsOn: ['instanceUrl', 'clientId', 'clientSecret'],
     },
     // Table Name
     {
@@ -203,7 +220,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
         }
       },
       params: (params) => {
-        const { operation, fields, records, credential, ...rest } = params
+        const { operation, fields, records, credential, clientId, clientSecret, ...rest } = params
 
         // Parse JSON fields if provided
         let parsedFields: Record<string, any> | undefined
@@ -222,10 +239,12 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
           throw new Error('ServiceNow account credential is required')
         }
 
-        // Build params
+        // Build params - include clientId and clientSecret for token refresh
         const baseParams: Record<string, any> = {
           ...rest,
           credential,
+          clientId,
+          clientSecret,
         }
 
         if (operation === 'create' || operation === 'update') {
@@ -241,6 +260,8 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     instanceUrl: { type: 'string', description: 'ServiceNow instance URL' },
+    clientId: { type: 'string', description: 'ServiceNow OAuth Client ID' },
+    clientSecret: { type: 'string', description: 'ServiceNow OAuth Client Secret' },
     credential: { type: 'string', description: 'ServiceNow OAuth credential ID' },
     tableName: { type: 'string', description: 'Table name' },
     sysId: { type: 'string', description: 'Record sys_id' },

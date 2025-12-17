@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -34,11 +33,12 @@ export async function GET(request: NextRequest) {
     const storedState = request.cookies.get('servicenow_oauth_state')?.value
     const storedInstanceUrl = request.cookies.get('servicenow_instance_url')?.value
 
-    const clientId = env.SERVICENOW_CLIENT_ID
-    const clientSecret = env.SERVICENOW_CLIENT_SECRET
+    // Retrieve client credentials from cookies (set during authorize)
+    const clientId = request.cookies.get('servicenow_client_id')?.value
+    const clientSecret = request.cookies.get('servicenow_client_secret')?.value
 
     if (!clientId || !clientSecret) {
-      logger.error('ServiceNow credentials not configured')
+      logger.error('ServiceNow client credentials not found in cookies')
       return NextResponse.redirect(`${baseUrl}/workspace?error=servicenow_config_error`)
     }
 
@@ -154,9 +154,11 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Clean up OAuth state cookies
+    // Clean up OAuth state and credentials cookies
     response.cookies.delete('servicenow_oauth_state')
     response.cookies.delete('servicenow_instance_url')
+    response.cookies.delete('servicenow_client_id')
+    response.cookies.delete('servicenow_client_secret')
 
     return response
   } catch (error) {
