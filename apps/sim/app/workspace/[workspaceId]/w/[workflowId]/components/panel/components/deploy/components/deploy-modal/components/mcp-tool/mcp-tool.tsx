@@ -229,7 +229,7 @@ interface ToolOnServerProps {
   currentInputFormat: Array<{ name: string; type: string }>
   currentParameterSchema: Record<string, unknown>
   workflowDescription: string | null | undefined
-  onRemoved: () => void
+  onRemoved: (serverId: string) => void
   onUpdated: () => void
 }
 
@@ -258,7 +258,7 @@ function ToolOnServer({
         serverId: server.id,
         toolId: tool.id,
       })
-      onRemoved()
+      onRemoved(server.id)
     } catch (error) {
       logger.error('Failed to remove tool:', error)
     }
@@ -576,9 +576,16 @@ export function McpToolDeploy({
     onAddedToServer,
   ])
 
-  const handleToolChanged = useCallback(() => {
-    // Clear the tools map to force re-query when ServerToolsQuery components re-render
-    setServerToolsMap({})
+  const handleToolChanged = useCallback((removedServerId?: string) => {
+    // If a tool was removed from a specific server, clear just that entry
+    // The ServerToolsQuery component will re-query and update the map
+    if (removedServerId) {
+      setServerToolsMap((prev) => {
+        const next = { ...prev }
+        delete next[removedServerId]
+        return next
+      })
+    }
     refetchServers()
   }, [refetchServers])
 
@@ -711,8 +718,8 @@ export function McpToolDeploy({
                 currentInputFormat={inputFormat}
                 currentParameterSchema={parameterSchema}
                 workflowDescription={workflowDescription}
-                onRemoved={handleToolChanged}
-                onUpdated={handleToolChanged}
+                onRemoved={(serverId) => handleToolChanged(serverId)}
+                onUpdated={() => handleToolChanged()}
               />
             ))}
           </div>
