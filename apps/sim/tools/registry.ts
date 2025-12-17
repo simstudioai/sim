@@ -756,6 +756,7 @@ import {
   outlookReadTool,
   outlookSendTool,
 } from '@/tools/outlook'
+import { ovhcloudChatTool, ovhcloudEmbeddingsTool } from '@/tools/ovhcloud'
 import { parallelDeepResearchTool, parallelExtractTool, parallelSearchTool } from '@/tools/parallel'
 import { perplexityChatTool, perplexitySearchTool } from '@/tools/perplexity'
 import {
@@ -2588,4 +2589,6 @@ export const tools: Record<string, ToolConfig> = {
   spotify_set_repeat: spotifySetRepeatTool,
   spotify_set_shuffle: spotifySetShuffleTool,
   spotify_transfer_playback: spotifyTransferPlaybackTool,
+  ovhcloud_chat: ovhcloudChatTool,
+  ovhcloud_embeddings: ovhcloudEmbeddingsTool,
 }

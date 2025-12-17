@@ -67,6 +67,7 @@ import {
   NotionIcon,
   OpenAIIcon,
   OutlookIcon,
+  OVHcloudIcon,
   PackageSearchIcon,
   ParallelIcon,
   PerplexityIcon,
@@ -231,4 +232,5 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   mysql: MySQLIcon,
   browser_use: BrowserUseIcon,
   stt: STTIcon,
+  ovhcloud: OVHcloudIcon,
 }

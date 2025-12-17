@@ -75,6 +75,7 @@ import { NotionBlock } from '@/blocks/blocks/notion'
 import { OneDriveBlock } from '@/blocks/blocks/onedrive'
 import { OpenAIBlock } from '@/blocks/blocks/openai'
 import { OutlookBlock } from '@/blocks/blocks/outlook'
+import { OVHcloudBlock } from '@/blocks/blocks/ovhcloud'
 import { ParallelBlock } from '@/blocks/blocks/parallel'
 import { PerplexityBlock } from '@/blocks/blocks/perplexity'
 import { PineconeBlock } from '@/blocks/blocks/pinecone'
@@ -216,6 +217,7 @@ export const registry: Record<string, BlockConfig> = {
   onedrive: OneDriveBlock,
   openai: OpenAIBlock,
   outlook: OutlookBlock,
+  ovhcloud: OVHcloudBlock,
   parallel_ai: ParallelBlock,
   perplexity: PerplexityBlock,
   pinecone: PineconeBlock,

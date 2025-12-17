@@ -74,6 +74,7 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
         replicate: '/v1/chat/completions',
         sambanova: '/v1/chat/completions',
         together: '/v1/chat/completions',
+        ovhcloud: '/v1/chat/completions',
       }
 
       const endpoint = endpointMap[params.provider] || '/v1/chat/completions'

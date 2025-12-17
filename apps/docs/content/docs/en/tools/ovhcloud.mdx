@@ -1,0 +1,83 @@
+---
+title: OVHcloud AI Endpoints
+description: Use OVHcloud AI Endpoints LLM and embeddings models
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="ovhcloud"
+  color="#000E9C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[OVHcloud AI Endpoints](https://www.ovhcloud.com/en/public-cloud/ai-endpoints/) offers generative AI models and secure APIs to interact with popular open-weight models. Enjoy sovereignty, data privacy and GDPR compliance on the infrastructure of the European Cloud Provider leader.
+
+With OVHcloud AI Endpoints, you can:
+
+- **Data security and confidentiality**: Data security and confidentiality for you and your users is a priority on our platform. Your data will never be used to train or improve our AI models; this is one of our many security guarantees.
+- **Conversational AI**: Enhance your apps by adding conversational AI that interacts naturally with users in real time.
+- **Standard APIs**: Popular APIs (like OpenAI) for easy integration.
+- **Performance**: Achieve high inference performance using OVHcloud’s GPU infrastructure.
+- **Security**: Underlying platform with ISO 27000, SOC, and healthcare data certifications.
+- **Sandbox**: Interactively test and explore models in a simplified environment
+- **More than 40 models**: A constantly updated range of popular, open-weight models
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate OVHcloud AI Endpoints into the workflow. Can generate chat completions or embeddings using our open-weight models.
+
+
+
+## Tools
+
+### `ovhcloud_chat`
+
+Generate chat completions using OVHcloud AI Endpoints LLM models
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `systemPrompt` | string | No | System prompt to guide the model behavior |
+| `content` | string | Yes | The user message content to send to the model |
+| `model` | string | Yes | Model to use for chat completions \(e.g., gpt-oss-120b, llama@latest\) |
+| `max_tokens` | number | No | Maximum number of tokens to generate |
+| `temperature` | number | No | Sampling temperature between 0 and 1 |
+| `apiKey` | string | Yes | OVHcloud AI Endpoints API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Generated text content |
+| `model` | string | Model used for generation |
+| `usage` | object | Token usage information |
+
+### `ovhcloud_embeddings`
+
+Generate embeddings from your input
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `input` | string | Yes | The input you want to embed |
+| `model` | string | Yes | Model to use for embeddings \(e.g., BGE-M3, bge-multilingual-gemma2\) |
+| `apiKey` | string | Yes | OVHcloud AI Endpoints API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `embedding` | array | Generated embedding |
+| `model` | string | Model used for generation |
+| `usage` | object | Token usage information |
+
+
+## Notes
+
+- Category: `tools`
+- Type: `ovhcloud`
