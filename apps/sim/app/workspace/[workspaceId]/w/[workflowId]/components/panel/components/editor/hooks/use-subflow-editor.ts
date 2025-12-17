@@ -26,7 +26,7 @@ const SUBFLOW_CONFIG = {
     },
     typeKey: 'loopType' as const,
     storeKey: 'loops' as const,
-    maxIterations: 100,
+    maxIterations: 1000,
     configKeys: {
       iterations: 'iterations' as const,
       items: 'forEachItems' as const,

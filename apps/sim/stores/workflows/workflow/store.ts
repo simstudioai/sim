@@ -850,7 +850,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
               ...block,
               data: {
                 ...block.data,
-                count: Math.max(1, Math.min(100, count)), // Clamp between 1-100
+                count: Math.max(1, Math.min(1000, count)), // Clamp between 1-1000
               },
             },
           }
