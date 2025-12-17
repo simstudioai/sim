@@ -5,6 +5,7 @@ import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
+import type { McpServerStatusConfig } from '@/lib/mcp/types'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpServerRefreshAPI')
@@ -50,6 +51,12 @@ export const POST = withMcpAuth<{ id: string }>('read')(
       let toolCount = 0
       let lastError: string | null = null
 
+      const currentStatusConfig: McpServerStatusConfig =
+        (server.statusConfig as McpServerStatusConfig | null) ?? {
+          consecutiveFailures: 0,
+          lastSuccessfulDiscovery: null,
+        }
+
       try {
         const tools = await mcpService.discoverServerTools(userId, serverId, workspaceId)
         connectionStatus = 'connected'
@@ -63,20 +70,40 @@ export const POST = withMcpAuth<{ id: string }>('read')(
         logger.warn(`[${requestId}] Failed to connect to server ${serverId}:`, error)
       }
 
+      const now = new Date()
+      const newStatusConfig =
+        connectionStatus === 'connected'
+          ? { consecutiveFailures: 0, lastSuccessfulDiscovery: now.toISOString() }
+          : {
+              consecutiveFailures: currentStatusConfig.consecutiveFailures + 1,
+              lastSuccessfulDiscovery: currentStatusConfig.lastSuccessfulDiscovery,
+            }
+
       const [refreshedServer] = await db
         .update(mcpServers)
         .set({
-          lastToolsRefresh: new Date(),
+          lastToolsRefresh: now,
           connectionStatus,
           lastError,
-          lastConnected: connectionStatus === 'connected' ? new Date() : server.lastConnected,
+          lastConnected: connectionStatus === 'connected' ? now : server.lastConnected,
           toolCount,
-          updatedAt: new Date(),
+          statusConfig: newStatusConfig,
+          updatedAt: now,
         })
         .where(eq(mcpServers.id, serverId))
         .returning()
 
-      logger.info(`[${requestId}] Successfully refreshed MCP server: ${serverId}`)
+      if (connectionStatus === 'connected') {
+        logger.info(
+          `[${requestId}] Successfully refreshed MCP server: ${serverId} (${toolCount} tools)`
+        )
+        await mcpService.clearCache(workspaceId)
+      } else {
+        logger.warn(
+          `[${requestId}] Refresh completed for MCP server ${serverId} but connection failed: ${lastError}`
+        )
+      }
+
       return createMcpSuccessResponse({
         status: connectionStatus,
         toolCount,

@@ -3,7 +3,7 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 import { convertLoopBlockToLoop } from '@/stores/workflows/workflow/utils'
 
 describe('convertLoopBlockToLoop', () => {
-  it.concurrent('should parse JSON array string for forEach loops', () => {
+  it.concurrent('should keep JSON array string as-is for forEach loops', () => {
     const blocks: Record<string, BlockState> = {
       loop1: {
         id: 'loop1',
@@ -25,11 +25,11 @@ describe('convertLoopBlockToLoop', () => {
 
     expect(result).toBeDefined()
     expect(result?.loopType).toBe('forEach')
-    expect(result?.forEachItems).toEqual(['item1', 'item2', 'item3'])
+    expect(result?.forEachItems).toBe('["item1", "item2", "item3"]')
     expect(result?.iterations).toBe(10)
   })
 
-  it.concurrent('should parse JSON object string for forEach loops', () => {
+  it.concurrent('should keep JSON object string as-is for forEach loops', () => {
     const blocks: Record<string, BlockState> = {
       loop1: {
         id: 'loop1',
@@ -51,7 +51,7 @@ describe('convertLoopBlockToLoop', () => {
 
     expect(result).toBeDefined()
     expect(result?.loopType).toBe('forEach')
-    expect(result?.forEachItems).toEqual({ key1: 'value1', key2: 'value2' })
+    expect(result?.forEachItems).toBe('{"key1": "value1", "key2": "value2"}')
   })
 
   it.concurrent('should keep string as-is if not valid JSON', () => {
@@ -125,7 +125,6 @@ describe('convertLoopBlockToLoop', () => {
     expect(result).toBeDefined()
     expect(result?.loopType).toBe('for')
     expect(result?.iterations).toBe(5)
-    // For 'for' loops, the collection is still parsed in case it's later changed to forEach
-    expect(result?.forEachItems).toEqual(['should', 'not', 'matter'])
+    expect(result?.forEachItems).toBe('["should", "not", "matter"]')
   })
 })

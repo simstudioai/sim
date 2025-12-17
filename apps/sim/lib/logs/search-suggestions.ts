@@ -38,8 +38,6 @@ export const FILTER_DEFINITIONS: FilterDefinition[] = [
       { value: 'info', label: 'Info', description: 'Info logs only' },
     ],
   },
-  // Note: Trigger options are now dynamically populated from active logs
-  // Core types are included by default, integration triggers are added from actual log data
   {
     key: 'cost',
     label: 'Cost',
@@ -82,14 +80,6 @@ export const FILTER_DEFINITIONS: FilterDefinition[] = [
   },
 ]
 
-const CORE_TRIGGERS: TriggerData[] = [
-  { value: 'api', label: 'API', color: '#3b82f6' },
-  { value: 'manual', label: 'Manual', color: '#6b7280' },
-  { value: 'webhook', label: 'Webhook', color: '#f97316' },
-  { value: 'chat', label: 'Chat', color: '#8b5cf6' },
-  { value: 'schedule', label: 'Schedule', color: '#10b981' },
-]
-
 export class SearchSuggestions {
   private workflowsData: WorkflowData[]
   private foldersData: FolderData[]
@@ -116,10 +106,10 @@ export class SearchSuggestions {
   }
 
   /**
-   * Get all triggers (core + integrations)
+   * Get all triggers from registry data
    */
   private getAllTriggers(): TriggerData[] {
-    return [...CORE_TRIGGERS, ...this.triggersData]
+    return this.triggersData
   }
 
   /**
@@ -128,24 +118,20 @@ export class SearchSuggestions {
   getSuggestions(input: string): SuggestionGroup | null {
     const trimmed = input.trim()
 
-    // Empty input → show all filter keys
     if (!trimmed) {
       return this.getFilterKeysList()
     }
 
-    // Input ends with ':' → show values for that key
     if (trimmed.endsWith(':')) {
       const key = trimmed.slice(0, -1)
       return this.getFilterValues(key)
     }
 
-    // Input contains ':' → filter value context
     if (trimmed.includes(':')) {
       const [key, partial] = trimmed.split(':')
       return this.getFilterValues(key, partial)
     }
 
-    // Plain text → multi-section results
     return this.getMultiSectionResults(trimmed)
   }
 
@@ -155,7 +141,6 @@ export class SearchSuggestions {
   private getFilterKeysList(): SuggestionGroup {
     const suggestions: Suggestion[] = []
 
-    // Add all filter keys
     for (const filter of FILTER_DEFINITIONS) {
       suggestions.push({
         id: `filter-key-${filter.key}`,
@@ -166,7 +151,6 @@ export class SearchSuggestions {
       })
     }
 
-    // Add trigger key (always available - core types + integrations)
     suggestions.push({
       id: 'filter-key-trigger',
       value: 'trigger:',
@@ -175,7 +159,6 @@ export class SearchSuggestions {
       category: 'filters',
     })
 
-    // Add workflow and folder keys
     if (this.workflowsData.length > 0) {
       suggestions.push({
         id: 'filter-key-workflow',
@@ -249,12 +232,10 @@ export class SearchSuggestions {
         : null
     }
 
-    // Trigger filter values (core + integrations)
     if (key === 'trigger') {
       const allTriggers = this.getAllTriggers()
       const suggestions = allTriggers
         .filter((t) => !partial || t.label.toLowerCase().includes(partial.toLowerCase()))
-        .slice(0, 15) // Show more since we have core + integrations
         .map((t) => ({
           id: `filter-value-trigger-${t.value}`,
           value: `trigger:${t.value}`,
@@ -273,11 +254,9 @@ export class SearchSuggestions {
         : null
     }
 
-    // Workflow filter values
     if (key === 'workflow') {
       const suggestions = this.workflowsData
         .filter((w) => !partial || w.name.toLowerCase().includes(partial.toLowerCase()))
-        .slice(0, 8)
         .map((w) => ({
           id: `filter-value-workflow-${w.id}`,
           value: `workflow:"${w.name}"`,
@@ -295,11 +274,9 @@ export class SearchSuggestions {
         : null
     }
 
-    // Folder filter values
     if (key === 'folder') {
       const suggestions = this.foldersData
         .filter((f) => !partial || f.name.toLowerCase().includes(partial.toLowerCase()))
-        .slice(0, 8)
         .map((f) => ({
           id: `filter-value-folder-${f.id}`,
           value: `folder:"${f.name}"`,
@@ -326,7 +303,6 @@ export class SearchSuggestions {
     const sections: Array<{ title: string; suggestions: Suggestion[] }> = []
     const allSuggestions: Suggestion[] = []
 
-    // Show all results option
     const showAllSuggestion: Suggestion = {
       id: 'show-all',
       value: query,
@@ -335,7 +311,6 @@ export class SearchSuggestions {
     }
     allSuggestions.push(showAllSuggestion)
 
-    // Match filter values (e.g., "info" → "Status: Info")
     const matchingFilterValues = this.getMatchingFilterValues(query)
     if (matchingFilterValues.length > 0) {
       sections.push({
@@ -345,7 +320,6 @@ export class SearchSuggestions {
       allSuggestions.push(...matchingFilterValues)
     }
 
-    // Match triggers
     const matchingTriggers = this.getMatchingTriggers(query)
     if (matchingTriggers.length > 0) {
       sections.push({
@@ -355,7 +329,6 @@ export class SearchSuggestions {
       allSuggestions.push(...matchingTriggers)
     }
 
-    // Match workflows
     const matchingWorkflows = this.getMatchingWorkflows(query)
     if (matchingWorkflows.length > 0) {
       sections.push({
@@ -365,7 +338,6 @@ export class SearchSuggestions {
       allSuggestions.push(...matchingWorkflows)
     }
 
-    // Match folders
     const matchingFolders = this.getMatchingFolders(query)
     if (matchingFolders.length > 0) {
       sections.push({
@@ -375,7 +347,6 @@ export class SearchSuggestions {
       allSuggestions.push(...matchingFolders)
     }
 
-    // Add filter keys if no specific matches
     if (
       matchingFilterValues.length === 0 &&
       matchingTriggers.length === 0 &&

@@ -1,55 +1,22 @@
 import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
+import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import {
+  checkForForcedToolUsage,
+  createReadableStreamFromOpenAIStream,
+} from '@/providers/openrouter/utils'
 import type {
   ProviderConfig,
   ProviderRequest,
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
-import {
-  prepareToolExecution,
-  prepareToolsWithUsageControl,
-  trackForcedToolUsage,
-} from '@/providers/utils'
+import { prepareToolExecution, prepareToolsWithUsageControl } from '@/providers/utils'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('OpenRouterProvider')
-
-function createReadableStreamFromOpenAIStream(
-  openaiStream: any,
-  onComplete?: (content: string, usage?: any) => void
-): ReadableStream {
-  let fullContent = ''
-  let usageData: any = null
-
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of openaiStream) {
-          if (chunk.usage) {
-            usageData = chunk.usage
-          }
-
-          const content = chunk.choices[0]?.delta?.content || ''
-          if (content) {
-            fullContent += content
-            controller.enqueue(new TextEncoder().encode(content))
-          }
-        }
-
-        if (onComplete) {
-          onComplete(fullContent, usageData)
-        }
-
-        controller.close()
-      } catch (error) {
-        controller.error(error)
-      }
-    },
-  })
-}
 
 export const openRouterProvider: ProviderConfig = {
   id: 'openrouter',
@@ -227,7 +194,6 @@ export const openRouterProvider: ProviderConfig = {
       const toolResults = [] as any[]
       const currentMessages = [...allMessages]
       let iterationCount = 0
-      const MAX_ITERATIONS = 10
       let modelTime = firstResponseTime
       let toolsTime = 0
       let hasUsedForcedTool = false
@@ -241,28 +207,16 @@ export const openRouterProvider: ProviderConfig = {
         },
       ]
 
-      const checkForForcedToolUsage = (
-        response: any,
-        toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any }
-      ) => {
-        if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
-          const toolCallsResponse = response.choices[0].message.tool_calls
-          const result = trackForcedToolUsage(
-            toolCallsResponse,
-            toolChoice,
-            logger,
-            'openrouter',
-            forcedTools,
-            usedForcedTools
-          )
-          hasUsedForcedTool = result.hasUsedForcedTool
-          usedForcedTools = result.usedForcedTools
-        }
-      }
+      const forcedToolResult = checkForForcedToolUsage(
+        currentResponse,
+        originalToolChoice,
+        forcedTools,
+        usedForcedTools
+      )
+      hasUsedForcedTool = forcedToolResult.hasUsedForcedTool
+      usedForcedTools = forcedToolResult.usedForcedTools
 
-      checkForForcedToolUsage(currentResponse, originalToolChoice)
-
-      while (iterationCount < MAX_ITERATIONS) {
+      while (iterationCount < MAX_TOOL_ITERATIONS) {
         const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
         if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
           break
@@ -359,7 +313,14 @@ export const openRouterProvider: ProviderConfig = {
 
         const nextModelStartTime = Date.now()
         currentResponse = await client.chat.completions.create(nextPayload)
-        checkForForcedToolUsage(currentResponse, nextPayload.tool_choice)
+        const nextForcedToolResult = checkForForcedToolUsage(
+          currentResponse,
+          nextPayload.tool_choice,
+          forcedTools,
+          usedForcedTools
+        )
+        hasUsedForcedTool = nextForcedToolResult.hasUsedForcedTool
+        usedForcedTools = nextForcedToolResult.usedForcedTools
         const nextModelEndTime = Date.now()
         const thisModelTime = nextModelEndTime - nextModelStartTime
         timeSegments.push({

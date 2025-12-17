@@ -1,0 +1,1 @@
+ALTER TABLE "mcp_servers" ADD COLUMN "status_config" jsonb DEFAULT '{}';

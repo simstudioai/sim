@@ -240,6 +240,28 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       },
     },
     {
+      id: 'vertexProject',
+      title: 'Vertex AI Project',
+      type: 'short-input',
+      placeholder: 'your-gcp-project-id',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers.vertex.models,
+      },
+    },
+    {
+      id: 'vertexLocation',
+      title: 'Vertex AI Location',
+      type: 'short-input',
+      placeholder: 'us-central1',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers.vertex.models,
+      },
+    },
+    {
       id: 'temperature',
       title: 'Temperature',
       type: 'slider',
@@ -356,6 +378,14 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
     apiKey: { type: 'string' as ParamType, description: 'Provider API key' },
     azureEndpoint: { type: 'string' as ParamType, description: 'Azure OpenAI endpoint URL' },
     azureApiVersion: { type: 'string' as ParamType, description: 'Azure API version' },
+    vertexProject: {
+      type: 'string' as ParamType,
+      description: 'Google Cloud project ID for Vertex AI',
+    },
+    vertexLocation: {
+      type: 'string' as ParamType,
+      description: 'Google Cloud location for Vertex AI',
+    },
     temperature: {
       type: 'number' as ParamType,
       description: 'Response randomness level (low for consistent evaluation)',

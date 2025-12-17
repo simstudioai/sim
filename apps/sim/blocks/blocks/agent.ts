@@ -8,6 +8,8 @@ import {
   getHostedModels,
   getMaxTemperature,
   getProviderIcon,
+  getReasoningEffortValuesForModel,
+  getVerbosityValuesForModel,
   MODELS_WITH_REASONING_EFFORT,
   MODELS_WITH_VERBOSITY,
   providers,
@@ -114,12 +116,47 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       type: 'dropdown',
       placeholder: 'Select reasoning effort...',
       options: [
-        { label: 'none', id: 'none' },
-        { label: 'minimal', id: 'minimal' },
         { label: 'low', id: 'low' },
         { label: 'medium', id: 'medium' },
         { label: 'high', id: 'high' },
       ],
+      dependsOn: ['model'],
+      fetchOptions: async (blockId: string) => {
+        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
+        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
+
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (!activeWorkflowId) {
+          return [
+            { label: 'low', id: 'low' },
+            { label: 'medium', id: 'medium' },
+            { label: 'high', id: 'high' },
+          ]
+        }
+
+        const workflowValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
+        const blockValues = workflowValues?.[blockId]
+        const modelValue = blockValues?.model as string
+
+        if (!modelValue) {
+          return [
+            { label: 'low', id: 'low' },
+            { label: 'medium', id: 'medium' },
+            { label: 'high', id: 'high' },
+          ]
+        }
+
+        const validOptions = getReasoningEffortValuesForModel(modelValue)
+        if (!validOptions) {
+          return [
+            { label: 'low', id: 'low' },
+            { label: 'medium', id: 'medium' },
+            { label: 'high', id: 'high' },
+          ]
+        }
+
+        return validOptions.map((opt) => ({ label: opt, id: opt }))
+      },
       value: () => 'medium',
       condition: {
         field: 'model',
@@ -136,6 +173,43 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
         { label: 'medium', id: 'medium' },
         { label: 'high', id: 'high' },
       ],
+      dependsOn: ['model'],
+      fetchOptions: async (blockId: string) => {
+        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
+        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
+
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (!activeWorkflowId) {
+          return [
+            { label: 'low', id: 'low' },
+            { label: 'medium', id: 'medium' },
+            { label: 'high', id: 'high' },
+          ]
+        }
+
+        const workflowValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
+        const blockValues = workflowValues?.[blockId]
+        const modelValue = blockValues?.model as string
+
+        if (!modelValue) {
+          return [
+            { label: 'low', id: 'low' },
+            { label: 'medium', id: 'medium' },
+            { label: 'high', id: 'high' },
+          ]
+        }
+
+        const validOptions = getVerbosityValuesForModel(modelValue)
+        if (!validOptions) {
+          return [
+            { label: 'low', id: 'low' },
+            { label: 'medium', id: 'medium' },
+            { label: 'high', id: 'high' },
+          ]
+        }
+
+        return validOptions.map((opt) => ({ label: opt, id: opt }))
+      },
       value: () => 'medium',
       condition: {
         field: 'model',
@@ -164,6 +238,28 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       condition: {
         field: 'model',
         value: providers['azure-openai'].models,
+      },
+    },
+    {
+      id: 'vertexProject',
+      title: 'Vertex AI Project',
+      type: 'short-input',
+      placeholder: 'your-gcp-project-id',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers.vertex.models,
+      },
+    },
+    {
+      id: 'vertexLocation',
+      title: 'Vertex AI Location',
+      type: 'short-input',
+      placeholder: 'us-central1',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers.vertex.models,
       },
     },
     {
@@ -465,6 +561,8 @@ Example 3 (Array Input):
     apiKey: { type: 'string', description: 'Provider API key' },
     azureEndpoint: { type: 'string', description: 'Azure OpenAI endpoint URL' },
     azureApiVersion: { type: 'string', description: 'Azure API version' },
+    vertexProject: { type: 'string', description: 'Google Cloud project ID for Vertex AI' },
+    vertexLocation: { type: 'string', description: 'Google Cloud location for Vertex AI' },
     responseFormat: {
       type: 'json',
       description: 'JSON response format schema',

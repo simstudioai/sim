@@ -5,7 +5,7 @@ import {
   workspaceNotificationDelivery,
   workspaceNotificationSubscription,
 } from '@sim/db/schema'
-import { and, eq, gte, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -45,6 +45,8 @@ async function checkWorkflowInactivity(
   }
 
   const windowStart = new Date(Date.now() - (alertConfig.inactivityHours || 24) * 60 * 60 * 1000)
+  const triggerFilter = subscription.triggerFilter
+  const levelFilter = subscription.levelFilter
 
   const recentLogs = await db
     .select({ id: workflowExecutionLogs.id })
@@ -52,7 +54,9 @@ async function checkWorkflowInactivity(
     .where(
       and(
         eq(workflowExecutionLogs.workflowId, workflowId),
-        gte(workflowExecutionLogs.createdAt, windowStart)
+        gte(workflowExecutionLogs.createdAt, windowStart),
+        inArray(workflowExecutionLogs.trigger, triggerFilter),
+        inArray(workflowExecutionLogs.level, levelFilter)
       )
     )
     .limit(1)

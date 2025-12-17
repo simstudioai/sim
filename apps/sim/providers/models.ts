@@ -19,6 +19,7 @@ import {
   OllamaIcon,
   OpenAIIcon,
   OpenRouterIcon,
+  VertexIcon,
   VllmIcon,
   xAIIcon,
 } from '@/components/icons'
@@ -130,7 +131,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           reasoningEffort: {
-            values: ['none', 'low', 'medium', 'high'],
+            values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'],
           },
           verbosity: {
             values: ['low', 'medium', 'high'],
@@ -283,7 +284,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 60,
           updatedAt: '2025-06-17',
         },
-        capabilities: {},
+        capabilities: {
+          reasoningEffort: {
+            values: ['low', 'medium', 'high'],
+          },
+        },
         contextWindow: 200000,
       },
       {
@@ -294,7 +299,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 8,
           updatedAt: '2025-06-17',
         },
-        capabilities: {},
+        capabilities: {
+          reasoningEffort: {
+            values: ['low', 'medium', 'high'],
+          },
+        },
         contextWindow: 128000,
       },
       {
@@ -305,7 +314,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 4.4,
           updatedAt: '2025-06-17',
         },
-        capabilities: {},
+        capabilities: {
+          reasoningEffort: {
+            values: ['low', 'medium', 'high'],
+          },
+        },
         contextWindow: 128000,
       },
       {
@@ -383,7 +396,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           reasoningEffort: {
-            values: ['none', 'low', 'medium', 'high'],
+            values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'],
           },
           verbosity: {
             values: ['low', 'medium', 'high'],
@@ -536,7 +549,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 40,
           updatedAt: '2025-06-15',
         },
-        capabilities: {},
+        capabilities: {
+          reasoningEffort: {
+            values: ['low', 'medium', 'high'],
+          },
+        },
         contextWindow: 128000,
       },
       {
@@ -547,7 +564,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 4.4,
           updatedAt: '2025-06-15',
         },
-        capabilities: {},
+        capabilities: {
+          reasoningEffort: {
+            values: ['low', 'medium', 'high'],
+          },
+        },
         contextWindow: 128000,
       },
       {
@@ -708,9 +729,22 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'gemini-3-pro-preview',
         pricing: {
           input: 2.0,
-          cachedInput: 1.0,
+          cachedInput: 0.2,
           output: 12.0,
-          updatedAt: '2025-11-18',
+          updatedAt: '2025-12-17',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
+      },
+      {
+        id: 'gemini-3-flash-preview',
+        pricing: {
+          input: 0.5,
+          cachedInput: 0.05,
+          output: 3.0,
+          updatedAt: '2025-12-17',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -755,6 +789,132 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 2 },
         },
         contextWindow: 1048576,
+      },
+      {
+        id: 'gemini-2.0-flash',
+        pricing: {
+          input: 0.1,
+          output: 0.4,
+          updatedAt: '2025-12-17',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
+      },
+      {
+        id: 'gemini-2.0-flash-lite',
+        pricing: {
+          input: 0.075,
+          output: 0.3,
+          updatedAt: '2025-12-17',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
+      },
+    ],
+  },
+  vertex: {
+    id: 'vertex',
+    name: 'Vertex AI',
+    description: "Google's Vertex AI platform for Gemini models",
+    defaultModel: 'vertex/gemini-2.5-pro',
+    modelPatterns: [/^vertex\//],
+    icon: VertexIcon,
+    capabilities: {
+      toolUsageControl: true,
+    },
+    models: [
+      {
+        id: 'vertex/gemini-3-pro-preview',
+        pricing: {
+          input: 2.0,
+          cachedInput: 0.2,
+          output: 12.0,
+          updatedAt: '2025-12-17',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
+      },
+      {
+        id: 'vertex/gemini-3-flash-preview',
+        pricing: {
+          input: 0.5,
+          cachedInput: 0.05,
+          output: 3.0,
+          updatedAt: '2025-12-17',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
+      },
+      {
+        id: 'vertex/gemini-2.5-pro',
+        pricing: {
+          input: 1.25,
+          cachedInput: 0.125,
+          output: 10.0,
+          updatedAt: '2025-12-02',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1048576,
+      },
+      {
+        id: 'vertex/gemini-2.5-flash',
+        pricing: {
+          input: 0.3,
+          cachedInput: 0.03,
+          output: 2.5,
+          updatedAt: '2025-12-02',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1048576,
+      },
+      {
+        id: 'vertex/gemini-2.5-flash-lite',
+        pricing: {
+          input: 0.1,
+          cachedInput: 0.01,
+          output: 0.4,
+          updatedAt: '2025-12-02',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1048576,
+      },
+      {
+        id: 'vertex/gemini-2.0-flash',
+        pricing: {
+          input: 0.1,
+          output: 0.4,
+          updatedAt: '2025-12-17',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
+      },
+      {
+        id: 'vertex/gemini-2.0-flash-lite',
+        pricing: {
+          input: 0.075,
+          output: 0.3,
+          updatedAt: '2025-12-17',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
       },
     ],
   },
@@ -1709,6 +1869,20 @@ export function getModelsWithReasoningEffort(): string[] {
 }
 
 /**
+ * Get the reasoning effort values for a specific model
+ * Returns the valid options for that model, or null if the model doesn't support reasoning effort
+ */
+export function getReasoningEffortValuesForModel(modelId: string): string[] | null {
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    const model = provider.models.find((m) => m.id.toLowerCase() === modelId.toLowerCase())
+    if (model?.capabilities.reasoningEffort) {
+      return model.capabilities.reasoningEffort.values
+    }
+  }
+  return null
+}
+
+/**
  * Get all models that support verbosity
  */
 export function getModelsWithVerbosity(): string[] {
@@ -1721,4 +1895,18 @@ export function getModelsWithVerbosity(): string[] {
     }
   }
   return models
+}
+
+/**
+ * Get the verbosity values for a specific model
+ * Returns the valid options for that model, or null if the model doesn't support verbosity
+ */
+export function getVerbosityValuesForModel(modelId: string): string[] | null {
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    const model = provider.models.find((m) => m.id.toLowerCase() === modelId.toLowerCase())
+    if (model?.capabilities.verbosity) {
+      return model.capabilities.verbosity.values
+    }
+  }
+  return null
 }

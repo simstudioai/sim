@@ -148,7 +148,14 @@ export type CopilotProviderConfig =
       endpoint?: string
     }
   | {
-      provider: Exclude<ProviderId, 'azure-openai'>
+      provider: 'vertex'
+      model: string
+      apiKey?: string
+      vertexProject?: string
+      vertexLocation?: string
+    }
+  | {
+      provider: Exclude<ProviderId, 'azure-openai' | 'vertex'>
       model?: string
       apiKey?: string
     }

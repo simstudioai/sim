@@ -34,14 +34,19 @@ export function useMcpServerTest() {
   const [isTestingConnection, setIsTestingConnection] = useState(false)
 
   const testConnection = useCallback(
-    async (config: McpServerTestConfig): Promise<McpServerTestResult> => {
+    async (
+      config: McpServerTestConfig,
+      options?: { silent?: boolean }
+    ): Promise<McpServerTestResult> => {
+      const { silent = false } = options || {}
+
       if (!config.name || !config.transport || !config.workspaceId) {
         const result: McpServerTestResult = {
           success: false,
           message: 'Missing required configuration',
           error: 'Please provide server name, transport method, and workspace ID',
         }
-        setTestResult(result)
+        if (!silent) setTestResult(result)
         return result
       }
 
@@ -51,12 +56,14 @@ export function useMcpServerTest() {
           message: 'Missing server URL',
           error: 'Please provide a server URL for HTTP/SSE transport',
         }
-        setTestResult(result)
+        if (!silent) setTestResult(result)
         return result
       }
 
-      setIsTestingConnection(true)
-      setTestResult(null)
+      if (!silent) {
+        setIsTestingConnection(true)
+        setTestResult(null)
+      }
 
       try {
         const cleanConfig = {
@@ -88,14 +95,14 @@ export function useMcpServerTest() {
               error: result.data.error,
               warnings: result.data.warnings,
             }
-            setTestResult(testResult)
+            if (!silent) setTestResult(testResult)
             logger.error('MCP server test failed:', result.data.error)
             return testResult
           }
           throw new Error(result.error || 'Connection test failed')
         }
 
-        setTestResult(result.data || result)
+        if (!silent) setTestResult(result.data || result)
         logger.info(`MCP server test ${result.data?.success ? 'passed' : 'failed'}:`, config.name)
         return result.data || result
       } catch (error) {
@@ -105,11 +112,11 @@ export function useMcpServerTest() {
           message: 'Connection failed',
           error: errorMessage,
         }
-        setTestResult(result)
+        if (!silent) setTestResult(result)
         logger.error('MCP server test failed:', errorMessage)
         return result
       } finally {
-        setIsTestingConnection(false)
+        if (!silent) setIsTestingConnection(false)
       }
     },
     []

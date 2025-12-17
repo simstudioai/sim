@@ -108,7 +108,7 @@ export class McpClient {
       this.connectionStatus.lastError = errorMessage
       this.isConnected = false
       logger.error(`Failed to connect to MCP server ${this.config.name}:`, error)
-      throw new McpConnectionError(errorMessage, this.config.id)
+      throw new McpConnectionError(errorMessage, this.config.name)
     }
   }
 
@@ -141,7 +141,7 @@ export class McpClient {
    */
   async listTools(): Promise<McpTool[]> {
     if (!this.isConnected) {
-      throw new McpConnectionError('Not connected to server', this.config.id)
+      throw new McpConnectionError('Not connected to server', this.config.name)
     }
 
     try {
@@ -170,7 +170,7 @@ export class McpClient {
    */
   async callTool(toolCall: McpToolCall): Promise<McpToolResult> {
     if (!this.isConnected) {
-      throw new McpConnectionError('Not connected to server', this.config.id)
+      throw new McpConnectionError('Not connected to server', this.config.name)
     }
 
     const consentRequest: McpConsentRequest = {
@@ -217,7 +217,7 @@ export class McpClient {
    */
   async ping(): Promise<{ _meta?: Record<string, any> }> {
     if (!this.isConnected) {
-      throw new McpConnectionError('Not connected to server', this.config.id)
+      throw new McpConnectionError('Not connected to server', this.config.name)
     }
 
     try {

@@ -10,8 +10,14 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { McpClient } from '@/lib/mcp/client'
+import {
+  createMcpCacheAdapter,
+  getMcpCacheType,
+  type McpCacheStorageAdapter,
+} from '@/lib/mcp/storage'
 import type {
   McpServerConfig,
+  McpServerStatusConfig,
   McpServerSummary,
   McpTool,
   McpToolCall,
@@ -22,154 +28,21 @@ import { MCP_CONSTANTS } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpService')
 
-interface ToolCache {
-  tools: McpTool[]
-  expiry: Date
-  lastAccessed: Date
-}
-
-interface CacheStats {
-  totalEntries: number
-  activeEntries: number
-  expiredEntries: number
-  maxCacheSize: number
-  cacheHitRate: number
-  memoryUsage: {
-    approximateBytes: number
-    entriesEvicted: number
-  }
-}
-
 class McpService {
-  private toolCache = new Map<string, ToolCache>()
-  private readonly cacheTimeout = MCP_CONSTANTS.CACHE_TIMEOUT // 30 seconds
-  private readonly maxCacheSize = MCP_CONSTANTS.MAX_CACHE_SIZE // 1000
-  private cleanupInterval: NodeJS.Timeout | null = null
-  private cacheHits = 0
-  private cacheMisses = 0
-  private entriesEvicted = 0
+  private cacheAdapter: McpCacheStorageAdapter
+  private readonly cacheTimeout = MCP_CONSTANTS.CACHE_TIMEOUT // 5 minutes
 
   constructor() {
-    this.startPeriodicCleanup()
-  }
-
-  /**
-   * Start periodic cleanup of expired cache entries
-   */
-  private startPeriodicCleanup(): void {
-    this.cleanupInterval = setInterval(
-      () => {
-        this.cleanupExpiredEntries()
-      },
-      5 * 60 * 1000
-    )
-  }
-
-  /**
-   * Stop periodic cleanup
-   */
-  private stopPeriodicCleanup(): void {
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval)
-      this.cleanupInterval = null
-    }
-  }
-
-  /**
-   * Cleanup expired cache entries
-   */
-  private cleanupExpiredEntries(): void {
-    const now = new Date()
-    const expiredKeys: string[] = []
-
-    this.toolCache.forEach((cache, key) => {
-      if (cache.expiry <= now) {
-        expiredKeys.push(key)
-      }
-    })
-
-    expiredKeys.forEach((key) => this.toolCache.delete(key))
-
-    if (expiredKeys.length > 0) {
-      logger.debug(`Cleaned up ${expiredKeys.length} expired cache entries`)
-    }
-  }
-
-  /**
-   * Evict least recently used entries when cache exceeds max size
-   */
-  private evictLRUEntries(): void {
-    if (this.toolCache.size <= this.maxCacheSize) {
-      return
-    }
-
-    const entries: { key: string; cache: ToolCache }[] = []
-    this.toolCache.forEach((cache, key) => {
-      entries.push({ key, cache })
-    })
-    entries.sort((a, b) => a.cache.lastAccessed.getTime() - b.cache.lastAccessed.getTime())
-
-    const entriesToRemove = this.toolCache.size - this.maxCacheSize + 1
-    for (let i = 0; i < entriesToRemove && i < entries.length; i++) {
-      this.toolCache.delete(entries[i].key)
-      this.entriesEvicted++
-    }
-
-    logger.debug(`Evicted ${entriesToRemove} LRU cache entries to maintain size limit`)
-  }
-
-  /**
-   * Get cache entry and update last accessed time
-   */
-  private getCacheEntry(key: string): ToolCache | undefined {
-    const entry = this.toolCache.get(key)
-    if (entry) {
-      entry.lastAccessed = new Date()
-      this.cacheHits++
-      return entry
-    }
-    this.cacheMisses++
-    return undefined
-  }
-
-  /**
-   * Set cache entry with LRU eviction
-   */
-  private setCacheEntry(key: string, tools: McpTool[]): void {
-    const now = new Date()
-    const cache: ToolCache = {
-      tools,
-      expiry: new Date(now.getTime() + this.cacheTimeout),
-      lastAccessed: now,
-    }
-
-    this.toolCache.set(key, cache)
-
-    this.evictLRUEntries()
-  }
-
-  /**
-   * Calculate approximate memory usage of cache
-   */
-  private calculateMemoryUsage(): number {
-    let totalBytes = 0
-
-    this.toolCache.forEach((cache, key) => {
-      totalBytes += key.length * 2 // UTF-16 encoding
-      totalBytes += JSON.stringify(cache.tools).length * 2
-      totalBytes += 64
-    })
-
-    return totalBytes
+    this.cacheAdapter = createMcpCacheAdapter()
+    logger.info(`MCP Service initialized with ${getMcpCacheType()} cache`)
   }
 
   /**
    * Dispose of the service and cleanup resources
    */
   dispose(): void {
-    this.stopPeriodicCleanup()
-    this.toolCache.clear()
-    logger.info('MCP Service disposed and cleanup stopped')
+    this.cacheAdapter.dispose()
+    logger.info('MCP Service disposed')
   }
 
   /**
@@ -386,6 +259,81 @@ class McpService {
   }
 
   /**
+   * Update server connection status after discovery attempt
+   */
+  private async updateServerStatus(
+    serverId: string,
+    workspaceId: string,
+    success: boolean,
+    error?: string,
+    toolCount?: number
+  ): Promise<void> {
+    try {
+      const [currentServer] = await db
+        .select({ statusConfig: mcpServers.statusConfig })
+        .from(mcpServers)
+        .where(
+          and(
+            eq(mcpServers.id, serverId),
+            eq(mcpServers.workspaceId, workspaceId),
+            isNull(mcpServers.deletedAt)
+          )
+        )
+        .limit(1)
+
+      const currentConfig: McpServerStatusConfig =
+        (currentServer?.statusConfig as McpServerStatusConfig | null) ?? {
+          consecutiveFailures: 0,
+          lastSuccessfulDiscovery: null,
+        }
+
+      const now = new Date()
+
+      if (success) {
+        await db
+          .update(mcpServers)
+          .set({
+            connectionStatus: 'connected',
+            lastConnected: now,
+            lastError: null,
+            toolCount: toolCount ?? 0,
+            lastToolsRefresh: now,
+            statusConfig: {
+              consecutiveFailures: 0,
+              lastSuccessfulDiscovery: now.toISOString(),
+            },
+            updatedAt: now,
+          })
+          .where(eq(mcpServers.id, serverId))
+      } else {
+        const newFailures = currentConfig.consecutiveFailures + 1
+        const isErrorState = newFailures >= MCP_CONSTANTS.MAX_CONSECUTIVE_FAILURES
+
+        await db
+          .update(mcpServers)
+          .set({
+            connectionStatus: isErrorState ? 'error' : 'disconnected',
+            lastError: error || 'Unknown error',
+            statusConfig: {
+              consecutiveFailures: newFailures,
+              lastSuccessfulDiscovery: currentConfig.lastSuccessfulDiscovery,
+            },
+            updatedAt: now,
+          })
+          .where(eq(mcpServers.id, serverId))
+
+        if (isErrorState) {
+          logger.warn(
+            `Server ${serverId} marked as error after ${newFailures} consecutive failures`
+          )
+        }
+      }
+    } catch (err) {
+      logger.error(`Failed to update server status for ${serverId}:`, err)
+    }
+  }
+
+  /**
    * Discover tools from all workspace servers
    */
   async discoverTools(
@@ -399,10 +347,14 @@ class McpService {
 
     try {
       if (!forceRefresh) {
-        const cached = this.getCacheEntry(cacheKey)
-        if (cached && cached.expiry > new Date()) {
-          logger.debug(`[${requestId}] Using cached tools for user ${userId}`)
-          return cached.tools
+        try {
+          const cached = await this.cacheAdapter.get(cacheKey)
+          if (cached) {
+            logger.debug(`[${requestId}] Using cached tools for user ${userId}`)
+            return cached.tools
+          }
+        } catch (error) {
+          logger.warn(`[${requestId}] Cache read failed, proceeding with discovery:`, error)
         }
       }
 
@@ -425,7 +377,7 @@ class McpService {
             logger.debug(
               `[${requestId}] Discovered ${tools.length} tools from server ${config.name}`
             )
-            return tools
+            return { serverId: config.id, tools }
           } finally {
             await client.disconnect()
           }
@@ -433,20 +385,40 @@ class McpService {
       )
 
       let failedCount = 0
+      const statusUpdates: Promise<void>[] = []
+
       results.forEach((result, index) => {
+        const server = servers[index]
         if (result.status === 'fulfilled') {
-          allTools.push(...result.value)
+          allTools.push(...result.value.tools)
+          statusUpdates.push(
+            this.updateServerStatus(
+              server.id!,
+              workspaceId,
+              true,
+              undefined,
+              result.value.tools.length
+            )
+          )
         } else {
           failedCount++
-          logger.warn(
-            `[${requestId}] Failed to discover tools from server ${servers[index].name}:`,
-            result.reason
-          )
+          const errorMessage =
+            result.reason instanceof Error ? result.reason.message : 'Unknown error'
+          logger.warn(`[${requestId}] Failed to discover tools from server ${server.name}:`)
+          statusUpdates.push(this.updateServerStatus(server.id!, workspaceId, false, errorMessage))
         }
       })
 
+      Promise.allSettled(statusUpdates).catch((err) => {
+        logger.error(`[${requestId}] Error updating server statuses:`, err)
+      })
+
       if (failedCount === 0) {
-        this.setCacheEntry(cacheKey, allTools)
+        try {
+          await this.cacheAdapter.set(cacheKey, allTools, this.cacheTimeout)
+        } catch (error) {
+          logger.warn(`[${requestId}] Cache write failed:`, error)
+        }
       } else {
         logger.warn(
           `[${requestId}] Skipping cache due to ${failedCount} failed server(s) - will retry on next request`
@@ -565,44 +537,18 @@ class McpService {
   /**
    * Clear tool cache for a workspace or all workspaces
    */
-  clearCache(workspaceId?: string): void {
-    if (workspaceId) {
-      const workspaceCacheKey = `workspace:${workspaceId}`
-      this.toolCache.delete(workspaceCacheKey)
-      logger.debug(`Cleared MCP tool cache for workspace ${workspaceId}`)
-    } else {
-      this.toolCache.clear()
-      this.cacheHits = 0
-      this.cacheMisses = 0
-      this.entriesEvicted = 0
-      logger.debug('Cleared all MCP tool cache and reset statistics')
-    }
-  }
-
-  /**
-   * Get comprehensive cache statistics
-   */
-  getCacheStats(): CacheStats {
-    const entries: { key: string; cache: ToolCache }[] = []
-    this.toolCache.forEach((cache, key) => {
-      entries.push({ key, cache })
-    })
-
-    const now = new Date()
-    const activeEntries = entries.filter(({ cache }) => cache.expiry > now)
-    const totalRequests = this.cacheHits + this.cacheMisses
-    const hitRate = totalRequests > 0 ? this.cacheHits / totalRequests : 0
-
-    return {
-      totalEntries: entries.length,
-      activeEntries: activeEntries.length,
-      expiredEntries: entries.length - activeEntries.length,
-      maxCacheSize: this.maxCacheSize,
-      cacheHitRate: Math.round(hitRate * 100) / 100,
-      memoryUsage: {
-        approximateBytes: this.calculateMemoryUsage(),
-        entriesEvicted: this.entriesEvicted,
-      },
+  async clearCache(workspaceId?: string): Promise<void> {
+    try {
+      if (workspaceId) {
+        const workspaceCacheKey = `workspace:${workspaceId}`
+        await this.cacheAdapter.delete(workspaceCacheKey)
+        logger.debug(`Cleared MCP tool cache for workspace ${workspaceId}`)
+      } else {
+        await this.cacheAdapter.clear()
+        logger.debug('Cleared all MCP tool cache')
+      }
+    } catch (error) {
+      logger.warn('Failed to clear cache:', error)
     }
   }
 }

@@ -142,6 +142,13 @@ export function useConnectOAuthService() {
         return { success: true }
       }
 
+      // ServiceNow requires a custom OAuth flow with instance URL input
+      if (providerId === 'servicenow') {
+        const returnUrl = encodeURIComponent(callbackURL)
+        window.location.href = `/api/auth/servicenow/authorize?returnUrl=${returnUrl}`
+        return { success: true }
+      }
+
       await client.oauth2.link({
         providerId,
         callbackURL,

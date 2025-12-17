@@ -1,3 +1,5 @@
+import { generateRequestId } from '@/lib/core/utils/request'
+import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType, CONDITION, DEFAULTS, EDGE } from '@/executor/constants'
@@ -5,6 +7,8 @@ import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('ConditionBlockHandler')
+
+const CONDITION_TIMEOUT_MS = 5000
 
 /**
  * Evaluates a single condition expression with variable/block reference resolution
@@ -35,11 +39,32 @@ export async function evaluateConditionExpression(
   }
 
   try {
-    const conditionMet = new Function(
-      'context',
-      `with(context) { return ${resolvedConditionValue} }`
-    )(evalContext)
-    return Boolean(conditionMet)
+    const requestId = generateRequestId()
+
+    const code = `return Boolean(${resolvedConditionValue})`
+
+    const result = await executeInIsolatedVM({
+      code,
+      params: {},
+      envVars: {},
+      contextVariables: { context: evalContext },
+      timeoutMs: CONDITION_TIMEOUT_MS,
+      requestId,
+    })
+
+    if (result.error) {
+      logger.error(`Failed to evaluate condition: ${result.error.message}`, {
+        originalCondition: conditionExpression,
+        resolvedCondition: resolvedConditionValue,
+        evalContext,
+        error: result.error,
+      })
+      throw new Error(
+        `Evaluation error in condition: ${result.error.message}. (Resolved: ${resolvedConditionValue})`
+      )
+    }
+
+    return Boolean(result.result)
   } catch (evalError: any) {
     logger.error(`Failed to evaluate condition: ${evalError.message}`, {
       originalCondition: conditionExpression,
@@ -87,7 +112,6 @@ export class ConditionBlockHandler implements BlockHandler {
       block
     )
 
-    // Handle case where no condition matched and no else exists - branch ends gracefully
     if (!selectedConnection || !selectedCondition) {
       return {
         ...((sourceOutput as any) || {}),
@@ -206,14 +230,12 @@ export class ConditionBlockHandler implements BlockHandler {
       if (elseConnection) {
         return { selectedConnection: elseConnection, selectedCondition: elseCondition }
       }
-      // Else exists but has no connection - treat as no match, branch ends
       logger.info(`No condition matched and else has no connection - branch ending`, {
         blockId: block.id,
       })
       return { selectedConnection: null, selectedCondition: null }
     }
 
-    // No condition matched and no else exists - branch ends gracefully
     logger.info(`No condition matched and no else block - branch ending`, { blockId: block.id })
     return { selectedConnection: null, selectedCondition: null }
   }
