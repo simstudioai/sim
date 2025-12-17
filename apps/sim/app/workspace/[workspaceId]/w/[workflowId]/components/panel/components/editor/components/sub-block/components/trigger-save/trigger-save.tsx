@@ -1,23 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  Button,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-} from '@/components/emcn/components'
-import { Trash } from '@/components/emcn/icons/trash'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { cn } from '@/lib/core/utils/cn'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Button } from '@/components/emcn/components'
 import { createLogger } from '@/lib/logs/console/logger'
+import { SaveStatusIndicator } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/save-status-indicator/save-status-indicator'
+import { ShortInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/short-input/short-input'
+import { useAutoSave } from '@/hooks/use-auto-save'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useTriggerConfigAggregation } from '@/hooks/use-trigger-config-aggregation'
+import { getTriggerConfigAggregation } from '@/hooks/use-trigger-config-aggregation'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { getTrigger, isTriggerValid } from '@/triggers'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
-import { ShortInput } from '../short-input/short-input'
 
 const logger = createLogger('TriggerSave')
 
@@ -29,8 +21,6 @@ interface TriggerSaveProps {
   disabled?: boolean
 }
 
-type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
-
 export function TriggerSave({
   blockId,
   subBlockId,
@@ -38,11 +28,8 @@ export function TriggerSave({
   isPreview = false,
   disabled = false,
 }: TriggerSaveProps) {
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [deleteStatus, setDeleteStatus] = useState<'idle' | 'deleting'>('idle')
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isGeneratingTestUrl, setIsGeneratingTestUrl] = useState(false)
+  const [testUrlError, setTestUrlError] = useState<string | null>(null)
 
   const storedTestUrl = useSubBlockStore((state) => state.getValue(blockId, 'testUrl'))
   const storedTestUrlExpiresAt = useSubBlockStore((state) =>
@@ -70,13 +57,12 @@ export function TriggerSave({
 
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
 
-  const { webhookId, saveConfig, deleteConfig, isLoading } = useWebhookManagement({
+  const { webhookId, saveConfig, isLoading } = useWebhookManagement({
     blockId,
     triggerId: effectiveTriggerId,
     isPreview,
   })
 
-  const triggerConfig = useSubBlockStore((state) => state.getValue(blockId, 'triggerConfig'))
   const triggerCredentials = useSubBlockStore((state) =>
     state.getValue(blockId, 'triggerCredentials')
   )
@@ -87,40 +73,26 @@ export function TriggerSave({
   const hasWebhookUrlDisplay =
     triggerDef?.subBlocks.some((sb) => sb.id === 'webhookUrlDisplay') ?? false
 
-  const validateRequiredFields = useCallback(
-    (
-      configToCheck: Record<string, any> | null | undefined
-    ): { valid: boolean; missingFields: string[] } => {
-      if (!triggerDef) {
-        return { valid: true, missingFields: [] }
+  const validateRequiredFields = useCallback((): boolean => {
+    if (!triggerDef) return true
+
+    const aggregatedConfig = getTriggerConfigAggregation(blockId, effectiveTriggerId)
+
+    const requiredSubBlocks = triggerDef.subBlocks.filter(
+      (sb) => sb.required && sb.mode === 'trigger' && !SYSTEM_SUBBLOCK_IDS.includes(sb.id)
+    )
+
+    for (const subBlock of requiredSubBlocks) {
+      if (subBlock.id === 'triggerCredentials') {
+        if (!triggerCredentials) return false
+      } else {
+        const value = aggregatedConfig?.[subBlock.id]
+        if (value === undefined || value === null || value === '') return false
       }
+    }
 
-      const missingFields: string[] = []
-
-      triggerDef.subBlocks
-        .filter(
-          (sb) => sb.required && sb.mode === 'trigger' && !SYSTEM_SUBBLOCK_IDS.includes(sb.id)
-        )
-        .forEach((subBlock) => {
-          if (subBlock.id === 'triggerCredentials') {
-            if (!triggerCredentials) {
-              missingFields.push(subBlock.title || 'Credentials')
-            }
-          } else {
-            const value = configToCheck?.[subBlock.id]
-            if (value === undefined || value === null || value === '') {
-              missingFields.push(subBlock.title || subBlock.id)
-            }
-          }
-        })
-
-      return {
-        valid: missingFields.length === 0,
-        missingFields,
-      }
-    },
-    [triggerDef, triggerCredentials]
-  )
+    return true
+  }, [triggerDef, triggerCredentials, blockId, effectiveTriggerId])
 
   const requiredSubBlockIds = useMemo(() => {
     if (!triggerDef) return []
@@ -133,11 +105,11 @@ export function TriggerSave({
     useCallback(
       (state) => {
         if (!triggerDef) return {}
-        const values: Record<string, any> = {}
-        requiredSubBlockIds.forEach((subBlockId) => {
-          const value = state.getValue(blockId, subBlockId)
+        const values: Record<string, unknown> = {}
+        requiredSubBlockIds.forEach((id) => {
+          const value = state.getValue(blockId, id)
           if (value !== null && value !== undefined && value !== '') {
-            values[subBlockId] = value
+            values[id] = value
           }
         })
         return values
@@ -146,69 +118,9 @@ export function TriggerSave({
     )
   )
 
-  const previousValuesRef = useRef<Record<string, any>>({})
-  const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-
-  useEffect(() => {
-    if (saveStatus !== 'error' || !triggerDef) {
-      previousValuesRef.current = subscribedSubBlockValues
-      return
-    }
-
-    const hasChanges = Object.keys(subscribedSubBlockValues).some(
-      (key) =>
-        previousValuesRef.current[key] !== (subscribedSubBlockValues as Record<string, any>)[key]
-    )
-
-    if (!hasChanges) {
-      return
-    }
-
-    if (validationTimeoutRef.current) {
-      clearTimeout(validationTimeoutRef.current)
-    }
-
-    validationTimeoutRef.current = setTimeout(() => {
-      const aggregatedConfig = useTriggerConfigAggregation(blockId, effectiveTriggerId)
-
-      if (aggregatedConfig) {
-        useSubBlockStore.getState().setValue(blockId, 'triggerConfig', aggregatedConfig)
-      }
-
-      const validation = validateRequiredFields(aggregatedConfig)
-
-      if (validation.valid) {
-        setErrorMessage(null)
-        setSaveStatus('idle')
-        logger.debug('Error cleared after validation passed', {
-          blockId,
-          triggerId: effectiveTriggerId,
-        })
-      } else {
-        setErrorMessage(`Missing required fields: ${validation.missingFields.join(', ')}`)
-        logger.debug('Error message updated', {
-          blockId,
-          triggerId: effectiveTriggerId,
-          missingFields: validation.missingFields,
-        })
-      }
-
-      previousValuesRef.current = subscribedSubBlockValues
-    }, 300)
-
-    return () => {
-      if (validationTimeoutRef.current) {
-        clearTimeout(validationTimeoutRef.current)
-      }
-    }
-  }, [
-    blockId,
-    effectiveTriggerId,
-    triggerDef,
-    subscribedSubBlockValues,
-    saveStatus,
-    validateRequiredFields,
-  ])
+  const configFingerprint = useMemo(() => {
+    return JSON.stringify({ ...subscribedSubBlockValues, triggerCredentials })
+  }, [subscribedSubBlockValues, triggerCredentials])
 
   useEffect(() => {
     if (isTestUrlExpired && storedTestUrl) {
@@ -217,69 +129,63 @@ export function TriggerSave({
     }
   }, [blockId, isTestUrlExpired, storedTestUrl])
 
-  const handleSave = async () => {
-    if (isPreview || disabled) return
+  const handleSave = useCallback(async () => {
+    const aggregatedConfig = getTriggerConfigAggregation(blockId, effectiveTriggerId)
 
-    setSaveStatus('saving')
-    setErrorMessage(null)
-
-    try {
-      const aggregatedConfig = useTriggerConfigAggregation(blockId, effectiveTriggerId)
-
-      if (aggregatedConfig) {
-        useSubBlockStore.getState().setValue(blockId, 'triggerConfig', aggregatedConfig)
-        logger.debug('Stored aggregated trigger config', {
-          blockId,
-          triggerId: effectiveTriggerId,
-          aggregatedConfig,
-        })
-      }
-
-      const validation = validateRequiredFields(aggregatedConfig)
-      if (!validation.valid) {
-        setErrorMessage(`Missing required fields: ${validation.missingFields.join(', ')}`)
-        setSaveStatus('error')
-        return
-      }
-
-      const success = await saveConfig()
-      if (!success) {
-        throw new Error('Save config returned false')
-      }
-
-      setSaveStatus('saved')
-      setErrorMessage(null)
-
-      const savedWebhookId = useSubBlockStore.getState().getValue(blockId, 'webhookId')
-      const savedTriggerPath = useSubBlockStore.getState().getValue(blockId, 'triggerPath')
-      const savedTriggerId = useSubBlockStore.getState().getValue(blockId, 'triggerId')
-      const savedTriggerConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
-
-      collaborativeSetSubblockValue(blockId, 'webhookId', savedWebhookId)
-      collaborativeSetSubblockValue(blockId, 'triggerPath', savedTriggerPath)
-      collaborativeSetSubblockValue(blockId, 'triggerId', savedTriggerId)
-      collaborativeSetSubblockValue(blockId, 'triggerConfig', savedTriggerConfig)
-
-      setTimeout(() => {
-        setSaveStatus('idle')
-      }, 2000)
-
-      logger.info('Trigger configuration saved successfully', {
-        blockId,
-        triggerId: effectiveTriggerId,
-        hasWebhookId: !!webhookId,
-      })
-    } catch (error: any) {
-      setSaveStatus('error')
-      setErrorMessage(error.message || 'An error occurred while saving.')
-      logger.error('Error saving trigger configuration', { error })
+    if (aggregatedConfig) {
+      useSubBlockStore.getState().setValue(blockId, 'triggerConfig', aggregatedConfig)
     }
-  }
+
+    return saveConfig()
+  }, [blockId, effectiveTriggerId, saveConfig])
+
+  const handleSaveSuccess = useCallback(() => {
+    const savedWebhookId = useSubBlockStore.getState().getValue(blockId, 'webhookId')
+    const savedTriggerPath = useSubBlockStore.getState().getValue(blockId, 'triggerPath')
+    const savedTriggerId = useSubBlockStore.getState().getValue(blockId, 'triggerId')
+    const savedTriggerConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
+
+    collaborativeSetSubblockValue(blockId, 'webhookId', savedWebhookId)
+    collaborativeSetSubblockValue(blockId, 'triggerPath', savedTriggerPath)
+    collaborativeSetSubblockValue(blockId, 'triggerId', savedTriggerId)
+    collaborativeSetSubblockValue(blockId, 'triggerConfig', savedTriggerConfig)
+  }, [blockId, collaborativeSetSubblockValue])
+
+  const {
+    saveStatus,
+    errorMessage,
+    retryCount,
+    maxRetries,
+    triggerSave,
+    onConfigChange,
+    markInitialLoadComplete,
+  } = useAutoSave({
+    disabled: isPreview || disabled || !triggerDef,
+    isExternallySaving: isLoading,
+    validate: validateRequiredFields,
+    onSave: handleSave,
+    onSaveSuccess: handleSaveSuccess,
+    loggerName: 'TriggerSave',
+  })
+
+  useEffect(() => {
+    onConfigChange(configFingerprint)
+  }, [configFingerprint, onConfigChange])
+
+  useEffect(() => {
+    if (!isLoading && webhookId) {
+      return markInitialLoadComplete(configFingerprint)
+    }
+    if (!webhookId && !isLoading) {
+      return markInitialLoadComplete(configFingerprint)
+    }
+  }, [isLoading, webhookId, configFingerprint, markInitialLoadComplete])
 
   const generateTestUrl = async () => {
     if (!webhookId) return
     try {
       setIsGeneratingTestUrl(true)
+      setTestUrlError(null)
       const res = await fetch(`/api/webhooks/${webhookId}/test-url`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -296,7 +202,7 @@ export function TriggerSave({
       collaborativeSetSubblockValue(blockId, 'testUrlExpiresAt', json.expiresAt)
     } catch (e) {
       logger.error('Failed to generate test webhook URL', { error: e })
-      setErrorMessage(
+      setTestUrlError(
         e instanceof Error ? e.message : 'Failed to generate test URL. Please try again.'
       )
     } finally {
@@ -304,114 +210,49 @@ export function TriggerSave({
     }
   }
 
-  const handleDeleteClick = () => {
-    if (isPreview || disabled || !webhookId) return
-    setShowDeleteDialog(true)
-  }
-
-  const handleDeleteConfirm = async () => {
-    setShowDeleteDialog(false)
-    setDeleteStatus('deleting')
-    setErrorMessage(null)
-
-    try {
-      const success = await deleteConfig()
-
-      if (success) {
-        setDeleteStatus('idle')
-        setSaveStatus('idle')
-        setErrorMessage(null)
-
-        useSubBlockStore.getState().setValue(blockId, 'testUrl', null)
-        useSubBlockStore.getState().setValue(blockId, 'testUrlExpiresAt', null)
-
-        collaborativeSetSubblockValue(blockId, 'triggerPath', '')
-        collaborativeSetSubblockValue(blockId, 'webhookId', null)
-        collaborativeSetSubblockValue(blockId, 'triggerConfig', null)
-        collaborativeSetSubblockValue(blockId, 'testUrl', null)
-        collaborativeSetSubblockValue(blockId, 'testUrlExpiresAt', null)
-
-        logger.info('Trigger configuration deleted successfully', {
-          blockId,
-          triggerId: effectiveTriggerId,
-        })
-      } else {
-        setDeleteStatus('idle')
-        setErrorMessage('Failed to delete trigger configuration.')
-        logger.error('Failed to delete trigger configuration')
-      }
-    } catch (error: any) {
-      setDeleteStatus('idle')
-      setErrorMessage(error.message || 'An error occurred while deleting.')
-      logger.error('Error deleting trigger configuration', { error })
-    }
-  }
-
   if (isPreview) {
     return null
   }
 
-  const isProcessing = saveStatus === 'saving' || deleteStatus === 'deleting' || isLoading
+  const isProcessing = saveStatus === 'saving' || isLoading
+  const displayError = errorMessage || testUrlError
+
+  const hasStatusIndicator = isLoading || saveStatus === 'saving' || displayError
+  const hasTestUrlSection =
+    webhookId && hasWebhookUrlDisplay && !isLoading && saveStatus !== 'saving'
+
+  if (!hasStatusIndicator && !hasTestUrlSection) {
+    return null
+  }
 
   return (
-    <div id={`${blockId}-${subBlockId}`}>
-      <div className='flex gap-2'>
-        <Button
-          variant='default'
-          onClick={handleSave}
-          disabled={disabled || isProcessing}
-          className={cn(
-            'h-[32px] flex-1 rounded-[8px] px-[12px] transition-all duration-200',
-            saveStatus === 'saved' && 'bg-green-600 hover:bg-green-700',
-            saveStatus === 'error' && 'bg-red-600 hover:bg-red-700'
-          )}
-        >
-          {saveStatus === 'saving' && (
-            <>
-              <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
-              Saving...
-            </>
-          )}
-          {saveStatus === 'saved' && 'Saved'}
-          {saveStatus === 'error' && 'Error'}
-          {saveStatus === 'idle' && (webhookId ? 'Update Configuration' : 'Save Configuration')}
-        </Button>
+    <div id={`${blockId}-${subBlockId}`} className='space-y-2 pb-4'>
+      <SaveStatusIndicator
+        status={saveStatus}
+        errorMessage={displayError}
+        savingText='Saving trigger...'
+        loadingText='Loading trigger...'
+        isLoading={isLoading}
+        onRetry={testUrlError ? () => setTestUrlError(null) : triggerSave}
+        retryDisabled={isProcessing}
+        retryCount={retryCount}
+        maxRetries={maxRetries}
+      />
 
-        {webhookId && (
-          <Button
-            variant='default'
-            onClick={handleDeleteClick}
-            disabled={disabled || isProcessing}
-            className='h-[32px] rounded-[8px] px-[12px]'
-          >
-            {deleteStatus === 'deleting' ? (
-              <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
-            ) : (
-              <Trash className='h-[14px] w-[14px]' />
-            )}
-          </Button>
-        )}
-      </div>
-
-      {errorMessage && (
-        <Alert variant='destructive' className='mt-2'>
-          <AlertDescription>{errorMessage}</AlertDescription>
-        </Alert>
-      )}
-
-      {webhookId && hasWebhookUrlDisplay && (
-        <div className='mt-2 space-y-1'>
+      {/* Test webhook URL section */}
+      {webhookId && hasWebhookUrlDisplay && !isLoading && saveStatus !== 'saving' && (
+        <div className='space-y-1'>
           <div className='flex items-center justify-between'>
             <span className='font-medium text-sm'>Test Webhook URL</span>
             <Button
-              variant='outline'
+              variant='ghost'
               onClick={generateTestUrl}
               disabled={isGeneratingTestUrl || isProcessing}
-              className='h-[32px] rounded-[8px] px-[12px]'
+              className='h-6 px-2 py-1 text-[11px]'
             >
               {isGeneratingTestUrl ? (
                 <>
-                  <div className='mr-2 h-3 w-3 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+                  <div className='mr-1.5 h-2.5 w-2.5 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
                   Generating…
                 </>
               ) : testUrl ? (
@@ -450,31 +291,6 @@ export function TriggerSave({
           )}
         </div>
       )}
-
-      <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Trigger</ModalHeader>
-          <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
-              Are you sure you want to delete this trigger configuration? This will remove the
-              webhook and stop all incoming triggers.{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-            </p>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='active' onClick={() => setShowDeleteDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant='primary'
-              onClick={handleDeleteConfirm}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
-              Delete
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
     </div>
   )
 }

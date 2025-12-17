@@ -67,6 +67,18 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      hideFromPreview: true,
+      mode: 'trigger',
+      triggerId: 'webflow_collection_item_created',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_created',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,
@@ -85,18 +97,6 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
         )
         .join(''),
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'webflow_collection_item_created',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'webflow_collection_item_created',
       condition: {
         field: 'selectedTriggerId',
         value: 'webflow_collection_item_created',

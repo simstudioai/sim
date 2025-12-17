@@ -550,9 +550,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
   const currentStoreBlock = currentWorkflow.getBlockById(id)
 
-  const isStarterBlock = type === 'starter'
-  const isWebhookTriggerBlock = type === 'webhook' || type === 'generic_webhook'
-
   /**
    * Subscribe to this block's subblock values to track changes for conditional rendering
    * of subblocks based on their conditions.
@@ -808,7 +805,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     updateNodeInternals(id)
   }, [horizontalHandles, id, updateNodeInternals])
 
-  const showWebhookIndicator = (isStarterBlock || isWebhookTriggerBlock) && isWebhookConfigured
+  const showWebhookIndicator = displayTriggerMode && isWebhookConfigured
   const shouldShowScheduleBadge =
     type === 'schedule' && !isLoadingScheduleInfo && scheduleInfo !== null
   const userPermissions = useUserPermissionsContext()
@@ -909,28 +906,30 @@ export const WorkflowBlock = memo(function WorkflowBlock({
               )}
             {!isEnabled && <Badge>disabled</Badge>}
 
-            {type === 'schedule' && shouldShowScheduleBadge && scheduleInfo?.isDisabled && (
+            {type === 'schedule' && shouldShowScheduleBadge && (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Badge
                     variant='outline'
-                    className='cursor-pointer'
+                    className={scheduleInfo?.isDisabled ? 'cursor-pointer' : ''}
                     style={{
-                      borderColor: 'var(--warning)',
-                      color: 'var(--warning)',
+                      borderColor: scheduleInfo?.isDisabled ? 'var(--warning)' : 'var(--success)',
+                      color: scheduleInfo?.isDisabled ? 'var(--warning)' : 'var(--success)',
                     }}
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (scheduleInfo?.id) {
+                      if (scheduleInfo?.isDisabled && scheduleInfo?.id) {
                         reactivateSchedule(scheduleInfo.id)
                       }
                     }}
                   >
-                    disabled
+                    {scheduleInfo?.isDisabled ? 'disabled' : 'active'}
                   </Badge>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
-                  <span className='text-sm'>Click to reactivate</span>
+                  {scheduleInfo?.isDisabled
+                    ? 'Click to reactivate'
+                    : scheduleInfo?.scheduleTiming || 'Schedule is active'}
                 </Tooltip.Content>
               </Tooltip.Root>
             )}
@@ -940,47 +939,27 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                 <Tooltip.Trigger asChild>
                   <Badge
                     variant='outline'
-                    className='bg-[var(--brand-tertiary)] text-[var(--brand-tertiary)]'
-                  >
-                    <div className='relative flex items-center justify-center'>
-                      <div className='197, 94, 0.2)] absolute h-3 w-3 rounded-full bg-[rgba(34,' />
-                      <div className='relative h-2 w-2 rounded-full bg-[var(--brand-tertiary)]' />
-                    </div>
-                    Webhook
-                  </Badge>
-                </Tooltip.Trigger>
-                <Tooltip.Content side='top' className='max-w-[300px] p-4'>
-                  {webhookProvider && webhookPath ? (
-                    <>
-                      <p className='text-sm'>{getProviderName(webhookProvider)} Webhook</p>
-                      <p className='mt-1 text-muted-foreground text-xs'>Path: {webhookPath}</p>
-                    </>
-                  ) : (
-                    <p className='text-muted-foreground text-sm'>
-                      This workflow is triggered by a webhook.
-                    </p>
-                  )}
-                </Tooltip.Content>
-              </Tooltip.Root>
-            )}
-
-            {isWebhookConfigured && isWebhookDisabled && webhookId && (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Badge
-                    variant='outline'
-                    className='cursor-pointer'
-                    style={{ borderColor: 'var(--warning)', color: 'var(--warning)' }}
+                    className={isWebhookDisabled && webhookId ? 'cursor-pointer' : ''}
+                    style={{
+                      borderColor: isWebhookDisabled ? 'var(--warning)' : 'var(--success)',
+                      color: isWebhookDisabled ? 'var(--warning)' : 'var(--success)',
+                    }}
                     onClick={(e) => {
                       e.stopPropagation()
-                      reactivateWebhook(webhookId)
+                      if (isWebhookDisabled && webhookId) {
+                        reactivateWebhook(webhookId)
+                      }
                     }}
                   >
-                    disabled
+                    {isWebhookDisabled ? 'disabled' : 'active'}
                   </Badge>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
-                  <span className='text-sm'>Click to reactivate</span>
+                  {isWebhookDisabled
+                    ? 'Click to reactivate'
+                    : webhookProvider
+                      ? `${getProviderName(webhookProvider)} Webhook`
+                      : 'Trigger is active'}
                 </Tooltip.Content>
               </Tooltip.Root>
             )}

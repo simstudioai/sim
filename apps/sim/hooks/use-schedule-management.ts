@@ -23,15 +23,10 @@ interface ScheduleManagementState {
   isLoading: boolean
   isSaving: boolean
   saveConfig: () => Promise<SaveConfigResult>
-  deleteConfig: () => Promise<boolean>
 }
 
 /**
  * Hook to manage schedule lifecycle for schedule blocks
- * Handles:
- * - Loading existing schedules from the API
- * - Saving schedule configurations
- * - Deleting schedule configurations
  */
 export function useScheduleManagement({
   blockId,
@@ -45,8 +40,6 @@ export function useScheduleManagement({
   )
 
   const isLoading = useSubBlockStore((state) => state.loadingSchedules.has(blockId))
-  const isChecked = useSubBlockStore((state) => state.checkedSchedules.has(blockId))
-
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
@@ -183,49 +176,10 @@ export function useScheduleManagement({
     }
   }
 
-  const deleteConfig = async (): Promise<boolean> => {
-    if (isPreview || !scheduleId) {
-      return false
-    }
-
-    try {
-      setIsSaving(true)
-
-      const response = await fetch(`/api/schedules/${scheduleId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workspaceId: params.workspaceId as string,
-        }),
-      })
-
-      if (!response.ok) {
-        logger.error('Failed to delete schedule')
-        return false
-      }
-
-      useSubBlockStore.getState().setValue(blockId, 'scheduleId', null)
-      useSubBlockStore.setState((state) => {
-        const newSet = new Set(state.checkedSchedules)
-        newSet.delete(blockId)
-        return { checkedSchedules: newSet }
-      })
-
-      logger.info('Schedule deleted successfully')
-      return true
-    } catch (error) {
-      logger.error('Error deleting schedule:', error)
-      return false
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
   return {
     scheduleId,
     isLoading,
     isSaving,
     saveConfig,
-    deleteConfig,
   }
 }

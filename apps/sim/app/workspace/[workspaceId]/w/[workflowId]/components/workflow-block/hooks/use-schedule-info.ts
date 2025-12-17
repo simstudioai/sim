@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { ScheduleInfo } from '../types'
 
 const logger = createLogger('useScheduleInfo')
@@ -32,8 +34,19 @@ export function useScheduleInfo(
   blockType: string,
   workflowId: string
 ): UseScheduleInfoReturn {
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const [isLoading, setIsLoading] = useState(false)
   const [scheduleInfo, setScheduleInfo] = useState<ScheduleInfo | null>(null)
+
+  const scheduleIdFromStore = useSubBlockStore(
+    useCallback(
+      (state) => {
+        if (!activeWorkflowId) return null
+        return state.workflowValues[activeWorkflowId]?.[blockId]?.scheduleId as string | null
+      },
+      [activeWorkflowId, blockId]
+    )
+  )
 
   const fetchScheduleInfo = useCallback(
     async (wfId: string) => {
@@ -143,22 +156,10 @@ export function useScheduleInfo(
       setIsLoading(false)
     }
 
-    const handleScheduleUpdate = (event: CustomEvent) => {
-      if (event.detail?.workflowId === workflowId && event.detail?.blockId === blockId) {
-        logger.debug('Schedule update event received, refetching schedule info')
-        if (blockType === 'schedule') {
-          fetchScheduleInfo(workflowId)
-        }
-      }
-    }
-
-    window.addEventListener('schedule-updated', handleScheduleUpdate as EventListener)
-
     return () => {
       setIsLoading(false)
-      window.removeEventListener('schedule-updated', handleScheduleUpdate as EventListener)
     }
-  }, [blockType, workflowId, blockId, fetchScheduleInfo])
+  }, [blockType, workflowId, blockId, scheduleIdFromStore, fetchScheduleInfo])
 
   return {
     scheduleInfo,

@@ -31,6 +31,14 @@ export const slackWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      hideFromPreview: true,
+      mode: 'trigger',
+      triggerId: 'slack_webhook',
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',
@@ -41,7 +49,7 @@ export const slackWebhookTrigger: TriggerConfig = {
         'Go to "OAuth & Permissions" and add bot token scopes:<br><ul class="mt-1 ml-5 list-disc"><li><code>app_mentions:read</code> - For viewing messages that tag your bot with an @</li><li><code>chat:write</code> - To send messages to channels your bot is a part of</li></ul>',
         'Go to "Event Subscriptions":<br><ul class="mt-1 ml-5 list-disc"><li>Enable events</li><li>Under "Subscribe to Bot Events", add <code>app_mention</code> to listen to messages that mention your bot</li><li>Paste the Webhook URL above into the "Request URL" field</li></ul>',
         'Go to "Install App" in the left sidebar and install the app into your desired Slack workspace and channel.',
-        'Save changes in both Slack and here.',
+        'Save your changes in Slack. Your trigger will configure automatically once you complete the fields above.',
       ]
         .map(
           (instruction, index) =>
@@ -50,14 +58,6 @@ export const slackWebhookTrigger: TriggerConfig = {
         .join(''),
       hideFromPreview: true,
       mode: 'trigger',
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'slack_webhook',
     },
   ],
 

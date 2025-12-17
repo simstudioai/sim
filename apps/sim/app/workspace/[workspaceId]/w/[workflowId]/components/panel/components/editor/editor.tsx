@@ -336,6 +336,26 @@ export function Editor() {
                       subBlockState
                     )
 
+                    const isNoWrapper =
+                      subBlock.noWrapper ||
+                      subBlock.type === 'trigger-save' ||
+                      subBlock.type === 'schedule-save'
+
+                    if (isNoWrapper) {
+                      return (
+                        <SubBlock
+                          key={stableKey}
+                          blockId={currentBlockId}
+                          config={subBlock}
+                          isPreview={false}
+                          subBlockValues={subBlockState}
+                          disabled={!userPermissions.canEdit}
+                          fieldDiffStatus={undefined}
+                          allowExpandInPreview={false}
+                        />
+                      )
+                    }
+
                     return (
                       <div key={stableKey}>
                         <SubBlock

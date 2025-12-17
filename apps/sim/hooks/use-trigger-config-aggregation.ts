@@ -3,7 +3,7 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { getTrigger, isTriggerValid } from '@/triggers'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
-const logger = createLogger('useTriggerConfigAggregation')
+const logger = createLogger('getTriggerConfigAggregation')
 
 /**
  * Maps old trigger config field names to new subblock IDs for backward compatibility.
@@ -34,7 +34,7 @@ function mapOldFieldNameToNewSubBlockId(oldFieldName: string): string {
  * @returns The aggregated config object, or null if no valid config
  */
 
-export function useTriggerConfigAggregation(
+export function getTriggerConfigAggregation(
   blockId: string,
   triggerId: string | undefined
 ): Record<string, any> | null {

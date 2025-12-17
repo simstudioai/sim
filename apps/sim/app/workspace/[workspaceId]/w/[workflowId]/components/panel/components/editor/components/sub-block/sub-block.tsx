@@ -293,7 +293,6 @@ function SubBlockComponent({
     setIsValidJson(isValid)
   }
 
-  // Check if wand is enabled for this sub-block
   const isWandEnabled = config.wandConfig?.enabled ?? false
 
   /**
@@ -814,6 +813,13 @@ function SubBlockComponent({
       default:
         return <div>Unknown input type: {config.type}</div>
     }
+  }
+
+  // Render without wrapper for components that may return null
+  const noWrapper =
+    config.noWrapper || config.type === 'trigger-save' || config.type === 'schedule-save'
+  if (noWrapper) {
+    return renderInput()
   }
 
   return (

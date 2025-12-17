@@ -44,7 +44,11 @@ export function useWebhookInfo(blockId: string, workflowId: string): UseWebhookI
     useCallback(
       (state) => {
         const blockValues = state.workflowValues[activeWorkflowId || '']?.[blockId]
-        return !!(blockValues?.webhookProvider && blockValues?.webhookPath)
+        // Check for webhookId (set by trigger auto-save) or webhookProvider+webhookPath (legacy)
+        return !!(
+          blockValues?.webhookId ||
+          (blockValues?.webhookProvider && blockValues?.webhookPath)
+        )
       },
       [activeWorkflowId, blockId]
     )
@@ -67,6 +71,16 @@ export function useWebhookInfo(blockId: string, workflowId: string): UseWebhookI
       (state) => {
         if (!activeWorkflowId) return undefined
         return state.workflowValues[activeWorkflowId]?.[blockId]?.webhookPath as string | undefined
+      },
+      [activeWorkflowId, blockId]
+    )
+  )
+
+  const webhookIdFromStore = useSubBlockStore(
+    useCallback(
+      (state) => {
+        if (!activeWorkflowId) return null
+        return state.workflowValues[activeWorkflowId]?.[blockId]?.webhookId as string | null
       },
       [activeWorkflowId, blockId]
     )
@@ -114,7 +128,7 @@ export function useWebhookInfo(blockId: string, workflowId: string): UseWebhookI
 
   useEffect(() => {
     fetchWebhookStatus()
-  }, [fetchWebhookStatus])
+  }, [fetchWebhookStatus, webhookIdFromStore])
 
   const reactivateWebhook = useCallback(
     async (webhookId: string) => {

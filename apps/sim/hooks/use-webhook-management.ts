@@ -16,14 +16,18 @@ interface UseWebhookManagementProps {
   isPreview?: boolean
 }
 
+interface SaveConfigResult {
+  success: boolean
+  webhookId?: string
+}
+
 interface WebhookManagementState {
   webhookUrl: string
   webhookPath: string
   webhookId: string | null
   isLoading: boolean
   isSaving: boolean
-  saveConfig: () => Promise<boolean>
-  deleteConfig: () => Promise<boolean>
+  saveConfig: () => Promise<SaveConfigResult>
 }
 
 /**
@@ -81,10 +85,6 @@ function resolveEffectiveTriggerId(
 
 /**
  * Hook to manage webhook lifecycle for trigger blocks
- * Handles:
- * - Pre-generating webhook URLs based on blockId (without creating webhook)
- * - Loading existing webhooks from the API
- * - Saving and deleting webhook configurations
  */
 export function useWebhookManagement({
   blockId,
@@ -103,7 +103,6 @@ export function useWebhookManagement({
     useCallback((state) => state.getValue(blockId, 'triggerPath') as string | null, [blockId])
   )
   const isLoading = useSubBlockStore((state) => state.loadingWebhooks.has(blockId))
-  const isChecked = useSubBlockStore((state) => state.checkedWebhooks.has(blockId))
 
   const webhookUrl = useMemo(() => {
     if (!webhookPath) {
@@ -211,9 +210,9 @@ export function useWebhookManagement({
   const createWebhook = async (
     effectiveTriggerId: string | undefined,
     selectedCredentialId: string | null
-  ): Promise<boolean> => {
+  ): Promise<SaveConfigResult> => {
     if (!triggerDef || !effectiveTriggerId) {
-      return false
+      return { success: false }
     }
 
     const triggerConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
@@ -266,14 +265,14 @@ export function useWebhookManagement({
       blockId,
     })
 
-    return true
+    return { success: true, webhookId: savedWebhookId }
   }
 
   const updateWebhook = async (
     webhookIdToUpdate: string,
     effectiveTriggerId: string | undefined,
     selectedCredentialId: string | null
-  ): Promise<boolean> => {
+  ): Promise<SaveConfigResult> => {
     const triggerConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
 
     const response = await fetch(`/api/webhooks/${webhookIdToUpdate}`, {
@@ -310,12 +309,12 @@ export function useWebhookManagement({
     }
 
     logger.info('Trigger config saved successfully', { blockId, webhookId: webhookIdToUpdate })
-    return true
+    return { success: true, webhookId: webhookIdToUpdate }
   }
 
-  const saveConfig = async (): Promise<boolean> => {
+  const saveConfig = async (): Promise<SaveConfigResult> => {
     if (isPreview || !triggerDef) {
-      return false
+      return { success: false }
     }
 
     const effectiveTriggerId = resolveEffectiveTriggerId(blockId, triggerId)
@@ -339,41 +338,6 @@ export function useWebhookManagement({
     }
   }
 
-  const deleteConfig = async (): Promise<boolean> => {
-    if (isPreview || !webhookId) {
-      return false
-    }
-
-    try {
-      setIsSaving(true)
-
-      const response = await fetch(`/api/webhooks/${webhookId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        logger.error('Failed to delete webhook')
-        return false
-      }
-
-      useSubBlockStore.getState().setValue(blockId, 'triggerPath', '')
-      useSubBlockStore.getState().setValue(blockId, 'webhookId', null)
-      useSubBlockStore.setState((state) => {
-        const newSet = new Set(state.checkedWebhooks)
-        newSet.delete(blockId)
-        return { checkedWebhooks: newSet }
-      })
-
-      logger.info('Webhook deleted successfully')
-      return true
-    } catch (error) {
-      logger.error('Error deleting webhook:', error)
-      return false
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
   return {
     webhookUrl,
     webhookPath: webhookPath || blockId,
@@ -381,6 +345,5 @@ export function useWebhookManagement({
     isLoading,
     isSaving,
     saveConfig,
-    deleteConfig,
   }
 }

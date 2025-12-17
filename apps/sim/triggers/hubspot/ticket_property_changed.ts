@@ -108,6 +108,17 @@ export const hubspotTicketPropertyChangedTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'hubspot_ticket_property_changed',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'hubspot_ticket_property_changed',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',
@@ -165,17 +176,6 @@ export const hubspotTicketPropertyChangedTrigger: TriggerConfig = {
       showCopyButton: true,
       description: 'Run this command to subscribe to ticket property change events',
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_ticket_property_changed',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_ticket_property_changed',
       condition: {
         field: 'selectedTriggerId',
         value: 'hubspot_ticket_property_changed',

@@ -105,6 +105,14 @@ export const gmailPollingTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      hideFromPreview: true,
+      mode: 'trigger',
+      triggerId: 'gmail_poller',
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,
@@ -120,14 +128,6 @@ export const gmailPollingTrigger: TriggerConfig = {
         )
         .join(''),
       mode: 'trigger',
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'gmail_poller',
     },
   ],
 

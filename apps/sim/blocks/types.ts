@@ -215,6 +215,7 @@ export interface SubBlockConfig {
   connectionDroppable?: boolean
   hidden?: boolean
   hideFromPreview?: boolean // Hide this subblock from the workflow block preview
+  noWrapper?: boolean // Render the input directly without wrapper div
   requiresFeature?: string // Environment variable name that must be truthy for this subblock to be visible
   description?: string
   value?: (params: Record<string, any>) => string
