@@ -16,6 +16,10 @@ const QueryParamsSchema = z.object({
   folderIds: z.string().optional(),
   triggers: z.string().optional(),
   level: z.string().optional(), // Supports comma-separated values: 'error,running'
+  allTime: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => v === 'true'),
 })
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -34,7 +38,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       ? new Date(qp.startTime)
       : new Date(end.getTime() - 24 * 60 * 60 * 1000)
 
-    const isAllTime = start.getTime() < 86400000
+    const isAllTime = qp.allTime === true
 
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       return NextResponse.json({ error: 'Invalid time range' }, { status: 400 })

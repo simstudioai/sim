@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { ArrowUp, Bell, Library, Loader2, MoreHorizontal, RefreshCw } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -19,6 +19,7 @@ import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'
 import { useFolderStore } from '@/stores/folders/store'
 import { useFilterStore } from '@/stores/logs/filters/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { AutocompleteSearch } from './components/search'
 
 const CORE_TRIGGER_TYPES = ['manual', 'api', 'schedule', 'chat', 'webhook'] as const
@@ -155,22 +156,17 @@ export function LogsToolbar({
   } = useFilterStore()
   const folders = useFolderStore((state) => state.folders)
 
-  const [workflows, setWorkflows] = useState<Array<{ id: string; name: string; color: string }>>([])
+  // Use the same workflow source as the dashboard's WorkflowsList
+  const allWorkflows = useWorkflowRegistry((state) => state.workflows)
 
-  useEffect(() => {
-    const fetchWorkflows = async () => {
-      try {
-        const res = await fetch(`/api/workflows?workspaceId=${encodeURIComponent(workspaceId)}`)
-        if (res.ok) {
-          const body = await res.json()
-          setWorkflows(Array.isArray(body?.data) ? body.data : [])
-        }
-      } catch {
-        setWorkflows([])
-      }
-    }
-    if (workspaceId) fetchWorkflows()
-  }, [workspaceId])
+  // Transform registry workflows to the format needed for combobox options
+  const workflows = useMemo(() => {
+    return Object.values(allWorkflows).map((w) => ({
+      id: w.id,
+      name: w.name,
+      color: w.color,
+    }))
+  }, [allWorkflows])
 
   const folderList = useMemo(() => {
     return Object.values(folders).filter((f) => f.workspaceId === workspaceId)
