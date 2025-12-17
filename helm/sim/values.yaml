@@ -52,8 +52,9 @@ app:
     # Application URLs
     NEXT_PUBLIC_APP_URL: "http://localhost:3000"
     BETTER_AUTH_URL: "http://localhost:3000"
-    SOCKET_SERVER_URL: "http://localhost:3002"
-    NEXT_PUBLIC_SOCKET_URL: "http://localhost:3002"
+    # SOCKET_SERVER_URL: Auto-detected when realtime.enabled=true (uses internal service)
+    # Only set this if using an external WebSocket service with realtime.enabled=false
+    NEXT_PUBLIC_SOCKET_URL: "http://localhost:3002"  # Public WebSocket URL for browsers
     
     # Node environment
     NODE_ENV: "production"
@@ -99,15 +100,8 @@ app:
     
     # Rate Limiting Configuration (per minute)
     RATE_LIMIT_WINDOW_MS: "60000"                         # Rate limit window duration (1 minute)
-    RATE_LIMIT_FREE_SYNC: "10"                            # Free tier sync API executions
-    RATE_LIMIT_PRO_SYNC: "25"                             # Pro tier sync API executions
-    RATE_LIMIT_TEAM_SYNC: "75"                            # Team tier sync API executions
-    RATE_LIMIT_ENTERPRISE_SYNC: "150"                     # Enterprise tier sync API executions
-    RATE_LIMIT_FREE_ASYNC: "50"                           # Free tier async API executions  
-    RATE_LIMIT_PRO_ASYNC: "200"                           # Pro tier async API executions
-    RATE_LIMIT_TEAM_ASYNC: "500"                          # Team tier async API executions
-    RATE_LIMIT_ENTERPRISE_ASYNC: "1000"                   # Enterprise tier async API executions
-    MANUAL_EXECUTION_LIMIT: "999999"                      # Manual execution bypass value
+    RATE_LIMIT_FREE_SYNC: "10"                            # Sync API executions per minute
+    RATE_LIMIT_FREE_ASYNC: "50"                           # Async API executions per minute
     
     # UI Branding & Whitelabeling Configuration
     NEXT_PUBLIC_BRAND_NAME: "Sim"                         # Custom brand name
