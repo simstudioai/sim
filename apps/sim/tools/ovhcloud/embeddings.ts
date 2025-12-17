@@ -14,6 +14,12 @@ export const embeddingsTool: ToolConfig<OVHcloudEmbeddingsParams, OVHcloudEmbedd
       visibility: 'user-only',
       description: 'Model to use for embeddings',
     },
+    input: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'The input you want to embed',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -56,7 +62,7 @@ export const embeddingsTool: ToolConfig<OVHcloudEmbeddingsParams, OVHcloudEmbedd
   },
 
   outputs: {
-    embedding: { type: 'string', description: 'Generated embeddings' },
+    embedding: { type: 'array', description: 'Generated embeddings' },
     model: { type: 'string', description: 'Model used for generation' },
     usage: {
       type: 'object',
