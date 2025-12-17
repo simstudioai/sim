@@ -5,6 +5,7 @@ import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
+import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('WorkflowMcpToolsAPI')
@@ -13,22 +14,6 @@ export const dynamic = 'force-dynamic'
 
 interface RouteParams {
   id: string
-}
-
-/**
- * Sanitize a workflow name to be a valid MCP tool name.
- * Tool names should be lowercase, alphanumeric with underscores.
- */
-function sanitizeToolName(name: string): string {
-  return (
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9\s_-]/g, '')
-      .replace(/[\s-]+/g, '_')
-      .replace(/_+/g, '_')
-      .replace(/^_|_$/g, '')
-      .substring(0, 64) || 'workflow_tool'
-  )
 }
 
 /**

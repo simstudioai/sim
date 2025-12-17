@@ -24,6 +24,7 @@ import {
 import { Skeleton } from '@/components/ui'
 import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateToolInputSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import {
   useAddWorkflowMcpTool,
   useDeleteWorkflowMcpTool,
@@ -44,21 +45,6 @@ interface McpToolDeployProps {
   workflowDescription?: string | null
   isDeployed: boolean
   onAddedToServer?: () => void
-}
-
-/**
- * Sanitize a workflow name to be a valid MCP tool name.
- */
-function sanitizeToolName(name: string): string {
-  return (
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9\s_-]/g, '')
-      .replace(/[\s-]+/g, '_')
-      .replace(/_+/g, '_')
-      .replace(/^_|_$/g, '')
-      .substring(0, 64) || 'workflow_tool'
-  )
 }
 
 /**
@@ -131,53 +117,12 @@ function extractInputFormat(
 }
 
 /**
- * Generate JSON Schema from input format
+ * Generate JSON Schema from input format using the shared utility
  */
 function generateParameterSchema(
   inputFormat: Array<{ name: string; type: string }>
 ): Record<string, unknown> {
-  if (inputFormat.length === 0) {
-    return {
-      type: 'object',
-      properties: {},
-    }
-  }
-
-  const properties: Record<string, { type: string; description: string }> = {}
-  const required: string[] = []
-
-  for (const field of inputFormat) {
-    let jsonType = 'string'
-    switch (field.type) {
-      case 'number':
-        jsonType = 'number'
-        break
-      case 'boolean':
-        jsonType = 'boolean'
-        break
-      case 'object':
-        jsonType = 'object'
-        break
-      case 'array':
-      case 'files':
-        jsonType = 'array'
-        break
-      default:
-        jsonType = 'string'
-    }
-
-    properties[field.name] = {
-      type: jsonType,
-      description: field.name,
-    }
-    required.push(field.name)
-  }
-
-  return {
-    type: 'object',
-    properties,
-    required,
-  }
+  return generateToolInputSchema(inputFormat) as unknown as Record<string, unknown>
 }
 
 /**
