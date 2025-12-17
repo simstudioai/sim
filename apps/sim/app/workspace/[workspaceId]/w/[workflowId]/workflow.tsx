@@ -18,7 +18,7 @@ import { useShallow } from 'zustand/react/shallow'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/other/oauth-request-access'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { OAuthProvider } from '@/lib/oauth'
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
+import { CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -177,6 +177,7 @@ const WorkflowContent = React.memo(() => {
     resizeLoopNodes,
     updateNodeParent: updateNodeParentUtil,
     getNodeAnchorPosition,
+    getBlockDimensions,
   } = useNodeUtilities(blocks)
 
   /** Triggers immediate subflow resize without delays. */
@@ -1520,9 +1521,7 @@ const WorkflowContent = React.memo(() => {
 
         childNodes.forEach((node) => {
           const nodePosition = node.id === draggedNodeId ? draggedNodePosition : node.position
-          const blockData = blocks[node.id]
-          const nodeWidth = BLOCK_DIMENSIONS.FIXED_WIDTH
-          const nodeHeight = blockData?.height || node.height || BLOCK_DIMENSIONS.MIN_HEIGHT
+          const { width: nodeWidth, height: nodeHeight } = getBlockDimensions(node.id)
 
           maxRight = Math.max(maxRight, nodePosition.x + nodeWidth)
           maxBottom = Math.max(maxBottom, nodePosition.y + nodeHeight)
@@ -1561,7 +1560,7 @@ const WorkflowContent = React.memo(() => {
         })
       })
     },
-    [blocks]
+    [blocks, getBlockDimensions]
   )
 
   /**
