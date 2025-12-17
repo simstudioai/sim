@@ -303,6 +303,14 @@ export async function POST(req: NextRequest) {
           apiVersion: 'preview',
           endpoint: env.AZURE_OPENAI_ENDPOINT,
         }
+      } else if (providerEnv === 'vertex') {
+        providerConfig = {
+          provider: 'vertex',
+          model: modelToUse,
+          apiKey: env.COPILOT_API_KEY,
+          vertexProject: env.VERTEX_PROJECT,
+          vertexLocation: env.VERTEX_LOCATION,
+        }
       } else {
         providerConfig = {
           provider: providerEnv,

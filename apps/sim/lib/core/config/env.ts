@@ -98,6 +98,10 @@ export const env = createEnv({
     OCR_AZURE_MODEL_NAME:                  z.string().optional(),                  // Azure Mistral OCR model name for document processing
     OCR_AZURE_API_KEY:                     z.string().min(1).optional(),           // Azure Mistral OCR API key
 
+    // Vertex AI Configuration
+    VERTEX_PROJECT:                        z.string().optional(),                  // Google Cloud project ID for Vertex AI
+    VERTEX_LOCATION:                       z.string().optional(),                  // Google Cloud location/region for Vertex AI (defaults to us-central1)
+
     // Monitoring & Analytics
     TELEMETRY_ENDPOINT:                    z.string().url().optional(),            // Custom telemetry/analytics endpoint
     COST_MULTIPLIER:                       z.number().optional(),                  // Multiplier for cost calculations

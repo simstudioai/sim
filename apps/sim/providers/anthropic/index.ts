@@ -1,34 +1,23 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
+import { MAX_TOOL_ITERATIONS } from '@/providers'
+import {
+  checkForForcedToolUsage,
+  createReadableStreamFromAnthropicStream,
+  generateToolUseId,
+} from '@/providers/anthropic/utils'
+import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import type {
+  ProviderConfig,
+  ProviderRequest,
+  ProviderResponse,
+  TimeSegment,
+} from '@/providers/types'
+import { prepareToolExecution, prepareToolsWithUsageControl } from '@/providers/utils'
 import { executeTool } from '@/tools'
-import { getProviderDefaultModel, getProviderModels } from '../models'
-import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
-import { prepareToolExecution, prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('AnthropicProvider')
-
-/**
- * Helper to wrap Anthropic streaming into a browser-friendly ReadableStream
- */
-function createReadableStreamFromAnthropicStream(
-  anthropicStream: AsyncIterable<any>
-): ReadableStream {
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const event of anthropicStream) {
-          if (event.type === 'content_block_delta' && event.delta?.text) {
-            controller.enqueue(new TextEncoder().encode(event.delta.text))
-          }
-        }
-        controller.close()
-      } catch (err) {
-        controller.error(err)
-      }
-    },
-  })
-}
 
 export const anthropicProvider: ProviderConfig = {
   id: 'anthropic',
@@ -46,11 +35,6 @@ export const anthropicProvider: ProviderConfig = {
     }
 
     const anthropic = new Anthropic({ apiKey: request.apiKey })
-
-    // Helper function to generate a simple unique ID for tool uses
-    const generateToolUseId = (toolName: string) => {
-      return `${toolName}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
-    }
 
     // Transform messages to Anthropic format
     const messages: any[] = []
@@ -373,7 +357,6 @@ ${fieldDescriptions}
         const toolResults = []
         const currentMessages = [...messages]
         let iterationCount = 0
-        const MAX_ITERATIONS = 10 // Prevent infinite loops
 
         // Track if a forced tool has been used
         let hasUsedForcedTool = false
@@ -393,47 +376,20 @@ ${fieldDescriptions}
           },
         ]
 
-        // Helper function to check for forced tool usage in Anthropic responses
-        const checkForForcedToolUsage = (response: any, toolChoice: any) => {
-          if (
-            typeof toolChoice === 'object' &&
-            toolChoice !== null &&
-            Array.isArray(response.content)
-          ) {
-            const toolUses = response.content.filter((item: any) => item.type === 'tool_use')
-
-            if (toolUses.length > 0) {
-              // Convert Anthropic tool_use format to a format trackForcedToolUsage can understand
-              const adaptedToolCalls = toolUses.map((tool: any) => ({
-                name: tool.name,
-              }))
-
-              // Convert Anthropic tool_choice format to match OpenAI format for tracking
-              const adaptedToolChoice =
-                toolChoice.type === 'tool' ? { function: { name: toolChoice.name } } : toolChoice
-
-              const result = trackForcedToolUsage(
-                adaptedToolCalls,
-                adaptedToolChoice,
-                logger,
-                'anthropic',
-                forcedTools,
-                usedForcedTools
-              )
-              // Make the behavior consistent with the initial check
-              hasUsedForcedTool = result.hasUsedForcedTool
-              usedForcedTools = result.usedForcedTools
-              return result
-            }
-          }
-          return null
+        // Check if a forced tool was used in the first response
+        const firstCheckResult = checkForForcedToolUsage(
+          currentResponse,
+          originalToolChoice,
+          forcedTools,
+          usedForcedTools
+        )
+        if (firstCheckResult) {
+          hasUsedForcedTool = firstCheckResult.hasUsedForcedTool
+          usedForcedTools = firstCheckResult.usedForcedTools
         }
 
-        // Check if a forced tool was used in the first response
-        checkForForcedToolUsage(currentResponse, originalToolChoice)
-
         try {
-          while (iterationCount < MAX_ITERATIONS) {
+          while (iterationCount < MAX_TOOL_ITERATIONS) {
             // Check for tool calls
             const toolUses = currentResponse.content.filter((item) => item.type === 'tool_use')
             if (!toolUses || toolUses.length === 0) {
@@ -576,7 +532,16 @@ ${fieldDescriptions}
             currentResponse = await anthropic.messages.create(nextPayload)
 
             // Check if any forced tools were used in this response
-            checkForForcedToolUsage(currentResponse, nextPayload.tool_choice)
+            const nextCheckResult = checkForForcedToolUsage(
+              currentResponse,
+              nextPayload.tool_choice,
+              forcedTools,
+              usedForcedTools
+            )
+            if (nextCheckResult) {
+              hasUsedForcedTool = nextCheckResult.hasUsedForcedTool
+              usedForcedTools = nextCheckResult.usedForcedTools
+            }
 
             const nextModelEndTime = Date.now()
             const thisModelTime = nextModelEndTime - nextModelStartTime
@@ -727,7 +692,6 @@ ${fieldDescriptions}
       const toolResults = []
       const currentMessages = [...messages]
       let iterationCount = 0
-      const MAX_ITERATIONS = 10 // Prevent infinite loops
 
       // Track if a forced tool has been used
       let hasUsedForcedTool = false
@@ -747,47 +711,20 @@ ${fieldDescriptions}
         },
       ]
 
-      // Helper function to check for forced tool usage in Anthropic responses
-      const checkForForcedToolUsage = (response: any, toolChoice: any) => {
-        if (
-          typeof toolChoice === 'object' &&
-          toolChoice !== null &&
-          Array.isArray(response.content)
-        ) {
-          const toolUses = response.content.filter((item: any) => item.type === 'tool_use')
-
-          if (toolUses.length > 0) {
-            // Convert Anthropic tool_use format to a format trackForcedToolUsage can understand
-            const adaptedToolCalls = toolUses.map((tool: any) => ({
-              name: tool.name,
-            }))
-
-            // Convert Anthropic tool_choice format to match OpenAI format for tracking
-            const adaptedToolChoice =
-              toolChoice.type === 'tool' ? { function: { name: toolChoice.name } } : toolChoice
-
-            const result = trackForcedToolUsage(
-              adaptedToolCalls,
-              adaptedToolChoice,
-              logger,
-              'anthropic',
-              forcedTools,
-              usedForcedTools
-            )
-            // Make the behavior consistent with the initial check
-            hasUsedForcedTool = result.hasUsedForcedTool
-            usedForcedTools = result.usedForcedTools
-            return result
-          }
-        }
-        return null
+      // Check if a forced tool was used in the first response
+      const firstCheckResult = checkForForcedToolUsage(
+        currentResponse,
+        originalToolChoice,
+        forcedTools,
+        usedForcedTools
+      )
+      if (firstCheckResult) {
+        hasUsedForcedTool = firstCheckResult.hasUsedForcedTool
+        usedForcedTools = firstCheckResult.usedForcedTools
       }
 
-      // Check if a forced tool was used in the first response
-      checkForForcedToolUsage(currentResponse, originalToolChoice)
-
       try {
-        while (iterationCount < MAX_ITERATIONS) {
+        while (iterationCount < MAX_TOOL_ITERATIONS) {
           // Check for tool calls
           const toolUses = currentResponse.content.filter((item) => item.type === 'tool_use')
           if (!toolUses || toolUses.length === 0) {
@@ -926,7 +863,16 @@ ${fieldDescriptions}
           currentResponse = await anthropic.messages.create(nextPayload)
 
           // Check if any forced tools were used in this response
-          checkForForcedToolUsage(currentResponse, nextPayload.tool_choice)
+          const nextCheckResult = checkForForcedToolUsage(
+            currentResponse,
+            nextPayload.tool_choice,
+            forcedTools,
+            usedForcedTools
+          )
+          if (nextCheckResult) {
+            hasUsedForcedTool = nextCheckResult.hasUsedForcedTool
+            usedForcedTools = nextCheckResult.usedForcedTools
+          }
 
           const nextModelEndTime = Date.now()
           const thisModelTime = nextModelEndTime - nextModelStartTime

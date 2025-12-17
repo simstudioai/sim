@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "simstudio",
@@ -266,12 +267,12 @@
     "sharp",
   ],
   "overrides": {
-    "react": "19.2.1",
-    "react-dom": "19.2.1",
-    "next": "16.1.0-canary.21",
     "@next/env": "16.1.0-canary.21",
     "drizzle-orm": "^0.44.5",
+    "next": "16.1.0-canary.21",
     "postgres": "^3.4.5",
+    "react": "19.2.1",
+    "react-dom": "19.2.1",
   },
   "packages": {
     "@adobe/css-tools": ["@adobe/css-tools@4.4.4", "", {}, "sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg=="],

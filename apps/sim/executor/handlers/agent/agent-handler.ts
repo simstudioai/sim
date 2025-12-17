@@ -493,7 +493,7 @@ export class AgentBlockHandler implements BlockHandler {
           const discoveredTools = await this.discoverMcpToolsForServer(ctx, serverId)
           return { serverId, tools, discoveredTools, error: null as Error | null }
         } catch (error) {
-          logger.error(`Failed to discover tools from server ${serverId}:`, error)
+          logger.error(`Failed to discover tools from server ${serverId}:`)
           return { serverId, tools, discoveredTools: [] as any[], error: error as Error }
         }
       })
@@ -883,6 +883,8 @@ export class AgentBlockHandler implements BlockHandler {
       apiKey: inputs.apiKey,
       azureEndpoint: inputs.azureEndpoint,
       azureApiVersion: inputs.azureApiVersion,
+      vertexProject: inputs.vertexProject,
+      vertexLocation: inputs.vertexLocation,
       responseFormat,
       workflowId: ctx.workflowId,
       workspaceId: ctx.workspaceId,
@@ -975,6 +977,8 @@ export class AgentBlockHandler implements BlockHandler {
       apiKey: finalApiKey,
       azureEndpoint: providerRequest.azureEndpoint,
       azureApiVersion: providerRequest.azureApiVersion,
+      vertexProject: providerRequest.vertexProject,
+      vertexLocation: providerRequest.vertexLocation,
       responseFormat: providerRequest.responseFormat,
       workflowId: providerRequest.workflowId,
       workspaceId: providerRequest.workspaceId,

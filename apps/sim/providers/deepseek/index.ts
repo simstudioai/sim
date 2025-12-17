@@ -1,6 +1,8 @@
 import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
+import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { createReadableStreamFromDeepseekStream } from '@/providers/deepseek/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type {
   ProviderConfig,
@@ -16,28 +18,6 @@ import {
 import { executeTool } from '@/tools'
 
 const logger = createLogger('DeepseekProvider')
-
-/**
- * Helper function to convert a DeepSeek (OpenAI-compatible) stream to a ReadableStream
- * of text chunks that can be consumed by the browser.
- */
-function createReadableStreamFromDeepseekStream(deepseekStream: any): ReadableStream {
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of deepseekStream) {
-          const content = chunk.choices[0]?.delta?.content || ''
-          if (content) {
-            controller.enqueue(new TextEncoder().encode(content))
-          }
-        }
-        controller.close()
-      } catch (error) {
-        controller.error(error)
-      }
-    },
-  })
-}
 
 export const deepseekProvider: ProviderConfig = {
   id: 'deepseek',
@@ -231,7 +211,6 @@ export const deepseekProvider: ProviderConfig = {
       const toolResults = []
       const currentMessages = [...allMessages]
       let iterationCount = 0
-      const MAX_ITERATIONS = 10 // Prevent infinite loops
 
       // Track if a forced tool has been used
       let hasUsedForcedTool = false
@@ -270,7 +249,7 @@ export const deepseekProvider: ProviderConfig = {
       }
 
       try {
-        while (iterationCount < MAX_ITERATIONS) {
+        while (iterationCount < MAX_TOOL_ITERATIONS) {
           // Check for tool calls
           const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
           if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
