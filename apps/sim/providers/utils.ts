@@ -1001,7 +1001,7 @@ export function supportsToolUsageControl(provider: string): boolean {
  * Prepare tool execution parameters, separating tool parameters from system parameters
  */
 export function prepareToolExecution(
-  tool: { params?: Record<string, any> },
+  tool: { params?: Record<string, any>; parameters?: Record<string, any> },
   llmArgs: Record<string, any>,
   request: {
     workflowId?: string
@@ -1051,6 +1051,8 @@ export function prepareToolExecution(
     ...(request.workflowVariables ? { workflowVariables: request.workflowVariables } : {}),
     ...(request.blockData ? { blockData: request.blockData } : {}),
     ...(request.blockNameMapping ? { blockNameMapping: request.blockNameMapping } : {}),
+    // Pass tool schema for MCP tools to skip discovery
+    ...(tool.parameters ? { _toolSchema: tool.parameters } : {}),
   }
 
   return { toolParams, executionParams }
