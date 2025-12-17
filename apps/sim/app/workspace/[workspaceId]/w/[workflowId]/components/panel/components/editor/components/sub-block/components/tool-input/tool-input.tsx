@@ -61,6 +61,7 @@ import { useMcpServers } from '@/hooks/queries/mcp'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useMcpTools } from '@/hooks/use-mcp-tools'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
+import { useSettingsModalStore } from '@/stores/settings-modal/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import {
   formatParameterLabel,
@@ -805,7 +806,9 @@ export function ToolInput({
     refreshTools,
   } = useMcpTools(workspaceId)
 
-  const { data: mcpServers = [] } = useMcpServers(workspaceId)
+  const { data: mcpServers = [], isLoading: mcpServersLoading } = useMcpServers(workspaceId)
+  const openSettingsModal = useSettingsModalStore((state) => state.openModal)
+  const mcpDataLoading = mcpLoading || mcpServersLoading
 
   /**
    * Returns issue info for an MCP tool using shared validation logic.
@@ -2103,27 +2106,40 @@ export function ToolInput({
                       {isCustomTool ? customToolTitle : tool.title}
                     </span>
                     {isMcpTool &&
+                      !mcpDataLoading &&
                       (() => {
                         const issue = getMcpToolIssue(tool)
                         if (!issue) return null
                         const { getIssueBadgeLabel } = require('@/lib/mcp/tool-validation')
+                        const serverId = tool.params?.serverId
                         return (
-                          <Tooltip.Root>
-                            <Tooltip.Trigger asChild>
-                              <Badge
-                                variant='outline'
-                                style={{
-                                  borderColor: 'var(--warning)',
-                                  color: 'var(--warning)',
-                                }}
-                              >
-                                {getIssueBadgeLabel(issue)}
-                              </Badge>
-                            </Tooltip.Trigger>
-                            <Tooltip.Content>
-                              <span className='text-sm'>{issue.message}</span>
-                            </Tooltip.Content>
-                          </Tooltip.Root>
+                          <div
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation()
+                              e.preventDefault()
+                              openSettingsModal({ section: 'mcp', mcpServerId: serverId })
+                            }}
+                          >
+                            <Tooltip.Root>
+                              <Tooltip.Trigger asChild>
+                                <Badge
+                                  variant='outline'
+                                  className='cursor-pointer transition-colors hover:bg-[var(--warning)]/10'
+                                  style={{
+                                    borderColor: 'var(--warning)',
+                                    color: 'var(--warning)',
+                                  }}
+                                >
+                                  {getIssueBadgeLabel(issue)}
+                                </Badge>
+                              </Tooltip.Trigger>
+                              <Tooltip.Content>
+                                <span className='text-sm'>
+                                  {issue.message} · Click to open settings
+                                </span>
+                              </Tooltip.Content>
+                            </Tooltip.Root>
+                          </div>
                         )
                       })()}
                   </div>

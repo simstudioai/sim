@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -75,11 +75,15 @@ function getTestButtonLabel(
   return 'Test Connection'
 }
 
+interface MCPProps {
+  initialServerId?: string | null
+}
+
 /**
  * MCP Settings component for managing Model Context Protocol servers.
  * Handles server CRUD operations, connection testing, and environment variable integration.
  */
-export function MCP() {
+export function MCP({ initialServerId }: MCPProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -125,6 +129,13 @@ export function MCP() {
 
   const [urlScrollLeft, setUrlScrollLeft] = useState(0)
   const [headerScrollLeft, setHeaderScrollLeft] = useState<Record<string, number>>({})
+
+  // Auto-select server when initialServerId is provided
+  useEffect(() => {
+    if (initialServerId && servers.some((s) => s.id === initialServerId)) {
+      setSelectedServerId(initialServerId)
+    }
+  }, [initialServerId, servers])
 
   /**
    * Resets environment variable dropdown state.

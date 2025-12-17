@@ -95,7 +95,7 @@ export function getMcpToolIssue(
   // Check schema changed
   if (schema && serverTool.inputSchema) {
     if (hasSchemaChanged(schema, serverTool.inputSchema)) {
-      return { type: 'schema_changed', message: 'Tool schema changed - refresh to update' }
+      return { type: 'schema_changed', message: 'Tool schema changed' }
     }
   }
 

@@ -32,6 +32,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/search-modal/store'
+import { useSettingsModalStore } from '@/stores/settings-modal/store'
 import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
@@ -88,7 +89,11 @@ export function Sidebar() {
 
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false)
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
+  const {
+    isOpen: isSettingsModalOpen,
+    openModal: openSettingsModal,
+    closeModal: closeSettingsModal,
+  } = useSettingsModalStore()
 
   /** Listens for external events to open help modal */
   useEffect(() => {
@@ -219,7 +224,7 @@ export function Sidebar() {
         id: 'settings',
         label: 'Settings',
         icon: Settings,
-        onClick: () => setIsSettingsModalOpen(true),
+        onClick: () => openSettingsModal(),
       },
     ],
     [workspaceId]
@@ -654,7 +659,10 @@ export function Sidebar() {
 
       {/* Footer Navigation Modals */}
       <HelpModal open={isHelpModalOpen} onOpenChange={setIsHelpModalOpen} />
-      <SettingsModal open={isSettingsModalOpen} onOpenChange={setIsSettingsModalOpen} />
+      <SettingsModal
+        open={isSettingsModalOpen}
+        onOpenChange={(open) => (open ? openSettingsModal() : closeSettingsModal())}
+      />
 
       {/* Hidden file input for workspace import */}
       <input
