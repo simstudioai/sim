@@ -252,23 +252,12 @@ export function useNodeUtilities(blocks: Record<string, any>) {
    */
   const calculateLoopDimensions = useCallback(
     (nodeId: string): { width: number; height: number } => {
-      const minWidth = CONTAINER_DIMENSIONS.DEFAULT_WIDTH
-      const minHeight = CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
-
-      // Match styling in subflow-node.tsx:
-      // - Header section: 50px total height
-      // - Content area: px-[16px] pb-[0px] pt-[16px] pr-[70px]
-      //   Left padding: 16px, Right padding: 64px, Top padding: 16px, Bottom padding: -6px (reduced by additional 6px from 0 to achieve 14px total reduction from original 8px)
-      // - Children are positioned relative to the content area (after header, inside padding)
-      const headerHeight = 50
-      const leftPadding = 16
-      const rightPadding = 80
-      const topPadding = 16
-      const bottomPadding = 16
-
       const childNodes = getNodes().filter((node) => node.parentId === nodeId)
       if (childNodes.length === 0) {
-        return { width: minWidth, height: minHeight }
+        return {
+          width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+          height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+        }
       }
 
       let maxRight = 0
@@ -276,21 +265,21 @@ export function useNodeUtilities(blocks: Record<string, any>) {
 
       childNodes.forEach((node) => {
         const { width: nodeWidth, height: nodeHeight } = getBlockDimensions(node.id)
-
-        // Child positions are relative to content area's inner top-left (inside padding)
-        // Calculate the rightmost and bottommost edges of children
-        const rightEdge = node.position.x + nodeWidth
-        const bottomEdge = node.position.y + nodeHeight
-
-        maxRight = Math.max(maxRight, rightEdge)
-        maxBottom = Math.max(maxBottom, bottomEdge)
+        maxRight = Math.max(maxRight, node.position.x + nodeWidth)
+        maxBottom = Math.max(maxBottom, node.position.y + nodeHeight)
       })
 
-      // Container dimensions = header + padding + children bounds + padding
-      // Width: left padding + max child right edge + right padding (64px)
-      const width = Math.max(minWidth, leftPadding + maxRight + rightPadding)
-      // Height: header + top padding + max child bottom edge + bottom padding (8px)
-      const height = Math.max(minHeight, headerHeight + topPadding + maxBottom + bottomPadding)
+      const width = Math.max(
+        CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+        CONTAINER_DIMENSIONS.LEFT_PADDING + maxRight + CONTAINER_DIMENSIONS.RIGHT_PADDING
+      )
+      const height = Math.max(
+        CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+        CONTAINER_DIMENSIONS.HEADER_HEIGHT +
+          CONTAINER_DIMENSIONS.TOP_PADDING +
+          maxBottom +
+          CONTAINER_DIMENSIONS.BOTTOM_PADDING
+      )
 
       return { width, height }
     },
