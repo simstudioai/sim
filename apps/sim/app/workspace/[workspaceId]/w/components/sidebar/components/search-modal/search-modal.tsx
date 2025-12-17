@@ -433,10 +433,10 @@ export function SearchModal({
         case 'workflow':
           if (!item.isCurrent && item.href) {
             router.push(item.href)
+            window.dispatchEvent(
+              new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: item.id } })
+            )
           }
-          window.dispatchEvent(
-            new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: item.id } })
-          )
           break
         case 'page':
         case 'doc':
