@@ -15,9 +15,9 @@ import type {
  * Valid tag slots that can be used in filters
  */
 const VALID_TEXT_SLOTS = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
-const VALID_NUMBER_SLOTS = ['number1', 'number2', 'number3'] as const
-const VALID_DATE_SLOTS = ['date1', 'date2'] as const
-const VALID_BOOLEAN_SLOTS = ['boolean1', 'boolean2'] as const
+const VALID_NUMBER_SLOTS = ['number1', 'number2', 'number3', 'number4', 'number5', 'number6', 'number7'] as const
+const VALID_DATE_SLOTS = ['date1', 'date2', 'date3', 'date4', 'date5', 'date6', 'date7'] as const
+const VALID_BOOLEAN_SLOTS = ['boolean1', 'boolean2', 'boolean3', 'boolean4', 'boolean5', 'boolean6', 'boolean7'] as const
 
 type TextSlot = (typeof VALID_TEXT_SLOTS)[number]
 type NumberSlot = (typeof VALID_NUMBER_SLOTS)[number]
@@ -110,7 +110,7 @@ function buildNumberCondition(
       return lte(column, value)
     case 'between':
       if (valueTo !== undefined) {
-        return and(gte(column, value), lte(column, valueTo))
+        return and(gte(column, value), lte(column, valueTo)) ?? null
       }
       return null
     default:
@@ -152,7 +152,7 @@ function buildDateCondition(
     case 'between':
       if (valueTo !== undefined) {
         const dateValueTo = new Date(valueTo)
-        return and(gte(column, dateValue), lte(column, dateValueTo))
+        return and(gte(column, dateValue), lte(column, dateValueTo)) ?? null
       }
       return null
     default:
@@ -226,7 +226,7 @@ function buildGroupCondition(
     return conditions[0]
   }
 
-  return group.operator === 'AND' ? and(...conditions) : or(...conditions)
+  return (group.operator === 'AND' ? and(...conditions) : or(...conditions)) ?? null
 }
 
 /**
@@ -249,7 +249,7 @@ export function buildTagFilterQuery(
     return groupConditions[0]
   }
 
-  return filter.rootOperator === 'AND' ? and(...groupConditions) : or(...groupConditions)
+  return (filter.rootOperator === 'AND' ? and(...groupConditions) : or(...groupConditions)) ?? null
 }
 
 /**
@@ -272,7 +272,7 @@ export function buildSimpleTagFilterQuery(
     return conditions[0]
   }
 
-  return filter.operator === 'AND' ? and(...conditions) : or(...conditions)
+  return (filter.operator === 'AND' ? and(...conditions) : or(...conditions)) ?? null
 }
 
 /**

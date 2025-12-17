@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { TAG_SLOTS } from '@/lib/knowledge/constants'
+import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
@@ -257,9 +257,9 @@ export async function POST(request: NextRequest) {
             // Create tags object with display names
             const tags: Record<string, any> = {}
 
-            TAG_SLOTS.forEach((slot) => {
+            ALL_TAG_SLOTS.forEach((slot) => {
               const tagValue = (result as any)[slot]
-              if (tagValue) {
+              if (tagValue !== null && tagValue !== undefined) {
                 const displayName = kbTagMap[slot] || slot
                 logger.debug(
                   `[${requestId}] Mapping ${slot}="${tagValue}" -> "${displayName}"="${tagValue}"`

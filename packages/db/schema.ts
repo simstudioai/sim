@@ -1052,16 +1052,30 @@ export const document = pgTable(
     tag5: text('tag5'),
     tag6: text('tag6'),
     tag7: text('tag7'),
-    // Number tags (3 slots)
+    // Number tags (7 slots)
     number1: doublePrecision('number1'),
     number2: doublePrecision('number2'),
     number3: doublePrecision('number3'),
-    // Date tags (2 slots)
+    number4: doublePrecision('number4'),
+    number5: doublePrecision('number5'),
+    number6: doublePrecision('number6'),
+    number7: doublePrecision('number7'),
+    // Date tags (7 slots)
     date1: timestamp('date1'),
     date2: timestamp('date2'),
-    // Boolean tags (2 slots)
+    date3: timestamp('date3'),
+    date4: timestamp('date4'),
+    date5: timestamp('date5'),
+    date6: timestamp('date6'),
+    date7: timestamp('date7'),
+    // Boolean tags (7 slots)
     boolean1: boolean('boolean1'),
     boolean2: boolean('boolean2'),
+    boolean3: boolean('boolean3'),
+    boolean4: boolean('boolean4'),
+    boolean5: boolean('boolean5'),
+    boolean6: boolean('boolean6'),
+    boolean7: boolean('boolean7'),
 
     // Timestamps
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
@@ -1088,12 +1102,26 @@ export const document = pgTable(
     number1Idx: index('doc_number1_idx').on(table.number1),
     number2Idx: index('doc_number2_idx').on(table.number2),
     number3Idx: index('doc_number3_idx').on(table.number3),
+    number4Idx: index('doc_number4_idx').on(table.number4),
+    number5Idx: index('doc_number5_idx').on(table.number5),
+    number6Idx: index('doc_number6_idx').on(table.number6),
+    number7Idx: index('doc_number7_idx').on(table.number7),
     // Date tag indexes
     date1Idx: index('doc_date1_idx').on(table.date1),
     date2Idx: index('doc_date2_idx').on(table.date2),
+    date3Idx: index('doc_date3_idx').on(table.date3),
+    date4Idx: index('doc_date4_idx').on(table.date4),
+    date5Idx: index('doc_date5_idx').on(table.date5),
+    date6Idx: index('doc_date6_idx').on(table.date6),
+    date7Idx: index('doc_date7_idx').on(table.date7),
     // Boolean tag indexes
     boolean1Idx: index('doc_boolean1_idx').on(table.boolean1),
     boolean2Idx: index('doc_boolean2_idx').on(table.boolean2),
+    boolean3Idx: index('doc_boolean3_idx').on(table.boolean3),
+    boolean4Idx: index('doc_boolean4_idx').on(table.boolean4),
+    boolean5Idx: index('doc_boolean5_idx').on(table.boolean5),
+    boolean6Idx: index('doc_boolean6_idx').on(table.boolean6),
+    boolean7Idx: index('doc_boolean7_idx').on(table.boolean7),
   })
 )
 
@@ -1163,16 +1191,30 @@ export const embedding = pgTable(
     tag5: text('tag5'),
     tag6: text('tag6'),
     tag7: text('tag7'),
-    // Number tags (3 slots)
+    // Number tags (7 slots)
     number1: doublePrecision('number1'),
     number2: doublePrecision('number2'),
     number3: doublePrecision('number3'),
-    // Date tags (2 slots)
+    number4: doublePrecision('number4'),
+    number5: doublePrecision('number5'),
+    number6: doublePrecision('number6'),
+    number7: doublePrecision('number7'),
+    // Date tags (7 slots)
     date1: timestamp('date1'),
     date2: timestamp('date2'),
-    // Boolean tags (2 slots)
+    date3: timestamp('date3'),
+    date4: timestamp('date4'),
+    date5: timestamp('date5'),
+    date6: timestamp('date6'),
+    date7: timestamp('date7'),
+    // Boolean tags (7 slots)
     boolean1: boolean('boolean1'),
     boolean2: boolean('boolean2'),
+    boolean3: boolean('boolean3'),
+    boolean4: boolean('boolean4'),
+    boolean5: boolean('boolean5'),
+    boolean6: boolean('boolean6'),
+    boolean7: boolean('boolean7'),
 
     // Chunk state - enable/disable from knowledge base
     enabled: boolean('enabled').notNull().default(true),
@@ -1223,12 +1265,26 @@ export const embedding = pgTable(
     number1Idx: index('emb_number1_idx').on(table.number1),
     number2Idx: index('emb_number2_idx').on(table.number2),
     number3Idx: index('emb_number3_idx').on(table.number3),
+    number4Idx: index('emb_number4_idx').on(table.number4),
+    number5Idx: index('emb_number5_idx').on(table.number5),
+    number6Idx: index('emb_number6_idx').on(table.number6),
+    number7Idx: index('emb_number7_idx').on(table.number7),
     // Date tag indexes
     date1Idx: index('emb_date1_idx').on(table.date1),
     date2Idx: index('emb_date2_idx').on(table.date2),
+    date3Idx: index('emb_date3_idx').on(table.date3),
+    date4Idx: index('emb_date4_idx').on(table.date4),
+    date5Idx: index('emb_date5_idx').on(table.date5),
+    date6Idx: index('emb_date6_idx').on(table.date6),
+    date7Idx: index('emb_date7_idx').on(table.date7),
     // Boolean tag indexes
     boolean1Idx: index('emb_boolean1_idx').on(table.boolean1),
     boolean2Idx: index('emb_boolean2_idx').on(table.boolean2),
+    boolean3Idx: index('emb_boolean3_idx').on(table.boolean3),
+    boolean4Idx: index('emb_boolean4_idx').on(table.boolean4),
+    boolean5Idx: index('emb_boolean5_idx').on(table.boolean5),
+    boolean6Idx: index('emb_boolean6_idx').on(table.boolean6),
+    boolean7Idx: index('emb_boolean7_idx').on(table.boolean7),
 
     // Full-text search index
     contentFtsIdx: index('emb_content_fts_idx').using('gin', table.contentTsv),

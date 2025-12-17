@@ -34,6 +34,7 @@ export interface SearchResult {
   content: string
   documentId: string
   chunkIndex: number
+  // Text tags
   tag1: string | null
   tag2: string | null
   tag3: string | null
@@ -41,6 +42,30 @@ export interface SearchResult {
   tag5: string | null
   tag6: string | null
   tag7: string | null
+  // Number tags
+  number1: number | null
+  number2: number | null
+  number3: number | null
+  number4: number | null
+  number5: number | null
+  number6: number | null
+  number7: number | null
+  // Date tags
+  date1: Date | null
+  date2: Date | null
+  date3: Date | null
+  date4: Date | null
+  date5: Date | null
+  date6: Date | null
+  date7: Date | null
+  // Boolean tags
+  boolean1: boolean | null
+  boolean2: boolean | null
+  boolean3: boolean | null
+  boolean4: boolean | null
+  boolean5: boolean | null
+  boolean6: boolean | null
+  boolean7: boolean | null
   distance: number
   knowledgeBaseId: string
 }
@@ -56,36 +81,81 @@ export interface SearchParams {
 // Use shared embedding utility
 export { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 
-function getTagFilters(filters: Record<string, string>, embedding: any) {
+/** All valid tag slot keys */
+const TAG_SLOT_KEYS = [
+  // Text tags
+  'tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7',
+  // Number tags
+  'number1', 'number2', 'number3', 'number4', 'number5', 'number6', 'number7',
+  // Date tags
+  'date1', 'date2', 'date3', 'date4', 'date5', 'date6', 'date7',
+  // Boolean tags
+  'boolean1', 'boolean2', 'boolean3', 'boolean4', 'boolean5', 'boolean6', 'boolean7',
+] as const
+
+type TagSlotKey = (typeof TAG_SLOT_KEYS)[number]
+
+function isTagSlotKey(key: string): key is TagSlotKey {
+  return TAG_SLOT_KEYS.includes(key as TagSlotKey)
+}
+
+function getTagFilters(filters: Record<string, string>, embeddingTable: any) {
   return Object.entries(filters).map(([key, value]) => {
     // Handle OR logic within same tag
     const values = value.includes('|OR|') ? value.split('|OR|') : [value]
     logger.debug(`[getTagFilters] Processing ${key}="${value}" -> values:`, values)
 
-    const getColumnForKey = (key: string) => {
-      switch (key) {
-        case 'tag1':
-          return embedding.tag1
-        case 'tag2':
-          return embedding.tag2
-        case 'tag3':
-          return embedding.tag3
-        case 'tag4':
-          return embedding.tag4
-        case 'tag5':
-          return embedding.tag5
-        case 'tag6':
-          return embedding.tag6
-        case 'tag7':
-          return embedding.tag7
-        default:
-          return null
-      }
+    // Check if the key is a valid tag slot
+    if (!isTagSlotKey(key)) {
+      logger.debug(`[getTagFilters] Unknown tag slot key: ${key}`)
+      return sql`1=1` // No-op for unknown keys
     }
 
-    const column = getColumnForKey(key)
-    if (!column) return sql`1=1` // No-op for unknown keys
+    const column = embeddingTable[key]
+    if (!column) return sql`1=1` // No-op if column doesn't exist
 
+    // Determine if this is a text, number, date, or boolean column
+    const isTextTag = key.startsWith('tag')
+    const isNumberTag = key.startsWith('number')
+    const isDateTag = key.startsWith('date')
+    const isBooleanTag = key.startsWith('boolean')
+
+    if (isBooleanTag) {
+      // Boolean comparison
+      const boolValue = values[0].toLowerCase() === 'true'
+      logger.debug(`[getTagFilters] Boolean filter: ${key} = ${boolValue}`)
+      return sql`${column} = ${boolValue}`
+    }
+
+    if (isNumberTag) {
+      // Number comparison - for simple equality
+      const numValue = parseFloat(values[0])
+      if (values.length === 1) {
+        logger.debug(`[getTagFilters] Number filter: ${key} = ${numValue}`)
+        return sql`${column} = ${numValue}`
+      }
+      // Multiple values - OR logic
+      const numValues = values.map((v) => parseFloat(v))
+      logger.debug(`[getTagFilters] OR number filter: ${key} IN (${numValues.join(', ')})`)
+      const orConditions = numValues.map((v) => sql`${column} = ${v}`)
+      return sql`(${sql.join(orConditions, sql` OR `)})`
+    }
+
+    if (isDateTag) {
+      // Date comparison - for simple equality
+      const dateValue = new Date(values[0])
+      if (values.length === 1) {
+        logger.debug(`[getTagFilters] Date filter: ${key} = ${dateValue.toISOString()}`)
+        return sql`${column} = ${dateValue}`
+      }
+      // Multiple values - OR logic
+      const dateValues = values.map((v) => new Date(v))
+      logger.debug(`[getTagFilters] OR date filter: ${key} IN (${dateValues.map((d) => d.toISOString()).join(', ')})`)
+      const orConditions = dateValues.map((v) => sql`${column} = ${v}`)
+      return sql`(${sql.join(orConditions, sql` OR `)})`
+    }
+
+    // Text tag - case-insensitive comparison
     if (values.length === 1) {
       // Single value - simple equality
       logger.debug(`[getTagFilters] Single value filter: ${key} = ${values[0]}`)

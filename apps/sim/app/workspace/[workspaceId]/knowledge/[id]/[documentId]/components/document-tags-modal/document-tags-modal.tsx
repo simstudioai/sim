@@ -14,8 +14,9 @@ import {
   ModalHeader,
   Trash,
 } from '@/components/emcn'
+import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/core/utils/cn'
-import { MAX_TAG_SLOTS, TAG_SLOTS, type TagSlot } from '@/lib/knowledge/constants'
+import { ALL_TAG_SLOTS, type AllTagSlot } from '@/lib/knowledge/constants'
 import type { DocumentTag } from '@/lib/knowledge/tags/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -27,6 +28,31 @@ import { type TagDefinitionInput, useTagDefinitions } from '@/hooks/use-tag-defi
 import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 
 const logger = createLogger('DocumentTagsModal')
+
+/** Field type display labels */
+const FIELD_TYPE_LABELS: Record<string, string> = {
+  text: 'Text',
+  number: 'Number',
+  date: 'Date',
+  boolean: 'Boolean',
+}
+
+/** Format value for display based on field type */
+function formatValueForDisplay(value: string, fieldType: string): string {
+  if (!value) return ''
+  switch (fieldType) {
+    case 'boolean':
+      return value === 'true' ? 'Yes' : 'No'
+    case 'date':
+      try {
+        return new Date(value).toLocaleDateString()
+      } catch {
+        return value
+      }
+    default:
+      return value
+  }
+}
 
 interface DocumentTagsModalProps {
   open: boolean
@@ -67,17 +93,21 @@ export function DocumentTagsModal({
   const buildDocumentTags = useCallback((docData: DocumentData, definitions: TagDefinition[]) => {
     const tags: DocumentTag[] = []
 
-    TAG_SLOTS.forEach((slot) => {
-      const value = docData[slot] as string | null | undefined
+    ALL_TAG_SLOTS.forEach((slot) => {
+      const rawValue = docData[slot]
       const definition = definitions.find((def) => def.tagSlot === slot)
 
-      if (value?.trim() && definition) {
-        tags.push({
-          slot,
-          displayName: definition.displayName,
-          fieldType: definition.fieldType,
-          value: value.trim(),
-        })
+      if (rawValue !== null && rawValue !== undefined && definition) {
+        // Convert value to string for storage
+        const stringValue = String(rawValue).trim()
+        if (stringValue) {
+          tags.push({
+            slot,
+            displayName: definition.displayName,
+            fieldType: definition.fieldType,
+            value: stringValue,
+          })
+        }
       }
     })
 
@@ -93,12 +123,14 @@ export function DocumentTagsModal({
       if (!documentData) return
 
       try {
-        const tagData: Record<string, string> = {}
+        const tagData: Record<string, string | number | boolean | null> = {}
 
-        TAG_SLOTS.forEach((slot) => {
-          tagData[slot] = ''
+        // Initialize all slots to null
+        ALL_TAG_SLOTS.forEach((slot) => {
+          tagData[slot] = null
         })
 
+        // Set values for tags that have data
         tagsToSave.forEach((tag) => {
           if (tag.value.trim()) {
             tagData[tag.slot] = tag.value.trim()
@@ -117,8 +149,8 @@ export function DocumentTagsModal({
           throw new Error('Failed to update document tags')
         }
 
-        updateDocumentInStore(knowledgeBaseId, documentId, tagData)
-        onDocumentUpdate?.(tagData)
+        updateDocumentInStore(knowledgeBaseId, documentId, tagData as Record<string, string>)
+        onDocumentUpdate?.(tagData as Record<string, string>)
 
         await fetchTagDefinitions()
       } catch (error) {
@@ -279,7 +311,7 @@ export function DocumentTagsModal({
           const newDefinition: TagDefinitionInput = {
             displayName: formData.displayName,
             fieldType: formData.fieldType,
-            tagSlot: targetSlot as TagSlot,
+            tagSlot: targetSlot as AllTagSlot,
           }
 
           if (saveTagDefinitions) {
@@ -383,9 +415,12 @@ export function DocumentTagsModal({
                     <span className='min-w-0 truncate text-[12px] text-[var(--text-primary)]'>
                       {tag.displayName}
                     </span>
+                    <span className='rounded-[3px] bg-[var(--surface-3)] px-[6px] py-[2px] text-[10px] text-[var(--text-muted)]'>
+                      {FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
+                    </span>
                     <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[#3A3A3A]' />
                     <span className='min-w-0 flex-1 truncate text-[11px] text-[var(--text-muted)]'>
-                      {tag.value}
+                      {formatValueForDisplay(tag.value, tag.fieldType)}
                     </span>
                     <div className='flex flex-shrink-0 items-center gap-1'>
                       <Button
@@ -453,33 +488,76 @@ export function DocumentTagsModal({
                         )}
                       </div>
 
-                      {/* Type selector commented out - only "text" type is currently supported
-                      <div className='flex flex-col gap-[8px]'>
-                        <Label htmlFor={`tagType-${index}`}>Type</Label>
-                        <Input id={`tagType-${index}`} value='Text' disabled className='capitalize' />
-                      </div>
-                      */}
-
                       <div className='flex flex-col gap-[8px]'>
                         <Label htmlFor={`tagValue-${index}`}>Value</Label>
-                        <Input
-                          id={`tagValue-${index}`}
-                          value={editTagForm.value}
-                          onChange={(e) =>
-                            setEditTagForm({ ...editTagForm, value: e.target.value })
-                          }
-                          placeholder='Enter tag value'
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && canSaveTag) {
-                              e.preventDefault()
-                              saveDocumentTag()
+                        {editTagForm.fieldType === 'boolean' ? (
+                          <div className='flex items-center gap-2'>
+                            <Switch
+                              id={`tagValue-${index}`}
+                              checked={editTagForm.value === 'true'}
+                              onCheckedChange={(checked) =>
+                                setEditTagForm({ ...editTagForm, value: String(checked) })
+                              }
+                            />
+                            <span className='text-[12px] text-[var(--text-muted)]'>
+                              {editTagForm.value === 'true' ? 'Yes' : 'No'}
+                            </span>
+                          </div>
+                        ) : editTagForm.fieldType === 'number' ? (
+                          <Input
+                            id={`tagValue-${index}`}
+                            type='number'
+                            value={editTagForm.value}
+                            onChange={(e) =>
+                              setEditTagForm({ ...editTagForm, value: e.target.value })
                             }
-                            if (e.key === 'Escape') {
-                              e.preventDefault()
-                              cancelEditingTag()
+                            placeholder='Enter number'
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && canSaveTag) {
+                                e.preventDefault()
+                                saveDocumentTag()
+                              }
+                              if (e.key === 'Escape') {
+                                e.preventDefault()
+                                cancelEditingTag()
+                              }
+                            }}
+                          />
+                        ) : editTagForm.fieldType === 'date' ? (
+                          <Input
+                            id={`tagValue-${index}`}
+                            type='datetime-local'
+                            value={editTagForm.value ? editTagForm.value.slice(0, 16) : ''}
+                            onChange={(e) =>
+                              setEditTagForm({ ...editTagForm, value: new Date(e.target.value).toISOString() })
                             }
-                          }}
-                        />
+                            onKeyDown={(e) => {
+                              if (e.key === 'Escape') {
+                                e.preventDefault()
+                                cancelEditingTag()
+                              }
+                            }}
+                          />
+                        ) : (
+                          <Input
+                            id={`tagValue-${index}`}
+                            value={editTagForm.value}
+                            onChange={(e) =>
+                              setEditTagForm({ ...editTagForm, value: e.target.value })
+                            }
+                            placeholder='Enter tag value'
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && canSaveTag) {
+                                e.preventDefault()
+                                saveDocumentTag()
+                              }
+                              if (e.key === 'Escape') {
+                                e.preventDefault()
+                                cancelEditingTag()
+                              }
+                            }}
+                          />
+                        )}
                       </div>
 
                       <div className='flex gap-[8px]'>
@@ -563,31 +641,74 @@ export function DocumentTagsModal({
                     )}
                   </div>
 
-                  {/* Type selector commented out - only "text" type is currently supported
-                  <div className='flex flex-col gap-[8px]'>
-                    <Label htmlFor='newTagType'>Type</Label>
-                    <Input id='newTagType' value='Text' disabled className='capitalize' />
-                  </div>
-                  */}
-
                   <div className='flex flex-col gap-[8px]'>
                     <Label htmlFor='newTagValue'>Value</Label>
-                    <Input
-                      id='newTagValue'
-                      value={editTagForm.value}
-                      onChange={(e) => setEditTagForm({ ...editTagForm, value: e.target.value })}
-                      placeholder='Enter tag value'
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && canSaveTag) {
-                          e.preventDefault()
-                          saveDocumentTag()
+                    {editTagForm.fieldType === 'boolean' ? (
+                      <div className='flex items-center gap-2'>
+                        <Switch
+                          id='newTagValue'
+                          checked={editTagForm.value === 'true'}
+                          onCheckedChange={(checked) =>
+                            setEditTagForm({ ...editTagForm, value: String(checked) })
+                          }
+                        />
+                        <span className='text-[12px] text-[var(--text-muted)]'>
+                          {editTagForm.value === 'true' ? 'Yes' : 'No'}
+                        </span>
+                      </div>
+                    ) : editTagForm.fieldType === 'number' ? (
+                      <Input
+                        id='newTagValue'
+                        type='number'
+                        value={editTagForm.value}
+                        onChange={(e) =>
+                          setEditTagForm({ ...editTagForm, value: e.target.value })
                         }
-                        if (e.key === 'Escape') {
-                          e.preventDefault()
-                          cancelEditingTag()
+                        placeholder='Enter number'
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && canSaveTag) {
+                            e.preventDefault()
+                            saveDocumentTag()
+                          }
+                          if (e.key === 'Escape') {
+                            e.preventDefault()
+                            cancelEditingTag()
+                          }
+                        }}
+                      />
+                    ) : editTagForm.fieldType === 'date' ? (
+                      <Input
+                        id='newTagValue'
+                        type='datetime-local'
+                        value={editTagForm.value ? editTagForm.value.slice(0, 16) : ''}
+                        onChange={(e) =>
+                          setEditTagForm({ ...editTagForm, value: new Date(e.target.value).toISOString() })
                         }
-                      }}
-                    />
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            e.preventDefault()
+                            cancelEditingTag()
+                          }
+                        }}
+                      />
+                    ) : (
+                      <Input
+                        id='newTagValue'
+                        value={editTagForm.value}
+                        onChange={(e) => setEditTagForm({ ...editTagForm, value: e.target.value })}
+                        placeholder='Enter tag value'
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && canSaveTag) {
+                            e.preventDefault()
+                            saveDocumentTag()
+                          }
+                          if (e.key === 'Escape') {
+                            e.preventDefault()
+                            cancelEditingTag()
+                          }
+                        }}
+                      />
+                    )}
                   </div>
 
                   {kbTagDefinitions.length >= MAX_TAG_SLOTS &&

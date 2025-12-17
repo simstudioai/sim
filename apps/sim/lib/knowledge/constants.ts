@@ -4,16 +4,16 @@ export const TAG_SLOT_CONFIG = {
     maxSlots: 7,
   },
   number: {
-    slots: ['number1', 'number2', 'number3'] as const,
-    maxSlots: 3,
+    slots: ['number1', 'number2', 'number3', 'number4', 'number5', 'number6', 'number7'] as const,
+    maxSlots: 7,
   },
   date: {
-    slots: ['date1', 'date2'] as const,
-    maxSlots: 2,
+    slots: ['date1', 'date2', 'date3', 'date4', 'date5', 'date6', 'date7'] as const,
+    maxSlots: 7,
   },
   boolean: {
-    slots: ['boolean1', 'boolean2'] as const,
-    maxSlots: 2,
+    slots: ['boolean1', 'boolean2', 'boolean3', 'boolean4', 'boolean5', 'boolean6', 'boolean7'] as const,
+    maxSlots: 7,
   },
 } as const
 
