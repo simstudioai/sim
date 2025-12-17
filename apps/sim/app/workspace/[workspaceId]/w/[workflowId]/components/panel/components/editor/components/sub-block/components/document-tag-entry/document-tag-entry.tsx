@@ -5,8 +5,9 @@ import { Plus } from 'lucide-react'
 import { Trash } from '@/components/emcn/icons/trash'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/core/utils/cn'
-import { MAX_TAG_SLOTS } from '@/lib/knowledge/constants'
+import { SUPPORTED_FIELD_TYPES, TAG_SLOT_CONFIG } from '@/lib/knowledge/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
@@ -113,7 +114,10 @@ export function DocumentTagEntry({
     (def) => !usedTagNames.has(def.displayName.toLowerCase())
   )
 
-  // Check if we can add more tags based on MAX_TAG_SLOTS
+  // Calculate total available slots across all field types
+  const totalSlots = Object.values(TAG_SLOT_CONFIG).reduce((sum, config) => sum + config.maxSlots, 0)
+
+  // Check if we can add more tags
   const newTagsBeingCreated = rows.filter(
     (row) =>
       row.cells.tagName?.trim() &&
@@ -121,7 +125,15 @@ export function DocumentTagEntry({
         (def) => def.displayName.toLowerCase() === row.cells.tagName.toLowerCase()
       )
   ).length
-  const canAddMoreTags = tagDefinitions.length + newTagsBeingCreated < MAX_TAG_SLOTS
+  const canAddMoreTags = tagDefinitions.length + newTagsBeingCreated < totalSlots
+
+  // Field type labels for display
+  const FIELD_TYPE_LABELS: Record<string, string> = {
+    text: 'Text',
+    number: 'Number',
+    date: 'Date',
+    boolean: 'Boolean',
+  }
 
   // Function to pre-fill existing tags
   const handlePreFillTags = () => {
@@ -386,7 +398,10 @@ export function DocumentTagEntry({
       setTimeout(() => setShowTypeDropdown(false), 150)
     }
 
-    const typeOptions = [{ value: 'text', label: 'Text' }]
+    const typeOptions = SUPPORTED_FIELD_TYPES.map((type) => ({
+      value: type,
+      label: FIELD_TYPE_LABELS[type] || type,
+    }))
 
     return (
       <td className='border-r p-1'>
@@ -440,6 +455,7 @@ export function DocumentTagEntry({
 
   const renderValueCell = (row: DocumentTagRow, rowIndex: number) => {
     const cellValue = row.cells.value || ''
+    const fieldType = row.cells.type || 'text'
     const cellKey = `value-${rowIndex}`
 
     const fieldState = inputController.fieldHelpers.getFieldState(cellKey)
@@ -454,6 +470,91 @@ export function DocumentTagEntry({
       (newValue) => handleTagDropdownSelection(rowIndex, 'value', newValue)
     )
 
+    // Render boolean as a switch
+    if (fieldType === 'boolean') {
+      const boolValue = cellValue === 'true'
+      return (
+        <td className='p-1'>
+          <div className='flex h-9 items-center justify-center'>
+            <Switch
+              checked={boolValue}
+              onCheckedChange={(checked) => handleCellChange(rowIndex, 'value', String(checked))}
+              disabled={disabled}
+            />
+          </div>
+        </td>
+      )
+    }
+
+    // Render date as date input
+    if (fieldType === 'date') {
+      return (
+        <td className='p-1'>
+          <div className='relative w-full'>
+            <Input
+              ref={(el) => {
+                if (el) valueInputRefs.current[rowIndex] = el
+              }}
+              type='datetime-local'
+              value={cellValue}
+              onChange={(e) => handleCellChange(rowIndex, 'value', e.target.value)}
+              disabled={disabled}
+              className='w-full border-0 focus-visible:ring-0 focus-visible:ring-offset-0'
+            />
+          </div>
+        </td>
+      )
+    }
+
+    // Render number as number input
+    if (fieldType === 'number') {
+      return (
+        <td className='p-1'>
+          <div className='relative w-full'>
+            <Input
+              ref={(el) => {
+                if (el) valueInputRefs.current[rowIndex] = el
+              }}
+              type='number'
+              value={cellValue}
+              onChange={handlers.onChange}
+              onKeyDown={handlers.onKeyDown}
+              onDrop={handlers.onDrop}
+              onDragOver={handlers.onDragOver}
+              disabled={disabled}
+              autoComplete='off'
+              className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
+            />
+            <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
+              <div className='whitespace-pre'>
+                {formatDisplayText(cellValue, {
+                  accessiblePrefixes,
+                  highlightAll: !accessiblePrefixes,
+                })}
+              </div>
+            </div>
+            {fieldState.showTags && (
+              <TagDropdown
+                visible={fieldState.showTags}
+                onSelect={tagSelectHandler}
+                blockId={blockId}
+                activeSourceBlockId={fieldState.activeSourceBlockId}
+                inputValue={cellValue}
+                cursorPosition={fieldState.cursorPosition}
+                onClose={() => inputController.fieldHelpers.hideFieldDropdowns(cellKey)}
+                inputRef={
+                  {
+                    current: valueInputRefs.current[rowIndex] || null,
+                  } as React.RefObject<HTMLInputElement>
+                }
+              />
+            )}
+          </div>
+        </td>
+      )
+    }
+
+    // Default: text input with tag dropdown support
     return (
       <td className='p-1'>
         <div className='relative w-full'>
@@ -567,7 +668,7 @@ export function DocumentTagEntry({
 
           {/* Tag slots usage indicator */}
           <div className='text-muted-foreground text-xs'>
-            {tagDefinitions.length + newTagsBeingCreated} of {MAX_TAG_SLOTS} tag slots used
+            {tagDefinitions.length + newTagsBeingCreated} of {totalSlots} tag slots used
           </div>
         </div>
       )}
