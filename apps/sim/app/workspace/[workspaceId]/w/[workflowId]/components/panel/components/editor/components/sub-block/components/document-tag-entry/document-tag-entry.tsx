@@ -267,7 +267,8 @@ export function DocumentTagEntry({
       <tr className='border-b'>
         <th className='w-2/5 border-r px-4 py-2 text-center font-medium text-sm'>Tag Name</th>
         <th className='w-1/5 border-r px-4 py-2 text-center font-medium text-sm'>Type</th>
-        <th className='px-4 py-2 text-center font-medium text-sm'>Value</th>
+        <th className='border-r px-4 py-2 text-center font-medium text-sm'>Value</th>
+        <th className='w-10' />
       </tr>
     </thead>
   )
@@ -602,10 +603,10 @@ export function DocumentTagEntry({
     const canDelete = !isPreview && !disabled
 
     return canDelete ? (
-      <td className='w-0 p-0'>
+      <td className='w-10 p-1'>
         <Button
           variant='ghost'
-          className='-translate-y-1/2 absolute top-1/2 right-2 h-8 w-8 p-0 opacity-0 group-hover:opacity-100'
+          className='h-8 w-8 p-0 opacity-0 group-hover:opacity-100'
           onClick={() => handleDeleteRow(rowIndex)}
         >
           <Trash className='h-4 w-4 text-muted-foreground' />

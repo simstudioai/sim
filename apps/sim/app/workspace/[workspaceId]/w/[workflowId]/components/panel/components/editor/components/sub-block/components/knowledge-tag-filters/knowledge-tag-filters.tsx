@@ -262,7 +262,8 @@ export function KnowledgeTagFilters({
       <tr className='border-b'>
         <th className='w-[35%] border-r px-2 py-2 text-center font-medium text-sm'>Tag</th>
         <th className='w-[25%] border-r px-2 py-2 text-center font-medium text-sm'>Operator</th>
-        <th className='px-2 py-2 text-center font-medium text-sm'>Value</th>
+        <th className='border-r px-2 py-2 text-center font-medium text-sm'>Value</th>
+        <th className='w-10' />
       </tr>
     </thead>
   )
@@ -537,11 +538,10 @@ export function KnowledgeTagFilters({
     const canDelete = !isPreview && !disabled
 
     return canDelete ? (
-      <td className='w-0 p-0'>
+      <td className='w-10 p-1'>
         <Button
           variant='ghost'
-          size='icon'
-          className='-translate-y-1/2 absolute top-1/2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100'
+          className='h-8 w-8 p-0 opacity-0 group-hover:opacity-100'
           onClick={() => handleDeleteRow(rowIndex)}
         >
           <Trash className='h-4 w-4 text-muted-foreground' />
