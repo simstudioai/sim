@@ -9,6 +9,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
   HelpModal,
@@ -65,6 +66,7 @@ export function Sidebar() {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const { data: sessionData, isPending: sessionLoading } = useSession()
+  const { canEdit } = useUserPermissionsContext()
 
   /**
    * Sidebar state from store with hydration tracking to prevent SSR mismatch.
@@ -224,12 +226,12 @@ export function Sidebar() {
   )
 
   const isLoading = workflowsLoading || sessionLoading
-  const initialScrollDoneRef = useRef<string | null>(null)
+  const initialScrollDoneRef = useRef(false)
 
-  /** Scrolls to active workflow on initial load or workspace switch */
+  /** Scrolls to active workflow on initial page load only */
   useEffect(() => {
-    if (!workflowId || workflowsLoading || initialScrollDoneRef.current === workflowId) return
-    initialScrollDoneRef.current = workflowId
+    if (!workflowId || workflowsLoading || initialScrollDoneRef.current) return
+    initialScrollDoneRef.current = true
     requestAnimationFrame(() => {
       window.dispatchEvent(
         new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: workflowId } })
@@ -516,7 +518,7 @@ export function Sidebar() {
                             variant='ghost'
                             className='translate-y-[-0.25px] p-[1px]'
                             onClick={handleImportWorkflow}
-                            disabled={isImporting}
+                            disabled={isImporting || !canEdit}
                           >
                             <ArrowDown className='h-[14px] w-[14px]' />
                           </Button>
@@ -531,7 +533,7 @@ export function Sidebar() {
                             variant='ghost'
                             className='mr-[1px] translate-y-[-0.25px] p-[1px]'
                             onClick={handleCreateFolder}
-                            disabled={isCreatingFolder}
+                            disabled={isCreatingFolder || !canEdit}
                           >
                             <FolderPlus className='h-[14px] w-[14px]' />
                           </Button>
@@ -546,7 +548,7 @@ export function Sidebar() {
                             variant='outline'
                             className='translate-y-[-0.25px] p-[1px]'
                             onClick={handleCreateWorkflow}
-                            disabled={isCreatingWorkflow}
+                            disabled={isCreatingWorkflow || !canEdit}
                           >
                             <Plus className='h-[14px] w-[14px]' />
                           </Button>

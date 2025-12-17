@@ -172,14 +172,13 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
-      type: 'object',
-      description:
-        'Search results with timestamp, total count, pagination details, and array of matching issues',
+    ts: { type: 'string', description: 'Timestamp of the operation' },
+    total: { type: 'number', description: 'Total number of matching issues' },
+    startAt: { type: 'number', description: 'Pagination start index' },
+    maxResults: { type: 'number', description: 'Maximum results per page' },
+    issues: {
+      type: 'array',
+      description: 'Array of matching issues with key, summary, status, assignee, created, updated',
     },
   },
 }

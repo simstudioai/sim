@@ -1,11 +1,14 @@
-import { createContext, Script } from 'vm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { isE2bEnabled } from '@/lib/core/config/feature-flags'
-import { validateProxyUrl } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { executeInE2B } from '@/lib/execution/e2b'
+import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
+import {
+  createEnvVarPattern,
+  createWorkflowVariablePattern,
+} from '@/executor/utils/reference-validation'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
@@ -13,30 +16,6 @@ export const MAX_DURATION = 210
 
 const logger = createLogger('FunctionExecuteAPI')
 
-function createSecureFetch(requestId: string) {
-  const originalFetch = (globalThis as any).fetch || require('node-fetch').default
-
-  return async function secureFetch(input: any, init?: any) {
-    const url = typeof input === 'string' ? input : input?.url || input
-
-    if (!url || typeof url !== 'string') {
-      throw new Error('Invalid URL provided to fetch')
-    }
-
-    const validation = validateProxyUrl(url)
-    if (!validation.isValid) {
-      logger.warn(`[${requestId}] Blocked fetch request due to SSRF validation`, {
-        url: url.substring(0, 100),
-        error: validation.error,
-      })
-      throw new Error(`Security Error: ${validation.error}`)
-    }
-
-    return originalFetch(input, init)
-  }
-}
-
-// Constants for E2B code wrapping line counts
 const E2B_JS_WRAPPER_LINES = 3 // Lines before user code: ';(async () => {', '  try {', '    const __sim_result = await (async () => {'
 const E2B_PYTHON_WRAPPER_LINES = 1 // Lines before user code: 'def __sim_main__():'
 
@@ -346,9 +325,9 @@ function createUserFriendlyErrorMessage(
 ): string {
   let errorMessage = enhanced.message
 
-  // Add line and column information if available
+  // Add line information if available
   if (enhanced.line !== undefined) {
-    let lineInfo = `Line ${enhanced.line}${enhanced.column !== undefined ? `:${enhanced.column}` : ''}`
+    let lineInfo = `Line ${enhanced.line}`
 
     // Add the actual line content if available
     if (enhanced.lineContent) {
@@ -362,8 +341,7 @@ function createUserFriendlyErrorMessage(
       const stackMatch = enhanced.stack.match(/user-function\.js:(\d+)(?::(\d+))?/)
       if (stackMatch) {
         const line = Number.parseInt(stackMatch[1], 10)
-        const column = stackMatch[2] ? Number.parseInt(stackMatch[2], 10) : undefined
-        let lineInfo = `Line ${line}${column ? `:${column}` : ''}`
+        let lineInfo = `Line ${line}`
 
         // Try to get line content if we have userCode
         if (userCode) {
@@ -400,27 +378,6 @@ function createUserFriendlyErrorMessage(
     }
   }
 
-  // For syntax errors, provide additional context
-  if (enhanced.name === 'SyntaxError') {
-    if (errorMessage.includes('Invalid or unexpected token')) {
-      errorMessage += ' (Check for missing quotes, brackets, or semicolons)'
-    } else if (errorMessage.includes('Unexpected end of input')) {
-      errorMessage += ' (Check for missing closing brackets or braces)'
-    } else if (errorMessage.includes('Unexpected token')) {
-      // Check if this might be due to incomplete code
-      if (
-        enhanced.lineContent &&
-        ((enhanced.lineContent.includes('(') && !enhanced.lineContent.includes(')')) ||
-          (enhanced.lineContent.includes('[') && !enhanced.lineContent.includes(']')) ||
-          (enhanced.lineContent.includes('{') && !enhanced.lineContent.includes('}')))
-      ) {
-        errorMessage += ' (Check for missing closing parentheses, brackets, or braces)'
-      } else {
-        errorMessage += ' (Check your syntax)'
-      }
-    }
-  }
-
   return errorMessage
 }
 
@@ -434,19 +391,27 @@ function resolveWorkflowVariables(
 ): string {
   let resolvedCode = code
 
-  const variableMatches = resolvedCode.match(/<variable\.([^>]+)>/g) || []
-  for (const match of variableMatches) {
-    const variableName = match.slice('<variable.'.length, -1).trim()
+  const regex = createWorkflowVariablePattern()
+  let match: RegExpExecArray | null
+  const replacements: Array<{
+    match: string
+    index: number
+    variableName: string
+    variableValue: unknown
+  }> = []
+
+  while ((match = regex.exec(code)) !== null) {
+    const variableName = match[1].trim()
 
     // Find the variable by name (workflowVariables is indexed by ID, values are variable objects)
     const foundVariable = Object.entries(workflowVariables).find(
       ([_, variable]) => (variable.name || '').replace(/\s+/g, '') === variableName
     )
 
+    let variableValue: unknown = ''
     if (foundVariable) {
       const variable = foundVariable[1]
-      // Get the typed value - handle different variable types
-      let variableValue = variable.value
+      variableValue = variable.value
 
       if (variable.value !== undefined && variable.value !== null) {
         try {
@@ -468,22 +433,30 @@ function resolveWorkflowVariables(
               // Keep original value if JSON parsing fails
             }
           }
-        } catch (error) {
+        } catch {
           // Fallback to original value on error
           variableValue = variable.value
         }
       }
-
-      // Create a safe variable reference
-      const safeVarName = `__variable_${variableName.replace(/[^a-zA-Z0-9_]/g, '_')}`
-      contextVariables[safeVarName] = variableValue
-
-      // Replace the variable reference with the safe variable name
-      resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
-    } else {
-      // Variable not found - replace with empty string to avoid syntax errors
-      resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), '')
     }
+
+    replacements.push({
+      match: match[0],
+      index: match.index,
+      variableName,
+      variableValue,
+    })
+  }
+
+  // Process replacements in reverse order to maintain correct indices
+  for (let i = replacements.length - 1; i >= 0; i--) {
+    const { match: matchStr, index, variableName, variableValue } = replacements[i]
+
+    // Use variable reference approach
+    const safeVarName = `__variable_${variableName.replace(/[^a-zA-Z0-9_]/g, '_')}`
+    contextVariables[safeVarName] = variableValue
+    resolvedCode =
+      resolvedCode.slice(0, index) + safeVarName + resolvedCode.slice(index + matchStr.length)
   }
 
   return resolvedCode
@@ -500,18 +473,29 @@ function resolveEnvironmentVariables(
 ): string {
   let resolvedCode = code
 
-  const envVarMatches = resolvedCode.match(/\{\{([^}]+)\}\}/g) || []
-  for (const match of envVarMatches) {
-    const varName = match.slice(2, -2).trim()
-    // Priority: 1. Environment variables from workflow, 2. Params
-    const varValue = envVars[varName] || params[varName] || ''
+  const regex = createEnvVarPattern()
+  let match: RegExpExecArray | null
+  const replacements: Array<{ match: string; index: number; varName: string; varValue: string }> =
+    []
 
-    // Instead of injecting large JSON directly, create a variable reference
+  while ((match = regex.exec(code)) !== null) {
+    const varName = match[1].trim()
+    const varValue = envVars[varName] || params[varName] || ''
+    replacements.push({
+      match: match[0],
+      index: match.index,
+      varName,
+      varValue: String(varValue),
+    })
+  }
+
+  for (let i = replacements.length - 1; i >= 0; i--) {
+    const { match: matchStr, index, varName, varValue } = replacements[i]
+
     const safeVarName = `__var_${varName.replace(/[^a-zA-Z0-9_]/g, '_')}`
     contextVariables[safeVarName] = varValue
-
-    // Replace the template with a variable reference
-    resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
+    resolvedCode =
+      resolvedCode.slice(0, index) + safeVarName + resolvedCode.slice(index + matchStr.length)
   }
 
   return resolvedCode
@@ -899,28 +883,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const executionMethod = 'vm'
-    const context = createContext({
-      params: executionParams,
-      environmentVariables: envVars,
-      ...contextVariables,
-      fetch: createSecureFetch(requestId),
-      console: {
-        log: (...args: any[]) => {
-          const logMessage = `${args
-            .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
-            .join(' ')}\n`
-          stdout += logMessage
-        },
-        error: (...args: any[]) => {
-          const errorMessage = `${args
-            .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
-            .join(' ')}\n`
-          logger.error(`[${requestId}] Code Console Error: ${errorMessage}`)
-          stdout += `ERROR: ${errorMessage}`
-        },
-      },
-    })
+    const executionMethod = 'isolated-vm'
 
     const wrapperLines = ['(async () => {', '  try {']
     if (isCustomTool) {
@@ -930,36 +893,99 @@ export async function POST(req: NextRequest) {
       })
     }
     userCodeStartLine = wrapperLines.length + 1
-    const fullScript = [
-      ...wrapperLines,
-      `    ${resolvedCode.split('\n').join('\n    ')}`,
-      '  } catch (error) {',
-      '    console.error(error);',
-      '    throw error;',
-      '  }',
-      '})()',
-    ].join('\n')
 
-    const script = new Script(fullScript, {
-      filename: 'user-function.js',
-      lineOffset: 0,
-      columnOffset: 0,
-    })
+    let codeToExecute = resolvedCode
+    let prependedLineCount = 0
+    if (isCustomTool) {
+      const paramKeys = Object.keys(executionParams)
+      const paramDestructuring = paramKeys.map((key) => `const ${key} = params.${key};`).join('\n')
+      codeToExecute = `${paramDestructuring}\n${resolvedCode}`
+      prependedLineCount = paramKeys.length
+    }
 
-    const result = await script.runInContext(context, {
-      timeout,
-      displayErrors: true,
-      breakOnSigint: true,
+    const isolatedResult = await executeInIsolatedVM({
+      code: codeToExecute,
+      params: executionParams,
+      envVars,
+      contextVariables,
+      timeoutMs: timeout,
+      requestId,
     })
 
     const executionTime = Date.now() - startTime
+
+    if (isolatedResult.error) {
+      logger.error(`[${requestId}] Function execution failed in isolated-vm`, {
+        error: isolatedResult.error,
+        executionTime,
+      })
+
+      const ivmError = isolatedResult.error
+      // Adjust line number for prepended param destructuring in custom tools
+      let adjustedLine = ivmError.line
+      let adjustedLineContent = ivmError.lineContent
+      if (prependedLineCount > 0 && ivmError.line !== undefined) {
+        adjustedLine = Math.max(1, ivmError.line - prependedLineCount)
+        // Get line content from original user code, not the prepended code
+        const codeLines = resolvedCode.split('\n')
+        if (adjustedLine <= codeLines.length) {
+          adjustedLineContent = codeLines[adjustedLine - 1]?.trim()
+        }
+      }
+      const enhancedError: EnhancedError = {
+        message: ivmError.message,
+        name: ivmError.name,
+        stack: ivmError.stack,
+        originalError: ivmError,
+        line: adjustedLine,
+        column: ivmError.column,
+        lineContent: adjustedLineContent,
+      }
+
+      const userFriendlyErrorMessage = createUserFriendlyErrorMessage(
+        enhancedError,
+        requestId,
+        resolvedCode
+      )
+
+      logger.error(`[${requestId}] Enhanced error details`, {
+        originalMessage: ivmError.message,
+        enhancedMessage: userFriendlyErrorMessage,
+        line: enhancedError.line,
+        column: enhancedError.column,
+        lineContent: enhancedError.lineContent,
+        errorType: enhancedError.name,
+      })
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: userFriendlyErrorMessage,
+          output: {
+            result: null,
+            stdout: cleanStdout(isolatedResult.stdout),
+            executionTime,
+          },
+          debug: {
+            line: enhancedError.line,
+            column: enhancedError.column,
+            errorType: enhancedError.name,
+            lineContent: enhancedError.lineContent,
+            stack: enhancedError.stack,
+          },
+        },
+        { status: 500 }
+      )
+    }
+
+    stdout = isolatedResult.stdout
     logger.info(`[${requestId}] Function executed successfully using ${executionMethod}`, {
       executionTime,
     })
 
     return NextResponse.json({
       success: true,
-      output: { result, stdout: cleanStdout(stdout), executionTime },
+      output: { result: isolatedResult.result, stdout: cleanStdout(stdout), executionTime },
     })
   } catch (error: any) {
     const executionTime = Date.now() - startTime
@@ -976,7 +1002,6 @@ export async function POST(req: NextRequest) {
       resolvedCode
     )
 
-    // Log enhanced error details for debugging
     logger.error(`[${requestId}] Enhanced error details`, {
       originalMessage: error.message,
       enhancedMessage: userFriendlyErrorMessage,
@@ -995,7 +1020,6 @@ export async function POST(req: NextRequest) {
         stdout: cleanStdout(stdout),
         executionTime,
       },
-      // Include debug information in development or for debugging
       debug: {
         line: enhancedError.line,
         column: enhancedError.column,

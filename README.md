@@ -130,6 +130,7 @@ When running with Docker, use `host.docker.internal` if vLLM is on your host mac
 
 **Requirements:**
 - [Bun](https://bun.sh/) runtime
+- [Node.js](https://nodejs.org/) v20+ (required for sandboxed code execution)
 - PostgreSQL 12+ with [pgvector extension](https://github.com/pgvector/pgvector) (required for AI embeddings)
 
 **Note:** Sim uses vector embeddings for AI features like knowledge bases and semantic search, which requires the `pgvector` PostgreSQL extension.

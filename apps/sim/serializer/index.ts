@@ -39,6 +39,57 @@ function shouldIncludeField(subBlockConfig: SubBlockConfig, isAdvancedMode: bool
 }
 
 /**
+ * Evaluates a condition object against current field values.
+ * Used to determine if a conditionally-visible field should be included in params.
+ */
+function evaluateCondition(
+  condition:
+    | {
+        field: string
+        value: any
+        not?: boolean
+        and?: { field: string; value: any; not?: boolean }
+      }
+    | (() => {
+        field: string
+        value: any
+        not?: boolean
+        and?: { field: string; value: any; not?: boolean }
+      })
+    | undefined,
+  values: Record<string, any>
+): boolean {
+  if (!condition) return true
+
+  const actual = typeof condition === 'function' ? condition() : condition
+  const fieldValue = values[actual.field]
+
+  const valueMatch = Array.isArray(actual.value)
+    ? fieldValue != null &&
+      (actual.not ? !actual.value.includes(fieldValue) : actual.value.includes(fieldValue))
+    : actual.not
+      ? fieldValue !== actual.value
+      : fieldValue === actual.value
+
+  const andMatch = !actual.and
+    ? true
+    : (() => {
+        const andFieldValue = values[actual.and!.field]
+        const andValueMatch = Array.isArray(actual.and!.value)
+          ? andFieldValue != null &&
+            (actual.and!.not
+              ? !actual.and!.value.includes(andFieldValue)
+              : actual.and!.value.includes(andFieldValue))
+          : actual.and!.not
+            ? andFieldValue !== actual.and!.value
+            : andFieldValue === actual.and!.value
+        return andValueMatch
+      })()
+
+  return valueMatch && andMatch
+}
+
+/**
  * Helper function to migrate agent block params from old format to messages array
  * Transforms systemPrompt/userPrompt into messages array format
  * Only migrates if old format exists and new format doesn't (idempotent)
@@ -343,10 +394,15 @@ export class Serializer {
     const isStarterBlock = block.type === 'starter'
     const isAgentBlock = block.type === 'agent'
 
-    // First collect all current values from subBlocks, filtering by mode
+    // First pass: collect ALL raw values for condition evaluation
+    const allValues: Record<string, any> = {}
     Object.entries(block.subBlocks).forEach(([id, subBlock]) => {
-      // Find the corresponding subblock config to check its mode
-      const subBlockConfig = blockConfig.subBlocks.find((config) => config.id === id)
+      allValues[id] = subBlock.value
+    })
+
+    // Second pass: filter by mode and conditions
+    Object.entries(block.subBlocks).forEach(([id, subBlock]) => {
+      const matchingConfigs = blockConfig.subBlocks.filter((config) => config.id === id)
 
       // Include field if it matches current mode OR if it's the starter inputFormat with values
       const hasStarterInputFormatValues =
@@ -360,9 +416,18 @@ export class Serializer {
       const isLegacyAgentField =
         isAgentBlock && ['systemPrompt', 'userPrompt', 'memories'].includes(id)
 
+      const anyConditionMet =
+        matchingConfigs.length === 0
+          ? true
+          : matchingConfigs.some(
+              (config) =>
+                shouldIncludeField(config, isAdvancedMode) &&
+                evaluateCondition(config.condition, allValues)
+            )
+
       if (
-        (subBlockConfig &&
-          (shouldIncludeField(subBlockConfig, isAdvancedMode) || hasStarterInputFormatValues)) ||
+        (matchingConfigs.length > 0 && anyConditionMet) ||
+        hasStarterInputFormatValues ||
         isLegacyAgentField
       ) {
         params[id] = subBlock.value
@@ -475,75 +540,29 @@ export class Serializer {
     // Check required user-only parameters for the current tool
     const missingFields: string[] = []
 
-    // Helper function to evaluate conditions
-    const evalCond = (
-      condition:
-        | {
-            field: string
-            value: any
-            not?: boolean
-            and?: { field: string; value: any; not?: boolean }
-          }
-        | (() => {
-            field: string
-            value: any
-            not?: boolean
-            and?: { field: string; value: any; not?: boolean }
-          })
-        | undefined,
-      values: Record<string, any>
-    ): boolean => {
-      if (!condition) return true
-      const actual = typeof condition === 'function' ? condition() : condition
-      const fieldValue = values[actual.field]
-
-      const valueMatch = Array.isArray(actual.value)
-        ? fieldValue != null &&
-          (actual.not ? !actual.value.includes(fieldValue) : actual.value.includes(fieldValue))
-        : actual.not
-          ? fieldValue !== actual.value
-          : fieldValue === actual.value
-
-      const andMatch = !actual.and
-        ? true
-        : (() => {
-            const andFieldValue = values[actual.and!.field]
-            return Array.isArray(actual.and!.value)
-              ? andFieldValue != null &&
-                  (actual.and!.not
-                    ? !actual.and!.value.includes(andFieldValue)
-                    : actual.and!.value.includes(andFieldValue))
-              : actual.and!.not
-                ? andFieldValue !== actual.and!.value
-                : andFieldValue === actual.and!.value
-          })()
-
-      return valueMatch && andMatch
-    }
-
     // Iterate through the tool's parameters, not the block's subBlocks
     Object.entries(currentTool.params || {}).forEach(([paramId, paramConfig]) => {
       if (paramConfig.required && paramConfig.visibility === 'user-only') {
-        const subBlockConfig = blockConfig.subBlocks?.find((sb: any) => sb.id === paramId)
+        const matchingConfigs = blockConfig.subBlocks?.filter((sb: any) => sb.id === paramId) || []
 
         let shouldValidateParam = true
 
-        if (subBlockConfig) {
+        if (matchingConfigs.length > 0) {
           const isAdvancedMode = block.advancedMode ?? false
-          const includedByMode = shouldIncludeField(subBlockConfig, isAdvancedMode)
 
-          // Check visibility condition
-          const includedByCondition = evalCond(subBlockConfig.condition, params)
+          shouldValidateParam = matchingConfigs.some((subBlockConfig: any) => {
+            const includedByMode = shouldIncludeField(subBlockConfig, isAdvancedMode)
 
-          // Check if field is required based on its required condition (if it's a condition object)
-          const isRequired = (() => {
-            if (!subBlockConfig.required) return false
-            if (typeof subBlockConfig.required === 'boolean') return subBlockConfig.required
-            // If required is a condition object, evaluate it
-            return evalCond(subBlockConfig.required, params)
-          })()
+            const includedByCondition = evaluateCondition(subBlockConfig.condition, params)
 
-          shouldValidateParam = includedByMode && includedByCondition && isRequired
+            const isRequired = (() => {
+              if (!subBlockConfig.required) return false
+              if (typeof subBlockConfig.required === 'boolean') return subBlockConfig.required
+              return evaluateCondition(subBlockConfig.required, params)
+            })()
+
+            return includedByMode && includedByCondition && isRequired
+          })
         }
 
         if (!shouldValidateParam) {
@@ -552,7 +571,12 @@ export class Serializer {
 
         const fieldValue = params[paramId]
         if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
-          const displayName = subBlockConfig?.title || paramId
+          const activeConfig = matchingConfigs.find(
+            (config: any) =>
+              shouldIncludeField(config, block.advancedMode ?? false) &&
+              evaluateCondition(config.condition, params)
+          )
+          const displayName = activeConfig?.title || paramId
           missingFields.push(displayName)
         }
       }
@@ -580,8 +604,6 @@ export class Serializer {
       const accessibleIds = new Set<string>(ancestorIds)
       accessibleIds.add(blockId)
 
-      // Only add starter block if it's actually upstream (already in ancestorIds)
-      // Don't add it just because it exists on the canvas
       if (starterBlock && ancestorIds.includes(starterBlock.id)) {
         accessibleIds.add(starterBlock.id)
       }

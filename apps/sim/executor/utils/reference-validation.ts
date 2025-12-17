@@ -20,6 +20,17 @@ export function createEnvVarPattern(): RegExp {
 }
 
 /**
+ * Creates a regex pattern for matching workflow variables <variable.name>
+ * Captures the variable name (after "variable.") in group 1
+ */
+export function createWorkflowVariablePattern(): RegExp {
+  return new RegExp(
+    `${REFERENCE.START}${REFERENCE.PREFIX.VARIABLE}\\${REFERENCE.PATH_DELIMITER}([^${REFERENCE.START}${REFERENCE.END}]+)${REFERENCE.END}`,
+    'g'
+  )
+}
+
+/**
  * Combined pattern matching both <reference> and {{env_var}}
  */
 export function createCombinedPattern(): RegExp {

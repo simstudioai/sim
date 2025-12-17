@@ -229,14 +229,12 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
-      type: 'object',
-      description:
-        'Jira issue details with issue key, summary, description, created and updated timestamps',
-    },
+    ts: { type: 'string', description: 'Timestamp of the operation' },
+    issueKey: { type: 'string', description: 'Issue key (e.g., PROJ-123)' },
+    summary: { type: 'string', description: 'Issue summary' },
+    description: { type: 'json', description: 'Issue description content' },
+    created: { type: 'string', description: 'Issue creation timestamp' },
+    updated: { type: 'string', description: 'Issue last updated timestamp' },
+    issue: { type: 'json', description: 'Complete issue object with all fields' },
   },
 }

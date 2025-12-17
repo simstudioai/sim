@@ -80,6 +80,7 @@ const nextConfig: NextConfig = {
     'pino-pretty',
     'thread-stream',
     'ws',
+    'isolated-vm',
   ],
   outputFileTracingIncludes: {
     '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],

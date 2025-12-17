@@ -170,13 +170,7 @@ export const jiraDeleteIssueTool: ToolConfig<JiraDeleteIssueParams, JiraDeleteIs
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
-      type: 'object',
-      description: 'Deleted issue details with timestamp, issue key, and success status',
-    },
+    ts: { type: 'string', description: 'Timestamp of the operation' },
+    issueKey: { type: 'string', description: 'Deleted issue key' },
   },
 }
