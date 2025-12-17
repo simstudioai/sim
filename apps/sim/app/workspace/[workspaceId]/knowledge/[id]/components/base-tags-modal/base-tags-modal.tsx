@@ -412,7 +412,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                         <SelectTrigger className='h-9'>
                           <SelectValue placeholder='Select type' />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className='z-[9999]'>
                           {SUPPORTED_FIELD_TYPES.map((type) => {
                             const { used, max } = getSlotUsageByFieldType(type)
                             const isDisabled = used >= max

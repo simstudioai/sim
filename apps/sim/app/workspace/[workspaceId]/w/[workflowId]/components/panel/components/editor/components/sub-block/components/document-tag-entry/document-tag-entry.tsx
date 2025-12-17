@@ -205,7 +205,7 @@ export function DocumentTagEntry({
             )
         ).length
 
-        if (tagDefinitions.length + currentNewTags >= MAX_TAG_SLOTS) {
+        if (tagDefinitions.length + currentNewTags >= totalSlots) {
           // Don't allow creating new tags if we've reached the limit
           return
         }
