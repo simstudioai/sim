@@ -1,8 +1,8 @@
 import { OVHcloudIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
-import type { OVHcloudChatResponse } from '@/tools/ovhcloud/types'
+import type { OVHcloudChatResponse, OVHcloudEmbeddingsResponse } from '@/tools/ovhcloud/types'
 
-type OVHcloudResponse = OVHcloudChatResponse
+type OVHcloudResponse = OVHcloudChatResponse | OVHcloudEmbeddingsResponse
 
 export const OVHcloudBlock: BlockConfig<OVHcloudResponse> = {
   type: 'ovhcloud',
