@@ -1512,43 +1512,34 @@ const WorkflowContent = React.memo(() => {
       if (!parentId) return
 
       setDisplayNodes((currentNodes) => {
-        // Find all children of this container from current displayNodes
         const childNodes = currentNodes.filter((n) => n.parentId === parentId)
         if (childNodes.length === 0) return currentNodes
-
-        // Calculate dimensions using current positions from displayNodes
-        // Match padding values from use-node-utilities.ts calculateLoopDimensions
-        const headerHeight = 50
-        const leftPadding = 16
-        const rightPadding = 80
-        const topPadding = 16
-        const bottomPadding = 16
-        const minWidth = CONTAINER_DIMENSIONS.DEFAULT_WIDTH
-        const minHeight = CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
 
         let maxRight = 0
         let maxBottom = 0
 
         childNodes.forEach((node) => {
-          // Use the dragged node's live position, others from displayNodes
           const nodePosition = node.id === draggedNodeId ? draggedNodePosition : node.position
-
-          // Get dimensions - use block store for height estimates
           const blockData = blocks[node.id]
           const nodeWidth = BLOCK_DIMENSIONS.FIXED_WIDTH
           const nodeHeight = blockData?.height || node.height || BLOCK_DIMENSIONS.MIN_HEIGHT
 
-          const rightEdge = nodePosition.x + nodeWidth
-          const bottomEdge = nodePosition.y + nodeHeight
-
-          maxRight = Math.max(maxRight, rightEdge)
-          maxBottom = Math.max(maxBottom, bottomEdge)
+          maxRight = Math.max(maxRight, nodePosition.x + nodeWidth)
+          maxBottom = Math.max(maxBottom, nodePosition.y + nodeHeight)
         })
 
-        const newWidth = Math.max(minWidth, leftPadding + maxRight + rightPadding)
-        const newHeight = Math.max(minHeight, headerHeight + topPadding + maxBottom + bottomPadding)
+        const newWidth = Math.max(
+          CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+          CONTAINER_DIMENSIONS.LEFT_PADDING + maxRight + CONTAINER_DIMENSIONS.RIGHT_PADDING
+        )
+        const newHeight = Math.max(
+          CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+          CONTAINER_DIMENSIONS.HEADER_HEIGHT +
+            CONTAINER_DIMENSIONS.TOP_PADDING +
+            maxBottom +
+            CONTAINER_DIMENSIONS.BOTTOM_PADDING
+        )
 
-        // Update the container node's dimensions in displayNodes
         return currentNodes.map((node) => {
           if (node.id === parentId) {
             const currentWidth = node.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH
