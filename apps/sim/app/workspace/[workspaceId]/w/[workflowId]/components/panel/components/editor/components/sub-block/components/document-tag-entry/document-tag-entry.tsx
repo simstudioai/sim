@@ -160,7 +160,16 @@ export function DocumentTagEntry({
           )
           if (tagDef) {
             newCells.type = tagDef.fieldType
+            // Clear value when tag type changes
+            if (row.cells.type !== tagDef.fieldType) {
+              newCells.value = ''
+            }
           }
+        }
+
+        // Clear value when type changes (e.g., switching from boolean to text)
+        if (column === 'type' && row.cells.type !== value) {
+          newCells.value = ''
         }
 
         return {
