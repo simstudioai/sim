@@ -1,0 +1,108 @@
+---
+title: ServiceNow
+description: Erstellen, lesen, aktualisieren, löschen und Massenimport von
+  ServiceNow-Datensätzen
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="servicenow"
+  color="#032D42"
+/>
+
+## Nutzungsanleitung
+
+Integrieren Sie ServiceNow in Ihren Workflow. Kann Datensätze in jeder ServiceNow-Tabelle erstellen, lesen, aktualisieren und löschen (Vorfälle, Aufgaben, Benutzer usw.). Unterstützt Massenimport-Operationen für Datenmigration und ETL.
+
+## Tools
+
+### `servicenow_create_record`
+
+Erstellen eines neuen Datensatzes in einer ServiceNow-Tabelle
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Ja | ServiceNow-Instanz-URL \(z. B. https://instance.service-now.com\) |
+| `credential` | string | Nein | ServiceNow OAuth-Anmeldeinformations-ID |
+| `tableName` | string | Ja | Tabellenname \(z. B. incident, task, sys_user\) |
+| `fields` | json | Ja | Felder, die für den Datensatz festgelegt werden sollen \(JSON-Objekt\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `record` | json | Erstellter ServiceNow-Datensatz mit sys_id und anderen Feldern |
+| `metadata` | json | Metadaten der Operation |
+
+### `servicenow_read_record`
+
+Lesen von Datensätzen aus einer ServiceNow-Tabelle
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Nein | ServiceNow-Instanz-URL \(automatisch aus OAuth erkannt, falls nicht angegeben\) |
+| `credential` | string | Nein | ServiceNow OAuth-Anmeldeinformations-ID |
+| `tableName` | string | Ja | Tabellenname |
+| `sysId` | string | Nein | Spezifische Datensatz-sys_id |
+| `number` | string | Nein | Datensatznummer \(z. B. INC0010001\) |
+| `query` | string | Nein | Kodierte Abfragezeichenfolge \(z. B. "active=true^priority=1"\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Datensätze |
+| `fields` | string | Nein | Durch Kommas getrennte Liste der zurückzugebenden Felder |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `records` | array | Array von ServiceNow-Datensätzen |
+| `metadata` | json | Metadaten der Operation |
+
+### `servicenow_update_record`
+
+Einen bestehenden Datensatz in einer ServiceNow-Tabelle aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Nein | ServiceNow-Instanz-URL \(wird automatisch aus OAuth erkannt, falls nicht angegeben\) |
+| `credential` | string | Nein | ServiceNow-OAuth-Credential-ID |
+| `tableName` | string | Ja | Tabellenname |
+| `sysId` | string | Ja | Sys_id des zu aktualisierenden Datensatzes |
+| `fields` | json | Ja | Zu aktualisierende Felder \(JSON-Objekt\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `record` | json | Aktualisierter ServiceNow-Datensatz |
+| `metadata` | json | Metadaten der Operation |
+
+### `servicenow_delete_record`
+
+Einen Datensatz aus einer ServiceNow-Tabelle löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Nein | ServiceNow-Instanz-URL \(wird automatisch aus OAuth erkannt, falls nicht angegeben\) |
+| `credential` | string | Nein | ServiceNow-OAuth-Credential-ID |
+| `tableName` | string | Ja | Tabellenname |
+| `sysId` | string | Ja | Sys_id des zu löschenden Datensatzes |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob das Löschen erfolgreich war |
+| `metadata` | json | Metadaten der Operation |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `servicenow`

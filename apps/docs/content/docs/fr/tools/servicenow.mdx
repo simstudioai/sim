@@ -1,0 +1,108 @@
+---
+title: ServiceNow
+description: Créer, lire, mettre à jour, supprimer et importer en masse des
+  enregistrements ServiceNow
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="servicenow"
+  color="#032D42"
+/>
+
+## Instructions d'utilisation
+
+Intégrez ServiceNow dans votre flux de travail. Permet de créer, lire, mettre à jour et supprimer des enregistrements dans n'importe quelle table ServiceNow (incidents, tâches, utilisateurs, etc.). Prend en charge les opérations d'importation en masse pour la migration de données et l'ETL.
+
+## Outils
+
+### `servicenow_create_record`
+
+Créer un nouvel enregistrement dans une table ServiceNow
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Oui | URL de l'instance ServiceNow \(par exemple, https://instance.service-now.com\) |
+| `credential` | string | Non | ID d'identification OAuth ServiceNow |
+| `tableName` | string | Oui | Nom de la table \(par exemple, incident, task, sys_user\) |
+| `fields` | json | Oui | Champs à définir sur l'enregistrement \(objet JSON\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Enregistrement ServiceNow créé avec sys_id et autres champs |
+| `metadata` | json | Métadonnées de l'opération |
+
+### `servicenow_read_record`
+
+Lire des enregistrements d'une table ServiceNow
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Non | URL de l'instance ServiceNow \(détectée automatiquement depuis OAuth si non fournie\) |
+| `credential` | string | Non | ID d'identification OAuth ServiceNow |
+| `tableName` | string | Oui | Nom de la table |
+| `sysId` | string | Non | sys_id spécifique de l'enregistrement |
+| `number` | string | Non | Numéro d'enregistrement \(par exemple, INC0010001\) |
+| `query` | string | Non | Chaîne de requête encodée \(par exemple, "active=true^priority=1"\) |
+| `limit` | number | Non | Nombre maximum d'enregistrements à retourner |
+| `fields` | string | Non | Liste de champs séparés par des virgules à retourner |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | Tableau des enregistrements ServiceNow |
+| `metadata` | json | Métadonnées de l'opération |
+
+### `servicenow_update_record`
+
+Mettre à jour un enregistrement existant dans une table ServiceNow
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Non | URL de l'instance ServiceNow (détectée automatiquement depuis OAuth si non fournie) |
+| `credential` | string | Non | ID des identifiants OAuth ServiceNow |
+| `tableName` | string | Oui | Nom de la table |
+| `sysId` | string | Oui | sys_id de l'enregistrement à mettre à jour |
+| `fields` | json | Oui | Champs à mettre à jour (objet JSON) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Enregistrement ServiceNow mis à jour |
+| `metadata` | json | Métadonnées de l'opération |
+
+### `servicenow_delete_record`
+
+Supprimer un enregistrement d'une table ServiceNow
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Non | URL de l'instance ServiceNow (détectée automatiquement depuis OAuth si non fournie) |
+| `credential` | string | Non | ID des identifiants OAuth ServiceNow |
+| `tableName` | string | Oui | Nom de la table |
+| `sysId` | string | Oui | sys_id de l'enregistrement à supprimer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indique si la suppression a réussi |
+| `metadata` | json | Métadonnées de l'opération |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `servicenow`
