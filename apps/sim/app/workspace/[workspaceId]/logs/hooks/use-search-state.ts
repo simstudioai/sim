@@ -21,21 +21,15 @@ export function useSearchState({
   const [currentInput, setCurrentInput] = useState('')
   const [textSearch, setTextSearch] = useState('')
 
-  // Dropdown state
   const [isOpen, setIsOpen] = useState(false)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [sections, setSections] = useState<SuggestionSection[]>([])
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
 
-  // Badge interaction
-  const [highlightedBadgeIndex, setHighlightedBadgeIndex] = useState<number | null>(null)
-
-  // Refs
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Update suggestions when input changes
   const updateSuggestions = useCallback(
     (input: string) => {
       const suggestionGroup = getSuggestions(input)
@@ -55,13 +49,10 @@ export function useSearchState({
     [getSuggestions]
   )
 
-  // Handle input changes
   const handleInputChange = useCallback(
     (value: string) => {
       setCurrentInput(value)
-      setHighlightedBadgeIndex(null) // Clear badge highlight on any input
 
-      // Debounce suggestion updates
       if (debounceRef.current) {
         clearTimeout(debounceRef.current)
       }
@@ -73,11 +64,9 @@ export function useSearchState({
     [updateSuggestions, debounceMs]
   )
 
-  // Handle suggestion selection
   const handleSuggestionSelect = useCallback(
     (suggestion: Suggestion) => {
       if (suggestion.category === 'show-all') {
-        // Treat as text search
         setTextSearch(suggestion.value)
         setCurrentInput('')
         setIsOpen(false)
@@ -85,15 +74,12 @@ export function useSearchState({
         return
       }
 
-      // Check if this is a filter-key suggestion (ends with ':')
       if (suggestion.category === 'filters' && suggestion.value.endsWith(':')) {
-        // Set input to the filter key and keep dropdown open for values
         setCurrentInput(suggestion.value)
         updateSuggestions(suggestion.value)
         return
       }
 
-      // For filter values, workflows, folders - add as a filter
       const newFilter: ParsedFilter = {
         field: suggestion.value.split(':')[0] as any,
         operator: '=',
@@ -110,15 +96,12 @@ export function useSearchState({
       setCurrentInput('')
       setTextSearch('')
 
-      // Notify parent
       onFiltersChange(updatedFilters, '')
 
-      // Focus back on input and reopen dropdown with empty suggestions
       if (inputRef.current) {
         inputRef.current.focus()
       }
 
-      // Show filter keys dropdown again after selection
       setTimeout(() => {
         updateSuggestions('')
       }, 50)
@@ -126,12 +109,10 @@ export function useSearchState({
     [appliedFilters, onFiltersChange, updateSuggestions]
   )
 
-  // Remove a badge
   const removeBadge = useCallback(
     (index: number) => {
       const updatedFilters = appliedFilters.filter((_, i) => i !== index)
       setAppliedFilters(updatedFilters)
-      setHighlightedBadgeIndex(null)
       onFiltersChange(updatedFilters, textSearch)
 
       if (inputRef.current) {
@@ -141,39 +122,22 @@ export function useSearchState({
     [appliedFilters, textSearch, onFiltersChange]
   )
 
-  // Handle keyboard navigation
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
-      // Backspace on empty input - badge deletion
       if (event.key === 'Backspace' && currentInput === '') {
-        event.preventDefault()
-
-        if (highlightedBadgeIndex !== null) {
-          // Delete highlighted badge
-          removeBadge(highlightedBadgeIndex)
-        } else if (appliedFilters.length > 0) {
-          // Highlight last badge
-          setHighlightedBadgeIndex(appliedFilters.length - 1)
+        if (appliedFilters.length > 0) {
+          event.preventDefault()
+          removeBadge(appliedFilters.length - 1)
         }
         return
       }
 
-      // Clear badge highlight on any other key when not in dropdown navigation
-      if (
-        highlightedBadgeIndex !== null &&
-        !['ArrowDown', 'ArrowUp', 'Enter'].includes(event.key)
-      ) {
-        setHighlightedBadgeIndex(null)
-      }
-
-      // Enter key
       if (event.key === 'Enter') {
         event.preventDefault()
 
         if (isOpen && highlightedIndex >= 0 && suggestions[highlightedIndex]) {
           handleSuggestionSelect(suggestions[highlightedIndex])
         } else if (currentInput.trim()) {
-          // Submit current input as text search
           setTextSearch(currentInput.trim())
           setCurrentInput('')
           setIsOpen(false)
@@ -182,7 +146,6 @@ export function useSearchState({
         return
       }
 
-      // Dropdown navigation
       if (!isOpen) return
 
       switch (event.key) {
@@ -216,7 +179,6 @@ export function useSearchState({
     },
     [
       currentInput,
-      highlightedBadgeIndex,
       appliedFilters,
       isOpen,
       highlightedIndex,
@@ -227,12 +189,10 @@ export function useSearchState({
     ]
   )
 
-  // Handle focus
   const handleFocus = useCallback(() => {
     updateSuggestions(currentInput)
   }, [currentInput, updateSuggestions])
 
-  // Handle blur
   const handleBlur = useCallback(() => {
     setTimeout(() => {
       setIsOpen(false)
@@ -240,7 +200,6 @@ export function useSearchState({
     }, 150)
   }, [])
 
-  // Clear all filters
   const clearAll = useCallback(() => {
     setAppliedFilters([])
     setCurrentInput('')
@@ -253,7 +212,6 @@ export function useSearchState({
     }
   }, [onFiltersChange])
 
-  // Initialize from external value (URL params, etc.)
   const initializeFromQuery = useCallback((query: string, filters: ParsedFilter[]) => {
     setAppliedFilters(filters)
     setTextSearch(query)
@@ -261,7 +219,6 @@ export function useSearchState({
   }, [])
 
   return {
-    // State
     appliedFilters,
     currentInput,
     textSearch,
@@ -269,13 +226,10 @@ export function useSearchState({
     suggestions,
     sections,
     highlightedIndex,
-    highlightedBadgeIndex,
 
-    // Refs
     inputRef,
     dropdownRef,
 
-    // Handlers
     handleInputChange,
     handleSuggestionSelect,
     handleKeyDown,
@@ -285,7 +239,6 @@ export function useSearchState({
     clearAll,
     initializeFromQuery,
 
-    // Setters for external control
     setHighlightedIndex,
   }
 }
