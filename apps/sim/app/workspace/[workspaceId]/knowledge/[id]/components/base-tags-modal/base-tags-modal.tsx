@@ -433,7 +433,11 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                         variant='primary'
                         onClick={saveTagDefinition}
                         className='flex-1'
-                        disabled={!canSaveTag() || isSavingTag || !hasAvailableSlots(createTagForm.fieldType)}
+                        disabled={
+                          !canSaveTag() ||
+                          isSavingTag ||
+                          !hasAvailableSlots(createTagForm.fieldType)
+                        }
                       >
                         {isSavingTag ? (
                           <>

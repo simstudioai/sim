@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import {
   Button,
@@ -11,6 +11,7 @@ import {
   Switch,
   Trash,
 } from '@/components/emcn'
+import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   checkTagTrigger,
@@ -20,10 +21,6 @@ import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
 import { useTagSelection } from '@/hooks/use-tag-selection'
-import {
-  type FilterFieldType,
-  getOperatorsForFieldType,
-} from '@/lib/knowledge/filters/types'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 
 interface TagFilter {
@@ -155,7 +152,7 @@ export function KnowledgeTagFilters({
     const updatedRows = [...rows].map((row, idx) => {
       if (idx === rowIndex) {
         const newCells = { ...row.cells, [column]: value }
-        
+
         // Reset operator when field type changes
         if (column === 'fieldType') {
           const operators = getOperatorsForFieldType(value as FilterFieldType)
@@ -163,12 +160,12 @@ export function KnowledgeTagFilters({
           newCells.value = '' // Reset value when type changes
           newCells.valueTo = undefined
         }
-        
+
         // Reset valueTo if operator is not 'between'
         if (column === 'operator' && value !== 'between') {
           newCells.valueTo = undefined
         }
-        
+
         return { ...row, cells: newCells }
       }
       return row
@@ -220,7 +217,8 @@ export function KnowledgeTagFilters({
       return row
     })
 
-    const jsonValue = rowsToFilters(updatedRows).length > 0 ? JSON.stringify(rowsToFilters(updatedRows)) : null
+    const jsonValue =
+      rowsToFilters(updatedRows).length > 0 ? JSON.stringify(rowsToFilters(updatedRows)) : null
     emitTagSelection(jsonValue)
   }
 
@@ -320,9 +318,7 @@ export function KnowledgeTagFilters({
             onBlur={handleBlur}
           />
           <div className='pointer-events-none absolute inset-0 flex items-center gap-1.5 overflow-hidden bg-transparent px-3 text-sm'>
-            <span className='truncate'>
-              {cellValue || 'Select tag'}
-            </span>
+            <span className='truncate'>{cellValue || 'Select tag'}</span>
             {cellValue && (
               <span className='flex-shrink-0 rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground'>
                 {FIELD_TYPE_LABELS[fieldType]}
@@ -401,12 +397,10 @@ export function KnowledgeTagFilters({
           <div className='flex items-center justify-center gap-2 px-2'>
             <Switch
               checked={cellValue === 'true'}
-              onCheckedChange={(checked) =>
-                handleCellChange(rowIndex, 'value', String(checked))
-              }
+              onCheckedChange={(checked) => handleCellChange(rowIndex, 'value', String(checked))}
               disabled={isDisabled}
             />
-            <span className='text-sm text-muted-foreground'>
+            <span className='text-muted-foreground text-sm'>
               {cellValue === 'true' ? 'Yes' : 'No'}
             </span>
           </div>
@@ -453,7 +447,13 @@ export function KnowledgeTagFilters({
             <Input
               type='date'
               value={cellValue ? cellValue.slice(0, 10) : ''}
-              onChange={(e) => handleCellChange(rowIndex, 'value', e.target.value ? new Date(e.target.value).toISOString() : '')}
+              onChange={(e) =>
+                handleCellChange(
+                  rowIndex,
+                  'value',
+                  e.target.value ? new Date(e.target.value).toISOString() : ''
+                )
+              }
               disabled={isDisabled}
               className='h-8 border-0 focus-visible:ring-0 focus-visible:ring-offset-0'
             />
@@ -463,7 +463,13 @@ export function KnowledgeTagFilters({
                 <Input
                   type='date'
                   value={valueTo ? valueTo.slice(0, 10) : ''}
-                  onChange={(e) => handleCellChange(rowIndex, 'valueTo', e.target.value ? new Date(e.target.value).toISOString() : '')}
+                  onChange={(e) =>
+                    handleCellChange(
+                      rowIndex,
+                      'valueTo',
+                      e.target.value ? new Date(e.target.value).toISOString() : ''
+                    )
+                  }
                   disabled={isDisabled}
                   className='h-8 border-0 focus-visible:ring-0 focus-visible:ring-offset-0'
                 />

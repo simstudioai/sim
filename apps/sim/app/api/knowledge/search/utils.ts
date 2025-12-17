@@ -70,10 +70,20 @@ export interface SearchResult {
   knowledgeBaseId: string
 }
 
+/** Structured filter with operator support */
+export interface StructuredFilter {
+  tagSlot: string
+  fieldType: string
+  operator: string
+  value: string | number | boolean
+  valueTo?: string | number
+}
+
 export interface SearchParams {
   knowledgeBaseIds: string[]
   topK: number
   filters?: Record<string, string>
+  structuredFilters?: StructuredFilter[]
   queryVector?: string
   distanceThreshold?: number
 }
@@ -84,13 +94,37 @@ export { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 /** All valid tag slot keys */
 const TAG_SLOT_KEYS = [
   // Text tags
-  'tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7',
+  'tag1',
+  'tag2',
+  'tag3',
+  'tag4',
+  'tag5',
+  'tag6',
+  'tag7',
   // Number tags
-  'number1', 'number2', 'number3', 'number4', 'number5', 'number6', 'number7',
+  'number1',
+  'number2',
+  'number3',
+  'number4',
+  'number5',
+  'number6',
+  'number7',
   // Date tags
-  'date1', 'date2', 'date3', 'date4', 'date5', 'date6', 'date7',
+  'date1',
+  'date2',
+  'date3',
+  'date4',
+  'date5',
+  'date6',
+  'date7',
   // Boolean tags
-  'boolean1', 'boolean2', 'boolean3', 'boolean4', 'boolean5', 'boolean6', 'boolean7',
+  'boolean1',
+  'boolean2',
+  'boolean3',
+  'boolean4',
+  'boolean5',
+  'boolean6',
+  'boolean7',
 ] as const
 
 type TagSlotKey = (typeof TAG_SLOT_KEYS)[number]
@@ -98,6 +132,48 @@ type TagSlotKey = (typeof TAG_SLOT_KEYS)[number]
 function isTagSlotKey(key: string): key is TagSlotKey {
   return TAG_SLOT_KEYS.includes(key as TagSlotKey)
 }
+
+/** Common fields selected for search results */
+const getSearchResultFields = (distanceExpr: any) => ({
+  id: embedding.id,
+  content: embedding.content,
+  documentId: embedding.documentId,
+  chunkIndex: embedding.chunkIndex,
+  // Text tags
+  tag1: embedding.tag1,
+  tag2: embedding.tag2,
+  tag3: embedding.tag3,
+  tag4: embedding.tag4,
+  tag5: embedding.tag5,
+  tag6: embedding.tag6,
+  tag7: embedding.tag7,
+  // Number tags
+  number1: embedding.number1,
+  number2: embedding.number2,
+  number3: embedding.number3,
+  number4: embedding.number4,
+  number5: embedding.number5,
+  number6: embedding.number6,
+  number7: embedding.number7,
+  // Date tags
+  date1: embedding.date1,
+  date2: embedding.date2,
+  date3: embedding.date3,
+  date4: embedding.date4,
+  date5: embedding.date5,
+  date6: embedding.date6,
+  date7: embedding.date7,
+  // Boolean tags
+  boolean1: embedding.boolean1,
+  boolean2: embedding.boolean2,
+  boolean3: embedding.boolean3,
+  boolean4: embedding.boolean4,
+  boolean5: embedding.boolean5,
+  boolean6: embedding.boolean6,
+  boolean7: embedding.boolean7,
+  distance: distanceExpr,
+  knowledgeBaseId: embedding.knowledgeBaseId,
+})
 
 function getTagFilters(filters: Record<string, string>, embeddingTable: any) {
   return Object.entries(filters).map(([key, value]) => {
@@ -129,13 +205,13 @@ function getTagFilters(filters: Record<string, string>, embeddingTable: any) {
 
     if (isNumberTag) {
       // Number comparison - for simple equality
-      const numValue = parseFloat(values[0])
+      const numValue = Number.parseFloat(values[0])
       if (values.length === 1) {
         logger.debug(`[getTagFilters] Number filter: ${key} = ${numValue}`)
         return sql`${column} = ${numValue}`
       }
       // Multiple values - OR logic
-      const numValues = values.map((v) => parseFloat(v))
+      const numValues = values.map((v) => Number.parseFloat(v))
       logger.debug(`[getTagFilters] OR number filter: ${key} IN (${numValues.join(', ')})`)
       const orConditions = numValues.map((v) => sql`${column} = ${v}`)
       return sql`(${sql.join(orConditions, sql` OR `)})`
@@ -150,7 +226,9 @@ function getTagFilters(filters: Record<string, string>, embeddingTable: any) {
       }
       // Multiple values - OR logic
       const dateValues = values.map((v) => new Date(v))
-      logger.debug(`[getTagFilters] OR date filter: ${key} IN (${dateValues.map((d) => d.toISOString()).join(', ')})`)
+      logger.debug(
+        `[getTagFilters] OR date filter: ${key} IN (${dateValues.map((d) => d.toISOString()).join(', ')})`
+      )
       const orConditions = dateValues.map((v) => sql`${column} = ${v}`)
       return sql`(${sql.join(orConditions, sql` OR `)})`
     }
@@ -165,6 +243,119 @@ function getTagFilters(filters: Record<string, string>, embeddingTable: any) {
     logger.debug(`[getTagFilters] OR filter: ${key} IN (${values.join(', ')})`)
     const orConditions = values.map((v) => sql`LOWER(${column}) = LOWER(${v})`)
     return sql`(${sql.join(orConditions, sql` OR `)})`
+  })
+}
+
+/**
+ * Build SQL conditions from structured filters with operator support
+ */
+function getStructuredTagFilters(filters: StructuredFilter[], embeddingTable: any) {
+  return filters.map((filter) => {
+    const { tagSlot, fieldType, operator, value, valueTo } = filter
+
+    if (!isTagSlotKey(tagSlot)) {
+      logger.debug(`[getStructuredTagFilters] Unknown tag slot: ${tagSlot}`)
+      return sql`1=1`
+    }
+
+    const column = embeddingTable[tagSlot]
+    if (!column) return sql`1=1`
+
+    logger.debug(
+      `[getStructuredTagFilters] Processing ${tagSlot} (${fieldType}) ${operator} ${value}`
+    )
+
+    // Handle text operators
+    if (fieldType === 'text') {
+      const stringValue = String(value)
+      switch (operator) {
+        case 'eq':
+          return sql`LOWER(${column}) = LOWER(${stringValue})`
+        case 'neq':
+          return sql`LOWER(${column}) != LOWER(${stringValue})`
+        case 'contains':
+          return sql`LOWER(${column}) LIKE LOWER(${`%${stringValue}%`})`
+        case 'not_contains':
+          return sql`LOWER(${column}) NOT LIKE LOWER(${`%${stringValue}%`})`
+        case 'starts_with':
+          return sql`LOWER(${column}) LIKE LOWER(${`${stringValue}%`})`
+        case 'ends_with':
+          return sql`LOWER(${column}) LIKE LOWER(${`%${stringValue}`})`
+        default:
+          return sql`LOWER(${column}) = LOWER(${stringValue})`
+      }
+    }
+
+    // Handle number operators
+    if (fieldType === 'number') {
+      const numValue = typeof value === 'number' ? value : Number.parseFloat(String(value))
+      switch (operator) {
+        case 'eq':
+          return sql`${column} = ${numValue}`
+        case 'neq':
+          return sql`${column} != ${numValue}`
+        case 'gt':
+          return sql`${column} > ${numValue}`
+        case 'gte':
+          return sql`${column} >= ${numValue}`
+        case 'lt':
+          return sql`${column} < ${numValue}`
+        case 'lte':
+          return sql`${column} <= ${numValue}`
+        case 'between':
+          if (valueTo !== undefined) {
+            const numValueTo =
+              typeof valueTo === 'number' ? valueTo : Number.parseFloat(String(valueTo))
+            return sql`${column} >= ${numValue} AND ${column} <= ${numValueTo}`
+          }
+          return sql`${column} = ${numValue}`
+        default:
+          return sql`${column} = ${numValue}`
+      }
+    }
+
+    // Handle date operators
+    if (fieldType === 'date') {
+      const dateValue = new Date(String(value))
+      switch (operator) {
+        case 'eq':
+          return sql`${column} = ${dateValue}`
+        case 'neq':
+          return sql`${column} != ${dateValue}`
+        case 'gt':
+          return sql`${column} > ${dateValue}`
+        case 'gte':
+          return sql`${column} >= ${dateValue}`
+        case 'lt':
+          return sql`${column} < ${dateValue}`
+        case 'lte':
+          return sql`${column} <= ${dateValue}`
+        case 'between':
+          if (valueTo !== undefined) {
+            const dateValueTo = new Date(String(valueTo))
+            return sql`${column} >= ${dateValue} AND ${column} <= ${dateValueTo}`
+          }
+          return sql`${column} = ${dateValue}`
+        default:
+          return sql`${column} = ${dateValue}`
+      }
+    }
+
+    // Handle boolean operators
+    if (fieldType === 'boolean') {
+      const boolValue = value === true || value === 'true'
+      switch (operator) {
+        case 'eq':
+          return sql`${column} = ${boolValue}`
+        case 'neq':
+          return sql`${column} != ${boolValue}`
+        default:
+          return sql`${column} = ${boolValue}`
+      }
+    }
+
+    // Fallback to equality
+    return sql`${column} = ${value}`
   })
 }
 
@@ -183,8 +374,16 @@ export function getQueryStrategy(kbCount: number, topK: number) {
 
 async function executeTagFilterQuery(
   knowledgeBaseIds: string[],
-  filters: Record<string, string>
+  filters?: Record<string, string>,
+  structuredFilters?: StructuredFilter[]
 ): Promise<{ id: string }[]> {
+  // Use structured filters if provided, otherwise fall back to legacy filters
+  const tagFilterConditions = structuredFilters
+    ? getStructuredTagFilters(structuredFilters, embedding)
+    : filters
+      ? getTagFilters(filters, embedding)
+      : []
+
   if (knowledgeBaseIds.length === 1) {
     return await db
       .select({ id: embedding.id })
@@ -195,7 +394,7 @@ async function executeTagFilterQuery(
           eq(embedding.knowledgeBaseId, knowledgeBaseIds[0]),
           eq(embedding.enabled, true),
           isNull(document.deletedAt),
-          ...getTagFilters(filters, embedding)
+          ...tagFilterConditions
         )
       )
   }
@@ -208,7 +407,7 @@ async function executeTagFilterQuery(
         inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
         eq(embedding.enabled, true),
         isNull(document.deletedAt),
-        ...getTagFilters(filters, embedding)
+        ...tagFilterConditions
       )
     )
 }
@@ -224,21 +423,11 @@ async function executeVectorSearchOnIds(
   }
 
   return await db
-    .select({
-      id: embedding.id,
-      content: embedding.content,
-      documentId: embedding.documentId,
-      chunkIndex: embedding.chunkIndex,
-      tag1: embedding.tag1,
-      tag2: embedding.tag2,
-      tag3: embedding.tag3,
-      tag4: embedding.tag4,
-      tag5: embedding.tag5,
-      tag6: embedding.tag6,
-      tag7: embedding.tag7,
-      distance: sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance'),
-      knowledgeBaseId: embedding.knowledgeBaseId,
-    })
+    .select(
+      getSearchResultFields(
+        sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance')
+      )
+    )
     .from(embedding)
     .innerJoin(document, eq(embedding.documentId, document.id))
     .where(
@@ -253,15 +442,26 @@ async function executeVectorSearchOnIds(
 }
 
 export async function handleTagOnlySearch(params: SearchParams): Promise<SearchResult[]> {
-  const { knowledgeBaseIds, topK, filters } = params
+  const { knowledgeBaseIds, topK, filters, structuredFilters } = params
 
-  if (!filters || Object.keys(filters).length === 0) {
+  const hasLegacyFilters = filters && Object.keys(filters).length > 0
+  const hasStructuredFilters = structuredFilters && structuredFilters.length > 0
+
+  if (!hasLegacyFilters && !hasStructuredFilters) {
     throw new Error('Tag filters are required for tag-only search')
   }
 
-  logger.debug(`[handleTagOnlySearch] Executing tag-only search with filters:`, filters)
+  logger.debug(
+    `[handleTagOnlySearch] Executing tag-only search with filters:`,
+    hasStructuredFilters ? structuredFilters : filters
+  )
 
   const strategy = getQueryStrategy(knowledgeBaseIds.length, topK)
+
+  // Get filter conditions based on whether we have structured or legacy filters
+  const tagFilterConditions = hasStructuredFilters
+    ? getStructuredTagFilters(structuredFilters!, embedding)
+    : getTagFilters(filters!, embedding)
 
   if (strategy.useParallel) {
     // Parallel approach for many KBs
@@ -269,21 +469,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
 
     const queryPromises = knowledgeBaseIds.map(async (kbId) => {
       return await db
-        .select({
-          id: embedding.id,
-          content: embedding.content,
-          documentId: embedding.documentId,
-          chunkIndex: embedding.chunkIndex,
-          tag1: embedding.tag1,
-          tag2: embedding.tag2,
-          tag3: embedding.tag3,
-          tag4: embedding.tag4,
-          tag5: embedding.tag5,
-          tag6: embedding.tag6,
-          tag7: embedding.tag7,
-          distance: sql<number>`0`.as('distance'), // No distance for tag-only searches
-          knowledgeBaseId: embedding.knowledgeBaseId,
-        })
+        .select(getSearchResultFields(sql<number>`0`.as('distance')))
         .from(embedding)
         .innerJoin(document, eq(embedding.documentId, document.id))
         .where(
@@ -291,7 +477,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
             eq(embedding.knowledgeBaseId, kbId),
             eq(embedding.enabled, true),
             isNull(document.deletedAt),
-            ...getTagFilters(filters, embedding)
+            ...tagFilterConditions
           )
         )
         .limit(parallelLimit)
@@ -302,21 +488,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
   }
   // Single query for fewer KBs
   return await db
-    .select({
-      id: embedding.id,
-      content: embedding.content,
-      documentId: embedding.documentId,
-      chunkIndex: embedding.chunkIndex,
-      tag1: embedding.tag1,
-      tag2: embedding.tag2,
-      tag3: embedding.tag3,
-      tag4: embedding.tag4,
-      tag5: embedding.tag5,
-      tag6: embedding.tag6,
-      tag7: embedding.tag7,
-      distance: sql<number>`0`.as('distance'), // No distance for tag-only searches
-      knowledgeBaseId: embedding.knowledgeBaseId,
-    })
+    .select(getSearchResultFields(sql<number>`0`.as('distance')))
     .from(embedding)
     .innerJoin(document, eq(embedding.documentId, document.id))
     .where(
@@ -324,7 +496,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
         inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
         eq(embedding.enabled, true),
         isNull(document.deletedAt),
-        ...getTagFilters(filters, embedding)
+        ...tagFilterConditions
       )
     )
     .limit(topK)
@@ -341,27 +513,15 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
 
   const strategy = getQueryStrategy(knowledgeBaseIds.length, topK)
 
+  const distanceExpr = sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance')
+
   if (strategy.useParallel) {
     // Parallel approach for many KBs
     const parallelLimit = Math.ceil(topK / knowledgeBaseIds.length) + 5
 
     const queryPromises = knowledgeBaseIds.map(async (kbId) => {
       return await db
-        .select({
-          id: embedding.id,
-          content: embedding.content,
-          documentId: embedding.documentId,
-          chunkIndex: embedding.chunkIndex,
-          tag1: embedding.tag1,
-          tag2: embedding.tag2,
-          tag3: embedding.tag3,
-          tag4: embedding.tag4,
-          tag5: embedding.tag5,
-          tag6: embedding.tag6,
-          tag7: embedding.tag7,
-          distance: sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance'),
-          knowledgeBaseId: embedding.knowledgeBaseId,
-        })
+        .select(getSearchResultFields(distanceExpr))
         .from(embedding)
         .innerJoin(document, eq(embedding.documentId, document.id))
         .where(
@@ -382,21 +542,7 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
   }
   // Single query for fewer KBs
   return await db
-    .select({
-      id: embedding.id,
-      content: embedding.content,
-      documentId: embedding.documentId,
-      chunkIndex: embedding.chunkIndex,
-      tag1: embedding.tag1,
-      tag2: embedding.tag2,
-      tag3: embedding.tag3,
-      tag4: embedding.tag4,
-      tag5: embedding.tag5,
-      tag6: embedding.tag6,
-      tag7: embedding.tag7,
-      distance: sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance'),
-      knowledgeBaseId: embedding.knowledgeBaseId,
-    })
+    .select(getSearchResultFields(distanceExpr))
     .from(embedding)
     .innerJoin(document, eq(embedding.documentId, document.id))
     .where(
@@ -412,19 +558,30 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
 }
 
 export async function handleTagAndVectorSearch(params: SearchParams): Promise<SearchResult[]> {
-  const { knowledgeBaseIds, topK, filters, queryVector, distanceThreshold } = params
+  const { knowledgeBaseIds, topK, filters, structuredFilters, queryVector, distanceThreshold } =
+    params
 
-  if (!filters || Object.keys(filters).length === 0) {
+  const hasLegacyFilters = filters && Object.keys(filters).length > 0
+  const hasStructuredFilters = structuredFilters && structuredFilters.length > 0
+
+  if (!hasLegacyFilters && !hasStructuredFilters) {
     throw new Error('Tag filters are required for tag and vector search')
   }
   if (!queryVector || !distanceThreshold) {
     throw new Error('Query vector and distance threshold are required for tag and vector search')
   }
 
-  logger.debug(`[handleTagAndVectorSearch] Executing tag + vector search with filters:`, filters)
+  logger.debug(
+    `[handleTagAndVectorSearch] Executing tag + vector search with filters:`,
+    hasStructuredFilters ? structuredFilters : filters
+  )
 
   // Step 1: Filter by tags first
-  const tagFilteredIds = await executeTagFilterQuery(knowledgeBaseIds, filters)
+  const tagFilteredIds = await executeTagFilterQuery(
+    knowledgeBaseIds,
+    hasLegacyFilters ? filters : undefined,
+    hasStructuredFilters ? structuredFilters : undefined
+  )
 
   if (tagFilteredIds.length === 0) {
     logger.debug(`[handleTagAndVectorSearch] No results found after tag filtering`)

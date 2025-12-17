@@ -529,7 +529,10 @@ export function DocumentTagsModal({
                             type='datetime-local'
                             value={editTagForm.value ? editTagForm.value.slice(0, 16) : ''}
                             onChange={(e) =>
-                              setEditTagForm({ ...editTagForm, value: new Date(e.target.value).toISOString() })
+                              setEditTagForm({
+                                ...editTagForm,
+                                value: new Date(e.target.value).toISOString(),
+                              })
                             }
                             onKeyDown={(e) => {
                               if (e.key === 'Escape') {
@@ -661,9 +664,7 @@ export function DocumentTagsModal({
                         id='newTagValue'
                         type='number'
                         value={editTagForm.value}
-                        onChange={(e) =>
-                          setEditTagForm({ ...editTagForm, value: e.target.value })
-                        }
+                        onChange={(e) => setEditTagForm({ ...editTagForm, value: e.target.value })}
                         placeholder='Enter number'
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && canSaveTag) {
@@ -682,7 +683,10 @@ export function DocumentTagsModal({
                         type='datetime-local'
                         value={editTagForm.value ? editTagForm.value.slice(0, 16) : ''}
                         onChange={(e) =>
-                          setEditTagForm({ ...editTagForm, value: new Date(e.target.value).toISOString() })
+                          setEditTagForm({
+                            ...editTagForm,
+                            value: new Date(e.target.value).toISOString(),
+                          })
                         }
                         onKeyDown={(e) => {
                           if (e.key === 'Escape') {

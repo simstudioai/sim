@@ -20,6 +20,16 @@ import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('VectorSearchAPI')
 
+/** Structured tag filter with operator support */
+const StructuredTagFilterSchema = z.object({
+  tagName: z.string(),
+  tagSlot: z.string().optional(),
+  fieldType: z.enum(['text', 'number', 'date', 'boolean']).default('text'),
+  operator: z.string().default('eq'),
+  value: z.union([z.string(), z.number(), z.boolean()]),
+  valueTo: z.union([z.string(), z.number()]).optional(),
+})
+
 const VectorSearchSchema = z
   .object({
     knowledgeBaseIds: z.union([
@@ -43,14 +53,20 @@ const VectorSearchSchema = z
       .record(z.string())
       .optional()
       .nullable()
-      .transform((val) => val || undefined), // Allow dynamic filter keys (display names)
+      .transform((val) => val || undefined), // Legacy format: simple key-value pairs
+    tagFilters: z
+      .array(StructuredTagFilterSchema)
+      .optional()
+      .nullable()
+      .transform((val) => val || undefined), // New format: structured filters with operators
   })
   .refine(
     (data) => {
       // Ensure at least query or filters are provided
       const hasQuery = data.query && data.query.trim().length > 0
-      const hasFilters = data.filters && Object.keys(data.filters).length > 0
-      return hasQuery || hasFilters
+      const hasLegacyFilters = data.filters && Object.keys(data.filters).length > 0
+      const hasTagFilters = data.tagFilters && data.tagFilters.length > 0
+      return hasQuery || hasLegacyFilters || hasTagFilters
     },
     {
       message: 'Please provide either a search query or tag filters to search your knowledge base',
@@ -89,6 +105,54 @@ export async function POST(request: NextRequest) {
 
       // Map display names to tag slots for filtering
       let mappedFilters: Record<string, string> = {}
+      let structuredFilters: Array<{
+        tagSlot: string
+        fieldType: string
+        operator: string
+        value: string | number | boolean
+        valueTo?: string | number
+      }> = []
+
+      // Handle new structured tagFilters format
+      if (validatedData.tagFilters && accessibleKbIds.length > 0) {
+        try {
+          const kbId = accessibleKbIds[0]
+          const tagDefs = await getDocumentTagDefinitions(kbId)
+
+          // Create mapping from display name to tag slot and fieldType
+          const displayNameToTagDef: Record<string, { tagSlot: string; fieldType: string }> = {}
+          tagDefs.forEach((def) => {
+            displayNameToTagDef[def.displayName] = {
+              tagSlot: def.tagSlot,
+              fieldType: def.fieldType,
+            }
+          })
+
+          structuredFilters = validatedData.tagFilters.map((filter) => {
+            const tagDef = displayNameToTagDef[filter.tagName]
+            const tagSlot = filter.tagSlot || tagDef?.tagSlot || filter.tagName
+            const fieldType = filter.fieldType || tagDef?.fieldType || 'text'
+
+            logger.debug(
+              `[${requestId}] Structured filter: ${filter.tagName} -> ${tagSlot} (${fieldType}) ${filter.operator} ${filter.value}`
+            )
+
+            return {
+              tagSlot,
+              fieldType,
+              operator: filter.operator,
+              value: filter.value,
+              valueTo: filter.valueTo,
+            }
+          })
+
+          logger.debug(`[${requestId}] Processed ${structuredFilters.length} structured filters`)
+        } catch (error) {
+          logger.error(`[${requestId}] Structured filter processing error:`, error)
+        }
+      }
+
+      // Handle legacy filters format (for backwards compatibility)
       if (validatedData.filters && accessibleKbIds.length > 0) {
         try {
           // Fetch tag definitions for the first accessible KB (since we're using single KB now)
@@ -155,26 +219,36 @@ export async function POST(request: NextRequest) {
 
       let results: SearchResult[]
 
-      const hasFilters = mappedFilters && Object.keys(mappedFilters).length > 0
+      const hasLegacyFilters = mappedFilters && Object.keys(mappedFilters).length > 0
+      const hasStructuredFilters = structuredFilters && structuredFilters.length > 0
+      const hasFilters = hasLegacyFilters || hasStructuredFilters
 
       if (!hasQuery && hasFilters) {
         // Tag-only search without vector similarity
-        logger.debug(`[${requestId}] Executing tag-only search with filters:`, mappedFilters)
+        logger.debug(
+          `[${requestId}] Executing tag-only search with filters:`,
+          hasStructuredFilters ? structuredFilters : mappedFilters
+        )
         results = await handleTagOnlySearch({
           knowledgeBaseIds: accessibleKbIds,
           topK: validatedData.topK,
-          filters: mappedFilters,
+          filters: hasLegacyFilters ? mappedFilters : undefined,
+          structuredFilters: hasStructuredFilters ? structuredFilters : undefined,
         })
       } else if (hasQuery && hasFilters) {
         // Tag + Vector search
-        logger.debug(`[${requestId}] Executing tag + vector search with filters:`, mappedFilters)
+        logger.debug(
+          `[${requestId}] Executing tag + vector search with filters:`,
+          hasStructuredFilters ? structuredFilters : mappedFilters
+        )
         const strategy = getQueryStrategy(accessibleKbIds.length, validatedData.topK)
         const queryVector = JSON.stringify(await queryEmbeddingPromise)
 
         results = await handleTagAndVectorSearch({
           knowledgeBaseIds: accessibleKbIds,
           topK: validatedData.topK,
-          filters: mappedFilters,
+          filters: hasLegacyFilters ? mappedFilters : undefined,
+          structuredFilters: hasStructuredFilters ? structuredFilters : undefined,
           queryVector,
           distanceThreshold: strategy.distanceThreshold,
         })

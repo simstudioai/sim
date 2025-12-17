@@ -112,7 +112,10 @@ export function DocumentTagEntry({
   )
 
   // Calculate total available slots across all field types
-  const totalSlots = Object.values(TAG_SLOT_CONFIG).reduce((sum, config) => sum + config.maxSlots, 0)
+  const totalSlots = Object.values(TAG_SLOT_CONFIG).reduce(
+    (sum, config) => sum + config.maxSlots,
+    0
+  )
 
   // Check if we can add more tags
   const newTagsBeingCreated = rows.filter(

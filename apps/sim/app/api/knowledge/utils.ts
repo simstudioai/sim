@@ -232,6 +232,38 @@ export async function checkDocumentWriteAccess(
       processingStartedAt: document.processingStartedAt,
       processingCompletedAt: document.processingCompletedAt,
       knowledgeBaseId: document.knowledgeBaseId,
+      // Text tags
+      tag1: document.tag1,
+      tag2: document.tag2,
+      tag3: document.tag3,
+      tag4: document.tag4,
+      tag5: document.tag5,
+      tag6: document.tag6,
+      tag7: document.tag7,
+      // Number tags
+      number1: document.number1,
+      number2: document.number2,
+      number3: document.number3,
+      number4: document.number4,
+      number5: document.number5,
+      number6: document.number6,
+      number7: document.number7,
+      // Date tags
+      date1: document.date1,
+      date2: document.date2,
+      date3: document.date3,
+      date4: document.date4,
+      date5: document.date5,
+      date6: document.date6,
+      date7: document.date7,
+      // Boolean tags
+      boolean1: document.boolean1,
+      boolean2: document.boolean2,
+      boolean3: document.boolean3,
+      boolean4: document.boolean4,
+      boolean5: document.boolean5,
+      boolean6: document.boolean6,
+      boolean7: document.boolean7,
     })
     .from(document)
     .where(and(eq(document.id, documentId), isNull(document.deletedAt)))

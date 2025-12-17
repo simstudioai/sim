@@ -156,6 +156,7 @@ export async function POST(
       const validatedData = CreateChunkSchema.parse(searchParams)
 
       const docTags = {
+        // Text tags
         tag1: doc.tag1 ?? null,
         tag2: doc.tag2 ?? null,
         tag3: doc.tag3 ?? null,
@@ -163,6 +164,30 @@ export async function POST(
         tag5: doc.tag5 ?? null,
         tag6: doc.tag6 ?? null,
         tag7: doc.tag7 ?? null,
+        // Number tags
+        number1: doc.number1 ?? null,
+        number2: doc.number2 ?? null,
+        number3: doc.number3 ?? null,
+        number4: doc.number4 ?? null,
+        number5: doc.number5 ?? null,
+        number6: doc.number6 ?? null,
+        number7: doc.number7 ?? null,
+        // Date tags
+        date1: doc.date1 ?? null,
+        date2: doc.date2 ?? null,
+        date3: doc.date3 ?? null,
+        date4: doc.date4 ?? null,
+        date5: doc.date5 ?? null,
+        date6: doc.date6 ?? null,
+        date7: doc.date7 ?? null,
+        // Boolean tags
+        boolean1: doc.boolean1 ?? null,
+        boolean2: doc.boolean2 ?? null,
+        boolean3: doc.boolean3 ?? null,
+        boolean4: doc.boolean4 ?? null,
+        boolean5: doc.boolean5 ?? null,
+        boolean6: doc.boolean6 ?? null,
+        boolean7: doc.boolean7 ?? null,
       }
 
       const newChunk = await createChunk(

@@ -12,7 +12,15 @@ export const TAG_SLOT_CONFIG = {
     maxSlots: 7,
   },
   boolean: {
-    slots: ['boolean1', 'boolean2', 'boolean3', 'boolean4', 'boolean5', 'boolean6', 'boolean7'] as const,
+    slots: [
+      'boolean1',
+      'boolean2',
+      'boolean3',
+      'boolean4',
+      'boolean5',
+      'boolean6',
+      'boolean7',
+    ] as const,
     maxSlots: 7,
   },
 } as const

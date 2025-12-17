@@ -1,5 +1,5 @@
-import { and, eq, gt, gte, ilike, like, lt, lte, ne, not, or, sql, type SQL } from 'drizzle-orm'
 import { document, embedding } from '@sim/db/schema'
+import { and, eq, gt, gte, ilike, lt, lte, ne, not, or, type SQL } from 'drizzle-orm'
 import type {
   BooleanFilterCondition,
   DateFilterCondition,
@@ -15,9 +15,25 @@ import type {
  * Valid tag slots that can be used in filters
  */
 const VALID_TEXT_SLOTS = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
-const VALID_NUMBER_SLOTS = ['number1', 'number2', 'number3', 'number4', 'number5', 'number6', 'number7'] as const
+const VALID_NUMBER_SLOTS = [
+  'number1',
+  'number2',
+  'number3',
+  'number4',
+  'number5',
+  'number6',
+  'number7',
+] as const
 const VALID_DATE_SLOTS = ['date1', 'date2', 'date3', 'date4', 'date5', 'date6', 'date7'] as const
-const VALID_BOOLEAN_SLOTS = ['boolean1', 'boolean2', 'boolean3', 'boolean4', 'boolean5', 'boolean6', 'boolean7'] as const
+const VALID_BOOLEAN_SLOTS = [
+  'boolean1',
+  'boolean2',
+  'boolean3',
+  'boolean4',
+  'boolean5',
+  'boolean6',
+  'boolean7',
+] as const
 
 type TextSlot = (typeof VALID_TEXT_SLOTS)[number]
 type NumberSlot = (typeof VALID_NUMBER_SLOTS)[number]
@@ -315,9 +331,7 @@ export function validateFilterCondition(condition: FilterCondition): string[] {
   const errors: string[] = []
 
   if (!isValidSlotForType(condition.tagSlot, condition.fieldType)) {
-    errors.push(
-      `Invalid tag slot "${condition.tagSlot}" for field type "${condition.fieldType}"`
-    )
+    errors.push(`Invalid tag slot "${condition.tagSlot}" for field type "${condition.fieldType}"`)
   }
 
   switch (condition.fieldType) {

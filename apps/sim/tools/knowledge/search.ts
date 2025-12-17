@@ -53,8 +53,8 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       // Use single knowledge base ID
       const knowledgeBaseIds = [params.knowledgeBaseId]
 
-      // Parse dynamic tag filters and send display names to API
-      const filters: Record<string, string> = {}
+      // Parse dynamic tag filters
+      let structuredFilters: any[] = []
       if (params.tagFilters) {
         let tagFilters = params.tagFilters
 
@@ -68,21 +68,23 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
         }
 
         if (Array.isArray(tagFilters)) {
-          // Group filters by tag name for OR logic within same tag
-          const groupedFilters: Record<string, string[]> = {}
-          tagFilters.forEach((filter: any) => {
-            if (filter.tagName && filter.tagValue && filter.tagValue.trim().length > 0) {
-              if (!groupedFilters[filter.tagName]) {
-                groupedFilters[filter.tagName] = []
+          // Send full filter objects with operator support
+          structuredFilters = tagFilters
+            .filter((filter: any) => {
+              // For boolean, any value is valid; for others, check for non-empty string
+              if (filter.fieldType === 'boolean') {
+                return filter.tagName && filter.tagValue !== undefined
               }
-              groupedFilters[filter.tagName].push(filter.tagValue)
-            }
-          })
-
-          // Convert to filters format - for now, join multiple values with OR separator
-          Object.entries(groupedFilters).forEach(([tagName, values]) => {
-            filters[tagName] = values.join('|OR|') // Use special separator for OR logic
-          })
+              return filter.tagName && filter.tagValue && String(filter.tagValue).trim().length > 0
+            })
+            .map((filter: any) => ({
+              tagName: filter.tagName,
+              tagSlot: filter.tagSlot,
+              fieldType: filter.fieldType || 'text',
+              operator: filter.operator || 'eq',
+              value: filter.tagValue,
+              valueTo: filter.valueTo,
+            }))
         }
       }
 
@@ -90,7 +92,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
         knowledgeBaseIds,
         query: params.query,
         topK: params.topK ? Math.max(1, Math.min(100, Number(params.topK))) : 10,
-        ...(Object.keys(filters).length > 0 && { filters }),
+        ...(structuredFilters.length > 0 && { tagFilters: structuredFilters }),
         ...(workflowId && { workflowId }),
       }
 
