@@ -91,8 +91,7 @@ export function FieldFormat({
   placeholder = 'fieldName',
   showType = true,
   showValue = false,
-  valuePlaceholder = 'Enter test value',
-  config,
+  valuePlaceholder = 'Enter default value',
 }: FieldFormatProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<Field[]>(blockId, subBlockId)
   const valueInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement>>({})
@@ -454,7 +453,6 @@ export function FieldFormat({
   )
 }
 
-// Export specific components for backward compatibility
 export function InputFormat(props: Omit<FieldFormatProps, 'title' | 'placeholder'>) {
   return <FieldFormat {...props} title='Input' placeholder='firstName' />
 }
