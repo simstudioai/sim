@@ -18,6 +18,7 @@ import { useShallow } from 'zustand/react/shallow'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/other/oauth-request-access'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { OAuthProvider } from '@/lib/oauth'
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -1502,6 +1503,77 @@ const WorkflowContent = React.memo(() => {
   }, [])
 
   /**
+   * Updates container dimensions in displayNodes during drag.
+   * This allows live resizing of containers as their children are dragged.
+   */
+  const updateContainerDimensionsDuringDrag = useCallback(
+    (draggedNodeId: string, draggedNodePosition: { x: number; y: number }) => {
+      const parentId = blocks[draggedNodeId]?.data?.parentId
+      if (!parentId) return
+
+      setDisplayNodes((currentNodes) => {
+        // Find all children of this container from current displayNodes
+        const childNodes = currentNodes.filter((n) => n.parentId === parentId)
+        if (childNodes.length === 0) return currentNodes
+
+        // Calculate dimensions using current positions from displayNodes
+        // Match padding values from use-node-utilities.ts calculateLoopDimensions
+        const headerHeight = 50
+        const leftPadding = 16
+        const rightPadding = 80
+        const topPadding = 16
+        const bottomPadding = 16
+        const minWidth = CONTAINER_DIMENSIONS.DEFAULT_WIDTH
+        const minHeight = CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
+
+        let maxRight = 0
+        let maxBottom = 0
+
+        childNodes.forEach((node) => {
+          // Use the dragged node's live position, others from displayNodes
+          const nodePosition = node.id === draggedNodeId ? draggedNodePosition : node.position
+
+          // Get dimensions - use block store for height estimates
+          const blockData = blocks[node.id]
+          const nodeWidth = BLOCK_DIMENSIONS.FIXED_WIDTH
+          const nodeHeight = blockData?.height || node.height || BLOCK_DIMENSIONS.MIN_HEIGHT
+
+          const rightEdge = nodePosition.x + nodeWidth
+          const bottomEdge = nodePosition.y + nodeHeight
+
+          maxRight = Math.max(maxRight, rightEdge)
+          maxBottom = Math.max(maxBottom, bottomEdge)
+        })
+
+        const newWidth = Math.max(minWidth, leftPadding + maxRight + rightPadding)
+        const newHeight = Math.max(minHeight, headerHeight + topPadding + maxBottom + bottomPadding)
+
+        // Update the container node's dimensions in displayNodes
+        return currentNodes.map((node) => {
+          if (node.id === parentId) {
+            const currentWidth = node.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH
+            const currentHeight = node.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
+
+            // Only update if dimensions changed
+            if (newWidth !== currentWidth || newHeight !== currentHeight) {
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  width: newWidth,
+                  height: newHeight,
+                },
+              }
+            }
+          }
+          return node
+        })
+      })
+    },
+    [blocks]
+  )
+
+  /**
    * Effect to resize loops when nodes change (add/remove/position change).
    * Runs on structural changes only - not during drag (position-only changes).
    * Skips during loading to avoid unnecessary work.
@@ -1681,6 +1753,11 @@ const WorkflowContent = React.memo(() => {
       // Get the current parent ID of the node being dragged
       const currentParentId = blocks[node.id]?.data?.parentId || null
 
+      // If the node is inside a container, update container dimensions during drag
+      if (currentParentId) {
+        updateContainerDimensionsDuringDrag(node.id, node.position)
+      }
+
       // Check if this is a starter block - starter blocks should never be in containers
       const isStarterBlock = node.data?.type === 'starter'
       if (isStarterBlock) {
@@ -1812,7 +1889,14 @@ const WorkflowContent = React.memo(() => {
         }
       }
     },
-    [getNodes, potentialParentId, blocks, getNodeAbsolutePosition, getNodeDepth]
+    [
+      getNodes,
+      potentialParentId,
+      blocks,
+      getNodeAbsolutePosition,
+      getNodeDepth,
+      updateContainerDimensionsDuringDrag,
+    ]
   )
 
   /** Captures initial parent ID and position when drag starts. */
