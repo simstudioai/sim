@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Plus, Search } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -113,7 +113,9 @@ export function MCP() {
   const [serverToDelete, setServerToDelete] = useState<{ id: string; name: string } | null>(null)
 
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null)
-  const [refreshStatus, setRefreshStatus] = useState<'idle' | 'refreshing' | 'refreshed'>('idle')
+  const [refreshingServers, setRefreshingServers] = useState<
+    Record<string, 'refreshing' | 'refreshed'>
+  >({})
 
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [envSearchTerm, setEnvSearchTerm] = useState('')
@@ -121,7 +123,6 @@ export function MCP() {
   const [activeInputField, setActiveInputField] = useState<InputFieldType | null>(null)
   const [activeHeaderIndex, setActiveHeaderIndex] = useState<number | null>(null)
 
-  // Scroll position state for formatted text overlays
   const [urlScrollLeft, setUrlScrollLeft] = useState(0)
   const [headerScrollLeft, setHeaderScrollLeft] = useState<Record<string, number>>({})
 
@@ -396,14 +397,24 @@ export function MCP() {
   const handleRefreshServer = useCallback(
     async (serverId: string) => {
       try {
-        setRefreshStatus('refreshing')
+        setRefreshingServers((prev) => ({ ...prev, [serverId]: 'refreshing' }))
         await refreshServerMutation.mutateAsync({ workspaceId, serverId })
         logger.info(`Refreshed MCP server: ${serverId}`)
-        setRefreshStatus('refreshed')
-        setTimeout(() => setRefreshStatus('idle'), 2000)
+        setRefreshingServers((prev) => ({ ...prev, [serverId]: 'refreshed' }))
+        setTimeout(() => {
+          setRefreshingServers((prev) => {
+            const newState = { ...prev }
+            delete newState[serverId]
+            return newState
+          })
+        }, 2000)
       } catch (error) {
         logger.error('Failed to refresh MCP server:', error)
-        setRefreshStatus('idle')
+        setRefreshingServers((prev) => {
+          const newState = { ...prev }
+          delete newState[serverId]
+          return newState
+        })
       }
     },
     [refreshServerMutation, workspaceId]
@@ -508,16 +519,11 @@ export function MCP() {
             )}
 
             {server.connectionStatus === 'error' && (
-              <div className='flex items-start gap-[8px] rounded-[8px] border border-red-200 bg-red-50 p-[12px] dark:border-red-800/50 dark:bg-red-950/20'>
-                <AlertCircle className='mt-[1px] h-4 w-4 flex-shrink-0 text-red-500 dark:text-red-400' />
-                <div className='flex flex-col gap-[2px]'>
-                  <span className='font-medium text-[13px] text-red-800 dark:text-red-300'>
-                    Connection Error
-                  </span>
-                  <span className='text-[13px] text-red-700 dark:text-red-400'>
-                    {server.lastError || 'Failed to connect to server'}
-                  </span>
-                </div>
+              <div className='flex flex-col gap-[8px]'>
+                <span className='font-medium text-[13px] text-[var(--text-primary)]'>Status</span>
+                <p className='text-[14px] text-red-500 dark:text-red-400'>
+                  {server.lastError || 'Unable to connect'}
+                </p>
               </div>
             )}
 
@@ -570,11 +576,11 @@ export function MCP() {
           <Button
             onClick={() => handleRefreshServer(server.id)}
             variant='default'
-            disabled={refreshStatus !== 'idle'}
+            disabled={!!refreshingServers[server.id]}
           >
-            {refreshStatus === 'refreshing'
+            {refreshingServers[server.id] === 'refreshing'
               ? 'Refreshing...'
-              : refreshStatus === 'refreshed'
+              : refreshingServers[server.id] === 'refreshed'
                 ? 'Refreshed'
                 : 'Refresh Tools'}
           </Button>
@@ -746,6 +752,7 @@ export function MCP() {
                     tools={tools}
                     isDeleting={deletingServers.has(server.id)}
                     isLoadingTools={isLoadingTools}
+                    isRefreshing={refreshingServers[server.id] === 'refreshing'}
                     onRemove={() => handleRemoveServer(server.id, server.name || 'this server')}
                     onViewDetails={() => handleViewDetails(server.id)}
                   />

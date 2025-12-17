@@ -1,5 +1,4 @@
-import { AlertCircle } from 'lucide-react'
-import { Button, Tooltip } from '@/components/emcn'
+import { Button } from '@/components/emcn'
 
 export function formatTransportLabel(transport: string): string {
   return transport
@@ -27,6 +26,7 @@ interface ServerListItemProps {
   tools: any[]
   isDeleting: boolean
   isLoadingTools?: boolean
+  isRefreshing?: boolean
   onRemove: () => void
   onViewDetails: () => void
 }
@@ -36,6 +36,7 @@ export function ServerListItem({
   tools,
   isDeleting,
   isLoadingTools = false,
+  isRefreshing = false,
   onRemove,
   onViewDetails,
 }: ServerListItemProps) {
@@ -47,16 +48,6 @@ export function ServerListItem({
     <div className='flex items-center justify-between gap-[12px]'>
       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
         <div className='flex items-center gap-[6px]'>
-          {isError && (
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <AlertCircle className='h-4 w-4 flex-shrink-0 text-red-500 dark:text-red-400' />
-              </Tooltip.Trigger>
-              <Tooltip.Content>
-                <span className='text-sm'>{server.lastError || 'Failed to connect to server'}</span>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          )}
           <span className='max-w-[200px] truncate font-medium text-[14px]'>
             {server.name || 'Unnamed Server'}
           </span>
@@ -65,7 +56,11 @@ export function ServerListItem({
         <p
           className={`truncate text-[13px] ${isError ? 'text-red-500 dark:text-red-400' : 'text-[var(--text-muted)]'}`}
         >
-          {isLoadingTools && tools.length === 0 ? 'Loading...' : toolsLabel}
+          {isRefreshing
+            ? 'Refreshing...'
+            : isLoadingTools && tools.length === 0
+              ? 'Loading...'
+              : toolsLabel}
         </p>
       </div>
       <div className='flex flex-shrink-0 items-center gap-[4px]'>
