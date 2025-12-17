@@ -2,10 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
-import { Trash } from '@/components/emcn/icons/trash'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
+import { Button, Input, Switch, Trash } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { SUPPORTED_FIELD_TYPES, TAG_SLOT_CONFIG } from '@/lib/knowledge/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -608,8 +605,7 @@ export function DocumentTagEntry({
       <td className='w-0 p-0'>
         <Button
           variant='ghost'
-          size='icon'
-          className='-translate-y-1/2 absolute top-1/2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100'
+          className='-translate-y-1/2 absolute top-1/2 right-2 h-8 w-8 p-0 opacity-0 group-hover:opacity-100'
           onClick={() => handleDeleteRow(rowIndex)}
         >
           <Trash className='h-4 w-4 text-muted-foreground' />
@@ -631,7 +627,7 @@ export function DocumentTagEntry({
     <div className='relative'>
       {showPreFillButton && (
         <div className='mb-2'>
-          <Button variant='outline' size='sm' onClick={handlePreFillTags}>
+          <Button variant='outline' className='h-7 px-2 text-xs' onClick={handlePreFillTags}>
             Prefill Existing Tags
           </Button>
         </div>
@@ -657,7 +653,6 @@ export function DocumentTagEntry({
         <div className='mt-3 flex items-center justify-between'>
           <Button
             variant='outline'
-            size='sm'
             onClick={handleAddRow}
             disabled={!canAddMoreTags}
             className='h-7 px-2 text-xs'

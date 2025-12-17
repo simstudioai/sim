@@ -12,9 +12,9 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Switch,
   Trash,
 } from '@/components/emcn'
-import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/core/utils/cn'
 import { ALL_TAG_SLOTS, type AllTagSlot } from '@/lib/knowledge/constants'
 import type { DocumentTag } from '@/lib/knowledge/tags/types'

@@ -1,9 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import {
   Button,
+  Combobox,
+  type ComboboxOption,
   Input,
   Label,
   Modal,
@@ -13,13 +15,6 @@ import {
   ModalHeader,
   Trash,
 } from '@/components/emcn'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { cn } from '@/lib/core/utils/cn'
 import { SUPPORTED_FIELD_TYPES, TAG_SLOT_CONFIG } from '@/lib/knowledge/constants'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -202,6 +197,17 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
     const { used, max } = getSlotUsageByFieldType(fieldType)
     return used < max
   }
+
+  /** Field type options for Combobox */
+  const fieldTypeOptions: ComboboxOption[] = useMemo(() => {
+    return SUPPORTED_FIELD_TYPES.filter((type) => hasAvailableSlots(type)).map((type) => {
+      const { used, max } = getSlotUsageByFieldType(type)
+      return {
+        value: type,
+        label: `${FIELD_TYPE_LABELS[type]} (${used}/${max})`,
+      }
+    })
+  }, [kbTagDefinitions])
 
   const saveTagDefinition = async () => {
     if (!canSaveTag()) return
@@ -403,32 +409,15 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
 
                     <div className='flex flex-col gap-[8px]'>
                       <Label htmlFor='tagType'>Type</Label>
-                      <Select
+                      <Combobox
+                        options={fieldTypeOptions}
                         value={createTagForm.fieldType}
-                        onValueChange={(value) =>
+                        onChange={(value) =>
                           setCreateTagForm({ ...createTagForm, fieldType: value })
                         }
-                      >
-                        <SelectTrigger className='h-9'>
-                          <SelectValue placeholder='Select type' />
-                        </SelectTrigger>
-                        <SelectContent className='z-[9999]'>
-                          {SUPPORTED_FIELD_TYPES.map((type) => {
-                            const { used, max } = getSlotUsageByFieldType(type)
-                            const isDisabled = used >= max
-                            return (
-                              <SelectItem key={type} value={type} disabled={isDisabled}>
-                                <span className='flex items-center gap-2'>
-                                  {FIELD_TYPE_LABELS[type]}
-                                  <span className='text-[10px] text-[var(--text-muted)]'>
-                                    ({used}/{max})
-                                  </span>
-                                </span>
-                              </SelectItem>
-                            )
-                          })}
-                        </SelectContent>
-                      </Select>
+                        placeholder='Select type'
+                        size='sm'
+                      />
                       {!hasAvailableSlots(createTagForm.fieldType) && (
                         <span className='text-[11px] text-[var(--text-error)]'>
                           No available slots for this type. Choose a different type.

@@ -1,19 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
-import { Trash } from '@/components/emcn/icons/trash'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
+  Button,
+  Combobox,
+  type ComboboxOption,
+  Input,
+  Label,
+  Switch,
+  Trash,
+} from '@/components/emcn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   checkTagTrigger,
@@ -369,24 +366,21 @@ export function KnowledgeTagFilters({
     const operator = row.cells.operator || 'eq'
     const operators = getOperatorsForFieldType(fieldType)
 
+    const operatorOptions: ComboboxOption[] = operators.map((op) => ({
+      value: op.value,
+      label: op.label,
+    }))
+
     return (
       <td className='border-r p-1'>
-        <Select
+        <Combobox
+          options={operatorOptions}
           value={operator}
-          onValueChange={(value) => handleCellChange(rowIndex, 'operator', value)}
+          onChange={(value) => handleCellChange(rowIndex, 'operator', value)}
           disabled={disabled || !row.cells.tagName}
-        >
-          <SelectTrigger className='h-8 border-0 focus:ring-0 focus:ring-offset-0'>
-            <SelectValue placeholder='Operator' />
-          </SelectTrigger>
-          <SelectContent>
-            {operators.map((op) => (
-              <SelectItem key={op.value} value={op.value}>
-                {op.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          placeholder='Operator'
+          size='sm'
+        />
       </td>
     )
   }
