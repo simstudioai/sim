@@ -18,11 +18,56 @@ export const DEFAULT_TEAM_STORAGE_LIMIT_GB = 500
 export const DEFAULT_ENTERPRISE_STORAGE_LIMIT_GB = 500
 
 /**
- * Tag slots available for knowledge base documents and embeddings
+ * Text tag slots for knowledge base documents and embeddings
  */
-export const TAG_SLOTS = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
+export const TEXT_TAG_SLOTS = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
 
 /**
- * Type for tag slot names
+ * Number tag slots for knowledge base documents and embeddings
+ */
+export const NUMBER_TAG_SLOTS = ['number1', 'number2', 'number3'] as const
+
+/**
+ * Date tag slots for knowledge base documents and embeddings
+ */
+export const DATE_TAG_SLOTS = ['date1', 'date2'] as const
+
+/**
+ * Boolean tag slots for knowledge base documents and embeddings
+ */
+export const BOOLEAN_TAG_SLOTS = ['boolean1', 'boolean2'] as const
+
+/**
+ * All tag slots combined (for backwards compatibility)
+ */
+export const TAG_SLOTS = [
+  ...TEXT_TAG_SLOTS,
+  ...NUMBER_TAG_SLOTS,
+  ...DATE_TAG_SLOTS,
+  ...BOOLEAN_TAG_SLOTS,
+] as const
+
+/**
+ * Type for all tag slot names
  */
 export type TagSlot = (typeof TAG_SLOTS)[number]
+
+/**
+ * Type for text tag slot names
+ */
+export type TextTagSlot = (typeof TEXT_TAG_SLOTS)[number]
+
+/**
+ * Type for number tag slot names
+ */
+export type NumberTagSlot = (typeof NUMBER_TAG_SLOTS)[number]
+
+/**
+ * Type for date tag slot names
+ */
+export type DateTagSlot = (typeof DATE_TAG_SLOTS)[number]
+
+/**
+ * Type for boolean tag slot names
+ */
+export type BooleanTagSlot = (typeof BOOLEAN_TAG_SLOTS)[number]
