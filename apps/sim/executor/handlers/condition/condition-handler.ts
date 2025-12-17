@@ -47,7 +47,7 @@ export async function evaluateConditionExpression(
       code,
       params: {},
       envVars: {},
-      contextVariables: { context: evalContext, ...evalContext },
+      contextVariables: { context: evalContext },
       timeoutMs: CONDITION_TIMEOUT_MS,
       requestId,
     })
