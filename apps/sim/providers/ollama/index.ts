@@ -4,6 +4,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import type { ModelsObject } from '@/providers/ollama/types'
+import { createReadableStreamFromOllamaStream } from '@/providers/ollama/utils'
 import type {
   ProviderConfig,
   ProviderRequest,
@@ -16,46 +17,6 @@ import { executeTool } from '@/tools'
 
 const logger = createLogger('OllamaProvider')
 const OLLAMA_HOST = env.OLLAMA_URL || 'http://localhost:11434'
-
-/**
- * Helper function to convert an Ollama stream to a standard ReadableStream
- * and collect completion metrics
- */
-function createReadableStreamFromOllamaStream(
-  ollamaStream: any,
-  onComplete?: (content: string, usage?: any) => void
-): ReadableStream {
-  let fullContent = ''
-  let usageData: any = null
-
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of ollamaStream) {
-          // Check for usage data in the final chunk
-          if (chunk.usage) {
-            usageData = chunk.usage
-          }
-
-          const content = chunk.choices[0]?.delta?.content || ''
-          if (content) {
-            fullContent += content
-            controller.enqueue(new TextEncoder().encode(content))
-          }
-        }
-
-        // Once stream is complete, call the completion callback with the final content and usage
-        if (onComplete) {
-          onComplete(fullContent, usageData)
-        }
-
-        controller.close()
-      } catch (error) {
-        controller.error(error)
-      }
-    },
-  })
-}
 
 export const ollamaProvider: ProviderConfig = {
   id: 'ollama',

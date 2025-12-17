@@ -3,6 +3,10 @@ import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import {
+  checkForForcedToolUsage,
+  createReadableStreamFromAzureOpenAIStream,
+} from '@/providers/azure-openai/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type {
   ProviderConfig,
@@ -10,54 +14,10 @@ import type {
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
-import {
-  prepareToolExecution,
-  prepareToolsWithUsageControl,
-  trackForcedToolUsage,
-} from '@/providers/utils'
+import { prepareToolExecution, prepareToolsWithUsageControl } from '@/providers/utils'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('AzureOpenAIProvider')
-
-/**
- * Helper function to convert an Azure OpenAI stream to a standard ReadableStream
- * and collect completion metrics
- */
-function createReadableStreamFromAzureOpenAIStream(
-  azureOpenAIStream: any,
-  onComplete?: (content: string, usage?: any) => void
-): ReadableStream {
-  let fullContent = ''
-  let usageData: any = null
-
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of azureOpenAIStream) {
-          // Check for usage data in the final chunk
-          if (chunk.usage) {
-            usageData = chunk.usage
-          }
-
-          const content = chunk.choices[0]?.delta?.content || ''
-          if (content) {
-            fullContent += content
-            controller.enqueue(new TextEncoder().encode(content))
-          }
-        }
-
-        // Once stream is complete, call the completion callback with the final content and usage
-        if (onComplete) {
-          onComplete(fullContent, usageData)
-        }
-
-        controller.close()
-      } catch (error) {
-        controller.error(error)
-      }
-    },
-  })
-}
 
 /**
  * Azure OpenAI provider configuration
@@ -304,26 +264,6 @@ export const azureOpenAIProvider: ProviderConfig = {
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
 
-      // Helper function to check for forced tool usage in responses
-      const checkForForcedToolUsage = (
-        response: any,
-        toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any }
-      ) => {
-        if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
-          const toolCallsResponse = response.choices[0].message.tool_calls
-          const result = trackForcedToolUsage(
-            toolCallsResponse,
-            toolChoice,
-            logger,
-            'azure-openai',
-            forcedTools,
-            usedForcedTools
-          )
-          hasUsedForcedTool = result.hasUsedForcedTool
-          usedForcedTools = result.usedForcedTools
-        }
-      }
-
       let currentResponse = await azureOpenAI.chat.completions.create(payload)
       const firstResponseTime = Date.now() - initialCallTime
 
@@ -358,7 +298,15 @@ export const azureOpenAIProvider: ProviderConfig = {
       ]
 
       // Check if a forced tool was used in the first response
-      checkForForcedToolUsage(currentResponse, originalToolChoice)
+      const firstCheckResult = checkForForcedToolUsage(
+        currentResponse,
+        originalToolChoice,
+        logger,
+        forcedTools,
+        usedForcedTools
+      )
+      hasUsedForcedTool = firstCheckResult.hasUsedForcedTool
+      usedForcedTools = firstCheckResult.usedForcedTools
 
       while (iterationCount < MAX_TOOL_ITERATIONS) {
         // Check for tool calls
@@ -491,7 +439,15 @@ export const azureOpenAIProvider: ProviderConfig = {
         currentResponse = await azureOpenAI.chat.completions.create(nextPayload)
 
         // Check if any forced tools were used in this response
-        checkForForcedToolUsage(currentResponse, nextPayload.tool_choice)
+        const nextCheckResult = checkForForcedToolUsage(
+          currentResponse,
+          nextPayload.tool_choice,
+          logger,
+          forcedTools,
+          usedForcedTools
+        )
+        hasUsedForcedTool = nextCheckResult.hasUsedForcedTool
+        usedForcedTools = nextCheckResult.usedForcedTools
 
         const nextModelEndTime = Date.now()
         const thisModelTime = nextModelEndTime - nextModelStartTime

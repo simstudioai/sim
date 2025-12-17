@@ -2,6 +2,7 @@ import { Groq } from 'groq-sdk'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { createReadableStreamFromGroqStream } from '@/providers/groq/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type {
   ProviderConfig,
@@ -17,27 +18,6 @@ import {
 import { executeTool } from '@/tools'
 
 const logger = createLogger('GroqProvider')
-
-/**
- * Helper to wrap Groq streaming into a browser-friendly ReadableStream
- * of raw assistant text chunks.
- */
-function createReadableStreamFromGroqStream(groqStream: any): ReadableStream {
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of groqStream) {
-          if (chunk.choices[0]?.delta?.content) {
-            controller.enqueue(new TextEncoder().encode(chunk.choices[0].delta.content))
-          }
-        }
-        controller.close()
-      } catch (err) {
-        controller.error(err)
-      }
-    },
-  })
-}
 
 export const groqProvider: ProviderConfig = {
   id: 'groq',

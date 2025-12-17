@@ -8,6 +8,8 @@ import {
   getHostedModels,
   getMaxTemperature,
   getProviderIcon,
+  getReasoningEffortValuesForModel,
+  getVerbosityValuesForModel,
   MODELS_WITH_REASONING_EFFORT,
   MODELS_WITH_VERBOSITY,
   providers,
@@ -114,12 +116,47 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       type: 'dropdown',
       placeholder: 'Select reasoning effort...',
       options: [
-        { label: 'none', id: 'none' },
-        { label: 'minimal', id: 'minimal' },
         { label: 'low', id: 'low' },
         { label: 'medium', id: 'medium' },
         { label: 'high', id: 'high' },
       ],
+      dependsOn: ['model'],
+      fetchOptions: async (blockId: string) => {
+        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
+        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
+
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (!activeWorkflowId) {
+          return [
+            { label: 'low', id: 'low' },
+            { label: 'medium', id: 'medium' },
+            { label: 'high', id: 'high' },
+          ]
+        }
+
+        const workflowValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
+        const blockValues = workflowValues?.[blockId]
+        const modelValue = blockValues?.model as string
+
+        if (!modelValue) {
+          return [
+            { label: 'low', id: 'low' },
+            { label: 'medium', id: 'medium' },
+            { label: 'high', id: 'high' },
+          ]
+        }
+
+        const validOptions = getReasoningEffortValuesForModel(modelValue)
+        if (!validOptions) {
+          return [
+            { label: 'low', id: 'low' },
+            { label: 'medium', id: 'medium' },
+            { label: 'high', id: 'high' },
+          ]
+        }
+
+        return validOptions.map((opt) => ({ label: opt, id: opt }))
+      },
       value: () => 'medium',
       condition: {
         field: 'model',
@@ -136,6 +173,43 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
         { label: 'medium', id: 'medium' },
         { label: 'high', id: 'high' },
       ],
+      dependsOn: ['model'],
+      fetchOptions: async (blockId: string) => {
+        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
+        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
+
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (!activeWorkflowId) {
+          return [
+            { label: 'low', id: 'low' },
+            { label: 'medium', id: 'medium' },
+            { label: 'high', id: 'high' },
+          ]
+        }
+
+        const workflowValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
+        const blockValues = workflowValues?.[blockId]
+        const modelValue = blockValues?.model as string
+
+        if (!modelValue) {
+          return [
+            { label: 'low', id: 'low' },
+            { label: 'medium', id: 'medium' },
+            { label: 'high', id: 'high' },
+          ]
+        }
+
+        const validOptions = getVerbosityValuesForModel(modelValue)
+        if (!validOptions) {
+          return [
+            { label: 'low', id: 'low' },
+            { label: 'medium', id: 'medium' },
+            { label: 'high', id: 'high' },
+          ]
+        }
+
+        return validOptions.map((opt) => ({ label: opt, id: opt }))
+      },
       value: () => 'medium',
       condition: {
         field: 'model',

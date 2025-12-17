@@ -3,6 +3,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { createReadableStreamFromOpenAIStream } from '@/providers/openai/utils'
 import type {
   ProviderConfig,
   ProviderRequest,
@@ -17,46 +18,6 @@ import {
 import { executeTool } from '@/tools'
 
 const logger = createLogger('OpenAIProvider')
-
-/**
- * Helper function to convert an OpenAI stream to a standard ReadableStream
- * and collect completion metrics
- */
-function createReadableStreamFromOpenAIStream(
-  openaiStream: any,
-  onComplete?: (content: string, usage?: any) => void
-): ReadableStream {
-  let fullContent = ''
-  let usageData: any = null
-
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of openaiStream) {
-          // Check for usage data in the final chunk
-          if (chunk.usage) {
-            usageData = chunk.usage
-          }
-
-          const content = chunk.choices[0]?.delta?.content || ''
-          if (content) {
-            fullContent += content
-            controller.enqueue(new TextEncoder().encode(content))
-          }
-        }
-
-        // Once stream is complete, call the completion callback with the final content and usage
-        if (onComplete) {
-          onComplete(fullContent, usageData)
-        }
-
-        controller.close()
-      } catch (error) {
-        controller.error(error)
-      }
-    },
-  })
-}
 
 /**
  * OpenAI provider configuration

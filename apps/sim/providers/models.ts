@@ -131,7 +131,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           reasoningEffort: {
-            values: ['none', 'low', 'medium', 'high'],
+            values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'],
           },
           verbosity: {
             values: ['low', 'medium', 'high'],
@@ -284,7 +284,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 60,
           updatedAt: '2025-06-17',
         },
-        capabilities: {},
+        capabilities: {
+          reasoningEffort: {
+            values: ['low', 'medium', 'high'],
+          },
+        },
         contextWindow: 200000,
       },
       {
@@ -295,7 +299,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 8,
           updatedAt: '2025-06-17',
         },
-        capabilities: {},
+        capabilities: {
+          reasoningEffort: {
+            values: ['low', 'medium', 'high'],
+          },
+        },
         contextWindow: 128000,
       },
       {
@@ -306,7 +314,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 4.4,
           updatedAt: '2025-06-17',
         },
-        capabilities: {},
+        capabilities: {
+          reasoningEffort: {
+            values: ['low', 'medium', 'high'],
+          },
+        },
         contextWindow: 128000,
       },
       {
@@ -384,7 +396,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           reasoningEffort: {
-            values: ['none', 'low', 'medium', 'high'],
+            values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'],
           },
           verbosity: {
             values: ['low', 'medium', 'high'],
@@ -537,7 +549,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 40,
           updatedAt: '2025-06-15',
         },
-        capabilities: {},
+        capabilities: {
+          reasoningEffort: {
+            values: ['low', 'medium', 'high'],
+          },
+        },
         contextWindow: 128000,
       },
       {
@@ -548,7 +564,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 4.4,
           updatedAt: '2025-06-15',
         },
-        capabilities: {},
+        capabilities: {
+          reasoningEffort: {
+            values: ['low', 'medium', 'high'],
+          },
+        },
         contextWindow: 128000,
       },
       {
@@ -1849,6 +1869,20 @@ export function getModelsWithReasoningEffort(): string[] {
 }
 
 /**
+ * Get the reasoning effort values for a specific model
+ * Returns the valid options for that model, or null if the model doesn't support reasoning effort
+ */
+export function getReasoningEffortValuesForModel(modelId: string): string[] | null {
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    const model = provider.models.find((m) => m.id.toLowerCase() === modelId.toLowerCase())
+    if (model?.capabilities.reasoningEffort) {
+      return model.capabilities.reasoningEffort.values
+    }
+  }
+  return null
+}
+
+/**
  * Get all models that support verbosity
  */
 export function getModelsWithVerbosity(): string[] {
@@ -1861,4 +1895,18 @@ export function getModelsWithVerbosity(): string[] {
     }
   }
   return models
+}
+
+/**
+ * Get the verbosity values for a specific model
+ * Returns the valid options for that model, or null if the model doesn't support verbosity
+ */
+export function getVerbosityValuesForModel(modelId: string): string[] | null {
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    const model = provider.models.find((m) => m.id.toLowerCase() === modelId.toLowerCase())
+    if (model?.capabilities.verbosity) {
+      return model.capabilities.verbosity.values
+    }
+  }
+  return null
 }

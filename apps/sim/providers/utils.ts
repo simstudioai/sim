@@ -21,6 +21,8 @@ import {
   getModelsWithVerbosity,
   getProviderModels as getProviderModelsFromDefinitions,
   getProvidersWithToolUsageControl,
+  getReasoningEffortValuesForModel as getReasoningEffortValuesForModelFromDefinitions,
+  getVerbosityValuesForModel as getVerbosityValuesForModelFromDefinitions,
   PROVIDER_DEFINITIONS,
   supportsTemperature as supportsTemperatureFromDefinitions,
   supportsToolUsageControl as supportsToolUsageControlFromDefinitions,
@@ -973,6 +975,22 @@ export function getMaxTemperature(model: string): number | undefined {
  */
 export function supportsToolUsageControl(provider: string): boolean {
   return supportsToolUsageControlFromDefinitions(provider)
+}
+
+/**
+ * Get reasoning effort values for a specific model
+ * Returns the valid options for that model, or null if the model doesn't support reasoning effort
+ */
+export function getReasoningEffortValuesForModel(model: string): string[] | null {
+  return getReasoningEffortValuesForModelFromDefinitions(model)
+}
+
+/**
+ * Get verbosity values for a specific model
+ * Returns the valid options for that model, or null if the model doesn't support verbosity
+ */
+export function getVerbosityValuesForModel(model: string): string[] | null {
+  return getVerbosityValuesForModelFromDefinitions(model)
 }
 
 /**

@@ -8,7 +8,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "next dev --port 3000",
+    "dev": "next dev --port 7321",
     "dev:webpack": "next dev --webpack",
     "dev:sockets": "bun run socket-server/index.ts",
     "dev:full": "concurrently -n \"App,Realtime\" -c \"cyan,magenta\" \"bun run dev\" \"bun run dev:sockets\"",

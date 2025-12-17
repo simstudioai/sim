@@ -9,36 +9,15 @@ import type {
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
+import { prepareToolExecution, prepareToolsWithUsageControl } from '@/providers/utils'
 import {
-  prepareToolExecution,
-  prepareToolsWithUsageControl,
-  trackForcedToolUsage,
-} from '@/providers/utils'
+  checkForForcedToolUsage,
+  createReadableStreamFromXAIStream,
+  createResponseFormatPayload,
+} from '@/providers/xai/utils'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('XAIProvider')
-
-/**
- * Helper to wrap XAI (OpenAI-compatible) streaming into a browser-friendly
- * ReadableStream of raw assistant text chunks.
- */
-function createReadableStreamFromXAIStream(xaiStream: any): ReadableStream {
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of xaiStream) {
-          const content = chunk.choices[0]?.delta?.content || ''
-          if (content) {
-            controller.enqueue(new TextEncoder().encode(content))
-          }
-        }
-        controller.close()
-      } catch (err) {
-        controller.error(err)
-      }
-    },
-  })
-}
 
 export const xAIProvider: ProviderConfig = {
   id: 'xai',
@@ -116,27 +95,6 @@ export const xAIProvider: ProviderConfig = {
     if (request.temperature !== undefined) basePayload.temperature = request.temperature
     if (request.maxTokens !== undefined) basePayload.max_tokens = request.maxTokens
 
-    // Function to create response format configuration
-    const createResponseFormatPayload = (messages: any[] = allMessages) => {
-      const payload = {
-        ...basePayload,
-        messages,
-      }
-
-      if (request.responseFormat) {
-        payload.response_format = {
-          type: 'json_schema',
-          json_schema: {
-            name: request.responseFormat.name || 'structured_response',
-            schema: request.responseFormat.schema || request.responseFormat,
-            strict: request.responseFormat.strict !== false,
-          },
-        }
-      }
-
-      return payload
-    }
-
     // Handle tools and tool usage control
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
 
@@ -155,7 +113,7 @@ export const xAIProvider: ProviderConfig = {
 
       // Use response format payload if needed, otherwise use base payload
       const streamingPayload = request.responseFormat
-        ? createResponseFormatPayload()
+        ? createResponseFormatPayload(basePayload, allMessages, request.responseFormat)
         : { ...basePayload, stream: true }
 
       if (!request.responseFormat) {
@@ -244,7 +202,11 @@ export const xAIProvider: ProviderConfig = {
         originalToolChoice = toolChoice
       } else if (request.responseFormat) {
         // Only add response format if there are no tools
-        const responseFormatPayload = createResponseFormatPayload()
+        const responseFormatPayload = createResponseFormatPayload(
+          basePayload,
+          allMessages,
+          request.responseFormat
+        )
         Object.assign(initialPayload, responseFormatPayload)
       }
 
@@ -280,29 +242,16 @@ export const xAIProvider: ProviderConfig = {
         },
       ]
 
-      // Helper function to check for forced tool usage in responses
-      const checkForForcedToolUsage = (
-        response: any,
-        toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any }
-      ) => {
-        if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
-          const toolCallsResponse = response.choices[0].message.tool_calls
-          const result = trackForcedToolUsage(
-            toolCallsResponse,
-            toolChoice,
-            logger,
-            'xai',
-            forcedTools,
-            usedForcedTools
-          )
-          hasUsedForcedTool = result.hasUsedForcedTool
-          usedForcedTools = result.usedForcedTools
-        }
-      }
-
       // Check if a forced tool was used in the first response
       if (originalToolChoice) {
-        checkForForcedToolUsage(currentResponse, originalToolChoice)
+        const result = checkForForcedToolUsage(
+          currentResponse,
+          originalToolChoice,
+          forcedTools,
+          usedForcedTools
+        )
+        hasUsedForcedTool = result.hasUsedForcedTool
+        usedForcedTools = result.usedForcedTools
       }
 
       try {
@@ -432,7 +381,12 @@ export const xAIProvider: ProviderConfig = {
             } else {
               // All forced tools have been used, check if we need response format for final response
               if (request.responseFormat) {
-                nextPayload = createResponseFormatPayload(currentMessages)
+                nextPayload = createResponseFormatPayload(
+                  basePayload,
+                  allMessages,
+                  request.responseFormat,
+                  currentMessages
+                )
               } else {
                 nextPayload = {
                   ...basePayload,
@@ -446,7 +400,12 @@ export const xAIProvider: ProviderConfig = {
             // Normal tool processing - check if this might be the final response
             if (request.responseFormat) {
               // Use response format for what might be the final response
-              nextPayload = createResponseFormatPayload(currentMessages)
+              nextPayload = createResponseFormatPayload(
+                basePayload,
+                allMessages,
+                request.responseFormat,
+                currentMessages
+              )
             } else {
               nextPayload = {
                 ...basePayload,
@@ -464,7 +423,14 @@ export const xAIProvider: ProviderConfig = {
 
           // Check if any forced tools were used in this response
           if (nextPayload.tool_choice && typeof nextPayload.tool_choice === 'object') {
-            checkForForcedToolUsage(currentResponse, nextPayload.tool_choice)
+            const result = checkForForcedToolUsage(
+              currentResponse,
+              nextPayload.tool_choice,
+              forcedTools,
+              usedForcedTools
+            )
+            hasUsedForcedTool = result.hasUsedForcedTool
+            usedForcedTools = result.usedForcedTools
           }
 
           const nextModelEndTime = Date.now()
@@ -509,7 +475,12 @@ export const xAIProvider: ProviderConfig = {
         if (request.responseFormat) {
           // Use response format, no tools
           finalStreamingPayload = {
-            ...createResponseFormatPayload(currentMessages),
+            ...createResponseFormatPayload(
+              basePayload,
+              allMessages,
+              request.responseFormat,
+              currentMessages
+            ),
             stream: true,
           }
         } else {
