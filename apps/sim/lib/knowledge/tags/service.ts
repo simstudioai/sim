@@ -589,21 +589,31 @@ export async function getTagUsage(
     const tagSlot = def.tagSlot
     validateTagSlot(tagSlot)
 
+    // Build WHERE conditions based on field type
+    // Text columns need both IS NOT NULL and != '' checks
+    // Numeric/date/boolean columns only need IS NOT NULL
+    const fieldType = getFieldTypeForSlot(tagSlot)
+    const isTextColumn = fieldType === 'text'
+
+    const whereConditions = [
+      eq(document.knowledgeBaseId, knowledgeBaseId),
+      isNull(document.deletedAt),
+      isNotNull(sql`${sql.raw(tagSlot)}`),
+    ]
+
+    // Only add empty string check for text columns
+    if (isTextColumn) {
+      whereConditions.push(sql`${sql.raw(tagSlot)} != ''`)
+    }
+
     const documentsWithTag = await db
       .select({
         id: document.id,
         filename: document.filename,
-        tagValue: sql<string>`${sql.raw(tagSlot)}`,
+        tagValue: sql<string>`${sql.raw(tagSlot)}::text`,
       })
       .from(document)
-      .where(
-        and(
-          eq(document.knowledgeBaseId, knowledgeBaseId),
-          isNull(document.deletedAt),
-          isNotNull(sql`${sql.raw(tagSlot)}`),
-          sql`${sql.raw(tagSlot)} != ''`
-        )
-      )
+      .where(and(...whereConditions))
 
     usage.push({
       tagName: def.displayName,
