@@ -97,7 +97,7 @@ export const POST = withMcpAuth<{ id: string }>('read')(
         logger.info(
           `[${requestId}] Successfully refreshed MCP server: ${serverId} (${toolCount} tools)`
         )
-        mcpService.clearCache(workspaceId)
+        await mcpService.clearCache(workspaceId)
       } else {
         logger.warn(
           `[${requestId}] Refresh completed for MCP server ${serverId} but connection failed: ${lastError}`

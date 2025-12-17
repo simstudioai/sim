@@ -124,7 +124,7 @@ export const POST = withMcpAuth('write')(
           })
           .where(eq(mcpServers.id, serverId))
 
-        mcpService.clearCache(workspaceId)
+        await mcpService.clearCache(workspaceId)
 
         logger.info(
           `[${requestId}] Successfully updated MCP server: ${body.name} (ID: ${serverId})`
@@ -154,7 +154,7 @@ export const POST = withMcpAuth('write')(
         })
         .returning()
 
-      mcpService.clearCache(workspaceId)
+      await mcpService.clearCache(workspaceId)
 
       logger.info(
         `[${requestId}] Successfully registered MCP server: ${body.name} (ID: ${serverId})`
@@ -216,7 +216,7 @@ export const DELETE = withMcpAuth('admin')(
         )
       }
 
-      mcpService.clearCache(workspaceId)
+      await mcpService.clearCache(workspaceId)
 
       logger.info(`[${requestId}] Successfully deleted MCP server: ${serverId}`)
       return createMcpSuccessResponse({ message: `Server ${serverId} deleted successfully` })

@@ -256,6 +256,7 @@ export function MCP({ initialServerId }: MCPProps) {
 
   /**
    * Adds a new MCP server after validating and testing the connection.
+   * Only creates the server if connection test succeeds.
    */
   const handleAddServer = useCallback(async () => {
     if (!formData.name.trim()) return
@@ -270,6 +271,13 @@ export function MCP({ initialServerId }: MCPProps) {
         headers: headersRecord,
         timeout: formData.timeout,
         workspaceId,
+      }
+
+      const connectionResult = await testConnection(serverConfig)
+
+      if (!connectionResult.success) {
+        logger.error('Connection test failed, server not added:', connectionResult.error)
+        return
       }
 
       await createServerMutation.mutateAsync({
@@ -291,15 +299,7 @@ export function MCP({ initialServerId }: MCPProps) {
     } finally {
       setIsAddingServer(false)
     }
-  }, [
-    formData,
-    testResult,
-    testConnection,
-    createServerMutation,
-    workspaceId,
-    headersToRecord,
-    resetForm,
-  ])
+  }, [formData, testConnection, createServerMutation, workspaceId, headersToRecord, resetForm])
 
   /**
    * Opens the delete confirmation dialog for an MCP server.

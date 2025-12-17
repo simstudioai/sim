@@ -87,7 +87,7 @@ export const PATCH = withMcpAuth<{ id: string }>('write')(
       // Only clear cache if URL changed (requires re-discovery)
       const urlChanged = body.url && currentServer?.url !== body.url
       if (urlChanged) {
-        mcpService.clearCache(workspaceId)
+        await mcpService.clearCache(workspaceId)
         logger.info(`[${requestId}] Cleared cache due to URL change`)
       }
 

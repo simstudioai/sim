@@ -168,10 +168,38 @@ export function useCreateMcpServer() {
         updated: wasUpdated,
       }
     },
-    onSuccess: async (_data, variables) => {
-      await queryClient.refetchQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
+    onSuccess: async (data, variables) => {
       const freshTools = await fetchMcpTools(variables.workspaceId, true)
+
+      const previousServers = queryClient.getQueryData<McpServer[]>(
+        mcpKeys.servers(variables.workspaceId)
+      )
+      if (previousServers) {
+        const newServer: McpServer = {
+          id: data.id,
+          workspaceId: variables.workspaceId,
+          name: variables.config.name,
+          transport: variables.config.transport,
+          url: variables.config.url,
+          timeout: variables.config.timeout || 30000,
+          headers: variables.config.headers,
+          enabled: variables.config.enabled,
+          connectionStatus: 'connected',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }
+
+        const serverExists = previousServers.some((s) => s.id === data.id)
+        queryClient.setQueryData<McpServer[]>(
+          mcpKeys.servers(variables.workspaceId),
+          serverExists
+            ? previousServers.map((s) => (s.id === data.id ? { ...s, ...newServer } : s))
+            : [...previousServers, newServer]
+        )
+      }
+
       queryClient.setQueryData(mcpKeys.tools(variables.workspaceId), freshTools)
+      queryClient.invalidateQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
     },
   })
 }
