@@ -204,11 +204,16 @@ async function ensureWorker(): Promise<void> {
 
     import('node:child_process').then(({ spawn }) => {
       worker = spawn('node', [workerPath], {
-        stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
+        stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
         serialization: 'json',
       })
 
       worker.on('message', handleWorkerMessage)
+
+      let stderrData = ''
+      worker.stderr?.on('data', (data: Buffer) => {
+        stderrData += data.toString()
+      })
 
       const startTimeout = setTimeout(() => {
         worker?.kill()
@@ -232,20 +237,42 @@ async function ensureWorker(): Promise<void> {
       }
       worker.on('message', readyHandler)
 
-      worker.on('exit', () => {
+      worker.on('exit', (code) => {
         if (workerIdleTimeout) {
           clearTimeout(workerIdleTimeout)
           workerIdleTimeout = null
         }
+
+        const wasStartupFailure = !workerReady && workerReadyPromise
+
         worker = null
         workerReady = false
         workerReadyPromise = null
+
+        let errorMessage = 'Worker process exited unexpectedly'
+        if (stderrData.includes('isolated_vm') || stderrData.includes('MODULE_NOT_FOUND')) {
+          errorMessage =
+            'Code execution requires the isolated-vm native module which failed to load. ' +
+            'This usually means the module needs to be rebuilt for your Node.js version. ' +
+            'Please run: cd node_modules/isolated-vm && npm rebuild'
+          logger.error('isolated-vm module failed to load', { stderr: stderrData })
+        } else if (stderrData) {
+          errorMessage = `Worker process failed: ${stderrData.slice(0, 500)}`
+          logger.error('Worker process failed', { stderr: stderrData })
+        }
+
+        if (wasStartupFailure) {
+          clearTimeout(startTimeout)
+          reject(new Error(errorMessage))
+          return
+        }
+
         for (const [id, pending] of pendingExecutions) {
           clearTimeout(pending.timeout)
           pending.resolve({
             result: null,
             stdout: '',
-            error: { message: 'Worker process exited unexpectedly', name: 'WorkerError' },
+            error: { message: errorMessage, name: 'WorkerError' },
           })
           pendingExecutions.delete(id)
         }
