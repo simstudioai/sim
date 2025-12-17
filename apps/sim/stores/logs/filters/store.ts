@@ -8,7 +8,6 @@ const getSearchParams = () => {
 
 const updateURL = (params: URLSearchParams) => {
   if (typeof window === 'undefined') return
-
   const url = new URL(window.location.href)
   url.search = params.toString()
   window.history.replaceState({}, '', url)
@@ -45,14 +44,12 @@ const parseTimeRangeFromURL = (value: string | null): TimeRange => {
 
 const parseLogLevelFromURL = (value: string | null): LogLevel => {
   if (!value) return 'all'
-  // Support comma-separated values for multiple selections
   const levels = value.split(',').filter(Boolean)
   const validLevels = levels.filter(
     (l) => l === 'error' || l === 'info' || l === 'running' || l === 'pending'
   )
   if (validLevels.length === 0) return 'all'
   if (validLevels.length === 1) return validLevels[0] as LogLevel
-  // Return comma-separated string for multiple selections
   return validLevels.join(',') as LogLevel
 }
 
@@ -102,7 +99,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   folderIds: [],
   searchQuery: '',
   triggers: [],
-  _isInitializing: false, // Internal flag to prevent URL sync during initialization
+  _isInitializing: false,
 
   setWorkspaceId: (workspaceId) => set({ workspaceId }),
 
@@ -202,7 +199,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     set({ _isInitializing: true })
 
     const params = getSearchParams()
-
     const timeRange = parseTimeRangeFromURL(params.get('timeRange'))
     const level = parseLogLevelFromURL(params.get('level'))
     const workflowIds = parseStringArrayFromURL(params.get('workflowIds'))

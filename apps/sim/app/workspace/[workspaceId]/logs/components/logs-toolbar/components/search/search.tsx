@@ -162,7 +162,7 @@ export function AutocompleteSearch({
         }}
       >
         <PopoverAnchor asChild>
-          <div className='relative flex h-[32px] w-[400px] items-center rounded-[8px] bg-[var(--surface-5)]'>
+          <div className='relative flex h-[32px] w-full items-center rounded-[8px] bg-[var(--surface-5)]'>
             {/* Search Icon */}
             <Search className='mr-[6px] ml-[8px] h-[14px] w-[14px] flex-shrink-0 text-[var(--text-subtle)]' />
 

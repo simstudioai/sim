@@ -282,6 +282,24 @@ export function LogsToolbar({
     return timeRange
   }, [timeRange])
 
+  const hasActiveFilters = useMemo(() => {
+    return (
+      level !== 'all' ||
+      workflowIds.length > 0 ||
+      folderIds.length > 0 ||
+      triggers.length > 0 ||
+      timeRange !== 'All time'
+    )
+  }, [level, workflowIds, folderIds, triggers, timeRange])
+
+  const handleClearFilters = useCallback(() => {
+    setLevel('all')
+    setWorkflowIds([])
+    setFolderIds([])
+    setTriggers([])
+    setTimeRange('All time')
+  }, [setLevel, setWorkflowIds, setFolderIds, setTriggers, setTimeRange])
+
   return (
     <div className='flex flex-col gap-[19px]'>
       {/* Header Section */}
@@ -365,7 +383,7 @@ export function LogsToolbar({
 
       {/* Filter Bar Section */}
       <div className='flex w-full items-center gap-[12px]'>
-        <div className='min-w-0 flex-1'>
+        <div className='min-w-[200px] max-w-[400px] flex-1'>
           <AutocompleteSearch
             value={searchQuery}
             onChange={onSearchQueryChange}
@@ -373,110 +391,269 @@ export function LogsToolbar({
             onOpenChange={onSearchOpenChange}
           />
         </div>
-        <div className='flex items-center gap-[8px]'>
-          {/* Status Filter */}
-          <Combobox
-            options={statusOptions}
-            multiSelect
-            multiSelectValues={selectedStatuses}
-            onMultiSelectChange={handleStatusChange}
-            placeholder='Status'
-            overlayContent={
-              <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
-                {selectedStatusColor && (
-                  <div
-                    className='flex-shrink-0 rounded-[3px]'
-                    style={{ backgroundColor: selectedStatusColor, width: 8, height: 8 }}
+        <div className='ml-auto flex items-center gap-[8px]'>
+          {/* Clear Filters Button */}
+          {hasActiveFilters && (
+            <Button
+              variant='active'
+              onClick={handleClearFilters}
+              className='h-[32px] rounded-[6px] px-[10px]'
+            >
+              <span>Clear</span>
+            </Button>
+          )}
+
+          {/* Filters Popover - Small screens only */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant='active'
+                className='h-[32px] gap-[6px] rounded-[6px] px-[10px] xl:hidden'
+              >
+                <span>Filters</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align='end' sideOffset={4} className='w-[280px] p-[12px]'>
+              <div className='flex flex-col gap-[12px]'>
+                {/* Status Filter */}
+                <div className='flex flex-col gap-[6px]'>
+                  <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                    Status
+                  </span>
+                  <Combobox
+                    options={statusOptions}
+                    multiSelect
+                    multiSelectValues={selectedStatuses}
+                    onMultiSelectChange={handleStatusChange}
+                    placeholder='All statuses'
+                    overlayContent={
+                      <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
+                        {selectedStatusColor && (
+                          <div
+                            className='flex-shrink-0 rounded-[3px]'
+                            style={{ backgroundColor: selectedStatusColor, width: 8, height: 8 }}
+                          />
+                        )}
+                        <span className='truncate'>{statusDisplayLabel}</span>
+                      </span>
+                    }
+                    showAllOption
+                    allOptionLabel='All statuses'
+                    size='sm'
+                    className='h-[32px] w-full rounded-[6px]'
                   />
-                )}
-                <span className='truncate'>{statusDisplayLabel}</span>
-              </span>
-            }
-            showAllOption
-            allOptionLabel='All statuses'
-            size='sm'
-            align='end'
-            className='h-[32px] w-[100px] rounded-[6px]'
-          />
+                </div>
 
-          {/* Workflow Filter */}
-          <Combobox
-            options={workflowOptions}
-            multiSelect
-            multiSelectValues={workflowIds}
-            onMultiSelectChange={setWorkflowIds}
-            placeholder='Workflow'
-            overlayContent={
-              <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
-                {selectedWorkflow && (
-                  <div
-                    className='h-[8px] w-[8px] flex-shrink-0 rounded-[2px]'
-                    style={{ backgroundColor: selectedWorkflow.color }}
+                {/* Workflow Filter */}
+                <div className='flex flex-col gap-[6px]'>
+                  <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                    Workflow
+                  </span>
+                  <Combobox
+                    options={workflowOptions}
+                    multiSelect
+                    multiSelectValues={workflowIds}
+                    onMultiSelectChange={setWorkflowIds}
+                    placeholder='All workflows'
+                    overlayContent={
+                      <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
+                        {selectedWorkflow && (
+                          <div
+                            className='h-[8px] w-[8px] flex-shrink-0 rounded-[2px]'
+                            style={{ backgroundColor: selectedWorkflow.color }}
+                          />
+                        )}
+                        <span className='truncate'>{workflowDisplayLabel}</span>
+                      </span>
+                    }
+                    searchable
+                    searchPlaceholder='Search workflows...'
+                    showAllOption
+                    allOptionLabel='All workflows'
+                    size='sm'
+                    className='h-[32px] w-full rounded-[6px]'
                   />
-                )}
-                <span className='truncate'>{workflowDisplayLabel}</span>
-              </span>
-            }
-            searchable
-            searchPlaceholder='Search workflows...'
-            showAllOption
-            allOptionLabel='All workflows'
-            size='sm'
-            align='end'
-            className='h-[32px] w-[120px] rounded-[6px]'
-          />
+                </div>
 
-          {/* Folder Filter */}
-          <Combobox
-            options={folderOptions}
-            multiSelect
-            multiSelectValues={folderIds}
-            onMultiSelectChange={setFolderIds}
-            placeholder='Folder'
-            overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{folderDisplayLabel}</span>
-            }
-            searchable
-            searchPlaceholder='Search folders...'
-            showAllOption
-            allOptionLabel='All folders'
-            size='sm'
-            align='end'
-            className='h-[32px] w-[100px] rounded-[6px]'
-          />
+                {/* Folder Filter */}
+                <div className='flex flex-col gap-[6px]'>
+                  <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                    Folder
+                  </span>
+                  <Combobox
+                    options={folderOptions}
+                    multiSelect
+                    multiSelectValues={folderIds}
+                    onMultiSelectChange={setFolderIds}
+                    placeholder='All folders'
+                    overlayContent={
+                      <span className='truncate text-[var(--text-primary)]'>
+                        {folderDisplayLabel}
+                      </span>
+                    }
+                    searchable
+                    searchPlaceholder='Search folders...'
+                    showAllOption
+                    allOptionLabel='All folders'
+                    size='sm'
+                    className='h-[32px] w-full rounded-[6px]'
+                  />
+                </div>
 
-          {/* Trigger Filter */}
-          <Combobox
-            options={triggerOptions}
-            multiSelect
-            multiSelectValues={triggers}
-            onMultiSelectChange={setTriggers}
-            placeholder='Trigger'
-            overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{triggerDisplayLabel}</span>
-            }
-            searchable
-            searchPlaceholder='Search triggers...'
-            showAllOption
-            allOptionLabel='All triggers'
-            size='sm'
-            align='end'
-            className='h-[32px] w-[100px] rounded-[6px]'
-          />
+                {/* Trigger Filter */}
+                <div className='flex flex-col gap-[6px]'>
+                  <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                    Trigger
+                  </span>
+                  <Combobox
+                    options={triggerOptions}
+                    multiSelect
+                    multiSelectValues={triggers}
+                    onMultiSelectChange={setTriggers}
+                    placeholder='All triggers'
+                    overlayContent={
+                      <span className='truncate text-[var(--text-primary)]'>
+                        {triggerDisplayLabel}
+                      </span>
+                    }
+                    searchable
+                    searchPlaceholder='Search triggers...'
+                    showAllOption
+                    allOptionLabel='All triggers'
+                    size='sm'
+                    className='h-[32px] w-full rounded-[6px]'
+                  />
+                </div>
 
-          {/* Timeline Filter */}
-          <Combobox
-            options={TIME_RANGE_OPTIONS as unknown as ComboboxOption[]}
-            value={timeRange}
-            onChange={(val) => setTimeRange(val as typeof timeRange)}
-            placeholder='Time'
-            overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
-            }
-            size='sm'
-            align='end'
-            className='h-[32px] w-[140px] rounded-[6px]'
-          />
+                {/* Time Filter */}
+                <div className='flex flex-col gap-[6px]'>
+                  <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                    Time Range
+                  </span>
+                  <Combobox
+                    options={TIME_RANGE_OPTIONS as unknown as ComboboxOption[]}
+                    value={timeRange}
+                    onChange={(val) => setTimeRange(val as typeof timeRange)}
+                    placeholder='All time'
+                    overlayContent={
+                      <span className='truncate text-[var(--text-primary)]'>
+                        {timeDisplayLabel}
+                      </span>
+                    }
+                    size='sm'
+                    className='h-[32px] w-full rounded-[6px]'
+                  />
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Inline Filters - Large screens only */}
+          <div className='hidden items-center gap-[8px] xl:flex'>
+            {/* Status Filter */}
+            <Combobox
+              options={statusOptions}
+              multiSelect
+              multiSelectValues={selectedStatuses}
+              onMultiSelectChange={handleStatusChange}
+              placeholder='Status'
+              overlayContent={
+                <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
+                  {selectedStatusColor && (
+                    <div
+                      className='flex-shrink-0 rounded-[3px]'
+                      style={{ backgroundColor: selectedStatusColor, width: 8, height: 8 }}
+                    />
+                  )}
+                  <span className='truncate'>{statusDisplayLabel}</span>
+                </span>
+              }
+              showAllOption
+              allOptionLabel='All statuses'
+              size='sm'
+              align='end'
+              className='h-[32px] w-[120px] rounded-[6px]'
+            />
+
+            {/* Workflow Filter */}
+            <Combobox
+              options={workflowOptions}
+              multiSelect
+              multiSelectValues={workflowIds}
+              onMultiSelectChange={setWorkflowIds}
+              placeholder='Workflow'
+              overlayContent={
+                <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
+                  {selectedWorkflow && (
+                    <div
+                      className='h-[8px] w-[8px] flex-shrink-0 rounded-[2px]'
+                      style={{ backgroundColor: selectedWorkflow.color }}
+                    />
+                  )}
+                  <span className='truncate'>{workflowDisplayLabel}</span>
+                </span>
+              }
+              searchable
+              searchPlaceholder='Search workflows...'
+              showAllOption
+              allOptionLabel='All workflows'
+              size='sm'
+              align='end'
+              className='h-[32px] w-[120px] rounded-[6px]'
+            />
+
+            {/* Folder Filter */}
+            <Combobox
+              options={folderOptions}
+              multiSelect
+              multiSelectValues={folderIds}
+              onMultiSelectChange={setFolderIds}
+              placeholder='Folder'
+              overlayContent={
+                <span className='truncate text-[var(--text-primary)]'>{folderDisplayLabel}</span>
+              }
+              searchable
+              searchPlaceholder='Search folders...'
+              showAllOption
+              allOptionLabel='All folders'
+              size='sm'
+              align='end'
+              className='h-[32px] w-[120px] rounded-[6px]'
+            />
+
+            {/* Trigger Filter */}
+            <Combobox
+              options={triggerOptions}
+              multiSelect
+              multiSelectValues={triggers}
+              onMultiSelectChange={setTriggers}
+              placeholder='Trigger'
+              overlayContent={
+                <span className='truncate text-[var(--text-primary)]'>{triggerDisplayLabel}</span>
+              }
+              searchable
+              searchPlaceholder='Search triggers...'
+              showAllOption
+              allOptionLabel='All triggers'
+              size='sm'
+              align='end'
+              className='h-[32px] w-[120px] rounded-[6px]'
+            />
+
+            {/* Timeline Filter */}
+            <Combobox
+              options={TIME_RANGE_OPTIONS as unknown as ComboboxOption[]}
+              value={timeRange}
+              onChange={(val) => setTimeRange(val as typeof timeRange)}
+              placeholder='Time'
+              overlayContent={
+                <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
+              }
+              size='sm'
+              align='end'
+              className='h-[32px] w-[120px] rounded-[6px]'
+            />
+          </div>
         </div>
       </div>
     </div>

@@ -165,28 +165,22 @@ export type TimeRange =
   | 'Past 14 days'
   | 'Past 30 days'
   | 'All time'
+
 export type LogLevel = 'error' | 'info' | 'running' | 'pending' | 'all'
 export type TriggerType = 'chat' | 'api' | 'webhook' | 'manual' | 'schedule' | 'all' | string
 
+/** Filter state for logs and dashboard views */
 export interface FilterState {
-  // Workspace context
   workspaceId: string
-
-  // View mode
   viewMode: 'logs' | 'dashboard'
-
-  // Filter states
   timeRange: TimeRange
   level: LogLevel
   workflowIds: string[]
   folderIds: string[]
   searchQuery: string
   triggers: TriggerType[]
-
-  // Internal state
   _isInitializing: boolean
 
-  // Actions
   setWorkspaceId: (workspaceId: string) => void
   setViewMode: (viewMode: 'logs' | 'dashboard') => void
   setTimeRange: (timeRange: TimeRange) => void
@@ -198,8 +192,6 @@ export interface FilterState {
   setSearchQuery: (query: string) => void
   setTriggers: (triggers: TriggerType[]) => void
   toggleTrigger: (trigger: TriggerType) => void
-
-  // URL synchronization methods
   initializeFromURL: () => void
   syncWithURL: () => void
 }

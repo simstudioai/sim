@@ -170,6 +170,121 @@ export function useLogDetail(logId: string | undefined) {
   })
 }
 
+const DASHBOARD_LOGS_LIMIT = 10000
+
+/**
+ * Fetches all logs for dashboard metrics (non-paginated).
+ * Uses same filters as the logs list but with a high limit to get all data.
+ */
+async function fetchAllLogs(
+  workspaceId: string,
+  filters: Omit<LogFilters, 'limit'>
+): Promise<WorkflowLog[]> {
+  const params = new URLSearchParams()
+
+  params.set('workspaceId', workspaceId)
+  params.set('limit', DASHBOARD_LOGS_LIMIT.toString())
+  params.set('offset', '0')
+
+  if (filters.level !== 'all') {
+    params.set('level', filters.level)
+  }
+
+  if (filters.triggers.length > 0) {
+    params.set('triggers', filters.triggers.join(','))
+  }
+
+  if (filters.workflowIds.length > 0) {
+    params.set('workflowIds', filters.workflowIds.join(','))
+  }
+
+  if (filters.folderIds.length > 0) {
+    params.set('folderIds', filters.folderIds.join(','))
+  }
+
+  if (filters.timeRange !== 'All time') {
+    const now = new Date()
+    let startDate: Date
+
+    switch (filters.timeRange) {
+      case 'Past 30 minutes':
+        startDate = new Date(now.getTime() - 30 * 60 * 1000)
+        break
+      case 'Past hour':
+        startDate = new Date(now.getTime() - 60 * 60 * 1000)
+        break
+      case 'Past 6 hours':
+        startDate = new Date(now.getTime() - 6 * 60 * 60 * 1000)
+        break
+      case 'Past 12 hours':
+        startDate = new Date(now.getTime() - 12 * 60 * 60 * 1000)
+        break
+      case 'Past 24 hours':
+        startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+        break
+      case 'Past 3 days':
+        startDate = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000)
+        break
+      case 'Past 7 days':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+        break
+      case 'Past 14 days':
+        startDate = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
+        break
+      case 'Past 30 days':
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+        break
+      default:
+        startDate = new Date(0)
+    }
+
+    params.set('startDate', startDate.toISOString())
+  }
+
+  if (filters.searchQuery.trim()) {
+    const parsedQuery = parseQuery(filters.searchQuery.trim())
+    const searchParams = queryToApiParams(parsedQuery)
+
+    for (const [key, value] of Object.entries(searchParams)) {
+      params.set(key, value)
+    }
+  }
+
+  const response = await fetch(`/api/logs?${params.toString()}`)
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch logs for dashboard')
+  }
+
+  const apiData: LogsResponse = await response.json()
+  return apiData.data || []
+}
+
+interface UseDashboardLogsOptions {
+  enabled?: boolean
+  refetchInterval?: number | false
+}
+
+/**
+ * Hook for fetching all logs for dashboard metrics.
+ * Unlike useLogsList, this fetches all logs in a single request
+ * to ensure dashboard metrics are computed from complete data.
+ */
+export function useDashboardLogs(
+  workspaceId: string | undefined,
+  filters: Omit<LogFilters, 'limit'>,
+  options?: UseDashboardLogsOptions
+) {
+  return useQuery({
+    queryKey: logKeys.globalLogs(workspaceId, { ...filters, type: 'dashboard' }),
+    queryFn: () => fetchAllLogs(workspaceId as string, filters),
+    enabled: Boolean(workspaceId) && (options?.enabled ?? true),
+    refetchInterval: options?.refetchInterval ?? false,
+    staleTime: 0,
+    placeholderData: keepPreviousData,
+  })
+}
+
 interface WorkflowSegment {
   timestamp: string
   hasExecutions: boolean
@@ -199,6 +314,7 @@ interface AggregateSegment {
 interface ExecutionsMetricsResponse {
   workflows: WorkflowExecution[]
   aggregateSegments: AggregateSegment[]
+  segmentMs: number
 }
 
 interface DashboardMetricsFilters {
@@ -292,12 +408,12 @@ async function fetchExecutionsMetrics(
   })
 
   const segmentCount = filters.segments
-  const startTime = new Date(filters.startTime)
-  const endTime = new Date(filters.endTime)
+  const apiStartTime = data.startTime ? new Date(data.startTime) : new Date(filters.startTime)
+  const apiEndTime = data.endTime ? new Date(data.endTime) : new Date(filters.endTime)
 
   const aggregateSegments: AggregateSegment[] = Array.from({ length: segmentCount }, (_, i) => {
-    const base = startTime.getTime()
-    const ts = new Date(base + Math.floor((i * (endTime.getTime() - base)) / segmentCount))
+    const base = apiStartTime.getTime()
+    const ts = new Date(base + Math.floor((i * (apiEndTime.getTime() - base)) / segmentCount))
     return {
       timestamp: ts.toISOString(),
       totalExecutions: 0,
@@ -335,6 +451,8 @@ async function fetchExecutionsMetrics(
   return {
     workflows: sortedWorkflows,
     aggregateSegments,
+    segmentMs:
+      data.segmentMs || Math.floor((apiEndTime.getTime() - apiStartTime.getTime()) / segmentCount),
   }
 }
 
@@ -460,7 +578,7 @@ export function useWorkflowDashboardLogs(
     queryKey: logKeys.workflowLogs(filters.workspaceId, workflowId, filters),
     queryFn: ({ pageParam }) => fetchDashboardLogsPage(filters, pageParam, workflowId),
     enabled: Boolean(filters.workspaceId) && Boolean(workflowId) && (options?.enabled ?? true),
-    staleTime: 10 * 1000, // Slightly stale (10 seconds)
+    staleTime: 10 * 1000,
     initialPageParam: 1,
     getNextPageParam: (lastPage) => lastPage.nextPage,
   })

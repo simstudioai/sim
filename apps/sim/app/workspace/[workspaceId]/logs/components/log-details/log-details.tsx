@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronUp, X } from 'lucide-react'
 import { Button, Eye } from '@/components/emcn'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -36,7 +36,7 @@ interface LogDetailsProps {
  * @param props - Component props
  * @returns Log details sidebar component
  */
-export function LogDetails({
+export const LogDetails = memo(function LogDetails({
   log,
   isOpen,
   onClose,
@@ -95,7 +95,10 @@ export function LogDetails({
     navigateFunction()
   }
 
-  const formattedTimestamp = log ? formatDate(log.createdAt) : null
+  const formattedTimestamp = useMemo(
+    () => (log ? formatDate(log.createdAt) : null),
+    [log?.createdAt]
+  )
 
   const logStatus: LogStatus = useMemo(() => {
     if (!log) return 'info'
@@ -140,7 +143,7 @@ export function LogDetails({
                   disabled={!hasPrev}
                   aria-label='Previous log'
                 >
-                  <ChevronUp className='h-[14px] w-[14px] rotate-180' />
+                  <ChevronUp className='h-[14px] w-[14px]' />
                 </Button>
                 <Button
                   variant='ghost'
@@ -149,7 +152,7 @@ export function LogDetails({
                   disabled={!hasNext}
                   aria-label='Next log'
                 >
-                  <ChevronUp className='h-[14px] w-[14px]' />
+                  <ChevronUp className='h-[14px] w-[14px] rotate-180' />
                 </Button>
                 <Button variant='ghost' className='!p-[4px]' onClick={onClose} aria-label='Close'>
                   <X className='h-[14px] w-[14px]' />
@@ -374,4 +377,4 @@ export function LogDetails({
       </div>
     </>
   )
-}
+})
