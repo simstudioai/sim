@@ -9,7 +9,7 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
   description: 'Create, read, update, delete, and bulk import ServiceNow records',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate ServiceNow into your workflow. Can create, read, update, and delete records in any ServiceNow table (incidents, tasks, users, etc.). Supports bulk import operations for data migration and ETL. Supports OAuth 2.0 (recommended) or Basic Auth.',
+    'Integrate ServiceNow into your workflow. Can create, read, update, and delete records in any ServiceNow table (incidents, tasks, users, etc.). Supports bulk import operations for data migration and ETL.',
   docsLink: 'https://docs.sim.ai/tools/servicenow',
   category: 'tools',
   bgColor: '#032D42',
@@ -29,18 +29,6 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
       ],
       value: () => 'read',
     },
-    // Authentication Method
-    {
-      id: 'authMethod',
-      title: 'Authentication Method',
-      type: 'dropdown',
-      options: [
-        { label: 'Sim Bot (OAuth)', id: 'oauth' },
-        { label: 'Basic Auth', id: 'basic' },
-      ],
-      value: () => 'oauth',
-      required: true,
-    },
     // Instance URL
     {
       id: 'instanceUrl',
@@ -50,7 +38,7 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
       required: true,
       description: 'Your ServiceNow instance URL',
     },
-    // OAuth Credential (Sim Bot)
+    // OAuth Credential
     {
       id: 'credential',
       title: 'ServiceNow Account',
@@ -58,26 +46,6 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
       serviceId: 'servicenow',
       requiredScopes: ['useraccount'],
       placeholder: 'Select ServiceNow account',
-      condition: { field: 'authMethod', value: 'oauth' },
-      required: true,
-    },
-    // Basic Auth: Username
-    {
-      id: 'username',
-      title: 'Username',
-      type: 'short-input',
-      placeholder: 'Enter ServiceNow username',
-      condition: { field: 'authMethod', value: 'basic' },
-      required: true,
-    },
-    // Basic Auth: Password
-    {
-      id: 'password',
-      title: 'Password',
-      type: 'short-input',
-      placeholder: 'Enter ServiceNow password',
-      password: true,
-      condition: { field: 'authMethod', value: 'basic' },
       required: true,
     },
     // Table Name
@@ -219,8 +187,7 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
         }
       },
       params: (params) => {
-        const { operation, fields, records, authMethod, credential, username, password, ...rest } =
-          params
+        const { operation, fields, records, credential, ...rest } = params
 
         // Parse JSON fields if provided
         let parsedFields: Record<string, any> | undefined
@@ -254,22 +221,15 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
           }
         }
 
-        // Build params based on operation and auth method
-        const baseParams: Record<string, any> = {
-          ...rest,
-          authMethod,
+        // Validate OAuth credential
+        if (!credential) {
+          throw new Error('ServiceNow account credential is required')
         }
 
-        // Add authentication params based on method
-        if (authMethod === 'oauth') {
-          if (!credential) {
-            throw new Error('ServiceNow account credential is required when using Sim Bot (OAuth)')
-          }
-          baseParams.credential = credential
-        } else {
-          // Basic Auth
-          baseParams.username = username
-          baseParams.password = password
+        // Build params
+        const baseParams: Record<string, any> = {
+          ...rest,
+          credential,
         }
 
         if (operation === 'create' || operation === 'update') {
@@ -297,11 +257,8 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    authMethod: { type: 'string', description: 'Authentication method (oauth or basic)' },
     instanceUrl: { type: 'string', description: 'ServiceNow instance URL' },
     credential: { type: 'string', description: 'ServiceNow OAuth credential ID' },
-    username: { type: 'string', description: 'ServiceNow username (Basic Auth)' },
-    password: { type: 'string', description: 'ServiceNow password (Basic Auth)' },
     tableName: { type: 'string', description: 'Table name' },
     sysId: { type: 'string', description: 'Record sys_id' },
     number: { type: 'string', description: 'Record number' },

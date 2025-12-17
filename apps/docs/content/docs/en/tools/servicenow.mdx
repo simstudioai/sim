@@ -12,7 +12,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## Usage Instructions
 
-Integrate ServiceNow into your workflow. Can create, read, update, and delete records in any ServiceNow table (incidents, tasks, users, etc.). Supports bulk import operations for data migration and ETL. Supports OAuth 2.0 (recommended) or Basic Auth.
+Integrate ServiceNow into your workflow. Can create, read, update, and delete records in any ServiceNow table (incidents, tasks, users, etc.). Supports bulk import operations for data migration and ETL.
 
 
 
@@ -27,10 +27,7 @@ Create a new record in a ServiceNow table
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
-| `authMethod` | string | Yes | Authentication method \(oauth or basic\) |
 | `credential` | string | No | ServiceNow OAuth credential ID |
-| `username` | string | No | ServiceNow username \(Basic Auth\) |
-| `password` | string | No | ServiceNow password \(Basic Auth\) |
 | `tableName` | string | Yes | Table name \(e.g., incident, task, sys_user\) |
 | `fields` | json | Yes | Fields to set on the record \(JSON object\) |
 
@@ -50,10 +47,7 @@ Read records from a ServiceNow table
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `instanceUrl` | string | No | ServiceNow instance URL \(auto-detected from OAuth if not provided\) |
-| `authMethod` | string | No | Authentication method \(oauth or basic\) |
 | `credential` | string | No | ServiceNow OAuth credential ID |
-| `username` | string | No | ServiceNow username \(for Basic Auth\) |
-| `password` | string | No | ServiceNow password \(for Basic Auth\) |
 | `tableName` | string | Yes | Table name |
 | `sysId` | string | No | Specific record sys_id |
 | `number` | string | No | Record number \(e.g., INC0010001\) |
@@ -77,10 +71,7 @@ Update an existing record in a ServiceNow table
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `instanceUrl` | string | No | ServiceNow instance URL \(auto-detected from OAuth if not provided\) |
-| `authMethod` | string | No | Authentication method \(oauth or basic\) |
 | `credential` | string | No | ServiceNow OAuth credential ID |
-| `username` | string | No | ServiceNow username \(for Basic Auth\) |
-| `password` | string | No | ServiceNow password \(for Basic Auth\) |
 | `tableName` | string | Yes | Table name |
 | `sysId` | string | Yes | Record sys_id to update |
 | `fields` | json | Yes | Fields to update \(JSON object\) |
@@ -101,10 +92,7 @@ Delete a record from a ServiceNow table
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `instanceUrl` | string | No | ServiceNow instance URL \(auto-detected from OAuth if not provided\) |
-| `authMethod` | string | No | Authentication method \(oauth or basic\) |
 | `credential` | string | No | ServiceNow OAuth credential ID |
-| `username` | string | No | ServiceNow username \(for Basic Auth\) |
-| `password` | string | No | ServiceNow password \(for Basic Auth\) |
 | `tableName` | string | Yes | Table name |
 | `sysId` | string | Yes | Record sys_id to delete |
 
@@ -124,10 +112,7 @@ Bulk import data into ServiceNow using Import Set API
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `instanceUrl` | string | No | ServiceNow instance URL \(auto-detected from OAuth if not provided\) |
-| `authMethod` | string | Yes | Authentication method \(oauth or basic\) |
 | `credential` | string | No | ServiceNow OAuth credential ID |
-| `username` | string | No | ServiceNow username \(Basic Auth\) |
-| `password` | string | No | ServiceNow password \(Basic Auth\) |
 | `tableName` | string | Yes | Import set table name \(e.g., u_my_import_set\) or target table name for direct import |
 | `records` | array | Yes | Array of records to import. Each record should be a JSON object with field values. |
 | `transformMap` | string | No | Transform map sys_id to use for data transformation \(optional\) |

@@ -7,41 +7,6 @@ import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ServiceNowImportSetTool')
 
-/**
- * Encode credentials to base64 for Basic Auth
- * Works in both Node.js (Buffer) and browser (btoa) environments
- */
-function encodeBasicAuth(username: string, password: string): string {
-  const credentials = `${username}:${password}`
-  // Check for Buffer in global scope (Node.js)
-  const BufferGlobal = typeof globalThis !== 'undefined' && (globalThis as any).Buffer
-  if (BufferGlobal) {
-    return BufferGlobal.from(credentials).toString('base64')
-  }
-  return btoa(credentials)
-}
-
-/**
- * Get authorization header based on auth method
- * Note: For OAuth, executeTool automatically fetches the token and sets it as accessToken
- */
-function getAuthHeader(params: ServiceNowImportSetParams & { accessToken?: string }): string {
-  if (params.authMethod === 'oauth') {
-    // OAuth: accessToken is set by executeTool when credential is provided
-    const accessToken = params.accessToken
-    if (!accessToken) {
-      throw new Error('OAuth access token not found. Make sure credential is properly configured.')
-    }
-    return `Bearer ${accessToken}`
-  }
-  // Basic Auth
-  if (!params.username || !params.password) {
-    throw new Error('Username and password are required for Basic Auth')
-  }
-  const credentials = encodeBasicAuth(params.username, params.password)
-  return `Basic ${credentials}`
-}
-
 export const importSetTool: ToolConfig<ServiceNowImportSetParams, ServiceNowImportSetResponse> = {
   id: 'servicenow_import_set',
   name: 'ServiceNow Import Set',
@@ -49,7 +14,7 @@ export const importSetTool: ToolConfig<ServiceNowImportSetParams, ServiceNowImpo
   version: '1.0.0',
 
   oauth: {
-    required: false,
+    required: true,
     provider: 'servicenow',
   },
 
@@ -60,29 +25,11 @@ export const importSetTool: ToolConfig<ServiceNowImportSetParams, ServiceNowImpo
       visibility: 'user-only',
       description: 'ServiceNow instance URL (auto-detected from OAuth if not provided)',
     },
-    authMethod: {
-      type: 'string',
-      required: true,
-      visibility: 'hidden',
-      description: 'Authentication method (oauth or basic)',
-    },
     credential: {
       type: 'string',
       required: false,
       visibility: 'hidden',
       description: 'ServiceNow OAuth credential ID',
-    },
-    username: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'ServiceNow username (Basic Auth)',
-    },
-    password: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'ServiceNow password (Basic Auth)',
     },
     tableName: {
       type: 'string',
@@ -140,11 +87,11 @@ export const importSetTool: ToolConfig<ServiceNowImportSetParams, ServiceNowImpo
     },
     method: 'POST',
     headers: (params) => {
-      const authHeader = getAuthHeader(
-        params as ServiceNowImportSetParams & { accessToken?: string }
-      )
+      if (!params.accessToken) {
+        throw new Error('OAuth access token is required')
+      }
       return {
-        Authorization: authHeader,
+        Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
         Accept: 'application/json',
       }

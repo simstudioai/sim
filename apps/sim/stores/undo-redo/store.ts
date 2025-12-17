@@ -54,7 +54,7 @@ function getStackKey(workflowId: string, userId: string): string {
  */
 const safeStorageAdapter = {
   getItem: (name: string): string | null => {
-    if (typeof window === 'undefined') return null
+    if (typeof localStorage === 'undefined') return null
     try {
       return localStorage.getItem(name)
     } catch (e) {
@@ -63,7 +63,7 @@ const safeStorageAdapter = {
     }
   },
   setItem: (name: string, value: string): void => {
-    if (typeof window === 'undefined') return
+    if (typeof localStorage === 'undefined') return
     try {
       localStorage.setItem(name, value)
     } catch (e) {
@@ -72,7 +72,7 @@ const safeStorageAdapter = {
     }
   },
   removeItem: (name: string): void => {
-    if (typeof window === 'undefined') return
+    if (typeof localStorage === 'undefined') return
     try {
       localStorage.removeItem(name)
     } catch (e) {

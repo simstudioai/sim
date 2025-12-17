@@ -4,20 +4,6 @@ import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ServiceNowUpdateTool')
 
-/**
- * Encode credentials to base64 for Basic Auth
- * Works in both Node.js (Buffer) and browser (btoa) environments
- */
-function encodeBasicAuth(username: string, password: string): string {
-  const credentials = `${username}:${password}`
-  // Check for Buffer in global scope (Node.js)
-  const BufferGlobal = typeof globalThis !== 'undefined' && (globalThis as any).Buffer
-  if (BufferGlobal) {
-    return BufferGlobal.from(credentials).toString('base64')
-  }
-  return btoa(credentials)
-}
-
 export const updateTool: ToolConfig<ServiceNowUpdateParams, ServiceNowUpdateResponse> = {
   id: 'servicenow_update',
   name: 'Update ServiceNow Record',
@@ -25,7 +11,7 @@ export const updateTool: ToolConfig<ServiceNowUpdateParams, ServiceNowUpdateResp
   version: '1.0.0',
 
   oauth: {
-    required: false,
+    required: true,
     provider: 'servicenow',
   },
 
@@ -36,29 +22,11 @@ export const updateTool: ToolConfig<ServiceNowUpdateParams, ServiceNowUpdateResp
       visibility: 'user-only',
       description: 'ServiceNow instance URL (auto-detected from OAuth if not provided)',
     },
-    authMethod: {
-      type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description: 'Authentication method (oauth or basic)',
-    },
     credential: {
       type: 'string',
       required: false,
       visibility: 'hidden',
       description: 'ServiceNow OAuth credential ID',
-    },
-    username: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'ServiceNow username (for Basic Auth)',
-    },
-    password: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'ServiceNow password (for Basic Auth)',
     },
     tableName: {
       type: 'string',
@@ -91,21 +59,11 @@ export const updateTool: ToolConfig<ServiceNowUpdateParams, ServiceNowUpdateResp
     },
     method: 'PATCH',
     headers: (params) => {
-      // Support both OAuth and Basic Auth
-      if (params.accessToken) {
-        return {
-          Authorization: `Bearer ${params.accessToken}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        }
+      if (!params.accessToken) {
+        throw new Error('OAuth access token is required')
       }
-      // Fall back to Basic Auth
-      if (!params.username || !params.password) {
-        throw new Error('Either OAuth credential or username/password is required')
-      }
-      const credentials = encodeBasicAuth(params.username, params.password)
       return {
-        Authorization: `Basic ${credentials}`,
+        Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
         Accept: 'application/json',
       }
