@@ -19,6 +19,7 @@ import {
   OllamaIcon,
   OpenAIIcon,
   OpenRouterIcon,
+  VertexIcon,
   VllmIcon,
   xAIIcon,
 } from '@/components/icons'
@@ -708,9 +709,22 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'gemini-3-pro-preview',
         pricing: {
           input: 2.0,
-          cachedInput: 1.0,
+          cachedInput: 0.2,
           output: 12.0,
-          updatedAt: '2025-11-18',
+          updatedAt: '2025-12-17',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
+      },
+      {
+        id: 'gemini-3-flash-preview',
+        pricing: {
+          input: 0.5,
+          cachedInput: 0.05,
+          output: 3.0,
+          updatedAt: '2025-12-17',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -755,6 +769,132 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 2 },
         },
         contextWindow: 1048576,
+      },
+      {
+        id: 'gemini-2.0-flash',
+        pricing: {
+          input: 0.1,
+          output: 0.4,
+          updatedAt: '2025-12-17',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
+      },
+      {
+        id: 'gemini-2.0-flash-lite',
+        pricing: {
+          input: 0.075,
+          output: 0.3,
+          updatedAt: '2025-12-17',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
+      },
+    ],
+  },
+  vertex: {
+    id: 'vertex',
+    name: 'Vertex AI',
+    description: "Google's Vertex AI platform for Gemini models",
+    defaultModel: 'vertex/gemini-2.5-pro',
+    modelPatterns: [/^vertex\//],
+    icon: VertexIcon,
+    capabilities: {
+      toolUsageControl: true,
+    },
+    models: [
+      {
+        id: 'vertex/gemini-3-pro-preview',
+        pricing: {
+          input: 2.0,
+          cachedInput: 0.2,
+          output: 12.0,
+          updatedAt: '2025-12-17',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
+      },
+      {
+        id: 'vertex/gemini-3-flash-preview',
+        pricing: {
+          input: 0.5,
+          cachedInput: 0.05,
+          output: 3.0,
+          updatedAt: '2025-12-17',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
+      },
+      {
+        id: 'vertex/gemini-2.5-pro',
+        pricing: {
+          input: 1.25,
+          cachedInput: 0.125,
+          output: 10.0,
+          updatedAt: '2025-12-02',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1048576,
+      },
+      {
+        id: 'vertex/gemini-2.5-flash',
+        pricing: {
+          input: 0.3,
+          cachedInput: 0.03,
+          output: 2.5,
+          updatedAt: '2025-12-02',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1048576,
+      },
+      {
+        id: 'vertex/gemini-2.5-flash-lite',
+        pricing: {
+          input: 0.1,
+          cachedInput: 0.01,
+          output: 0.4,
+          updatedAt: '2025-12-02',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1048576,
+      },
+      {
+        id: 'vertex/gemini-2.0-flash',
+        pricing: {
+          input: 0.1,
+          output: 0.4,
+          updatedAt: '2025-12-17',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
+      },
+      {
+        id: 'vertex/gemini-2.0-flash-lite',
+        pricing: {
+          input: 0.075,
+          output: 0.3,
+          updatedAt: '2025-12-17',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
       },
     ],
   },

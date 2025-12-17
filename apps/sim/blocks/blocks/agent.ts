@@ -167,6 +167,28 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       },
     },
     {
+      id: 'vertexProject',
+      title: 'Vertex AI Project',
+      type: 'short-input',
+      placeholder: 'your-gcp-project-id',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers.vertex.models,
+      },
+    },
+    {
+      id: 'vertexLocation',
+      title: 'Vertex AI Location',
+      type: 'short-input',
+      placeholder: 'us-central1',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers.vertex.models,
+      },
+    },
+    {
       id: 'tools',
       title: 'Tools',
       type: 'tool-input',
@@ -465,6 +487,8 @@ Example 3 (Array Input):
     apiKey: { type: 'string', description: 'Provider API key' },
     azureEndpoint: { type: 'string', description: 'Azure OpenAI endpoint URL' },
     azureApiVersion: { type: 'string', description: 'Azure API version' },
+    vertexProject: { type: 'string', description: 'Google Cloud project ID for Vertex AI' },
+    vertexLocation: { type: 'string', description: 'Google Cloud location for Vertex AI' },
     responseFormat: {
       type: 'json',
       description: 'JSON response format schema',

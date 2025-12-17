@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
+import { MAX_TOOL_ITERATIONS } from '@/providers'
 import type { ModelsObject } from '@/providers/ollama/types'
 import type {
   ProviderConfig,
@@ -334,7 +335,6 @@ export const ollamaProvider: ProviderConfig = {
       const toolResults = []
       const currentMessages = [...allMessages]
       let iterationCount = 0
-      const MAX_ITERATIONS = 10 // Prevent infinite loops
 
       // Track time spent in model vs tools
       let modelTime = firstResponseTime
@@ -351,7 +351,7 @@ export const ollamaProvider: ProviderConfig = {
         },
       ]
 
-      while (iterationCount < MAX_ITERATIONS) {
+      while (iterationCount < MAX_TOOL_ITERATIONS) {
         // Check for tool calls
         const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
         if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
@@ -359,7 +359,7 @@ export const ollamaProvider: ProviderConfig = {
         }
 
         logger.info(
-          `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1}/${MAX_ITERATIONS})`
+          `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1}/${MAX_TOOL_ITERATIONS})`
         )
 
         // Track time for tool calls in this batch

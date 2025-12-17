@@ -1,3 +1,4 @@
+import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -15,12 +16,12 @@ import {
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
 
-const logger = createLogger('GoogleProvider')
+const logger = createLogger('VertexProvider')
 
 /**
- * Creates a ReadableStream from Google's Gemini stream response
+ * Creates a ReadableStream from Vertex AI's Gemini stream response
  */
-function createReadableStreamFromGeminiStream(
+function createReadableStreamFromVertexStream(
   response: Response,
   onComplete?: (
     content: string,
@@ -164,11 +165,14 @@ function createReadableStreamFromGeminiStream(
                 const candidate = data.candidates?.[0]
 
                 if (candidate?.finishReason === 'UNEXPECTED_TOOL_CALL') {
-                  logger.warn('Gemini returned UNEXPECTED_TOOL_CALL in streaming mode', {
-                    finishReason: candidate.finishReason,
-                    hasContent: !!candidate?.content,
-                    hasParts: !!candidate?.content?.parts,
-                  })
+                  logger.warn(
+                    'Vertex AI returned UNEXPECTED_TOOL_CALL - model attempted to call a tool that was not provided',
+                    {
+                      finishReason: candidate.finishReason,
+                      hasContent: !!candidate?.content,
+                      hasParts: !!candidate?.content?.parts,
+                    }
+                  )
                   const textContent = extractTextContent(candidate)
                   if (textContent) {
                     fullContent += textContent
@@ -208,13 +212,12 @@ function createReadableStreamFromGeminiStream(
               buffer = buffer.substring(closeBrace + 1)
               searchIndex = 0
             } else {
-              // No complete JSON object found, wait for more data
               break
             }
           }
         }
       } catch (e) {
-        logger.error('Error reading Google Gemini stream', {
+        logger.error('Error reading Vertex AI stream', {
           error: e instanceof Error ? e.message : String(e),
         })
         controller.error(e)
@@ -226,29 +229,63 @@ function createReadableStreamFromGeminiStream(
   })
 }
 
-export const googleProvider: ProviderConfig = {
-  id: 'google',
-  name: 'Google',
-  description: "Google's Gemini models",
+/**
+ * Build Vertex AI endpoint URL
+ */
+function buildVertexEndpoint(
+  project: string,
+  location: string,
+  model: string,
+  isStreaming: boolean
+): string {
+  const action = isStreaming ? 'streamGenerateContent' : 'generateContent'
+
+  if (location === 'global') {
+    return `https://aiplatform.googleapis.com/v1/projects/${project}/locations/global/publishers/google/models/${model}:${action}`
+  }
+
+  return `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/${model}:${action}`
+}
+
+/**
+ * Vertex AI provider configuration
+ */
+export const vertexProvider: ProviderConfig = {
+  id: 'vertex',
+  name: 'Vertex AI',
+  description: "Google's Vertex AI platform for Gemini models",
   version: '1.0.0',
-  models: getProviderModels('google'),
-  defaultModel: getProviderDefaultModel('google'),
+  models: getProviderModels('vertex'),
+  defaultModel: getProviderDefaultModel('vertex'),
 
   executeRequest: async (
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
-    if (!request.apiKey) {
-      throw new Error('API key is required for Google Gemini')
+    const vertexProject = env.VERTEX_PROJECT || request.vertexProject
+    const vertexLocation = env.VERTEX_LOCATION || request.vertexLocation || 'us-central1'
+
+    if (!vertexProject) {
+      throw new Error(
+        'Vertex AI project is required. Please provide it via VERTEX_PROJECT environment variable or vertexProject parameter.'
+      )
     }
 
-    logger.info('Preparing Google Gemini request', {
-      model: request.model || 'gemini-2.5-pro',
+    if (!request.apiKey) {
+      throw new Error(
+        'Access token is required for Vertex AI. Run `gcloud auth print-access-token` to get one, or use a service account.'
+      )
+    }
+
+    logger.info('Preparing Vertex AI request', {
+      model: request.model || 'vertex/gemini-2.5-pro',
       hasSystemPrompt: !!request.systemPrompt,
       hasMessages: !!request.messages?.length,
       hasTools: !!request.tools?.length,
       toolCount: request.tools?.length || 0,
       hasResponseFormat: !!request.responseFormat,
       streaming: !!request.stream,
+      project: vertexProject,
+      location: vertexLocation,
     })
 
     const providerStartTime = Date.now()
@@ -257,7 +294,7 @@ export const googleProvider: ProviderConfig = {
     try {
       const { contents, tools, systemInstruction } = convertToGeminiFormat(request)
 
-      const requestedModel = request.model || 'gemini-2.5-pro'
+      const requestedModel = (request.model || 'vertex/gemini-2.5-pro').replace('vertex/', '')
 
       const payload: any = {
         contents,
@@ -278,19 +315,18 @@ export const googleProvider: ProviderConfig = {
 
       if (request.responseFormat && !tools?.length) {
         const responseFormatSchema = request.responseFormat.schema || request.responseFormat
-
         const cleanSchema = cleanSchemaForGemini(responseFormatSchema)
 
         payload.generationConfig.responseMimeType = 'application/json'
         payload.generationConfig.responseSchema = cleanSchema
 
-        logger.info('Using Gemini native structured output format', {
+        logger.info('Using Vertex AI native structured output format', {
           hasSchema: !!cleanSchema,
           mimeType: 'application/json',
         })
       } else if (request.responseFormat && tools?.length) {
         logger.warn(
-          'Gemini does not support structured output (responseFormat) with function calling (tools). Structured output will be ignored.'
+          'Vertex AI does not support structured output (responseFormat) with function calling (tools). Structured output will be ignored.'
         )
       }
 
@@ -311,7 +347,7 @@ export const googleProvider: ProviderConfig = {
             payload.toolConfig = toolConfig
           }
 
-          logger.info('Google Gemini request with tools:', {
+          logger.info('Vertex AI request with tools:', {
             toolCount: filteredTools.length,
             model: requestedModel,
             tools: filteredTools.map((t) => t.name),
@@ -322,12 +358,14 @@ export const googleProvider: ProviderConfig = {
       }
 
       const initialCallTime = Date.now()
+      const shouldStream = !!(request.stream && !tools?.length)
 
-      const shouldStream = request.stream && !tools?.length
-
-      const endpoint = shouldStream
-        ? `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:streamGenerateContent?key=${request.apiKey}`
-        : `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}`
+      const endpoint = buildVertexEndpoint(
+        vertexProject,
+        vertexLocation,
+        requestedModel,
+        shouldStream
+      )
 
       if (request.stream && tools?.length) {
         logger.info('Streaming disabled for initial request due to tools presence', {
@@ -340,24 +378,25 @@ export const googleProvider: ProviderConfig = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${request.apiKey}`,
         },
         body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
         const responseText = await response.text()
-        logger.error('Gemini API error details:', {
+        logger.error('Vertex AI API error details:', {
           status: response.status,
           statusText: response.statusText,
           responseBody: responseText,
         })
-        throw new Error(`Gemini API error: ${response.status} ${response.statusText}`)
+        throw new Error(`Vertex AI API error: ${response.status} ${response.statusText}`)
       }
 
       const firstResponseTime = Date.now() - initialCallTime
 
       if (shouldStream) {
-        logger.info('Handling Google Gemini streaming response')
+        logger.info('Handling Vertex AI streaming response')
 
         const streamingResult: StreamingExecution = {
           stream: null as any,
@@ -400,7 +439,7 @@ export const googleProvider: ProviderConfig = {
           },
         }
 
-        streamingResult.stream = createReadableStreamFromGeminiStream(
+        streamingResult.stream = createReadableStreamFromVertexStream(
           response,
           (content, usage) => {
             streamingResult.execution.output.content = content
@@ -509,7 +548,7 @@ export const googleProvider: ProviderConfig = {
 
         if (candidate?.finishReason === 'UNEXPECTED_TOOL_CALL') {
           logger.warn(
-            'Gemini returned UNEXPECTED_TOOL_CALL - model attempted to call a tool that was not provided',
+            'Vertex AI returned UNEXPECTED_TOOL_CALL - model attempted to call a tool that was not provided',
             {
               finishReason: candidate.finishReason,
               hasContent: !!candidate?.content,
@@ -522,7 +561,7 @@ export const googleProvider: ProviderConfig = {
         const functionCall = extractFunctionCall(candidate)
 
         if (functionCall) {
-          logger.info(`Received function call from Gemini: ${functionCall.name}`)
+          logger.info(`Received function call from Vertex AI: ${functionCall.name}`)
 
           while (iterationCount < MAX_TOOL_ITERATIONS) {
             const latestResponse = geminiResponse.candidates?.[0]
@@ -656,26 +695,31 @@ export const googleProvider: ProviderConfig = {
                   }
                   checkPayload.stream = undefined
 
-                  const checkResponse = await fetch(
-                    `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}`,
-                    {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                      },
-                      body: JSON.stringify(checkPayload),
-                    }
+                  const checkEndpoint = buildVertexEndpoint(
+                    vertexProject,
+                    vertexLocation,
+                    requestedModel,
+                    false
                   )
+
+                  const checkResponse = await fetch(checkEndpoint, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${request.apiKey}`,
+                    },
+                    body: JSON.stringify(checkPayload),
+                  })
 
                   if (!checkResponse.ok) {
                     const errorBody = await checkResponse.text()
-                    logger.error('Error in Gemini check request:', {
+                    logger.error('Error in Vertex AI check request:', {
                       status: checkResponse.status,
                       statusText: checkResponse.statusText,
                       responseBody: errorBody,
                     })
                     throw new Error(
-                      `Gemini API check error: ${checkResponse.status} ${checkResponse.statusText}`
+                      `Vertex AI API check error: ${checkResponse.status} ${checkResponse.statusText}`
                     )
                   }
 
@@ -716,28 +760,34 @@ export const googleProvider: ProviderConfig = {
                     iterationCount++
                     continue
                   }
+
                   logger.info('No function call detected, proceeding with streaming response')
 
-                  const streamingResponse = await fetch(
-                    `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:streamGenerateContent?key=${request.apiKey}`,
-                    {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                      },
-                      body: JSON.stringify(streamingPayload),
-                    }
+                  const streamEndpoint = buildVertexEndpoint(
+                    vertexProject,
+                    vertexLocation,
+                    requestedModel,
+                    true
                   )
+
+                  const streamingResponse = await fetch(streamEndpoint, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${request.apiKey}`,
+                    },
+                    body: JSON.stringify(streamingPayload),
+                  })
 
                   if (!streamingResponse.ok) {
                     const errorBody = await streamingResponse.text()
-                    logger.error('Error in Gemini streaming follow-up request:', {
+                    logger.error('Error in Vertex AI streaming follow-up request:', {
                       status: streamingResponse.status,
                       statusText: streamingResponse.statusText,
                       responseBody: errorBody,
                     })
                     throw new Error(
-                      `Gemini API streaming error: ${streamingResponse.status} ${streamingResponse.statusText}`
+                      `Vertex AI API streaming error: ${streamingResponse.status} ${streamingResponse.statusText}`
                     )
                   }
 
@@ -790,7 +840,7 @@ export const googleProvider: ProviderConfig = {
                     },
                   }
 
-                  streamingExecution.stream = createReadableStreamFromGeminiStream(
+                  streamingExecution.stream = createReadableStreamFromVertexStream(
                     streamingResponse,
                     (content, usage) => {
                       streamingExecution.execution.output.content = content
@@ -858,20 +908,25 @@ export const googleProvider: ProviderConfig = {
                   }
                 }
 
-                const nextResponse = await fetch(
-                  `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}`,
-                  {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(nextPayload),
-                  }
+                const nextEndpoint = buildVertexEndpoint(
+                  vertexProject,
+                  vertexLocation,
+                  requestedModel,
+                  false
                 )
+
+                const nextResponse = await fetch(nextEndpoint, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${request.apiKey}`,
+                  },
+                  body: JSON.stringify(nextPayload),
+                })
 
                 if (!nextResponse.ok) {
                   const errorBody = await nextResponse.text()
-                  logger.error('Error in Gemini follow-up request:', {
+                  logger.error('Error in Vertex AI follow-up request:', {
                     status: nextResponse.status,
                     statusText: nextResponse.statusText,
                     responseBody: errorBody,
@@ -905,7 +960,7 @@ export const googleProvider: ProviderConfig = {
 
                 iterationCount++
               } catch (error) {
-                logger.error('Error in Gemini follow-up request:', {
+                logger.error('Error in Vertex AI follow-up request:', {
                   error: error instanceof Error ? error.message : String(error),
                   iterationCount,
                 })
@@ -923,7 +978,7 @@ export const googleProvider: ProviderConfig = {
           content = extractTextContent(candidate)
         }
       } catch (error) {
-        logger.error('Error processing Gemini response:', {
+        logger.error('Error processing Vertex AI response:', {
           error: error instanceof Error ? error.message : String(error),
           iterationCount,
         })
@@ -969,7 +1024,7 @@ export const googleProvider: ProviderConfig = {
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      logger.error('Error in Google Gemini request:', {
+      logger.error('Error in Vertex AI request:', {
         error: error instanceof Error ? error.message : String(error),
         duration: totalDuration,
       })
@@ -989,7 +1044,6 @@ export const googleProvider: ProviderConfig = {
 
 /**
  * Helper function to remove additionalProperties from a schema object
- * and perform a deep copy of the schema to avoid modifying the original
  */
 function cleanSchemaForGemini(schema: any): any {
   if (schema === null || schema === undefined) return schema
@@ -1002,7 +1056,6 @@ function cleanSchemaForGemini(schema: any): any {
 
   for (const key in schema) {
     if (key === 'additionalProperties') continue
-
     cleanedSchema[key] = cleanSchemaForGemini(schema[key])
   }
 
@@ -1010,7 +1063,7 @@ function cleanSchemaForGemini(schema: any): any {
 }
 
 /**
- * Helper function to extract content from a Gemini response, handling structured output
+ * Helper function to extract content from a Gemini response
  */
 function extractTextContent(candidate: any): string {
   if (!candidate?.content?.parts) return ''
@@ -1019,8 +1072,8 @@ function extractTextContent(candidate: any): string {
     const text = candidate.content.parts[0].text
     if (text && (text.trim().startsWith('{') || text.trim().startsWith('['))) {
       try {
-        JSON.parse(text) // Validate JSON
-        return text // Return valid JSON as-is
+        JSON.parse(text)
+        return text
       } catch (_e) {
         /* Not valid JSON, continue with normal extraction */
       }

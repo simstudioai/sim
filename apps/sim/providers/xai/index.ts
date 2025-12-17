@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
+import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type {
   ProviderConfig,
@@ -260,7 +261,6 @@ export const xAIProvider: ProviderConfig = {
       const toolResults = []
       const currentMessages = [...allMessages]
       let iterationCount = 0
-      const MAX_ITERATIONS = 10
 
       // Track if a forced tool has been used
       let hasUsedForcedTool = false
@@ -306,7 +306,7 @@ export const xAIProvider: ProviderConfig = {
       }
 
       try {
-        while (iterationCount < MAX_ITERATIONS) {
+        while (iterationCount < MAX_TOOL_ITERATIONS) {
           // Check for tool calls
           const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
           if (!toolCallsInResponse || toolCallsInResponse.length === 0) {

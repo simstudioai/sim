@@ -1,6 +1,7 @@
 import { Groq } from 'groq-sdk'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
+import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type {
   ProviderConfig,
@@ -225,7 +226,6 @@ export const groqProvider: ProviderConfig = {
       const toolResults = []
       const currentMessages = [...allMessages]
       let iterationCount = 0
-      const MAX_ITERATIONS = 10 // Prevent infinite loops
 
       // Track time spent in model vs tools
       let modelTime = firstResponseTime
@@ -243,7 +243,7 @@ export const groqProvider: ProviderConfig = {
       ]
 
       try {
-        while (iterationCount < MAX_ITERATIONS) {
+        while (iterationCount < MAX_TOOL_ITERATIONS) {
           // Check for tool calls
           const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
           if (!toolCallsInResponse || toolCallsInResponse.length === 0) {

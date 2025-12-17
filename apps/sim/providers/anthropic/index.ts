@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
+import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { executeTool } from '@/tools'
 import { getProviderDefaultModel, getProviderModels } from '../models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
@@ -373,7 +374,6 @@ ${fieldDescriptions}
         const toolResults = []
         const currentMessages = [...messages]
         let iterationCount = 0
-        const MAX_ITERATIONS = 10 // Prevent infinite loops
 
         // Track if a forced tool has been used
         let hasUsedForcedTool = false
@@ -433,7 +433,7 @@ ${fieldDescriptions}
         checkForForcedToolUsage(currentResponse, originalToolChoice)
 
         try {
-          while (iterationCount < MAX_ITERATIONS) {
+          while (iterationCount < MAX_TOOL_ITERATIONS) {
             // Check for tool calls
             const toolUses = currentResponse.content.filter((item) => item.type === 'tool_use')
             if (!toolUses || toolUses.length === 0) {
@@ -727,7 +727,6 @@ ${fieldDescriptions}
       const toolResults = []
       const currentMessages = [...messages]
       let iterationCount = 0
-      const MAX_ITERATIONS = 10 // Prevent infinite loops
 
       // Track if a forced tool has been used
       let hasUsedForcedTool = false
@@ -787,7 +786,7 @@ ${fieldDescriptions}
       checkForForcedToolUsage(currentResponse, originalToolChoice)
 
       try {
-        while (iterationCount < MAX_ITERATIONS) {
+        while (iterationCount < MAX_TOOL_ITERATIONS) {
           // Check for tool calls
           const toolUses = currentResponse.content.filter((item) => item.type === 'tool_use')
           if (!toolUses || toolUses.length === 0) {
