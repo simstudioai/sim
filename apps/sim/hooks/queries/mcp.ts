@@ -85,8 +85,13 @@ export function useMcpServers(workspaceId: string) {
 /**
  * Fetch MCP tools for a workspace
  */
-async function fetchMcpTools(workspaceId: string): Promise<McpTool[]> {
-  const response = await fetch(`/api/mcp/tools/discover?workspaceId=${workspaceId}`)
+async function fetchMcpTools(workspaceId: string, forceRefresh = false): Promise<McpTool[]> {
+  const params = new URLSearchParams({ workspaceId })
+  if (forceRefresh) {
+    params.set('refresh', 'true')
+  }
+
+  const response = await fetch(`/api/mcp/tools/discover?${params.toString()}`)
 
   // Treat 404 as "no tools available" - return empty array
   if (response.status === 404) {
@@ -158,14 +163,15 @@ export function useCreateMcpServer() {
       return {
         ...serverData,
         id: serverId,
-        connectionStatus: 'disconnected' as const,
+        connectionStatus: 'connected' as const,
         serverId,
         updated: wasUpdated,
       }
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
-      queryClient.invalidateQueries({ queryKey: mcpKeys.tools(variables.workspaceId) })
+    onSuccess: async (_data, variables) => {
+      await queryClient.refetchQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
+      const freshTools = await fetchMcpTools(variables.workspaceId, true)
+      queryClient.setQueryData(mcpKeys.tools(variables.workspaceId), freshTools)
     },
   })
 }
@@ -304,9 +310,10 @@ export function useRefreshMcpServer() {
       logger.info(`Refreshed MCP server: ${serverId}`)
       return data.data
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: async (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
-      queryClient.invalidateQueries({ queryKey: mcpKeys.tools(variables.workspaceId) })
+      const freshTools = await fetchMcpTools(variables.workspaceId, true)
+      queryClient.setQueryData(mcpKeys.tools(variables.workspaceId), freshTools)
     },
   })
 }
@@ -359,5 +366,44 @@ export function useTestMcpServer() {
         }
       }
     },
+  })
+}
+
+/**
+ * Stored MCP tool from workflow state
+ */
+export interface StoredMcpTool {
+  workflowId: string
+  workflowName: string
+  serverId: string
+  serverUrl?: string
+  toolName: string
+  schema?: Record<string, unknown>
+}
+
+/**
+ * Fetch stored MCP tools from all workflows in the workspace
+ */
+async function fetchStoredMcpTools(workspaceId: string): Promise<StoredMcpTool[]> {
+  const response = await fetch(`/api/mcp/tools/stored?workspaceId=${workspaceId}`)
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(data.error || 'Failed to fetch stored MCP tools')
+  }
+
+  const data = await response.json()
+  return data.data?.tools || []
+}
+
+/**
+ * Hook to fetch stored MCP tools from all workflows
+ */
+export function useStoredMcpTools(workspaceId: string) {
+  return useQuery({
+    queryKey: [...mcpKeys.all, workspaceId, 'stored'],
+    queryFn: () => fetchStoredMcpTools(workspaceId),
+    enabled: !!workspaceId,
+    staleTime: 60 * 1000, // 1 minute - workflows don't change frequently
   })
 }

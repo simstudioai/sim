@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { AlertCircle, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
+  Badge,
   Button,
   Input as EmcnInput,
   Modal,
@@ -14,6 +15,7 @@ import {
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getIssueBadgeLabel, getMcpToolIssue, type McpToolIssue } from '@/lib/mcp/tool-validation'
 import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import {
   useCreateMcpServer,
@@ -21,6 +23,7 @@ import {
   useMcpServers,
   useMcpToolsQuery,
   useRefreshMcpServer,
+  useStoredMcpTools,
 } from '@/hooks/queries/mcp'
 import { useMcpServerTest } from '@/hooks/use-mcp-server-test'
 import type { InputFieldType, McpServerFormData, McpServerTestResult } from './components'
@@ -91,6 +94,7 @@ export function MCP() {
     isLoading: toolsLoading,
     isFetching: toolsFetching,
   } = useMcpToolsQuery(workspaceId)
+  const { data: storedTools = [] } = useStoredMcpTools(workspaceId)
   const createServerMutation = useCreateMcpServer()
   const deleteServerMutation = useDeleteMcpServer()
   const refreshServerMutation = useRefreshMcpServer()
@@ -255,13 +259,6 @@ export function MCP() {
         timeout: formData.timeout,
         workspaceId,
       }
-
-      if (!testResult) {
-        const result = await testConnection(serverConfig)
-        if (!result.success) return
-      }
-
-      if (testResult && !testResult.success) return
 
       await createServerMutation.mutateAsync({
         workspaceId,
@@ -432,6 +429,53 @@ export function MCP() {
   const isSubmitDisabled = serversLoading || isAddingServer || !isFormValid
   const testButtonLabel = getTestButtonLabel(testResult, isTestingConnection)
 
+  /**
+   * Gets issues for stored tools that reference a specific server tool.
+   * Returns issues from all workflows that have stored this tool.
+   */
+  const getStoredToolIssues = useCallback(
+    (serverId: string, toolName: string): { issue: McpToolIssue; workflowName: string }[] => {
+      const relevantStoredTools = storedTools.filter(
+        (st) => st.serverId === serverId && st.toolName === toolName
+      )
+
+      const serverStates = servers.map((s) => ({
+        id: s.id,
+        url: s.url,
+        connectionStatus: s.connectionStatus,
+        lastError: s.lastError || undefined,
+      }))
+
+      const discoveredTools = mcpToolsData.map((t) => ({
+        serverId: t.serverId,
+        name: t.name,
+        inputSchema: t.inputSchema,
+      }))
+
+      const issues: { issue: McpToolIssue; workflowName: string }[] = []
+
+      for (const storedTool of relevantStoredTools) {
+        const issue = getMcpToolIssue(
+          {
+            serverId: storedTool.serverId,
+            serverUrl: storedTool.serverUrl,
+            toolName: storedTool.toolName,
+            schema: storedTool.schema,
+          },
+          serverStates,
+          discoveredTools
+        )
+
+        if (issue) {
+          issues.push({ issue, workflowName: storedTool.workflowName })
+        }
+      }
+
+      return issues
+    },
+    [storedTools, servers, mcpToolsData]
+  )
+
   if (selectedServer) {
     const { server, tools } = selectedServer
     const transportLabel = formatTransportLabel(server.transport || 'http')
@@ -485,21 +529,37 @@ export function MCP() {
                 <p className='text-[13px] text-[var(--text-muted)]'>No tools available</p>
               ) : (
                 <div className='flex flex-col gap-[8px]'>
-                  {tools.map((tool) => (
-                    <div
-                      key={tool.name}
-                      className='rounded-[6px] border bg-[var(--surface-3)] px-[10px] py-[8px]'
-                    >
-                      <p className='font-medium text-[13px] text-[var(--text-primary)]'>
-                        {tool.name}
-                      </p>
-                      {tool.description && (
-                        <p className='mt-[4px] text-[13px] text-[var(--text-tertiary)]'>
-                          {tool.description}
-                        </p>
-                      )}
-                    </div>
-                  ))}
+                  {tools.map((tool) => {
+                    const issues = getStoredToolIssues(server.id, tool.name)
+                    return (
+                      <div
+                        key={tool.name}
+                        className='rounded-[6px] border bg-[var(--surface-3)] px-[10px] py-[8px]'
+                      >
+                        <div className='flex items-center justify-between'>
+                          <p className='font-medium text-[13px] text-[var(--text-primary)]'>
+                            {tool.name}
+                          </p>
+                          {issues.length > 0 && (
+                            <Badge
+                              variant='outline'
+                              style={{
+                                borderColor: 'var(--warning)',
+                                color: 'var(--warning)',
+                              }}
+                            >
+                              {getIssueBadgeLabel(issues[0].issue)}
+                            </Badge>
+                          )}
+                        </div>
+                        {tool.description && (
+                          <p className='mt-[4px] text-[13px] text-[var(--text-tertiary)]'>
+                            {tool.description}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>

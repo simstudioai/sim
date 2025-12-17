@@ -807,34 +807,61 @@ export function ToolInput({
 
   const { data: mcpServers = [] } = useMcpServers(workspaceId)
 
-  const getMcpToolUnavailableReason = useCallback(
-    (tool: StoredTool): string | null => {
+  /**
+   * Returns issue info for an MCP tool using shared validation logic.
+   */
+  const getMcpToolIssue = useCallback(
+    (tool: StoredTool) => {
       if (tool.type !== 'mcp') return null
-      const serverId = tool.params?.serverId as string | undefined
-      if (!serverId) return 'Server not configured'
 
-      const server = mcpServers.find((s) => s.id === serverId)
-      if (!server) return 'Server not found'
-      if (server.connectionStatus === 'error') {
-        return server.lastError || 'Server connection error'
-      }
+      const { getMcpToolIssue: validateTool } = require('@/lib/mcp/tool-validation')
 
-      const toolExists = mcpTools.some(
-        (t) => t.serverId === serverId && t.name === tool.params?.toolName
+      return validateTool(
+        {
+          serverId: tool.params?.serverId as string,
+          serverUrl: tool.params?.serverUrl as string | undefined,
+          toolName: tool.params?.toolName as string,
+          schema: tool.schema,
+        },
+        mcpServers.map((s) => ({
+          id: s.id,
+          url: s.url,
+          connectionStatus: s.connectionStatus,
+          lastError: s.lastError,
+        })),
+        mcpTools.map((t) => ({
+          serverId: t.serverId,
+          name: t.name,
+          inputSchema: t.inputSchema,
+        }))
       )
-      if (!toolExists) return 'Tool not found on server'
-
-      return null
     },
     [mcpTools, mcpServers]
   )
 
   const isMcpToolUnavailable = useCallback(
     (tool: StoredTool): boolean => {
-      return getMcpToolUnavailableReason(tool) !== null
+      const { isToolUnavailable } = require('@/lib/mcp/tool-validation')
+      return isToolUnavailable(getMcpToolIssue(tool))
     },
-    [getMcpToolUnavailableReason]
+    [getMcpToolIssue]
   )
+
+  const hasMcpToolIssue = useCallback(
+    (tool: StoredTool): boolean => {
+      return getMcpToolIssue(tool) !== null
+    },
+    [getMcpToolIssue]
+  )
+
+  // Filter out MCP tools from unavailable servers for the dropdown
+  const availableMcpTools = useMemo(() => {
+    return mcpTools.filter((mcpTool) => {
+      const server = mcpServers.find((s) => s.id === mcpTool.serverId)
+      // Only include tools from connected servers
+      return server && server.connectionStatus === 'connected'
+    })
+  }, [mcpTools, mcpServers])
 
   // Reset search query when popover opens
   useEffect(() => {
@@ -1883,9 +1910,10 @@ export function ToolInput({
                       )
                     })()}
 
-                    {/* Display MCP tools */}
+                    {/* Display MCP tools (only from available servers) */}
                     <McpToolsList
-                      mcpTools={mcpTools}
+                      mcpTools={availableMcpTools}
+                      mcpServers={mcpServers}
                       searchQuery={searchQuery || ''}
                       customFilter={customFilter}
                       onToolSelect={handleMcpToolSelect}
@@ -2044,8 +2072,6 @@ export function ToolInput({
                   onClick={() => {
                     if (isCustomTool) {
                       handleEditCustomTool(toolIndex)
-                    } else if (isMcpTool && isMcpToolUnavailable(tool)) {
-                      return
                     } else {
                       toggleToolExpansion(toolIndex)
                     }
@@ -2076,26 +2102,30 @@ export function ToolInput({
                     <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
                       {isCustomTool ? customToolTitle : tool.title}
                     </span>
-                    {isMcpTool && isMcpToolUnavailable(tool) && (
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Badge
-                            variant='outline'
-                            style={{
-                              borderColor: 'var(--warning)',
-                              color: 'var(--warning)',
-                            }}
-                          >
-                            unavailable
-                          </Badge>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content>
-                          <span className='text-sm'>
-                            {getMcpToolUnavailableReason(tool) || 'Tool unavailable'}
-                          </span>
-                        </Tooltip.Content>
-                      </Tooltip.Root>
-                    )}
+                    {isMcpTool &&
+                      (() => {
+                        const issue = getMcpToolIssue(tool)
+                        if (!issue) return null
+                        const { getIssueBadgeLabel } = require('@/lib/mcp/tool-validation')
+                        return (
+                          <Tooltip.Root>
+                            <Tooltip.Trigger asChild>
+                              <Badge
+                                variant='outline'
+                                style={{
+                                  borderColor: 'var(--warning)',
+                                  color: 'var(--warning)',
+                                }}
+                              >
+                                {getIssueBadgeLabel(issue)}
+                              </Badge>
+                            </Tooltip.Trigger>
+                            <Tooltip.Content>
+                              <span className='text-sm'>{issue.message}</span>
+                            </Tooltip.Content>
+                          </Tooltip.Root>
+                        )
+                      })()}
                   </div>
                   <div className='flex flex-shrink-0 items-center gap-[8px]'>
                     {supportsToolControl && !(isMcpTool && isMcpToolUnavailable(tool)) && (
@@ -2442,9 +2472,10 @@ export function ToolInput({
                         )
                       })()}
 
-                      {/* Display MCP tools */}
+                      {/* Display MCP tools (only from available servers) */}
                       <McpToolsList
-                        mcpTools={mcpTools}
+                        mcpTools={availableMcpTools}
+                        mcpServers={mcpServers}
                         searchQuery={searchQuery || ''}
                         customFilter={customFilter}
                         onToolSelect={handleMcpToolSelect}

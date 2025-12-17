@@ -117,6 +117,8 @@ export const POST = withMcpAuth('write')(
             timeout: body.timeout || 30000,
             retries: body.retries || 3,
             enabled: body.enabled !== false,
+            connectionStatus: 'connected',
+            lastConnected: new Date(),
             updatedAt: new Date(),
             deletedAt: null,
           })
@@ -145,6 +147,8 @@ export const POST = withMcpAuth('write')(
           timeout: body.timeout || 30000,
           retries: body.retries || 3,
           enabled: body.enabled !== false,
+          connectionStatus: 'connected',
+          lastConnected: new Date(),
           createdAt: new Date(),
           updatedAt: new Date(),
         })
