@@ -601,7 +601,7 @@ export function KnowledgeTagFilters({
       {/* Add Filter Button */}
       {!isPreview && !disabled && (
         <div className='mt-3 flex items-center justify-between'>
-          <Button variant='outline' size='sm' onClick={handleAddRow} className='h-7 px-2 text-xs'>
+          <Button variant='outline' onClick={handleAddRow} className='h-7 px-2 text-xs'>
             <Plus className='mr-1 h-2.5 w-2.5' />
             Add Filter
           </Button>
