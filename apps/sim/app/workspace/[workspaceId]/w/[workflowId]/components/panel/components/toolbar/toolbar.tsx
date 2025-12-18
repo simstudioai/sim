@@ -488,7 +488,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
     >
       {/* Header */}
       <div
-        className='flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[4px] bg-[var(--surface-5)] px-[12px] py-[8px]'
+        className='flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[4px] bg-[var(--surface-4)] px-[12px] py-[8px]'
         onClick={handleSearchClick}
       >
         <h2 className='font-medium text-[14px] text-[var(--text-primary)]'>Toolbar</h2>
@@ -532,7 +532,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
             Triggers
           </div>
           <div className='flex-1 overflow-y-auto overflow-x-hidden px-[6px]'>
-            <div ref={triggersContentRef} className='space-y-[4px] pb-[8px]'>
+            <div ref={triggersContentRef} className='space-y-[2px] pb-[8px]'>
               {filteredTriggers.map((trigger, index) => {
                 const Icon = trigger.icon
                 const isTriggerCapable = hasTriggerCapability(trigger)
@@ -554,9 +554,9 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                     }}
                     onClick={() => handleItemClick(trigger.type, isTriggerCapable)}
                     className={clsx(
-                      'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5.5px] text-[14px]',
-                      'cursor-pointer hover:bg-[var(--surface-9)] active:cursor-grabbing',
-                      'focus-visible:bg-[var(--surface-9)] focus-visible:outline-none'
+                      'group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px]',
+                      'cursor-pointer hover:bg-[var(--surface-5)] active:cursor-grabbing',
+                      'focus-visible:bg-[var(--surface-5)] focus-visible:outline-none'
                     )}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
@@ -614,7 +614,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
             Blocks
           </div>
           <div className='flex-1 overflow-y-auto overflow-x-hidden px-[6px]'>
-            <div className='space-y-[4px] pb-[8px]'>
+            <div className='space-y-[2px] pb-[8px]'>
               {filteredBlocks.map((block, index) => {
                 const Icon = block.icon
                 return (
@@ -643,9 +643,9 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                     }}
                     onClick={() => handleItemClick(block.type, false)}
                     className={clsx(
-                      'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5.5px] text-[14px]',
-                      'cursor-pointer hover:bg-[var(--surface-9)] active:cursor-grabbing',
-                      'focus-visible:bg-[var(--surface-9)] focus-visible:outline-none'
+                      'group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px]',
+                      'cursor-pointer hover:bg-[var(--surface-5)] active:cursor-grabbing',
+                      'focus-visible:bg-[var(--surface-5)] focus-visible:outline-none'
                     )}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {

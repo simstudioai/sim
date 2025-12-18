@@ -511,7 +511,7 @@ export function TrainingModal() {
                       {datasets.map((dataset, index) => (
                         <div
                           key={dataset.id}
-                          className='rounded-[8px] border bg-[var(--surface-3)] transition-colors hover:bg-[var(--surface-5)]'
+                          className='rounded-[8px] border bg-[var(--surface-3)] transition-colors hover:bg-[var(--surface-4)]'
                         >
                           <div className='flex items-start p-[12px]'>
                             <Checkbox
@@ -604,7 +604,7 @@ export function TrainingModal() {
                                 <p className='mb-[4px] font-medium text-[13px] text-[var(--text-primary)]'>
                                   Edit Sequence
                                 </p>
-                                <div className='max-h-[100px] overflow-y-auto rounded-[6px] border bg-[var(--surface-6)] p-[8px]'>
+                                <div className='max-h-[100px] overflow-y-auto rounded-[6px] border bg-[var(--surface-5)] p-[8px]'>
                                   <ul className='flex flex-col gap-[4px] font-mono text-[11px]'>
                                     {formatEditSequence(dataset.editSequence).map((desc, i) => (
                                       <li key={i} className='text-[var(--text-secondary)]'>
@@ -682,7 +682,7 @@ export function TrainingModal() {
                               </div>
 
                               {viewingDataset === dataset.id && (
-                                <div className='rounded-[6px] border bg-[var(--surface-6)] p-[12px]'>
+                                <div className='rounded-[6px] border bg-[var(--surface-5)] p-[12px]'>
                                   <pre className='max-h-[200px] overflow-auto text-[11px] text-[var(--text-secondary)]'>
                                     {JSON.stringify(
                                       {

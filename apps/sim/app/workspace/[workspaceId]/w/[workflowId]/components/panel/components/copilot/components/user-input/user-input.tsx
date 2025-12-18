@@ -619,7 +619,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         <div
           ref={setInputContainerRef}
           className={cn(
-            'relative w-full rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[6px] py-[6px] transition-colors dark:bg-[var(--surface-9)]',
+            'relative w-full rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-5)] px-[6px] py-[6px] transition-colors dark:bg-[var(--surface-5)]',
             fileAttachments.isDragging && 'ring-[1.75px] ring-[var(--brand-secondary)]'
           )}
           onDragEnter={fileAttachments.handleDragEnter}

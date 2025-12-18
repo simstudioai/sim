@@ -368,7 +368,7 @@ export function WorkspaceHeader({
                     {workspaces.map((workspace, index) => (
                       <div key={workspace.id} className={index > 0 ? 'mt-[2px]' : ''}>
                         {editingWorkspaceId === workspace.id ? (
-                          <div className='flex h-[25px] items-center gap-[8px] rounded-[6px] bg-[var(--surface-9)] px-[6px]'>
+                          <div className='flex h-[25px] items-center gap-[8px] rounded-[6px] bg-[var(--surface-5)] px-[6px]'>
                             <input
                               ref={listRenameInputRef}
                               value={editingName}

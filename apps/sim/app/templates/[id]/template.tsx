@@ -873,7 +873,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
             {/* Last updated overlay */}
             {template.updatedAt && (
-              <div className='pointer-events-none absolute right-[12px] bottom-[12px] rounded-[4px] bg-[var(--bg)]/80 px-[8px] py-[4px] backdrop-blur-sm'>
+              <div className='pointer-events-none absolute right-[12px] bottom-[12px] rounded-[4px] bg-[var(--surface-0)]/80 px-[8px] py-[4px] backdrop-blur-sm'>
                 <span className='font-medium text-[12px] text-[var(--text-muted)]'>
                   Last updated{' '}
                   {formatDistanceToNow(new Date(template.updatedAt), {

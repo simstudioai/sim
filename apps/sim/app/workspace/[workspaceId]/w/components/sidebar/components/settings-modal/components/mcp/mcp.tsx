@@ -611,7 +611,7 @@ export function MCP({ initialServerId }: MCPProps) {
     <>
       <div className='flex h-full flex-col gap-[16px]'>
         <div className='flex items-center gap-[8px]'>
-          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]'>
+          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-5)] px-[8px] py-[5px]'>
             <Search
               className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}

@@ -337,7 +337,7 @@ export const DiffControls = memo(function DiffControls() {
         <Button
           variant='ghost'
           onClick={handleAccept}
-          className='!text-[var(--bg)] h-[30px] rounded-[8px] bg-[var(--brand-tertiary)] px-3'
+          className='!text-[var(--surface-0)] h-[30px] rounded-[8px] bg-[var(--brand-tertiary)] px-3'
           title='Accept changes'
         >
           Accept

@@ -357,7 +357,7 @@ export function General({ onOpenChange }: GeneralProps) {
       <div className='flex items-center gap-[12px]'>
         <div className='relative'>
           <div
-            className={`group relative flex h-9 w-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full transition-all hover:bg-[var(--bg)] ${!imageUrl ? 'border border-[var(--border)]' : ''}`}
+            className={`group relative flex h-9 w-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full transition-all hover:bg-[var(--surface-0)] ${!imageUrl ? 'border border-[var(--border)]' : ''}`}
             onClick={handleProfilePictureClick}
           >
             {(() => {
@@ -551,8 +551,12 @@ export function General({ onOpenChange }: GeneralProps) {
 
       {!isAuthDisabled && (
         <div className='mt-auto flex items-center gap-[8px]'>
-          <Button onClick={handleSignOut}>Sign out</Button>
-          <Button onClick={() => setShowResetPasswordModal(true)}>Reset password</Button>
+          <Button onClick={handleSignOut} variant='active'>
+            Sign out
+          </Button>
+          <Button onClick={() => setShowResetPasswordModal(true)} variant='active'>
+            Reset password
+          </Button>
         </div>
       )}
 

@@ -120,7 +120,7 @@ export default function PlaygroundPage() {
 
   return (
     <Tooltip.Provider>
-      <div className='relative min-h-screen bg-[var(--bg)] p-8'>
+      <div className='relative min-h-screen bg-[var(--surface-0)] p-8'>
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button
@@ -550,7 +550,7 @@ export default function PlaygroundPage() {
               ].map(({ Icon, name }) => (
                 <Tooltip.Root key={name}>
                   <Tooltip.Trigger asChild>
-                    <div className='flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-5)]'>
+                    <div className='flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-4)]'>
                       <Icon className='h-5 w-5 text-[var(--text-secondary)]' />
                     </div>
                   </Tooltip.Trigger>

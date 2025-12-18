@@ -126,7 +126,7 @@ export function CreditBalance({
                 </p>
               ) : (
                 <>
-                  <p className='text-[12px] text-[var(--text-muted)]'>
+                  <p className='text-[12px] text-[var(--text-secondary)]'>
                     Credits are used before overage charges. Min $10, max $1,000.
                   </p>
 
@@ -150,8 +150,8 @@ export function CreditBalance({
                     {error && <span className='text-[12px] text-[var(--text-error)]'>{error}</span>}
                   </div>
 
-                  <div className='mt-4 rounded-[6px] bg-[var(--surface-5)] p-3'>
-                    <p className='text-[12px] text-[var(--text-muted)]'>
+                  <div className='mt-4 rounded-[6px] bg-[var(--surface-4)] p-3'>
+                    <p className='text-[12px] text-[var(--text-tertiary)]'>
                       Credits are non-refundable and don't expire. They'll be applied automatically
                       to your {entityType === 'organization' ? 'team' : ''} usage.
                     </p>

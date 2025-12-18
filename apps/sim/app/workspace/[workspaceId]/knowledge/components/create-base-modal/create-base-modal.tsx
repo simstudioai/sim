@@ -388,7 +388,7 @@ export function CreateBaseModal({
                   />
                 </div>
 
-                <div className='space-y-[12px] rounded-[6px] bg-[var(--surface-6)] px-[12px] py-[14px]'>
+                <div className='space-y-[12px] rounded-[6px] bg-[var(--surface-5)] px-[12px] py-[14px]'>
                   <div className='grid grid-cols-2 gap-[12px]'>
                     <div className='flex flex-col gap-[8px]'>
                       <Label htmlFor='minChunkSize'>Min Chunk Size (characters)</Label>

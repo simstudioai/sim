@@ -4,6 +4,8 @@ import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useStat
 import { useParams, useRouter } from 'next/navigation'
 import ReactFlow, {
   applyNodeChanges,
+  Background,
+  BackgroundVariant,
   ConnectionLineType,
   type Edge,
   type EdgeTypes,
@@ -92,6 +94,22 @@ const edgeTypes: EdgeTypes = {
 
 /** ReactFlow configuration constants. */
 const defaultEdgeOptions = { type: 'custom' }
+
+/** Tailwind classes for ReactFlow internal element styling */
+const reactFlowStyles = [
+  // Z-index layering
+  '[&_.react-flow__edges]:!z-0',
+  '[&_.react-flow__node]:!z-[21]',
+  '[&_.react-flow__handle]:!z-[30]',
+  '[&_.react-flow__edge-labels]:!z-[60]',
+  // Light mode: transparent pane to show dots
+  '[&_.react-flow__pane]:!bg-transparent',
+  '[&_.react-flow__renderer]:!bg-transparent',
+  // Dark mode: solid background, hide dots
+  'dark:[&_.react-flow__pane]:!bg-[var(--surface-0)]',
+  'dark:[&_.react-flow__renderer]:!bg-[var(--surface-0)]',
+  'dark:[&_.react-flow__background]:hidden',
+].join(' ')
 const reactFlowFitViewOptions = { padding: 0.6 } as const
 const reactFlowProOptions = { hideAttribution: true } as const
 
@@ -2226,11 +2244,11 @@ const WorkflowContent = React.memo(() => {
   }, [selectedEdgeInfo, removeEdge, getNodes, removeBlock, effectivePermissions.canEdit])
 
   return (
-    <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--bg)]'>
-      <div className='relative h-full w-full flex-1 bg-[var(--bg)]'>
+    <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--surface-0)]'>
+      <div className='relative h-full w-full flex-1 bg-[var(--surface-0)]'>
         {/* Loading spinner - always mounted, animation paused when hidden to avoid overhead */}
         <div
-          className={`absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)] transition-opacity duration-150 ${isWorkflowReady ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
+          className={`absolute inset-0 z-[5] flex items-center justify-center bg-[var(--surface-0)] transition-opacity duration-150 ${isWorkflowReady ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
         >
           <div
             className={`h-[18px] w-[18px] rounded-full ${isWorkflowReady ? '' : 'animate-spin'}`}
@@ -2289,7 +2307,7 @@ const WorkflowContent = React.memo(() => {
               noWheelClassName='allow-scroll'
               edgesFocusable={true}
               edgesUpdatable={effectivePermissions.canEdit}
-              className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${isCanvasReady ? 'opacity-100' : 'opacity-0'}`}
+              className={`workflow-container h-full bg-[var(--surface-0)] transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'}`}
               onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
               onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
               onNodeDragStart={effectivePermissions.canEdit ? onNodeDragStart : undefined}
@@ -2301,7 +2319,11 @@ const WorkflowContent = React.memo(() => {
               elevateNodesOnSelect={true}
               autoPanOnConnect={effectivePermissions.canEdit}
               autoPanOnNodeDrag={effectivePermissions.canEdit}
-            />
+            >
+              <div className='block dark:hidden'>
+                <Background variant={BackgroundVariant.Dots} gap={20} size={1.75} color='#D5CEE0' />
+              </div>
+            </ReactFlow>
 
             <Cursors />
 

@@ -378,7 +378,7 @@ export function OAuthRequiredModal({
         <ModalBody>
           <div className='flex flex-col gap-[16px]'>
             <div className='flex items-center gap-[14px]'>
-              <div className='flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[var(--surface-6)]'>
+              <div className='flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[var(--surface-5)]'>
                 <ProviderIcon className='h-[18px] w-[18px]' />
               </div>
               <div className='flex-1'>
@@ -392,7 +392,7 @@ export function OAuthRequiredModal({
             </div>
 
             {displayScopes.length > 0 && (
-              <div className='rounded-[8px] border bg-[var(--surface-6)]'>
+              <div className='rounded-[8px] border bg-[var(--surface-5)]'>
                 <div className='border-b px-[14px] py-[10px]'>
                   <h4 className='font-medium text-[13px] text-[var(--text-primary)]'>
                     Permissions requested

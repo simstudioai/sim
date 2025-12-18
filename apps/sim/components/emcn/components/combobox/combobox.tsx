@@ -19,7 +19,7 @@ import { Input } from '../input/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
 
 const comboboxVariants = cva(
-  'flex w-full rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] dark:bg-[var(--surface-9)] px-[8px] font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] dark:placeholder:text-[var(--text-muted)] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 hover:border-[var(--surface-14)] hover:bg-[var(--surface-9)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--surface-11)]',
+  'flex w-full rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)] px-[8px] font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] dark:placeholder:text-[var(--text-muted)] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 hover:border-[var(--surface-14)] hover:bg-[var(--surface-5)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--surface-11)]',
   {
     variants: {
       variant: {
@@ -386,7 +386,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                   <Input
                     ref={inputRef}
                     className={cn(
-                      'w-full pr-[40px] font-medium transition-colors hover:border-[var(--surface-14)] hover:bg-[var(--surface-9)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--surface-11)]',
+                      'w-full pr-[40px] font-medium transition-colors hover:border-[var(--surface-14)] hover:bg-[var(--surface-5)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--surface-11)]',
                       (overlayContent || SelectedIcon) && 'text-transparent caret-foreground',
                       SelectedIcon && !overlayContent && 'pl-[28px]',
                       className

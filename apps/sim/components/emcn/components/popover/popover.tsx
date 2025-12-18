@@ -66,9 +66,9 @@ const POPOVER_ITEM_BASE_CLASSES =
  */
 const POPOVER_ITEM_ACTIVE_CLASSES = {
   primary:
-    'bg-[var(--brand-secondary)] text-[var(--bg)] dark:bg-[var(--brand-secondary)] dark:text-[var(--bg)] [&_svg]:text-[var(--bg)] dark:[&_svg]:text-[var(--bg)]',
+    'bg-[var(--brand-secondary)] text-[var(--surface-0)] dark:bg-[var(--brand-secondary)] dark:text-[var(--surface-0)] [&_svg]:text-[var(--surface-0)] dark:[&_svg]:text-[var(--surface-0)]',
   default:
-    'bg-[var(--surface-9)] text-[var(--text-primary)] dark:bg-[var(--surface-9)] dark:text-[var(--text-primary)] [&_svg]:text-[var(--text-primary)] dark:[&_svg]:text-[var(--text-primary)]',
+    'bg-[var(--surface-5)] text-[var(--text-primary)] dark:bg-[var(--surface-5)] dark:text-[var(--text-primary)] [&_svg]:text-[var(--text-primary)] dark:[&_svg]:text-[var(--text-primary)]',
 }
 
 /**
@@ -76,9 +76,9 @@ const POPOVER_ITEM_ACTIVE_CLASSES = {
  */
 const POPOVER_ITEM_HOVER_CLASSES = {
   primary:
-    'hover:bg-[var(--brand-secondary)] hover:text-[var(--bg)] dark:hover:bg-[var(--brand-secondary)] dark:hover:text-[var(--bg)] hover:[&_svg]:text-[var(--bg)] dark:hover:[&_svg]:text-[var(--bg)]',
+    'hover:bg-[var(--brand-secondary)] hover:text-[var(--surface-0)] dark:hover:bg-[var(--brand-secondary)] dark:hover:text-[var(--surface-0)] hover:[&_svg]:text-[var(--surface-0)] dark:hover:[&_svg]:text-[var(--surface-0)]',
   default:
-    'hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)] dark:hover:bg-[var(--surface-9)] dark:hover:text-[var(--text-primary)] hover:[&_svg]:text-[var(--text-primary)] dark:hover:[&_svg]:text-[var(--text-primary)]',
+    'hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)] dark:hover:bg-[var(--surface-5)] dark:hover:text-[var(--text-primary)] hover:[&_svg]:text-[var(--text-primary)] dark:hover:[&_svg]:text-[var(--text-primary)]',
 }
 
 type PopoverVariant = 'default' | 'primary'

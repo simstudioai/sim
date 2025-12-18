@@ -53,7 +53,7 @@ const SKELETON_STRUCTURE: [string, number][] = [
 function IntegrationsSkeleton() {
   return (
     <div className='flex h-full flex-col gap-[16px]'>
-      <div className='flex w-full items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]'>
+      <div className='flex w-full items-center gap-[8px] rounded-[8px] border bg-[var(--surface-5)] px-[8px] py-[5px]'>
         <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
         <Input
           placeholder='Search integrations...'
@@ -274,7 +274,7 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
   return (
     <>
       <div className='flex h-full flex-col gap-[16px]'>
-        <div className='flex w-full items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]'>
+        <div className='flex w-full items-center gap-[8px] rounded-[8px] border bg-[var(--surface-5)] px-[8px] py-[5px]'>
           <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
           <Input
             placeholder='Search services...'
@@ -296,7 +296,7 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
             )}
 
             {pendingService && showActionRequired && (
-              <div className='flex items-start gap-[12px] rounded-[8px] border border-[var(--border)] bg-[var(--bg)] p-[12px]'>
+              <div className='flex items-start gap-[12px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-0)] p-[12px]'>
                 <ExternalLink className='mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--text-muted)]' />
                 <div className='flex flex-1 flex-col gap-[8px]'>
                   <p className='text-[13px] text-[var(--text-muted)]'>
@@ -323,12 +323,12 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
                       className={cn(
                         'flex items-center justify-between',
                         pendingService === service.id &&
-                          '-m-[8px] rounded-[8px] bg-[var(--bg)] p-[8px]'
+                          '-m-[8px] rounded-[8px] bg-[var(--surface-0)] p-[8px]'
                       )}
                       ref={pendingService === service.id ? pendingServiceRef : undefined}
                     >
                       <div className='flex items-center gap-[12px]'>
-                        <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-[var(--surface-6)]'>
+                        <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-[var(--surface-5)]'>
                           {typeof service.icon === 'function'
                             ? service.icon({ className: 'h-4 w-4' })
                             : service.icon}

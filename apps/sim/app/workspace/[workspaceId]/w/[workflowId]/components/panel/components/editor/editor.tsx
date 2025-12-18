@@ -172,9 +172,9 @@ export function Editor() {
   return (
     <div className='flex h-full flex-col'>
       {/* Header */}
-      <div className='flex flex-shrink-0 items-center justify-between rounded-[4px] bg-[var(--surface-5)] px-[12px] py-[8px]'>
+      <div className='flex flex-shrink-0 items-center justify-between rounded-[4px] bg-[var(--surface-4)] px-[12px] py-[8px]'>
         <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
-          {(blockConfig || isSubflow) && (
+          {(blockConfig || isSubflow) && currentBlock?.type !== 'note' && (
             <div
               className='flex h-[18px] w-[18px] items-center justify-center rounded-[4px]'
               style={{ background: isSubflow ? subflowBgColor : blockConfig?.bgColor }}

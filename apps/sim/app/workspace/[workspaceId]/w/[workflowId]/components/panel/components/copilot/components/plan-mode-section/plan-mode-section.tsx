@@ -35,8 +35,8 @@ import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId
 /**
  * Shared border and background styles
  */
-const SURFACE_5 = 'bg-[var(--surface-5)]'
-const SURFACE_9 = 'bg-[var(--surface-9)]'
+const SURFACE_5 = 'bg-[var(--surface-4)]'
+const SURFACE_9 = 'bg-[var(--surface-5)]'
 const BORDER_STRONG = 'border-[var(--border-strong)]'
 
 export interface PlanModeSectionProps {
@@ -265,7 +265,7 @@ const PlanModeSection: React.FC<PlanModeSectionProps> = ({
         className={cn(
           'group flex h-[20px] w-full cursor-ns-resize items-center justify-center border-t',
           BORDER_STRONG,
-          'transition-colors hover:bg-[var(--surface-9)]',
+          'transition-colors hover:bg-[var(--surface-5)]',
           isResizing && SURFACE_9
         )}
         onMouseDown={handleResizeStart}

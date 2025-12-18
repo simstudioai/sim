@@ -703,7 +703,7 @@ export function NotificationSettings({
           {activeTab === 'email' && (
             <div className='flex flex-col gap-[8px]'>
               <Label className='text-[var(--text-secondary)]'>Email Recipients</Label>
-              <div className='scrollbar-hide flex max-h-32 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[8px] py-[6px] focus-within:outline-none dark:bg-[var(--surface-9)]'>
+              <div className='scrollbar-hide flex max-h-32 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-5)] px-[8px] py-[6px] focus-within:outline-none dark:bg-[var(--surface-5)]'>
                 {invalidEmails.map((email, index) => (
                   <EmailTag
                     key={`invalid-${index}`}
@@ -1379,7 +1379,7 @@ function EmailTag({ email, onRemove, isInvalid }: EmailTagProps) {
         'flex w-auto items-center gap-[4px] rounded-[4px] border px-[6px] py-[2px] text-[12px]',
         isInvalid
           ? 'border-[var(--text-error)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] text-[var(--text-error)] dark:bg-[color-mix(in_srgb,var(--text-error)_16%,transparent)]'
-          : 'border-[var(--surface-11)] bg-[var(--surface-5)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          : 'border-[var(--surface-11)] bg-[var(--surface-4)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
       )}
     >
       <span className='max-w-[200px] truncate'>{email}</span>

@@ -719,7 +719,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                   tabIndex={-1}
                   readOnly
                 />
-                <div className='scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[6px] py-[4px] focus-within:outline-none dark:bg-[var(--surface-9)]'>
+                <div className='scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-5)] px-[6px] py-[4px] focus-within:outline-none dark:bg-[var(--surface-5)]'>
                   {invalidEmails.map((email, index) => (
                     <EmailTag
                       key={`invalid-${index}`}

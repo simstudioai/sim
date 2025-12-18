@@ -420,7 +420,7 @@ export function FileUpload({
     return (
       <div
         key={fileKey}
-        className='flex items-center justify-between rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[8px] py-[6px] hover:border-[var(--surface-14)] hover:bg-[var(--surface-9)] dark:bg-[var(--surface-9)] dark:hover:bg-[var(--surface-11)]'
+        className='flex items-center justify-between rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-5)] px-[8px] py-[6px] hover:border-[var(--surface-14)] hover:bg-[var(--surface-5)] dark:bg-[var(--surface-5)] dark:hover:bg-[var(--surface-11)]'
       >
         <div className='flex-1 truncate pr-2 text-sm' title={file.name}>
           <span className='text-[var(--text-primary)]'>{truncateMiddle(file.name)}</span>
@@ -447,7 +447,7 @@ export function FileUpload({
     return (
       <div
         key={file.id}
-        className='flex items-center justify-between rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[8px] py-[6px] dark:bg-[var(--surface-9)]'
+        className='flex items-center justify-between rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-5)] px-[8px] py-[6px] dark:bg-[var(--surface-5)]'
       >
         <div className='flex-1 truncate pr-2 text-sm'>
           <span className='text-[var(--text-primary)]'>{file.name}</span>

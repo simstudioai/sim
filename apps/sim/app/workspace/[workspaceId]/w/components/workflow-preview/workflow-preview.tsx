@@ -360,7 +360,7 @@ export function WorkflowPreview({
   return (
     <ReactFlowProvider>
       <div
-        style={{ height, width, backgroundColor: 'var(--bg)' }}
+        style={{ height, width, backgroundColor: 'var(--surface-0)' }}
         className={cn('preview-mode', className)}
       >
         {cursorStyle && (

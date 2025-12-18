@@ -145,7 +145,7 @@ export function Knowledge() {
             </div>
 
             <div className='mt-[14px] flex items-center justify-between'>
-              <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-5)] px-[8px]'>
+              <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-4)] px-[8px]'>
                 <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
                 <Input
                   placeholder='Search'

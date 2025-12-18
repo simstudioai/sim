@@ -439,7 +439,7 @@ export function Panel() {
           <div className='flex flex-shrink-0 items-center justify-between px-[8px] pt-[14px]'>
             <div className='flex gap-[4px]'>
               <Button
-                className='h-[28px] truncate px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)]'
+                className='h-[28px] truncate px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
                 variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('copilot')}
                 data-tab-button='copilot'
@@ -447,7 +447,7 @@ export function Panel() {
                 Copilot
               </Button>
               <Button
-                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)]'
+                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
                 variant={_hasHydrated && activeTab === 'toolbar' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('toolbar')}
                 data-tab-button='toolbar'
@@ -455,7 +455,7 @@ export function Panel() {
                 Toolbar
               </Button>
               <Button
-                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)]'
+                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
                 variant={_hasHydrated && activeTab === 'editor' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('editor')}
                 data-tab-button='editor'

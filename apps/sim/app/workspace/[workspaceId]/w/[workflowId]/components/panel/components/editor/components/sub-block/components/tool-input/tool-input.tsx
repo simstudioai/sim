@@ -1825,7 +1825,7 @@ export function ToolInput({
       {selectedTools.length === 0 ? (
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-4)] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[var(--surface-5)]'>
+            <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-4)] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[var(--surface-4)]'>
               <div className='flex items-center text-[13px] text-[var(--text-muted)]'>
                 <PlusIcon className='mr-2 h-4 w-4' />
                 Add Tool
@@ -2404,7 +2404,7 @@ export function ToolInput({
           {/* Add Tool Button */}
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-              <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-4)] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[var(--surface-5)]'>
+              <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-4)] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[var(--surface-4)]'>
                 <div className='flex items-center text-[13px] text-[var(--text-muted)]'>
                   <PlusIcon className='mr-2 h-4 w-4' />
                   Add Tool

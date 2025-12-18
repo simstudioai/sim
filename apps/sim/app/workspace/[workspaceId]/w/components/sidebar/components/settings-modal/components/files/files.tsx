@@ -287,7 +287,7 @@ export function Files() {
       <div className='flex items-center gap-[8px]'>
         <div
           className={cn(
-            'flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]',
+            'flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-5)] px-[8px] py-[5px]',
             permissionsLoading && 'opacity-50'
           )}
         >

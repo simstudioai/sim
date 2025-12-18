@@ -27,7 +27,7 @@ interface TemplateCardProps {
 
 export function TemplateCardSkeleton({ className }: { className?: string }) {
   return (
-    <div className={cn('h-[268px] w-full rounded-[8px] bg-[#202020] p-[8px]', className)}>
+    <div className={cn('h-[268px] w-full rounded-[8px] bg-[var(--surface-2)] p-[8px]', className)}>
       <div className='h-[180px] w-full animate-pulse rounded-[6px] bg-gray-700' />
       <div className='mt-[14px] flex items-center justify-between'>
         <div className='h-4 w-32 animate-pulse rounded bg-gray-700' />
@@ -195,7 +195,7 @@ function TemplateCardInner({
   return (
     <div
       onClick={handleCardClick}
-      className={cn('w-full cursor-pointer rounded-[8px] bg-[#202020] p-[8px]', className)}
+      className={cn('w-full cursor-pointer rounded-[8px] bg-[var(--surface-2)] p-[8px]', className)}
     >
       <div
         ref={previewRef}

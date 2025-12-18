@@ -355,13 +355,13 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
         </div>
       ),
       thead: ({ children }: React.HTMLAttributes<HTMLTableSectionElement>) => (
-        <thead className='bg-[var(--surface-9)] text-left dark:bg-[#2A2A2A]'>{children}</thead>
+        <thead className='bg-[var(--surface-5)] text-left dark:bg-[#2A2A2A]'>{children}</thead>
       ),
       tbody: ({ children }: React.HTMLAttributes<HTMLTableSectionElement>) => (
         <tbody className='divide-y divide-[var(--border)] dark:divide-gray-600'>{children}</tbody>
       ),
       tr: ({ children }: React.HTMLAttributes<HTMLTableRowElement>) => (
-        <tr className='border-[var(--border)] border-b transition-colors hover:bg-[var(--surface-9)] dark:border-gray-600 dark:hover:bg-[#2A2A2A]/60'>
+        <tr className='border-[var(--border)] border-b transition-colors hover:bg-[var(--surface-5)] dark:border-gray-600 dark:hover:bg-[#2A2A2A]/60'>
           {children}
         </tr>
       ),
