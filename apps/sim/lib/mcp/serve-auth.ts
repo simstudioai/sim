@@ -55,18 +55,6 @@ export async function validateMcpServeAuth(
       return { success: false, error: auth.error || 'Authentication required' }
     }
 
-    // Verify user has access to the workspace
-    const permissions = await getUserEntityPermissions(auth.userId, 'workspace', server.workspaceId)
-
-    if (!permissions) {
-      // For published servers, we allow access to any authenticated user
-      // This enables the "public but authenticated" model where anyone with a Sim account
-      // can use published MCP servers
-      logger.info(
-        `User ${auth.userId} accessing published MCP server ${serverId} without workspace membership`
-      )
-    }
-
     return {
       success: true,
       userId: auth.userId,
