@@ -282,6 +282,10 @@ export async function GET(request: NextRequest) {
         .trim()
         .replace('https://', '')
         .replace('http://', '')
+      if (!/^[a-zA-Z0-9-]+\.my\.salesforce\.com$/.test(cleanDomain)) {
+        logger.error('Invalid Salesforce custom domain format', { customDomain: cleanDomain })
+        return NextResponse.json({ error: 'Invalid custom domain format' }, { status: 400 })
+      }
       salesforceBaseUrl = `https://${cleanDomain}`
     } else {
       logger.error('Invalid org type or missing custom domain')

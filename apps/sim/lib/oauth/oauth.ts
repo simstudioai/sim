@@ -1562,17 +1562,19 @@ function buildAuthRequest(
 
 /**
  * Attempts to refresh a Salesforce token using multiple endpoints.
- * Salesforce tokens may have been issued from production or sandbox.
- * We try production first, then sandbox if production fails.
+ * Tries the original auth endpoint first (if provided), then production, then sandbox.
  */
 async function refreshSalesforceToken(
   refreshToken: string,
-  config: ProviderAuthConfig
+  config: ProviderAuthConfig,
+  authBaseUrl?: string
 ): Promise<{ accessToken: string; expiresIn: number; refreshToken: string } | null> {
-  const endpoints = [
-    'https://login.salesforce.com/services/oauth2/token',
-    'https://test.salesforce.com/services/oauth2/token',
-  ]
+  const endpoints: string[] = []
+  if (authBaseUrl) {
+    endpoints.push(`${authBaseUrl}/services/oauth2/token`)
+  }
+  endpoints.push('https://login.salesforce.com/services/oauth2/token')
+  endpoints.push('https://test.salesforce.com/services/oauth2/token')
 
   const { headers, bodyParams } = buildAuthRequest(config, refreshToken)
 
@@ -1638,20 +1640,30 @@ async function refreshSalesforceToken(
  * This is a server-side utility function to refresh OAuth tokens
  * @param providerId The provider ID (e.g., 'google-drive')
  * @param refreshToken The refresh token to use
+ * @param idToken Optional idToken field (used by Salesforce to store auth metadata)
  * @returns Object containing the new access token and expiration time in seconds, or null if refresh failed
  */
 export async function refreshOAuthToken(
   providerId: string,
-  refreshToken: string
+  refreshToken: string,
+  idToken?: string
 ): Promise<{ accessToken: string; expiresIn: number; refreshToken: string } | null> {
   try {
     const provider = providerId.split('-')[0]
 
     const config = getProviderAuthConfig(provider)
 
-    // Salesforce needs special handling to try both production and sandbox endpoints
+    // Salesforce needs special handling to try multiple endpoints
     if (provider === 'salesforce') {
-      return await refreshSalesforceToken(refreshToken, config)
+      let authBaseUrl: string | undefined
+      if (idToken?.startsWith('{')) {
+        try {
+          authBaseUrl = JSON.parse(idToken).authBaseUrl
+        } catch {
+          // Not valid JSON, ignore
+        }
+      }
+      return await refreshSalesforceToken(refreshToken, config, authBaseUrl)
     }
 
     const { headers, bodyParams } = buildAuthRequest(config, refreshToken)

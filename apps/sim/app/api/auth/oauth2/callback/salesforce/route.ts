@@ -191,8 +191,20 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const redirectUrl = returnUrl || `${baseUrl}/workspace`
-    const finalUrl = new URL(redirectUrl)
+    let redirectUrl = `${baseUrl}/workspace`
+    if (returnUrl) {
+      try {
+        const returnUrlObj = new URL(returnUrl, baseUrl)
+        if (returnUrlObj.origin === new URL(baseUrl).origin) {
+          redirectUrl = returnUrl
+        } else {
+          logger.warn('Invalid returnUrl origin, ignoring', { returnUrl, baseUrl })
+        }
+      } catch {
+        logger.warn('Invalid returnUrl format, ignoring', { returnUrl })
+      }
+    }
+    const finalUrl = new URL(redirectUrl, baseUrl)
     finalUrl.searchParams.set('salesforce_connected', 'true')
 
     const response = NextResponse.redirect(finalUrl.toString())
