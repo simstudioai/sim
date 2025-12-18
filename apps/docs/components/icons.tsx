@@ -4241,3 +4241,15 @@ export function SpotifyIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function OVHcloudIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg width='1em' height='1em' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' {...props}>
+        <path
+          fill='currentColor'
+          fillRule='nonzero'
+          d="M22.4525 5.8224C24.8765 10.1621 24.4224 15.5275 21.3038 19.4043H14.7223L16.749 15.8437H14.0695L17.2277 10.3033H19.9262L22.4544 5.82429L22.4525 5.8224ZM9.45407 19.4043H2.74389C-0.431438 15.5407 -0.893167 10.132 1.5801 5.79041L5.93245 13.3106L10.7314 5H17.7954L9.45786 19.3987L9.45407 19.4024V19.4043Z"
+        />
+    </svg>
+  )
+}

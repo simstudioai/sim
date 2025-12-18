@@ -1,0 +1,83 @@
+---
+title: OVHcloud AI Endpoints
+description: Utilisez les modèles LLM et d'embeddings d'OVHcloud AI Endpoints
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="ovhcloud"
+  color="#000E9C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[OVHcloud AI Endpoints](https://www.ovhcloud.com/fr/public-cloud/ai-endpoints/) propose des modèles d'IA générative et des API sécurisées pour interagir avec les modèles open-weight les plus populaires. Profitez de la souveraineté, de la confidentialité des données et de la conformité RGPD sur l'infrastructure du leader européen du Cloud.
+
+Avec OVHcloud AI Endpoints, vous pouvez bénéficier de :
+
+- **Sécurité et confidentialité des données** : La sécurité et la confidentialité de vos données et de celles de vos utilisateurs sont une priorité. Vos données ne seront jamais utilisées pour entraîner ou améliorer nos modèles d'IA ; c'est l'une de nos nombreuses garanties de sécurité.
+- **IA Conversationnelle** : Améliorez vos applications en ajoutant une IA conversationnelle qui interagit naturellement avec les utilisateurs en temps réel.
+- **API Standards** : Utilisation d'API populaires (comme OpenAI) pour une intégration simplifiée.
+- **Performance** : Obtenez des performances d'inférence élevées grâce à l'infrastructure GPU d'OVHcloud.
+- **Sécurité** : Plateforme sous-jacente certifiée ISO 27000, SOC et HDS (données de santé).
+- **Sandbox** : Testez et explorez les modèles de manière interactive dans un environnement simplifié.
+- **Plus de 40 modèles** : Une gamme de modèles open-weight populaires, constamment mise à jour.
+{/* MANUAL-CONTENT-END */}
+
+
+## Instructions d'utilisation
+
+Intégrez OVHcloud AI Endpoints dans votre flux de travail. Vous pouvez générer des complétions de chat ou des embeddings en utilisant nos modèles open-weight.
+
+
+## Outils
+
+### `ovhcloud_chat`
+
+Générer des complétions de chat via les modèles LLM d'OVHcloud AI Endpoints.
+
+#### Entrée (Input)
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `systemPrompt` | string | Non | Prompt système pour guider le comportement du modèle |
+| `content` | string | Oui | Contenu du message utilisateur à envoyer au modèle |
+| `model` | string | Oui | Modèle à utiliser pour les complétions de chat (ex: gpt-oss-120b, llama@latest) |
+| `max_tokens` | number | Non | Nombre maximum de tokens à générer |
+| `temperature` | number | Non | Température d'échantillonnage entre 0 et 1 |
+| `apiKey` | string | Oui | Clé API OVHcloud AI Endpoints |
+
+#### Sortie (Output)
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Contenu textuel généré |
+| `model` | string | Modèle utilisé pour la génération |
+| `usage` | object | Informations sur la consommation de tokens |
+
+### `ovhcloud_embeddings`
+
+Générer des embeddings à partir de vos données.
+
+#### Entrée (Input)
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `input` | string | Oui | Le texte que vous souhaitez transformer en embedding |
+| `model` | string | Oui | Modèle à utiliser pour les embeddings (ex: BGE-M3, bge-multilingual-gemma2) |
+| `apiKey` | string | Oui | Clé API OVHcloud AI Endpoints |
+
+#### Sortie (Output)
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `embedding` | array | Tableau des poids d'embedding |
+| `model` | string | Modèle utilisé pour la génération |
+| `usage` | object | Informations sur la consommation de tokens |
+
+
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `ovhcloud`

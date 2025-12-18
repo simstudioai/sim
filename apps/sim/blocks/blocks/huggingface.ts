@@ -48,6 +48,7 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
         { label: 'Replicate', id: 'replicate' },
         { label: 'SambaNova', id: 'sambanova' },
         { label: 'Together', id: 'together' },
+        { label: 'OVHcloud AI Endpoints', id: 'ovhcloud' },
       ],
       value: () => 'novita',
     },

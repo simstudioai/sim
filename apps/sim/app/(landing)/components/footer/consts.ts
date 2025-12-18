@@ -57,6 +57,7 @@ export const FOOTER_TOOLS = [
   'OneDrive',
   'OpenAI',
   'Outlook',
+  'OVHcloud AI Endpoints',
   'Parallel AI',
   'Perplexity',
   'Pinecone',

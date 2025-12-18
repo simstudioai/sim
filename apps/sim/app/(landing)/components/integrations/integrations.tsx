@@ -14,6 +14,7 @@ const modelProviderIcons = [
   { icon: Icons.DeepseekIcon, label: 'Deepseek' },
   { icon: Icons.ElevenLabsIcon, label: 'ElevenLabs' },
   { icon: Icons.VllmIcon, label: 'vLLM' },
+  { icon: Icons.OVHcloudIcon, label: 'OVHcloud AI Endpoints' },
 ]
 
 const communicationIcons = [
