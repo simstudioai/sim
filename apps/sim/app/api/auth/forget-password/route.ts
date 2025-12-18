@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auth } from '@/lib/auth'
+import { isSameOrigin } from '@/lib/core/utils/validation'
 import { createLogger } from '@/lib/logs/console/logger'
 
 export const dynamic = 'force-dynamic'
@@ -14,6 +15,9 @@ const forgetPasswordSchema = z.object({
   redirectTo: z
     .string()
     .url('Redirect URL must be a valid URL')
+    .refine((url) => isSameOrigin(url), {
+      message: 'Redirect URL must be same-origin',
+    })
     .optional()
     .or(z.literal(''))
     .transform((val) => (val === '' ? undefined : val)),

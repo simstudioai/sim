@@ -1,7 +1,11 @@
 /**
  * Environment utility functions for consistent environment detection across the application
  */
+
+import { createLogger } from '@/lib/logs/console/logger'
 import { env, getEnv, isTruthy } from './env'
+
+const logger = createLogger('FeatureFlags')
 
 /**
  * Is the application running in production mode
@@ -37,8 +41,22 @@ export const isEmailVerificationEnabled = isTruthy(env.EMAIL_VERIFICATION_ENABLE
 
 /**
  * Is authentication disabled (for self-hosted deployments behind private networks)
+ * This flag is blocked when isHosted is true.
  */
-export const isAuthDisabled = isTruthy(env.DISABLE_AUTH)
+export const isAuthDisabled = isTruthy(env.DISABLE_AUTH) && !isHosted
+
+if (isTruthy(env.DISABLE_AUTH)) {
+  if (isHosted) {
+    logger.error(
+      'DISABLE_AUTH is set but ignored on hosted environment. Authentication remains enabled for security.'
+    )
+  } else {
+    logger.warn(
+      'DISABLE_AUTH is enabled. Authentication is bypassed and all requests use an anonymous session. ' +
+        'Only use this in trusted private networks.'
+    )
+  }
+}
 
 /**
  * Is user registration disabled
