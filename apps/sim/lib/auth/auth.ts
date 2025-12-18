@@ -1679,7 +1679,7 @@ export const auth = betterAuth({
               return {
                 id: uniqueId,
                 name: teamName,
-                email: `${teamId}${userId}@slack.bot`,
+                email: `${teamId}-${userId}@slack.bot`,
                 emailVerified: false,
                 createdAt: new Date(),
                 updatedAt: new Date(),
