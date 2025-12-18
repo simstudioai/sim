@@ -4,7 +4,7 @@ const logger = createLogger('SalesforceUtils')
 
 /**
  * Extracts Salesforce instance URL from ID token or uses provided instance URL
- * @param idToken - The Salesforce ID token containing instance URL
+ * @param idToken - The Salesforce ID token (can be a raw URL or JWT token)
  * @param instanceUrl - Direct instance URL if provided
  * @returns The Salesforce instance URL
  * @throws Error if instance URL cannot be determined
@@ -12,22 +12,30 @@ const logger = createLogger('SalesforceUtils')
 export function getInstanceUrl(idToken?: string, instanceUrl?: string): string {
   if (instanceUrl) return instanceUrl
   if (idToken) {
+    // Check if idToken is already a raw URL (new OAuth flow stores instance URL directly)
+    if (idToken.startsWith('https://') && idToken.includes('.salesforce.com')) {
+      return idToken
+    }
+
+    // Try to decode as JWT token (legacy format)
     try {
       const base64Url = idToken.split('.')[1]
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map((c) => `%${(`00${c.charCodeAt(0).toString(16)}`).slice(-2)}`)
-          .join('')
-      )
-      const decoded = JSON.parse(jsonPayload)
-      if (decoded.profile) {
-        const match = decoded.profile.match(/^(https:\/\/[^/]+)/)
-        if (match) return match[1]
-      } else if (decoded.sub) {
-        const match = decoded.sub.match(/^(https:\/\/[^/]+)/)
-        if (match && match[1] !== 'https://login.salesforce.com') return match[1]
+      if (base64Url) {
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+        const jsonPayload = decodeURIComponent(
+          atob(base64)
+            .split('')
+            .map((c) => `%${(`00${c.charCodeAt(0).toString(16)}`).slice(-2)}`)
+            .join('')
+        )
+        const decoded = JSON.parse(jsonPayload)
+        if (decoded.profile) {
+          const match = decoded.profile.match(/^(https:\/\/[^/]+)/)
+          if (match) return match[1]
+        } else if (decoded.sub) {
+          const match = decoded.sub.match(/^(https:\/\/[^/]+)/)
+          if (match && match[1] !== 'https://login.salesforce.com') return match[1]
+        }
       }
     } catch (error) {
       logger.error('Failed to decode Salesforce idToken', { error })

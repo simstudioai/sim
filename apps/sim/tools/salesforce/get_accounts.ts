@@ -4,6 +4,7 @@ import type {
   SalesforceGetAccountsResponse,
 } from '@/tools/salesforce/types'
 import type { ToolConfig } from '@/tools/types'
+import { getInstanceUrl } from './utils'
 
 const logger = createLogger('SalesforceGetAccounts')
 
@@ -62,39 +63,7 @@ export const salesforceGetAccountsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      let instanceUrl = params.instanceUrl
-
-      if (!instanceUrl && params.idToken) {
-        try {
-          const base64Url = params.idToken.split('.')[1]
-          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
-          const jsonPayload = decodeURIComponent(
-            atob(base64)
-              .split('')
-              .map((c) => `%${(`00${c.charCodeAt(0).toString(16)}`).slice(-2)}`)
-              .join('')
-          )
-          const decoded = JSON.parse(jsonPayload)
-
-          if (decoded.profile) {
-            const match = decoded.profile.match(/^(https:\/\/[^/]+)/)
-            if (match) {
-              instanceUrl = match[1]
-            }
-          } else if (decoded.sub) {
-            const match = decoded.sub.match(/^(https:\/\/[^/]+)/)
-            if (match && match[1] !== 'https://login.salesforce.com') {
-              instanceUrl = match[1]
-            }
-          }
-        } catch (error) {
-          logger.error('Failed to decode Salesforce idToken', { error })
-        }
-      }
-
-      if (!instanceUrl) {
-        throw new Error('Salesforce instance URL is required but not provided')
-      }
+      const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
 
       const limit = params.limit ? Number.parseInt(params.limit) : 100
       const fields =
