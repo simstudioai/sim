@@ -1214,31 +1214,25 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
       let processedTag = tag
 
-      // Check if this is a file property and add [0] automatically
-      // Only include user-accessible fields (matches UserFile interface)
-      const fileProperties = ['id', 'name', 'url', 'size', 'type']
       const parts = tag.split('.')
-      if (parts.length >= 2 && fileProperties.includes(parts[parts.length - 1])) {
-        const fieldName = parts[parts.length - 2]
+      if (parts.length >= 3 && blockGroup) {
+        const arrayFieldName = parts[1] // e.g., "channels", "files", "users"
+        const block = useWorkflowStore.getState().blocks[blockGroup.blockId]
+        const blockConfig = block ? (getBlock(block.type) ?? null) : null
+        const mergedSubBlocks = getMergedSubBlocks(blockGroup.blockId)
 
-        if (blockGroup) {
-          const block = useWorkflowStore.getState().blocks[blockGroup.blockId]
-          const blockConfig = block ? (getBlock(block.type) ?? null) : null
-          const mergedSubBlocks = getMergedSubBlocks(blockGroup.blockId)
+        const fieldType = getOutputTypeForPath(
+          block,
+          blockConfig,
+          blockGroup.blockId,
+          arrayFieldName,
+          mergedSubBlocks
+        )
 
-          const fieldType = getOutputTypeForPath(
-            block,
-            blockConfig,
-            blockGroup.blockId,
-            fieldName,
-            mergedSubBlocks
-          )
-
-          if (fieldType === 'files') {
-            const blockAndField = parts.slice(0, -1).join('.')
-            const property = parts[parts.length - 1]
-            processedTag = `${blockAndField}[0].${property}`
-          }
+        if (fieldType === 'files' || fieldType === 'array') {
+          const blockName = parts[0]
+          const remainingPath = parts.slice(2).join('.')
+          processedTag = `${blockName}.${arrayFieldName}[0].${remainingPath}`
         }
       }
 
