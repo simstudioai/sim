@@ -29,7 +29,6 @@ import {
   PipedriveIcon,
   RedditIcon,
   SalesforceIcon,
-  ServiceNowIcon,
   ShopifyIcon,
   SlackIcon,
   SpotifyIcon,
@@ -70,7 +69,6 @@ export type OAuthProvider =
   | 'salesforce'
   | 'linkedin'
   | 'shopify'
-  | 'servicenow'
   | 'zoom'
   | 'wordpress'
   | 'spotify'
@@ -113,7 +111,6 @@ export type OAuthService =
   | 'salesforce'
   | 'linkedin'
   | 'shopify'
-  | 'servicenow'
   | 'zoom'
   | 'wordpress'
   | 'spotify'
@@ -620,23 +617,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'shopify',
-  },
-  servicenow: {
-    id: 'servicenow',
-    name: 'ServiceNow',
-    icon: (props) => ServiceNowIcon(props),
-    services: {
-      servicenow: {
-        id: 'servicenow',
-        name: 'ServiceNow',
-        description: 'Manage incidents, tasks, and records in your ServiceNow instance.',
-        providerId: 'servicenow',
-        icon: (props) => ServiceNowIcon(props),
-        baseProviderIcon: (props) => ServiceNowIcon(props),
-        scopes: ['useraccount'],
-      },
-    },
-    defaultService: 'servicenow',
   },
   slack: {
     id: 'slack',
@@ -1507,21 +1487,6 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         supportsRefreshTokenRotation: false,
       }
     }
-    case 'servicenow': {
-      // ServiceNow OAuth - token endpoint is instance-specific
-      // This is a placeholder; actual token endpoint is set during authorization
-      const { clientId, clientSecret } = getCredentials(
-        env.SERVICENOW_CLIENT_ID,
-        env.SERVICENOW_CLIENT_SECRET
-      )
-      return {
-        tokenEndpoint: '', // Instance-specific, set during authorization
-        clientId,
-        clientSecret,
-        useBasicAuth: false,
-        supportsRefreshTokenRotation: true,
-      }
-    }
     case 'zoom': {
       const { clientId, clientSecret } = getCredentials(env.ZOOM_CLIENT_ID, env.ZOOM_CLIENT_SECRET)
       return {
@@ -1600,13 +1565,11 @@ function buildAuthRequest(
  * This is a server-side utility function to refresh OAuth tokens
  * @param providerId The provider ID (e.g., 'google-drive')
  * @param refreshToken The refresh token to use
- * @param instanceUrl Optional instance URL for providers with instance-specific endpoints (e.g., ServiceNow)
  * @returns Object containing the new access token and expiration time in seconds, or null if refresh failed
  */
 export async function refreshOAuthToken(
   providerId: string,
-  refreshToken: string,
-  instanceUrl?: string
+  refreshToken: string
 ): Promise<{ accessToken: string; expiresIn: number; refreshToken: string } | null> {
   try {
     // Get the provider from the providerId (e.g., 'google-drive' -> 'google')
@@ -1615,15 +1578,7 @@ export async function refreshOAuthToken(
     // Get provider configuration
     const config = getProviderAuthConfig(provider)
 
-    // For ServiceNow, the token endpoint is instance-specific
-    let tokenEndpoint = config.tokenEndpoint
-    if (provider === 'servicenow') {
-      if (!instanceUrl) {
-        logger.error('ServiceNow token refresh requires instance URL')
-        return null
-      }
-      tokenEndpoint = `${instanceUrl.replace(/\/$/, '')}/oauth_token.do`
-    }
+    const tokenEndpoint = config.tokenEndpoint
 
     // Build authentication request
     const { headers, bodyParams } = buildAuthRequest(config, refreshToken)

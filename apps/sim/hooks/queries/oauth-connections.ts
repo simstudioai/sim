@@ -23,23 +23,12 @@ export interface ServiceInfo extends OAuthServiceConfig {
 }
 
 /**
- * Providers that should be hidden from the integrations tab
- * These providers have custom OAuth flows handled directly from their blocks
- */
-const HIDDEN_FROM_INTEGRATIONS = ['servicenow']
-
-/**
  * Define available services from standardized OAuth providers
  */
 function defineServices(): ServiceInfo[] {
   const servicesList: ServiceInfo[] = []
 
-  Object.entries(OAUTH_PROVIDERS).forEach(([providerKey, provider]) => {
-    // Skip providers that should be hidden from integrations tab
-    if (HIDDEN_FROM_INTEGRATIONS.includes(providerKey)) {
-      return
-    }
-
+  Object.entries(OAUTH_PROVIDERS).forEach(([_providerKey, provider]) => {
     Object.values(provider.services).forEach((service) => {
       servicesList.push({
         ...service,
@@ -150,13 +139,6 @@ export function useConnectOAuthService() {
       if (providerId === 'shopify') {
         const returnUrl = encodeURIComponent(callbackURL)
         window.location.href = `/api/auth/shopify/authorize?returnUrl=${returnUrl}`
-        return { success: true }
-      }
-
-      // ServiceNow requires a custom OAuth flow with instance URL input
-      if (providerId === 'servicenow') {
-        const returnUrl = encodeURIComponent(callbackURL)
-        window.location.href = `/api/auth/servicenow/authorize?returnUrl=${returnUrl}`
         return { success: true }
       }
 

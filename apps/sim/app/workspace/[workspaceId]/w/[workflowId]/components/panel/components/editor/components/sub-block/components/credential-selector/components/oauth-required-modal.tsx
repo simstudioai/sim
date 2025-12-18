@@ -22,11 +22,6 @@ export interface OAuthRequiredModalProps {
   requiredScopes?: string[]
   serviceId?: string
   newScopes?: string[]
-  servicenowCredentials?: {
-    instanceUrl: string
-    clientId: string
-    clientSecret: string
-  }
 }
 
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
@@ -302,7 +297,6 @@ export function OAuthRequiredModal({
   requiredScopes = [],
   serviceId,
   newScopes = [],
-  servicenowCredentials,
 }: OAuthRequiredModalProps) {
   const effectiveServiceId = serviceId || getServiceIdFromScopes(provider, requiredScopes)
   const { baseProvider } = parseProvider(provider)
@@ -350,28 +344,6 @@ export function OAuthRequiredModal({
         // Pass the current URL so we can redirect back after OAuth
         const returnUrl = encodeURIComponent(window.location.href)
         window.location.href = `/api/auth/shopify/authorize?returnUrl=${returnUrl}`
-        return
-      }
-
-      if (providerId === 'servicenow') {
-        // ServiceNow requires credentials from the block
-        if (
-          !servicenowCredentials?.instanceUrl ||
-          !servicenowCredentials?.clientId ||
-          !servicenowCredentials?.clientSecret
-        ) {
-          // If credentials are missing, redirect to authorize which will show a form
-          const returnUrl = encodeURIComponent(window.location.href)
-          window.location.href = `/api/auth/servicenow/authorize?returnUrl=${returnUrl}`
-          return
-        }
-
-        // Pass the current URL and credentials so we can redirect back after OAuth
-        const returnUrl = encodeURIComponent(window.location.href)
-        const instanceUrl = encodeURIComponent(servicenowCredentials.instanceUrl)
-        const clientId = encodeURIComponent(servicenowCredentials.clientId)
-        const clientSecret = encodeURIComponent(servicenowCredentials.clientSecret)
-        window.location.href = `/api/auth/servicenow/authorize?returnUrl=${returnUrl}&instanceUrl=${instanceUrl}&clientId=${clientId}&clientSecret=${clientSecret}`
         return
       }
 
