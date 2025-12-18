@@ -15,17 +15,9 @@ import type {
  * Valid tag slots that can be used in filters
  */
 const VALID_TEXT_SLOTS = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
-const VALID_NUMBER_SLOTS = ['number1', 'number2', 'number3'] as const
+const VALID_NUMBER_SLOTS = ['number1', 'number2', 'number3', 'number4', 'number5'] as const
 const VALID_DATE_SLOTS = ['date1', 'date2'] as const
-const VALID_BOOLEAN_SLOTS = [
-  'boolean1',
-  'boolean2',
-  'boolean3',
-  'boolean4',
-  'boolean5',
-  'boolean6',
-  'boolean7',
-] as const
+const VALID_BOOLEAN_SLOTS = ['boolean1', 'boolean2', 'boolean3'] as const
 
 type TextSlot = (typeof VALID_TEXT_SLOTS)[number]
 type NumberSlot = (typeof VALID_NUMBER_SLOTS)[number]
