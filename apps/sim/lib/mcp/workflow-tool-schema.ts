@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
+import { isValidStartBlockType } from '@/lib/workflows/triggers/trigger-utils'
 import type { InputFormatField } from '@/lib/workflows/types'
 
 /**
@@ -198,18 +200,6 @@ export function generateToolDefinition(
 }
 
 /**
- * Valid start block types that can have input format
- */
-const VALID_START_BLOCK_TYPES = [
-  'starter',
-  'start',
-  'start_trigger',
-  'api',
-  'api_trigger',
-  'input_trigger',
-]
-
-/**
  * Extract input format from a workflow's blocks.
  * Looks for any valid start block and extracts its inputFormat configuration.
  */
@@ -223,23 +213,18 @@ export function extractInputFormatFromBlocks(
     const blockObj = block as Record<string, unknown>
     const blockType = blockObj.type as string
 
-    if (VALID_START_BLOCK_TYPES.includes(blockType)) {
-      // Try to get inputFormat from subBlocks
-      const subBlocks = blockObj.subBlocks as Record<string, unknown> | undefined
-      if (subBlocks?.inputFormat) {
-        const inputFormatSubBlock = subBlocks.inputFormat as Record<string, unknown>
-        const value = inputFormatSubBlock.value
-        if (Array.isArray(value)) {
-          return value as InputFormatField[]
-        }
-      }
+    if (isValidStartBlockType(blockType)) {
+      // Try to get inputFormat from subBlocks.inputFormat.value
+      const subBlocks = blockObj.subBlocks as Record<string, { value?: unknown }> | undefined
+      const subBlockValue = subBlocks?.inputFormat?.value
 
       // Try legacy config.params.inputFormat
       const config = blockObj.config as Record<string, unknown> | undefined
       const params = config?.params as Record<string, unknown> | undefined
-      if (params?.inputFormat && Array.isArray(params.inputFormat)) {
-        return params.inputFormat as InputFormatField[]
-      }
+      const paramsValue = params?.inputFormat
+
+      const normalized = normalizeInputFormatValue(subBlockValue ?? paramsValue)
+      return normalized.length > 0 ? normalized : null
     }
   }
 
