@@ -889,7 +889,7 @@ function validateConditionHandle(
  * Validates target handle is valid (must be 'target')
  */
 function validateTargetHandle(targetHandle: string): EdgeHandleValidationResult {
-  if (targetHandle === 'target' || !targetHandle) {
+  if (targetHandle === 'target') {
     return { valid: true }
   }
   return {
