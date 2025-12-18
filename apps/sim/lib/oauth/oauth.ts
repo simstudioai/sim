@@ -1561,110 +1561,20 @@ function buildAuthRequest(
 }
 
 /**
- * Attempts to refresh a Salesforce token using multiple endpoints.
- * Tries the original auth endpoint first (if provided), then production, then sandbox.
- */
-async function refreshSalesforceToken(
-  refreshToken: string,
-  config: ProviderAuthConfig,
-  authBaseUrl?: string
-): Promise<{ accessToken: string; expiresIn: number; refreshToken: string } | null> {
-  const endpoints: string[] = []
-  if (authBaseUrl) {
-    endpoints.push(`${authBaseUrl}/services/oauth2/token`)
-  }
-  endpoints.push('https://login.salesforce.com/services/oauth2/token')
-  endpoints.push('https://test.salesforce.com/services/oauth2/token')
-
-  const { headers, bodyParams } = buildAuthRequest(config, refreshToken)
-
-  for (const endpoint of endpoints) {
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: new URLSearchParams(bodyParams).toString(),
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        const accessToken = data.access_token
-
-        if (!accessToken) {
-          logger.warn('No access token in Salesforce refresh response', { endpoint })
-          continue
-        }
-
-        let newRefreshToken = null
-        if (config.supportsRefreshTokenRotation && data.refresh_token) {
-          newRefreshToken = data.refresh_token
-          logger.info('Received new refresh token from Salesforce')
-        }
-
-        const expiresIn = data.expires_in || data.expiresIn || 7200
-
-        logger.info('Salesforce token refreshed successfully', {
-          endpoint,
-          expiresIn,
-          hasNewRefreshToken: !!newRefreshToken,
-        })
-
-        return {
-          accessToken,
-          expiresIn,
-          refreshToken: newRefreshToken || refreshToken,
-        }
-      }
-
-      // Log failure but try next endpoint
-      const errorText = await response.text()
-      logger.warn('Salesforce token refresh failed for endpoint, trying next', {
-        endpoint,
-        status: response.status,
-        error: errorText.substring(0, 200),
-      })
-    } catch (error) {
-      logger.warn('Salesforce token refresh error for endpoint, trying next', {
-        endpoint,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    }
-  }
-
-  logger.error('Salesforce token refresh failed on all endpoints')
-  return null
-}
-
-/**
  * Refresh an OAuth token
  * This is a server-side utility function to refresh OAuth tokens
  * @param providerId The provider ID (e.g., 'google-drive')
  * @param refreshToken The refresh token to use
- * @param idToken Optional idToken field (used by Salesforce to store auth metadata)
  * @returns Object containing the new access token and expiration time in seconds, or null if refresh failed
  */
 export async function refreshOAuthToken(
   providerId: string,
-  refreshToken: string,
-  idToken?: string
+  refreshToken: string
 ): Promise<{ accessToken: string; expiresIn: number; refreshToken: string } | null> {
   try {
     const provider = providerId.split('-')[0]
 
     const config = getProviderAuthConfig(provider)
-
-    // Salesforce needs special handling to try multiple endpoints
-    if (provider === 'salesforce') {
-      let authBaseUrl: string | undefined
-      if (idToken?.startsWith('{')) {
-        try {
-          authBaseUrl = JSON.parse(idToken).authBaseUrl
-        } catch {
-          // Not valid JSON, ignore
-        }
-      }
-      return await refreshSalesforceToken(refreshToken, config, authBaseUrl)
-    }
 
     const { headers, bodyParams } = buildAuthRequest(config, refreshToken)
 
