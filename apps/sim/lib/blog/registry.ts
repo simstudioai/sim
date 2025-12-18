@@ -38,7 +38,9 @@ function slugify(text: string): string {
 }
 
 async function scanFrontmatters(): Promise<BlogMeta[]> {
-  if (cachedMeta) return cachedMeta
+  if (cachedMeta) {
+    return cachedMeta
+  }
   await ensureContentDirs()
   const entries = await fs.readdir(BLOG_DIR).catch(() => [])
   const authorsMap = await loadAuthors()
