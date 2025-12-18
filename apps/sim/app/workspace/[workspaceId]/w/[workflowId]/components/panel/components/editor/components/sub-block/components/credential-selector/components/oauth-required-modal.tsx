@@ -362,13 +362,6 @@ export function OAuthRequiredModal({
         return
       }
 
-      if (providerId === 'salesforce') {
-        // Salesforce requires org type selection (Production/Sandbox/Custom Domain)
-        const returnUrl = encodeURIComponent(window.location.href)
-        window.location.href = `/api/auth/salesforce/authorize?returnUrl=${returnUrl}`
-        return
-      }
-
       await client.oauth2.link({
         providerId,
         callbackURL: window.location.href,

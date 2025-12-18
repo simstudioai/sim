@@ -3,47 +3,17 @@ import { createLogger } from '@/lib/logs/console/logger'
 const logger = createLogger('SalesforceUtils')
 
 /**
- * Salesforce metadata stored in the idToken field
+ * Extracts Salesforce instance URL from ID token or uses provided instance URL
+ * @param idToken - The Salesforce ID token containing instance URL
+ * @param instanceUrl - Direct instance URL if provided
+ * @returns The Salesforce instance URL
+ * @throws Error if instance URL cannot be determined
  */
-export interface SalesforceMetadata {
-  instanceUrl: string
-  authBaseUrl?: string
-}
-
-/**
- * Parses the Salesforce metadata from the idToken field
- * Handles multiple formats for backward compatibility:
- * 1. JSON object with instanceUrl and authBaseUrl (new format)
- * 2. Raw URL starting with https:// (legacy format)
- * 3. JWT token (very old legacy format)
- *
- * @param idToken - The value stored in the idToken field
- * @returns Parsed Salesforce metadata or null if parsing fails
- */
-export function parseSalesforceMetadata(idToken?: string): SalesforceMetadata | null {
-  if (!idToken) return null
-
-  if (idToken.startsWith('{')) {
+export function getInstanceUrl(idToken?: string, instanceUrl?: string): string {
+  if (instanceUrl) return instanceUrl
+  if (idToken) {
     try {
-      const parsed = JSON.parse(idToken)
-      if (parsed.instanceUrl) {
-        return {
-          instanceUrl: parsed.instanceUrl,
-          authBaseUrl: parsed.authBaseUrl,
-        }
-      }
-    } catch {
-      // Not valid JSON, try other formats
-    }
-  }
-
-  if (idToken.startsWith('https://') && idToken.includes('.salesforce.com')) {
-    return { instanceUrl: idToken }
-  }
-
-  try {
-    const base64Url = idToken.split('.')[1]
-    if (base64Url) {
+      const base64Url = idToken.split('.')[1]
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
       const jsonPayload = decodeURIComponent(
         atob(base64)
@@ -54,36 +24,15 @@ export function parseSalesforceMetadata(idToken?: string): SalesforceMetadata | 
       const decoded = JSON.parse(jsonPayload)
       if (decoded.profile) {
         const match = decoded.profile.match(/^(https:\/\/[^/]+)/)
-        if (match) return { instanceUrl: match[1] }
+        if (match) return match[1]
       } else if (decoded.sub) {
         const match = decoded.sub.match(/^(https:\/\/[^/]+)/)
-        if (match && match[1] !== 'https://login.salesforce.com') {
-          return { instanceUrl: match[1] }
-        }
+        if (match && match[1] !== 'https://login.salesforce.com') return match[1]
       }
+    } catch (error) {
+      logger.error('Failed to decode Salesforce idToken', { error })
     }
-  } catch (error) {
-    logger.error('Failed to decode Salesforce idToken', { error })
   }
-
-  return null
-}
-
-/**
- * Extracts Salesforce instance URL from ID token or uses provided instance URL
- * @param idToken - The Salesforce ID token (can be JSON metadata, raw URL, or JWT token)
- * @param instanceUrl - Direct instance URL if provided
- * @returns The Salesforce instance URL
- * @throws Error if instance URL cannot be determined
- */
-export function getInstanceUrl(idToken?: string, instanceUrl?: string): string {
-  if (instanceUrl) return instanceUrl
-
-  const metadata = parseSalesforceMetadata(idToken)
-  if (metadata?.instanceUrl) {
-    return metadata.instanceUrl
-  }
-
   throw new Error('Salesforce instance URL is required but not provided')
 }
 
