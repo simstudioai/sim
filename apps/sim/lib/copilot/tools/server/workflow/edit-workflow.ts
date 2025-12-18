@@ -860,7 +860,9 @@ function validateConditionHandle(
       validHandles.add(`${semanticPrefix}if`)
     } else if (title === 'else if') {
       elseIfCount++
-      validHandles.add(elseIfCount === 1 ? `${semanticPrefix}else-if` : `${semanticPrefix}else-if-${elseIfCount}`)
+      validHandles.add(
+        elseIfCount === 1 ? `${semanticPrefix}else-if` : `${semanticPrefix}else-if-${elseIfCount}`
+      )
     } else if (title === 'else') {
       validHandles.add(`${semanticPrefix}else`)
     }
