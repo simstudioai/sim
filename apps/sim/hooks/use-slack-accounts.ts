@@ -4,6 +4,7 @@ interface SlackAccount {
   id: string
   accountId: string
   providerId: string
+  displayName?: string
 }
 
 interface UseSlackAccountsResult {

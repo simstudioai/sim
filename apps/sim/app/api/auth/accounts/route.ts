@@ -32,7 +32,17 @@ export async function GET(request: NextRequest) {
       .from(account)
       .where(and(...whereConditions))
 
-    return NextResponse.json({ accounts })
+    // Use the user's email as the display name (consistent with credential selector)
+    const userEmail = session.user.email
+
+    const accountsWithDisplayName = accounts.map((acc) => ({
+      id: acc.id,
+      accountId: acc.accountId,
+      providerId: acc.providerId,
+      displayName: userEmail || acc.providerId,
+    }))
+
+    return NextResponse.json({ accounts: accountsWithDisplayName })
   } catch (error) {
     logger.error('Failed to fetch accounts', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
