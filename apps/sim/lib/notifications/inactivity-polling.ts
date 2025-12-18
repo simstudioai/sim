@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import {
   workflow,
+  workflowDeploymentVersion,
   workflowExecutionLogs,
   workspaceNotificationDelivery,
   workspaceNotificationSubscription,
@@ -9,14 +10,80 @@ import { and, eq, gte, inArray, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { createLogger } from '@/lib/logs/console/logger'
+import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import {
   executeNotificationDelivery,
   workspaceNotificationDeliveryTask,
 } from '@/background/workspace-notification-delivery'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import type { AlertConfig } from './alert-rules'
 import { isInCooldown } from './alert-rules'
 
 const logger = createLogger('InactivityPolling')
+
+const SCHEDULE_BLOCK_TYPES: string[] = [TRIGGER_TYPES.SCHEDULE]
+const WEBHOOK_BLOCK_TYPES: string[] = [TRIGGER_TYPES.WEBHOOK, TRIGGER_TYPES.GENERIC_WEBHOOK]
+
+function deploymentHasTriggerType(
+  deploymentState: Pick<WorkflowState, 'blocks'>,
+  triggerFilter: string[]
+): boolean {
+  const blocks = deploymentState.blocks
+  if (!blocks) return false
+
+  const alwaysAvailable = ['api', 'manual', 'chat']
+  if (triggerFilter.some((t) => alwaysAvailable.includes(t))) {
+    return true
+  }
+
+  for (const block of Object.values(blocks)) {
+    if (triggerFilter.includes('schedule') && SCHEDULE_BLOCK_TYPES.includes(block.type)) {
+      return true
+    }
+
+    if (triggerFilter.includes('webhook')) {
+      if (WEBHOOK_BLOCK_TYPES.includes(block.type)) {
+        return true
+      }
+      if (block.triggerMode === true) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
+async function getWorkflowsWithTriggerTypes(
+  workspaceId: string,
+  triggerFilter: string[]
+): Promise<Set<string>> {
+  const workflowIds = new Set<string>()
+
+  const deployedWorkflows = await db
+    .select({
+      workflowId: workflow.id,
+      deploymentState: workflowDeploymentVersion.state,
+    })
+    .from(workflow)
+    .innerJoin(
+      workflowDeploymentVersion,
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflow.id),
+        eq(workflowDeploymentVersion.isActive, true)
+      )
+    )
+    .where(and(eq(workflow.workspaceId, workspaceId), eq(workflow.isDeployed, true)))
+
+  for (const w of deployedWorkflows) {
+    const state = w.deploymentState as WorkflowState | null
+    if (state && deploymentHasTriggerType(state, triggerFilter)) {
+      workflowIds.add(w.workflowId)
+    }
+  }
+
+  return workflowIds
+}
 
 interface InactivityCheckResult {
   subscriptionId: string
@@ -25,9 +92,6 @@ interface InactivityCheckResult {
   reason?: string
 }
 
-/**
- * Checks a single workflow for inactivity and triggers notification if needed
- */
 async function checkWorkflowInactivity(
   subscription: typeof workspaceNotificationSubscription.$inferSelect,
   workflowId: string,
@@ -141,9 +205,6 @@ async function checkWorkflowInactivity(
   return result
 }
 
-/**
- * Polls all active no_activity subscriptions and triggers alerts as needed
- */
 export async function pollInactivityAlerts(): Promise<{
   total: number
   triggered: number
@@ -179,18 +240,29 @@ export async function pollInactivityAlerts(): Promise<{
       continue
     }
 
+    const triggerFilter = subscription.triggerFilter as string[]
+    if (!triggerFilter || triggerFilter.length === 0) {
+      logger.warn(`Subscription ${subscription.id} has no trigger filter, skipping`)
+      continue
+    }
+
+    const eligibleWorkflowIds = await getWorkflowsWithTriggerTypes(
+      subscription.workspaceId,
+      triggerFilter
+    )
+
     let workflowIds: string[] = []
 
     if (subscription.allWorkflows) {
-      const workflows = await db
-        .select({ id: workflow.id })
-        .from(workflow)
-        .where(eq(workflow.workspaceId, subscription.workspaceId))
-
-      workflowIds = workflows.map((w) => w.id)
+      workflowIds = Array.from(eligibleWorkflowIds)
     } else {
-      workflowIds = subscription.workflowIds || []
+      workflowIds = (subscription.workflowIds || []).filter((id) => eligibleWorkflowIds.has(id))
     }
+
+    logger.debug(`Checking ${workflowIds.length} workflows for subscription ${subscription.id}`, {
+      triggerFilter,
+      eligibleCount: eligibleWorkflowIds.size,
+    })
 
     for (const workflowId of workflowIds) {
       const result = await checkWorkflowInactivity(subscription, workflowId, alertConfig)
