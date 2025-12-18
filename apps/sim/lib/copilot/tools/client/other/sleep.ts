@@ -112,10 +112,10 @@ export class SleepClientTool extends BaseClientTool {
       if (seconds > MAX_SLEEP_SECONDS) seconds = MAX_SLEEP_SECONDS
 
       logger.debug('Starting sleep', { seconds })
-      
+
       // Track start time for elapsed calculation
       sleepStartTimes[this.toolCallId] = Date.now()
-      
+
       this.setState(ClientToolCallState.executing)
 
       try {

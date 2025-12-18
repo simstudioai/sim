@@ -78,7 +78,6 @@ function logSkippedItem(skippedItems: SkippedItem[], item: SkippedItem): void {
   skippedItems.push(item)
 }
 
-
 /**
  * Result of input validation
  */

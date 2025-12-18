@@ -4,10 +4,6 @@
  */
 export function isValidKey(key: unknown): key is string {
   return (
-    !!key &&
-    typeof key === 'string' &&
-    key !== 'undefined' &&
-    key !== 'null' &&
-    key.trim() !== ''
+    !!key && typeof key === 'string' && key !== 'undefined' && key !== 'null' && key.trim() !== ''
   )
 }

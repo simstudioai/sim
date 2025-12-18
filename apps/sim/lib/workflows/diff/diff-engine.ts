@@ -735,15 +735,11 @@ export class WorkflowDiffEngine {
             '@/lib/workflows/autolayout/constants'
           )
 
-          const layoutedBlocks = applyTargetedLayout(
-            finalBlocks,
-            fullyCleanedState.edges,
-            {
-              changedBlockIds: impactedBlockArray,
-              horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
-              verticalSpacing: DEFAULT_VERTICAL_SPACING,
-            }
-          )
+          const layoutedBlocks = applyTargetedLayout(finalBlocks, fullyCleanedState.edges, {
+            changedBlockIds: impactedBlockArray,
+            horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
+            verticalSpacing: DEFAULT_VERTICAL_SPACING,
+          })
 
           Object.entries(layoutedBlocks).forEach(([id, layoutBlock]) => {
             if (finalBlocks[id]) {
@@ -1133,7 +1129,6 @@ export class WorkflowDiffEngine {
     }
   }
 }
-
 
 /**
  * Removes diff metadata from a workflow state so it can be persisted or re-used safely.
