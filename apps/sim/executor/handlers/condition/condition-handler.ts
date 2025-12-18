@@ -38,7 +38,8 @@ export async function evaluateConditionExpression(
   }
 
   try {
-    const code = `return Boolean(${resolvedConditionValue})`
+    const contextSetup = `const context = ${JSON.stringify(evalContext)};`
+    const code = `${contextSetup}\nreturn Boolean(${resolvedConditionValue})`
 
     const result = await executeTool(
       'function_execute',
