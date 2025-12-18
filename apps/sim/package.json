@@ -8,7 +8,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "next dev --port 7321",
+    "dev": "next dev --port 3000",
     "dev:webpack": "next dev --webpack",
     "dev:sockets": "bun run socket-server/index.ts",
     "dev:full": "concurrently -n \"App,Realtime\" -c \"cyan,magenta\" \"bun run dev\" \"bun run dev:sockets\"",
@@ -114,7 +114,6 @@
     "react": "19.2.1",
     "react-colorful": "5.6.1",
     "react-dom": "19.2.1",
-    "react-google-drive-picker": "^1.2.2",
     "react-hook-form": "^7.54.2",
     "react-markdown": "^10.1.0",
     "react-simple-code-editor": "^0.14.1",
