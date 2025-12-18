@@ -347,13 +347,6 @@ export function OAuthRequiredModal({
         return
       }
 
-      if (providerId === 'servicenow') {
-        // Pass the current URL so we can redirect back after OAuth
-        const returnUrl = encodeURIComponent(window.location.href)
-        window.location.href = `/api/auth/servicenow/authorize?returnUrl=${returnUrl}`
-        return
-      }
-
       await client.oauth2.link({
         providerId,
         callbackURL: window.location.href,

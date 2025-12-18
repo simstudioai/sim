@@ -70,6 +70,7 @@ export const FOOTER_TOOLS = [
   'Salesforce',
   'SendGrid',
   'Serper',
+  'ServiceNow',
   'SharePoint',
   'Slack',
   'Smtp',
