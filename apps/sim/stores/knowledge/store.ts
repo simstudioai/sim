@@ -44,7 +44,7 @@ export interface DocumentData {
   processingError?: string | null
   enabled: boolean
   uploadedAt: string
-  // Document tags
+  // Text tags
   tag1?: string | null
   tag2?: string | null
   tag3?: string | null
@@ -52,6 +52,30 @@ export interface DocumentData {
   tag5?: string | null
   tag6?: string | null
   tag7?: string | null
+  // Number tags
+  number1?: number | null
+  number2?: number | null
+  number3?: number | null
+  number4?: number | null
+  number5?: number | null
+  number6?: number | null
+  number7?: number | null
+  // Date tags
+  date1?: string | null
+  date2?: string | null
+  date3?: string | null
+  date4?: string | null
+  date5?: string | null
+  date6?: string | null
+  date7?: string | null
+  // Boolean tags
+  boolean1?: boolean | null
+  boolean2?: boolean | null
+  boolean3?: boolean | null
+  boolean4?: boolean | null
+  boolean5?: boolean | null
+  boolean6?: boolean | null
+  boolean7?: boolean | null
 }
 
 export interface ChunkData {
@@ -63,6 +87,7 @@ export interface ChunkData {
   enabled: boolean
   startOffset: number
   endOffset: number
+  // Text tags
   tag1?: string | null
   tag2?: string | null
   tag3?: string | null
@@ -70,6 +95,30 @@ export interface ChunkData {
   tag5?: string | null
   tag6?: string | null
   tag7?: string | null
+  // Number tags
+  number1?: number | null
+  number2?: number | null
+  number3?: number | null
+  number4?: number | null
+  number5?: number | null
+  number6?: number | null
+  number7?: number | null
+  // Date tags
+  date1?: string | null
+  date2?: string | null
+  date3?: string | null
+  date4?: string | null
+  date5?: string | null
+  date6?: string | null
+  date7?: string | null
+  // Boolean tags
+  boolean1?: boolean | null
+  boolean2?: boolean | null
+  boolean3?: boolean | null
+  boolean4?: boolean | null
+  boolean5?: boolean | null
+  boolean6?: boolean | null
+  boolean7?: boolean | null
   createdAt: string
   updatedAt: string
 }

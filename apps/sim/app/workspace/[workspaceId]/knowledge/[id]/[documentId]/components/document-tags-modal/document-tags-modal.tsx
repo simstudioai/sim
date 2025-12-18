@@ -16,7 +16,7 @@ import {
   Trash,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { ALL_TAG_SLOTS, type AllTagSlot } from '@/lib/knowledge/constants'
+import { ALL_TAG_SLOTS, type AllTagSlot, MAX_TAG_SLOTS } from '@/lib/knowledge/constants'
 import type { DocumentTag } from '@/lib/knowledge/tags/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import {

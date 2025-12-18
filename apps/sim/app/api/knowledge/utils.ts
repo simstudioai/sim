@@ -35,7 +35,7 @@ export interface DocumentData {
   enabled: boolean
   deletedAt?: Date | null
   uploadedAt: Date
-  // Document tags
+  // Text tags
   tag1?: string | null
   tag2?: string | null
   tag3?: string | null
@@ -43,6 +43,30 @@ export interface DocumentData {
   tag5?: string | null
   tag6?: string | null
   tag7?: string | null
+  // Number tags
+  number1?: number | null
+  number2?: number | null
+  number3?: number | null
+  number4?: number | null
+  number5?: number | null
+  number6?: number | null
+  number7?: number | null
+  // Date tags
+  date1?: Date | null
+  date2?: Date | null
+  date3?: Date | null
+  date4?: Date | null
+  date5?: Date | null
+  date6?: Date | null
+  date7?: Date | null
+  // Boolean tags
+  boolean1?: boolean | null
+  boolean2?: boolean | null
+  boolean3?: boolean | null
+  boolean4?: boolean | null
+  boolean5?: boolean | null
+  boolean6?: boolean | null
+  boolean7?: boolean | null
 }
 
 export interface EmbeddingData {
@@ -58,7 +82,7 @@ export interface EmbeddingData {
   embeddingModel: string
   startOffset: number
   endOffset: number
-  // Tag fields for filtering
+  // Text tags
   tag1?: string | null
   tag2?: string | null
   tag3?: string | null
@@ -66,6 +90,30 @@ export interface EmbeddingData {
   tag5?: string | null
   tag6?: string | null
   tag7?: string | null
+  // Number tags
+  number1?: number | null
+  number2?: number | null
+  number3?: number | null
+  number4?: number | null
+  number5?: number | null
+  number6?: number | null
+  number7?: number | null
+  // Date tags
+  date1?: Date | null
+  date2?: Date | null
+  date3?: Date | null
+  date4?: Date | null
+  date5?: Date | null
+  date6?: Date | null
+  date7?: Date | null
+  // Boolean tags
+  boolean1?: boolean | null
+  boolean2?: boolean | null
+  boolean3?: boolean | null
+  boolean4?: boolean | null
+  boolean5?: boolean | null
+  boolean6?: boolean | null
+  boolean7?: boolean | null
   enabled: boolean
   createdAt: Date
   updatedAt: Date
