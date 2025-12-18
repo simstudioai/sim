@@ -768,7 +768,7 @@ export function NotificationSettings({
                   <Combobox
                     options={slackAccounts.map((acc) => ({
                       value: acc.id,
-                      label: acc.accountId,
+                      label: acc.displayName || 'Slack Workspace',
                     }))}
                     value={formData.slackAccountId}
                     onChange={(value) => {
