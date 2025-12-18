@@ -15,18 +15,10 @@ const logger = createLogger('TagsService')
 
 /** Text tag slots */
 const VALID_TEXT_SLOTS = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
-/** Number tag slots */
-const VALID_NUMBER_SLOTS = [
-  'number1',
-  'number2',
-  'number3',
-  'number4',
-  'number5',
-  'number6',
-  'number7',
-] as const
-/** Date tag slots */
-const VALID_DATE_SLOTS = ['date1', 'date2', 'date3', 'date4', 'date5', 'date6', 'date7'] as const
+
+const VALID_NUMBER_SLOTS = ['number1', 'number2', 'number3'] as const
+/** Date tag slots (reduced to 2 for write performance) */
+const VALID_DATE_SLOTS = ['date1', 'date2'] as const
 /** Boolean tag slots */
 const VALID_BOOLEAN_SLOTS = [
   'boolean1',
