@@ -1,30 +1,9 @@
+import type {
+  SalesforceUpdateOpportunityParams,
+  SalesforceUpdateOpportunityResponse,
+} from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
-
-export interface SalesforceUpdateOpportunityParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  opportunityId: string
-  name?: string
-  stageName?: string
-  closeDate?: string
-  accountId?: string
-  amount?: string
-  probability?: string
-  description?: string
-}
-
-export interface SalesforceUpdateOpportunityResponse {
-  success: boolean
-  output: {
-    id: string
-    updated: boolean
-    metadata: {
-      operation: 'update_opportunity'
-    }
-  }
-}
 
 export const salesforceUpdateOpportunityTool: ToolConfig<
   SalesforceUpdateOpportunityParams,

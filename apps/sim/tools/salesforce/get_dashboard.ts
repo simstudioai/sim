@@ -1,31 +1,12 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type {
+  SalesforceGetDashboardParams,
+  SalesforceGetDashboardResponse,
+} from '@/tools/salesforce/types'
+import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { extractErrorMessage, getInstanceUrl } from './utils'
 
 const logger = createLogger('SalesforceDashboards')
-
-export interface SalesforceGetDashboardParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  dashboardId: string
-}
-
-export interface SalesforceGetDashboardResponse {
-  success: boolean
-  output: {
-    dashboard: any
-    dashboardId: string
-    components: any[]
-    metadata: {
-      operation: 'get_dashboard'
-      dashboardName?: string
-      folderId?: string
-      runningUser?: any
-    }
-    success: boolean
-  }
-}
 
 /**
  * Get details for a specific dashboard

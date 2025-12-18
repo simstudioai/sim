@@ -1,34 +1,6 @@
+import type { SalesforceGetCasesParams, SalesforceGetCasesResponse } from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
-
-export interface SalesforceGetCasesParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  caseId?: string
-  limit?: string
-  fields?: string
-  orderBy?: string
-}
-
-export interface SalesforceGetCasesResponse {
-  success: boolean
-  output: {
-    case?: any
-    cases?: any[]
-    paging?: {
-      nextRecordsUrl?: string
-      totalSize: number
-      done: boolean
-    }
-    metadata: {
-      operation: 'get_cases'
-      totalReturned?: number
-      hasMore?: boolean
-    }
-    success: boolean
-  }
-}
 
 export const salesforceGetCasesTool: ToolConfig<
   SalesforceGetCasesParams,

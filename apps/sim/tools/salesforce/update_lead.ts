@@ -1,32 +1,9 @@
+import type {
+  SalesforceUpdateLeadParams,
+  SalesforceUpdateLeadResponse,
+} from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
-
-export interface SalesforceUpdateLeadParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  leadId: string
-  lastName?: string
-  company?: string
-  firstName?: string
-  email?: string
-  phone?: string
-  status?: string
-  leadSource?: string
-  title?: string
-  description?: string
-}
-
-export interface SalesforceUpdateLeadResponse {
-  success: boolean
-  output: {
-    id: string
-    updated: boolean
-    metadata: {
-      operation: 'update_lead'
-    }
-  }
-}
 
 export const salesforceUpdateLeadTool: ToolConfig<
   SalesforceUpdateLeadParams,

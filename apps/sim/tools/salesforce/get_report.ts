@@ -1,27 +1,12 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type {
+  SalesforceGetReportParams,
+  SalesforceGetReportResponse,
+} from '@/tools/salesforce/types'
+import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { extractErrorMessage, getInstanceUrl } from './utils'
 
 const logger = createLogger('SalesforceReports')
-
-export interface SalesforceGetReportParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  reportId: string
-}
-
-export interface SalesforceGetReportResponse {
-  success: boolean
-  output: {
-    report: any
-    reportId: string
-    metadata: {
-      operation: 'get_report'
-    }
-    success: boolean
-  }
-}
 
 /**
  * Get metadata for a specific report

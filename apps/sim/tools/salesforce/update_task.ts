@@ -1,28 +1,9 @@
+import type {
+  SalesforceUpdateTaskParams,
+  SalesforceUpdateTaskResponse,
+} from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
-
-export interface SalesforceUpdateTaskParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  taskId: string
-  subject?: string
-  status?: string
-  priority?: string
-  activityDate?: string
-  description?: string
-}
-
-export interface SalesforceUpdateTaskResponse {
-  success: boolean
-  output: {
-    id: string
-    updated: boolean
-    metadata: {
-      operation: 'update_task'
-    }
-  }
-}
 
 export const salesforceUpdateTaskTool: ToolConfig<
   SalesforceUpdateTaskParams,

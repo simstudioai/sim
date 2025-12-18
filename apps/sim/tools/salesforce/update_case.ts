@@ -1,27 +1,9 @@
+import type {
+  SalesforceUpdateCaseParams,
+  SalesforceUpdateCaseResponse,
+} from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
-
-export interface SalesforceUpdateCaseParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  caseId: string
-  subject?: string
-  status?: string
-  priority?: string
-  description?: string
-}
-
-export interface SalesforceUpdateCaseResponse {
-  success: boolean
-  output: {
-    id: string
-    updated: boolean
-    metadata: {
-      operation: 'update_case'
-    }
-  }
-}
 
 export const salesforceUpdateCaseTool: ToolConfig<
   SalesforceUpdateCaseParams,

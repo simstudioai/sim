@@ -1,23 +1,9 @@
+import type {
+  SalesforceDeleteCaseParams,
+  SalesforceDeleteCaseResponse,
+} from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
-
-export interface SalesforceDeleteCaseParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  caseId: string
-}
-
-export interface SalesforceDeleteCaseResponse {
-  success: boolean
-  output: {
-    id: string
-    deleted: boolean
-    metadata: {
-      operation: 'delete_case'
-    }
-  }
-}
 
 export const salesforceDeleteCaseTool: ToolConfig<
   SalesforceDeleteCaseParams,

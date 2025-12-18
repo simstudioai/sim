@@ -1,30 +1,9 @@
+import type {
+  SalesforceCreateCaseParams,
+  SalesforceCreateCaseResponse,
+} from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
-
-export interface SalesforceCreateCaseParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  subject: string
-  status?: string
-  priority?: string
-  origin?: string
-  contactId?: string
-  accountId?: string
-  description?: string
-}
-
-export interface SalesforceCreateCaseResponse {
-  success: boolean
-  output: {
-    id: string
-    success: boolean
-    created: boolean
-    metadata: {
-      operation: 'create_case'
-    }
-  }
-}
 
 export const salesforceCreateCaseTool: ToolConfig<
   SalesforceCreateCaseParams,
