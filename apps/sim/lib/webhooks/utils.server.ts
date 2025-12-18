@@ -363,7 +363,7 @@ async function formatTeamsGraphNotification(
                   contentType: mimeType,
                   size,
                 })
-              } catch { }
+              } catch {}
             }
           }
         }
@@ -638,24 +638,24 @@ export async function formatWebhookInput(
 
       const senderObj = message.from
         ? {
-          id: message.from.id,
-          firstName: message.from.first_name,
-          lastName: message.from.last_name,
-          username: message.from.username,
-          languageCode: message.from.language_code,
-          isBot: message.from.is_bot,
-        }
+            id: message.from.id,
+            firstName: message.from.first_name,
+            lastName: message.from.last_name,
+            username: message.from.username,
+            languageCode: message.from.language_code,
+            isBot: message.from.is_bot,
+          }
         : null
 
       const chatObj = message.chat
         ? {
-          id: message.chat.id,
-          type: message.chat.type,
-          title: message.chat.title,
-          username: message.chat.username,
-          firstName: message.chat.first_name,
-          lastName: message.chat.last_name,
-        }
+            id: message.chat.id,
+            type: message.chat.type,
+            title: message.chat.title,
+            username: message.chat.username,
+            firstName: message.chat.first_name,
+            lastName: message.chat.last_name,
+          }
         : null
 
       return {
