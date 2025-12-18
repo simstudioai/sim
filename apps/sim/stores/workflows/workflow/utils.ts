@@ -1,6 +1,55 @@
+import type { Edge } from 'reactflow'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 
 const DEFAULT_LOOP_ITERATIONS = 5
+
+/**
+ * Check if adding an edge would create a cycle in the graph.
+ * Uses depth-first search to detect if the source node is reachable from the target node.
+ *
+ * @param edges - Current edges in the graph
+ * @param sourceId - Source node ID of the proposed edge
+ * @param targetId - Target node ID of the proposed edge
+ * @returns true if adding this edge would create a cycle
+ */
+export function wouldCreateCycle(edges: Edge[], sourceId: string, targetId: string): boolean {
+  if (sourceId === targetId) {
+    return true
+  }
+
+  const adjacencyList = new Map<string, string[]>()
+  for (const edge of edges) {
+    if (!adjacencyList.has(edge.source)) {
+      adjacencyList.set(edge.source, [])
+    }
+    adjacencyList.get(edge.source)!.push(edge.target)
+  }
+
+  const visited = new Set<string>()
+
+  function canReachSource(currentNode: string): boolean {
+    if (currentNode === sourceId) {
+      return true
+    }
+
+    if (visited.has(currentNode)) {
+      return false
+    }
+
+    visited.add(currentNode)
+
+    const neighbors = adjacencyList.get(currentNode) || []
+    for (const neighbor of neighbors) {
+      if (canReachSource(neighbor)) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  return canReachSource(targetId)
+}
 
 /**
  * Convert UI loop block to executor Loop format

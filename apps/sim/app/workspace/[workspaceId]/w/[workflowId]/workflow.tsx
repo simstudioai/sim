@@ -1642,11 +1642,6 @@ const WorkflowContent = React.memo(() => {
   const onConnect = useCallback(
     (connection: any) => {
       if (connection.source && connection.target) {
-        // Prevent self-connections
-        if (connection.source === connection.target) {
-          return
-        }
-
         // Check if connecting nodes across container boundaries
         const sourceNode = getNodes().find((n) => n.id === connection.source)
         const targetNode = getNodes().find((n) => n.id === connection.target)

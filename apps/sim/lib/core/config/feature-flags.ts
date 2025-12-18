@@ -37,8 +37,28 @@ export const isEmailVerificationEnabled = isTruthy(env.EMAIL_VERIFICATION_ENABLE
 
 /**
  * Is authentication disabled (for self-hosted deployments behind private networks)
+ * This flag is blocked when isHosted is true.
  */
-export const isAuthDisabled = isTruthy(env.DISABLE_AUTH)
+export const isAuthDisabled = isTruthy(env.DISABLE_AUTH) && !isHosted
+
+if (isTruthy(env.DISABLE_AUTH)) {
+  import('@/lib/logs/console/logger')
+    .then(({ createLogger }) => {
+      const logger = createLogger('FeatureFlags')
+      if (isHosted) {
+        logger.error(
+          'DISABLE_AUTH is set but ignored on hosted environment. Authentication remains enabled for security.'
+        )
+      } else {
+        logger.warn(
+          'DISABLE_AUTH is enabled. Authentication is bypassed and all requests use an anonymous session. Only use this in trusted private networks.'
+        )
+      }
+    })
+    .catch(() => {
+      // Fallback during config compilation when logger is unavailable
+    })
+}
 
 /**
  * Is user registration disabled

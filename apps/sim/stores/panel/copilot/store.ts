@@ -32,6 +32,7 @@ import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/
 import { SearchErrorsClientTool } from '@/lib/copilot/tools/client/other/search-errors'
 import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
 import { SearchPatternsClientTool } from '@/lib/copilot/tools/client/other/search-patterns'
+import { SleepClientTool } from '@/lib/copilot/tools/client/other/sleep'
 import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/registry'
 import { GetCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-credentials'
 import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/set-environment-variables'
@@ -104,6 +105,7 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   navigate_ui: (id) => new NavigateUIClientTool(id),
   manage_custom_tool: (id) => new ManageCustomToolClientTool(id),
   manage_mcp_tool: (id) => new ManageMcpToolClientTool(id),
+  sleep: (id) => new SleepClientTool(id),
 }
 
 // Read-only static metadata for class-based tools (no instances)
@@ -141,6 +143,7 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   navigate_ui: (NavigateUIClientTool as any)?.metadata,
   manage_custom_tool: (ManageCustomToolClientTool as any)?.metadata,
   manage_mcp_tool: (ManageMcpToolClientTool as any)?.metadata,
+  sleep: (SleepClientTool as any)?.metadata,
 }
 
 function ensureClientToolInstance(toolName: string | undefined, toolCallId: string | undefined) {
@@ -2256,6 +2259,22 @@ export const useCopilotStore = create<CopilotStore>()(
           ...current,
           state: norm,
           display: resolveToolDisplay(current.name, norm, id, current.params),
+        }
+        set({ toolCallsById: map })
+      } catch {}
+    },
+
+    updateToolCallParams: (toolCallId: string, params: Record<string, any>) => {
+      try {
+        if (!toolCallId) return
+        const map = { ...get().toolCallsById }
+        const current = map[toolCallId]
+        if (!current) return
+        const updatedParams = { ...current.params, ...params }
+        map[toolCallId] = {
+          ...current,
+          params: updatedParams,
+          display: resolveToolDisplay(current.name, current.state, toolCallId, updatedParams),
         }
         set({ toolCallsById: map })
       } catch {}
