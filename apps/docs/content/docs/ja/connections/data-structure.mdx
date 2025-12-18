@@ -110,26 +110,24 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
     ```json
     {
-      "content": "Original content passed through",
       "conditionResult": true,
       "selectedPath": {
         "blockId": "2acd9007-27e8-4510-a487-73d3b825e7c1",
         "blockType": "agent",
         "blockTitle": "Follow-up Agent"
       },
-      "selectedConditionId": "condition-1"
+      "selectedOption": "condition-1"
     }
     ```
 
     ### 条件ブロックの出力フィールド
 
-    - **content**: そのまま渡される元のコンテンツ
     - **conditionResult**: 条件評価の真偽値結果
     - **selectedPath**: 選択されたパスに関する情報
       - **blockId**: 選択されたパスの次のブロックのID
       - **blockType**: 次のブロックのタイプ
       - **blockTitle**: 次のブロックのタイトル
-    - **selectedConditionId**: 選択された条件のID
+    - **selectedOption**: 選択された条件のID
 
   </Tab>
   <Tab>
