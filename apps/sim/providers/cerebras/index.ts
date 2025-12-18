@@ -1,6 +1,9 @@
 import { Cerebras } from '@cerebras/cerebras_cloud_sdk'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
+import { MAX_TOOL_ITERATIONS } from '@/providers'
+import type { CerebrasResponse } from '@/providers/cerebras/types'
+import { createReadableStreamFromCerebrasStream } from '@/providers/cerebras/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type {
   ProviderConfig,
@@ -14,34 +17,8 @@ import {
   trackForcedToolUsage,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
-import type { CerebrasResponse } from './types'
 
 const logger = createLogger('CerebrasProvider')
-
-/**
- * Helper to convert a Cerebras streaming response (async iterable) into a ReadableStream.
- * Enqueues only the model's text delta chunks as UTF-8 encoded bytes.
- */
-function createReadableStreamFromCerebrasStream(
-  cerebrasStream: AsyncIterable<any>
-): ReadableStream {
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of cerebrasStream) {
-          // Expecting delta content similar to OpenAI: chunk.choices[0]?.delta?.content
-          const content = chunk.choices?.[0]?.delta?.content || ''
-          if (content) {
-            controller.enqueue(new TextEncoder().encode(content))
-          }
-        }
-        controller.close()
-      } catch (error) {
-        controller.error(error)
-      }
-    },
-  })
-}
 
 export const cerebrasProvider: ProviderConfig = {
   id: 'cerebras',
@@ -223,7 +200,6 @@ export const cerebrasProvider: ProviderConfig = {
       const toolResults = []
       const currentMessages = [...allMessages]
       let iterationCount = 0
-      const MAX_ITERATIONS = 10 // Prevent infinite loops
 
       // Track time spent in model vs tools
       let modelTime = firstResponseTime
@@ -246,7 +222,7 @@ export const cerebrasProvider: ProviderConfig = {
       const toolCallSignatures = new Set()
 
       try {
-        while (iterationCount < MAX_ITERATIONS) {
+        while (iterationCount < MAX_TOOL_ITERATIONS) {
           // Check for tool calls
           const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
 

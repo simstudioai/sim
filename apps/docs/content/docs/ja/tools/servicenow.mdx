@@ -1,0 +1,107 @@
+---
+title: ServiceNow
+description: ServiceNowレコードの作成、読み取り、更新、削除、一括インポート
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="servicenow"
+  color="#032D42"
+/>
+
+## 使用方法
+
+ServiceNowをワークフローに統合します。任意のServiceNowテーブル（インシデント、タスク、ユーザーなど）のレコードを作成、読み取り、更新、削除できます。データ移行とETLのための一括インポート操作をサポートします。
+
+## ツール
+
+### `servicenow_create_record`
+
+ServiceNowテーブルに新しいレコードを作成
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | はい | ServiceNowインスタンスURL（例：https://instance.service-now.com） |
+| `credential` | string | いいえ | ServiceNow OAuth認証情報ID |
+| `tableName` | string | はい | テーブル名（例：incident、task、sys_user） |
+| `fields` | json | はい | レコードに設定するフィールド（JSONオブジェクト） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `record` | json | sys_idおよびその他のフィールドを含む作成されたServiceNowレコード |
+| `metadata` | json | 操作メタデータ |
+
+### `servicenow_read_record`
+
+ServiceNowテーブルからレコードを読み取り
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | いいえ | ServiceNowインスタンスURL（指定されていない場合はOAuthから自動検出） |
+| `credential` | string | いいえ | ServiceNow OAuth認証情報ID |
+| `tableName` | string | はい | テーブル名 |
+| `sysId` | string | いいえ | 特定のレコードsys_id |
+| `number` | string | いいえ | レコード番号（例：INC0010001） |
+| `query` | string | いいえ | エンコードされたクエリ文字列（例："active=true^priority=1"） |
+| `limit` | number | いいえ | 返す最大レコード数 |
+| `fields` | string | いいえ | 返すフィールドのカンマ区切りリスト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `records` | array | ServiceNowレコードの配列 |
+| `metadata` | json | 操作メタデータ |
+
+### `servicenow_update_record`
+
+ServiceNowテーブル内の既存のレコードを更新します
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | いいえ | ServiceNowインスタンスURL(指定されていない場合はOAuthから自動検出) |
+| `credential` | string | いいえ | ServiceNow OAuth認証情報ID |
+| `tableName` | string | はい | テーブル名 |
+| `sysId` | string | はい | 更新するレコードのsys_id |
+| `fields` | json | はい | 更新するフィールド(JSONオブジェクト) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `record` | json | 更新されたServiceNowレコード |
+| `metadata` | json | 操作メタデータ |
+
+### `servicenow_delete_record`
+
+ServiceNowテーブルからレコードを削除します
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | いいえ | ServiceNowインスタンスURL(指定されていない場合はOAuthから自動検出) |
+| `credential` | string | いいえ | ServiceNow OAuth認証情報ID |
+| `tableName` | string | はい | テーブル名 |
+| `sysId` | string | はい | 削除するレコードのsys_id |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 削除が成功したかどうか |
+| `metadata` | json | 操作メタデータ |
+
+## 注記
+
+- カテゴリー: `tools`
+- タイプ: `servicenow`

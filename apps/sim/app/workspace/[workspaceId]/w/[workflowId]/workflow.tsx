@@ -18,6 +18,7 @@ import { useShallow } from 'zustand/react/shallow'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/other/oauth-request-access'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { OAuthProvider } from '@/lib/oauth'
+import { CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -176,6 +177,7 @@ const WorkflowContent = React.memo(() => {
     resizeLoopNodes,
     updateNodeParent: updateNodeParentUtil,
     getNodeAnchorPosition,
+    getBlockDimensions,
   } = useNodeUtilities(blocks)
 
   /** Triggers immediate subflow resize without delays. */
@@ -1502,6 +1504,66 @@ const WorkflowContent = React.memo(() => {
   }, [])
 
   /**
+   * Updates container dimensions in displayNodes during drag.
+   * This allows live resizing of containers as their children are dragged.
+   */
+  const updateContainerDimensionsDuringDrag = useCallback(
+    (draggedNodeId: string, draggedNodePosition: { x: number; y: number }) => {
+      const parentId = blocks[draggedNodeId]?.data?.parentId
+      if (!parentId) return
+
+      setDisplayNodes((currentNodes) => {
+        const childNodes = currentNodes.filter((n) => n.parentId === parentId)
+        if (childNodes.length === 0) return currentNodes
+
+        let maxRight = 0
+        let maxBottom = 0
+
+        childNodes.forEach((node) => {
+          const nodePosition = node.id === draggedNodeId ? draggedNodePosition : node.position
+          const { width: nodeWidth, height: nodeHeight } = getBlockDimensions(node.id)
+
+          maxRight = Math.max(maxRight, nodePosition.x + nodeWidth)
+          maxBottom = Math.max(maxBottom, nodePosition.y + nodeHeight)
+        })
+
+        const newWidth = Math.max(
+          CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+          CONTAINER_DIMENSIONS.LEFT_PADDING + maxRight + CONTAINER_DIMENSIONS.RIGHT_PADDING
+        )
+        const newHeight = Math.max(
+          CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+          CONTAINER_DIMENSIONS.HEADER_HEIGHT +
+            CONTAINER_DIMENSIONS.TOP_PADDING +
+            maxBottom +
+            CONTAINER_DIMENSIONS.BOTTOM_PADDING
+        )
+
+        return currentNodes.map((node) => {
+          if (node.id === parentId) {
+            const currentWidth = node.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH
+            const currentHeight = node.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
+
+            // Only update if dimensions changed
+            if (newWidth !== currentWidth || newHeight !== currentHeight) {
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  width: newWidth,
+                  height: newHeight,
+                },
+              }
+            }
+          }
+          return node
+        })
+      })
+    },
+    [blocks, getBlockDimensions]
+  )
+
+  /**
    * Effect to resize loops when nodes change (add/remove/position change).
    * Runs on structural changes only - not during drag (position-only changes).
    * Skips during loading to avoid unnecessary work.
@@ -1681,6 +1743,11 @@ const WorkflowContent = React.memo(() => {
       // Get the current parent ID of the node being dragged
       const currentParentId = blocks[node.id]?.data?.parentId || null
 
+      // If the node is inside a container, update container dimensions during drag
+      if (currentParentId) {
+        updateContainerDimensionsDuringDrag(node.id, node.position)
+      }
+
       // Check if this is a starter block - starter blocks should never be in containers
       const isStarterBlock = node.data?.type === 'starter'
       if (isStarterBlock) {
@@ -1812,7 +1879,14 @@ const WorkflowContent = React.memo(() => {
         }
       }
     },
-    [getNodes, potentialParentId, blocks, getNodeAbsolutePosition, getNodeDepth]
+    [
+      getNodes,
+      potentialParentId,
+      blocks,
+      getNodeAbsolutePosition,
+      getNodeDepth,
+      updateContainerDimensionsDuringDrag,
+    ]
   )
 
   /** Captures initial parent ID and position when drag starts. */

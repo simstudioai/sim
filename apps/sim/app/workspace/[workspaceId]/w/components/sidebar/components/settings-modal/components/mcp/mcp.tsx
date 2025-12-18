@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
+  Badge,
   Button,
   Input as EmcnInput,
   Modal,
@@ -14,6 +15,7 @@ import {
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getIssueBadgeLabel, getMcpToolIssue, type McpToolIssue } from '@/lib/mcp/tool-validation'
 import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import {
   useCreateMcpServer,
@@ -21,6 +23,7 @@ import {
   useMcpServers,
   useMcpToolsQuery,
   useRefreshMcpServer,
+  useStoredMcpTools,
 } from '@/hooks/queries/mcp'
 import { useMcpServerTest } from '@/hooks/use-mcp-server-test'
 import type { InputFieldType, McpServerFormData, McpServerTestResult } from './components'
@@ -44,6 +47,9 @@ interface McpServer {
   name?: string
   transport?: string
   url?: string
+  connectionStatus?: 'connected' | 'disconnected' | 'error'
+  lastError?: string | null
+  lastConnected?: string
 }
 
 const logger = createLogger('McpSettings')
@@ -69,11 +75,15 @@ function getTestButtonLabel(
   return 'Test Connection'
 }
 
+interface MCPProps {
+  initialServerId?: string | null
+}
+
 /**
  * MCP Settings component for managing Model Context Protocol servers.
  * Handles server CRUD operations, connection testing, and environment variable integration.
  */
-export function MCP() {
+export function MCP({ initialServerId }: MCPProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -88,6 +98,7 @@ export function MCP() {
     isLoading: toolsLoading,
     isFetching: toolsFetching,
   } = useMcpToolsQuery(workspaceId)
+  const { data: storedTools = [] } = useStoredMcpTools(workspaceId)
   const createServerMutation = useCreateMcpServer()
   const deleteServerMutation = useDeleteMcpServer()
   const refreshServerMutation = useRefreshMcpServer()
@@ -106,7 +117,9 @@ export function MCP() {
   const [serverToDelete, setServerToDelete] = useState<{ id: string; name: string } | null>(null)
 
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null)
-  const [refreshStatus, setRefreshStatus] = useState<'idle' | 'refreshing' | 'refreshed'>('idle')
+  const [refreshingServers, setRefreshingServers] = useState<
+    Record<string, 'refreshing' | 'refreshed'>
+  >({})
 
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [envSearchTerm, setEnvSearchTerm] = useState('')
@@ -114,9 +127,15 @@ export function MCP() {
   const [activeInputField, setActiveInputField] = useState<InputFieldType | null>(null)
   const [activeHeaderIndex, setActiveHeaderIndex] = useState<number | null>(null)
 
-  // Scroll position state for formatted text overlays
   const [urlScrollLeft, setUrlScrollLeft] = useState(0)
   const [headerScrollLeft, setHeaderScrollLeft] = useState<Record<string, number>>({})
+
+  // Auto-select server when initialServerId is provided
+  useEffect(() => {
+    if (initialServerId && servers.some((s) => s.id === initialServerId)) {
+      setSelectedServerId(initialServerId)
+    }
+  }, [initialServerId, servers])
 
   /**
    * Resets environment variable dropdown state.
@@ -237,6 +256,7 @@ export function MCP() {
 
   /**
    * Adds a new MCP server after validating and testing the connection.
+   * Only creates the server if connection test succeeds.
    */
   const handleAddServer = useCallback(async () => {
     if (!formData.name.trim()) return
@@ -253,12 +273,12 @@ export function MCP() {
         workspaceId,
       }
 
-      if (!testResult) {
-        const result = await testConnection(serverConfig)
-        if (!result.success) return
-      }
+      const connectionResult = await testConnection(serverConfig)
 
-      if (testResult && !testResult.success) return
+      if (!connectionResult.success) {
+        logger.error('Connection test failed, server not added:', connectionResult.error)
+        return
+      }
 
       await createServerMutation.mutateAsync({
         workspaceId,
@@ -279,15 +299,7 @@ export function MCP() {
     } finally {
       setIsAddingServer(false)
     }
-  }, [
-    formData,
-    testResult,
-    testConnection,
-    createServerMutation,
-    workspaceId,
-    headersToRecord,
-    resetForm,
-  ])
+  }, [formData, testConnection, createServerMutation, workspaceId, headersToRecord, resetForm])
 
   /**
    * Opens the delete confirmation dialog for an MCP server.
@@ -297,9 +309,6 @@ export function MCP() {
     setShowDeleteDialog(true)
   }, [])
 
-  /**
-   * Confirms and executes the server deletion.
-   */
   const confirmDeleteServer = useCallback(async () => {
     if (!serverToDelete) return
 
@@ -399,14 +408,24 @@ export function MCP() {
   const handleRefreshServer = useCallback(
     async (serverId: string) => {
       try {
-        setRefreshStatus('refreshing')
+        setRefreshingServers((prev) => ({ ...prev, [serverId]: 'refreshing' }))
         await refreshServerMutation.mutateAsync({ workspaceId, serverId })
         logger.info(`Refreshed MCP server: ${serverId}`)
-        setRefreshStatus('refreshed')
-        setTimeout(() => setRefreshStatus('idle'), 2000)
+        setRefreshingServers((prev) => ({ ...prev, [serverId]: 'refreshed' }))
+        setTimeout(() => {
+          setRefreshingServers((prev) => {
+            const newState = { ...prev }
+            delete newState[serverId]
+            return newState
+          })
+        }, 2000)
       } catch (error) {
         logger.error('Failed to refresh MCP server:', error)
-        setRefreshStatus('idle')
+        setRefreshingServers((prev) => {
+          const newState = { ...prev }
+          delete newState[serverId]
+          return newState
+        })
       }
     },
     [refreshServerMutation, workspaceId]
@@ -431,6 +450,53 @@ export function MCP() {
   const isFormValid = formData.name.trim() && formData.url?.trim()
   const isSubmitDisabled = serversLoading || isAddingServer || !isFormValid
   const testButtonLabel = getTestButtonLabel(testResult, isTestingConnection)
+
+  /**
+   * Gets issues for stored tools that reference a specific server tool.
+   * Returns issues from all workflows that have stored this tool.
+   */
+  const getStoredToolIssues = useCallback(
+    (serverId: string, toolName: string): { issue: McpToolIssue; workflowName: string }[] => {
+      const relevantStoredTools = storedTools.filter(
+        (st) => st.serverId === serverId && st.toolName === toolName
+      )
+
+      const serverStates = servers.map((s) => ({
+        id: s.id,
+        url: s.url,
+        connectionStatus: s.connectionStatus,
+        lastError: s.lastError || undefined,
+      }))
+
+      const discoveredTools = mcpToolsData.map((t) => ({
+        serverId: t.serverId,
+        name: t.name,
+        inputSchema: t.inputSchema,
+      }))
+
+      const issues: { issue: McpToolIssue; workflowName: string }[] = []
+
+      for (const storedTool of relevantStoredTools) {
+        const issue = getMcpToolIssue(
+          {
+            serverId: storedTool.serverId,
+            serverUrl: storedTool.serverUrl,
+            toolName: storedTool.toolName,
+            schema: storedTool.schema,
+          },
+          serverStates,
+          discoveredTools
+        )
+
+        if (issue) {
+          issues.push({ issue, workflowName: storedTool.workflowName })
+        }
+      }
+
+      return issues
+    },
+    [storedTools, servers, mcpToolsData]
+  )
 
   if (selectedServer) {
     const { server, tools } = selectedServer
@@ -463,6 +529,15 @@ export function MCP() {
               </div>
             )}
 
+            {server.connectionStatus === 'error' && (
+              <div className='flex flex-col gap-[8px]'>
+                <span className='font-medium text-[13px] text-[var(--text-primary)]'>Status</span>
+                <p className='text-[14px] text-red-500 dark:text-red-400'>
+                  {server.lastError || 'Unable to connect'}
+                </p>
+              </div>
+            )}
+
             <div className='flex flex-col gap-[8px]'>
               <span className='font-medium text-[13px] text-[var(--text-primary)]'>
                 Tools ({tools.length})
@@ -471,21 +546,37 @@ export function MCP() {
                 <p className='text-[13px] text-[var(--text-muted)]'>No tools available</p>
               ) : (
                 <div className='flex flex-col gap-[8px]'>
-                  {tools.map((tool) => (
-                    <div
-                      key={tool.name}
-                      className='rounded-[6px] border bg-[var(--surface-3)] px-[10px] py-[8px]'
-                    >
-                      <p className='font-medium text-[13px] text-[var(--text-primary)]'>
-                        {tool.name}
-                      </p>
-                      {tool.description && (
-                        <p className='mt-[4px] text-[13px] text-[var(--text-tertiary)]'>
-                          {tool.description}
-                        </p>
-                      )}
-                    </div>
-                  ))}
+                  {tools.map((tool) => {
+                    const issues = getStoredToolIssues(server.id, tool.name)
+                    return (
+                      <div
+                        key={tool.name}
+                        className='rounded-[6px] border bg-[var(--surface-3)] px-[10px] py-[8px]'
+                      >
+                        <div className='flex items-center justify-between'>
+                          <p className='font-medium text-[13px] text-[var(--text-primary)]'>
+                            {tool.name}
+                          </p>
+                          {issues.length > 0 && (
+                            <Badge
+                              variant='outline'
+                              style={{
+                                borderColor: 'var(--warning)',
+                                color: 'var(--warning)',
+                              }}
+                            >
+                              {getIssueBadgeLabel(issues[0].issue)}
+                            </Badge>
+                          )}
+                        </div>
+                        {tool.description && (
+                          <p className='mt-[4px] text-[13px] text-[var(--text-tertiary)]'>
+                            {tool.description}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -496,11 +587,11 @@ export function MCP() {
           <Button
             onClick={() => handleRefreshServer(server.id)}
             variant='default'
-            disabled={refreshStatus !== 'idle'}
+            disabled={!!refreshingServers[server.id]}
           >
-            {refreshStatus === 'refreshing'
+            {refreshingServers[server.id] === 'refreshing'
               ? 'Refreshing...'
-              : refreshStatus === 'refreshed'
+              : refreshingServers[server.id] === 'refreshed'
                 ? 'Refreshed'
                 : 'Refresh Tools'}
           </Button>
@@ -672,6 +763,7 @@ export function MCP() {
                     tools={tools}
                     isDeleting={deletingServers.has(server.id)}
                     isLoadingTools={isLoadingTools}
+                    isRefreshing={refreshingServers[server.id] === 'refreshing'}
                     onRemove={() => handleRemoveServer(server.id, server.name || 'this server')}
                     onViewDetails={() => handleViewDetails(server.id)}
                   />

@@ -1547,6 +1547,8 @@ export const mcpServers = pgTable(
     connectionStatus: text('connection_status').default('disconnected'),
     lastError: text('last_error'),
 
+    statusConfig: jsonb('status_config').default('{}'),
+
     toolCount: integer('tool_count').default(0),
     lastToolsRefresh: timestamp('last_tools_refresh'),
     totalRequests: integer('total_requests').default(0),

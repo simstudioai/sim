@@ -189,6 +189,28 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       },
     },
     {
+      id: 'vertexProject',
+      title: 'Vertex AI Project',
+      type: 'short-input',
+      placeholder: 'your-gcp-project-id',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers.vertex.models,
+      },
+    },
+    {
+      id: 'vertexLocation',
+      title: 'Vertex AI Location',
+      type: 'short-input',
+      placeholder: 'us-central1',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers.vertex.models,
+      },
+    },
+    {
       id: 'temperature',
       title: 'Temperature',
       type: 'slider',
@@ -235,6 +257,8 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
     apiKey: { type: 'string', description: 'Provider API key' },
     azureEndpoint: { type: 'string', description: 'Azure OpenAI endpoint URL' },
     azureApiVersion: { type: 'string', description: 'Azure API version' },
+    vertexProject: { type: 'string', description: 'Google Cloud project ID for Vertex AI' },
+    vertexLocation: { type: 'string', description: 'Google Cloud location for Vertex AI' },
     temperature: {
       type: 'number',
       description: 'Response randomness level (low for consistent routing)',

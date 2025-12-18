@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Loader2, PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
+  Badge,
   Combobox,
   Popover,
   PopoverContent,
@@ -12,6 +13,7 @@ import {
   PopoverSearch,
   PopoverSection,
   PopoverTrigger,
+  Tooltip,
 } from '@/components/emcn'
 import { McpIcon } from '@/components/icons'
 import { Switch } from '@/components/ui/switch'
@@ -55,9 +57,11 @@ import {
   type CustomTool as CustomToolDefinition,
   useCustomTools,
 } from '@/hooks/queries/custom-tools'
+import { useMcpServers } from '@/hooks/queries/mcp'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useMcpTools } from '@/hooks/use-mcp-tools'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
+import { useSettingsModalStore } from '@/stores/settings-modal/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import {
   formatParameterLabel,
@@ -801,6 +805,66 @@ export function ToolInput({
     error: mcpError,
     refreshTools,
   } = useMcpTools(workspaceId)
+
+  const { data: mcpServers = [], isLoading: mcpServersLoading } = useMcpServers(workspaceId)
+  const openSettingsModal = useSettingsModalStore((state) => state.openModal)
+  const mcpDataLoading = mcpLoading || mcpServersLoading
+
+  /**
+   * Returns issue info for an MCP tool using shared validation logic.
+   */
+  const getMcpToolIssue = useCallback(
+    (tool: StoredTool) => {
+      if (tool.type !== 'mcp') return null
+
+      const { getMcpToolIssue: validateTool } = require('@/lib/mcp/tool-validation')
+
+      return validateTool(
+        {
+          serverId: tool.params?.serverId as string,
+          serverUrl: tool.params?.serverUrl as string | undefined,
+          toolName: tool.params?.toolName as string,
+          schema: tool.schema,
+        },
+        mcpServers.map((s) => ({
+          id: s.id,
+          url: s.url,
+          connectionStatus: s.connectionStatus,
+          lastError: s.lastError,
+        })),
+        mcpTools.map((t) => ({
+          serverId: t.serverId,
+          name: t.name,
+          inputSchema: t.inputSchema,
+        }))
+      )
+    },
+    [mcpTools, mcpServers]
+  )
+
+  const isMcpToolUnavailable = useCallback(
+    (tool: StoredTool): boolean => {
+      const { isToolUnavailable } = require('@/lib/mcp/tool-validation')
+      return isToolUnavailable(getMcpToolIssue(tool))
+    },
+    [getMcpToolIssue]
+  )
+
+  const hasMcpToolIssue = useCallback(
+    (tool: StoredTool): boolean => {
+      return getMcpToolIssue(tool) !== null
+    },
+    [getMcpToolIssue]
+  )
+
+  // Filter out MCP tools from unavailable servers for the dropdown
+  const availableMcpTools = useMemo(() => {
+    return mcpTools.filter((mcpTool) => {
+      const server = mcpServers.find((s) => s.id === mcpTool.serverId)
+      // Only include tools from connected servers
+      return server && server.connectionStatus === 'connected'
+    })
+  }, [mcpTools, mcpServers])
 
   // Reset search query when popover opens
   useEffect(() => {
@@ -1849,9 +1913,10 @@ export function ToolInput({
                       )
                     })()}
 
-                    {/* Display MCP tools */}
+                    {/* Display MCP tools (only from available servers) */}
                     <McpToolsList
-                      mcpTools={mcpTools}
+                      mcpTools={availableMcpTools}
+                      mcpServers={mcpServers}
                       searchQuery={searchQuery || ''}
                       customFilter={customFilter}
                       onToolSelect={handleMcpToolSelect}
@@ -2040,9 +2105,46 @@ export function ToolInput({
                     <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
                       {isCustomTool ? customToolTitle : tool.title}
                     </span>
+                    {isMcpTool &&
+                      !mcpDataLoading &&
+                      (() => {
+                        const issue = getMcpToolIssue(tool)
+                        if (!issue) return null
+                        const { getIssueBadgeLabel } = require('@/lib/mcp/tool-validation')
+                        const serverId = tool.params?.serverId
+                        return (
+                          <div
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation()
+                              e.preventDefault()
+                              openSettingsModal({ section: 'mcp', mcpServerId: serverId })
+                            }}
+                          >
+                            <Tooltip.Root>
+                              <Tooltip.Trigger asChild>
+                                <Badge
+                                  variant='outline'
+                                  className='cursor-pointer transition-colors hover:bg-[var(--warning)]/10'
+                                  style={{
+                                    borderColor: 'var(--warning)',
+                                    color: 'var(--warning)',
+                                  }}
+                                >
+                                  {getIssueBadgeLabel(issue)}
+                                </Badge>
+                              </Tooltip.Trigger>
+                              <Tooltip.Content>
+                                <span className='text-sm'>
+                                  {issue.message} · Click to open settings
+                                </span>
+                              </Tooltip.Content>
+                            </Tooltip.Root>
+                          </div>
+                        )
+                      })()}
                   </div>
                   <div className='flex flex-shrink-0 items-center gap-[8px]'>
-                    {supportsToolControl && (
+                    {supportsToolControl && !(isMcpTool && isMcpToolUnavailable(tool)) && (
                       <Popover
                         open={usageControlPopoverIndex === toolIndex}
                         onOpenChange={(open) =>
@@ -2386,9 +2488,10 @@ export function ToolInput({
                         )
                       })()}
 
-                      {/* Display MCP tools */}
+                      {/* Display MCP tools (only from available servers) */}
                       <McpToolsList
-                        mcpTools={mcpTools}
+                        mcpTools={availableMcpTools}
+                        mcpServers={mcpServers}
                         searchQuery={searchQuery || ''}
                         customFilter={customFilter}
                         onToolSelect={handleMcpToolSelect}

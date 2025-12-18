@@ -68,7 +68,7 @@ export class NodeExecutionOrchestrator {
     }
 
     if (node.metadata.isSentinel) {
-      const output = this.handleSentinel(ctx, node)
+      const output = await this.handleSentinel(ctx, node)
       const isFinalOutput = node.outgoingEdges.size === 0
       return {
         nodeId,
@@ -86,14 +86,17 @@ export class NodeExecutionOrchestrator {
     }
   }
 
-  private handleSentinel(ctx: ExecutionContext, node: DAGNode): NormalizedBlockOutput {
+  private async handleSentinel(
+    ctx: ExecutionContext,
+    node: DAGNode
+  ): Promise<NormalizedBlockOutput> {
     const sentinelType = node.metadata.sentinelType
     const loopId = node.metadata.loopId
 
     switch (sentinelType) {
       case 'start': {
         if (loopId) {
-          const shouldExecute = this.loopOrchestrator.evaluateInitialCondition(ctx, loopId)
+          const shouldExecute = await this.loopOrchestrator.evaluateInitialCondition(ctx, loopId)
           if (!shouldExecute) {
             logger.info('While loop initial condition false, skipping loop body', { loopId })
             return {
@@ -112,7 +115,7 @@ export class NodeExecutionOrchestrator {
           return { shouldExit: true, selectedRoute: EDGE.LOOP_EXIT }
         }
 
-        const continuationResult = this.loopOrchestrator.evaluateLoopContinuation(ctx, loopId)
+        const continuationResult = await this.loopOrchestrator.evaluateLoopContinuation(ctx, loopId)
 
         if (continuationResult.shouldContinue) {
           return {

@@ -1,3 +1,5 @@
+import { generateRequestId } from '@/lib/core/utils/request'
+import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { buildLoopIndexCondition, DEFAULTS, EDGE } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
@@ -16,6 +18,8 @@ import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedLoop } from '@/serializer/types'
 
 const logger = createLogger('LoopOrchestrator')
+
+const LOOP_CONDITION_TIMEOUT_MS = 5000
 
 export type LoopRoute = typeof EDGE.LOOP_CONTINUE | typeof EDGE.LOOP_EXIT
 
@@ -112,7 +116,10 @@ export class LoopOrchestrator {
     scope.currentIterationOutputs.set(baseId, output)
   }
 
-  evaluateLoopContinuation(ctx: ExecutionContext, loopId: string): LoopContinuationResult {
+  async evaluateLoopContinuation(
+    ctx: ExecutionContext,
+    loopId: string
+  ): Promise<LoopContinuationResult> {
     const scope = ctx.loopExecutions?.get(loopId)
     if (!scope) {
       logger.error('Loop scope not found during continuation evaluation', { loopId })
@@ -123,7 +130,6 @@ export class LoopOrchestrator {
       }
     }
 
-    // Check for cancellation
     if (ctx.isCancelled) {
       logger.info('Loop execution cancelled', { loopId, iteration: scope.iteration })
       return this.createExitResult(ctx, loopId, scope)
@@ -140,7 +146,7 @@ export class LoopOrchestrator {
 
     scope.currentIterationOutputs.clear()
 
-    if (!this.evaluateCondition(ctx, scope, scope.iteration + 1)) {
+    if (!(await this.evaluateCondition(ctx, scope, scope.iteration + 1))) {
       return this.createExitResult(ctx, loopId, scope)
     }
 
@@ -173,7 +179,11 @@ export class LoopOrchestrator {
     }
   }
 
-  private evaluateCondition(ctx: ExecutionContext, scope: LoopScope, iteration?: number): boolean {
+  private async evaluateCondition(
+    ctx: ExecutionContext,
+    scope: LoopScope,
+    iteration?: number
+  ): Promise<boolean> {
     if (!scope.condition) {
       logger.warn('No condition defined for loop')
       return false
@@ -184,7 +194,7 @@ export class LoopOrchestrator {
       scope.iteration = iteration
     }
 
-    const result = this.evaluateWhileCondition(ctx, scope.condition, scope)
+    const result = await this.evaluateWhileCondition(ctx, scope.condition, scope)
 
     if (iteration !== undefined) {
       scope.iteration = currentIteration
@@ -223,7 +233,6 @@ export class LoopOrchestrator {
     const loopNodes = loopConfig.nodes
     const allLoopNodeIds = new Set([sentinelStartId, sentinelEndId, ...loopNodes])
 
-    // Clear deactivated edges for loop nodes so error/success edges can be re-evaluated
     if (this.edgeManager) {
       this.edgeManager.clearDeactivatedEdgesForNodes(allLoopNodeIds)
     }
@@ -263,7 +272,7 @@ export class LoopOrchestrator {
    *
    * @returns true if the loop should execute, false if it should be skipped
    */
-  evaluateInitialCondition(ctx: ExecutionContext, loopId: string): boolean {
+  async evaluateInitialCondition(ctx: ExecutionContext, loopId: string): Promise<boolean> {
     const scope = ctx.loopExecutions?.get(loopId)
     if (!scope) {
       logger.warn('Loop scope not found for initial condition evaluation', { loopId })
@@ -300,7 +309,7 @@ export class LoopOrchestrator {
         return false
       }
 
-      const result = this.evaluateWhileCondition(ctx, scope.condition, scope)
+      const result = await this.evaluateWhileCondition(ctx, scope.condition, scope)
       logger.info('While loop initial condition evaluation', {
         loopId,
         condition: scope.condition,
@@ -327,11 +336,11 @@ export class LoopOrchestrator {
     return undefined
   }
 
-  private evaluateWhileCondition(
+  private async evaluateWhileCondition(
     ctx: ExecutionContext,
     condition: string,
     scope: LoopScope
-  ): boolean {
+  ): Promise<boolean> {
     if (!condition) {
       return false
     }
@@ -343,7 +352,6 @@ export class LoopOrchestrator {
         workflowVariables: ctx.workflowVariables,
       })
 
-      // Use generic utility for smart variable reference replacement
       const evaluatedCondition = replaceValidReferences(condition, (match) => {
         const resolved = this.resolver.resolveSingleReference(ctx, '', match, scope)
         logger.info('Resolved variable reference in loop condition', {
@@ -352,11 +360,9 @@ export class LoopOrchestrator {
           resolvedType: typeof resolved,
         })
         if (resolved !== undefined) {
-          // For booleans and numbers, return as-is (no quotes)
           if (typeof resolved === 'boolean' || typeof resolved === 'number') {
             return String(resolved)
           }
-          // For strings that represent booleans, return without quotes
           if (typeof resolved === 'string') {
             const lower = resolved.toLowerCase().trim()
             if (lower === 'true' || lower === 'false') {
@@ -364,13 +370,33 @@ export class LoopOrchestrator {
             }
             return `"${resolved}"`
           }
-          // For other types, stringify them
           return JSON.stringify(resolved)
         }
         return match
       })
 
-      const result = Boolean(new Function(`return (${evaluatedCondition})`)())
+      const requestId = generateRequestId()
+      const code = `return Boolean(${evaluatedCondition})`
+
+      const vmResult = await executeInIsolatedVM({
+        code,
+        params: {},
+        envVars: {},
+        contextVariables: {},
+        timeoutMs: LOOP_CONDITION_TIMEOUT_MS,
+        requestId,
+      })
+
+      if (vmResult.error) {
+        logger.error('Failed to evaluate loop condition', {
+          condition,
+          evaluatedCondition,
+          error: vmResult.error,
+        })
+        return false
+      }
+
+      const result = Boolean(vmResult.result)
 
       logger.info('Loop condition evaluation result', {
         originalCondition: condition,

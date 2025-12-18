@@ -25,28 +25,8 @@ export function convertLoopBlockToLoop(
     loopType,
   }
 
-  // Load ALL fields regardless of current loop type
-  // This allows switching between loop types without losing data
-
-  // For for/forEach loops, read from collection (block data) and map to forEachItems (loops store)
-  let forEachItems: any = loopBlock.data?.collection || ''
-  if (typeof forEachItems === 'string' && forEachItems.trim()) {
-    const trimmed = forEachItems.trim()
-    // Try to parse if it looks like JSON
-    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-      try {
-        forEachItems = JSON.parse(trimmed)
-      } catch {
-        // Keep as string if parsing fails - will be evaluated at runtime
-      }
-    }
-  }
-  loop.forEachItems = forEachItems
-
-  // For while loops, use whileCondition
+  loop.forEachItems = loopBlock.data?.collection || ''
   loop.whileCondition = loopBlock.data?.whileCondition || ''
-
-  // For do-while loops, use doWhileCondition
   loop.doWhileCondition = loopBlock.data?.doWhileCondition || ''
 
   return loop
@@ -66,16 +46,13 @@ export function convertParallelBlockToParallel(
   const parallelBlock = blocks[parallelBlockId]
   if (!parallelBlock || parallelBlock.type !== 'parallel') return undefined
 
-  // Get the parallel type from block data, defaulting to 'count' for consistency
   const parallelType = parallelBlock.data?.parallelType || 'count'
 
-  // Validate parallelType against allowed values
   const validParallelTypes = ['collection', 'count'] as const
   const validatedParallelType = validParallelTypes.includes(parallelType as any)
     ? parallelType
     : 'collection'
 
-  // Only set distribution if it's a collection-based parallel
   const distribution =
     validatedParallelType === 'collection' ? parallelBlock.data?.collection || '' : ''
 
@@ -139,7 +116,6 @@ export function findAllDescendantNodes(
 export function generateLoopBlocks(blocks: Record<string, BlockState>): Record<string, Loop> {
   const loops: Record<string, Loop> = {}
 
-  // Find all loop nodes
   Object.entries(blocks)
     .filter(([_, block]) => block.type === 'loop')
     .forEach(([id, block]) => {
@@ -163,7 +139,6 @@ export function generateParallelBlocks(
 ): Record<string, Parallel> {
   const parallels: Record<string, Parallel> = {}
 
-  // Find all parallel nodes
   Object.entries(blocks)
     .filter(([_, block]) => block.type === 'parallel')
     .forEach(([id, block]) => {

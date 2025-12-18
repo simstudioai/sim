@@ -1,0 +1,107 @@
+---
+title: ServiceNow
+description: Crea, lee, actualiza, elimina e importa masivamente registros de ServiceNow
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="servicenow"
+  color="#032D42"
+/>
+
+## Instrucciones de uso
+
+Integra ServiceNow en tu flujo de trabajo. Puede crear, leer, actualizar y eliminar registros en cualquier tabla de ServiceNow (incidentes, tareas, usuarios, etc.). Admite operaciones de importación masiva para migración de datos y ETL.
+
+## Herramientas
+
+### `servicenow_create_record`
+
+Crea un nuevo registro en una tabla de ServiceNow
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Sí | URL de la instancia de ServiceNow \(ej., https://instance.service-now.com\) |
+| `credential` | string | No | ID de credencial OAuth de ServiceNow |
+| `tableName` | string | Sí | Nombre de la tabla \(ej., incident, task, sys_user\) |
+| `fields` | json | Sí | Campos a establecer en el registro \(objeto JSON\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `record` | json | Registro de ServiceNow creado con sys_id y otros campos |
+| `metadata` | json | Metadatos de la operación |
+
+### `servicenow_read_record`
+
+Lee registros de una tabla de ServiceNow
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | No | URL de la instancia de ServiceNow \(detectada automáticamente desde OAuth si no se proporciona\) |
+| `credential` | string | No | ID de credencial OAuth de ServiceNow |
+| `tableName` | string | Sí | Nombre de la tabla |
+| `sysId` | string | No | sys_id específico del registro |
+| `number` | string | No | Número de registro \(ej., INC0010001\) |
+| `query` | string | No | Cadena de consulta codificada \(ej., "active=true^priority=1"\) |
+| `limit` | number | No | Número máximo de registros a devolver |
+| `fields` | string | No | Lista de campos separados por comas a devolver |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `records` | array | Array de registros de ServiceNow |
+| `metadata` | json | Metadatos de la operación |
+
+### `servicenow_update_record`
+
+Actualizar un registro existente en una tabla de ServiceNow
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | No | URL de la instancia de ServiceNow \(detectada automáticamente desde OAuth si no se proporciona\) |
+| `credential` | string | No | ID de credencial OAuth de ServiceNow |
+| `tableName` | string | Sí | Nombre de la tabla |
+| `sysId` | string | Sí | sys_id del registro a actualizar |
+| `fields` | json | Sí | Campos a actualizar \(objeto JSON\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `record` | json | Registro de ServiceNow actualizado |
+| `metadata` | json | Metadatos de la operación |
+
+### `servicenow_delete_record`
+
+Eliminar un registro de una tabla de ServiceNow
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | No | URL de la instancia de ServiceNow \(detectada automáticamente desde OAuth si no se proporciona\) |
+| `credential` | string | No | ID de credencial OAuth de ServiceNow |
+| `tableName` | string | Sí | Nombre de la tabla |
+| `sysId` | string | Sí | sys_id del registro a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si la eliminación fue exitosa |
+| `metadata` | json | Metadatos de la operación |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `servicenow`
