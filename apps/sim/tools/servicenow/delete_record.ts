@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ServiceNowDeleteParams, ServiceNowDeleteResponse } from '@/tools/servicenow/types'
+import { createBasicAuthHeader } from '@/tools/servicenow/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ServiceNowDeleteRecordTool')
@@ -10,23 +11,24 @@ export const deleteRecordTool: ToolConfig<ServiceNowDeleteParams, ServiceNowDele
   description: 'Delete a record from a ServiceNow table',
   version: '1.0.0',
 
-  oauth: {
-    required: true,
-    provider: 'servicenow',
-  },
-
   params: {
     instanceUrl: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-only',
-      description: 'ServiceNow instance URL (auto-detected from OAuth if not provided)',
+      description: 'ServiceNow instance URL (e.g., https://instance.service-now.com)',
     },
-    credential: {
+    username: {
       type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description: 'ServiceNow OAuth credential ID',
+      required: true,
+      visibility: 'user-only',
+      description: 'ServiceNow username',
+    },
+    password: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'ServiceNow password',
     },
     tableName: {
       type: 'string',
@@ -44,8 +46,7 @@ export const deleteRecordTool: ToolConfig<ServiceNowDeleteParams, ServiceNowDele
 
   request: {
     url: (params) => {
-      // Use instanceUrl if provided, otherwise fall back to idToken (stored instance URL from OAuth)
-      const baseUrl = (params.instanceUrl || params.idToken || '').replace(/\/$/, '')
+      const baseUrl = params.instanceUrl.replace(/\/$/, '')
       if (!baseUrl) {
         throw new Error('ServiceNow instance URL is required')
       }
@@ -53,11 +54,11 @@ export const deleteRecordTool: ToolConfig<ServiceNowDeleteParams, ServiceNowDele
     },
     method: 'DELETE',
     headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('OAuth access token is required')
+      if (!params.username || !params.password) {
+        throw new Error('ServiceNow username and password are required')
       }
       return {
-        Authorization: `Bearer ${params.accessToken}`,
+        Authorization: createBasicAuthHeader(params.username, params.password),
         Accept: 'application/json',
       }
     },

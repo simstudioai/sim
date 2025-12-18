@@ -39,14 +39,16 @@ Senden Sie eine Chat-Completion-Anfrage an jeden unterstützten LLM-Anbieter
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `model` | string | Ja | Das zu verwendende Modell (z.B. gpt-4o, claude-sonnet-4-5, gemini-2.0-flash) |
-| `systemPrompt` | string | Nein | System-Prompt zur Festlegung des Assistentenverhaltens |
-| `context` | string | Ja | Die Benutzernachricht oder der Kontext, der an das Modell gesendet wird |
-| `apiKey` | string | Nein | API-Schlüssel für den Anbieter (verwendet den Plattformschlüssel, wenn für gehostete Modelle nicht angegeben) |
-| `temperature` | number | Nein | Temperatur für die Antwortgenerierung (0-2) |
-| `maxTokens` | number | Nein | Maximale Tokens in der Antwort |
+| `model` | string | Ja | Das zu verwendende Modell \(z. B. gpt-4o, claude-sonnet-4-5, gemini-2.0-flash\) |
+| `systemPrompt` | string | Nein | System-Prompt zur Festlegung des Verhaltens des Assistenten |
+| `context` | string | Ja | Die Benutzernachricht oder der Kontext, der an das Modell gesendet werden soll |
+| `apiKey` | string | Nein | API-Schlüssel für den Anbieter \(verwendet Plattform-Schlüssel, falls nicht für gehostete Modelle angegeben\) |
+| `temperature` | number | Nein | Temperatur für die Antwortgenerierung \(0-2\) |
+| `maxTokens` | number | Nein | Maximale Anzahl von Tokens in der Antwort |
 | `azureEndpoint` | string | Nein | Azure OpenAI-Endpunkt-URL |
-| `azureApiVersion` | string | Nein | Azure OpenAI API-Version |
+| `azureApiVersion` | string | Nein | Azure OpenAI-API-Version |
+| `vertexProject` | string | Nein | Google Cloud-Projekt-ID für Vertex AI |
+| `vertexLocation` | string | Nein | Google Cloud-Standort für Vertex AI \(Standard: us-central1\) |
 
 #### Ausgabe
 

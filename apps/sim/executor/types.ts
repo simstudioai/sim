@@ -83,7 +83,7 @@ export interface NormalizedBlockOutput {
     blockType?: string
     blockTitle?: string
   }
-  selectedConditionId?: string
+  selectedOption?: string
   conditionResult?: boolean
   result?: any
   stdout?: string

@@ -28,7 +28,7 @@ export interface ServiceInfo extends OAuthServiceConfig {
 function defineServices(): ServiceInfo[] {
   const servicesList: ServiceInfo[] = []
 
-  Object.values(OAUTH_PROVIDERS).forEach((provider) => {
+  Object.entries(OAUTH_PROVIDERS).forEach(([_providerKey, provider]) => {
     Object.values(provider.services).forEach((service) => {
       servicesList.push({
         ...service,
@@ -139,13 +139,6 @@ export function useConnectOAuthService() {
       if (providerId === 'shopify') {
         const returnUrl = encodeURIComponent(callbackURL)
         window.location.href = `/api/auth/shopify/authorize?returnUrl=${returnUrl}`
-        return { success: true }
-      }
-
-      // ServiceNow requires a custom OAuth flow with instance URL input
-      if (providerId === 'servicenow') {
-        const returnUrl = encodeURIComponent(callbackURL)
-        window.location.href = `/api/auth/servicenow/authorize?returnUrl=${returnUrl}`
         return { success: true }
       }
 
