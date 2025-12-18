@@ -14,6 +14,7 @@ interface UseWebhookManagementProps {
   blockId: string
   triggerId?: string
   isPreview?: boolean
+  useWebhookUrl?: boolean
 }
 
 interface WebhookManagementState {
@@ -90,6 +91,7 @@ export function useWebhookManagement({
   blockId,
   triggerId,
   isPreview = false,
+  useWebhookUrl = false,
 }: UseWebhookManagementProps): WebhookManagementState {
   const params = useParams()
   const workflowId = params.workflowId as string
@@ -134,7 +136,6 @@ export function useWebhookManagement({
     const currentlyLoading = store.loadingWebhooks.has(blockId)
     const alreadyChecked = store.checkedWebhooks.has(blockId)
     const currentWebhookId = store.getValue(blockId, 'webhookId')
-
     if (currentlyLoading || (alreadyChecked && currentWebhookId)) {
       return
     }
@@ -205,7 +206,9 @@ export function useWebhookManagement({
       }
     }
 
-    loadWebhookOrGenerateUrl()
+    if (useWebhookUrl) {
+      loadWebhookOrGenerateUrl()
+    }
   }, [isPreview, triggerId, workflowId, blockId])
 
   const createWebhook = async (

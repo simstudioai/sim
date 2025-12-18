@@ -85,11 +85,11 @@ export function ShortInput({
   const persistSubBlockValueRef = useRef<(value: string) => void>(() => {})
 
   const justPastedRef = useRef(false)
-
   const webhookManagement = useWebhookManagement({
     blockId,
     triggerId: undefined,
     isPreview,
+    useWebhookUrl,
   })
 
   const wandHook = useWand({
