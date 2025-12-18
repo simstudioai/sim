@@ -8,7 +8,7 @@ import { and, eq, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { WorkflowExecutionLog } from '@/lib/logs/types'
+import { ALL_TRIGGER_TYPES, type WorkflowExecutionLog } from '@/lib/logs/types'
 import {
   type AlertCheckContext,
   type AlertConfig,
@@ -81,8 +81,11 @@ export async function emitWorkflowExecutionCompleted(log: WorkflowExecutionLog):
     )
 
     for (const subscription of subscriptions) {
-      const levelMatches = subscription.levelFilter?.includes(log.level) ?? true
-      const triggerMatches = subscription.triggerFilter?.includes(log.trigger) ?? true
+      const triggerFilter = subscription.triggerFilter || [...ALL_TRIGGER_TYPES]
+      const levelFilter = subscription.levelFilter || ['info', 'error']
+
+      const levelMatches = levelFilter.includes(log.level)
+      const triggerMatches = triggerFilter.includes(log.trigger)
 
       if (!levelMatches || !triggerMatches) {
         logger.debug(`Skipping subscription ${subscription.id} due to filter mismatch`)
@@ -98,6 +101,7 @@ export async function emitWorkflowExecutionCompleted(log: WorkflowExecutionLog):
           status: log.level === 'error' ? 'error' : 'success',
           durationMs: log.totalDurationMs || 0,
           cost: (log.cost as { total?: number })?.total || 0,
+          triggerFilter,
         }
 
         const shouldAlert = await shouldTriggerAlert(alertConfig, context, subscription.lastAlertAt)
