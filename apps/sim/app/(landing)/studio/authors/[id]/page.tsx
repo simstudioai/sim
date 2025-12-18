@@ -38,7 +38,6 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
             width={40}
             height={40}
             className='rounded-full'
-            unoptimized
           />
         ) : null}
         <h1 className='font-medium text-[32px] leading-tight'>{author.name}</h1>
@@ -53,7 +52,6 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
                 width={600}
                 height={315}
                 className='h-[160px] w-full object-cover transition-transform group-hover:scale-[1.02]'
-                unoptimized
               />
               <div className='p-3'>
                 <div className='mb-1 text-gray-600 text-xs'>

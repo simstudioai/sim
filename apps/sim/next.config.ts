@@ -84,6 +84,7 @@ const nextConfig: NextConfig = {
   ],
   outputFileTracingIncludes: {
     '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],
+    '/*': ['./node_modules/sharp/**/*', './node_modules/@img/**/*'],
   },
   experimental: {
     optimizeCss: true,
