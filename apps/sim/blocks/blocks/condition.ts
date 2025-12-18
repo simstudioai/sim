@@ -4,14 +4,13 @@ import type { BlockConfig } from '@/blocks/types'
 interface ConditionBlockOutput {
   success: boolean
   output: {
-    content: string
     conditionResult: boolean
     selectedPath: {
       blockId: string
       blockType: string
       blockTitle: string
     }
-    selectedConditionId: string
+    selectedOption: string
   }
 }
 
@@ -40,9 +39,8 @@ export const ConditionBlock: BlockConfig<ConditionBlockOutput> = {
   },
   inputs: {},
   outputs: {
-    content: { type: 'string', description: 'Condition evaluation content' },
     conditionResult: { type: 'boolean', description: 'Condition result' },
     selectedPath: { type: 'json', description: 'Selected execution path' },
-    selectedConditionId: { type: 'string', description: 'Selected condition identifier' },
+    selectedOption: { type: 'string', description: 'Selected condition option ID' },
   },
 }
