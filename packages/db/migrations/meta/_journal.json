@@ -855,13 +855,6 @@
       "when": 1765587157593,
       "tag": "0122_pale_absorbing_man",
       "breakpoints": true
-    },
-    {
-      "idx": 123,
-      "version": "7",
-      "when": 1765929938586,
-      "tag": "0123_acoustic_hellcat",
-      "breakpoints": true
     }
   ]
 }
