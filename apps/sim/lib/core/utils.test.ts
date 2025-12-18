@@ -31,20 +31,25 @@ vi.mock('crypto', () => ({
   }),
 }))
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: {
-    ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-    OPENAI_API_KEY_1: 'test-openai-key-1',
-    OPENAI_API_KEY_2: 'test-openai-key-2',
-    OPENAI_API_KEY_3: 'test-openai-key-3',
-    ANTHROPIC_API_KEY_1: 'test-anthropic-key-1',
-    ANTHROPIC_API_KEY_2: 'test-anthropic-key-2',
-    ANTHROPIC_API_KEY_3: 'test-anthropic-key-3',
-    GEMINI_API_KEY_1: 'test-gemini-key-1',
-    GEMINI_API_KEY_2: 'test-gemini-key-2',
-    GEMINI_API_KEY_3: 'test-gemini-key-3',
-  },
-}))
+vi.mock('@/lib/core/config/env', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/core/config/env')>()
+  return {
+    ...actual,
+    env: {
+      ...actual.env,
+      ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef', // fake key for testing
+      OPENAI_API_KEY_1: 'test-openai-key-1', // fake key for testing
+      OPENAI_API_KEY_2: 'test-openai-key-2', // fake key for testing
+      OPENAI_API_KEY_3: 'test-openai-key-3', // fake key for testing
+      ANTHROPIC_API_KEY_1: 'test-anthropic-key-1', // fake key for testing
+      ANTHROPIC_API_KEY_2: 'test-anthropic-key-2', // fake key for testing
+      ANTHROPIC_API_KEY_3: 'test-anthropic-key-3', // fake key for testing
+      GEMINI_API_KEY_1: 'test-gemini-key-1', // fake key for testing
+      GEMINI_API_KEY_2: 'test-gemini-key-2', // fake key for testing
+      GEMINI_API_KEY_3: 'test-gemini-key-3', // fake key for testing
+    },
+  }
+})
 
 afterEach(() => {
   vi.clearAllMocks()

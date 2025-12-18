@@ -1,4 +1,4 @@
-import { getEnv } from '@/lib/core/config/env'
+import { getBaseUrl } from './urls'
 
 /**
  * Checks if a URL is same-origin with the application's base URL.
@@ -9,12 +9,8 @@ import { getEnv } from '@/lib/core/config/env'
  */
 export function isSameOrigin(url: string): boolean {
   try {
-    const appBaseUrl = getEnv('NEXT_PUBLIC_APP_URL')
-    if (!appBaseUrl) {
-      return false
-    }
     const targetUrl = new URL(url)
-    const appUrl = new URL(appBaseUrl)
+    const appUrl = new URL(getBaseUrl())
     return targetUrl.origin === appUrl.origin
   } catch {
     return false

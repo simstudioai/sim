@@ -6,13 +6,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockRequest, setupAuthApiMocks } from '@/app/api/__test-utils__/utils'
 
-vi.mock('@/lib/core/config/env', () => ({
-  getEnv: vi.fn((key: string) => {
-    if (key === 'NEXT_PUBLIC_APP_URL') {
-      return 'https://app.example.com'
-    }
-    return undefined
-  }),
+vi.mock('@/lib/core/utils/urls', () => ({
+  getBaseUrl: vi.fn(() => 'https://app.example.com'),
 }))
 
 describe('Forget Password API Route', () => {
@@ -72,7 +67,7 @@ describe('Forget Password API Route', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.message).toBe('Redirect URL must be same-origin')
+    expect(data.message).toBe('Redirect URL must be a valid same-origin URL')
 
     const auth = await import('@/lib/auth')
     expect(auth.auth.api.forgetPassword).not.toHaveBeenCalled()

@@ -14,13 +14,15 @@ const forgetPasswordSchema = z.object({
     .email('Please provide a valid email address'),
   redirectTo: z
     .string()
-    .url('Redirect URL must be a valid URL')
-    .refine((url) => isSameOrigin(url), {
-      message: 'Redirect URL must be same-origin',
-    })
     .optional()
     .or(z.literal(''))
-    .transform((val) => (val === '' ? undefined : val)),
+    .transform((val) => (val === '' || val === undefined ? undefined : val))
+    .refine(
+      (val) => val === undefined || (z.string().url().safeParse(val).success && isSameOrigin(val)),
+      {
+        message: 'Redirect URL must be a valid same-origin URL',
+      }
+    ),
 })
 
 export async function POST(request: NextRequest) {
