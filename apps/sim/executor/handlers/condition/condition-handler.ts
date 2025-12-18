@@ -117,7 +117,6 @@ export class ConditionBlockHandler implements BlockHandler {
         ...((sourceOutput as any) || {}),
         conditionResult: false,
         selectedPath: null,
-        selectedConditionId: null,
         selectedOption: null,
       }
     }
@@ -139,7 +138,6 @@ export class ConditionBlockHandler implements BlockHandler {
         blockTitle: targetBlock.metadata?.name || DEFAULTS.BLOCK_TITLE,
       },
       selectedOption: selectedCondition.id,
-      selectedConditionId: selectedCondition.id,
     }
   }
 
