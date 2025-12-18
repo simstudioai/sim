@@ -3,11 +3,12 @@ import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import {
-  hasValidStartBlockInState,
-  isValidStartBlockType,
-} from '@/lib/workflows/triggers/trigger-utils'
+  extractInputFormatFromBlocks,
+  generateToolInputSchema,
+} from '@/lib/mcp/workflow-tool-schema'
+import { hasValidStartBlockInState } from '@/lib/workflows/triggers/trigger-utils'
+import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('WorkflowActivateDeploymentAPI')
@@ -24,58 +25,12 @@ function generateMcpToolSchemaFromState(state: any): Record<string, unknown> {
       return { type: 'object', properties: {} }
     }
 
-    // Find the start block in the deployed state
-    const startBlock = Object.values(state.blocks).find((block: any) => {
-      return isValidStartBlockType(block?.type)
-    }) as any
-
-    if (!startBlock?.subBlocks?.inputFormat?.value) {
+    const inputFormat = extractInputFormatFromBlocks(state.blocks)
+    if (!inputFormat || inputFormat.length === 0) {
       return { type: 'object', properties: {} }
     }
 
-    const inputFormat = startBlock.subBlocks.inputFormat.value
-    if (!Array.isArray(inputFormat) || inputFormat.length === 0) {
-      return { type: 'object', properties: {} }
-    }
-
-    const properties: Record<string, { type: string; description: string }> = {}
-    const required: string[] = []
-
-    for (const field of inputFormat) {
-      if (!field?.name || typeof field.name !== 'string' || !field.name.trim()) continue
-
-      const fieldName = field.name.trim()
-      let jsonType = 'string'
-      switch (field.type) {
-        case 'number':
-          jsonType = 'number'
-          break
-        case 'boolean':
-          jsonType = 'boolean'
-          break
-        case 'object':
-          jsonType = 'object'
-          break
-        case 'array':
-        case 'files':
-          jsonType = 'array'
-          break
-        default:
-          jsonType = 'string'
-      }
-
-      properties[fieldName] = {
-        type: jsonType,
-        description: fieldName,
-      }
-      required.push(fieldName)
-    }
-
-    return {
-      type: 'object',
-      properties,
-      required: required.length > 0 ? required : undefined,
-    }
+    return generateToolInputSchema(inputFormat) as unknown as Record<string, unknown>
   } catch (error) {
     logger.warn('Error generating MCP tool schema from state:', error)
     return { type: 'object', properties: {} }

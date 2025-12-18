@@ -118,11 +118,18 @@ function extractInputFormat(
 
 /**
  * Generate JSON Schema from input format using the shared utility
+ * Optionally applies custom descriptions from the UI
  */
 function generateParameterSchema(
-  inputFormat: Array<{ name: string; type: string }>
+  inputFormat: Array<{ name: string; type: string }>,
+  customDescriptions?: Record<string, string>
 ): Record<string, unknown> {
-  return generateToolInputSchema(inputFormat) as unknown as Record<string, unknown>
+  // Convert to InputFormatField with descriptions
+  const fieldsWithDescriptions = inputFormat.map((field) => ({
+    ...field,
+    description: customDescriptions?.[field.name]?.trim() || undefined,
+  }))
+  return generateToolInputSchema(fieldsWithDescriptions) as unknown as Record<string, unknown>
 }
 
 /**
@@ -461,13 +468,18 @@ export function McpToolDeploy({
     return extractInputFormat(blocks)
   }, [starterBlockId, subBlockValues, blocks])
 
-  const parameterSchema = useMemo(() => generateParameterSchema(inputFormat), [inputFormat])
-
   const [selectedServer, setSelectedServer] = useState<WorkflowMcpServer | null>(null)
   const [toolName, setToolName] = useState('')
   const [toolDescription, setToolDescription] = useState('')
   const [showServerSelector, setShowServerSelector] = useState(false)
   const [showParameterSchema, setShowParameterSchema] = useState(false)
+  // Track custom descriptions for each parameter
+  const [parameterDescriptions, setParameterDescriptions] = useState<Record<string, string>>({})
+
+  const parameterSchema = useMemo(
+    () => generateParameterSchema(inputFormat, parameterDescriptions),
+    [inputFormat, parameterDescriptions]
+  )
 
   // Track tools data from each server using state instead of hooks in a loop
   const [serverToolsMap, setServerToolsMap] = useState<
@@ -508,6 +520,32 @@ export function McpToolDeploy({
   const toolsNeedingUpdate = useMemo(() => {
     return serversWithThisWorkflow.filter(({ tool }) => hasParameterMismatch(tool, inputFormat))
   }, [serversWithThisWorkflow, inputFormat])
+
+  // Load existing parameter descriptions from the first deployed tool
+  useEffect(() => {
+    if (serversWithThisWorkflow.length > 0) {
+      const existingTool = serversWithThisWorkflow[0].tool
+      const schema = existingTool.parameterSchema as Record<string, unknown> | undefined
+      const properties = schema?.properties as Record<string, { description?: string }> | undefined
+
+      if (properties) {
+        const descriptions: Record<string, string> = {}
+        for (const [name, prop] of Object.entries(properties)) {
+          // Only use description if it differs from the field name (i.e., it's custom)
+          if (
+            prop.description &&
+            prop.description !== name &&
+            prop.description !== 'Array of file objects'
+          ) {
+            descriptions[name] = prop.description
+          }
+        }
+        if (Object.keys(descriptions).length > 0) {
+          setParameterDescriptions(descriptions)
+        }
+      }
+    }
+  }, [serversWithThisWorkflow])
 
   // Reset form when selected server changes
   useEffect(() => {
@@ -668,17 +706,33 @@ export function McpToolDeploy({
                 parameters.
               </p>
             ) : (
-              <div className='flex flex-col gap-[8px]'>
+              <div className='flex flex-col gap-[12px]'>
                 {inputFormat.map((field, index) => (
-                  <div key={index} className='flex items-center justify-between'>
-                    <span className='font-mono text-[12px] text-[var(--text-primary)]'>
-                      {field.name}
-                    </span>
-                    <Badge variant='outline' className='text-[10px]'>
-                      {field.type}
-                    </Badge>
+                  <div key={index} className='flex flex-col gap-[6px]'>
+                    <div className='flex items-center justify-between'>
+                      <span className='font-mono text-[12px] text-[var(--text-primary)]'>
+                        {field.name}
+                      </span>
+                      <Badge variant='outline' className='text-[10px]'>
+                        {field.type}
+                      </Badge>
+                    </div>
+                    <EmcnInput
+                      value={parameterDescriptions[field.name] || ''}
+                      onChange={(e) =>
+                        setParameterDescriptions((prev) => ({
+                          ...prev,
+                          [field.name]: e.target.value,
+                        }))
+                      }
+                      placeholder={`Describe what "${field.name}" is for...`}
+                      className='h-[32px] text-[12px]'
+                    />
                   </div>
                 ))}
+                <p className='text-[11px] text-[var(--text-muted)]'>
+                  Descriptions help MCP clients understand what each parameter is for.
+                </p>
               </div>
             )}
           </div>

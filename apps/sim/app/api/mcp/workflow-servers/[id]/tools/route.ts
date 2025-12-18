@@ -6,9 +6,23 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
-import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { hasValidStartBlockInState } from '@/lib/workflows/triggers/trigger-utils'
 
 const logger = createLogger('WorkflowMcpToolsAPI')
+
+/**
+ * Check if a workflow has a valid start block by loading from database
+ */
+async function hasValidStartBlock(workflowId: string): Promise<boolean> {
+  try {
+    const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
+    return hasValidStartBlockInState(normalizedData)
+  } catch (error) {
+    logger.warn('Error checking for start block:', error)
+    return false
+  }
+}
 
 export const dynamic = 'force-dynamic'
 

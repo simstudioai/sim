@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import type { InputFormatField } from '@/lib/workflows/types'
 
 /**
@@ -23,7 +24,70 @@ export interface McpToolDefinition {
 }
 
 /**
- * Map InputFormatField type to JSON Schema type
+ * File item Zod schema for MCP file inputs.
+ * This is the single source of truth for file structure.
+ */
+export const fileItemZodSchema = z.object({
+  name: z.string().describe('File name'),
+  data: z.string().describe('Base64 encoded file content'),
+  mimeType: z.string().describe('MIME type of the file'),
+})
+
+/**
+ * Convert InputFormatField type to Zod schema
+ */
+function fieldTypeToZod(fieldType: string | undefined, isRequired: boolean): z.ZodTypeAny {
+  let zodType: z.ZodTypeAny
+
+  switch (fieldType) {
+    case 'string':
+      zodType = z.string()
+      break
+    case 'number':
+      zodType = z.number()
+      break
+    case 'boolean':
+      zodType = z.boolean()
+      break
+    case 'object':
+      zodType = z.record(z.any())
+      break
+    case 'array':
+      zodType = z.array(z.any())
+      break
+    case 'files':
+      zodType = z.array(fileItemZodSchema)
+      break
+    default:
+      zodType = z.string()
+  }
+
+  return isRequired ? zodType : zodType.optional()
+}
+
+/**
+ * Generate Zod schema shape from InputFormatField array.
+ * This is used directly by the MCP server for tool registration.
+ */
+export function generateToolZodSchema(inputFormat: InputFormatField[]): z.ZodRawShape | undefined {
+  if (!inputFormat || inputFormat.length === 0) {
+    return undefined
+  }
+
+  const shape: z.ZodRawShape = {}
+
+  for (const field of inputFormat) {
+    if (!field.name) continue
+
+    const zodType = fieldTypeToZod(field.type, true)
+    shape[field.name] = field.name ? zodType.describe(field.name) : zodType
+  }
+
+  return Object.keys(shape).length > 0 ? shape : undefined
+}
+
+/**
+ * Map InputFormatField type to JSON Schema type (for database storage)
  */
 function mapFieldTypeToJsonSchemaType(fieldType: string | undefined): string {
   switch (fieldType) {
@@ -77,7 +141,8 @@ export function generateToolInputSchema(inputFormat: InputFormatField[]): McpToo
 
     const property: McpToolProperty = {
       type: fieldType,
-      description: fieldName, // Use field name as description by default
+      // Use custom description if provided, otherwise use field name
+      description: field.description?.trim() || fieldName,
     }
 
     // Handle array types
@@ -92,7 +157,10 @@ export function generateToolInputSchema(inputFormat: InputFormatField[]): McpToo
             size: { type: 'number', description: 'File size in bytes' },
           },
         }
-        property.description = 'Array of file objects'
+        // Use custom description if provided, otherwise use default
+        if (!field.description?.trim()) {
+          property.description = 'Array of file objects'
+        }
       } else {
         property.items = { type: 'string' }
       }
@@ -130,20 +198,32 @@ export function generateToolDefinition(
 }
 
 /**
+ * Valid start block types that can have input format
+ */
+const VALID_START_BLOCK_TYPES = [
+  'starter',
+  'start',
+  'start_trigger',
+  'api',
+  'api_trigger',
+  'input_trigger',
+]
+
+/**
  * Extract input format from a workflow's blocks.
- * Looks for the starter block and extracts its inputFormat configuration.
+ * Looks for any valid start block and extracts its inputFormat configuration.
  */
 export function extractInputFormatFromBlocks(
   blocks: Record<string, unknown>
 ): InputFormatField[] | null {
-  // Look for starter or input_trigger block
+  // Look for any valid start block
   for (const [, block] of Object.entries(blocks)) {
     if (!block || typeof block !== 'object') continue
 
     const blockObj = block as Record<string, unknown>
-    const blockType = blockObj.type
+    const blockType = blockObj.type as string
 
-    if (blockType === 'starter' || blockType === 'input_trigger') {
+    if (VALID_START_BLOCK_TYPES.includes(blockType)) {
       // Try to get inputFormat from subBlocks
       const subBlocks = blockObj.subBlocks as Record<string, unknown> | undefined
       if (subBlocks?.inputFormat) {

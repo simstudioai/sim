@@ -4,7 +4,6 @@ import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('McpServeAuth')
 

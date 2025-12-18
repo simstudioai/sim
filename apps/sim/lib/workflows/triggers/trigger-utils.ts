@@ -7,7 +7,6 @@ import {
 import { getAllBlocks, getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('TriggerUtils')
 
@@ -46,19 +45,6 @@ export function hasValidStartBlockInState(state: any): boolean {
   })
 
   return !!startBlock
-}
-
-/**
- * Check if a workflow has a valid start block by loading from database
- */
-export async function hasValidStartBlock(workflowId: string): Promise<boolean> {
-  try {
-    const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
-    return hasValidStartBlockInState(normalizedData)
-  } catch (error) {
-    logger.warn('Error checking for start block:', error)
-    return false
-  }
 }
 
 /**
