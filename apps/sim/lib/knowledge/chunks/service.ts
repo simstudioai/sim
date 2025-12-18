@@ -139,30 +139,19 @@ export async function createChunk(
       tag5: docTags.tag5 as string | null,
       tag6: docTags.tag6 as string | null,
       tag7: docTags.tag7 as string | null,
-      // Inherit number tags from parent document
+      // Inherit number tags from parent document (5 slots)
       number1: docTags.number1 as number | null,
       number2: docTags.number2 as number | null,
       number3: docTags.number3 as number | null,
       number4: docTags.number4 as number | null,
       number5: docTags.number5 as number | null,
-      number6: docTags.number6 as number | null,
-      number7: docTags.number7 as number | null,
-      // Inherit date tags from parent document
+      // Inherit date tags from parent document (2 slots)
       date1: docTags.date1 as Date | null,
       date2: docTags.date2 as Date | null,
-      date3: docTags.date3 as Date | null,
-      date4: docTags.date4 as Date | null,
-      date5: docTags.date5 as Date | null,
-      date6: docTags.date6 as Date | null,
-      date7: docTags.date7 as Date | null,
-      // Inherit boolean tags from parent document
+      // Inherit boolean tags from parent document (3 slots)
       boolean1: docTags.boolean1 as boolean | null,
       boolean2: docTags.boolean2 as boolean | null,
       boolean3: docTags.boolean3 as boolean | null,
-      boolean4: docTags.boolean4 as boolean | null,
-      boolean5: docTags.boolean5 as boolean | null,
-      boolean6: docTags.boolean6 as boolean | null,
-      boolean7: docTags.boolean7 as boolean | null,
       enabled: chunkData.enabled ?? true,
       createdAt: now,
       updatedAt: now,

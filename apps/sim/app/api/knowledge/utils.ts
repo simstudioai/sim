@@ -43,30 +43,19 @@ export interface DocumentData {
   tag5?: string | null
   tag6?: string | null
   tag7?: string | null
-  // Number tags
+  // Number tags (5 slots)
   number1?: number | null
   number2?: number | null
   number3?: number | null
   number4?: number | null
   number5?: number | null
-  number6?: number | null
-  number7?: number | null
-  // Date tags
+  // Date tags (2 slots)
   date1?: Date | null
   date2?: Date | null
-  date3?: Date | null
-  date4?: Date | null
-  date5?: Date | null
-  date6?: Date | null
-  date7?: Date | null
-  // Boolean tags
+  // Boolean tags (3 slots)
   boolean1?: boolean | null
   boolean2?: boolean | null
   boolean3?: boolean | null
-  boolean4?: boolean | null
-  boolean5?: boolean | null
-  boolean6?: boolean | null
-  boolean7?: boolean | null
 }
 
 export interface EmbeddingData {
@@ -90,30 +79,19 @@ export interface EmbeddingData {
   tag5?: string | null
   tag6?: string | null
   tag7?: string | null
-  // Number tags
+  // Number tags (5 slots)
   number1?: number | null
   number2?: number | null
   number3?: number | null
   number4?: number | null
   number5?: number | null
-  number6?: number | null
-  number7?: number | null
-  // Date tags
+  // Date tags (2 slots)
   date1?: Date | null
   date2?: Date | null
-  date3?: Date | null
-  date4?: Date | null
-  date5?: Date | null
-  date6?: Date | null
-  date7?: Date | null
-  // Boolean tags
+  // Boolean tags (3 slots)
   boolean1?: boolean | null
   boolean2?: boolean | null
   boolean3?: boolean | null
-  boolean4?: boolean | null
-  boolean5?: boolean | null
-  boolean6?: boolean | null
-  boolean7?: boolean | null
   enabled: boolean
   createdAt: Date
   updatedAt: Date
@@ -288,30 +266,19 @@ export async function checkDocumentWriteAccess(
       tag5: document.tag5,
       tag6: document.tag6,
       tag7: document.tag7,
-      // Number tags
+      // Number tags (5 slots)
       number1: document.number1,
       number2: document.number2,
       number3: document.number3,
       number4: document.number4,
       number5: document.number5,
-      number6: document.number6,
-      number7: document.number7,
-      // Date tags
+      // Date tags (2 slots)
       date1: document.date1,
       date2: document.date2,
-      date3: document.date3,
-      date4: document.date4,
-      date5: document.date5,
-      date6: document.date6,
-      date7: document.date7,
-      // Boolean tags
+      // Boolean tags (3 slots)
       boolean1: document.boolean1,
       boolean2: document.boolean2,
       boolean3: document.boolean3,
-      boolean4: document.boolean4,
-      boolean5: document.boolean5,
-      boolean6: document.boolean6,
-      boolean7: document.boolean7,
     })
     .from(document)
     .where(and(eq(document.id, documentId), isNull(document.deletedAt)))

@@ -23,43 +23,19 @@ export const DEFAULT_ENTERPRISE_STORAGE_LIMIT_GB = 500
 export const TEXT_TAG_SLOTS = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
 
 /**
- * Number tag slots for knowledge base documents and embeddings
+ * Number tag slots for knowledge base documents and embeddings (5 slots)
  */
-export const NUMBER_TAG_SLOTS = [
-  'number1',
-  'number2',
-  'number3',
-  'number4',
-  'number5',
-  'number6',
-  'number7',
-] as const
+export const NUMBER_TAG_SLOTS = ['number1', 'number2', 'number3', 'number4', 'number5'] as const
 
 /**
- * Date tag slots for knowledge base documents and embeddings
+ * Date tag slots for knowledge base documents and embeddings (2 slots)
  */
-export const DATE_TAG_SLOTS = [
-  'date1',
-  'date2',
-  'date3',
-  'date4',
-  'date5',
-  'date6',
-  'date7',
-] as const
+export const DATE_TAG_SLOTS = ['date1', 'date2'] as const
 
 /**
- * Boolean tag slots for knowledge base documents and embeddings
+ * Boolean tag slots for knowledge base documents and embeddings (3 slots)
  */
-export const BOOLEAN_TAG_SLOTS = [
-  'boolean1',
-  'boolean2',
-  'boolean3',
-  'boolean4',
-  'boolean5',
-  'boolean6',
-  'boolean7',
-] as const
+export const BOOLEAN_TAG_SLOTS = ['boolean1', 'boolean2', 'boolean3'] as const
 
 /**
  * All tag slots combined (for backwards compatibility)

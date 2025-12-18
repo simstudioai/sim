@@ -42,30 +42,19 @@ export interface SearchResult {
   tag5: string | null
   tag6: string | null
   tag7: string | null
-  // Number tags
+  // Number tags (5 slots)
   number1: number | null
   number2: number | null
   number3: number | null
   number4: number | null
   number5: number | null
-  number6: number | null
-  number7: number | null
-  // Date tags
+  // Date tags (2 slots)
   date1: Date | null
   date2: Date | null
-  date3: Date | null
-  date4: Date | null
-  date5: Date | null
-  date6: Date | null
-  date7: Date | null
-  // Boolean tags
+  // Boolean tags (3 slots)
   boolean1: boolean | null
   boolean2: boolean | null
   boolean3: boolean | null
-  boolean4: boolean | null
-  boolean5: boolean | null
-  boolean6: boolean | null
-  boolean7: boolean | null
   distance: number
   knowledgeBaseId: string
 }
@@ -93,7 +82,7 @@ export { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 
 /** All valid tag slot keys */
 const TAG_SLOT_KEYS = [
-  // Text tags
+  // Text tags (7 slots)
   'tag1',
   'tag2',
   'tag3',
@@ -101,30 +90,19 @@ const TAG_SLOT_KEYS = [
   'tag5',
   'tag6',
   'tag7',
-  // Number tags
+  // Number tags (5 slots)
   'number1',
   'number2',
   'number3',
   'number4',
   'number5',
-  'number6',
-  'number7',
-  // Date tags
+  // Date tags (2 slots)
   'date1',
   'date2',
-  'date3',
-  'date4',
-  'date5',
-  'date6',
-  'date7',
-  // Boolean tags
+  // Boolean tags (3 slots)
   'boolean1',
   'boolean2',
   'boolean3',
-  'boolean4',
-  'boolean5',
-  'boolean6',
-  'boolean7',
 ] as const
 
 type TagSlotKey = (typeof TAG_SLOT_KEYS)[number]
@@ -147,30 +125,19 @@ const getSearchResultFields = (distanceExpr: any) => ({
   tag5: embedding.tag5,
   tag6: embedding.tag6,
   tag7: embedding.tag7,
-  // Number tags
+  // Number tags (5 slots)
   number1: embedding.number1,
   number2: embedding.number2,
   number3: embedding.number3,
   number4: embedding.number4,
   number5: embedding.number5,
-  number6: embedding.number6,
-  number7: embedding.number7,
-  // Date tags
+  // Date tags (2 slots)
   date1: embedding.date1,
   date2: embedding.date2,
-  date3: embedding.date3,
-  date4: embedding.date4,
-  date5: embedding.date5,
-  date6: embedding.date6,
-  date7: embedding.date7,
-  // Boolean tags
+  // Boolean tags (3 slots)
   boolean1: embedding.boolean1,
   boolean2: embedding.boolean2,
   boolean3: embedding.boolean3,
-  boolean4: embedding.boolean4,
-  boolean5: embedding.boolean5,
-  boolean6: embedding.boolean6,
-  boolean7: embedding.boolean7,
   distance: distanceExpr,
   knowledgeBaseId: embedding.knowledgeBaseId,
 })

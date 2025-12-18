@@ -1,5 +1,5 @@
 {
-  "id": "62de8af8-29a7-4e7a-8b9a-c33268fbbc81",
+  "id": "b86b8d60-7b3c-4a0f-a880-da8fa3acd9c1",
   "prevId": "1be6ebb3-fe8a-4abd-9f4d-cfb8341f5319",
   "version": "7",
   "dialect": "postgresql",
@@ -1327,18 +1327,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "number6": {
-          "name": "number6",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "number7": {
-          "name": "number7",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
         "date1": {
           "name": "date1",
           "type": "timestamp",
@@ -1347,36 +1335,6 @@
         },
         "date2": {
           "name": "date2",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "date3": {
-          "name": "date3",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "date4": {
-          "name": "date4",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "date5": {
-          "name": "date5",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "date6": {
-          "name": "date6",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "date7": {
-          "name": "date7",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
@@ -1395,30 +1353,6 @@
         },
         "boolean3": {
           "name": "boolean3",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "boolean4": {
-          "name": "boolean4",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "boolean5": {
-          "name": "boolean5",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "boolean6": {
-          "name": "boolean6",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "boolean7": {
-          "name": "boolean7",
           "type": "boolean",
           "primaryKey": false,
           "notNull": false
@@ -1663,36 +1597,6 @@
           "method": "btree",
           "with": {}
         },
-        "doc_number6_idx": {
-          "name": "doc_number6_idx",
-          "columns": [
-            {
-              "expression": "number6",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "doc_number7_idx": {
-          "name": "doc_number7_idx",
-          "columns": [
-            {
-              "expression": "number7",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "doc_date1_idx": {
           "name": "doc_date1_idx",
           "columns": [
@@ -1713,81 +1617,6 @@
           "columns": [
             {
               "expression": "date2",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "doc_date3_idx": {
-          "name": "doc_date3_idx",
-          "columns": [
-            {
-              "expression": "date3",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "doc_date4_idx": {
-          "name": "doc_date4_idx",
-          "columns": [
-            {
-              "expression": "date4",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "doc_date5_idx": {
-          "name": "doc_date5_idx",
-          "columns": [
-            {
-              "expression": "date5",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "doc_date6_idx": {
-          "name": "doc_date6_idx",
-          "columns": [
-            {
-              "expression": "date6",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "doc_date7_idx": {
-          "name": "doc_date7_idx",
-          "columns": [
-            {
-              "expression": "date7",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1833,66 +1662,6 @@
           "columns": [
             {
               "expression": "boolean3",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "doc_boolean4_idx": {
-          "name": "doc_boolean4_idx",
-          "columns": [
-            {
-              "expression": "boolean4",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "doc_boolean5_idx": {
-          "name": "doc_boolean5_idx",
-          "columns": [
-            {
-              "expression": "boolean5",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "doc_boolean6_idx": {
-          "name": "doc_boolean6_idx",
-          "columns": [
-            {
-              "expression": "boolean6",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "doc_boolean7_idx": {
-          "name": "doc_boolean7_idx",
-          "columns": [
-            {
-              "expression": "boolean7",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2070,18 +1839,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "number6": {
-          "name": "number6",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "number7": {
-          "name": "number7",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
         "date1": {
           "name": "date1",
           "type": "timestamp",
@@ -2090,36 +1847,6 @@
         },
         "date2": {
           "name": "date2",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "date3": {
-          "name": "date3",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "date4": {
-          "name": "date4",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "date5": {
-          "name": "date5",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "date6": {
-          "name": "date6",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "date7": {
-          "name": "date7",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
@@ -2138,30 +1865,6 @@
         },
         "boolean3": {
           "name": "boolean3",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "boolean4": {
-          "name": "boolean4",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "boolean5": {
-          "name": "boolean5",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "boolean6": {
-          "name": "boolean6",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "boolean7": {
-          "name": "boolean7",
           "type": "boolean",
           "primaryKey": false,
           "notNull": false
@@ -2512,36 +2215,6 @@
           "method": "btree",
           "with": {}
         },
-        "emb_number6_idx": {
-          "name": "emb_number6_idx",
-          "columns": [
-            {
-              "expression": "number6",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "emb_number7_idx": {
-          "name": "emb_number7_idx",
-          "columns": [
-            {
-              "expression": "number7",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "emb_date1_idx": {
           "name": "emb_date1_idx",
           "columns": [
@@ -2562,81 +2235,6 @@
           "columns": [
             {
               "expression": "date2",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "emb_date3_idx": {
-          "name": "emb_date3_idx",
-          "columns": [
-            {
-              "expression": "date3",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "emb_date4_idx": {
-          "name": "emb_date4_idx",
-          "columns": [
-            {
-              "expression": "date4",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "emb_date5_idx": {
-          "name": "emb_date5_idx",
-          "columns": [
-            {
-              "expression": "date5",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "emb_date6_idx": {
-          "name": "emb_date6_idx",
-          "columns": [
-            {
-              "expression": "date6",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "emb_date7_idx": {
-          "name": "emb_date7_idx",
-          "columns": [
-            {
-              "expression": "date7",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2682,66 +2280,6 @@
           "columns": [
             {
               "expression": "boolean3",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "emb_boolean4_idx": {
-          "name": "emb_boolean4_idx",
-          "columns": [
-            {
-              "expression": "boolean4",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "emb_boolean5_idx": {
-          "name": "emb_boolean5_idx",
-          "columns": [
-            {
-              "expression": "boolean5",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "emb_boolean6_idx": {
-          "name": "emb_boolean6_idx",
-          "columns": [
-            {
-              "expression": "boolean6",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "emb_boolean7_idx": {
-          "name": "emb_boolean7_idx",
-          "columns": [
-            {
-              "expression": "boolean7",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

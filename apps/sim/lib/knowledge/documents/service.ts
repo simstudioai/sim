@@ -410,7 +410,7 @@ export async function processDocumentAsync(
 
         const documentRecord = await db
           .select({
-            // Text tags
+            // Text tags (7 slots)
             tag1: document.tag1,
             tag2: document.tag2,
             tag3: document.tag3,
@@ -418,30 +418,19 @@ export async function processDocumentAsync(
             tag5: document.tag5,
             tag6: document.tag6,
             tag7: document.tag7,
-            // Number tags
+            // Number tags (5 slots)
             number1: document.number1,
             number2: document.number2,
             number3: document.number3,
             number4: document.number4,
             number5: document.number5,
-            number6: document.number6,
-            number7: document.number7,
-            // Date tags
+            // Date tags (2 slots)
             date1: document.date1,
             date2: document.date2,
-            date3: document.date3,
-            date4: document.date4,
-            date5: document.date5,
-            date6: document.date6,
-            date7: document.date7,
-            // Boolean tags
+            // Boolean tags (3 slots)
             boolean1: document.boolean1,
             boolean2: document.boolean2,
             boolean3: document.boolean3,
-            boolean4: document.boolean4,
-            boolean5: document.boolean5,
-            boolean6: document.boolean6,
-            boolean7: document.boolean7,
           })
           .from(document)
           .where(eq(document.id, documentId))
@@ -464,7 +453,7 @@ export async function processDocumentAsync(
           embeddingModel: 'text-embedding-3-small',
           startOffset: chunk.metadata.startIndex,
           endOffset: chunk.metadata.endIndex,
-          // Copy text tags from document
+          // Copy text tags from document (7 slots)
           tag1: documentTags.tag1,
           tag2: documentTags.tag2,
           tag3: documentTags.tag3,
@@ -472,30 +461,19 @@ export async function processDocumentAsync(
           tag5: documentTags.tag5,
           tag6: documentTags.tag6,
           tag7: documentTags.tag7,
-          // Copy number tags from document
+          // Copy number tags from document (5 slots)
           number1: documentTags.number1,
           number2: documentTags.number2,
           number3: documentTags.number3,
           number4: documentTags.number4,
           number5: documentTags.number5,
-          number6: documentTags.number6,
-          number7: documentTags.number7,
-          // Copy date tags from document
+          // Copy date tags from document (2 slots)
           date1: documentTags.date1,
           date2: documentTags.date2,
-          date3: documentTags.date3,
-          date4: documentTags.date4,
-          date5: documentTags.date5,
-          date6: documentTags.date6,
-          date7: documentTags.date7,
-          // Copy boolean tags from document
+          // Copy boolean tags from document (3 slots)
           boolean1: documentTags.boolean1,
           boolean2: documentTags.boolean2,
           boolean3: documentTags.boolean3,
-          boolean4: documentTags.boolean4,
-          boolean5: documentTags.boolean5,
-          boolean6: documentTags.boolean6,
-          boolean7: documentTags.boolean7,
           createdAt: now,
           updatedAt: now,
         }))
@@ -686,30 +664,19 @@ export async function createDocumentRecords(
         tag5: processedTags.tag5 ?? docData.tag5 ?? null,
         tag6: processedTags.tag6 ?? docData.tag6 ?? null,
         tag7: processedTags.tag7 ?? docData.tag7 ?? null,
-        // Number tags
+        // Number tags (5 slots)
         number1: processedTags.number1 ?? null,
         number2: processedTags.number2 ?? null,
         number3: processedTags.number3 ?? null,
         number4: processedTags.number4 ?? null,
         number5: processedTags.number5 ?? null,
-        number6: processedTags.number6 ?? null,
-        number7: processedTags.number7 ?? null,
-        // Date tags
+        // Date tags (2 slots)
         date1: processedTags.date1 ?? null,
         date2: processedTags.date2 ?? null,
-        date3: processedTags.date3 ?? null,
-        date4: processedTags.date4 ?? null,
-        date5: processedTags.date5 ?? null,
-        date6: processedTags.date6 ?? null,
-        date7: processedTags.date7 ?? null,
-        // Boolean tags
+        // Boolean tags (3 slots)
         boolean1: processedTags.boolean1 ?? null,
         boolean2: processedTags.boolean2 ?? null,
         boolean3: processedTags.boolean3 ?? null,
-        boolean4: processedTags.boolean4 ?? null,
-        boolean5: processedTags.boolean5 ?? null,
-        boolean6: processedTags.boolean6 ?? null,
-        boolean7: processedTags.boolean7 ?? null,
       }
 
       documentRecords.push(newDocument)
@@ -984,7 +951,7 @@ export async function createSingleDocument(
 
   // Process structured tag data if provided
   let processedTags: Record<string, any> = {
-    // Text tags (can be passed directly)
+    // Text tags (7 slots)
     tag1: documentData.tag1 ?? null,
     tag2: documentData.tag2 ?? null,
     tag3: documentData.tag3 ?? null,
@@ -992,30 +959,19 @@ export async function createSingleDocument(
     tag5: documentData.tag5 ?? null,
     tag6: documentData.tag6 ?? null,
     tag7: documentData.tag7 ?? null,
-    // Number tags
+    // Number tags (5 slots)
     number1: null,
     number2: null,
     number3: null,
     number4: null,
     number5: null,
-    number6: null,
-    number7: null,
-    // Date tags
+    // Date tags (2 slots)
     date1: null,
     date2: null,
-    date3: null,
-    date4: null,
-    date5: null,
-    date6: null,
-    date7: null,
-    // Boolean tags
+    // Boolean tags (3 slots)
     boolean1: null,
     boolean2: null,
     boolean3: null,
-    boolean4: null,
-    boolean5: null,
-    boolean6: null,
-    boolean7: null,
   }
 
   if (documentData.documentTagsData) {
