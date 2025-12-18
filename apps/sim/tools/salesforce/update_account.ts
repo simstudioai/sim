@@ -3,7 +3,6 @@ import type {
   SalesforceUpdateAccountParams,
   SalesforceUpdateAccountResponse,
 } from '@/tools/salesforce/types'
-import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceUpdateAccount')
