@@ -1,10 +1,9 @@
-import { generateRequestId } from '@/lib/core/utils/request'
-import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType, CONDITION, DEFAULTS, EDGE } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
+import { executeTool } from '@/tools'
 
 const logger = createLogger('ConditionBlockHandler')
 
@@ -39,32 +38,37 @@ export async function evaluateConditionExpression(
   }
 
   try {
-    const requestId = generateRequestId()
-
     const code = `return Boolean(${resolvedConditionValue})`
 
-    const result = await executeInIsolatedVM({
-      code,
-      params: {},
-      envVars: {},
-      contextVariables: { context: evalContext },
-      timeoutMs: CONDITION_TIMEOUT_MS,
-      requestId,
-    })
+    const result = await executeTool(
+      'function_execute',
+      {
+        code,
+        timeout: CONDITION_TIMEOUT_MS,
+        envVars: {},
+        _context: {
+          workflowId: ctx.workflowId,
+          workspaceId: ctx.workspaceId,
+        },
+      },
+      false,
+      false,
+      ctx
+    )
 
-    if (result.error) {
-      logger.error(`Failed to evaluate condition: ${result.error.message}`, {
+    if (!result.success) {
+      logger.error(`Failed to evaluate condition: ${result.error}`, {
         originalCondition: conditionExpression,
         resolvedCondition: resolvedConditionValue,
         evalContext,
         error: result.error,
       })
       throw new Error(
-        `Evaluation error in condition: ${result.error.message}. (Resolved: ${resolvedConditionValue})`
+        `Evaluation error in condition: ${result.error}. (Resolved: ${resolvedConditionValue})`
       )
     }
 
-    return Boolean(result.result)
+    return Boolean(result.output?.result)
   } catch (evalError: any) {
     logger.error(`Failed to evaluate condition: ${evalError.message}`, {
       originalCondition: conditionExpression,
