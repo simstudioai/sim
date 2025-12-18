@@ -50,6 +50,8 @@ type SkippedItemType =
   | 'invalid_block_type'
   | 'invalid_edge_target'
   | 'invalid_edge_source'
+  | 'invalid_source_handle'
+  | 'invalid_target_handle'
   | 'invalid_subblock_field'
   | 'missing_required_params'
   | 'invalid_subflow_parent'
@@ -735,6 +737,256 @@ function normalizeResponseFormat(value: any): string {
 }
 
 /**
+ * Result of edge handle validation
+ */
+interface EdgeHandleValidationResult {
+  valid: boolean
+  error?: string
+}
+
+/**
+ * Validates that a source handle is valid for the given block type
+ * This is not hardcoded - it validates the format/pattern expected for each block type
+ */
+function validateSourceHandleForBlock(
+  sourceHandle: string,
+  sourceBlockType: string,
+  sourceBlock: any
+): EdgeHandleValidationResult {
+  // All blocks can have an 'error' handle for error paths
+  if (sourceHandle === 'error') {
+    return { valid: true }
+  }
+
+  switch (sourceBlockType) {
+    case 'loop':
+      // Loop blocks can only have loop-start-source and loop-end-source handles
+      if (sourceHandle === 'loop-start-source' || sourceHandle === 'loop-end-source') {
+        return { valid: true }
+      }
+      return {
+        valid: false,
+        error: `Invalid source handle "${sourceHandle}" for loop block. Valid handles are: loop-start-source, loop-end-source, error`,
+      }
+
+    case 'parallel':
+      // Parallel blocks can only have parallel-start-source and parallel-end-source handles
+      if (sourceHandle === 'parallel-start-source' || sourceHandle === 'parallel-end-source') {
+        return { valid: true }
+      }
+      return {
+        valid: false,
+        error: `Invalid source handle "${sourceHandle}" for parallel block. Valid handles are: parallel-start-source, parallel-end-source, error`,
+      }
+
+    case 'condition': {
+      // Condition blocks must have handles that start with 'condition-'
+      // The format is: condition-{conditionId} where conditionId is the full ID from the conditions array
+      // Example: condition-blockId-if, condition-blockId-else-if-1234567890, condition-blockId-else
+      if (!sourceHandle.startsWith('condition-')) {
+        return {
+          valid: false,
+          error: `Invalid source handle "${sourceHandle}" for condition block. Condition block handles must start with "condition-"`,
+        }
+      }
+
+      // Validate the handle references a valid condition in the block
+      const conditionsValue = sourceBlock?.subBlocks?.conditions?.value
+      if (!conditionsValue) {
+        return {
+          valid: false,
+          error: `Invalid condition handle "${sourceHandle}" - condition block has no conditions defined`,
+        }
+      }
+
+      return validateConditionHandleAgainstBlock(sourceHandle, sourceBlock.id, conditionsValue)
+    }
+
+    case 'router':
+      // Router blocks can have router- prefixed handles or source
+      if (sourceHandle === 'source' || sourceHandle.startsWith('router-')) {
+        return { valid: true }
+      }
+      return {
+        valid: false,
+        error: `Invalid source handle "${sourceHandle}" for router block. Valid handles are: source, router-{targetId}, error`,
+      }
+
+    default:
+      // Regular blocks can only have 'source' handle for success paths
+      if (sourceHandle === 'source') {
+        return { valid: true }
+      }
+      return {
+        valid: false,
+        error: `Invalid source handle "${sourceHandle}" for ${sourceBlockType} block. Valid handles are: source, error`,
+      }
+  }
+}
+
+/**
+ * Validates that a condition handle references a valid condition in the block
+ * Handles both semantic keys (if, else-if, else) and internal timestamp-based IDs
+ *
+ * Condition handles have the format: condition-{conditionId}
+ * where conditionId is the full ID from the conditions array (e.g., "blockId-if", "blockId-else-if-timestamp")
+ *
+ * For copilot, semantic keys are translated:
+ * - "if" -> blockId-if
+ * - "else-if" or "else-if-N" -> matches by position in the conditions array
+ * - "else" -> blockId-else
+ */
+function validateConditionHandleAgainstBlock(
+  sourceHandle: string,
+  blockId: string,
+  conditionsValue: string | any[]
+): EdgeHandleValidationResult {
+  // Parse conditions if it's a JSON string
+  let conditions: any[]
+  if (typeof conditionsValue === 'string') {
+    try {
+      conditions = JSON.parse(conditionsValue)
+    } catch {
+      // Can't parse conditions - this is an error state
+      return {
+        valid: false,
+        error: `Cannot validate condition handle "${sourceHandle}" - conditions value is not valid JSON`,
+      }
+    }
+  } else if (Array.isArray(conditionsValue)) {
+    conditions = conditionsValue
+  } else {
+    return {
+      valid: false,
+      error: `Cannot validate condition handle "${sourceHandle}" - conditions value is not an array`,
+    }
+  }
+
+  if (!Array.isArray(conditions) || conditions.length === 0) {
+    return {
+      valid: false,
+      error: `Invalid condition handle "${sourceHandle}" - condition block has no conditions defined`,
+    }
+  }
+
+  // Build set of all valid handles for this condition block
+  const validHandles = new Set<string>()
+
+  // Add handles based on actual condition IDs from the block
+  // Condition IDs are in format: blockId-if, blockId-else-if-timestamp, blockId-else
+  for (const condition of conditions) {
+    if (condition.id) {
+      // The handle format is: condition-{conditionId}
+      validHandles.add(`condition-${condition.id}`)
+    }
+  }
+
+  // Also add semantic key handles that copilot might use
+  // These get translated to the actual IDs by createConditionHandle in parsing-utils.ts
+  // Format: condition-{blockId}-{semanticKey}
+  const semanticPrefix = `condition-${blockId}-`
+
+  // Map conditions to their semantic keys based on title
+  let elseIfCount = 0
+  for (const condition of conditions) {
+    const title = condition.title?.toLowerCase()
+    if (title === 'if') {
+      validHandles.add(`${semanticPrefix}if`)
+    } else if (title === 'else if') {
+      elseIfCount++
+      if (elseIfCount === 1) {
+        validHandles.add(`${semanticPrefix}else-if`)
+      } else {
+        validHandles.add(`${semanticPrefix}else-if-${elseIfCount}`)
+      }
+    } else if (title === 'else') {
+      validHandles.add(`${semanticPrefix}else`)
+    }
+  }
+
+  // Check if the provided handle is valid
+  if (validHandles.has(sourceHandle)) {
+    return { valid: true }
+  }
+
+  // Build a helpful error message with the valid options
+  const validOptions = Array.from(validHandles).slice(0, 5) // Show first 5 options
+  const moreCount = validHandles.size - validOptions.length
+  let validOptionsStr = validOptions.join(', ')
+  if (moreCount > 0) {
+    validOptionsStr += `, ... and ${moreCount} more`
+  }
+
+  return {
+    valid: false,
+    error: `Invalid condition handle "${sourceHandle}" - does not match any condition in the block. Valid handles: ${validOptionsStr}`,
+  }
+}
+
+/**
+ * Validates that a target handle is valid
+ * Currently all blocks accept 'target' as the target handle
+ */
+function validateTargetHandle(targetHandle: string): EdgeHandleValidationResult {
+  // Standard target handle
+  if (targetHandle === 'target') {
+    return { valid: true }
+  }
+
+  // Allow undefined/null which defaults to 'target'
+  if (!targetHandle) {
+    return { valid: true }
+  }
+
+  return {
+    valid: false,
+    error: `Invalid target handle "${targetHandle}". Expected "target"`,
+  }
+}
+
+/**
+ * Validates an edge's source and target handles against the workflow state
+ * Returns validation result with any errors
+ */
+function validateEdgeHandles(
+  sourceBlockId: string,
+  targetBlockId: string,
+  sourceHandle: string,
+  targetHandle: string,
+  modifiedState: any
+): EdgeHandleValidationResult {
+  const sourceBlock = modifiedState.blocks[sourceBlockId]
+  if (!sourceBlock) {
+    return {
+      valid: false,
+      error: `Source block "${sourceBlockId}" not found`,
+    }
+  }
+
+  const sourceBlockType = sourceBlock.type
+  if (!sourceBlockType) {
+    return {
+      valid: false,
+      error: `Source block "${sourceBlockId}" has no type`,
+    }
+  }
+
+  // Validate source handle
+  const sourceValidation = validateSourceHandleForBlock(sourceHandle, sourceBlockType, sourceBlock)
+  if (!sourceValidation.valid) {
+    return sourceValidation
+  }
+
+  // Validate target handle
+  const targetValidation = validateTargetHandle(targetHandle)
+  if (!targetValidation.valid) {
+    return targetValidation
+  }
+
+  return { valid: true }
+}
+
+/**
  * Helper to add connections as edges for a block
  */
 function addConnectionsAsEdges(
@@ -767,12 +1019,44 @@ function addConnectionsAsEdges(
         })
         return
       }
+
+      // Validate source and target handles are valid for the block types
+      const targetHandle = 'target'
+      const handleValidation = validateEdgeHandles(
+        blockId,
+        targetId,
+        sourceHandle,
+        targetHandle,
+        modifiedState
+      )
+
+      if (!handleValidation.valid) {
+        logger.warn(
+          `Invalid edge handle when creating connection from "${blockId}" to "${targetId}". Edge skipped.`,
+          {
+            sourceBlockId: blockId,
+            targetBlockId: targetId,
+            sourceHandle,
+            targetHandle,
+            error: handleValidation.error,
+          }
+        )
+        skippedItems?.push({
+          type: 'invalid_source_handle',
+          operationType: 'add_edge',
+          blockId: blockId,
+          reason: handleValidation.error || `Invalid handle for edge from "${blockId}" to "${targetId}"`,
+          details: { sourceHandle, targetHandle, targetId },
+        })
+        return
+      }
+
       modifiedState.edges.push({
         id: crypto.randomUUID(),
         source: blockId,
         sourceHandle,
         target: targetId,
-        targetHandle: 'target',
+        targetHandle,
         type: 'default',
       })
     })
@@ -1296,12 +1580,44 @@ function applyOperationsToWorkflowState(
                 })
                 return
               }
+
+              // Validate source and target handles are valid for the block types
+              const resolvedTargetHandle = targetHandle || 'target'
+              const handleValidation = validateEdgeHandles(
+                block_id,
+                targetBlock,
+                actualSourceHandle,
+                resolvedTargetHandle,
+                modifiedState
+              )
+
+              if (!handleValidation.valid) {
+                logger.warn(
+                  `Invalid edge handle when creating connection from "${block_id}" to "${targetBlock}". Edge skipped.`,
+                  {
+                    sourceBlockId: block_id,
+                    targetBlockId: targetBlock,
+                    sourceHandle: actualSourceHandle,
+                    targetHandle: resolvedTargetHandle,
+                    error: handleValidation.error,
+                  }
+                )
+                logSkippedItem(skippedItems, {
+                  type: 'invalid_source_handle',
+                  operationType: 'edit',
+                  blockId: block_id,
+                  reason: handleValidation.error || `Invalid handle for edge from "${block_id}" to "${targetBlock}"`,
+                  details: { sourceHandle: actualSourceHandle, targetHandle: resolvedTargetHandle, targetId: targetBlock },
+                })
+                return
+              }
+
               modifiedState.edges.push({
                 id: crypto.randomUUID(),
                 source: block_id,
                 sourceHandle: actualSourceHandle,
                 target: targetBlock,
-                targetHandle: targetHandle || 'target',
+                targetHandle: resolvedTargetHandle,
                 type: 'default',
               })
             }
