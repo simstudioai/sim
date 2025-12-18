@@ -37,16 +37,18 @@ Envoyez une requête de complétion de chat à n'importe quel fournisseur de LLM
 
 #### Entrée
 
-| Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
-| `model` | chaîne | Oui | Le modèle à utiliser (ex. : gpt-4o, claude-sonnet-4-5, gemini-2.0-flash) |
-| `systemPrompt` | chaîne | Non | Instruction système pour définir le comportement de l'assistant |
-| `context` | chaîne | Oui | Le message utilisateur ou le contexte à envoyer au modèle |
-| `apiKey` | chaîne | Non | Clé API pour le fournisseur (utilise la clé de plateforme si non fournie pour les modèles hébergés) |
-| `temperature` | nombre | Non | Température pour la génération de réponse (0-2) |
-| `maxTokens` | nombre | Non | Nombre maximum de tokens dans la réponse |
-| `azureEndpoint` | chaîne | Non | URL du point de terminaison Azure OpenAI |
-| `azureApiVersion` | chaîne | Non | Version de l'API Azure OpenAI |
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `model` | string | Oui | Le modèle à utiliser \(par exemple, gpt-4o, claude-sonnet-4-5, gemini-2.0-flash\) |
+| `systemPrompt` | string | Non | Prompt système pour définir le comportement de l'assistant |
+| `context` | string | Oui | Le message utilisateur ou le contexte à envoyer au modèle |
+| `apiKey` | string | Non | Clé API pour le fournisseur \(utilise la clé de la plateforme si non fournie pour les modèles hébergés\) |
+| `temperature` | number | Non | Température pour la génération de réponse \(0-2\) |
+| `maxTokens` | number | Non | Nombre maximum de tokens dans la réponse |
+| `azureEndpoint` | string | Non | URL du point de terminaison Azure OpenAI |
+| `azureApiVersion` | string | Non | Version de l'API Azure OpenAI |
+| `vertexProject` | string | Non | ID du projet Google Cloud pour Vertex AI |
+| `vertexLocation` | string | Non | Emplacement Google Cloud pour Vertex AI \(par défaut us-central1\) |
 
 #### Sortie
 
