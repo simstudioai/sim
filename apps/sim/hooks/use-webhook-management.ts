@@ -209,7 +209,7 @@ export function useWebhookManagement({
     if (useWebhookUrl) {
       loadWebhookOrGenerateUrl()
     }
-  }, [isPreview, triggerId, workflowId, blockId])
+  }, [isPreview, triggerId, workflowId, blockId,useWebhookUrl])
 
   const createWebhook = async (
     effectiveTriggerId: string | undefined,
