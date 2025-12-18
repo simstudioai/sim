@@ -56,7 +56,6 @@ import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { getUniqueBlockName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { wouldCreateCycle } from '@/stores/workflows/workflow/utils'
 
 /** Lazy-loaded components for non-critical UI that can load after initial render */
 const LazyChat = lazy(() =>
@@ -1639,40 +1638,10 @@ const WorkflowContent = React.memo(() => {
     setIsErrorConnectionDrag(false)
   }, [])
 
-  /**
-   * Validates if a connection is allowed before it's created.
-   * Prevents cycles and other invalid connections.
-   */
-  const isValidConnection = useCallback(
-    (connection: { source: string | null; target: string | null }) => {
-      if (!connection.source || !connection.target) {
-        return false
-      }
-
-      if (connection.source === connection.target) {
-        return false
-      }
-
-      const currentEdges = useWorkflowStore.getState().edges
-
-      if (wouldCreateCycle(currentEdges, connection.source, connection.target)) {
-        return false
-      }
-
-      return true
-    },
-    []
-  )
-
   /** Handles new edge connections with container boundary validation. */
   const onConnect = useCallback(
     (connection: any) => {
       if (connection.source && connection.target) {
-        // Prevent self-connections
-        if (connection.source === connection.target) {
-          return
-        }
-
         // Check if connecting nodes across container boundaries
         const sourceNode = getNodes().find((n) => n.id === connection.source)
         const targetNode = getNodes().find((n) => n.id === connection.target)
@@ -2275,7 +2244,6 @@ const WorkflowContent = React.memo(() => {
               onConnect={effectivePermissions.canEdit ? onConnect : undefined}
               onConnectStart={effectivePermissions.canEdit ? onConnectStart : undefined}
               onConnectEnd={effectivePermissions.canEdit ? onConnectEnd : undefined}
-              isValidConnection={effectivePermissions.canEdit ? isValidConnection : undefined}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
               onDrop={effectivePermissions.canEdit ? onDrop : undefined}

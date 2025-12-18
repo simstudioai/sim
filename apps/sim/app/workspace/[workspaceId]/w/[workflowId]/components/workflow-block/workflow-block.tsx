@@ -40,6 +40,8 @@ import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { wouldCreateCycle } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('WorkflowBlock')
 
@@ -844,7 +846,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
             data-handleid='target'
             isConnectableStart={false}
             isConnectableEnd={true}
-            isValidConnection={(connection) => connection.source !== id}
+            isValidConnection={(connection) => {
+              if (connection.source === id) return false
+              const edges = useWorkflowStore.getState().edges
+              return !wouldCreateCycle(edges, connection.source!, connection.target!)
+            }}
           />
         )}
 
@@ -1045,7 +1051,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                   data-handleid={`condition-${cond.id}`}
                   isConnectableStart={true}
                   isConnectableEnd={false}
-                  isValidConnection={(connection) => connection.target !== id}
+                  isValidConnection={(connection) => {
+                    if (connection.target === id) return false
+                    const edges = useWorkflowStore.getState().edges
+                    return !wouldCreateCycle(edges, connection.source!, connection.target!)
+                  }}
                 />
               )
             })}
@@ -1064,7 +1074,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
               data-handleid='error'
               isConnectableStart={true}
               isConnectableEnd={false}
-              isValidConnection={(connection) => connection.target !== id}
+              isValidConnection={(connection) => {
+                if (connection.target === id) return false
+                const edges = useWorkflowStore.getState().edges
+                return !wouldCreateCycle(edges, connection.source!, connection.target!)
+              }}
             />
           </>
         )}
@@ -1081,7 +1095,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
               data-handleid='source'
               isConnectableStart={true}
               isConnectableEnd={false}
-              isValidConnection={(connection) => connection.target !== id}
+              isValidConnection={(connection) => {
+                if (connection.target === id) return false
+                const edges = useWorkflowStore.getState().edges
+                return !wouldCreateCycle(edges, connection.source!, connection.target!)
+              }}
             />
 
             {shouldShowDefaultHandles && (
@@ -1100,7 +1118,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                 data-handleid='error'
                 isConnectableStart={true}
                 isConnectableEnd={false}
-                isValidConnection={(connection) => connection.target !== id}
+                isValidConnection={(connection) => {
+                  if (connection.target === id) return false
+                  const edges = useWorkflowStore.getState().edges
+                  return !wouldCreateCycle(edges, connection.source!, connection.target!)
+                }}
               />
             )}
           </>
