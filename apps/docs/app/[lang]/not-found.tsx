@@ -1,5 +1,9 @@
 import { DocsBody, DocsPage } from 'fumadocs-ui/page'
 
+export const metadata = {
+  title: 'Page Not Found',
+}
+
 export default function NotFound() {
   return (
     <DocsPage>
