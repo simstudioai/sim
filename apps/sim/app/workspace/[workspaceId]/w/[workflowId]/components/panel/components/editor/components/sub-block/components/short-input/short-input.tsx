@@ -90,6 +90,7 @@ export function ShortInput({
     blockId,
     triggerId: undefined,
     isPreview,
+    useWebhookUrl,
   })
 
   const wandHook = useWand({
