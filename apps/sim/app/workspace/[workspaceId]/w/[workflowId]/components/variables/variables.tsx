@@ -23,6 +23,7 @@ import {
   useFloatBoundarySync,
   useFloatDrag,
   useFloatResize,
+  usePreventZoom,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useVariablesStore as usePanelVariablesStore } from '@/stores/panel/variables/store'
@@ -139,6 +140,8 @@ export function Variables() {
     maxWidth: MAX_VARIABLES_WIDTH,
     maxHeight: MAX_VARIABLES_HEIGHT,
   })
+
+  const preventZoomRef = usePreventZoom()
 
   const [collapsedById, setCollapsedById] = useState<Record<string, boolean>>({})
   const [localNames, setLocalNames] = useState<Record<string, string>>({})
@@ -389,6 +392,7 @@ export function Variables() {
 
   return (
     <div
+      ref={preventZoomRef}
       className='fixed z-30 flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--surface-1)] px-[10px] pt-[2px] pb-[8px]'
       style={{
         left: `${actualPosition.x}px`,

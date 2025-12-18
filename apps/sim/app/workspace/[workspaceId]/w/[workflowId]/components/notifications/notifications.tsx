@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
+import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import {
   type NotificationAction,
   openCopilotWithMessage,
@@ -93,12 +94,15 @@ export const Notifications = memo(function Notifications() {
     ])
   )
 
+  const preventZoomRef = usePreventZoom()
+
   if (visibleNotifications.length === 0) {
     return null
   }
 
   return (
     <div
+      ref={preventZoomRef}
       className={clsx(
         'fixed right-[calc(var(--panel-width)+16px)] bottom-[calc(var(--terminal-height)+16px)] z-30 flex flex-col items-end',
         !isTerminalResizing && 'transition-[bottom] duration-100 ease-out'
