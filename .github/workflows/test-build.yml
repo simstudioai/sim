@@ -48,6 +48,19 @@ jobs:
           ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
         run: bun run test
 
+      - name: Check schema and migrations are in sync
+        working-directory: packages/db
+        run: |
+          bunx drizzle-kit generate --config=./drizzle.config.ts
+          if [ -n "$(git status --porcelain ./migrations)" ]; then
+            echo "❌ Schema and migrations are out of sync!"
+            echo "Run 'cd packages/db && bunx drizzle-kit generate' and commit the new migrations."
+            git status --porcelain ./migrations
+            git diff ./migrations
+            exit 1
+          fi
+          echo "✅ Schema and migrations are in sync"
+
       - name: Build application
         env:
           NODE_OPTIONS: '--no-warnings'
