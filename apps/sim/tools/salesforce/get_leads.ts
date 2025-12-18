@@ -1,35 +1,6 @@
+import type { SalesforceGetLeadsParams, SalesforceGetLeadsResponse } from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
-
-export interface SalesforceGetLeadsParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  leadId?: string
-  limit?: string
-  fields?: string
-  orderBy?: string
-}
-
-export interface SalesforceGetLeadsResponse {
-  success: boolean
-  output: {
-    lead?: any
-    leads?: any[]
-    paging?: {
-      nextRecordsUrl?: string
-      totalSize: number
-      done: boolean
-    }
-    metadata: {
-      operation: 'get_leads'
-      totalReturned?: number
-      hasMore?: boolean
-      singleLead?: boolean
-    }
-    success: boolean
-  }
-}
 
 export const salesforceGetLeadsTool: ToolConfig<
   SalesforceGetLeadsParams,

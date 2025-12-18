@@ -3,8 +3,8 @@ import type {
   SalesforceGetAccountsParams,
   SalesforceGetAccountsResponse,
 } from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
 
 const logger = createLogger('SalesforceGetAccounts')
 

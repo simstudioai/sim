@@ -1,23 +1,9 @@
+import type {
+  SalesforceDeleteLeadParams,
+  SalesforceDeleteLeadResponse,
+} from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
-
-export interface SalesforceDeleteLeadParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  leadId: string
-}
-
-export interface SalesforceDeleteLeadResponse {
-  success: boolean
-  output: {
-    id: string
-    deleted: boolean
-    metadata: {
-      operation: 'delete_lead'
-    }
-  }
-}
 
 export const salesforceDeleteLeadTool: ToolConfig<
   SalesforceDeleteLeadParams,

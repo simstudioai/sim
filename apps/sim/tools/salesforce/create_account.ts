@@ -1,39 +1,12 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type {
+  SalesforceCreateAccountParams,
+  SalesforceCreateAccountResponse,
+} from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
 
 const logger = createLogger('SalesforceCreateAccount')
-
-export interface SalesforceCreateAccountParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  name: string
-  type?: string
-  industry?: string
-  phone?: string
-  website?: string
-  billingStreet?: string
-  billingCity?: string
-  billingState?: string
-  billingPostalCode?: string
-  billingCountry?: string
-  description?: string
-  annualRevenue?: string
-  numberOfEmployees?: string
-}
-
-export interface SalesforceCreateAccountResponse {
-  success: boolean
-  output: {
-    id: string
-    success: boolean
-    created: boolean
-    metadata: {
-      operation: 'create_account'
-    }
-  }
-}
 
 export const salesforceCreateAccountTool: ToolConfig<
   SalesforceCreateAccountParams,

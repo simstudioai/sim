@@ -1,37 +1,12 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type {
+  SalesforceRunReportParams,
+  SalesforceRunReportResponse,
+} from '@/tools/salesforce/types'
+import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { extractErrorMessage, getInstanceUrl } from './utils'
 
 const logger = createLogger('SalesforceReports')
-
-export interface SalesforceRunReportParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  reportId: string
-  includeDetails?: string
-  filters?: string
-}
-
-export interface SalesforceRunReportResponse {
-  success: boolean
-  output: {
-    reportId: string
-    reportMetadata?: any
-    reportExtendedMetadata?: any
-    factMap?: any
-    groupingsDown?: any
-    groupingsAcross?: any
-    hasDetailRows?: boolean
-    allData?: boolean
-    metadata: {
-      operation: 'run_report'
-      reportName?: string
-      reportFormat?: string
-    }
-    success: boolean
-  }
-}
 
 /**
  * Run a report and return the results
