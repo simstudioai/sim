@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { Check } from 'lucide-react'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { client } from '@/lib/auth/auth-client'
@@ -315,14 +316,28 @@ export function OAuthRequiredModal({
     }
   }
 
-  const displayScopes = requiredScopes.filter(
-    (scope) => !scope.includes('userinfo.email') && !scope.includes('userinfo.profile')
+  const newScopesSet = useMemo(
+    () =>
+      new Set(
+        (newScopes || []).filter(
+          (scope) => !scope.includes('userinfo.email') && !scope.includes('userinfo.profile')
+        )
+      ),
+    [newScopes]
   )
-  const newScopesSet = new Set(
-    (newScopes || []).filter(
+
+  const displayScopes = useMemo(() => {
+    const filtered = requiredScopes.filter(
       (scope) => !scope.includes('userinfo.email') && !scope.includes('userinfo.profile')
     )
-  )
+    return filtered.sort((a, b) => {
+      const aIsNew = newScopesSet.has(a)
+      const bIsNew = newScopesSet.has(b)
+      if (aIsNew && !bIsNew) return -1
+      if (!aIsNew && bIsNew) return 1
+      return 0
+    })
+  }, [requiredScopes, newScopesSet])
 
   const handleConnectDirectly = async () => {
     try {
