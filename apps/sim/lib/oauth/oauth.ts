@@ -1572,19 +1572,13 @@ export async function refreshOAuthToken(
   refreshToken: string
 ): Promise<{ accessToken: string; expiresIn: number; refreshToken: string } | null> {
   try {
-    // Get the provider from the providerId (e.g., 'google-drive' -> 'google')
     const provider = providerId.split('-')[0]
 
-    // Get provider configuration
     const config = getProviderAuthConfig(provider)
 
-    const tokenEndpoint = config.tokenEndpoint
-
-    // Build authentication request
     const { headers, bodyParams } = buildAuthRequest(config, refreshToken)
 
-    // Refresh the token
-    const response = await fetch(tokenEndpoint, {
+    const response = await fetch(config.tokenEndpoint, {
       method: 'POST',
       headers,
       body: new URLSearchParams(bodyParams).toString(),
@@ -1594,7 +1588,6 @@ export async function refreshOAuthToken(
       const errorText = await response.text()
       let errorData = errorText
 
-      // Try to parse the error as JSON for better diagnostics
       try {
         errorData = JSON.parse(errorText)
       } catch (_e) {
@@ -1618,18 +1611,14 @@ export async function refreshOAuthToken(
 
     const data = await response.json()
 
-    // Extract token and expiration (different providers may use different field names)
     const accessToken = data.access_token
 
-    // Handle refresh token rotation for providers that support it
     let newRefreshToken = null
     if (config.supportsRefreshTokenRotation && data.refresh_token) {
       newRefreshToken = data.refresh_token
       logger.info(`Received new refresh token from ${provider}`)
     }
 
-    // Get expiration time - use provider's value or default to 1 hour (3600 seconds)
-    // Different providers use different names for this field
     const expiresIn = data.expires_in || data.expiresIn || 3600
 
     if (!accessToken) {
