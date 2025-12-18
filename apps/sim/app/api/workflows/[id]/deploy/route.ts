@@ -5,6 +5,10 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { deployWorkflow, loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
+import {
+  hasValidStartBlock,
+  isValidStartBlockType,
+} from '@/lib/workflows/triggers/trigger-utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('WorkflowDeployAPI')
@@ -24,15 +28,7 @@ async function generateMcpToolSchema(workflowId: string): Promise<Record<string,
 
     // Find the start block
     const startBlock = Object.values(normalizedData.blocks).find((block: any) => {
-      const blockType = block?.type
-      return (
-        blockType === 'starter' ||
-        blockType === 'start' ||
-        blockType === 'start_trigger' ||
-        blockType === 'api' ||
-        blockType === 'api_trigger' ||
-        blockType === 'input_trigger'
-      )
+      return isValidStartBlockType(block?.type)
     }) as any
 
     if (!startBlock?.subBlocks?.inputFormat?.value) {
@@ -85,35 +81,6 @@ async function generateMcpToolSchema(workflowId: string): Promise<Record<string,
   } catch (error) {
     logger.warn('Error generating MCP tool schema:', error)
     return { type: 'object', properties: {} }
-  }
-}
-
-/**
- * Check if a workflow has a valid start block
- */
-async function hasValidStartBlock(workflowId: string): Promise<boolean> {
-  try {
-    const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
-    if (!normalizedData?.blocks) {
-      return false
-    }
-
-    const startBlock = Object.values(normalizedData.blocks).find((block: any) => {
-      const blockType = block?.type
-      return (
-        blockType === 'starter' ||
-        blockType === 'start' ||
-        blockType === 'start_trigger' ||
-        blockType === 'api' ||
-        blockType === 'api_trigger' ||
-        blockType === 'input_trigger'
-      )
-    })
-
-    return !!startBlock
-  } catch (error) {
-    logger.warn('Error checking for start block:', error)
-    return false
   }
 }
 

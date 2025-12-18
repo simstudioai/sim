@@ -4,6 +4,10 @@ import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
+import {
+  hasValidStartBlockInState,
+  isValidStartBlockType,
+} from '@/lib/workflows/triggers/trigger-utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('WorkflowActivateDeploymentAPI')
@@ -22,15 +26,7 @@ function generateMcpToolSchemaFromState(state: any): Record<string, unknown> {
 
     // Find the start block in the deployed state
     const startBlock = Object.values(state.blocks).find((block: any) => {
-      const blockType = block?.type
-      return (
-        blockType === 'starter' ||
-        blockType === 'start' ||
-        blockType === 'start_trigger' ||
-        blockType === 'api' ||
-        blockType === 'api_trigger' ||
-        blockType === 'input_trigger'
-      )
+      return isValidStartBlockType(block?.type)
     }) as any
 
     if (!startBlock?.subBlocks?.inputFormat?.value) {
@@ -84,29 +80,6 @@ function generateMcpToolSchemaFromState(state: any): Record<string, unknown> {
     logger.warn('Error generating MCP tool schema from state:', error)
     return { type: 'object', properties: {} }
   }
-}
-
-/**
- * Check if a version state has a valid start block
- */
-function hasValidStartBlockInState(state: any): boolean {
-  if (!state?.blocks) {
-    return false
-  }
-
-  const startBlock = Object.values(state.blocks).find((block: any) => {
-    const blockType = block?.type
-    return (
-      blockType === 'starter' ||
-      blockType === 'start' ||
-      blockType === 'start_trigger' ||
-      blockType === 'api' ||
-      blockType === 'api_trigger' ||
-      blockType === 'input_trigger'
-    )
-  })
-
-  return !!startBlock
 }
 
 /**
