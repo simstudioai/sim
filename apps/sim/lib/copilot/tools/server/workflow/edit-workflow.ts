@@ -8,6 +8,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -850,13 +851,18 @@ function applyOperationsToWorkflowState(
    * Reorder operations to ensure correct execution sequence:
    * 1. delete - Remove blocks first to free up IDs and clean state
    * 2. extract_from_subflow - Extract blocks from subflows before modifications
-   * 3. add - Create new blocks so they exist before being referenced
+   * 3. add - Create new blocks (sorted by connection dependencies)
    * 4. insert_into_subflow - Insert blocks into subflows (sorted by parent dependency)
    * 5. edit - Edit existing blocks last, so connections to newly added blocks work
    *
-   * This ordering is CRITICAL: edit operations may reference blocks being added
-   * in the same batch (e.g., connecting block A to newly added block B).
-   * Without proper ordering, the target block wouldn't exist yet.
+   * This ordering is CRITICAL: operations may reference blocks being added/inserted
+   * in the same batch. Without proper ordering, target blocks wouldn't exist yet.
+   *
+   * For add operations, we use a two-pass approach:
+   * - Pass 1: Create all blocks (without connections)
+   * - Pass 2: Add all connections (now all blocks exist)
+   * This ensures that if block A connects to block B, and both are being added,
+   * B will exist when we try to create the edge from A to B.
    */
   const deletes = operations.filter((op) => op.operation_type === 'delete')
   const extracts = operations.filter((op) => op.operation_type === 'extract_from_subflow')
@@ -868,6 +874,8 @@ function applyOperationsToWorkflowState(
   // This handles cases where a loop/parallel is being added along with its children
   const sortedInserts = topologicalSortInserts(inserts, adds)
 
+  // We'll process add operations in two passes (handled in the switch statement below)
+  // This is tracked via a separate flag to know which pass we're in
   const orderedOperations: EditWorkflowOperation[] = [
     ...deletes,
     ...extracts,
@@ -877,14 +885,45 @@ function applyOperationsToWorkflowState(
   ]
 
   logger.info('Operations after reordering:', {
-    order: orderedOperations.map(
+    totalOperations: orderedOperations.length,
+    deleteCount: deletes.length,
+    extractCount: extracts.length,
+    addCount: adds.length,
+    insertCount: sortedInserts.length,
+    editCount: edits.length,
+    operationOrder: orderedOperations.map(
       (op) =>
         `${op.operation_type}:${op.block_id}${op.params?.subflowId ? `(parent:${op.params.subflowId})` : ''}`
     ),
   })
 
+  // Two-pass processing for add operations:
+  // Pass 1: Create all blocks (without connections)
+  // Pass 2: Add all connections (all blocks now exist)
+  const addOperationsWithConnections: Array<{
+    blockId: string
+    connections: Record<string, any>
+  }> = []
+
   for (const operation of orderedOperations) {
     const { operation_type, block_id, params } = operation
+
+    // CRITICAL: Validate block_id is a valid string and not "undefined"
+    // This prevents undefined keys from being set in the workflow state
+    if (!isValidKey(block_id)) {
+      logSkippedItem(skippedItems, {
+        type: 'missing_required_params',
+        operationType: operation_type,
+        blockId: String(block_id || 'invalid'),
+        reason: `Invalid block_id "${block_id}" (type: ${typeof block_id}) - operation skipped. Block IDs must be valid non-empty strings.`,
+      })
+      logger.error('Invalid block_id detected in operation', {
+        operation_type,
+        block_id,
+        block_id_type: typeof block_id,
+      })
+      continue
+    }
 
     logger.debug(`Executing operation: ${operation_type} for block ${block_id}`, {
       params: params ? Object.keys(params) : [],
@@ -1128,6 +1167,22 @@ function applyOperationsToWorkflowState(
 
           // Add new nested blocks
           Object.entries(params.nestedNodes).forEach(([childId, childBlock]: [string, any]) => {
+            // Validate childId is a valid string
+            if (!isValidKey(childId)) {
+              logSkippedItem(skippedItems, {
+                type: 'missing_required_params',
+                operationType: 'add_nested_node',
+                blockId: String(childId || 'invalid'),
+                reason: `Invalid childId "${childId}" in nestedNodes - child block skipped`,
+              })
+              logger.error('Invalid childId detected in nestedNodes', {
+                parentBlockId: block_id,
+                childId,
+                childId_type: typeof childId,
+              })
+              return
+            }
+
             const childBlockState = createBlockFromParams(
               childId,
               childBlock,
@@ -1360,6 +1415,22 @@ function applyOperationsToWorkflowState(
         // Handle nested nodes (for loops/parallels created from scratch)
         if (params.nestedNodes) {
           Object.entries(params.nestedNodes).forEach(([childId, childBlock]: [string, any]) => {
+            // Validate childId is a valid string
+            if (!isValidKey(childId)) {
+              logSkippedItem(skippedItems, {
+                type: 'missing_required_params',
+                operationType: 'add_nested_node',
+                blockId: String(childId || 'invalid'),
+                reason: `Invalid childId "${childId}" in nestedNodes - child block skipped`,
+              })
+              logger.error('Invalid childId detected in nestedNodes', {
+                parentBlockId: block_id,
+                childId,
+                childId_type: typeof childId,
+              })
+              return
+            }
+
             const childBlockState = createBlockFromParams(
               childId,
               childBlock,
@@ -1368,21 +1439,22 @@ function applyOperationsToWorkflowState(
             )
             modifiedState.blocks[childId] = childBlockState
 
+            // Defer connection processing to ensure all blocks exist first
             if (childBlock.connections) {
-              addConnectionsAsEdges(
-                modifiedState,
-                childId,
-                childBlock.connections,
-                logger,
-                skippedItems
-              )
+              addOperationsWithConnections.push({
+                blockId: childId,
+                connections: childBlock.connections,
+              })
             }
           })
         }
 
-        // Add connections as edges
+        // Defer connection processing to ensure all blocks exist first (pass 2)
         if (params.connections) {
-          addConnectionsAsEdges(modifiedState, block_id, params.connections, logger, skippedItems)
+          addOperationsWithConnections.push({
+            blockId: block_id,
+            connections: params.connections,
+          })
         }
         break
       }
@@ -1506,13 +1578,18 @@ function applyOperationsToWorkflowState(
           modifiedState.blocks[block_id] = newBlock
         }
 
-        // Add/update connections as edges
+        // Defer connection processing to ensure all blocks exist first
+        // This is particularly important when multiple blocks are being inserted
+        // and they have connections to each other
         if (params.connections) {
-          // Remove existing edges from this block
+          // Remove existing edges from this block first
           modifiedState.edges = modifiedState.edges.filter((edge: any) => edge.source !== block_id)
 
-          // Add new connections
-          addConnectionsAsEdges(modifiedState, block_id, params.connections, logger, skippedItems)
+          // Add to deferred connections list
+          addOperationsWithConnections.push({
+            blockId: block_id,
+            connections: params.connections,
+          })
         }
         break
       }
@@ -1560,6 +1637,34 @@ function applyOperationsToWorkflowState(
         break
       }
     }
+  }
+
+  // Pass 2: Add all deferred connections from add/insert operations
+  // Now all blocks exist (from add, insert, and edit operations), so connections can be safely created
+  // This ensures that if block A connects to block B, and both are being added/inserted,
+  // B will exist when we create the edge from A to B
+  if (addOperationsWithConnections.length > 0) {
+    logger.info('Processing deferred connections from add/insert operations', {
+      deferredConnectionCount: addOperationsWithConnections.length,
+      totalBlocks: Object.keys(modifiedState.blocks).length,
+    })
+
+    for (const { blockId, connections } of addOperationsWithConnections) {
+      // Verify the source block still exists (it might have been deleted by a later operation)
+      if (!modifiedState.blocks[blockId]) {
+        logger.warn('Source block no longer exists for deferred connection', {
+          blockId,
+          availableBlocks: Object.keys(modifiedState.blocks),
+        })
+        continue
+      }
+
+      addConnectionsAsEdges(modifiedState, blockId, connections, logger, skippedItems)
+    }
+
+    logger.info('Finished processing deferred connections', {
+      totalEdges: modifiedState.edges.length,
+    })
   }
 
   // Regenerate loops and parallels after modifications

@@ -101,6 +101,9 @@ const ACTION_VERBS = [
   'Generated',
   'Rendering',
   'Rendered',
+  'Sleeping',
+  'Slept',
+  'Resumed',
 ] as const
 
 /**
@@ -577,6 +580,11 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
   const showButtons = shouldShowRunSkipButtons(toolCall)
   const showMoveToBackground =
     toolCall.name === 'run_workflow' &&
+    (toolCall.state === (ClientToolCallState.executing as any) ||
+      toolCall.state === ('executing' as any))
+
+  const showWake =
+    toolCall.name === 'sleep' &&
     (toolCall.state === (ClientToolCallState.executing as any) ||
       toolCall.state === ('executing' as any))
 
@@ -1100,6 +1108,37 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
             title='Move to Background'
           >
             Move to Background
+          </Button>
+        </div>
+      ) : showWake ? (
+        <div className='mt-[8px]'>
+          <Button
+            onClick={async () => {
+              try {
+                const instance = getClientTool(toolCall.id)
+                // Get elapsed seconds before waking
+                const elapsedSeconds = instance?.getElapsedSeconds?.() || 0
+                // Transition to background state locally so UI updates immediately
+                // Pass elapsed seconds in the result so dynamic text can use it
+                instance?.setState?.((ClientToolCallState as any).background, {
+                  result: { _elapsedSeconds: elapsedSeconds },
+                })
+                // Update the tool call params in the store to include elapsed time for display
+                const { updateToolCallParams } = useCopilotStore.getState()
+                updateToolCallParams?.(toolCall.id, { _elapsedSeconds: Math.round(elapsedSeconds) })
+                await instance?.markToolComplete?.(
+                  200,
+                  `User woke you up after ${Math.round(elapsedSeconds)} seconds`
+                )
+                // Optionally force a re-render; store should sync state from server
+                forceUpdate({})
+                onStateChange?.('background')
+              } catch {}
+            }}
+            variant='primary'
+            title='Wake'
+          >
+            Wake
           </Button>
         </div>
       ) : null}
