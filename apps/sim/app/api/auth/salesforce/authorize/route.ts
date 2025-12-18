@@ -218,7 +218,7 @@ export async function GET(request: NextRequest) {
     </div>
 
     <script>
-      const returnUrl = '${returnUrlParam}';
+      const returnUrl = ${JSON.stringify(returnUrlParam)};
       let selectedType = null;
 
       function selectOption(type) {
@@ -245,9 +245,11 @@ export async function GET(request: NextRequest) {
         if (selectedType === 'custom') {
           let domain = document.getElementById('customDomain').value.trim().toLowerCase();
           domain = domain.replace('https://', '').replace('http://', '');
-          if (!domain.endsWith('.my.salesforce.com')) {
-            domain = domain.replace('.my.salesforce.com', '') + '.my.salesforce.com';
-          }
+          // Remove any trailing slashes and common salesforce domain suffixes
+          domain = domain.replace(/\/+$/, '');
+          domain = domain.replace(/\.(my\.)?salesforce\.com$/i, '');
+          // Add the correct suffix
+          domain = domain + '.my.salesforce.com';
           url += '&customDomain=' + encodeURIComponent(domain);
         }
 

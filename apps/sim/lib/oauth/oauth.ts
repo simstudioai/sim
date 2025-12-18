@@ -1563,16 +1563,27 @@ function buildAuthRequest(
 /**
  * Attempts to refresh a Salesforce token using multiple endpoints.
  * Salesforce tokens may have been issued from production, sandbox, or custom domain.
- * We try production first, then sandbox if production fails.
+ * We try the original auth endpoint first (if available), then production, then sandbox.
+ *
+ * @param refreshToken - The refresh token to use
+ * @param config - Provider auth configuration
+ * @param metadata - Optional metadata containing the original auth base URL
  */
 async function refreshSalesforceToken(
   refreshToken: string,
-  config: ProviderAuthConfig
+  config: ProviderAuthConfig,
+  metadata?: { authBaseUrl?: string }
 ): Promise<{ accessToken: string; expiresIn: number; refreshToken: string } | null> {
-  const endpoints = [
-    'https://login.salesforce.com/services/oauth2/token',
-    'https://test.salesforce.com/services/oauth2/token',
-  ]
+  const endpoints: string[] = []
+
+  // If we have the original auth base URL (custom domain), try it first
+  if (metadata?.authBaseUrl) {
+    endpoints.push(`${metadata.authBaseUrl}/services/oauth2/token`)
+  }
+
+  // Always include the standard endpoints as fallbacks
+  endpoints.push('https://login.salesforce.com/services/oauth2/token')
+  endpoints.push('https://test.salesforce.com/services/oauth2/token')
 
   const { headers, bodyParams } = buildAuthRequest(config, refreshToken)
 
@@ -1638,11 +1649,13 @@ async function refreshSalesforceToken(
  * This is a server-side utility function to refresh OAuth tokens
  * @param providerId The provider ID (e.g., 'google-drive')
  * @param refreshToken The refresh token to use
+ * @param idToken Optional idToken field value (used by Salesforce to store metadata)
  * @returns Object containing the new access token and expiration time in seconds, or null if refresh failed
  */
 export async function refreshOAuthToken(
   providerId: string,
-  refreshToken: string
+  refreshToken: string,
+  idToken?: string
 ): Promise<{ accessToken: string; expiresIn: number; refreshToken: string } | null> {
   try {
     const provider = providerId.split('-')[0]
@@ -1650,8 +1663,22 @@ export async function refreshOAuthToken(
     const config = getProviderAuthConfig(provider)
 
     // Salesforce needs special handling to try both production and sandbox endpoints
+    // Parse the idToken field which may contain metadata including authBaseUrl
     if (provider === 'salesforce') {
-      return await refreshSalesforceToken(refreshToken, config)
+      let salesforceMetadata: { authBaseUrl?: string } | undefined
+      if (idToken) {
+        try {
+          if (idToken.startsWith('{')) {
+            const parsed = JSON.parse(idToken)
+            if (parsed.authBaseUrl) {
+              salesforceMetadata = { authBaseUrl: parsed.authBaseUrl }
+            }
+          }
+        } catch {
+          // Not JSON, ignore - will use standard endpoints
+        }
+      }
+      return await refreshSalesforceToken(refreshToken, config, salesforceMetadata)
     }
 
     const { headers, bodyParams } = buildAuthRequest(config, refreshToken)

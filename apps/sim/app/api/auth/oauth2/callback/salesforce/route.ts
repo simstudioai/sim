@@ -100,15 +100,16 @@ export async function GET(request: NextRequest) {
     const accessToken = tokenData.access_token
     const refreshToken = tokenData.refresh_token
     const instanceUrl = tokenData.instance_url
-    const idToken = tokenData.id_token
     const scope = tokenData.scope
-    const issuedAt = tokenData.issued_at
+    // Salesforce returns expires_in in seconds, default to 7200 (2 hours) if not provided
+    const expiresIn = tokenData.expires_in ? Number(tokenData.expires_in) : 7200
 
     logger.info('Salesforce token exchange successful:', {
       hasAccessToken: !!accessToken,
       hasRefreshToken: !!refreshToken,
       instanceUrl,
       scope,
+      expiresIn,
     })
 
     if (!accessToken) {
@@ -144,7 +145,19 @@ export async function GET(request: NextRequest) {
     })
 
     const now = new Date()
-    const expiresAt = new Date(now.getTime() + 2 * 60 * 60 * 1000)
+    const expiresAt = new Date(now.getTime() + expiresIn * 1000)
+
+    /**
+     * Store both instanceUrl (API endpoint) and authBaseUrl (OAuth endpoint) in idToken field.
+     * - instanceUrl: Used for API calls (e.g., https://na1.salesforce.com)
+     * - authBaseUrl: Used for token refresh (e.g., https://login.salesforce.com or custom domain)
+     * This is a non-standard use of the idToken field, but necessary for Salesforce's
+     * multi-endpoint OAuth architecture.
+     */
+    const salesforceMetadata = JSON.stringify({
+      instanceUrl: instanceUrl,
+      authBaseUrl: storedBaseUrl,
+    })
 
     const accountData = {
       accessToken: accessToken,
@@ -153,7 +166,7 @@ export async function GET(request: NextRequest) {
       scope: scope || '',
       updatedAt: now,
       accessTokenExpiresAt: expiresAt,
-      idToken: instanceUrl,
+      idToken: salesforceMetadata,
     }
 
     if (existing) {
