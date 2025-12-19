@@ -3,8 +3,10 @@ import { memory, workflowBlocks } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getWorkflowAccessContext } from '@/lib/workflows/utils'
 
 const logger = createLogger('MemoryByIdAPI')
 
@@ -65,6 +67,65 @@ const memoryPutBodySchema = z.object({
   workflowId: z.string().uuid('Invalid workflow ID format'),
 })
 
+/**
+ * Validates authentication and workflow access for memory operations
+ * @param request - The incoming request
+ * @param workflowId - The workflow ID to check access for
+ * @param requestId - Request ID for logging
+ * @param action - 'read' for GET, 'write' for PUT/DELETE
+ * @returns Object with userId if successful, or error response if failed
+ */
+async function validateMemoryAccess(
+  request: NextRequest,
+  workflowId: string,
+  requestId: string,
+  action: 'read' | 'write'
+): Promise<{ userId: string } | { error: NextResponse }> {
+  const authResult = await checkHybridAuth(request, {
+    requireWorkflowId: false,
+  })
+  if (!authResult.success || !authResult.userId) {
+    logger.warn(`[${requestId}] Unauthorized memory ${action} attempt`)
+    return {
+      error: NextResponse.json(
+        { success: false, error: { message: 'Authentication required' } },
+        { status: 401 }
+      ),
+    }
+  }
+
+  const accessContext = await getWorkflowAccessContext(workflowId, authResult.userId)
+  if (!accessContext) {
+    logger.warn(`[${requestId}] Workflow ${workflowId} not found`)
+    return {
+      error: NextResponse.json(
+        { success: false, error: { message: 'Workflow not found' } },
+        { status: 404 }
+      ),
+    }
+  }
+
+  const { isOwner, workspacePermission } = accessContext
+  const hasAccess =
+    action === 'read'
+      ? isOwner || workspacePermission !== null
+      : isOwner || workspacePermission === 'write' || workspacePermission === 'admin'
+
+  if (!hasAccess) {
+    logger.warn(
+      `[${requestId}] User ${authResult.userId} denied ${action} access to workflow ${workflowId}`
+    )
+    return {
+      error: NextResponse.json(
+        { success: false, error: { message: 'Access denied' } },
+        { status: 403 }
+      ),
+    }
+  }
+
+  return { userId: authResult.userId }
+}
+
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
@@ -100,6 +161,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { workflowId: validatedWorkflowId } = validation.data
+
+    const accessCheck = await validateMemoryAccess(request, validatedWorkflowId, requestId, 'read')
+    if ('error' in accessCheck) {
+      return accessCheck.error
+    }
 
     const memories = await db
       .select()
@@ -203,6 +269,11 @@ export async function DELETE(
 
     const { workflowId: validatedWorkflowId } = validation.data
 
+    const accessCheck = await validateMemoryAccess(request, validatedWorkflowId, requestId, 'write')
+    if ('error' in accessCheck) {
+      return accessCheck.error
+    }
+
     const existingMemory = await db
       .select({ id: memory.id })
       .from(memory)
@@ -294,6 +365,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         },
         { status: 400 }
       )
+    }
+
+    const accessCheck = await validateMemoryAccess(request, validatedWorkflowId, requestId, 'write')
+    if ('error' in accessCheck) {
+      return accessCheck.error
     }
 
     const existingMemories = await db
