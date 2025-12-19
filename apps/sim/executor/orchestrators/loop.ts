@@ -84,7 +84,15 @@ export class LoopOrchestrator {
 
       case 'forEach': {
         scope.loopType = 'forEach'
-        if (!Array.isArray(loopConfig.forEachItems)) {
+        // Resolve items first - forEachItems can be a string, reference, array, or object
+        const items = this.resolveForEachItems(ctx, loopConfig.forEachItems)
+
+        // Check if resolution failed (empty result from non-empty input)
+        const hasInput =
+          loopConfig.forEachItems !== undefined &&
+          loopConfig.forEachItems !== null &&
+          loopConfig.forEachItems !== ''
+        if (hasInput && items.length === 0) {
           const errorMessage =
             'ForEach loop collection is not a valid array. Loop execution blocked.'
           logger.error(errorMessage, { loopId, forEachItems: loopConfig.forEachItems })
@@ -95,7 +103,6 @@ export class LoopOrchestrator {
           scope.condition = buildLoopIndexCondition(0)
           break
         }
-        const items = this.resolveForEachItems(ctx, loopConfig.forEachItems)
         const originalLength = items.length
 
         if (originalLength > DEFAULTS.MAX_FOREACH_ITEMS) {
