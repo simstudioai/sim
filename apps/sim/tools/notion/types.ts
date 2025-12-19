@@ -33,6 +33,7 @@ export interface NotionWriteParams {
 
 export interface NotionCreatePageParams {
   parentId: string
+  parentType: 'page_id' | 'database_id'
   title?: string
   content?: string
   accessToken: string

@@ -23,7 +23,13 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'ID of the parent page',
+      description: 'ID of the parent page or database',
+    },
+    parentType: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'Type of parent: "page_id" or "database_id"',
     },
     title: {
       type: 'string',
@@ -63,8 +69,8 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
       // Prepare the body for page parent
       const body: any = {
         parent: {
-          type: 'page_id',
-          page_id: formattedParentId,
+          type: params.parentType,
+          [params.parentType]: formattedParentId,
         },
       }
 
