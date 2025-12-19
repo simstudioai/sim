@@ -3,14 +3,16 @@ import { DEFAULTS } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { ParallelScope } from '@/executor/execution/state'
 import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/types'
-import type { BlockLog, ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
+import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { ParallelConfigWithNodes } from '@/executor/types/parallel'
 import {
+  addSubflowErrorLog,
   buildBranchNodeId,
   calculateBranchCount,
   extractBaseBlockId,
   extractBranchIndex,
   parseDistributionItems,
+  resolveArrayInput,
 } from '@/executor/utils/subflow-utils'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedParallel } from '@/serializer/types'
@@ -56,13 +58,27 @@ export class ParallelOrchestrator {
   ): ParallelScope {
     const parallelConfig = this.dag.parallelConfigs.get(parallelId)
 
-    // Validate distribution items if parallel uses distribution
+    const items = parallelConfig ? this.resolveDistributionItems(ctx, parallelConfig) : undefined
+
     if (parallelConfig?.distribution !== undefined && parallelConfig?.distribution !== null) {
-      if (!Array.isArray(parallelConfig.distribution)) {
+      const rawDistribution = parallelConfig.distribution
+      const hasInput =
+        (typeof rawDistribution === 'string' && rawDistribution !== '') ||
+        (Array.isArray(rawDistribution) && rawDistribution.length > 0) ||
+        (typeof rawDistribution === 'object' && Object.keys(rawDistribution).length > 0)
+
+      const inputWasEmptyArray = Array.isArray(rawDistribution) && rawDistribution.length === 0
+      if (hasInput && !inputWasEmptyArray && (!items || items.length === 0)) {
         const errorMessage =
           'Parallel distribution is not a valid array. Parallel execution blocked.'
-        logger.error(errorMessage, { parallelId, distribution: parallelConfig.distribution })
-        this.addParallelErrorLog(ctx, parallelId, errorMessage)
+        logger.error(errorMessage, {
+          parallelId,
+          distribution: parallelConfig.distribution,
+          resolvedItems: items,
+        })
+        this.addParallelErrorLog(ctx, parallelId, errorMessage, {
+          distribution: parallelConfig.distribution,
+        })
 
         const scope: ParallelScope = {
           parallelId,
@@ -77,20 +93,18 @@ export class ParallelOrchestrator {
           ctx.parallelExecutions = new Map()
         }
         ctx.parallelExecutions.set(parallelId, scope)
-        return scope
+        throw new Error(errorMessage)
       }
     }
-
-    const items = parallelConfig ? this.resolveDistributionItems(ctx, parallelConfig) : undefined
-
-    // If we have more items than pre-built branches, expand the DAG
     const actualBranchCount = items && items.length > totalBranches ? items.length : totalBranches
 
-    // Validate branch count doesn't exceed maximum
     if (actualBranchCount > DEFAULTS.MAX_PARALLEL_BRANCHES) {
       const errorMessage = `Parallel branch count (${actualBranchCount}) exceeds maximum allowed (${DEFAULTS.MAX_PARALLEL_BRANCHES}). Parallel execution blocked.`
       logger.error(errorMessage, { parallelId, actualBranchCount })
-      this.addParallelErrorLog(ctx, parallelId, errorMessage)
+      this.addParallelErrorLog(ctx, parallelId, errorMessage, {
+        distribution: parallelConfig?.distribution,
+        branchCount: actualBranchCount,
+      })
 
       const scope: ParallelScope = {
         parallelId,
@@ -105,7 +119,7 @@ export class ParallelOrchestrator {
         ctx.parallelExecutions = new Map()
       }
       ctx.parallelExecutions.set(parallelId, scope)
-      return scope
+      throw new Error(errorMessage)
     }
 
     const scope: ParallelScope = {
@@ -162,44 +176,20 @@ export class ParallelOrchestrator {
     return scope
   }
 
-  /**
-   * Adds an error log entry for parallel validation errors.
-   * These errors appear in the block console on the logs dashboard.
-   */
   private addParallelErrorLog(
     ctx: ExecutionContext,
     parallelId: string,
-    errorMessage: string
+    errorMessage: string,
+    inputData?: any
   ): void {
-    const now = new Date().toISOString()
-
-    // Get the actual parallel block name from the workflow
-    const parallelBlock = ctx.workflow?.blocks?.find((b) => b.id === parallelId)
-    const blockName = parallelBlock?.metadata?.name || 'Parallel'
-
-    const blockLog: BlockLog = {
-      blockId: parallelId,
-      blockName,
-      blockType: 'parallel',
-      startedAt: now,
-      endedAt: now,
-      durationMs: 0,
-      success: false,
-      error: errorMessage,
-      input: {},
-      output: { error: errorMessage },
+    addSubflowErrorLog(
+      ctx,
       parallelId,
-    }
-    ctx.blockLogs.push(blockLog)
-
-    // Emit the error through onBlockComplete callback so it appears in the UI console
-    if (this.contextExtensions?.onBlockComplete) {
-      this.contextExtensions.onBlockComplete(parallelId, blockName, 'parallel', {
-        input: {},
-        output: { error: errorMessage },
-        executionTime: 0,
-      })
-    }
+      'parallel',
+      errorMessage,
+      inputData || {},
+      this.contextExtensions
+    )
   }
 
   /**
@@ -385,63 +375,11 @@ export class ParallelOrchestrator {
     }
   }
 
-  /**
-   * Resolve distribution items at runtime, handling references like <previousBlock.items>
-   * This mirrors how LoopOrchestrator.resolveForEachItems works.
-   */
   private resolveDistributionItems(ctx: ExecutionContext, config: SerializedParallel): any[] {
-    const rawItems = config.distribution
-
-    if (rawItems === undefined || rawItems === null) {
+    if (config.distribution === undefined || config.distribution === null) {
       return []
     }
-
-    // Already an array - return as-is
-    if (Array.isArray(rawItems)) {
-      return rawItems
-    }
-
-    // Object - convert to entries array (consistent with loop forEach behavior)
-    if (typeof rawItems === 'object') {
-      return Object.entries(rawItems)
-    }
-
-    // String handling
-    if (typeof rawItems === 'string') {
-      // Resolve references at runtime using the variable resolver
-      if (rawItems.startsWith('<') && rawItems.endsWith('>') && this.resolver) {
-        const resolved = this.resolver.resolveSingleReference(ctx, '', rawItems)
-        if (Array.isArray(resolved)) {
-          return resolved
-        }
-        if (typeof resolved === 'object' && resolved !== null) {
-          return Object.entries(resolved)
-        }
-        logger.warn('Distribution reference did not resolve to array or object', {
-          rawItems,
-          resolved,
-        })
-        return []
-      }
-
-      // Try to parse as JSON
-      try {
-        const normalized = rawItems.replace(/'/g, '"')
-        const parsed = JSON.parse(normalized)
-        if (Array.isArray(parsed)) {
-          return parsed
-        }
-        if (typeof parsed === 'object' && parsed !== null) {
-          return Object.entries(parsed)
-        }
-        return []
-      } catch (error) {
-        logger.error('Failed to parse distribution items', { rawItems, error })
-        return []
-      }
-    }
-
-    return []
+    return resolveArrayInput(ctx, config.distribution, this.resolver)
   }
 
   handleParallelBranchCompletion(

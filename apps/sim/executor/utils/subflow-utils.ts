@@ -1,5 +1,8 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { LOOP, PARALLEL, PARSING, REFERENCE } from '@/executor/constants'
+import type { ContextExtensions } from '@/executor/execution/types'
+import type { BlockLog, ExecutionContext } from '@/executor/types'
+import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedParallel } from '@/serializer/types'
 
 const logger = createLogger('SubflowUtils')
@@ -131,4 +134,103 @@ export function normalizeNodeId(nodeId: string): string {
     return extractLoopIdFromSentinel(nodeId) || nodeId
   }
   return nodeId
+}
+
+/**
+ * Resolves array input at runtime. Handles arrays, objects, references, and JSON strings.
+ * Used by both loop forEach and parallel distribution resolution.
+ */
+export function resolveArrayInput(
+  ctx: ExecutionContext,
+  items: any,
+  resolver: VariableResolver | null
+): any[] {
+  if (Array.isArray(items)) {
+    return items
+  }
+
+  if (typeof items === 'object' && items !== null) {
+    return Object.entries(items)
+  }
+
+  if (typeof items === 'string') {
+    if (items.startsWith(REFERENCE.START) && items.endsWith(REFERENCE.END) && resolver) {
+      const resolved = resolver.resolveSingleReference(ctx, '', items)
+      if (Array.isArray(resolved)) {
+        return resolved
+      }
+      if (typeof resolved === 'object' && resolved !== null) {
+        return Object.entries(resolved)
+      }
+      return []
+    }
+
+    try {
+      const normalized = items.replace(/'/g, '"')
+      const parsed = JSON.parse(normalized)
+      if (Array.isArray(parsed)) {
+        return parsed
+      }
+      if (typeof parsed === 'object' && parsed !== null) {
+        return Object.entries(parsed)
+      }
+      return []
+    } catch {
+      return []
+    }
+  }
+
+  if (resolver) {
+    try {
+      const resolved = resolver.resolveInputs(ctx, 'subflow_items', { items }).items
+      if (Array.isArray(resolved)) {
+        return resolved
+      }
+      return []
+    } catch {
+      return []
+    }
+  }
+
+  return []
+}
+
+/**
+ * Creates and logs an error for a subflow (loop or parallel).
+ */
+export function addSubflowErrorLog(
+  ctx: ExecutionContext,
+  blockId: string,
+  blockType: 'loop' | 'parallel',
+  errorMessage: string,
+  inputData: Record<string, any>,
+  contextExtensions: ContextExtensions | null
+): void {
+  const now = new Date().toISOString()
+
+  const block = ctx.workflow?.blocks?.find((b) => b.id === blockId)
+  const blockName = block?.metadata?.name || (blockType === 'loop' ? 'Loop' : 'Parallel')
+
+  const blockLog: BlockLog = {
+    blockId,
+    blockName,
+    blockType,
+    startedAt: now,
+    endedAt: now,
+    durationMs: 0,
+    success: false,
+    error: errorMessage,
+    input: inputData,
+    output: { error: errorMessage },
+    ...(blockType === 'loop' ? { loopId: blockId } : { parallelId: blockId }),
+  }
+  ctx.blockLogs.push(blockLog)
+
+  if (contextExtensions?.onBlockComplete) {
+    contextExtensions.onBlockComplete(blockId, blockName, blockType, {
+      input: inputData,
+      output: { error: errorMessage },
+      executionTime: 0,
+    })
+  }
 }

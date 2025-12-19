@@ -6,13 +6,15 @@ import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { LoopScope } from '@/executor/execution/state'
 import type { BlockStateController, ContextExtensions } from '@/executor/execution/types'
-import type { BlockLog, ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
+import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { LoopConfigWithNodes } from '@/executor/types/loop'
 import { replaceValidReferences } from '@/executor/utils/reference-validation'
 import {
+  addSubflowErrorLog,
   buildSentinelEndId,
   buildSentinelStartId,
   extractBaseBlockId,
+  resolveArrayInput,
 } from '@/executor/utils/subflow-utils'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedLoop } from '@/serializer/types'
@@ -53,7 +55,6 @@ export class LoopOrchestrator {
     if (!loopConfig) {
       throw new Error(`Loop config not found: ${loopId}`)
     }
-
     const scope: LoopScope = {
       iteration: 0,
       currentIterationOutputs: new Map(),
@@ -70,24 +71,24 @@ export class LoopOrchestrator {
         if (requestedIterations > DEFAULTS.MAX_LOOP_ITERATIONS) {
           const errorMessage = `For loop iterations (${requestedIterations}) exceeds maximum allowed (${DEFAULTS.MAX_LOOP_ITERATIONS}). Loop execution blocked.`
           logger.error(errorMessage, { loopId, requestedIterations })
-          this.addLoopErrorLog(ctx, loopId, loopType, errorMessage)
-          // Set to 0 iterations to prevent loop from running
+          this.addLoopErrorLog(ctx, loopId, loopType, errorMessage, {
+            iterations: requestedIterations,
+          })
           scope.maxIterations = 0
           scope.validationError = errorMessage
-        } else {
-          scope.maxIterations = requestedIterations
+          scope.condition = buildLoopIndexCondition(0)
+          ctx.loopExecutions?.set(loopId, scope)
+          throw new Error(errorMessage)
         }
 
+        scope.maxIterations = requestedIterations
         scope.condition = buildLoopIndexCondition(scope.maxIterations)
         break
       }
 
       case 'forEach': {
         scope.loopType = 'forEach'
-        // Resolve items first - forEachItems can be a string, reference, array, or object
         const items = this.resolveForEachItems(ctx, loopConfig.forEachItems)
-
-        // Check if resolution failed (empty result from non-empty input)
         const hasInput =
           loopConfig.forEachItems !== undefined &&
           loopConfig.forEachItems !== null &&
@@ -96,28 +97,36 @@ export class LoopOrchestrator {
           const errorMessage =
             'ForEach loop collection is not a valid array. Loop execution blocked.'
           logger.error(errorMessage, { loopId, forEachItems: loopConfig.forEachItems })
-          this.addLoopErrorLog(ctx, loopId, loopType, errorMessage)
+          this.addLoopErrorLog(ctx, loopId, loopType, errorMessage, {
+            forEachItems: loopConfig.forEachItems,
+          })
           scope.items = []
           scope.maxIterations = 0
           scope.validationError = errorMessage
           scope.condition = buildLoopIndexCondition(0)
-          break
+          ctx.loopExecutions?.set(loopId, scope)
+          throw new Error(errorMessage)
         }
-        const originalLength = items.length
 
+        const originalLength = items.length
         if (originalLength > DEFAULTS.MAX_FOREACH_ITEMS) {
           const errorMessage = `ForEach loop collection size (${originalLength}) exceeds maximum allowed (${DEFAULTS.MAX_FOREACH_ITEMS}). Loop execution blocked.`
           logger.error(errorMessage, { loopId, originalLength })
-          this.addLoopErrorLog(ctx, loopId, loopType, errorMessage)
+          this.addLoopErrorLog(ctx, loopId, loopType, errorMessage, {
+            forEachItems: loopConfig.forEachItems,
+            collectionSize: originalLength,
+          })
           scope.items = []
           scope.maxIterations = 0
           scope.validationError = errorMessage
-        } else {
-          scope.items = items
-          scope.maxIterations = items.length
-          scope.item = items[0]
+          scope.condition = buildLoopIndexCondition(0)
+          ctx.loopExecutions?.set(loopId, scope)
+          throw new Error(errorMessage)
         }
 
+        scope.items = items
+        scope.maxIterations = items.length
+        scope.item = items[0]
         scope.condition = buildLoopIndexCondition(scope.maxIterations)
         break
       }
@@ -137,14 +146,17 @@ export class LoopOrchestrator {
           if (requestedIterations > DEFAULTS.MAX_LOOP_ITERATIONS) {
             const errorMessage = `Do-While loop iterations (${requestedIterations}) exceeds maximum allowed (${DEFAULTS.MAX_LOOP_ITERATIONS}). Loop execution blocked.`
             logger.error(errorMessage, { loopId, requestedIterations })
-            this.addLoopErrorLog(ctx, loopId, loopType, errorMessage)
-            // Set to 0 iterations to prevent loop from running
+            this.addLoopErrorLog(ctx, loopId, loopType, errorMessage, {
+              iterations: requestedIterations,
+            })
             scope.maxIterations = 0
             scope.validationError = errorMessage
-          } else {
-            scope.maxIterations = requestedIterations
+            scope.condition = buildLoopIndexCondition(0)
+            ctx.loopExecutions?.set(loopId, scope)
+            throw new Error(errorMessage)
           }
 
+          scope.maxIterations = requestedIterations
           scope.condition = buildLoopIndexCondition(scope.maxIterations)
         }
         break
@@ -161,45 +173,21 @@ export class LoopOrchestrator {
     return scope
   }
 
-  /**
-   * Adds an error log entry for loop validation errors.
-   * These errors appear in the block console on the logs dashboard.
-   */
   private addLoopErrorLog(
     ctx: ExecutionContext,
     loopId: string,
     loopType: string,
-    errorMessage: string
+    errorMessage: string,
+    inputData?: any
   ): void {
-    const now = new Date().toISOString()
-
-    // Get the actual loop block name from the workflow
-    const loopBlock = ctx.workflow?.blocks?.find((b) => b.id === loopId)
-    const blockName = loopBlock?.metadata?.name || `Loop`
-
-    const blockLog: BlockLog = {
-      blockId: loopId,
-      blockName,
-      blockType: 'loop',
-      startedAt: now,
-      endedAt: now,
-      durationMs: 0,
-      success: false,
-      error: errorMessage,
-      input: {},
-      output: { error: errorMessage },
+    addSubflowErrorLog(
+      ctx,
       loopId,
-    }
-    ctx.blockLogs.push(blockLog)
-
-    // Emit the error through onBlockComplete callback so it appears in the UI console
-    if (this.contextExtensions?.onBlockComplete) {
-      this.contextExtensions.onBlockComplete(loopId, blockName, 'loop', {
-        input: {},
-        output: { error: errorMessage },
-        executionTime: 0,
-      })
-    }
+      'loop',
+      errorMessage,
+      { loopType, ...inputData },
+      this.contextExtensions
+    )
   }
 
   storeLoopNodeOutput(
@@ -514,54 +502,6 @@ export class LoopOrchestrator {
   }
 
   private resolveForEachItems(ctx: ExecutionContext, items: any): any[] {
-    if (Array.isArray(items)) {
-      return items
-    }
-
-    if (typeof items === 'object' && items !== null) {
-      return Object.entries(items)
-    }
-
-    if (typeof items === 'string') {
-      if (items.startsWith('<') && items.endsWith('>')) {
-        const resolved = this.resolver.resolveSingleReference(ctx, '', items)
-        if (Array.isArray(resolved)) {
-          return resolved
-        }
-        return []
-      }
-
-      try {
-        const normalized = items.replace(/'/g, '"')
-        const parsed = JSON.parse(normalized)
-        if (Array.isArray(parsed)) {
-          return parsed
-        }
-        return []
-      } catch (error) {
-        logger.error('Failed to parse forEach items', { items, error })
-        return []
-      }
-    }
-
-    try {
-      const resolved = this.resolver.resolveInputs(ctx, 'loop_foreach_items', { items }).items
-
-      if (Array.isArray(resolved)) {
-        return resolved
-      }
-
-      logger.warn('ForEach items did not resolve to array', {
-        items,
-        resolved,
-      })
-
-      return []
-    } catch (error: any) {
-      logger.error('Error resolving forEach items, returning empty array:', {
-        error: error.message,
-      })
-      return []
-    }
+    return resolveArrayInput(ctx, items, this.resolver)
   }
 }
