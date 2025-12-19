@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
-import { workflowMcpServer } from '@sim/db/schema'
-import { eq, sql } from 'drizzle-orm'
+import { workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
+import { eq, inArray, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
@@ -38,10 +38,38 @@ export const GET = withMcpAuth('read')(
         .from(workflowMcpServer)
         .where(eq(workflowMcpServer.workspaceId, workspaceId))
 
+      // Fetch all tools for these servers
+      const serverIds = servers.map((s) => s.id)
+      const tools =
+        serverIds.length > 0
+          ? await db
+              .select({
+                serverId: workflowMcpTool.serverId,
+                toolName: workflowMcpTool.toolName,
+              })
+              .from(workflowMcpTool)
+              .where(inArray(workflowMcpTool.serverId, serverIds))
+          : []
+
+      // Group tool names by server
+      const toolNamesByServer: Record<string, string[]> = {}
+      for (const tool of tools) {
+        if (!toolNamesByServer[tool.serverId]) {
+          toolNamesByServer[tool.serverId] = []
+        }
+        toolNamesByServer[tool.serverId].push(tool.toolName)
+      }
+
+      // Attach tool names to servers
+      const serversWithToolNames = servers.map((server) => ({
+        ...server,
+        toolNames: toolNamesByServer[server.id] || [],
+      }))
+
       logger.info(
         `[${requestId}] Listed ${servers.length} workflow MCP servers for workspace ${workspaceId}`
       )
-      return createMcpSuccessResponse({ servers })
+      return createMcpSuccessResponse({ servers: serversWithToolNames })
     } catch (error) {
       logger.error(`[${requestId}] Error listing workflow MCP servers:`, error)
       return createMcpErrorResponse(

@@ -29,6 +29,7 @@ export interface WorkflowMcpServer {
   createdAt: string
   updatedAt: string
   toolCount?: number
+  toolNames?: string[]
 }
 
 export interface WorkflowMcpTool {

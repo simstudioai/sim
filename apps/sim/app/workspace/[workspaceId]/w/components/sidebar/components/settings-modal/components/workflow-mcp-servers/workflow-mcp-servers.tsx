@@ -1,10 +1,9 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { Check, ChevronLeft, Clipboard, Globe, Plus, Search, Server, Trash2 } from 'lucide-react'
+import { Check, Clipboard, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
-  Badge,
   Button,
   Input as EmcnInput,
   Modal,
@@ -14,7 +13,6 @@ import {
   ModalHeader,
 } from '@/components/emcn'
 import { Input, Skeleton } from '@/components/ui'
-import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -22,76 +20,14 @@ import {
   useDeleteWorkflowMcpServer,
   useDeleteWorkflowMcpTool,
   usePublishWorkflowMcpServer,
-  useUnpublishWorkflowMcpServer,
   useWorkflowMcpServer,
   useWorkflowMcpServers,
   type WorkflowMcpServer,
   type WorkflowMcpTool,
 } from '@/hooks/queries/workflow-mcp-servers'
+import { FormField, McpServerSkeleton } from '../mcp/components'
 
 const logger = createLogger('WorkflowMcpServers')
-
-function ServerSkeleton() {
-  return (
-    <div className='flex items-center justify-between gap-[12px] rounded-[8px] border bg-[var(--surface-3)] p-[12px]'>
-      <div className='flex min-w-0 flex-col justify-center gap-[4px]'>
-        <Skeleton className='h-[14px] w-[120px]' />
-        <Skeleton className='h-[12px] w-[80px]' />
-      </div>
-      <Skeleton className='h-[28px] w-[60px] rounded-[4px]' />
-    </div>
-  )
-}
-
-interface ServerListItemProps {
-  server: WorkflowMcpServer
-  onViewDetails: () => void
-  onDelete: () => void
-  isDeleting: boolean
-}
-
-function ServerListItem({ server, onViewDetails, onDelete, isDeleting }: ServerListItemProps) {
-  return (
-    <div
-      className='flex items-center justify-between gap-[12px] rounded-[8px] border bg-[var(--surface-3)] p-[12px] transition-colors hover:bg-[var(--surface-4)]'
-      role='button'
-      tabIndex={0}
-      onClick={onViewDetails}
-      onKeyDown={(e) => e.key === 'Enter' && onViewDetails()}
-    >
-      <div className='flex min-w-0 flex-1 items-center gap-[10px]'>
-        <Server className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-tertiary)]' />
-        <div className='flex min-w-0 flex-col gap-[2px]'>
-          <div className='flex items-center gap-[8px]'>
-            <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
-              {server.name}
-            </span>
-            {server.isPublished && (
-              <Badge variant='outline' className='flex-shrink-0 text-[10px]'>
-                <Globe className='mr-[4px] h-[10px] w-[10px]' />
-                Published
-              </Badge>
-            )}
-          </div>
-          <span className='text-[12px] text-[var(--text-tertiary)]'>
-            {server.toolCount || 0} tool{(server.toolCount || 0) !== 1 ? 's' : ''}
-          </span>
-        </div>
-      </div>
-      <Button
-        variant='ghost'
-        onClick={(e) => {
-          e.stopPropagation()
-          onDelete()
-        }}
-        disabled={isDeleting}
-        className='h-[28px] px-[8px]'
-      >
-        {isDeleting ? 'Deleting...' : 'Delete'}
-      </Button>
-    </div>
-  )
-}
 
 interface ServerDetailViewProps {
   workspaceId: string
@@ -101,39 +37,18 @@ interface ServerDetailViewProps {
 
 function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewProps) {
   const { data, isLoading, error } = useWorkflowMcpServer(workspaceId, serverId)
-  const publishMutation = usePublishWorkflowMcpServer()
-  const unpublishMutation = useUnpublishWorkflowMcpServer()
   const deleteToolMutation = useDeleteWorkflowMcpTool()
   const [copiedUrl, setCopiedUrl] = useState(false)
   const [toolToDelete, setToolToDelete] = useState<WorkflowMcpTool | null>(null)
 
   const mcpServerUrl = useMemo(() => {
-    if (!data?.server?.isPublished) return null
     return `${getBaseUrl()}/api/mcp/serve/${serverId}/sse`
-  }, [data?.server?.isPublished, serverId])
-
-  const handlePublish = async () => {
-    try {
-      await publishMutation.mutateAsync({ workspaceId, serverId })
-    } catch (error) {
-      logger.error('Failed to publish server:', error)
-    }
-  }
-
-  const handleUnpublish = async () => {
-    try {
-      await unpublishMutation.mutateAsync({ workspaceId, serverId })
-    } catch (error) {
-      logger.error('Failed to unpublish server:', error)
-    }
-  }
+  }, [serverId])
 
   const handleCopyUrl = () => {
-    if (mcpServerUrl) {
-      navigator.clipboard.writeText(mcpServerUrl)
-      setCopiedUrl(true)
-      setTimeout(() => setCopiedUrl(false), 2000)
-    }
+    navigator.clipboard.writeText(mcpServerUrl)
+    setCopiedUrl(true)
+    setTimeout(() => setCopiedUrl(false), 2000)
   }
 
   const handleDeleteTool = async () => {
@@ -145,8 +60,8 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         toolId: toolToDelete.id,
       })
       setToolToDelete(null)
-    } catch (error) {
-      logger.error('Failed to delete tool:', error)
+    } catch (err) {
+      logger.error('Failed to delete tool:', err)
     }
   }
 
@@ -163,7 +78,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
   if (error || !data) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-[8px]'>
-        <p className='text-[13px] text-[var(--text-error)]'>Failed to load server details</p>
+        <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+          Failed to load server details
+        </p>
         <Button variant='default' onClick={onBack}>
           Go Back
         </Button>
@@ -185,114 +102,48 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
               <p className='text-[14px] text-[var(--text-secondary)]'>{server.name}</p>
             </div>
 
-            {server.description && (
-              <div className='flex flex-col gap-[8px]'>
-                <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                  Description
-                </span>
-                <p className='text-[14px] text-[var(--text-secondary)]'>{server.description}</p>
-              </div>
-            )}
-
             <div className='flex flex-col gap-[8px]'>
-              <span className='font-medium text-[13px] text-[var(--text-primary)]'>Status</span>
-              <div className='flex items-center gap-[8px]'>
-                {server.isPublished ? (
-                  <>
-                    <Badge variant='outline' className='text-[12px]'>
-                      <Globe className='mr-[4px] h-[12px] w-[12px]' />
-                      Published
-                    </Badge>
-                    <Button
-                      variant='ghost'
-                      onClick={handleUnpublish}
-                      disabled={unpublishMutation.isPending}
-                      className='h-[28px] text-[12px]'
-                    >
-                      {unpublishMutation.isPending ? 'Unpublishing...' : 'Unpublish'}
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <span className='text-[14px] text-[var(--text-tertiary)]'>Not Published</span>
-                    <Button
-                      variant='default'
-                      onClick={handlePublish}
-                      disabled={publishMutation.isPending || tools.length === 0}
-                      className='h-[28px] text-[12px]'
-                    >
-                      {publishMutation.isPending ? 'Publishing...' : 'Publish'}
-                    </Button>
-                  </>
-                )}
-              </div>
-              {publishMutation.isError && (
-                <p className='text-[12px] text-[var(--text-error)]'>
-                  {publishMutation.error?.message || 'Failed to publish'}
-                </p>
-              )}
+              <span className='font-medium text-[13px] text-[var(--text-primary)]'>Transport</span>
+              <p className='text-[14px] text-[var(--text-secondary)]'>Streamable-HTTP</p>
             </div>
 
-            {mcpServerUrl && (
-              <div className='flex flex-col gap-[8px]'>
-                <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                  MCP Server URL
-                </span>
-                <div className='flex items-center gap-[8px]'>
-                  <code className='flex-1 truncate rounded-[4px] bg-[var(--surface-5)] px-[8px] py-[6px] font-mono text-[12px] text-[var(--text-secondary)]'>
-                    {mcpServerUrl}
-                  </code>
-                  <Button variant='ghost' onClick={handleCopyUrl} className='h-[32px] w-[32px] p-0'>
-                    {copiedUrl ? (
-                      <Check className='h-[14px] w-[14px]' />
-                    ) : (
-                      <Clipboard className='h-[14px] w-[14px]' />
-                    )}
-                  </Button>
-                </div>
-                <p className='text-[11px] text-[var(--text-tertiary)]'>
-                  Use this URL to connect external MCP clients like Cursor or Claude Desktop.
+            <div className='flex flex-col gap-[8px]'>
+              <span className='font-medium text-[13px] text-[var(--text-primary)]'>URL</span>
+              <div className='flex items-center gap-[8px]'>
+                <p className='flex-1 break-all font-mono text-[13px] text-[var(--text-secondary)]'>
+                  {mcpServerUrl}
                 </p>
+                <Button variant='ghost' onClick={handleCopyUrl} className='h-[32px] w-[32px] p-0'>
+                  {copiedUrl ? (
+                    <Check className='h-[14px] w-[14px]' />
+                  ) : (
+                    <Clipboard className='h-[14px] w-[14px]' />
+                  )}
+                </Button>
               </div>
-            )}
+            </div>
 
             <div className='flex flex-col gap-[8px]'>
               <span className='font-medium text-[13px] text-[var(--text-primary)]'>
                 Tools ({tools.length})
               </span>
               {tools.length === 0 ? (
-                <p className='text-[13px] text-[var(--text-muted)]'>
-                  No tools added yet. Deploy a workflow and add it as a tool from the deploy modal.
-                </p>
+                <p className='text-[13px] text-[var(--text-muted)]'>No tools available</p>
               ) : (
                 <div className='flex flex-col gap-[8px]'>
                   {tools.map((tool) => (
                     <div
                       key={tool.id}
-                      className='flex items-center justify-between rounded-[6px] border bg-[var(--surface-3)] px-[10px] py-[8px]'
+                      className='rounded-[6px] border bg-[var(--surface-3)] px-[10px] py-[8px]'
                     >
-                      <div className='flex min-w-0 flex-col gap-[2px]'>
-                        <p className='font-medium text-[13px] text-[var(--text-primary)]'>
-                          {tool.toolName}
+                      <p className='font-medium text-[13px] text-[var(--text-primary)]'>
+                        {tool.toolName}
+                      </p>
+                      {tool.toolDescription && (
+                        <p className='mt-[4px] text-[13px] text-[var(--text-tertiary)]'>
+                          {tool.toolDescription}
                         </p>
-                        {tool.toolDescription && (
-                          <p className='truncate text-[12px] text-[var(--text-tertiary)]'>
-                            {tool.toolDescription}
-                          </p>
-                        )}
-                        {tool.workflowName && (
-                          <p className='text-[11px] text-[var(--text-muted)]'>
-                            Workflow: {tool.workflowName}
-                          </p>
-                        )}
-                      </div>
-                      <Button
-                        variant='ghost'
-                        onClick={() => setToolToDelete(tool)}
-                        className='h-[24px] w-[24px] p-0 text-[var(--text-tertiary)] hover:text-[var(--text-error)]'
-                      >
-                        <Trash2 className='h-[14px] w-[14px]' />
-                      </Button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -307,7 +158,6 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             variant='primary'
             className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
           >
-            <ChevronLeft className='mr-[4px] h-[14px] w-[14px]' />
             Back
           </Button>
         </div>
@@ -345,7 +195,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
 }
 
 /**
- * Workflow MCP Servers settings component.
+ * MCP Servers settings component.
  * Allows users to create and manage MCP servers that expose workflows as tools.
  */
 export function WorkflowMcpServers() {
@@ -354,11 +204,12 @@ export function WorkflowMcpServers() {
 
   const { data: servers = [], isLoading, error } = useWorkflowMcpServers(workspaceId)
   const createServerMutation = useCreateWorkflowMcpServer()
+  const publishServerMutation = usePublishWorkflowMcpServer()
   const deleteServerMutation = useDeleteWorkflowMcpServer()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [showAddForm, setShowAddForm] = useState(false)
-  const [formData, setFormData] = useState({ name: '', description: '' })
+  const [formData, setFormData] = useState({ name: '' })
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null)
   const [serverToDelete, setServerToDelete] = useState<WorkflowMcpServer | null>(null)
   const [deletingServers, setDeletingServers] = useState<Set<string>>(new Set())
@@ -366,15 +217,11 @@ export function WorkflowMcpServers() {
   const filteredServers = useMemo(() => {
     if (!searchTerm.trim()) return servers
     const search = searchTerm.toLowerCase()
-    return servers.filter(
-      (server) =>
-        server.name.toLowerCase().includes(search) ||
-        server.description?.toLowerCase().includes(search)
-    )
+    return servers.filter((server) => server.name.toLowerCase().includes(search))
   }, [servers, searchTerm])
 
   const resetForm = useCallback(() => {
-    setFormData({ name: '', description: '' })
+    setFormData({ name: '' })
     setShowAddForm(false)
   }, [])
 
@@ -382,14 +229,20 @@ export function WorkflowMcpServers() {
     if (!formData.name.trim()) return
 
     try {
-      await createServerMutation.mutateAsync({
+      const server = await createServerMutation.mutateAsync({
         workspaceId,
         name: formData.name.trim(),
-        description: formData.description.trim() || undefined,
       })
+      // Auto-publish the server
+      if (server?.id) {
+        await publishServerMutation.mutateAsync({
+          workspaceId,
+          serverId: server.id,
+        })
+      }
       resetForm()
-    } catch (error) {
-      logger.error('Failed to create server:', error)
+    } catch (err) {
+      logger.error('Failed to create server:', err)
     }
   }
 
@@ -404,8 +257,8 @@ export function WorkflowMcpServers() {
         workspaceId,
         serverId: serverToDelete.id,
       })
-    } catch (error) {
-      logger.error('Failed to delete server:', error)
+    } catch (err) {
+      logger.error('Failed to delete server:', err)
     } finally {
       setDeletingServers((prev) => {
         const next = new Set(prev)
@@ -420,7 +273,6 @@ export function WorkflowMcpServers() {
   const showNoResults = searchTerm.trim() && filteredServers.length === 0 && hasServers
   const isFormValid = formData.name.trim().length > 0
 
-  // Show detail view if a server is selected
   if (selectedServerId) {
     return (
       <ServerDetailView
@@ -435,12 +287,7 @@ export function WorkflowMcpServers() {
     <>
       <div className='flex h-full flex-col gap-[16px]'>
         <div className='flex items-center gap-[8px]'>
-          <div
-            className={cn(
-              'flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]',
-              isLoading && 'opacity-50'
-            )}
-          >
+          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]'>
             <Search
               className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
@@ -449,8 +296,7 @@ export function WorkflowMcpServers() {
               placeholder='Search servers...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              disabled={isLoading}
-              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-100'
+              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
             />
           </div>
           <Button
@@ -464,44 +310,19 @@ export function WorkflowMcpServers() {
           </Button>
         </div>
 
-        {showAddForm && (
-          <div className='rounded-[8px] border bg-[var(--surface-3)] p-[12px]'>
-            <div className='flex flex-col gap-[12px]'>
-              <div className='flex flex-col gap-[6px]'>
-                <label
-                  htmlFor='mcp-server-name'
-                  className='font-medium text-[13px] text-[var(--text-secondary)]'
-                >
-                  Server Name
-                </label>
+        {showAddForm && !isLoading && (
+          <div className='rounded-[8px] border bg-[var(--surface-3)] p-[10px]'>
+            <div className='flex flex-col gap-[8px]'>
+              <FormField label='Server Name'>
                 <EmcnInput
-                  id='mcp-server-name'
-                  placeholder='e.g., My Workflow Tools'
+                  placeholder='e.g., My MCP Server'
                   value={formData.name}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                  onChange={(e) => setFormData({ name: e.target.value })}
                   className='h-9'
                 />
-              </div>
+              </FormField>
 
-              <div className='flex flex-col gap-[6px]'>
-                <label
-                  htmlFor='mcp-server-description'
-                  className='font-medium text-[13px] text-[var(--text-secondary)]'
-                >
-                  Description (optional)
-                </label>
-                <EmcnInput
-                  id='mcp-server-description'
-                  placeholder='Describe what this server provides...'
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, description: e.target.value }))
-                  }
-                  className='h-9'
-                />
-              </div>
-
-              <div className='flex items-center justify-end gap-[8px] pt-[4px]'>
+              <div className='flex items-center justify-end gap-[8px] pt-[12px]'>
                 <Button variant='ghost' onClick={resetForm}>
                   Cancel
                 </Button>
@@ -510,7 +331,7 @@ export function WorkflowMcpServers() {
                   disabled={!isFormValid || createServerMutation.isPending}
                   className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
                 >
-                  {createServerMutation.isPending ? 'Creating...' : 'Create Server'}
+                  {createServerMutation.isPending ? 'Adding...' : 'Add Server'}
                 </Button>
               </div>
             </div>
@@ -521,34 +342,59 @@ export function WorkflowMcpServers() {
           {error ? (
             <div className='flex h-full flex-col items-center justify-center gap-[8px]'>
               <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
-                {error instanceof Error ? error.message : 'Failed to load servers'}
+                {error instanceof Error ? error.message : 'Failed to load MCP servers'}
               </p>
             </div>
           ) : isLoading ? (
             <div className='flex flex-col gap-[8px]'>
-              <ServerSkeleton />
-              <ServerSkeleton />
+              <McpServerSkeleton />
+              <McpServerSkeleton />
+              <McpServerSkeleton />
             </div>
           ) : showEmptyState ? (
-            <div className='flex h-full flex-col items-center justify-center gap-[8px] text-center'>
-              <Server className='h-[32px] w-[32px] text-[var(--text-muted)]' />
-              <p className='text-[13px] text-[var(--text-muted)]'>
-                No workflow MCP servers yet.
-                <br />
-                Create one to expose your workflows as MCP tools.
-              </p>
+            <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
+              Click "Add" above to get started
             </div>
           ) : (
             <div className='flex flex-col gap-[8px]'>
-              {filteredServers.map((server) => (
-                <ServerListItem
-                  key={server.id}
-                  server={server}
-                  onViewDetails={() => setSelectedServerId(server.id)}
-                  onDelete={() => setServerToDelete(server)}
-                  isDeleting={deletingServers.has(server.id)}
-                />
-              ))}
+              {filteredServers.map((server) => {
+                const count = server.toolCount || 0
+                const toolNames = server.toolNames || []
+                const names = count > 0 ? `: ${toolNames.join(', ')}` : ''
+                const toolsLabel = `${count} tool${count !== 1 ? 's' : ''}${names}`
+                const isDeleting = deletingServers.has(server.id)
+                return (
+                  <div key={server.id} className='flex items-center justify-between gap-[12px]'>
+                    <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                      <div className='flex items-center gap-[6px]'>
+                        <span className='max-w-[200px] truncate font-medium text-[14px]'>
+                          {server.name}
+                        </span>
+                        <span className='text-[13px] text-[var(--text-secondary)]'>
+                          (Streamable-HTTP)
+                        </span>
+                      </div>
+                      <p className='truncate text-[13px] text-[var(--text-muted)]'>{toolsLabel}</p>
+                    </div>
+                    <div className='flex flex-shrink-0 items-center gap-[4px]'>
+                      <Button
+                        variant='primary'
+                        onClick={() => setSelectedServerId(server.id)}
+                        className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+                      >
+                        Details
+                      </Button>
+                      <Button
+                        variant='ghost'
+                        onClick={() => setServerToDelete(server)}
+                        disabled={isDeleting}
+                      >
+                        {isDeleting ? 'Deleting...' : 'Delete'}
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
               {showNoResults && (
                 <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
                   No servers found matching "{searchTerm}"
@@ -566,10 +412,7 @@ export function WorkflowMcpServers() {
             <p className='text-[12px] text-[var(--text-tertiary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{serverToDelete?.name}</span>
-              ?{' '}
-              <span className='text-[var(--text-error)]'>
-                This will remove all tools and cannot be undone.
-              </span>
+              ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>

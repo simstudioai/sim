@@ -1,34 +1,24 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import {
-  AlertTriangle,
-  ChevronDown,
-  ChevronRight,
-  Plus,
-  RefreshCw,
-  Server,
-  Trash2,
-} from 'lucide-react'
+import { Check, Server } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
-  Button,
-  Input as EmcnInput,
+  Input,
   Label,
   Popover,
   PopoverContent,
   PopoverItem,
   PopoverTrigger,
+  Textarea,
 } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
-import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateToolInputSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import {
   useAddWorkflowMcpTool,
   useDeleteWorkflowMcpTool,
-  useUpdateWorkflowMcpTool,
   useWorkflowMcpServers,
   useWorkflowMcpTools,
   type WorkflowMcpServer,
@@ -117,53 +107,21 @@ function extractInputFormat(
 }
 
 /**
- * Generate JSON Schema from input format using the shared utility
- * Optionally applies custom descriptions from the UI
+ * Generate JSON Schema from input format with optional descriptions
  */
 function generateParameterSchema(
   inputFormat: Array<{ name: string; type: string }>,
-  customDescriptions?: Record<string, string>
+  descriptions: Record<string, string>
 ): Record<string, unknown> {
-  // Convert to InputFormatField with descriptions
   const fieldsWithDescriptions = inputFormat.map((field) => ({
     ...field,
-    description: customDescriptions?.[field.name]?.trim() || undefined,
+    description: descriptions[field.name]?.trim() || undefined,
   }))
   return generateToolInputSchema(fieldsWithDescriptions) as unknown as Record<string, unknown>
 }
 
 /**
- * Extract parameter names from a tool's parameter schema
- */
-function getToolParameterNames(schema: Record<string, unknown>): string[] {
-  const properties = schema.properties as Record<string, unknown> | undefined
-  if (!properties) return []
-  return Object.keys(properties)
-}
-
-/**
- * Check if the tool's parameters differ from the current workflow's input format
- */
-function hasParameterMismatch(
-  tool: WorkflowMcpTool,
-  currentInputFormat: Array<{ name: string; type: string }>
-): boolean {
-  const toolParams = getToolParameterNames(tool.parameterSchema as Record<string, unknown>)
-  const currentParams = currentInputFormat.map((f) => f.name)
-
-  if (toolParams.length !== currentParams.length) return true
-
-  const toolParamSet = new Set(toolParams)
-  for (const param of currentParams) {
-    if (!toolParamSet.has(param)) return true
-  }
-
-  return false
-}
-
-/**
  * Component to query tools for a single server and report back via callback.
- * This pattern avoids calling hooks in a loop.
  */
 function ServerToolsQuery({
   workspaceId,
@@ -183,186 +141,7 @@ function ServerToolsQuery({
     onData(server.id, tool, isLoading)
   }, [tools, isLoading, workflowId, server.id, onData])
 
-  return null // This component doesn't render anything
-}
-
-interface ToolOnServerProps {
-  server: WorkflowMcpServer
-  tool: WorkflowMcpTool
-  workspaceId: string
-  currentInputFormat: Array<{ name: string; type: string }>
-  currentParameterSchema: Record<string, unknown>
-  workflowDescription: string | null | undefined
-  onRemoved: (serverId: string) => void
-  onUpdated: () => void
-}
-
-function ToolOnServer({
-  server,
-  tool,
-  workspaceId,
-  currentInputFormat,
-  currentParameterSchema,
-  workflowDescription,
-  onRemoved,
-  onUpdated,
-}: ToolOnServerProps) {
-  const deleteToolMutation = useDeleteWorkflowMcpTool()
-  const updateToolMutation = useUpdateWorkflowMcpTool()
-  const [showConfirm, setShowConfirm] = useState(false)
-  const [showDetails, setShowDetails] = useState(false)
-
-  const needsUpdate = hasParameterMismatch(tool, currentInputFormat)
-  const toolParams = getToolParameterNames(tool.parameterSchema as Record<string, unknown>)
-
-  const handleRemove = async () => {
-    try {
-      await deleteToolMutation.mutateAsync({
-        workspaceId,
-        serverId: server.id,
-        toolId: tool.id,
-      })
-      onRemoved(server.id)
-    } catch (error) {
-      logger.error('Failed to remove tool:', error)
-    }
-  }
-
-  const handleUpdate = async () => {
-    try {
-      await updateToolMutation.mutateAsync({
-        workspaceId,
-        serverId: server.id,
-        toolId: tool.id,
-        toolDescription: workflowDescription || `Execute workflow`,
-        parameterSchema: currentParameterSchema,
-      })
-      onUpdated()
-      logger.info(`Updated tool ${tool.id} with new parameters`)
-    } catch (error) {
-      logger.error('Failed to update tool:', error)
-    }
-  }
-
-  if (showConfirm) {
-    return (
-      <div className='flex items-center justify-between rounded-[6px] border border-[var(--text-error)]/30 bg-[var(--surface-3)] px-[10px] py-[8px]'>
-        <span className='text-[12px] text-[var(--text-secondary)]'>Remove from {server.name}?</span>
-        <div className='flex items-center gap-[4px]'>
-          <Button
-            variant='ghost'
-            onClick={() => setShowConfirm(false)}
-            className='h-[24px] px-[8px] text-[11px]'
-            disabled={deleteToolMutation.isPending}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant='ghost'
-            onClick={handleRemove}
-            className='h-[24px] px-[8px] text-[11px] text-[var(--text-error)] hover:text-[var(--text-error)]'
-            disabled={deleteToolMutation.isPending}
-          >
-            {deleteToolMutation.isPending ? 'Removing...' : 'Remove'}
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className='rounded-[6px] border bg-[var(--surface-3)]'>
-      <div
-        className='flex cursor-pointer items-center justify-between px-[10px] py-[8px]'
-        onClick={() => setShowDetails(!showDetails)}
-      >
-        <div className='flex items-center gap-[8px]'>
-          {showDetails ? (
-            <ChevronDown className='h-[12px] w-[12px] text-[var(--text-tertiary)]' />
-          ) : (
-            <ChevronRight className='h-[12px] w-[12px] text-[var(--text-tertiary)]' />
-          )}
-          <span className='text-[13px] text-[var(--text-primary)]'>{server.name}</span>
-          {server.isPublished && (
-            <Badge variant='outline' className='text-[10px]'>
-              Published
-            </Badge>
-          )}
-          {needsUpdate && (
-            <Badge
-              variant='outline'
-              className='border-amber-500/50 bg-amber-500/10 text-[10px] text-amber-500'
-            >
-              <AlertTriangle className='mr-[4px] h-[10px] w-[10px]' />
-              Needs Update
-            </Badge>
-          )}
-        </div>
-        <div className='flex items-center gap-[4px]' onClick={(e) => e.stopPropagation()}>
-          {needsUpdate && (
-            <Button
-              variant='ghost'
-              onClick={handleUpdate}
-              disabled={updateToolMutation.isPending}
-              className='h-[24px] px-[8px] text-[11px] text-amber-500 hover:text-amber-600'
-            >
-              <RefreshCw
-                className={cn(
-                  'mr-[4px] h-[10px] w-[10px]',
-                  updateToolMutation.isPending && 'animate-spin'
-                )}
-              />
-              {updateToolMutation.isPending ? 'Updating...' : 'Update'}
-            </Button>
-          )}
-          <Button
-            variant='ghost'
-            onClick={() => setShowConfirm(true)}
-            className='h-[24px] w-[24px] p-0 text-[var(--text-tertiary)] hover:text-[var(--text-error)]'
-          >
-            <Trash2 className='h-[12px] w-[12px]' />
-          </Button>
-        </div>
-      </div>
-
-      {showDetails && (
-        <div className='border-[var(--border)] border-t px-[10px] py-[8px]'>
-          <div className='flex flex-col gap-[6px]'>
-            <div className='flex items-center justify-between'>
-              <span className='text-[11px] text-[var(--text-muted)]'>Tool Name</span>
-              <span className='font-mono text-[11px] text-[var(--text-secondary)]'>
-                {tool.toolName}
-              </span>
-            </div>
-            <div className='flex items-start justify-between gap-[8px]'>
-              <span className='flex-shrink-0 text-[11px] text-[var(--text-muted)]'>
-                Description
-              </span>
-              <span className='text-right text-[11px] text-[var(--text-secondary)]'>
-                {tool.toolDescription || '—'}
-              </span>
-            </div>
-            <div className='flex items-start justify-between gap-[8px]'>
-              <span className='flex-shrink-0 text-[11px] text-[var(--text-muted)]'>
-                Parameters ({toolParams.length})
-              </span>
-              <div className='flex flex-wrap justify-end gap-[4px]'>
-                {toolParams.length === 0 ? (
-                  <span className='text-[11px] text-[var(--text-muted)]'>None</span>
-                ) : (
-                  toolParams.map((param) => (
-                    <Badge key={param} variant='outline' className='text-[9px]'>
-                      {param}
-                    </Badge>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
+  return null
 }
 
 export function McpToolDeploy({
@@ -381,20 +160,18 @@ export function McpToolDeploy({
     refetch: refetchServers,
   } = useWorkflowMcpServers(workspaceId)
   const addToolMutation = useAddWorkflowMcpTool()
+  const deleteToolMutation = useDeleteWorkflowMcpTool()
 
-  // Get workflow blocks
   const blocks = useWorkflowStore((state) => state.blocks)
 
-  // Find the starter block ID to subscribe to its inputFormat changes
   const starterBlockId = useMemo(() => {
     for (const [blockId, block] of Object.entries(blocks)) {
       if (!block || typeof block !== 'object') continue
       const blockType = (block as { type?: string }).type
-      // Check for all possible start/trigger block types
       if (
         blockType === 'starter' ||
         blockType === 'start' ||
-        blockType === 'start_trigger' || // This is the unified start block type
+        blockType === 'start_trigger' ||
         blockType === 'api' ||
         blockType === 'api_trigger' ||
         blockType === 'input_trigger'
@@ -405,15 +182,11 @@ export function McpToolDeploy({
     return null
   }, [blocks])
 
-  // Subscribe to the inputFormat value in SubBlockStore for reactivity
-  // Use workflowId prop directly (not activeWorkflowId from registry) to ensure we get the correct workflow's data
   const subBlockValues = useSubBlockStore((state) =>
     workflowId ? (state.workflowValues[workflowId] ?? {}) : {}
   )
 
-  // Extract and normalize input format - now reactive to SubBlockStore changes
   const inputFormat = useMemo(() => {
-    // First try to get from SubBlockStore (where runtime values are stored)
     if (starterBlockId && subBlockValues[starterBlockId]) {
       const inputFormatValue = subBlockValues[starterBlockId].inputFormat
 
@@ -437,7 +210,6 @@ export function McpToolDeploy({
       }
     }
 
-    // Fallback: try to get from block structure (for initial load or backwards compatibility)
     if (starterBlockId && blocks[starterBlockId]) {
       const startBlock = blocks[starterBlockId]
       const subBlocksValue = startBlock?.subBlocks?.inputFormat?.value as unknown
@@ -464,16 +236,14 @@ export function McpToolDeploy({
       }
     }
 
-    // Last fallback: use extractInputFormat helper
     return extractInputFormat(blocks)
   }, [starterBlockId, subBlockValues, blocks])
 
-  const [selectedServer, setSelectedServer] = useState<WorkflowMcpServer | null>(null)
-  const [toolName, setToolName] = useState('')
-  const [toolDescription, setToolDescription] = useState('')
+  const [toolName, setToolName] = useState(() => sanitizeToolName(workflowName))
+  const [toolDescription, setToolDescription] = useState(
+    () => workflowDescription || `Execute ${workflowName} workflow`
+  )
   const [showServerSelector, setShowServerSelector] = useState(false)
-  const [showParameterSchema, setShowParameterSchema] = useState(false)
-  // Track custom descriptions for each parameter
   const [parameterDescriptions, setParameterDescriptions] = useState<Record<string, string>>({})
 
   const parameterSchema = useMemo(
@@ -481,16 +251,13 @@ export function McpToolDeploy({
     [inputFormat, parameterDescriptions]
   )
 
-  // Track tools data from each server using state instead of hooks in a loop
   const [serverToolsMap, setServerToolsMap] = useState<
     Record<string, { tool: WorkflowMcpTool | null; isLoading: boolean }>
   >({})
 
-  // Stable callback to handle tool data from ServerToolsQuery components
   const handleServerToolData = useCallback(
     (serverId: string, tool: WorkflowMcpTool | null, isLoading: boolean) => {
       setServerToolsMap((prev) => {
-        // Only update if data has changed to prevent infinite loops
         const existing = prev[serverId]
         if (existing?.tool?.id === tool?.id && existing?.isLoading === isLoading) {
           return prev
@@ -504,114 +271,116 @@ export function McpToolDeploy({
     []
   )
 
-  // Find which servers already have this workflow as a tool and get the tool info
-  const serversWithThisWorkflow = useMemo(() => {
-    const result: Array<{ server: WorkflowMcpServer; tool: WorkflowMcpTool }> = []
+  const selectedServerIds = useMemo(() => {
+    const ids = new Set<string>()
     for (const server of servers) {
       const toolInfo = serverToolsMap[server.id]
       if (toolInfo?.tool) {
-        result.push({ server, tool: toolInfo.tool })
+        ids.add(server.id)
       }
     }
-    return result
+    return ids
   }, [servers, serverToolsMap])
 
-  // Check if any tools need updating
-  const toolsNeedingUpdate = useMemo(() => {
-    return serversWithThisWorkflow.filter(({ tool }) => hasParameterMismatch(tool, inputFormat))
-  }, [serversWithThisWorkflow, inputFormat])
-
-  // Load existing parameter descriptions from the first deployed tool
+  // Load existing tool name, description, and parameter descriptions from the first deployed tool
   useEffect(() => {
-    if (serversWithThisWorkflow.length > 0) {
-      const existingTool = serversWithThisWorkflow[0].tool
-      const schema = existingTool.parameterSchema as Record<string, unknown> | undefined
-      const properties = schema?.properties as Record<string, { description?: string }> | undefined
+    for (const server of servers) {
+      const toolInfo = serverToolsMap[server.id]
+      if (toolInfo?.tool) {
+        setToolName(toolInfo.tool.toolName)
+        setToolDescription(toolInfo.tool.toolDescription || '')
 
-      if (properties) {
-        const descriptions: Record<string, string> = {}
-        for (const [name, prop] of Object.entries(properties)) {
-          // Only use description if it differs from the field name (i.e., it's custom)
-          if (
-            prop.description &&
-            prop.description !== name &&
-            prop.description !== 'Array of file objects'
-          ) {
-            descriptions[name] = prop.description
+        // Load parameter descriptions
+        const schema = toolInfo.tool.parameterSchema as Record<string, unknown> | undefined
+        const properties = schema?.properties as
+          | Record<string, { description?: string }>
+          | undefined
+        if (properties) {
+          const descriptions: Record<string, string> = {}
+          for (const [name, prop] of Object.entries(properties)) {
+            if (
+              prop.description &&
+              prop.description !== name &&
+              prop.description !== 'Array of file objects'
+            ) {
+              descriptions[name] = prop.description
+            }
+          }
+          if (Object.keys(descriptions).length > 0) {
+            setParameterDescriptions(descriptions)
           }
         }
-        if (Object.keys(descriptions).length > 0) {
-          setParameterDescriptions(descriptions)
+        break
+      }
+    }
+  }, [servers, serverToolsMap])
+
+  const handleServerToggle = useCallback(
+    async (server: WorkflowMcpServer) => {
+      const toolInfo = serverToolsMap[server.id]
+      const isSelected = !!toolInfo?.tool
+
+      if (isSelected && toolInfo?.tool) {
+        // Remove from server
+        try {
+          await deleteToolMutation.mutateAsync({
+            workspaceId,
+            serverId: server.id,
+            toolId: toolInfo.tool.id,
+          })
+          setServerToolsMap((prev) => {
+            const next = { ...prev }
+            delete next[server.id]
+            return next
+          })
+          refetchServers()
+        } catch (error) {
+          logger.error('Failed to remove tool:', error)
+        }
+      } else {
+        // Add to server
+        if (!toolName.trim()) return
+        try {
+          await addToolMutation.mutateAsync({
+            workspaceId,
+            serverId: server.id,
+            workflowId,
+            toolName: toolName.trim(),
+            toolDescription: toolDescription.trim() || undefined,
+            parameterSchema,
+          })
+          refetchServers()
+          onAddedToServer?.()
+          logger.info(`Added workflow ${workflowId} as tool to server ${server.id}`)
+        } catch (error) {
+          logger.error('Failed to add tool:', error)
         }
       }
-    }
-  }, [serversWithThisWorkflow])
-
-  // Reset form when selected server changes
-  useEffect(() => {
-    if (selectedServer) {
-      setToolName(sanitizeToolName(workflowName))
-      setToolDescription(workflowDescription || `Execute ${workflowName} workflow`)
-    }
-  }, [selectedServer, workflowName, workflowDescription])
-
-  const handleAddTool = useCallback(async () => {
-    if (!selectedServer || !toolName.trim()) return
-
-    try {
-      await addToolMutation.mutateAsync({
-        workspaceId,
-        serverId: selectedServer.id,
-        workflowId,
-        toolName: toolName.trim(),
-        toolDescription: toolDescription.trim() || undefined,
-        parameterSchema,
-      })
-
-      setSelectedServer(null)
-      setToolName('')
-      setToolDescription('')
-
-      // Refetch servers to update tool count
-      refetchServers()
-      onAddedToServer?.()
-
-      logger.info(`Added workflow ${workflowId} as tool to server ${selectedServer.id}`)
-    } catch (error) {
-      logger.error('Failed to add tool:', error)
-    }
-  }, [
-    selectedServer,
-    toolName,
-    toolDescription,
-    workspaceId,
-    workflowId,
-    parameterSchema,
-    addToolMutation,
-    refetchServers,
-    onAddedToServer,
-  ])
-
-  const handleToolChanged = useCallback(
-    (removedServerId?: string) => {
-      // If a tool was removed from a specific server, clear just that entry
-      // The ServerToolsQuery component will re-query and update the map
-      if (removedServerId) {
-        setServerToolsMap((prev) => {
-          const next = { ...prev }
-          delete next[removedServerId]
-          return next
-        })
-      }
-      refetchServers()
     },
-    [refetchServers]
+    [
+      serverToolsMap,
+      toolName,
+      toolDescription,
+      workspaceId,
+      workflowId,
+      parameterSchema,
+      addToolMutation,
+      deleteToolMutation,
+      refetchServers,
+      onAddedToServer,
+    ]
   )
 
-  const availableServers = useMemo(() => {
-    const addedServerIds = new Set(serversWithThisWorkflow.map((s) => s.server.id))
-    return servers.filter((server) => !addedServerIds.has(server.id))
-  }, [servers, serversWithThisWorkflow])
+  const selectedServersText = useMemo(() => {
+    const count = selectedServerIds.size
+    if (count === 0) return 'Select servers'
+    if (count === 1) {
+      const serverId = Array.from(selectedServerIds)[0]
+      const server = servers.find((s) => s.id === serverId)
+      return server?.name || '1 server'
+    }
+    return `${count} servers`
+  }, [selectedServerIds, servers])
 
   if (!isDeployed) {
     return (
@@ -629,9 +398,21 @@ export function McpToolDeploy({
 
   if (isLoadingServers) {
     return (
-      <div className='flex flex-col gap-[16px]'>
-        <Skeleton className='h-[60px] w-full' />
-        <Skeleton className='h-[40px] w-full' />
+      <div className='-mx-1 space-y-4 px-1'>
+        <div className='space-y-[12px]'>
+          <div>
+            <Skeleton className='mb-[6.5px] h-[16px] w-[70px]' />
+            <Skeleton className='h-[34px] w-full rounded-[4px]' />
+          </div>
+          <div>
+            <Skeleton className='mb-[6.5px] h-[16px] w-[80px]' />
+            <Skeleton className='h-[34px] w-full rounded-[4px]' />
+          </div>
+          <div>
+            <Skeleton className='mb-[6.5px] h-[16px] w-[50px]' />
+            <Skeleton className='h-[24px] w-[100px] rounded-[6px]' />
+          </div>
+        </div>
       </div>
     )
   }
@@ -643,7 +424,7 @@ export function McpToolDeploy({
         <div className='flex flex-col gap-[4px]'>
           <p className='text-[14px] text-[var(--text-primary)]'>No MCP servers yet</p>
           <p className='text-[13px] text-[var(--text-muted)]'>
-            Create a Workflow MCP Server in Settings → Workflow MCP Servers first.
+            Create an MCP Server in Settings → MCP Servers first.
           </p>
         </div>
       </div>
@@ -651,8 +432,8 @@ export function McpToolDeploy({
   }
 
   return (
-    <div className='flex flex-col gap-[16px]'>
-      {/* Query tools for each server using separate components to follow Rules of Hooks */}
+    <div className='-mx-1 space-y-4 overflow-y-auto px-1'>
+      {/* Query tools for each server */}
       {servers.map((server) => (
         <ServerToolsQuery
           key={server.id}
@@ -663,199 +444,111 @@ export function McpToolDeploy({
         />
       ))}
 
-      <div className='flex flex-col gap-[4px]'>
-        <p className='text-[13px] text-[var(--text-secondary)]'>
-          Add this workflow as an MCP tool to make it callable by external MCP clients like Cursor
-          or Claude Desktop.
-        </p>
-      </div>
-
-      {/* Update Warning */}
-      {toolsNeedingUpdate.length > 0 && (
-        <div className='flex items-center gap-[8px] rounded-[6px] border border-amber-500/30 bg-amber-500/10 px-[10px] py-[8px]'>
-          <AlertTriangle className='h-[14px] w-[14px] flex-shrink-0 text-amber-500' />
-          <p className='text-[12px] text-amber-600 dark:text-amber-400'>
-            {toolsNeedingUpdate.length} server{toolsNeedingUpdate.length > 1 ? 's have' : ' has'}{' '}
-            outdated tool definitions. Click "Update" on each to sync with current parameters.
+      <div className='space-y-[12px]'>
+        {/* Tool Name */}
+        <div>
+          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+            Tool name
+          </Label>
+          <Input
+            value={toolName}
+            onChange={(e) => setToolName(e.target.value)}
+            placeholder='e.g., book_flight'
+          />
+          <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
+            Use lowercase letters, numbers, and underscores only
           </p>
         </div>
-      )}
 
-      {/* Parameter Schema Preview */}
-      <div className='flex flex-col gap-[8px]'>
-        <button
-          type='button'
-          onClick={() => setShowParameterSchema(!showParameterSchema)}
-          className='flex items-center gap-[6px] text-left'
-        >
-          {showParameterSchema ? (
-            <ChevronDown className='h-[12px] w-[12px] text-[var(--text-tertiary)]' />
-          ) : (
-            <ChevronRight className='h-[12px] w-[12px] text-[var(--text-tertiary)]' />
-          )}
-          <Label className='cursor-pointer text-[13px] text-[var(--text-primary)]'>
-            Current Tool Parameters ({inputFormat.length})
+        {/* Description */}
+        <div>
+          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+            Description
           </Label>
-        </button>
+          <Textarea
+            placeholder='Describe what this tool does...'
+            className='min-h-[160px] resize-none'
+            value={toolDescription}
+            onChange={(e) => setToolDescription(e.target.value)}
+          />
+        </div>
 
-        {showParameterSchema && (
-          <div className='rounded-[6px] border bg-[var(--surface-4)] p-[12px]'>
-            {inputFormat.length === 0 ? (
-              <p className='text-[12px] text-[var(--text-muted)]'>
-                No parameters defined. Add input fields in the Starter block to define tool
-                parameters.
-              </p>
-            ) : (
-              <div className='flex flex-col gap-[12px]'>
-                {inputFormat.map((field, index) => (
-                  <div key={index} className='flex flex-col gap-[6px]'>
-                    <div className='flex items-center justify-between'>
-                      <span className='font-mono text-[12px] text-[var(--text-primary)]'>
-                        {field.name}
-                      </span>
-                      <Badge variant='outline' className='text-[10px]'>
-                        {field.type}
-                      </Badge>
-                    </div>
-                    <EmcnInput
-                      value={parameterDescriptions[field.name] || ''}
-                      onChange={(e) =>
-                        setParameterDescriptions((prev) => ({
-                          ...prev,
-                          [field.name]: e.target.value,
-                        }))
-                      }
-                      placeholder={`Describe what "${field.name}" is for...`}
-                      className='h-[32px] text-[12px]'
-                    />
+        {/* Parameters */}
+        {inputFormat.length > 0 && (
+          <div>
+            <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+              Parameters ({inputFormat.length})
+            </Label>
+            <div className='flex flex-col gap-[8px]'>
+              {inputFormat.map((field) => (
+                <div
+                  key={field.name}
+                  className='rounded-[6px] border bg-[var(--surface-3)] px-[10px] py-[8px]'
+                >
+                  <div className='flex items-center justify-between'>
+                    <p className='font-medium text-[13px] text-[var(--text-primary)]'>
+                      {field.name}
+                    </p>
+                    <Badge variant='outline' className='text-[10px]'>
+                      {field.type}
+                    </Badge>
                   </div>
-                ))}
-                <p className='text-[11px] text-[var(--text-muted)]'>
-                  Descriptions help MCP clients understand what each parameter is for.
-                </p>
-              </div>
-            )}
+                  <Input
+                    value={parameterDescriptions[field.name] || ''}
+                    onChange={(e) =>
+                      setParameterDescriptions((prev) => ({
+                        ...prev,
+                        [field.name]: e.target.value,
+                      }))
+                    }
+                    placeholder='Add description for MCP clients...'
+                    className='mt-[6px] h-[28px] text-[12px]'
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         )}
-      </div>
 
-      {/* Servers with this workflow */}
-      {serversWithThisWorkflow.length > 0 && (
-        <div className='flex flex-col gap-[8px]'>
-          <Label className='text-[13px] text-[var(--text-primary)]'>
-            Added to ({serversWithThisWorkflow.length})
+        {/* Servers - multi-select like OutputSelect */}
+        <div>
+          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+            Servers
           </Label>
-          <div className='flex flex-col gap-[6px]'>
-            {serversWithThisWorkflow.map(({ server, tool }) => (
-              <ToolOnServer
-                key={server.id}
-                server={server}
-                tool={tool}
-                workspaceId={workspaceId}
-                currentInputFormat={inputFormat}
-                currentParameterSchema={parameterSchema}
-                workflowDescription={workflowDescription}
-                onRemoved={(serverId) => handleToolChanged(serverId)}
-                onUpdated={() => handleToolChanged()}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Add to new server */}
-      {availableServers.length > 0 ? (
-        <>
-          <div className='flex flex-col gap-[8px]'>
-            <Label className='text-[13px] text-[var(--text-primary)]'>Add to Server</Label>
-            <Popover open={showServerSelector} onOpenChange={setShowServerSelector}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant='default'
-                  className='h-[36px] w-full justify-between border bg-[var(--surface-3)]'
-                >
-                  <span className={cn(!selectedServer && 'text-[var(--text-muted)]')}>
-                    {selectedServer?.name || 'Choose a server...'}
-                  </span>
-                  <ChevronDown className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                side='bottom'
-                align='start'
-                sideOffset={4}
-                className='w-[var(--radix-popover-trigger-width)]'
-                border
-              >
-                {availableServers.map((server) => (
+          <Popover open={showServerSelector} onOpenChange={setShowServerSelector}>
+            <PopoverTrigger asChild>
+              <div>
+                <Badge variant='outline' className='cursor-pointer whitespace-nowrap rounded-[6px]'>
+                  <span className='text-[12px]'>{selectedServersText}</span>
+                </Badge>
+              </div>
+            </PopoverTrigger>
+            <PopoverContent side='bottom' align='start' sideOffset={4} border>
+              {servers.map((server) => {
+                const isSelected = selectedServerIds.has(server.id)
+                const isPending = addToolMutation.isPending || deleteToolMutation.isPending
+                return (
                   <PopoverItem
                     key={server.id}
-                    onClick={() => {
-                      setSelectedServer(server)
-                      setShowServerSelector(false)
-                    }}
+                    active={isSelected}
+                    onClick={() => !isPending && toolName.trim() && handleServerToggle(server)}
                   >
-                    <Server className='mr-[8px] h-[14px] w-[14px] text-[var(--text-tertiary)]' />
-                    <span>{server.name}</span>
-                    {server.isPublished && (
-                      <Badge variant='outline' className='ml-auto text-[10px]'>
-                        Published
-                      </Badge>
-                    )}
+                    <Server className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
+                    <span className='flex-1'>{server.name}</span>
+                    {isSelected && <Check className='h-3 w-3' />}
                   </PopoverItem>
-                ))}
-              </PopoverContent>
-            </Popover>
-          </div>
+                )
+              })}
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
 
-          {selectedServer && (
-            <>
-              <div className='flex flex-col gap-[8px]'>
-                <Label className='text-[13px] text-[var(--text-primary)]'>Tool Name</Label>
-                <EmcnInput
-                  value={toolName}
-                  onChange={(e) => setToolName(e.target.value)}
-                  placeholder='e.g., book_flight'
-                  className='h-[36px]'
-                />
-                <p className='text-[11px] text-[var(--text-muted)]'>
-                  Use lowercase letters, numbers, and underscores only.
-                </p>
-              </div>
-
-              <div className='flex flex-col gap-[8px]'>
-                <Label className='text-[13px] text-[var(--text-primary)]'>Description</Label>
-                <EmcnInput
-                  value={toolDescription}
-                  onChange={(e) => setToolDescription(e.target.value)}
-                  placeholder='Describe what this tool does...'
-                  className='h-[36px]'
-                />
-              </div>
-
-              <Button
-                variant='primary'
-                onClick={handleAddTool}
-                disabled={addToolMutation.isPending || !toolName.trim()}
-                className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-              >
-                <Plus className='mr-[6px] h-[14px] w-[14px]' />
-                {addToolMutation.isPending ? 'Adding...' : 'Add to Server'}
-              </Button>
-
-              {addToolMutation.isError && (
-                <p className='text-[12px] text-[var(--text-error)]'>
-                  {addToolMutation.error?.message || 'Failed to add tool'}
-                </p>
-              )}
-            </>
-          )}
-        </>
-      ) : serversWithThisWorkflow.length > 0 ? (
-        <p className='text-[13px] text-[var(--text-muted)]'>
-          This workflow has been added to all available servers.
+      {addToolMutation.isError && (
+        <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>
+          {addToolMutation.error?.message || 'Failed to add tool'}
         </p>
-      ) : null}
+      )}
     </div>
   )
 }
