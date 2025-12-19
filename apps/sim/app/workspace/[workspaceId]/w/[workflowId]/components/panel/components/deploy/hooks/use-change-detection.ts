@@ -5,6 +5,7 @@ import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { createDeploymentSignature } from '@/lib/workflows/deployment-signature'
 
 const logger = createLogger('useChangeDetection')
 
@@ -17,6 +18,7 @@ interface UseChangeDetectionProps {
 /**
  * Hook to detect changes between current workflow state and deployed state
  * Uses API-based change detection for accuracy
+ * Only triggers checks when deployment-relevant changes occur (ignores UI-only changes like position, layout, etc.)
  */
 export function useChangeDetection({
   workflowId,
@@ -24,9 +26,6 @@ export function useChangeDetection({
   isLoadingDeployedState,
 }: UseChangeDetectionProps) {
   const [changeDetected, setChangeDetected] = useState(false)
-  const [blockStructureVersion, setBlockStructureVersion] = useState(0)
-  const [edgeStructureVersion, setEdgeStructureVersion] = useState(0)
-  const [subBlockStructureVersion, setSubBlockStructureVersion] = useState(0)
 
   // Get current store state for change detection
   const currentBlocks = useWorkflowStore((state) => state.blocks)
@@ -36,35 +35,19 @@ export function useChangeDetection({
     workflowId ? state.workflowValues[workflowId] : null
   )
 
-  // Track structure changes
-  useEffect(() => {
-    setBlockStructureVersion((version) => version + 1)
-  }, [currentBlocks])
+  // Create a deployment signature that only includes deployment-relevant properties
+  // This excludes UI-only changes like position, layout, expanded states, etc.
+  const deploymentSignature = useMemo(() => {
+    return createDeploymentSignature(currentBlocks, currentEdges, subBlockValues)
+  }, [currentBlocks, currentEdges, subBlockValues])
 
-  useEffect(() => {
-    setEdgeStructureVersion((version) => version + 1)
-  }, [currentEdges])
-
-  useEffect(() => {
-    setSubBlockStructureVersion((version) => version + 1)
-  }, [subBlockValues])
-
-  // Reset version counters when workflow changes
-  useEffect(() => {
-    setBlockStructureVersion(0)
-    setEdgeStructureVersion(0)
-    setSubBlockStructureVersion(0)
-  }, [workflowId])
-
-  // Create trigger for status check
+  // Include lastSaved to trigger check after save operations
   const statusCheckTrigger = useMemo(() => {
     return JSON.stringify({
       lastSaved: lastSaved ?? 0,
-      blockVersion: blockStructureVersion,
-      edgeVersion: edgeStructureVersion,
-      subBlockVersion: subBlockStructureVersion,
+      signature: deploymentSignature,
     })
-  }, [lastSaved, blockStructureVersion, edgeStructureVersion, subBlockStructureVersion])
+  }, [lastSaved, deploymentSignature])
 
   const debouncedStatusCheckTrigger = useDebounce(statusCheckTrigger, 500)
 
