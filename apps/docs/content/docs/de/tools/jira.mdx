@@ -90,14 +90,20 @@ Ein Jira-Issue erstellen
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `domain` | string | Ja | Ihre Jira-Domain (z.B. ihrfirma.atlassian.net) |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
 | `projectId` | string | Ja | Projekt-ID für das Issue |
 | `summary` | string | Ja | Zusammenfassung für das Issue |
 | `description` | string | Nein | Beschreibung für das Issue |
-| `priority` | string | Nein | Priorität für das Issue |
-| `assignee` | string | Nein | Bearbeiter für das Issue |
-| `cloudId` | string | Nein | Jira Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie anhand der Domain abgerufen. |
-| `issueType` | string | Ja | Art des zu erstellenden Issues (z.B. Task, Story) |
+| `priority` | string | Nein | Prioritäts-ID oder -Name für das Issue \(z.B. "10000" oder "High"\) |
+| `assignee` | string | Nein | Account-ID des Bearbeiters für das Issue |
+| `cloudId` | string | Nein | Jira Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+| `issueType` | string | Ja | Typ des zu erstellenden Issues \(z.B. Task, Story\) |
+| `labels` | array | Nein | Labels für das Issue \(Array von Label-Namen\) |
+| `duedate` | string | Nein | Fälligkeitsdatum für das Issue \(Format: YYYY-MM-DD\) |
+| `reporter` | string | Nein | Account-ID des Melders für das Issue |
+| `environment` | string | Nein | Umgebungsinformationen für das Issue |
+| `customFieldId` | string | Nein | Benutzerdefinierte Feld-ID \(z.B. customfield_10001\) |
+| `customFieldValue` | string | Nein | Wert für das benutzerdefinierte Feld |
 
 #### Ausgabe
 
@@ -107,6 +113,7 @@ Ein Jira-Issue erstellen
 | `issueKey` | string | Erstellter Issue-Key \(z.B. PROJ-123\) |
 | `summary` | string | Issue-Zusammenfassung |
 | `url` | string | URL zum erstellten Issue |
+| `assigneeId` | string | Account-ID des zugewiesenen Benutzers \(falls zugewiesen\) |
 
 ### `jira_bulk_read`
 
@@ -519,6 +526,30 @@ Einen Beobachter von einem Jira-Issue entfernen
 | `ts` | string | Zeitstempel der Operation |
 | `issueKey` | string | Issue-Key |
 | `watcherAccountId` | string | Account-ID des entfernten Beobachters |
+
+### `jira_get_users`
+
+Jira-Benutzer abrufen. Wenn eine Account-ID angegeben wird, wird ein einzelner Benutzer zurückgegeben. Andernfalls wird eine Liste aller Benutzer zurückgegeben.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `accountId` | string | Nein | Optionale Account-ID, um einen bestimmten Benutzer abzurufen. Wenn nicht angegeben, werden alle Benutzer zurückgegeben. |
+| `startAt` | number | Nein | Der Index des ersten zurückzugebenden Benutzers \(für Paginierung, Standard: 0\) |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Benutzer \(Standard: 50\) |
+| `cloudId` | string | Nein | Jira Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie anhand der Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `users` | json | Array von Benutzern mit accountId, displayName, emailAddress, active-Status und avatarUrls |
+| `total` | number | Gesamtanzahl der zurückgegebenen Benutzer |
+| `startAt` | number | Startindex für Paginierung |
+| `maxResults` | number | Maximale Ergebnisse pro Seite |
 
 ## Hinweise
 
