@@ -416,7 +416,6 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                           setCreateTagForm({ ...createTagForm, fieldType: value })
                         }
                         placeholder='Select type'
-                        size='sm'
                       />
                       {!hasAvailableSlots(createTagForm.fieldType) && (
                         <span className='text-[11px] text-[var(--text-error)]'>

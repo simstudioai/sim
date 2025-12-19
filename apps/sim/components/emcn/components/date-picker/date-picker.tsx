@@ -186,6 +186,19 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
       }
     }
 
+    const handleSelectToday = React.useCallback(() => {
+      const now = new Date()
+      // Update view to show today's month/year
+      setViewMonth(now.getMonth())
+      setViewYear(now.getFullYear())
+      // Create today's date with current time settings
+      const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute)
+      onChange?.(todayDate.toISOString())
+      if (!includeTime) {
+        setOpen(false)
+      }
+    }, [hour, minute, onChange, includeTime])
+
     const daysInMonth = getDaysInMonth(viewYear, viewMonth)
     const firstDayOfMonth = getFirstDayOfMonth(viewYear, viewMonth)
     const today = new Date()
@@ -251,6 +264,7 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
             side='bottom'
             align='start'
             sideOffset={4}
+            avoidCollisions={false}
             className='w-[280px] rounded-[6px] border border-[var(--surface-11)] p-0'
           >
             {/* Calendar Header */}
@@ -345,12 +359,7 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
               <button
                 type='button'
                 className='w-full rounded-[4px] py-[6px] text-[12px] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)]'
-                onClick={() => {
-                  const now = new Date()
-                  setViewMonth(now.getMonth())
-                  setViewYear(now.getFullYear())
-                  handleSelectDate(now.getDate())
-                }}
+                onClick={handleSelectToday}
               >
                 Today
               </button>

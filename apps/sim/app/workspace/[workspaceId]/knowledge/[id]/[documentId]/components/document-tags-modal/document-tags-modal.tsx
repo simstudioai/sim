@@ -37,6 +37,18 @@ const FIELD_TYPE_LABELS: Record<string, string> = {
   boolean: 'Boolean',
 }
 
+/**
+ * Gets the appropriate value when changing field types.
+ * Clears value when type changes to allow placeholder to show.
+ */
+function getValueForFieldType(
+  newFieldType: string,
+  currentFieldType: string,
+  currentValue: string
+): string {
+  return newFieldType === currentFieldType ? currentValue : ''
+}
+
 /** Format value for display based on field type */
 function formatValueForDisplay(value: string, fieldType: string): string {
   if (!value) return ''
@@ -391,20 +403,7 @@ export function DocumentTagsModal({
         <ModalBody className='!pb-[16px]'>
           <div className='min-h-0 flex-1 overflow-y-auto'>
             <div className='space-y-[8px]'>
-              <Label>
-                Tags{' '}
-                <span className='pl-[6px] text-[var(--text-tertiary)]'>
-                  {documentTags.length}/{MAX_TAG_SLOTS} slots used
-                </span>
-              </Label>
-
-              {documentTags.length === 0 && !isCreatingTag && (
-                <div className='rounded-[6px] border p-[16px] text-center'>
-                  <p className='text-[12px] text-[var(--text-tertiary)]'>
-                    No tags added yet. Add tags to help organize this document.
-                  </p>
-                </div>
-              )}
+              <Label>Tags</Label>
 
               {documentTags.map((tag, index) => (
                 <div key={index} className='space-y-[8px]'>
@@ -451,14 +450,15 @@ export function DocumentTagsModal({
                                 (d) => d.displayName.toLowerCase() === value.toLowerCase()
                               )
                               const newFieldType = def?.fieldType || 'text'
-                              // Set default value for boolean type
-                              const defaultValue =
-                                newFieldType === 'boolean' ? 'false' : editTagForm.value
                               setEditTagForm({
                                 ...editTagForm,
                                 displayName: value,
                                 fieldType: newFieldType,
-                                value: defaultValue,
+                                value: getValueForFieldType(
+                                  newFieldType,
+                                  editTagForm.fieldType,
+                                  editTagForm.value
+                                ),
                               })
                             }}
                             placeholder='Enter or select tag name'
@@ -502,8 +502,8 @@ export function DocumentTagsModal({
                               { label: 'True', value: 'true' },
                               { label: 'False', value: 'false' },
                             ]}
-                            value={editTagForm.value || 'false'}
-                            selectedValue={editTagForm.value || 'false'}
+                            value={editTagForm.value}
+                            selectedValue={editTagForm.value}
                             onChange={(value) => setEditTagForm({ ...editTagForm, value })}
                             placeholder='Select value'
                           />
@@ -578,7 +578,7 @@ export function DocumentTagsModal({
                 </div>
               ))}
 
-              {!isTagEditing && (
+              {documentTags.length > 0 && !isTagEditing && (
                 <Button
                   variant='default'
                   onClick={openTagCreator}
@@ -589,7 +589,7 @@ export function DocumentTagsModal({
                 </Button>
               )}
 
-              {isCreatingTag && (
+              {(isCreatingTag || documentTags.length === 0) && editingTagIndex === null && (
                 <div className='space-y-[8px] rounded-[6px] border p-[12px]'>
                   <div className='flex flex-col gap-[8px]'>
                     <Label htmlFor='newTagName'>Tag Name</Label>
@@ -604,14 +604,15 @@ export function DocumentTagsModal({
                             (d) => d.displayName.toLowerCase() === value.toLowerCase()
                           )
                           const newFieldType = def?.fieldType || 'text'
-                          // Set default value for boolean type
-                          const defaultValue =
-                            newFieldType === 'boolean' ? 'false' : editTagForm.value
                           setEditTagForm({
                             ...editTagForm,
                             displayName: value,
                             fieldType: newFieldType,
-                            value: defaultValue,
+                            value: getValueForFieldType(
+                              newFieldType,
+                              editTagForm.fieldType,
+                              editTagForm.value
+                            ),
                           })
                         }}
                         placeholder='Enter or select tag name'
@@ -655,8 +656,8 @@ export function DocumentTagsModal({
                           { label: 'True', value: 'true' },
                           { label: 'False', value: 'false' },
                         ]}
-                        value={editTagForm.value || 'false'}
-                        selectedValue={editTagForm.value || 'false'}
+                        value={editTagForm.value}
+                        selectedValue={editTagForm.value}
                         onChange={(value) => setEditTagForm({ ...editTagForm, value })}
                         placeholder='Select value'
                       />
@@ -725,9 +726,11 @@ export function DocumentTagsModal({
                     )}
 
                   <div className='flex gap-[8px]'>
-                    <Button variant='default' onClick={cancelEditingTag} className='flex-1'>
-                      Cancel
-                    </Button>
+                    {documentTags.length > 0 && (
+                      <Button variant='default' onClick={cancelEditingTag} className='flex-1'>
+                        Cancel
+                      </Button>
+                    )}
                     <Button
                       variant='primary'
                       onClick={saveDocumentTag}
