@@ -555,6 +555,7 @@ const WorkflowContent = React.memo(() => {
       const candidates = Object.entries(blocks)
         .filter(([id, block]) => {
           if (!block.enabled) return false
+          if (block.type === 'response') return false
           const node = nodeIndex.get(id)
           if (!node) return false
 
@@ -726,7 +727,9 @@ const WorkflowContent = React.memo(() => {
           ) {
             if (existingChildBlocks.length > 0) {
               // Connect to the nearest existing child block within the container
+              // Filter out response blocks since they have no outgoing handles
               const closestBlock = existingChildBlocks
+                .filter((b) => b.type !== 'response')
                 .map((b) => ({
                   block: b,
                   distance: Math.sqrt(
@@ -2048,7 +2051,9 @@ const WorkflowContent = React.memo(() => {
 
           if (existingChildBlocks.length > 0) {
             // Connect from nearest existing child inside the container
+            // Filter out response blocks since they have no outgoing handles
             const closestBlock = existingChildBlocks
+              .filter((b) => b.type !== 'response')
               .map((b) => ({
                 block: b,
                 distance: Math.sqrt(
