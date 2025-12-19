@@ -56,6 +56,7 @@ app:
     S3_CHAT_BUCKET_NAME: "chat-files"         # Deployed chat assets
     S3_COPILOT_BUCKET_NAME: "copilot-files"   # Copilot attachments
     S3_PROFILE_PICTURES_BUCKET_NAME: "profile-pictures"  # User avatars
+    S3_OG_IMAGES_BUCKET_NAME: "og-images"                 # OpenGraph preview images
 
 # Realtime service
 realtime:

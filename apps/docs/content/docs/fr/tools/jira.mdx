@@ -89,15 +89,21 @@ Rédiger une demande Jira
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
-| `domain` | string | Oui | Votre domaine Jira (ex. : votreentreprise.atlassian.net) |
-| `projectId` | string | Oui | ID du projet pour la demande |
-| `summary` | string | Oui | Résumé de la demande |
-| `description` | string | Non | Description de la demande |
-| `priority` | string | Non | Priorité de la demande |
-| `assignee` | string | Non | Assigné de la demande |
-| `cloudId` | string | Non | ID Jira Cloud pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
-| `issueType` | string | Oui | Type de demande à créer (ex. : Tâche, Story) |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `projectId` | chaîne | Oui | ID du projet pour le ticket |
+| `summary` | chaîne | Oui | Résumé du ticket |
+| `description` | chaîne | Non | Description du ticket |
+| `priority` | chaîne | Non | ID ou nom de la priorité du ticket \(ex. : "10000" ou "Haute"\) |
+| `assignee` | chaîne | Non | ID de compte de l'assigné pour le ticket |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+| `issueType` | chaîne | Oui | Type de ticket à créer \(ex. : tâche, story\) |
+| `labels` | tableau | Non | Étiquettes pour le ticket \(tableau de noms d'étiquettes\) |
+| `duedate` | chaîne | Non | Date d'échéance du ticket \(format : AAAA-MM-JJ\) |
+| `reporter` | chaîne | Non | ID de compte du rapporteur pour le ticket |
+| `environment` | chaîne | Non | Informations d'environnement pour le ticket |
+| `customFieldId` | chaîne | Non | ID du champ personnalisé \(ex. : customfield_10001\) |
+| `customFieldValue` | chaîne | Non | Valeur pour le champ personnalisé |
 
 #### Sortie
 
@@ -107,6 +113,7 @@ Rédiger une demande Jira
 | `issueKey` | chaîne | Clé du ticket créé \(ex. : PROJ-123\) |
 | `summary` | chaîne | Résumé du ticket |
 | `url` | chaîne | URL vers le ticket créé |
+| `assigneeId` | chaîne | ID de compte de l'utilisateur assigné \(si assigné\) |
 
 ### `jira_bulk_read`
 
@@ -520,7 +527,31 @@ Supprimer un observateur d'un ticket Jira
 | `issueKey` | string | Clé du ticket |
 | `watcherAccountId` | string | ID du compte observateur supprimé |
 
-## Notes
+### `jira_get_users`
+
+Récupère les utilisateurs Jira. Si un ID de compte est fourni, renvoie un seul utilisateur. Sinon, renvoie une liste de tous les utilisateurs.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `accountId` | chaîne | Non | ID de compte optionnel pour obtenir un utilisateur spécifique. S'il n'est pas fourni, renvoie tous les utilisateurs. |
+| `startAt` | nombre | Non | L'index du premier utilisateur à renvoyer \(pour la pagination, par défaut : 0\) |
+| `maxResults` | nombre | Non | Nombre maximum d'utilisateurs à renvoyer \(par défaut : 50\) |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de l'opération |
+| `users` | json | Tableau d'utilisateurs avec accountId, displayName, emailAddress, statut actif et avatarUrls |
+| `total` | nombre | Nombre total d'utilisateurs renvoyés |
+| `startAt` | nombre | Index de début de pagination |
+| `maxResults` | nombre | Nombre maximum de résultats par page |
+
+## Remarques
 
 - Catégorie : `tools`
 - Type : `jira`

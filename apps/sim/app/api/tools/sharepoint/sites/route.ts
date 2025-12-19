@@ -4,6 +4,7 @@ import { account } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { SharepointSite } from '@/tools/sharepoint/types'
@@ -32,6 +33,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
+    const credentialIdValidation = validateAlphanumericId(credentialId, 'credentialId', 255)
+    if (!credentialIdValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid credential ID`, { error: credentialIdValidation.error })
+      return NextResponse.json({ error: credentialIdValidation.error }, { status: 400 })
+    }
+
     const credentials = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
     if (!credentials.length) {
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
@@ -47,8 +54,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
-    // Build URL for SharePoint sites
-    // Use search=* to get all sites the user has access to, or search for specific query
     const searchQuery = query || '*'
     const url = `https://graph.microsoft.com/v1.0/sites?search=${encodeURIComponent(searchQuery)}&$select=id,name,displayName,webUrl,createdDateTime,lastModifiedDateTime&$top=50`
 

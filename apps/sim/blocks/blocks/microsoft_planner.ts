@@ -134,7 +134,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       placeholder: 'Enter the bucket ID',
       condition: { field: 'operation', value: ['read_bucket', 'update_bucket', 'delete_bucket'] },
       dependsOn: ['credential'],
-      canonicalParamId: 'bucketId',
     },
 
     // ETag for update/delete operations

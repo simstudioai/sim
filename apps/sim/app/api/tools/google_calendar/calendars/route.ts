@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { validateUUID } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -25,7 +26,6 @@ export async function GET(request: NextRequest) {
   logger.info(`[${requestId}] Google Calendar calendars request received`)
 
   try {
-    // Get the credential ID from the query params
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
     const workflowId = searchParams.get('workflowId') || undefined
@@ -34,12 +34,25 @@ export async function GET(request: NextRequest) {
       logger.warn(`[${requestId}] Missing credentialId parameter`)
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
+
+    const credentialValidation = validateUUID(credentialId, 'credentialId')
+    if (!credentialValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid credentialId format`, { credentialId })
+      return NextResponse.json({ error: credentialValidation.error }, { status: 400 })
+    }
+
+    if (workflowId) {
+      const workflowValidation = validateUUID(workflowId, 'workflowId')
+      if (!workflowValidation.isValid) {
+        logger.warn(`[${requestId}] Invalid workflowId format`, { workflowId })
+        return NextResponse.json({ error: workflowValidation.error }, { status: 400 })
+      }
+    }
     const authz = await authorizeCredentialUse(request, { credentialId, workflowId })
     if (!authz.ok || !authz.credentialOwnerUserId) {
       return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
     }
 
-    // Refresh access token if needed using the utility function
     const accessToken = await refreshAccessTokenIfNeeded(
       credentialId,
       authz.credentialOwnerUserId,
@@ -50,7 +63,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
-    // Fetch calendars from Google Calendar API
     logger.info(`[${requestId}] Fetching calendars from Google Calendar API`)
     const calendarResponse = await fetch(
       'https://www.googleapis.com/calendar/v3/users/me/calendarList',
@@ -81,7 +93,6 @@ export async function GET(request: NextRequest) {
     const data = await calendarResponse.json()
     const calendars: CalendarListItem[] = data.items || []
 
-    // Sort calendars with primary first, then alphabetically
     calendars.sort((a, b) => {
       if (a.primary && !b.primary) return -1
       if (!a.primary && b.primary) return 1

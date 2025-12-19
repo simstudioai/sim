@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -21,6 +22,12 @@ export async function POST(request: Request) {
     if (!teamId) {
       logger.error('Missing team ID in request')
       return NextResponse.json({ error: 'Team ID is required' }, { status: 400 })
+    }
+
+    const teamIdValidation = validateMicrosoftGraphId(teamId, 'Team ID')
+    if (!teamIdValidation.isValid) {
+      logger.warn('Invalid team ID provided', { teamId, error: teamIdValidation.error })
+      return NextResponse.json({ error: teamIdValidation.error }, { status: 400 })
     }
 
     try {
@@ -70,7 +77,6 @@ export async function POST(request: Request) {
           endpoint: `https://graph.microsoft.com/v1.0/teams/${teamId}/channels`,
         })
 
-        // Check for auth errors specifically
         if (response.status === 401) {
           return NextResponse.json(
             {
@@ -93,7 +99,6 @@ export async function POST(request: Request) {
     } catch (innerError) {
       logger.error('Error during API requests:', innerError)
 
-      // Check if it's an authentication error
       const errorMessage = innerError instanceof Error ? innerError.message : String(innerError)
       if (
         errorMessage.includes('auth') ||

@@ -64,15 +64,46 @@ export function sanitizeIdentifier(identifier: string): string {
   return sanitizeSingleIdentifier(identifier)
 }
 
+/**
+ * Validates a WHERE clause to prevent SQL injection attacks
+ * @param where - The WHERE clause string to validate
+ * @throws {Error} If the WHERE clause contains potentially dangerous patterns
+ */
 function validateWhereClause(where: string): void {
   const dangerousPatterns = [
+    // DDL and DML injection via stacked queries
     /;\s*(drop|delete|insert|update|create|alter|grant|revoke)/i,
-    /union\s+select/i,
+    // Union-based injection
+    /union\s+(all\s+)?select/i,
+    // File operations
     /into\s+outfile/i,
-    /load_file/i,
+    /load_file\s*\(/i,
+    /pg_read_file/i,
+    // Comment-based injection (can truncate query)
     /--/,
     /\/\*/,
     /\*\//,
+    // Tautologies - always true/false conditions using backreferences
+    // Matches OR 'x'='x' or OR x=x (same value both sides) but NOT OR col='value'
+    /\bor\s+(['"]?)(\w+)\1\s*=\s*\1\2\1/i,
+    /\bor\s+true\b/i,
+    /\bor\s+false\b/i,
+    // AND tautologies (less common but still used in attacks)
+    /\band\s+(['"]?)(\w+)\1\s*=\s*\1\2\1/i,
+    /\band\s+true\b/i,
+    /\band\s+false\b/i,
+    // Time-based blind injection
+    /\bsleep\s*\(/i,
+    /\bwaitfor\s+delay/i,
+    /\bpg_sleep\s*\(/i,
+    /\bbenchmark\s*\(/i,
+    // Stacked queries (any statement after semicolon)
+    /;\s*\w+/,
+    // Information schema / system catalog queries
+    /information_schema/i,
+    /pg_catalog/i,
+    // System functions and procedures
+    /\bxp_cmdshell/i,
   ]
 
   for (const pattern of dangerousPatterns) {

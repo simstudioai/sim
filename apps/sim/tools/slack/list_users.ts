@@ -102,10 +102,15 @@ export const slackListUsersTool: ToolConfig<SlackListUsersParams, SlackListUsers
         status_emoji: user.profile?.status_emoji || '',
       }))
 
+    const ids = users.map((user: { id: string }) => user.id)
+    const names = users.map((user: { name: string }) => user.name)
+
     return {
       success: true,
       output: {
         users,
+        ids,
+        names,
         count: users.length,
       },
     }
@@ -132,6 +137,14 @@ export const slackListUsersTool: ToolConfig<SlackListUsersParams, SlackListUsers
           status_emoji: { type: 'string', description: 'Custom status emoji' },
         },
       },
+    },
+    ids: {
+      type: 'array',
+      description: 'Array of user IDs for easy access',
+    },
+    names: {
+      type: 'array',
+      description: 'Array of usernames for easy access',
     },
     count: {
       type: 'number',

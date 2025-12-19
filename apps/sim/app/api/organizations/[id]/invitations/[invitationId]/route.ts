@@ -28,7 +28,7 @@ const updateInvitationSchema = z.object({
 
 // Get invitation details
 export async function GET(
-  _req: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string; invitationId: string }> }
 ) {
   const { id: organizationId, invitationId } = await params

@@ -245,6 +245,8 @@ export interface SlackChannel {
 export interface SlackListChannelsResponse extends ToolResponse {
   output: {
     channels: SlackChannel[]
+    ids: string[]
+    names: string[]
     count: number
   }
 }
@@ -291,6 +293,8 @@ export interface SlackUser {
 export interface SlackListUsersResponse extends ToolResponse {
   output: {
     users: SlackUser[]
+    ids: string[]
+    names: string[]
     count: number
   }
 }

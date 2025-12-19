@@ -107,14 +107,14 @@ Lisez les derniers messages des canaux Slack. Récupérez l'historique des conve
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
+| --------- | ---- | ----------- | ----------- |
 | `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
 | `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
-| `channel` | chaîne | Non | Canal Slack pour lire les messages \(ex. : #general\) |
-| `userId` | chaîne | Non | ID utilisateur pour la conversation en MP \(ex. : U1234567890\) |
-| `limit` | nombre | Non | Nombre de messages à récupérer \(par défaut : 10, max : 100\) |
-| `oldest` | chaîne | Non | Début de la plage temporelle \(horodatage\) |
-| `latest` | chaîne | Non | Fin de la plage temporelle \(horodatage\) |
+| `channel` | chaîne | Non | Canal Slack depuis lequel lire les messages \(ex. : #general\) |
+| `userId` | chaîne | Non | ID utilisateur pour la conversation en message direct \(ex. : U1234567890\) |
+| `limit` | nombre | Non | Nombre de messages à récupérer \(par défaut : 10, max : 15\) |
+| `oldest` | chaîne | Non | Début de la plage horaire \(horodatage\) |
+| `latest` | chaîne | Non | Fin de la plage horaire \(horodatage\) |
 
 #### Sortie
 

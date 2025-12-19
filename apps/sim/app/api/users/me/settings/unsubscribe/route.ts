@@ -32,7 +32,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing email or token parameter' }, { status: 400 })
     }
 
-    // Verify token and get email type
     const tokenVerification = verifyUnsubscribeToken(email, token)
     if (!tokenVerification.valid) {
       logger.warn(`[${requestId}] Invalid unsubscribe token for email: ${email}`)
@@ -42,7 +41,6 @@ export async function GET(req: NextRequest) {
     const emailType = tokenVerification.emailType as EmailType
     const isTransactional = isTransactionalEmail(emailType)
 
-    // Get current preferences
     const preferences = await getEmailPreferences(email)
 
     logger.info(
@@ -67,22 +65,42 @@ export async function POST(req: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const body = await req.json()
-    const result = unsubscribeSchema.safeParse(body)
+    const { searchParams } = new URL(req.url)
+    const contentType = req.headers.get('content-type') || ''
 
-    if (!result.success) {
-      logger.warn(`[${requestId}] Invalid unsubscribe POST data`, {
-        errors: result.error.format(),
-      })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: result.error.format() },
-        { status: 400 }
-      )
+    let email: string
+    let token: string
+    let type: 'all' | 'marketing' | 'updates' | 'notifications' = 'all'
+
+    if (contentType.includes('application/x-www-form-urlencoded')) {
+      email = searchParams.get('email') || ''
+      token = searchParams.get('token') || ''
+
+      if (!email || !token) {
+        logger.warn(`[${requestId}] One-click unsubscribe missing email or token in URL`)
+        return NextResponse.json({ error: 'Missing email or token parameter' }, { status: 400 })
+      }
+
+      logger.info(`[${requestId}] Processing one-click unsubscribe for: ${email}`)
+    } else {
+      const body = await req.json()
+      const result = unsubscribeSchema.safeParse(body)
+
+      if (!result.success) {
+        logger.warn(`[${requestId}] Invalid unsubscribe POST data`, {
+          errors: result.error.format(),
+        })
+        return NextResponse.json(
+          { error: 'Invalid request data', details: result.error.format() },
+          { status: 400 }
+        )
+      }
+
+      email = result.data.email
+      token = result.data.token
+      type = result.data.type
     }
 
-    const { email, token, type } = result.data
-
-    // Verify token and get email type
     const tokenVerification = verifyUnsubscribeToken(email, token)
     if (!tokenVerification.valid) {
       logger.warn(`[${requestId}] Invalid unsubscribe token for email: ${email}`)
@@ -92,7 +110,6 @@ export async function POST(req: NextRequest) {
     const emailType = tokenVerification.emailType as EmailType
     const isTransactional = isTransactionalEmail(emailType)
 
-    // Prevent unsubscribing from transactional emails
     if (isTransactional) {
       logger.warn(`[${requestId}] Attempted to unsubscribe from transactional email: ${email}`)
       return NextResponse.json(
@@ -106,7 +123,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Process unsubscribe based on type
     let success = false
     switch (type) {
       case 'all':
@@ -130,7 +146,6 @@ export async function POST(req: NextRequest) {
 
     logger.info(`[${requestId}] Successfully unsubscribed ${email} from ${type}`)
 
-    // Return 200 for one-click unsubscribe compliance
     return NextResponse.json(
       {
         success: true,

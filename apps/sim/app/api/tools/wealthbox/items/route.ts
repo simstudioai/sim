@@ -3,6 +3,7 @@ import { account } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { validateEnum, validatePathSegment } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -11,7 +12,6 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('WealthboxItemsAPI')
 
-// Interface for transformed Wealthbox items
 interface WealthboxItem {
   id: string
   name: string
@@ -45,12 +45,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
-    if (type !== 'contact') {
+    const credentialIdValidation = validatePathSegment(credentialId, {
+      paramName: 'credentialId',
+      maxLength: 100,
+      allowHyphens: true,
+      allowUnderscores: true,
+      allowDots: false,
+    })
+    if (!credentialIdValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid credentialId format: ${credentialId}`)
+      return NextResponse.json({ error: credentialIdValidation.error }, { status: 400 })
+    }
+
+    const ALLOWED_TYPES = ['contact'] as const
+    const typeValidation = validateEnum(type, ALLOWED_TYPES, 'type')
+    if (!typeValidation.isValid) {
       logger.warn(`[${requestId}] Invalid item type: ${type}`)
-      return NextResponse.json(
-        { error: 'Invalid item type. Only contact is supported.' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: typeValidation.error }, { status: 400 })
     }
 
     const credentials = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)

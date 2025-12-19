@@ -97,10 +97,16 @@ Write a Jira issue
 | `projectId` | string | Yes | Project ID for the issue |
 | `summary` | string | Yes | Summary for the issue |
 | `description` | string | No | Description for the issue |
-| `priority` | string | No | Priority for the issue |
-| `assignee` | string | No | Assignee for the issue |
+| `priority` | string | No | Priority ID or name for the issue \(e.g., "10000" or "High"\) |
+| `assignee` | string | No | Assignee account ID for the issue |
 | `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 | `issueType` | string | Yes | Type of issue to create \(e.g., Task, Story\) |
+| `labels` | array | No | Labels for the issue \(array of label names\) |
+| `duedate` | string | No | Due date for the issue \(format: YYYY-MM-DD\) |
+| `reporter` | string | No | Reporter account ID for the issue |
+| `environment` | string | No | Environment information for the issue |
+| `customFieldId` | string | No | Custom field ID \(e.g., customfield_10001\) |
+| `customFieldValue` | string | No | Value for the custom field |
 
 #### Output
 
@@ -110,6 +116,7 @@ Write a Jira issue
 | `issueKey` | string | Created issue key \(e.g., PROJ-123\) |
 | `summary` | string | Issue summary |
 | `url` | string | URL to the created issue |
+| `assigneeId` | string | Account ID of the assigned user \(if assigned\) |
 
 ### `jira_bulk_read`
 
@@ -522,6 +529,30 @@ Remove a watcher from a Jira issue
 | `ts` | string | Timestamp of the operation |
 | `issueKey` | string | Issue key |
 | `watcherAccountId` | string | Removed watcher account ID |
+
+### `jira_get_users`
+
+Get Jira users. If an account ID is provided, returns a single user. Otherwise, returns a list of all users.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `accountId` | string | No | Optional account ID to get a specific user. If not provided, returns all users. |
+| `startAt` | number | No | The index of the first user to return \(for pagination, default: 0\) |
+| `maxResults` | number | No | Maximum number of users to return \(default: 50\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `users` | json | Array of users with accountId, displayName, emailAddress, active status, and avatarUrls |
+| `total` | number | Total number of users returned |
+| `startAt` | number | Pagination start index |
+| `maxResults` | number | Maximum results per page |
 
 
 

@@ -11,7 +11,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CopilotChatsListAPI')
 
-export async function GET(_req: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !userId) {
