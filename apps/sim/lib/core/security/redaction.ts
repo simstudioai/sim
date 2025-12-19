@@ -16,14 +16,14 @@ const SENSITIVE_KEY_PATTERNS: RegExp[] = [
   /^client[_-]?secret$/i,
   /^private[_-]?key$/i,
   /^auth[_-]?token$/i,
-  /\bsecret\b/i,
-  /\bpassword\b/i,
-  /\btoken\b/i,
-  /\bcredential\b/i,
-  /\bauthorization\b/i,
-  /\bbearer\b/i,
-  /\bprivate\b/i,
-  /\bauth\b/i,
+  /^.*secret$/i,
+  /^.*password$/i,
+  /^.*token$/i,
+  /^.*credential$/i,
+  /^authorization$/i,
+  /^bearer$/i,
+  /^private$/i,
+  /^auth$/i,
 ]
 
 /**
@@ -156,9 +156,6 @@ export function sanitizeEventData(event: any): any {
   }
 
   if (typeof event === 'string') {
-    if (isSensitiveKey(event)) {
-      return REDACTED_MARKER
-    }
     return redactSensitiveValues(event)
   }
 
@@ -178,7 +175,7 @@ export function sanitizeEventData(event: any): any {
     }
 
     if (typeof value === 'string') {
-      sanitized[key] = isSensitiveKey(value) ? REDACTED_MARKER : redactSensitiveValues(value)
+      sanitized[key] = redactSensitiveValues(value)
     } else if (Array.isArray(value)) {
       sanitized[key] = value.map((v) => sanitizeEventData(v))
     } else if (value && typeof value === 'object') {

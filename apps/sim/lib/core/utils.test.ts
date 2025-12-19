@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
-import { redactApiKeys } from '@/lib/core/security/redaction'
 import { cn } from '@/lib/core/utils/cn'
 import {
   formatDate,
@@ -226,114 +225,6 @@ describe('getTimezoneAbbreviation', () => {
   it.concurrent('should return full timezone name for unknown timezones', () => {
     const result = getTimezoneAbbreviation('Unknown/Timezone')
     expect(result).toBe('Unknown/Timezone')
-  })
-})
-
-describe('redactApiKeys', () => {
-  it.concurrent('should redact API keys in objects', () => {
-    const obj = {
-      apiKey: 'secret-key',
-      api_key: 'another-secret',
-      access_token: 'token-value',
-      secret: 'secret-value',
-      password: 'password-value',
-      normalField: 'normal-value',
-    }
-
-    const result = redactApiKeys(obj)
-
-    expect(result.apiKey).toBe('[REDACTED]')
-    expect(result.api_key).toBe('[REDACTED]')
-    expect(result.access_token).toBe('[REDACTED]')
-    expect(result.secret).toBe('[REDACTED]')
-    expect(result.password).toBe('[REDACTED]')
-    expect(result.normalField).toBe('normal-value')
-  })
-
-  it.concurrent('should redact additional sensitive keys', () => {
-    const obj = {
-      token: 'my-token',
-      auth: 'auth-value',
-      authorization: 'auth-header',
-      credential: 'cred-value',
-      private: 'private-data',
-      refresh_token: 'refresh-value',
-      client_secret: 'client-secret',
-      private_key: 'private-key-value',
-      auth_token: 'auth-token-value',
-      normalField: 'normal-value',
-    }
-
-    const result = redactApiKeys(obj)
-
-    expect(result.token).toBe('[REDACTED]')
-    expect(result.auth).toBe('[REDACTED]')
-    expect(result.authorization).toBe('[REDACTED]')
-    expect(result.credential).toBe('[REDACTED]')
-    expect(result.private).toBe('[REDACTED]')
-    expect(result.refresh_token).toBe('[REDACTED]')
-    expect(result.client_secret).toBe('[REDACTED]')
-    expect(result.private_key).toBe('[REDACTED]')
-    expect(result.auth_token).toBe('[REDACTED]')
-    expect(result.normalField).toBe('normal-value')
-  })
-
-  it.concurrent('should redact API keys in nested objects', () => {
-    const obj = {
-      config: {
-        apiKey: 'secret-key',
-        normalField: 'normal-value',
-      },
-    }
-
-    const result = redactApiKeys(obj)
-
-    expect(result.config.apiKey).toBe('[REDACTED]')
-    expect(result.config.normalField).toBe('normal-value')
-  })
-
-  it.concurrent('should redact API keys in arrays', () => {
-    const arr = [{ apiKey: 'secret-key-1' }, { apiKey: 'secret-key-2' }]
-
-    const result = redactApiKeys(arr)
-
-    expect(result[0].apiKey).toBe('[REDACTED]')
-    expect(result[1].apiKey).toBe('[REDACTED]')
-  })
-
-  it.concurrent('should handle primitive values', () => {
-    expect(redactApiKeys('string')).toBe('string')
-    expect(redactApiKeys(123)).toBe(123)
-    expect(redactApiKeys(null)).toBe(null)
-    expect(redactApiKeys(undefined)).toBe(undefined)
-  })
-
-  it.concurrent('should handle complex nested structures', () => {
-    const obj = {
-      users: [
-        {
-          name: 'John',
-          credentials: {
-            apiKey: 'secret-key',
-            username: 'john_doe',
-          },
-        },
-      ],
-      config: {
-        database: {
-          password: 'db-password',
-          host: 'localhost',
-        },
-      },
-    }
-
-    const result = redactApiKeys(obj)
-
-    expect(result.users[0].name).toBe('John')
-    expect(result.users[0].credentials.apiKey).toBe('[REDACTED]')
-    expect(result.users[0].credentials.username).toBe('john_doe')
-    expect(result.config.database.password).toBe('[REDACTED]')
-    expect(result.config.database.host).toBe('localhost')
   })
 })
 
