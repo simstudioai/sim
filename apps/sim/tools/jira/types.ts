@@ -69,6 +69,12 @@ export interface JiraWriteParams {
   cloudId?: string
   issueType: string
   parent?: { key: string }
+  labels?: string[]
+  duedate?: string
+  reporter?: string
+  environment?: string
+  customFieldId?: string
+  customFieldValue?: string
 }
 
 export interface JiraWriteResponse extends ToolResponse {
