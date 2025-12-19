@@ -1,4 +1,20 @@
 /**
+ * Maximum length for string values in display output
+ * Prevents database storage issues with very large trace spans
+ */
+const MAX_STRING_LENGTH = 10000
+
+/**
+ * Truncates a string if it exceeds the maximum length
+ */
+function truncateString(value: string, maxLength = MAX_STRING_LENGTH): string {
+  if (value.length <= maxLength) {
+    return value
+  }
+  return `${value.substring(0, maxLength)}... [truncated ${value.length - maxLength} chars]`
+}
+
+/**
  * Type guard to check if an object is a UserFile
  */
 export function isUserFile(candidate: unknown): candidate is {
@@ -48,16 +64,28 @@ const DISPLAY_FILTERS = [
 /**
  * Generic helper to filter internal/technical fields from data for cleaner display in logs and console.
  * Applies all registered filters recursively to the data structure.
+ * Also truncates long strings to prevent database storage issues.
  *
  * To add a new filter:
  * 1. Create a filter function that checks and transforms a specific data type
  * 2. Add it to the DISPLAY_FILTERS array above
  *
  * @param data - Data to filter (objects, arrays, primitives)
- * @returns Filtered data with internal fields removed
+ * @returns Filtered data with internal fields removed and long strings truncated
  */
 export function filterForDisplay(data: any): any {
-  if (!data || typeof data !== 'object') {
+  // Handle null/undefined
+  if (data === null || data === undefined) {
+    return data
+  }
+
+  // Truncate long strings
+  if (typeof data === 'string') {
+    return truncateString(data)
+  }
+
+  // Return primitives as-is
+  if (typeof data !== 'object') {
     return data
   }
 
