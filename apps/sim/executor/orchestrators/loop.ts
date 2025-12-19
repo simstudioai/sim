@@ -14,7 +14,9 @@ import {
   buildSentinelEndId,
   buildSentinelStartId,
   extractBaseBlockId,
+  hasValidInput,
   resolveArrayInput,
+  validateMaxCount,
 } from '@/executor/utils/subflow-utils'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedLoop } from '@/serializer/types'
@@ -68,17 +70,21 @@ export class LoopOrchestrator {
         scope.loopType = 'for'
         const requestedIterations = loopConfig.iterations || DEFAULTS.MAX_LOOP_ITERATIONS
 
-        if (requestedIterations > DEFAULTS.MAX_LOOP_ITERATIONS) {
-          const errorMessage = `For loop iterations (${requestedIterations}) exceeds maximum allowed (${DEFAULTS.MAX_LOOP_ITERATIONS}). Loop execution blocked.`
-          logger.error(errorMessage, { loopId, requestedIterations })
-          this.addLoopErrorLog(ctx, loopId, loopType, errorMessage, {
+        const iterationError = validateMaxCount(
+          requestedIterations,
+          DEFAULTS.MAX_LOOP_ITERATIONS,
+          'For loop iterations'
+        )
+        if (iterationError) {
+          logger.error(iterationError, { loopId, requestedIterations })
+          this.addLoopErrorLog(ctx, loopId, loopType, iterationError, {
             iterations: requestedIterations,
           })
           scope.maxIterations = 0
-          scope.validationError = errorMessage
+          scope.validationError = iterationError
           scope.condition = buildLoopIndexCondition(0)
           ctx.loopExecutions?.set(loopId, scope)
-          throw new Error(errorMessage)
+          throw new Error(iterationError)
         }
 
         scope.maxIterations = requestedIterations
@@ -89,11 +95,8 @@ export class LoopOrchestrator {
       case 'forEach': {
         scope.loopType = 'forEach'
         const items = this.resolveForEachItems(ctx, loopConfig.forEachItems)
-        const hasInput =
-          loopConfig.forEachItems !== undefined &&
-          loopConfig.forEachItems !== null &&
-          loopConfig.forEachItems !== ''
-        if (hasInput && items.length === 0) {
+
+        if (hasValidInput(loopConfig.forEachItems) && items.length === 0) {
           const errorMessage =
             'ForEach loop collection is not a valid array. Loop execution blocked.'
           logger.error(errorMessage, { loopId, forEachItems: loopConfig.forEachItems })
@@ -108,20 +111,23 @@ export class LoopOrchestrator {
           throw new Error(errorMessage)
         }
 
-        const originalLength = items.length
-        if (originalLength > DEFAULTS.MAX_FOREACH_ITEMS) {
-          const errorMessage = `ForEach loop collection size (${originalLength}) exceeds maximum allowed (${DEFAULTS.MAX_FOREACH_ITEMS}). Loop execution blocked.`
-          logger.error(errorMessage, { loopId, originalLength })
-          this.addLoopErrorLog(ctx, loopId, loopType, errorMessage, {
+        const sizeError = validateMaxCount(
+          items.length,
+          DEFAULTS.MAX_FOREACH_ITEMS,
+          'ForEach loop collection size'
+        )
+        if (sizeError) {
+          logger.error(sizeError, { loopId, collectionSize: items.length })
+          this.addLoopErrorLog(ctx, loopId, loopType, sizeError, {
             forEachItems: loopConfig.forEachItems,
-            collectionSize: originalLength,
+            collectionSize: items.length,
           })
           scope.items = []
           scope.maxIterations = 0
-          scope.validationError = errorMessage
+          scope.validationError = sizeError
           scope.condition = buildLoopIndexCondition(0)
           ctx.loopExecutions?.set(loopId, scope)
-          throw new Error(errorMessage)
+          throw new Error(sizeError)
         }
 
         scope.items = items
@@ -143,17 +149,21 @@ export class LoopOrchestrator {
         } else {
           const requestedIterations = loopConfig.iterations || DEFAULTS.MAX_LOOP_ITERATIONS
 
-          if (requestedIterations > DEFAULTS.MAX_LOOP_ITERATIONS) {
-            const errorMessage = `Do-While loop iterations (${requestedIterations}) exceeds maximum allowed (${DEFAULTS.MAX_LOOP_ITERATIONS}). Loop execution blocked.`
-            logger.error(errorMessage, { loopId, requestedIterations })
-            this.addLoopErrorLog(ctx, loopId, loopType, errorMessage, {
+          const iterationError = validateMaxCount(
+            requestedIterations,
+            DEFAULTS.MAX_LOOP_ITERATIONS,
+            'Do-While loop iterations'
+          )
+          if (iterationError) {
+            logger.error(iterationError, { loopId, requestedIterations })
+            this.addLoopErrorLog(ctx, loopId, loopType, iterationError, {
               iterations: requestedIterations,
             })
             scope.maxIterations = 0
-            scope.validationError = errorMessage
+            scope.validationError = iterationError
             scope.condition = buildLoopIndexCondition(0)
             ctx.loopExecutions?.set(loopId, scope)
-            throw new Error(errorMessage)
+            throw new Error(iterationError)
           }
 
           scope.maxIterations = requestedIterations

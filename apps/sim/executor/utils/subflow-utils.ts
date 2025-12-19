@@ -137,6 +137,28 @@ export function normalizeNodeId(nodeId: string): string {
 }
 
 /**
+ * Checks if a value represents valid input (not empty/null/undefined).
+ */
+export function hasValidInput(value: any): boolean {
+  if (value === undefined || value === null) return false
+  if (typeof value === 'string') return value !== ''
+  if (Array.isArray(value)) return value.length > 0
+  if (typeof value === 'object') return Object.keys(value).length > 0
+  return true
+}
+
+/**
+ * Validates that a count doesn't exceed a maximum limit.
+ * Returns an error message if validation fails, undefined otherwise.
+ */
+export function validateMaxCount(count: number, max: number, itemType: string): string | undefined {
+  if (count > max) {
+    return `${itemType} (${count}) exceeds maximum allowed (${max}). Execution blocked.`
+  }
+  return undefined
+}
+
+/**
  * Resolves array input at runtime. Handles arrays, objects, references, and JSON strings.
  * Used by both loop forEach and parallel distribution resolution.
  */

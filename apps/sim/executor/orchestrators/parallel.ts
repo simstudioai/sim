@@ -11,8 +11,10 @@ import {
   calculateBranchCount,
   extractBaseBlockId,
   extractBranchIndex,
+  hasValidInput,
   parseDistributionItems,
   resolveArrayInput,
+  validateMaxCount,
 } from '@/executor/utils/subflow-utils'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedParallel } from '@/serializer/types'
@@ -62,13 +64,9 @@ export class ParallelOrchestrator {
 
     if (parallelConfig?.distribution !== undefined && parallelConfig?.distribution !== null) {
       const rawDistribution = parallelConfig.distribution
-      const hasInput =
-        (typeof rawDistribution === 'string' && rawDistribution !== '') ||
-        (Array.isArray(rawDistribution) && rawDistribution.length > 0) ||
-        (typeof rawDistribution === 'object' && Object.keys(rawDistribution).length > 0)
-
       const inputWasEmptyArray = Array.isArray(rawDistribution) && rawDistribution.length === 0
-      if (hasInput && !inputWasEmptyArray && (!items || items.length === 0)) {
+
+      if (hasValidInput(rawDistribution) && !inputWasEmptyArray && (!items || items.length === 0)) {
         const errorMessage =
           'Parallel distribution is not a valid array. Parallel execution blocked.'
         logger.error(errorMessage, {
@@ -79,47 +77,26 @@ export class ParallelOrchestrator {
         this.addParallelErrorLog(ctx, parallelId, errorMessage, {
           distribution: parallelConfig.distribution,
         })
-
-        const scope: ParallelScope = {
-          parallelId,
-          totalBranches: 0,
-          branchOutputs: new Map(),
-          completedCount: 0,
-          totalExpectedNodes: 0,
-          items: [],
-          validationError: errorMessage,
-        }
-        if (!ctx.parallelExecutions) {
-          ctx.parallelExecutions = new Map()
-        }
-        ctx.parallelExecutions.set(parallelId, scope)
+        this.setErrorScope(ctx, parallelId, errorMessage)
         throw new Error(errorMessage)
       }
     }
+
     const actualBranchCount = items && items.length > totalBranches ? items.length : totalBranches
 
-    if (actualBranchCount > DEFAULTS.MAX_PARALLEL_BRANCHES) {
-      const errorMessage = `Parallel branch count (${actualBranchCount}) exceeds maximum allowed (${DEFAULTS.MAX_PARALLEL_BRANCHES}). Parallel execution blocked.`
-      logger.error(errorMessage, { parallelId, actualBranchCount })
-      this.addParallelErrorLog(ctx, parallelId, errorMessage, {
+    const branchError = validateMaxCount(
+      actualBranchCount,
+      DEFAULTS.MAX_PARALLEL_BRANCHES,
+      'Parallel branch count'
+    )
+    if (branchError) {
+      logger.error(branchError, { parallelId, actualBranchCount })
+      this.addParallelErrorLog(ctx, parallelId, branchError, {
         distribution: parallelConfig?.distribution,
         branchCount: actualBranchCount,
       })
-
-      const scope: ParallelScope = {
-        parallelId,
-        totalBranches: 0,
-        branchOutputs: new Map(),
-        completedCount: 0,
-        totalExpectedNodes: 0,
-        items: [],
-        validationError: errorMessage,
-      }
-      if (!ctx.parallelExecutions) {
-        ctx.parallelExecutions = new Map()
-      }
-      ctx.parallelExecutions.set(parallelId, scope)
-      throw new Error(errorMessage)
+      this.setErrorScope(ctx, parallelId, branchError)
+      throw new Error(branchError)
     }
 
     const scope: ParallelScope = {
@@ -190,6 +167,22 @@ export class ParallelOrchestrator {
       inputData || {},
       this.contextExtensions
     )
+  }
+
+  private setErrorScope(ctx: ExecutionContext, parallelId: string, errorMessage: string): void {
+    const scope: ParallelScope = {
+      parallelId,
+      totalBranches: 0,
+      branchOutputs: new Map(),
+      completedCount: 0,
+      totalExpectedNodes: 0,
+      items: [],
+      validationError: errorMessage,
+    }
+    if (!ctx.parallelExecutions) {
+      ctx.parallelExecutions = new Map()
+    }
+    ctx.parallelExecutions.set(parallelId, scope)
   }
 
   /**
