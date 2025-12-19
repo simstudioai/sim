@@ -138,6 +138,32 @@ export async function sendEmail(options: EmailOptions): Promise<SendEmailResult>
   }
 }
 
+interface UnsubscribeData {
+  headers: Record<string, string>
+  html?: string
+  text?: string
+}
+
+function addUnsubscribeData(
+  recipientEmail: string,
+  emailType: string,
+  html?: string,
+  text?: string
+): UnsubscribeData {
+  const unsubscribeToken = generateUnsubscribeToken(recipientEmail, emailType)
+  const baseUrl = getBaseUrl()
+  const unsubscribeUrl = `${baseUrl}/unsubscribe?token=${unsubscribeToken}&email=${encodeURIComponent(recipientEmail)}`
+
+  return {
+    headers: {
+      'List-Unsubscribe': `<${unsubscribeUrl}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    },
+    html: html?.replace(/\{\{UNSUBSCRIBE_TOKEN\}\}/g, unsubscribeToken),
+    text: text?.replace(/\{\{UNSUBSCRIBE_TOKEN\}\}/g, unsubscribeToken),
+  }
+}
+
 async function processEmailData(options: EmailOptions): Promise<ProcessedEmailData> {
   const {
     to,
@@ -155,23 +181,14 @@ async function processEmailData(options: EmailOptions): Promise<ProcessedEmailDa
 
   let finalHtml = html
   let finalText = text
-  const headers: Record<string, string> = {}
+  let headers: Record<string, string> = {}
 
   if (includeUnsubscribe && emailType !== 'transactional') {
     const primaryEmail = Array.isArray(to) ? to[0] : to
-    const unsubscribeToken = generateUnsubscribeToken(primaryEmail, emailType)
-    const baseUrl = getBaseUrl()
-    const unsubscribeUrl = `${baseUrl}/unsubscribe?token=${unsubscribeToken}&email=${encodeURIComponent(primaryEmail)}`
-
-    headers['List-Unsubscribe'] = `<${unsubscribeUrl}>`
-    headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click'
-
-    if (html) {
-      finalHtml = html.replace(/\{\{UNSUBSCRIBE_TOKEN\}\}/g, unsubscribeToken)
-    }
-    if (text) {
-      finalText = text.replace(/\{\{UNSUBSCRIBE_TOKEN\}\}/g, unsubscribeToken)
-    }
+    const unsubData = addUnsubscribeData(primaryEmail, emailType, html, text)
+    headers = unsubData.headers
+    finalHtml = unsubData.html
+    finalText = unsubData.text
   }
 
   return {
@@ -349,21 +366,10 @@ async function sendBatchWithResend(emails: EmailOptions[]): Promise<BatchSendEma
 
     if (includeUnsubscribe && emailType !== 'transactional') {
       const primaryEmail = Array.isArray(email.to) ? email.to[0] : email.to
-      const unsubscribeToken = generateUnsubscribeToken(primaryEmail, emailType)
-      const baseUrl = getBaseUrl()
-      const unsubscribeUrl = `${baseUrl}/unsubscribe?token=${unsubscribeToken}&email=${encodeURIComponent(primaryEmail)}`
-
-      emailData.headers = {
-        'List-Unsubscribe': `<${unsubscribeUrl}>`,
-        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-      }
-
-      if (email.html) {
-        emailData.html = email.html.replace(/\{\{UNSUBSCRIBE_TOKEN\}\}/g, unsubscribeToken)
-      }
-      if (email.text) {
-        emailData.text = email.text.replace(/\{\{UNSUBSCRIBE_TOKEN\}\}/g, unsubscribeToken)
-      }
+      const unsubData = addUnsubscribeData(primaryEmail, emailType, email.html, email.text)
+      emailData.headers = unsubData.headers
+      if (unsubData.html) emailData.html = unsubData.html
+      if (unsubData.text) emailData.text = unsubData.text
     }
 
     batchEmails.push(emailData)
