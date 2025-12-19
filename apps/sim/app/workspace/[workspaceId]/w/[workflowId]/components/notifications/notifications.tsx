@@ -1,8 +1,7 @@
-import { memo, useCallback } from 'react'
 import { createLogger } from '@sim/logger'
+import { memo, useCallback, useMemo } from 'react'
 import clsx from 'clsx'
 import { X } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
@@ -13,6 +12,7 @@ import {
   useNotificationStore,
 } from '@/stores/notifications'
 import { useTerminalStore } from '@/stores/terminal'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('Notifications')
 const MAX_VISIBLE_NOTIFICATIONS = 4
@@ -23,15 +23,18 @@ const MAX_VISIBLE_NOTIFICATIONS = 4
  * Shows both global notifications and workflow-specific notifications
  */
 export const Notifications = memo(function Notifications() {
-  const params = useParams()
-  const workflowId = params.workflowId as string
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
-  const notifications = useNotificationStore((state) =>
-    state.notifications.filter((n) => !n.workflowId || n.workflowId === workflowId)
-  )
+  const allNotifications = useNotificationStore((state) => state.notifications)
   const removeNotification = useNotificationStore((state) => state.removeNotification)
   const clearNotifications = useNotificationStore((state) => state.clearNotifications)
-  const visibleNotifications = notifications.slice(0, MAX_VISIBLE_NOTIFICATIONS)
+
+  const visibleNotifications = useMemo(() => {
+    if (!activeWorkflowId) return []
+    return allNotifications
+      .filter((n) => !n.workflowId || n.workflowId === activeWorkflowId)
+      .slice(0, MAX_VISIBLE_NOTIFICATIONS)
+  }, [allNotifications, activeWorkflowId])
   const isTerminalResizing = useTerminalStore((state) => state.isResizing)
 
   /**
@@ -85,7 +88,7 @@ export const Notifications = memo(function Notifications() {
       {
         id: 'clear-notifications',
         handler: () => {
-          clearNotifications(workflowId)
+          clearNotifications(activeWorkflowId ?? undefined)
         },
         overrides: {
           allowInEditable: false,
