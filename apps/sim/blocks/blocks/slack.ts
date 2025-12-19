@@ -1,11 +1,8 @@
 import { SlackIcon } from '@/components/icons'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { SlackResponse } from '@/tools/slack/types'
 import { getTrigger } from '@/triggers'
-
-const logger = createLogger('SlackBlock')
 
 export const SlackBlock: BlockConfig<SlackResponse> = {
   type: 'slack',

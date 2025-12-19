@@ -158,7 +158,6 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       params: (params) => {
         const { credential, operation, contactId, manualContactId, taskId, ...rest } = params
 
-        // Handle both selector and manual inputs for contactId
         const effectiveContactId = (contactId || manualContactId || '').trim()
 
         const baseParams = {
