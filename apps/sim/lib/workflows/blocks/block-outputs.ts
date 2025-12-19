@@ -225,7 +225,7 @@ export function getBlockOutputs(
     return getUnifiedStartOutputs(subBlocks)
   }
 
-  if (blockType === 'approval') {
+  if (blockType === 'approval' || blockType === 'human_in_the_loop') {
     // Start with only url (apiUrl commented out - not accessible as output)
     const pauseResumeOutputs: Record<string, any> = {
       url: { type: 'string', description: 'Resume UI URL' },
