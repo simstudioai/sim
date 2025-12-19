@@ -253,7 +253,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       condition: { field: 'operation', value: 'write' },
     },
     {
-      id: 'customFieldValue',
+      id: 'teamUuid',
       title: 'Team UUID',
       type: 'short-input',
       placeholder: 'e.g., b3aa307a-76ea-462d-b6f1-a6e89ce9858a',
