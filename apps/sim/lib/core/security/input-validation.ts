@@ -958,3 +958,112 @@ export function createPinnedUrl(originalUrl: string, resolvedIP: string): string
   const port = parsed.port ? `:${parsed.port}` : ''
   return `${parsed.protocol}//${resolvedIP}${port}${parsed.pathname}${parsed.search}`
 }
+
+/**
+ * Validates a Google Calendar ID
+ *
+ * Google Calendar IDs can be:
+ * - "primary" (literal string for the user's primary calendar)
+ * - Email addresses (for user calendars)
+ * - Alphanumeric strings with hyphens, underscores, and dots (for other calendars)
+ *
+ * This validator allows these legitimate formats while blocking path traversal and injection attempts.
+ *
+ * @param value - The calendar ID to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ *
+ * @example
+ * ```typescript
+ * const result = validateGoogleCalendarId(calendarId, 'calendarId')
+ * if (!result.isValid) {
+ *   return NextResponse.json({ error: result.error }, { status: 400 })
+ * }
+ * ```
+ */
+export function validateGoogleCalendarId(
+  value: string | null | undefined,
+  paramName = 'calendarId'
+): ValidationResult {
+  if (value === null || value === undefined || value === '') {
+    return {
+      isValid: false,
+      error: `${paramName} is required`,
+    }
+  }
+
+  if (value === 'primary') {
+    return { isValid: true, sanitized: value }
+  }
+
+  const pathTraversalPatterns = [
+    '../',
+    '..\\',
+    '%2e%2e%2f',
+    '%2e%2e/',
+    '..%2f',
+    '%2e%2e%5c',
+    '%2e%2e\\',
+    '..%5c',
+    '%252e%252e%252f',
+  ]
+
+  const lowerValue = value.toLowerCase()
+  for (const pattern of pathTraversalPatterns) {
+    if (lowerValue.includes(pattern)) {
+      logger.warn('Path traversal attempt in Google Calendar ID', {
+        paramName,
+        value: value.substring(0, 100),
+      })
+      return {
+        isValid: false,
+        error: `${paramName} contains invalid path traversal sequence`,
+      }
+    }
+  }
+
+  if (/[\x00-\x1f\x7f]/.test(value) || value.includes('%00')) {
+    logger.warn('Control characters in Google Calendar ID', { paramName })
+    return {
+      isValid: false,
+      error: `${paramName} contains invalid control characters`,
+    }
+  }
+
+  if (value.includes('\n') || value.includes('\r')) {
+    return {
+      isValid: false,
+      error: `${paramName} contains invalid newline characters`,
+    }
+  }
+
+  const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+  if (emailPattern.test(value)) {
+    return { isValid: true, sanitized: value }
+  }
+
+  const calendarIdPattern = /^[a-zA-Z0-9._@%#+-]+$/
+  if (!calendarIdPattern.test(value)) {
+    logger.warn('Invalid Google Calendar ID format', {
+      paramName,
+      value: value.substring(0, 100),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} format is invalid. Must be "primary", an email address, or an alphanumeric ID`,
+    }
+  }
+
+  if (value.length > 255) {
+    logger.warn('Google Calendar ID exceeds maximum length', {
+      paramName,
+      length: value.length,
+    })
+    return {
+      isValid: false,
+      error: `${paramName} exceeds maximum length of 255 characters`,
+    }
+  }
+
+  return { isValid: true, sanitized: value }
+}
