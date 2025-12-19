@@ -131,6 +131,7 @@ import { WikipediaBlock } from '@/blocks/blocks/wikipedia'
 import { WordPressBlock } from '@/blocks/blocks/wordpress'
 import { WorkflowBlock } from '@/blocks/blocks/workflow'
 import { WorkflowInputBlock } from '@/blocks/blocks/workflow_input'
+import { WorkflowResponseBlock } from '@/blocks/blocks/workflow_response'
 import { XBlock } from '@/blocks/blocks/x'
 import { YouTubeBlock } from '@/blocks/blocks/youtube'
 import { ZendeskBlock } from '@/blocks/blocks/zendesk'
@@ -231,6 +232,7 @@ export const registry: Record<string, BlockConfig> = {
   reddit: RedditBlock,
   resend: ResendBlock,
   response: ResponseBlock,
+  workflow_response: WorkflowResponseBlock,
   rss: RssBlock,
   router: RouterBlock,
   s3: S3Block,

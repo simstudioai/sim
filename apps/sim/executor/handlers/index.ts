@@ -11,6 +11,7 @@ import { TriggerBlockHandler } from '@/executor/handlers/trigger/trigger-handler
 import { VariablesBlockHandler } from '@/executor/handlers/variables/variables-handler'
 import { WaitBlockHandler } from '@/executor/handlers/wait/wait-handler'
 import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
+import { WorkflowResponseBlockHandler } from '@/executor/handlers/workflow-response/workflow-response-handler'
 
 export {
   AgentBlockHandler,
@@ -19,6 +20,7 @@ export {
   EvaluatorBlockHandler,
   FunctionBlockHandler,
   GenericBlockHandler,
+  WorkflowResponseBlockHandler,
   ResponseBlockHandler,
   HumanInTheLoopBlockHandler,
   RouterBlockHandler,

@@ -439,26 +439,46 @@ export function stripCustomToolPrefix(name: string) {
 }
 
 export const workflowHasResponseBlock = (executionResult: ExecutionResult): boolean => {
-  if (
-    !executionResult?.logs ||
-    !Array.isArray(executionResult.logs) ||
-    !executionResult.success ||
-    !executionResult.output.response
-  ) {
+  if (!executionResult?.logs || !Array.isArray(executionResult.logs) || !executionResult.success) {
     return false
   }
 
-  const responseBlock = executionResult.logs.find(
-    (log) => log?.blockType === 'response' && log?.success
+  // Check for old response block format (has output.response)
+  if (executionResult.output.response) {
+    const responseBlock = executionResult.logs.find(
+      (log) => log?.blockType === 'response' && log?.success
+    )
+    if (responseBlock) return true
+  }
+
+  // Check for new workflow_response block format (has status/headers at root)
+  const workflowResponseBlock = executionResult.logs.find(
+    (log) => log?.blockType === 'workflow_response' && log?.success
   )
 
-  return responseBlock !== undefined
+  return workflowResponseBlock !== undefined
 }
 
 // Create a HTTP response from response block
 export const createHttpResponseFromBlock = (executionResult: ExecutionResult): NextResponse => {
-  const output = executionResult.output.response
-  const { data = {}, status = 200, headers = {} } = output
+  // Check if it's the old response block format
+  if (executionResult.output.response) {
+    const output = executionResult.output.response
+    const { data = {}, status = 200, headers = {} } = output
+
+    const responseHeaders = new Headers({
+      'Content-Type': 'application/json',
+      ...headers,
+    })
+
+    return NextResponse.json(data, {
+      status: status,
+      headers: responseHeaders,
+    })
+  }
+
+  // New workflow_response format - status/headers at root, data spread at root
+  const { status = 200, headers = {}, ...data } = executionResult.output
 
   const responseHeaders = new Headers({
     'Content-Type': 'application/json',

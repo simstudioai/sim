@@ -1,21 +1,24 @@
 import { ResponseIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import type { ResponseBlockOutput } from '@/tools/response/types'
 
-export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
-  type: 'response',
+/**
+ * WorkflowResponseBlock - A simplified response block with flat output structure.
+ * Output is directly accessible via <Response.fieldName> instead of nested paths.
+ */
+export const WorkflowResponseBlock: BlockConfig = {
+  type: 'workflow_response',
   name: 'Response',
   description: 'Send structured API response',
   longDescription:
-    'Integrate Response into the workflow. Can send build or edit structured responses into a final workflow response.',
+    'A Response block with direct field access. Use <Response.fieldName> to reference output fields directly.',
   docsLink: 'https://docs.sim.ai/blocks/response',
   bestPractices: `
   - Only use this if the trigger block is the API Trigger.
   - Prefer the builder mode over the editor mode.
   - This is usually used as the last block in the workflow.
+  - Output fields are directly accessible: <Response.fieldName>
   `,
   category: 'blocks',
-  hideFromToolbar: true,
   bgColor: '#2F55FF',
   icon: ResponseIcon,
   subBlocks: [
@@ -111,7 +114,7 @@ Example:
     },
   },
   outputs: {
-    data: { type: 'json', description: 'Response data' },
+    // User's data fields are spread directly at root level
     status: { type: 'number', description: 'HTTP status code' },
     headers: { type: 'json', description: 'Response headers' },
   },
