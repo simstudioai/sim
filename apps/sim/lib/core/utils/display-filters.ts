@@ -1,17 +1,6 @@
-/**
- * Maximum length for string values in display output
- * Prevents database storage issues with very large trace spans
- */
 const MAX_STRING_LENGTH = 10000
-
-/**
- * Maximum recursion depth to prevent stack overflow
- */
 const MAX_DEPTH = 50
 
-/**
- * Truncates a string if it exceeds the maximum length
- */
 function truncateString(value: string, maxLength = MAX_STRING_LENGTH): string {
   if (value.length <= maxLength) {
     return value
@@ -19,9 +8,6 @@ function truncateString(value: string, maxLength = MAX_STRING_LENGTH): string {
   return `${value.substring(0, maxLength)}... [truncated ${value.length - maxLength} chars]`
 }
 
-/**
- * Type guard to check if an object is a UserFile
- */
 export function isUserFile(candidate: unknown): candidate is {
   id: string
   name: string
@@ -44,11 +30,6 @@ export function isUserFile(candidate: unknown): candidate is {
   )
 }
 
-/**
- * Filter function that transforms UserFile objects for display
- * Removes internal fields: key, context
- * Keeps user-friendly fields: id, name, url, size, type
- */
 function filterUserFile(data: any): any {
   if (isUserFile(data)) {
     const { id, name, url, size, type } = data
@@ -57,116 +38,122 @@ function filterUserFile(data: any): any {
   return data
 }
 
-/**
- * Registry of filter functions to apply to data for cleaner display in logs/console.
- * Add new filter functions here to handle additional data types.
- */
-const DISPLAY_FILTERS = [
-  filterUserFile,
-  // Add more filters here as needed
-]
+const DISPLAY_FILTERS = [filterUserFile]
 
-/**
- * Generic helper to filter internal/technical fields from data for cleaner display in logs and console.
- * Applies all registered filters recursively to the data structure.
- * Also truncates long strings to prevent database storage issues.
- *
- *
- * To add a new filter:
- * 1. Create a filter function that checks and transforms a specific data type
- * 2. Add it to the DISPLAY_FILTERS array above
- *
- * @param data - Data to filter (objects, arrays, primitives)
- * @returns Filtered data with internal fields removed and long strings truncated
- */
 export function filterForDisplay(data: any): any {
   const seen = new WeakSet()
   return filterForDisplayInternal(data, seen, 0)
 }
 
+function getObjectType(data: unknown): string {
+  return Object.prototype.toString.call(data).slice(8, -1)
+}
+
 function filterForDisplayInternal(data: any, seen: WeakSet<object>, depth: number): any {
-  // Handle null/undefined
-  if (data === null || data === undefined) {
-    return data
-  }
-
-  // Truncate long strings
-  if (typeof data === 'string') {
-    return truncateString(data)
-  }
-
-  // Return primitives as-is (number, boolean, bigint, symbol, function)
-  if (typeof data !== 'object') {
-    return data
-  }
-
-  // Prevent infinite recursion from circular references
-  if (seen.has(data)) {
-    return '[Circular Reference]'
-  }
-
-  // Prevent stack overflow from very deep nesting
-  if (depth > MAX_DEPTH) {
-    return '[Max Depth Exceeded]'
-  }
-
-  // Handle special object types before adding to seen set
-  // Date objects - convert to ISO string
-  if (data instanceof Date) {
-    return data.toISOString()
-  }
-
-  // Error objects - preserve message and stack
-  if (data instanceof Error) {
-    return {
-      name: data.name,
-      message: truncateString(data.message),
-      stack: data.stack ? truncateString(data.stack) : undefined,
+  try {
+    if (data === null || data === undefined) {
+      return data
     }
-  }
 
-  // Buffer or TypedArray - don't serialize full content
-  if (ArrayBuffer.isView(data) || data instanceof ArrayBuffer) {
-    return `[Binary Data: ${data.byteLength} bytes]`
-  }
-
-  // Map - convert to object
-  if (data instanceof Map) {
-    const obj: Record<string, any> = {}
-    for (const [key, value] of data.entries()) {
-      const keyStr = typeof key === 'string' ? key : String(key)
-      obj[keyStr] = filterForDisplayInternal(value, seen, depth + 1)
+    if (typeof data === 'string') {
+      return truncateString(data)
     }
-    return obj
-  }
 
-  // Set - convert to array
-  if (data instanceof Set) {
-    return Array.from(data).map((item) => filterForDisplayInternal(item, seen, depth + 1))
-  }
-
-  // Track this object to detect circular references
-  seen.add(data)
-
-  // Apply all registered filters
-  for (const filterFn of DISPLAY_FILTERS) {
-    const result = filterFn(data)
-    if (result !== data) {
-      // Filter matched and transformed the data
-      // Recursively filter the result in case it contains nested objects
-      return filterForDisplayInternal(result, seen, depth + 1)
+    if (typeof data !== 'object') {
+      return data
     }
-  }
 
-  // No filters matched - recursively filter nested structures
-  if (Array.isArray(data)) {
-    return data.map((item) => filterForDisplayInternal(item, seen, depth + 1))
-  }
+    if (seen.has(data)) {
+      return '[Circular Reference]'
+    }
 
-  // Recursively filter object properties
-  const result: Record<string, any> = {}
-  for (const [key, value] of Object.entries(data)) {
-    result[key] = filterForDisplayInternal(value, seen, depth + 1)
+    if (depth > MAX_DEPTH) {
+      return '[Max Depth Exceeded]'
+    }
+
+    const objectType = getObjectType(data)
+
+    switch (objectType) {
+      case 'Date': {
+        const timestamp = (data as Date).getTime()
+        if (Number.isNaN(timestamp)) {
+          return '[Invalid Date]'
+        }
+        return (data as Date).toISOString()
+      }
+
+      case 'RegExp':
+        return (data as RegExp).toString()
+
+      case 'URL':
+        return (data as URL).toString()
+
+      case 'Error': {
+        const err = data as Error
+        return {
+          name: err.name,
+          message: truncateString(err.message),
+          stack: err.stack ? truncateString(err.stack) : undefined,
+        }
+      }
+
+      case 'ArrayBuffer':
+        return `[ArrayBuffer: ${(data as ArrayBuffer).byteLength} bytes]`
+
+      case 'Map': {
+        const obj: Record<string, any> = {}
+        for (const [key, value] of (data as Map<any, any>).entries()) {
+          const keyStr = typeof key === 'string' ? key : String(key)
+          obj[keyStr] = filterForDisplayInternal(value, seen, depth + 1)
+        }
+        return obj
+      }
+
+      case 'Set':
+        return Array.from(data as Set<any>).map((item) =>
+          filterForDisplayInternal(item, seen, depth + 1)
+        )
+
+      case 'WeakMap':
+        return '[WeakMap]'
+
+      case 'WeakSet':
+        return '[WeakSet]'
+
+      case 'WeakRef':
+        return '[WeakRef]'
+
+      case 'Promise':
+        return '[Promise]'
+    }
+
+    if (ArrayBuffer.isView(data)) {
+      return `[${objectType}: ${(data as ArrayBufferView).byteLength} bytes]`
+    }
+
+    seen.add(data)
+
+    for (const filterFn of DISPLAY_FILTERS) {
+      const result = filterFn(data)
+      if (result !== data) {
+        return filterForDisplayInternal(result, seen, depth + 1)
+      }
+    }
+
+    if (Array.isArray(data)) {
+      return data.map((item) => filterForDisplayInternal(item, seen, depth + 1))
+    }
+
+    const result: Record<string, any> = {}
+    for (const key of Object.keys(data)) {
+      try {
+        result[key] = filterForDisplayInternal(data[key], seen, depth + 1)
+      } catch {
+        result[key] = '[Error accessing property]'
+      }
+    }
+    return result
+  } catch {
+    return '[Unserializable]'
   }
-  return result
 }
