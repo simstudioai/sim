@@ -89,24 +89,31 @@ Escribir una incidencia de Jira
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ----------- | ----------- |
 | `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
 | `projectId` | string | Sí | ID del proyecto para la incidencia |
 | `summary` | string | Sí | Resumen de la incidencia |
 | `description` | string | No | Descripción de la incidencia |
-| `priority` | string | No | Prioridad de la incidencia |
-| `assignee` | string | No | Asignado para la incidencia |
-| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
+| `priority` | string | No | ID o nombre de prioridad para la incidencia \(p. ej., "10000" o "Alta"\) |
+| `assignee` | string | No | ID de cuenta del asignado para la incidencia |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
 | `issueType` | string | Sí | Tipo de incidencia a crear \(p. ej., Tarea, Historia\) |
+| `labels` | array | No | Etiquetas para la incidencia \(array de nombres de etiquetas\) |
+| `duedate` | string | No | Fecha de vencimiento para la incidencia \(formato: AAAA-MM-DD\) |
+| `reporter` | string | No | ID de cuenta del informador para la incidencia |
+| `environment` | string | No | Información del entorno para la incidencia |
+| `customFieldId` | string | No | ID del campo personalizado \(p. ej., customfield_10001\) |
+| `customFieldValue` | string | No | Valor para el campo personalizado |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `ts` | string | Marca de tiempo de la operación |
-| `issueKey` | string | Clave de la incidencia creada (p. ej., PROJ-123) |
+| `issueKey` | string | Clave de la incidencia creada \(p. ej., PROJ-123\) |
 | `summary` | string | Resumen de la incidencia |
 | `url` | string | URL de la incidencia creada |
+| `assigneeId` | string | ID de cuenta del usuario asignado \(si está asignado\) |
 
 ### `jira_bulk_read`
 
@@ -519,6 +526,30 @@ Eliminar un observador de una incidencia de Jira
 | `ts` | string | Marca de tiempo de la operación |
 | `issueKey` | string | Clave de incidencia |
 | `watcherAccountId` | string | ID de cuenta del observador eliminado |
+
+### `jira_get_users`
+
+Obtener usuarios de Jira. Si se proporciona un ID de cuenta, devuelve un solo usuario. De lo contrario, devuelve una lista de todos los usuarios.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `accountId` | string | No | ID de cuenta opcional para obtener un usuario específico. Si no se proporciona, devuelve todos los usuarios. |
+| `startAt` | number | No | El índice del primer usuario a devolver \(para paginación, predeterminado: 0\) |
+| `maxResults` | number | No | Número máximo de usuarios a devolver \(predeterminado: 50\) |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `ts` | string | Marca de tiempo de la operación |
+| `users` | json | Array de usuarios con accountId, displayName, emailAddress, estado activo y avatarUrls |
+| `total` | number | Número total de usuarios devueltos |
+| `startAt` | number | Índice de inicio de paginación |
+| `maxResults` | number | Máximo de resultados por página |
 
 ## Notas
 
