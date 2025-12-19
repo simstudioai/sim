@@ -2077,14 +2077,14 @@ export const useCopilotStore = create<CopilotStore>()(
             | 'forbidden'
             | 'rate_limit'
             | 'upgrade_required'
-            | undefined = undefined
+            | undefined
           if (result.status === 401) {
             errorContent =
               '_Unauthorized request. You need a valid API key to use the copilot. You can get one by going to [sim.ai](https://sim.ai) settings and generating one there._'
             errorType = 'unauthorized'
           } else if (result.status === 402) {
             errorContent =
-              '_Usage limit exceeded. To continue using this service, upgrade your plan or top up on credits._'
+              '_Usage limit exceeded. To continue using this service, upgrade your plan or increase your usage limit to:_'
             errorType = 'usage_limit'
           } else if (result.status === 403) {
             errorContent =
