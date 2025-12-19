@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowRight, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/emcn'
 import { canEditUsageLimit } from '@/lib/billing/subscriptions/utils'
 import { useSubscriptionData, useUpdateUsageLimit } from '@/hooks/queries/subscription'
@@ -80,7 +80,6 @@ export function UsageLimitActions() {
       <div className='mt-[12px] flex gap-[6px]'>
         <Button onClick={handleNavigateToUpgrade} variant='default'>
           Upgrade Plan
-          <ArrowRight className='ml-1 h-3 w-3' />
         </Button>
       </div>
     )
