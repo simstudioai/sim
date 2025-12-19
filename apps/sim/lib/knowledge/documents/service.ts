@@ -1264,6 +1264,7 @@ export async function updateDocument(
     characterCount?: number
     processingStatus?: 'pending' | 'processing' | 'completed' | 'failed'
     processingError?: string
+    // Text tags
     tag1?: string
     tag2?: string
     tag3?: string
@@ -1271,6 +1272,19 @@ export async function updateDocument(
     tag5?: string
     tag6?: string
     tag7?: string
+    // Number tags
+    number1?: string
+    number2?: string
+    number3?: string
+    number4?: string
+    number5?: string
+    // Date tags
+    date1?: string
+    date2?: string
+    // Boolean tags
+    boolean1?: string
+    boolean2?: string
+    boolean3?: string
   },
   requestId: string
 ): Promise<{
@@ -1296,6 +1310,16 @@ export async function updateDocument(
   tag5: string | null
   tag6: string | null
   tag7: string | null
+  number1: string | null
+  number2: string | null
+  number3: string | null
+  number4: string | null
+  number5: string | null
+  date1: string | null
+  date2: string | null
+  boolean1: string | null
+  boolean2: string | null
+  boolean3: string | null
   deletedAt: Date | null
 }> {
   const dbUpdateData: Partial<{
@@ -1315,9 +1339,38 @@ export async function updateDocument(
     tag5: string | null
     tag6: string | null
     tag7: string | null
+    number1: string | null
+    number2: string | null
+    number3: string | null
+    number4: string | null
+    number5: string | null
+    date1: string | null
+    date2: string | null
+    boolean1: string | null
+    boolean2: string | null
+    boolean3: string | null
   }> = {}
-  const TAG_SLOTS = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
-  type TagSlot = (typeof TAG_SLOTS)[number]
+  // All tag slots across all field types
+  const ALL_TAG_SLOTS = [
+    'tag1',
+    'tag2',
+    'tag3',
+    'tag4',
+    'tag5',
+    'tag6',
+    'tag7',
+    'number1',
+    'number2',
+    'number3',
+    'number4',
+    'number5',
+    'date1',
+    'date2',
+    'boolean1',
+    'boolean2',
+    'boolean3',
+  ] as const
+  type TagSlot = (typeof ALL_TAG_SLOTS)[number]
 
   // Regular field updates
   if (updateData.filename !== undefined) dbUpdateData.filename = updateData.filename
@@ -1331,23 +1384,48 @@ export async function updateDocument(
   if (updateData.processingError !== undefined)
     dbUpdateData.processingError = updateData.processingError
 
-  TAG_SLOTS.forEach((slot: TagSlot) => {
+  // Helper to convert string values to proper types for the database
+  const convertTagValue = (slot: string, value: string | undefined): any => {
+    if (value === undefined || value === '') return null
+
+    // Number slots: convert string to number
+    if (slot.startsWith('number')) {
+      const num = Number.parseFloat(value)
+      return isNaN(num) ? null : num
+    }
+
+    // Date slots: convert ISO string to Date
+    if (slot.startsWith('date')) {
+      const date = new Date(value)
+      return isNaN(date.getTime()) ? null : date
+    }
+
+    // Boolean slots: convert string to boolean
+    if (slot.startsWith('boolean')) {
+      return value === 'true'
+    }
+
+    // Text slots: keep as string
+    return value || null
+  }
+
+  ALL_TAG_SLOTS.forEach((slot: TagSlot) => {
     const updateValue = (updateData as any)[slot]
     if (updateValue !== undefined) {
-      ;(dbUpdateData as any)[slot] = updateValue
+      ;(dbUpdateData as any)[slot] = convertTagValue(slot, updateValue)
     }
   })
 
   await db.transaction(async (tx) => {
     await tx.update(document).set(dbUpdateData).where(eq(document.id, documentId))
 
-    const hasTagUpdates = TAG_SLOTS.some((field) => (updateData as any)[field] !== undefined)
+    const hasTagUpdates = ALL_TAG_SLOTS.some((field) => (updateData as any)[field] !== undefined)
 
     if (hasTagUpdates) {
-      const embeddingUpdateData: Record<string, string | null> = {}
-      TAG_SLOTS.forEach((field) => {
+      const embeddingUpdateData: Record<string, any> = {}
+      ALL_TAG_SLOTS.forEach((field) => {
         if ((updateData as any)[field] !== undefined) {
-          embeddingUpdateData[field] = (updateData as any)[field] || null
+          embeddingUpdateData[field] = convertTagValue(field, (updateData as any)[field])
         }
       })
 
@@ -1394,6 +1472,16 @@ export async function updateDocument(
     tag5: doc.tag5,
     tag6: doc.tag6,
     tag7: doc.tag7,
+    number1: doc.number1,
+    number2: doc.number2,
+    number3: doc.number3,
+    number4: doc.number4,
+    number5: doc.number5,
+    date1: doc.date1,
+    date2: doc.date2,
+    boolean1: doc.boolean1,
+    boolean2: doc.boolean2,
+    boolean3: doc.boolean3,
     deletedAt: doc.deletedAt,
   }
 }

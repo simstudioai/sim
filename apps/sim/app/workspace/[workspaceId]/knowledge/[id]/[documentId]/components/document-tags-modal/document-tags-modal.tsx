@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react'
 import {
   Button,
   Combobox,
+  DatePicker,
   Input,
   Label,
   Modal,
@@ -12,7 +13,6 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Switch,
   Trash,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -42,7 +42,7 @@ function formatValueForDisplay(value: string, fieldType: string): string {
   if (!value) return ''
   switch (fieldType) {
     case 'boolean':
-      return value === 'true' ? 'Yes' : 'No'
+      return value === 'true' ? 'True' : 'False'
     case 'date':
       try {
         return new Date(value).toLocaleDateString()
@@ -123,17 +123,17 @@ export function DocumentTagsModal({
       if (!documentData) return
 
       try {
-        const tagData: Record<string, string | number | boolean | null> = {}
+        const tagData: Record<string, string> = {}
 
-        // Initialize all slots to null
+        // Only include tags that have values (omit empty ones)
+        // Use empty string for slots that should be cleared
         ALL_TAG_SLOTS.forEach((slot) => {
-          tagData[slot] = null
-        })
-
-        // Set values for tags that have data
-        tagsToSave.forEach((tag) => {
-          if (tag.value.trim()) {
-            tagData[tag.slot] = tag.value.trim()
+          const tag = tagsToSave.find((t) => t.slot === slot)
+          if (tag && tag.value.trim()) {
+            tagData[slot] = tag.value.trim()
+          } else {
+            // Use empty string to clear a tag (API schema expects string, not null)
+            tagData[slot] = ''
           }
         })
 
@@ -450,10 +450,15 @@ export function DocumentTagsModal({
                               const def = kbTagDefinitions.find(
                                 (d) => d.displayName.toLowerCase() === value.toLowerCase()
                               )
+                              const newFieldType = def?.fieldType || 'text'
+                              // Set default value for boolean type
+                              const defaultValue =
+                                newFieldType === 'boolean' ? 'false' : editTagForm.value
                               setEditTagForm({
                                 ...editTagForm,
                                 displayName: value,
-                                fieldType: def?.fieldType || 'text',
+                                fieldType: newFieldType,
+                                value: defaultValue,
                               })
                             }}
                             placeholder='Enter or select tag name'
@@ -491,27 +496,30 @@ export function DocumentTagsModal({
                       <div className='flex flex-col gap-[8px]'>
                         <Label htmlFor={`tagValue-${index}`}>Value</Label>
                         {editTagForm.fieldType === 'boolean' ? (
-                          <div className='flex items-center gap-2'>
-                            <Switch
-                              id={`tagValue-${index}`}
-                              checked={editTagForm.value === 'true'}
-                              onCheckedChange={(checked) =>
-                                setEditTagForm({ ...editTagForm, value: String(checked) })
-                              }
-                            />
-                            <span className='text-[12px] text-[var(--text-muted)]'>
-                              {editTagForm.value === 'true' ? 'Yes' : 'No'}
-                            </span>
-                          </div>
+                          <Combobox
+                            id={`tagValue-${index}`}
+                            options={[
+                              { label: 'True', value: 'true' },
+                              { label: 'False', value: 'false' },
+                            ]}
+                            value={editTagForm.value || 'false'}
+                            selectedValue={editTagForm.value || 'false'}
+                            onChange={(value) => setEditTagForm({ ...editTagForm, value })}
+                            placeholder='Select value'
+                          />
                         ) : editTagForm.fieldType === 'number' ? (
                           <Input
                             id={`tagValue-${index}`}
-                            type='number'
                             value={editTagForm.value}
-                            onChange={(e) =>
-                              setEditTagForm({ ...editTagForm, value: e.target.value })
-                            }
+                            onChange={(e) => {
+                              const val = e.target.value
+                              // Allow empty, digits, decimal point, and negative sign
+                              if (val === '' || /^-?\d*\.?\d*$/.test(val)) {
+                                setEditTagForm({ ...editTagForm, value: val })
+                              }
+                            }}
                             placeholder='Enter number'
+                            inputMode='decimal'
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' && canSaveTag) {
                                 e.preventDefault()
@@ -524,22 +532,11 @@ export function DocumentTagsModal({
                             }}
                           />
                         ) : editTagForm.fieldType === 'date' ? (
-                          <Input
-                            id={`tagValue-${index}`}
-                            type='datetime-local'
-                            value={editTagForm.value ? editTagForm.value.slice(0, 16) : ''}
-                            onChange={(e) =>
-                              setEditTagForm({
-                                ...editTagForm,
-                                value: new Date(e.target.value).toISOString(),
-                              })
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === 'Escape') {
-                                e.preventDefault()
-                                cancelEditingTag()
-                              }
-                            }}
+                          <DatePicker
+                            value={editTagForm.value || undefined}
+                            onChange={(value) => setEditTagForm({ ...editTagForm, value })}
+                            placeholder='Select date'
+                            includeTime
                           />
                         ) : (
                           <Input
@@ -606,10 +603,15 @@ export function DocumentTagsModal({
                           const def = kbTagDefinitions.find(
                             (d) => d.displayName.toLowerCase() === value.toLowerCase()
                           )
+                          const newFieldType = def?.fieldType || 'text'
+                          // Set default value for boolean type
+                          const defaultValue =
+                            newFieldType === 'boolean' ? 'false' : editTagForm.value
                           setEditTagForm({
                             ...editTagForm,
                             displayName: value,
-                            fieldType: def?.fieldType || 'text',
+                            fieldType: newFieldType,
+                            value: defaultValue,
                           })
                         }}
                         placeholder='Enter or select tag name'
@@ -647,25 +649,30 @@ export function DocumentTagsModal({
                   <div className='flex flex-col gap-[8px]'>
                     <Label htmlFor='newTagValue'>Value</Label>
                     {editTagForm.fieldType === 'boolean' ? (
-                      <div className='flex items-center gap-2'>
-                        <Switch
-                          id='newTagValue'
-                          checked={editTagForm.value === 'true'}
-                          onCheckedChange={(checked) =>
-                            setEditTagForm({ ...editTagForm, value: String(checked) })
-                          }
-                        />
-                        <span className='text-[12px] text-[var(--text-muted)]'>
-                          {editTagForm.value === 'true' ? 'Yes' : 'No'}
-                        </span>
-                      </div>
+                      <Combobox
+                        id='newTagValue'
+                        options={[
+                          { label: 'True', value: 'true' },
+                          { label: 'False', value: 'false' },
+                        ]}
+                        value={editTagForm.value || 'false'}
+                        selectedValue={editTagForm.value || 'false'}
+                        onChange={(value) => setEditTagForm({ ...editTagForm, value })}
+                        placeholder='Select value'
+                      />
                     ) : editTagForm.fieldType === 'number' ? (
                       <Input
                         id='newTagValue'
-                        type='number'
                         value={editTagForm.value}
-                        onChange={(e) => setEditTagForm({ ...editTagForm, value: e.target.value })}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          // Allow empty, digits, decimal point, and negative sign
+                          if (val === '' || /^-?\d*\.?\d*$/.test(val)) {
+                            setEditTagForm({ ...editTagForm, value: val })
+                          }
+                        }}
                         placeholder='Enter number'
+                        inputMode='decimal'
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && canSaveTag) {
                             e.preventDefault()
@@ -678,22 +685,11 @@ export function DocumentTagsModal({
                         }}
                       />
                     ) : editTagForm.fieldType === 'date' ? (
-                      <Input
-                        id='newTagValue'
-                        type='datetime-local'
-                        value={editTagForm.value ? editTagForm.value.slice(0, 16) : ''}
-                        onChange={(e) =>
-                          setEditTagForm({
-                            ...editTagForm,
-                            value: new Date(e.target.value).toISOString(),
-                          })
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === 'Escape') {
-                            e.preventDefault()
-                            cancelEditingTag()
-                          }
-                        }}
+                      <DatePicker
+                        value={editTagForm.value || undefined}
+                        onChange={(value) => setEditTagForm({ ...editTagForm, value })}
+                        placeholder='Select date'
+                        includeTime
                       />
                     ) : (
                       <Input
