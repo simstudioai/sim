@@ -334,6 +334,7 @@ export interface SnapshotCreationResult {
 export interface ExecutionLoggerService {
   startWorkflowExecution(params: {
     workflowId: string
+    workspaceId: string
     executionId: string
     trigger: ExecutionTrigger
     environment: ExecutionEnvironment

@@ -291,6 +291,9 @@ export const workflowExecutionLogs = pgTable(
     workflowId: text('workflow_id')
       .notNull()
       .references(() => workflow.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
     executionId: text('execution_id').notNull(),
     stateSnapshotId: text('state_snapshot_id')
       .notNull()
@@ -326,9 +329,12 @@ export const workflowExecutionLogs = pgTable(
     executionIdUnique: uniqueIndex('workflow_execution_logs_execution_id_unique').on(
       table.executionId
     ),
-    // Composite index for the new join-based query pattern
     workflowStartedAtIdx: index('workflow_execution_logs_workflow_started_at_idx').on(
       table.workflowId,
+      table.startedAt
+    ),
+    workspaceStartedAtIdx: index('workflow_execution_logs_workspace_started_at_idx').on(
+      table.workspaceId,
       table.startedAt
     ),
   })

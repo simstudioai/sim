@@ -18,7 +18,7 @@ const logger = createLogger('LoggingSession')
 
 export interface SessionStartParams {
   userId?: string
-  workspaceId?: string
+  workspaceId: string
   variables?: Record<string, string>
   triggerData?: Record<string, unknown>
   skipLogCreation?: boolean // For resume executions - reuse existing log entry
@@ -65,7 +65,7 @@ export class LoggingSession {
     this.requestId = requestId
   }
 
-  async start(params: SessionStartParams = {}): Promise<void> {
+  async start(params: SessionStartParams): Promise<void> {
     const { userId, workspaceId, variables, triggerData, skipLogCreation, deploymentVersionId } =
       params
 
@@ -84,6 +84,7 @@ export class LoggingSession {
       if (!skipLogCreation) {
         await executionLogger.startWorkflowExecution({
           workflowId: this.workflowId,
+          workspaceId,
           executionId: this.executionId,
           trigger: this.trigger,
           environment: this.environment,
@@ -115,7 +116,6 @@ export class LoggingSession {
    * Note: Logging now works through trace spans only, no direct executor integration needed
    */
   setupExecutor(executor: any): void {
-    // No longer setting logger on executor - trace spans handle everything
     if (this.requestId) {
       logger.debug(`[${this.requestId}] Logging session ready for execution ${this.executionId}`)
     }
@@ -272,7 +272,7 @@ export class LoggingSession {
     }
   }
 
-  async safeStart(params: SessionStartParams = {}): Promise<boolean> {
+  async safeStart(params: SessionStartParams): Promise<boolean> {
     try {
       await this.start(params)
       return true
@@ -305,6 +305,7 @@ export class LoggingSession {
 
         await executionLogger.startWorkflowExecution({
           workflowId: this.workflowId,
+          workspaceId,
           executionId: this.executionId,
           trigger: this.trigger,
           environment: this.environment,

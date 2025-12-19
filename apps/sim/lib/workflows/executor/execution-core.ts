@@ -103,6 +103,9 @@ export async function executeWorkflowCore(
   const { onBlockStart, onBlockComplete, onStream, onExecutorCreated } = callbacks
 
   const providedWorkspaceId = metadata.workspaceId
+  if (!providedWorkspaceId) {
+    throw new Error(`Execution metadata missing workspaceId for workflow ${workflowId}`)
+  }
 
   let processedInput = input || {}
 
