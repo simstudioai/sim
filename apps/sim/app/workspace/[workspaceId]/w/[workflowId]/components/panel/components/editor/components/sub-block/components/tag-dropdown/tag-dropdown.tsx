@@ -844,8 +844,13 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       if (!accessibleBlock) continue
 
       // Skip the current block - blocks cannot reference their own outputs
-      // Exception: approval blocks can reference their own outputs
-      if (accessibleBlockId === blockId && accessibleBlock.type !== 'approval') continue
+      // Exception: approval and human_in_the_loop blocks can reference their own outputs
+      if (
+        accessibleBlockId === blockId &&
+        accessibleBlock.type !== 'approval' &&
+        accessibleBlock.type !== 'human_in_the_loop'
+      )
+        continue
 
       const blockConfig = getBlock(accessibleBlock.type)
 
@@ -972,6 +977,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
             blockTags = isSelfReference ? allTags.filter((tag) => tag.endsWith('.url')) : allTags
           }
+        } else if (accessibleBlock.type === 'human_in_the_loop') {
+          blockTags = [`${normalizedBlockName}.url`]
         } else {
           const operationValue =
             mergedSubBlocks?.operation?.value ?? getSubBlockValue(accessibleBlockId, 'operation')
