@@ -141,12 +141,37 @@ export function MemberInvitationCard({
         {/* Main invitation input */}
         <div className='flex items-start gap-2'>
           <div className='flex-1'>
+            {/* Hidden decoy fields to prevent browser autofill */}
+            <input
+              type='text'
+              name='fakeusernameremembered'
+              autoComplete='username'
+              style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+              tabIndex={-1}
+              readOnly
+            />
+            <input
+              type='email'
+              name='fakeemailremembered'
+              autoComplete='email'
+              style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+              tabIndex={-1}
+              readOnly
+            />
             <Input
               placeholder='Enter email address'
               value={inviteEmail}
               onChange={handleEmailChange}
               disabled={isInviting || !hasAvailableSeats}
               className={cn(emailError && 'border-red-500 focus-visible:ring-red-500')}
+              name='member_invite_field'
+              autoComplete='off'
+              autoCorrect='off'
+              autoCapitalize='off'
+              spellCheck={false}
+              data-lpignore='true'
+              data-form-type='other'
+              aria-autocomplete='none'
             />
             {emailError && (
               <p className='mt-1 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>

@@ -141,6 +141,23 @@ export async function DELETE(
       )
     }
 
+    // Check if deleting this folder would delete the last workflow(s) in the workspace
+    const workflowsInFolder = await countWorkflowsInFolderRecursively(
+      id,
+      existingFolder.workspaceId
+    )
+    const totalWorkflowsInWorkspace = await db
+      .select({ id: workflow.id })
+      .from(workflow)
+      .where(eq(workflow.workspaceId, existingFolder.workspaceId))
+
+    if (workflowsInFolder > 0 && workflowsInFolder >= totalWorkflowsInWorkspace.length) {
+      return NextResponse.json(
+        { error: 'Cannot delete folder containing the only workflow(s) in the workspace' },
+        { status: 400 }
+      )
+    }
+
     // Recursively delete folder and all its contents
     const deletionStats = await deleteFolderRecursively(id, existingFolder.workspaceId)
 
@@ -200,6 +217,37 @@ async function deleteFolderRecursively(
   stats.folders += 1
 
   return stats
+}
+
+/**
+ * Counts the number of workflows in a folder and all its subfolders recursively.
+ */
+async function countWorkflowsInFolderRecursively(
+  folderId: string,
+  workspaceId: string
+): Promise<number> {
+  let count = 0
+
+  // Count workflows directly in this folder
+  const workflowsInFolder = await db
+    .select({ id: workflow.id })
+    .from(workflow)
+    .where(and(eq(workflow.folderId, folderId), eq(workflow.workspaceId, workspaceId)))
+
+  count += workflowsInFolder.length
+
+  // Get all child folders
+  const childFolders = await db
+    .select({ id: workflowFolder.id })
+    .from(workflowFolder)
+    .where(and(eq(workflowFolder.parentId, folderId), eq(workflowFolder.workspaceId, workspaceId)))
+
+  // Recursively count workflows in child folders
+  for (const childFolder of childFolders) {
+    count += await countWorkflowsInFolderRecursively(childFolder.id, workspaceId)
+  }
+
+  return count
 }
 
 // Helper function to check for circular references
