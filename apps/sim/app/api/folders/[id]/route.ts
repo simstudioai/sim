@@ -228,7 +228,6 @@ async function countWorkflowsInFolderRecursively(
 ): Promise<number> {
   let count = 0
 
-  // Count workflows directly in this folder
   const workflowsInFolder = await db
     .select({ id: workflow.id })
     .from(workflow)
@@ -236,13 +235,11 @@ async function countWorkflowsInFolderRecursively(
 
   count += workflowsInFolder.length
 
-  // Get all child folders
   const childFolders = await db
     .select({ id: workflowFolder.id })
     .from(workflowFolder)
     .where(and(eq(workflowFolder.parentId, folderId), eq(workflowFolder.workspaceId, workspaceId)))
 
-  // Recursively count workflows in child folders
   for (const childFolder of childFolders) {
     count += await countWorkflowsInFolderRecursively(childFolder.id, workspaceId)
   }

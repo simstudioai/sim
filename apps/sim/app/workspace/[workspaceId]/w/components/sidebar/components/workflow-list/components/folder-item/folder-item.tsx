@@ -56,7 +56,6 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   const createFolderMutation = useCreateFolder()
   const userPermissions = useUserPermissionsContext()
 
-  // Can delete check hook - memoized to avoid recalculating on every render
   const { canDeleteFolder } = useCanDelete({ workspaceId })
   const canDelete = useMemo(() => canDeleteFolder(folder.id), [canDeleteFolder, folder.id])
 
