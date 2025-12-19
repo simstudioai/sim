@@ -16,14 +16,12 @@ export function UsageLimitActions() {
   const { data: subscriptionData } = useSubscriptionData()
   const updateUsageLimitMutation = useUpdateUsageLimit()
 
-  // The billing API returns { success, context, data }, where data contains plan/status
   const subscription = subscriptionData?.data
   const canEdit = subscription ? canEditUsageLimit(subscription) : false
 
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
   const [isHidden, setIsHidden] = useState(false)
 
-  // Fixed limit options
   const limitOptions = [50, 100, 150]
 
   const handleUpdateLimit = async (newLimit: number) => {
@@ -31,34 +29,24 @@ export function UsageLimitActions() {
     try {
       await updateUsageLimitMutation.mutateAsync({ limit: newLimit })
 
-      // Hide the buttons immediately
       setIsHidden(true)
 
-      // Get the store state and retry the last user message
       const { messages, sendMessage } = useCopilotStore.getState()
-
-      // Find the last user message (before the error)
       const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user')
 
       if (lastUserMessage) {
-        // Remove the error message (assistant message with usage_limit error)
         const filteredMessages = messages.filter(
           (m) => !(m.role === 'assistant' && m.errorType === 'usage_limit')
         )
-
-        // Update messages to remove the error message
         useCopilotStore.setState({ messages: filteredMessages })
 
-        // Retry the original query by passing the same messageId
-        // This replaces from that point instead of duplicating
         await sendMessage(lastUserMessage.content, {
           fileAttachments: lastUserMessage.fileAttachments,
           contexts: lastUserMessage.contexts,
           messageId: lastUserMessage.id,
         })
       }
-    } catch (error) {
-      // Error is handled by the mutation
+    } catch {
       setIsHidden(false)
     } finally {
       setSelectedAmount(null)
@@ -69,13 +57,11 @@ export function UsageLimitActions() {
     window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'subscription' } }))
   }
 
-  // Hide if already processed
   if (isHidden) {
     return null
   }
 
   if (!canEdit) {
-    // Show upgrade button for users who can't edit (free/enterprise)
     return (
       <div className='mt-[12px] flex gap-[6px]'>
         <Button onClick={handleNavigateToUpgrade} variant='default'>
@@ -85,7 +71,6 @@ export function UsageLimitActions() {
     )
   }
 
-  // Show button options for users who can edit their limit
   return (
     <div className='mt-[12px] flex gap-[6px]'>
       {limitOptions.map((limit) => {

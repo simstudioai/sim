@@ -459,7 +459,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
               <StreamingIndicator />
             )}
 
-            {/* Usage limit actions for 402 errors */}
             {message.errorType === 'usage_limit' && <UsageLimitActions />}
 
             {/* Action buttons for completed messages */}
