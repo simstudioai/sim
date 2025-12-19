@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   createPinnedUrl,
-  sanitizeForLogging,
   validateAlphanumericId,
   validateEnum,
   validateFileExtension,
@@ -11,6 +10,7 @@ import {
   validateUrlWithDNS,
   validateUUID,
 } from '@/lib/core/security/input-validation'
+import { sanitizeForLogging } from '@/lib/core/security/redaction'
 
 describe('validatePathSegment', () => {
   describe('valid inputs', () => {
