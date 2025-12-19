@@ -45,9 +45,9 @@ export function PlanCard({
     if (typeof price === 'string') {
       return (
         <>
-          <span className='font-semibold text-xl'>{price}</span>
+          <span className='font-semibold text-[20px]'>{price}</span>
           {priceSubtext && (
-            <span className='ml-1 text-[var(--text-muted)] text-xs'>{priceSubtext}</span>
+            <span className='ml-1 text-[12px] text-[var(--text-muted)]'>{priceSubtext}</span>
           )}
         </>
       )
@@ -58,13 +58,13 @@ export function PlanCard({
   const renderFeatures = () => {
     if (isHorizontal) {
       return (
-        <div className='mt-3 flex flex-wrap items-center gap-4'>
+        <div className='mt-3 flex flex-wrap items-center gap-3'>
           {features.map((feature, index) => (
-            <div key={`${feature.text}-${index}`} className='flex items-center gap-2 text-xs'>
-              <feature.icon className='h-3 w-3 flex-shrink-0 text-[var(--text-muted)]' />
-              <span className='text-[var(--text-muted)]'>{feature.text}</span>
+            <div key={`${feature.text}-${index}`} className='flex items-center gap-2 text-[12px]'>
+              <feature.icon className='h-3 w-3 flex-shrink-0 text-[var(--text-secondary)]' />
+              <span className='text-[var(--text-secondary)]'>{feature.text}</span>
               {index < features.length - 1 && (
-                <div className='ml-4 h-4 w-px bg-[var(--border)]' aria-hidden='true' />
+                <div className='ml-3 h-4 w-px bg-[var(--border)]' aria-hidden='true' />
               )}
             </div>
           ))}
@@ -75,12 +75,12 @@ export function PlanCard({
     return (
       <ul className='mb-4 flex-1 space-y-2'>
         {features.map((feature, index) => (
-          <li key={`${feature.text}-${index}`} className='flex items-start gap-2 text-xs'>
+          <li key={`${feature.text}-${index}`} className='flex items-start gap-2 text-[12px]'>
             <feature.icon
-              className='mt-0.5 h-3 w-3 flex-shrink-0 text-[var(--text-muted)]'
+              className='mt-0.5 h-3 w-3 flex-shrink-0 text-[var(--text-secondary)]'
               aria-hidden='true'
             />
-            <span className='text-[var(--text-muted)]'>{feature.text}</span>
+            <span className='text-[var(--text-secondary)]'>{feature.text}</span>
           </li>
         ))}
       </ul>
@@ -91,24 +91,24 @@ export function PlanCard({
     <article
       className={cn(
         'relative flex rounded-[8px] border p-4 transition-colors hover:border-[var(--border-hover)]',
-        isHorizontal ? 'flex-row items-center justify-between' : 'flex-col',
+        isHorizontal ? 'flex-row items-center justify-between gap-6' : 'flex-col',
         className
       )}
     >
-      <header className={isHorizontal ? undefined : 'mb-4'}>
-        <h3 className='mb-2 font-semibold text-sm'>{name}</h3>
+      <header className={isHorizontal ? 'flex-1' : 'mb-4'}>
+        <h3 className='mb-2 font-semibold text-[14px]'>{name}</h3>
         <div className='flex items-baseline'>{renderPrice()}</div>
         {isHorizontal && renderFeatures()}
       </header>
 
       {!isHorizontal && renderFeatures()}
 
-      <div className={isHorizontal ? 'ml-auto' : undefined}>
+      <div className={isHorizontal ? 'flex-shrink-0' : undefined}>
         <Button
           onClick={onButtonClick}
           className={cn(
-            'h-9 rounded-[8px] text-xs',
-            isHorizontal ? 'px-4' : 'w-full',
+            'h-9 rounded-[8px] text-[13px]',
+            isHorizontal ? 'min-w-[100px] px-6' : 'w-full',
             isError && 'border-[var(--text-error)] text-[var(--text-error)]'
           )}
           variant='outline'
