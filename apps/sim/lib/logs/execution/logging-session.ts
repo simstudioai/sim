@@ -331,21 +331,88 @@ export class LoggingSession {
     try {
       await this.complete(params)
     } catch (error) {
-      // Error already logged in complete(), log a summary here
       logger.warn(
-        `[${this.requestId || 'unknown'}] Logging completion failed for execution ${this.executionId} - execution data not persisted`
+        `[${this.requestId || 'unknown'}] Logging completion failed for execution ${this.executionId} - attempting cost-only fallback`
       )
+
+      try {
+        const costSummary = calculateCostSummary(params.traceSpans || [])
+        const endTime = params.endedAt || new Date().toISOString()
+        const duration = params.totalDurationMs || 0
+
+        await executionLogger.completeWorkflowExecution({
+          executionId: this.executionId,
+          endedAt: endTime,
+          totalDurationMs: duration,
+          costSummary,
+          finalOutput: { _fallback: true, error: 'Trace spans too large to store' },
+          traceSpans: [],
+          isResume: this.isResume,
+        })
+
+        logger.info(
+          `[${this.requestId || 'unknown'}] Cost-only fallback succeeded for execution ${this.executionId}`
+        )
+      } catch (fallbackError) {
+        logger.error(
+          `[${this.requestId || 'unknown'}] Cost-only fallback also failed for execution ${this.executionId}:`,
+          {
+            error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+          }
+        )
+      }
     }
   }
 
-  async safeCompleteWithError(error?: SessionErrorCompleteParams): Promise<void> {
+  async safeCompleteWithError(params?: SessionErrorCompleteParams): Promise<void> {
     try {
-      await this.completeWithError(error)
-    } catch (enhancedError) {
-      // Error already logged in completeWithError(), log a summary here
+      await this.completeWithError(params)
+    } catch (error) {
       logger.warn(
-        `[${this.requestId || 'unknown'}] Error logging completion failed for execution ${this.executionId} - execution data not persisted`
+        `[${this.requestId || 'unknown'}] Error logging completion failed for execution ${this.executionId} - attempting cost-only fallback`
       )
+
+      try {
+        const costSummary = params?.traceSpans
+          ? calculateCostSummary(params.traceSpans)
+          : {
+              totalCost: BASE_EXECUTION_CHARGE,
+              totalInputCost: 0,
+              totalOutputCost: 0,
+              totalTokens: 0,
+              totalPromptTokens: 0,
+              totalCompletionTokens: 0,
+              baseExecutionCharge: BASE_EXECUTION_CHARGE,
+              modelCost: 0,
+              models: {},
+            }
+
+        const endTime = params?.endedAt || new Date().toISOString()
+        const duration = params?.totalDurationMs || 0
+
+        await executionLogger.completeWorkflowExecution({
+          executionId: this.executionId,
+          endedAt: endTime,
+          totalDurationMs: duration,
+          costSummary,
+          finalOutput: {
+            _fallback: true,
+            error: params?.error?.message || 'Execution failed, trace spans too large to store',
+          },
+          traceSpans: [],
+        })
+
+        logger.info(
+          `[${this.requestId || 'unknown'}] Cost-only fallback succeeded for execution ${this.executionId}`
+        )
+      } catch (fallbackError) {
+        logger.error(
+          `[${this.requestId || 'unknown'}] Cost-only fallback also failed for execution ${this.executionId}:`,
+          {
+            error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+          }
+        )
+      }
     }
   }
 }
