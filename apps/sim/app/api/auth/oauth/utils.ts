@@ -132,14 +132,7 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
 
     try {
       // Use the existing refreshOAuthToken function
-      // For ServiceNow, pass the instance URL (stored in idToken) for the token endpoint
-      const instanceUrl =
-        providerId === 'servicenow' ? (credential.idToken ?? undefined) : undefined
-      const refreshResult = await refreshOAuthToken(
-        providerId,
-        credential.refreshToken!,
-        instanceUrl
-      )
+      const refreshResult = await refreshOAuthToken(providerId, credential.refreshToken!)
 
       if (!refreshResult) {
         logger.error(`Failed to refresh token for user ${userId}, provider ${providerId}`, {
@@ -222,13 +215,9 @@ export async function refreshAccessTokenIfNeeded(
   if (shouldRefresh) {
     logger.info(`[${requestId}] Token expired, attempting to refresh for credential`)
     try {
-      // For ServiceNow, pass the instance URL (stored in idToken) for the token endpoint
-      const instanceUrl =
-        credential.providerId === 'servicenow' ? (credential.idToken ?? undefined) : undefined
       const refreshedToken = await refreshOAuthToken(
         credential.providerId,
-        credential.refreshToken!,
-        instanceUrl
+        credential.refreshToken!
       )
 
       if (!refreshedToken) {
@@ -300,14 +289,7 @@ export async function refreshTokenIfNeeded(
   }
 
   try {
-    // For ServiceNow, pass the instance URL (stored in idToken) for the token endpoint
-    const instanceUrl =
-      credential.providerId === 'servicenow' ? (credential.idToken ?? undefined) : undefined
-    const refreshResult = await refreshOAuthToken(
-      credential.providerId,
-      credential.refreshToken!,
-      instanceUrl
-    )
+    const refreshResult = await refreshOAuthToken(credential.providerId, credential.refreshToken!)
 
     if (!refreshResult) {
       logger.error(`[${requestId}] Failed to refresh token for credential`)

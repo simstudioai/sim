@@ -14,6 +14,7 @@ interface UseWebhookManagementProps {
   blockId: string
   triggerId?: string
   isPreview?: boolean
+  useWebhookUrl?: boolean
 }
 
 interface WebhookManagementState {
@@ -90,6 +91,7 @@ export function useWebhookManagement({
   blockId,
   triggerId,
   isPreview = false,
+  useWebhookUrl = false,
 }: UseWebhookManagementProps): WebhookManagementState {
   const params = useParams()
   const workflowId = params.workflowId as string
@@ -204,9 +206,10 @@ export function useWebhookManagement({
         })
       }
     }
-
-    loadWebhookOrGenerateUrl()
-  }, [isPreview, triggerId, workflowId, blockId])
+    if (useWebhookUrl) {
+      loadWebhookOrGenerateUrl()
+    }
+  }, [isPreview, triggerId, workflowId, blockId, useWebhookUrl])
 
   const createWebhook = async (
     effectiveTriggerId: string | undefined,

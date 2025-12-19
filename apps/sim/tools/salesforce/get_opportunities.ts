@@ -1,34 +1,9 @@
+import type {
+  SalesforceGetOpportunitiesParams,
+  SalesforceGetOpportunitiesResponse,
+} from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
-
-export interface SalesforceGetOpportunitiesParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  opportunityId?: string
-  limit?: string
-  fields?: string
-  orderBy?: string
-}
-
-export interface SalesforceGetOpportunitiesResponse {
-  success: boolean
-  output: {
-    opportunity?: any
-    opportunities?: any[]
-    paging?: {
-      nextRecordsUrl?: string
-      totalSize: number
-      done: boolean
-    }
-    metadata: {
-      operation: 'get_opportunities'
-      totalReturned?: number
-      hasMore?: boolean
-    }
-    success: boolean
-  }
-}
 
 export const salesforceGetOpportunitiesTool: ToolConfig<
   SalesforceGetOpportunitiesParams,

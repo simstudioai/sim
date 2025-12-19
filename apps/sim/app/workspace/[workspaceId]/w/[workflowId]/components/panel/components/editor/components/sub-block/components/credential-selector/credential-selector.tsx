@@ -12,6 +12,7 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useOAuthCredentialDetail, useOAuthCredentials } from '@/hooks/queries/oauth-credentials'
@@ -45,10 +46,14 @@ export function CredentialSelector({
   const label = subBlock.placeholder || 'Select credential'
   const serviceId = subBlock.serviceId || ''
 
+  const { depsSatisfied, dependsOn } = useDependsOnGate(blockId, subBlock, { disabled, isPreview })
+  const hasDependencies = dependsOn.length > 0
+
+  const effectiveDisabled = disabled || (hasDependencies && !depsSatisfied)
+
   const effectiveValue = isPreview && previewValue !== undefined ? previewValue : storeValue
   const selectedId = typeof effectiveValue === 'string' ? effectiveValue : ''
 
-  // serviceId is now the canonical identifier - derive provider from it
   const effectiveProviderId = useMemo(
     () => getProviderIdFromServiceId(serviceId) as OAuthProvider,
     [serviceId]
@@ -130,7 +135,7 @@ export function CredentialSelector({
   const needsUpdate =
     hasSelection &&
     missingRequiredScopes.length > 0 &&
-    !disabled &&
+    !effectiveDisabled &&
     !isPreview &&
     !credentialsLoading
 
@@ -230,8 +235,10 @@ export function CredentialSelector({
         selectedValue={selectedId}
         onChange={handleComboboxChange}
         onOpenChange={handleOpenChange}
-        placeholder={label}
-        disabled={disabled}
+        placeholder={
+          hasDependencies && !depsSatisfied ? 'Fill in required fields above first' : label
+        }
+        disabled={effectiveDisabled}
         editable={true}
         filterOptions={true}
         isLoading={credentialsLoading}

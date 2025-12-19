@@ -17,27 +17,32 @@ vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn(() => 'test-request-id'),
 }))
 
-vi.mock('@/lib/execution/isolated-vm', () => ({
-  executeInIsolatedVM: vi.fn(),
+vi.mock('@/tools', () => ({
+  executeTool: vi.fn(),
 }))
 
-import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
+import { executeTool } from '@/tools'
 
-const mockExecuteInIsolatedVM = executeInIsolatedVM as ReturnType<typeof vi.fn>
+const mockExecuteTool = executeTool as ReturnType<typeof vi.fn>
 
-function simulateIsolatedVMExecution(
-  code: string,
-  contextVariables: Record<string, unknown>
-): { result: unknown; stdout: string; error?: { message: string; name: string } } {
+/**
+ * Simulates what the function_execute tool does when evaluating condition code
+ */
+function simulateConditionExecution(code: string): {
+  success: boolean
+  output?: { result: unknown }
+  error?: string
+} {
   try {
-    const fn = new Function(...Object.keys(contextVariables), code)
-    const result = fn(...Object.values(contextVariables))
-    return { result, stdout: '' }
+    // The code is in format: "const context = {...};\nreturn Boolean(...)"
+    // We need to execute it and return the result
+    const fn = new Function(code)
+    const result = fn()
+    return { success: true, output: { result } }
   } catch (error: any) {
     return {
-      result: null,
-      stdout: '',
-      error: { message: error.message, name: error.name || 'Error' },
+      success: false,
+      error: error.message,
     }
   }
 }
@@ -143,8 +148,8 @@ describe('ConditionBlockHandler', () => {
 
     vi.clearAllMocks()
 
-    mockExecuteInIsolatedVM.mockImplementation(async ({ code, contextVariables }) => {
-      return simulateIsolatedVMExecution(code, contextVariables)
+    mockExecuteTool.mockImplementation(async (_toolId: string, params: { code: string }) => {
+      return simulateConditionExecution(params.code)
     })
   })
 
@@ -170,7 +175,6 @@ describe('ConditionBlockHandler', () => {
         blockType: 'target',
         blockTitle: 'Target Block 1',
       },
-      selectedConditionId: 'cond1',
       selectedOption: 'cond1',
     }
 
@@ -210,7 +214,6 @@ describe('ConditionBlockHandler', () => {
         blockType: 'target',
         blockTitle: 'Target Block 2',
       },
-      selectedConditionId: 'else1',
       selectedOption: 'else1',
     }
 
@@ -371,7 +374,7 @@ describe('ConditionBlockHandler', () => {
     const result = await handler.execute(contextWithoutSource, mockBlock, inputs)
 
     expect(result).toHaveProperty('conditionResult', true)
-    expect(result).toHaveProperty('selectedConditionId', 'cond1')
+    expect(result).toHaveProperty('selectedOption', 'cond1')
   })
 
   it('should throw error if target block is missing', async () => {
@@ -419,7 +422,6 @@ describe('ConditionBlockHandler', () => {
 
     expect((result as any).conditionResult).toBe(false)
     expect((result as any).selectedPath).toBeNull()
-    expect((result as any).selectedConditionId).toBeNull()
     expect((result as any).selectedOption).toBeNull()
     expect(mockContext.decisions.condition.has(mockBlock.id)).toBe(false)
   })
@@ -438,6 +440,6 @@ describe('ConditionBlockHandler', () => {
     const result = await handler.execute(mockContext, mockBlock, inputs)
 
     expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('else1')
-    expect((result as any).selectedConditionId).toBe('else1')
+    expect((result as any).selectedOption).toBe('else1')
   })
 })

@@ -18,7 +18,7 @@ import { useShallow } from 'zustand/react/shallow'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/other/oauth-request-access'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { OAuthProvider } from '@/lib/oauth'
-import { CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -40,6 +40,10 @@ import {
   useCurrentWorkflow,
   useNodeUtilities,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import {
+  clampPositionToContainer,
+  estimateBlockDimensions,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-node-utilities'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
@@ -694,16 +698,18 @@ const WorkflowContent = React.memo(() => {
             return
           }
 
-          // Calculate position relative to the container's content area
-          // Account for header (50px), left padding (16px), and top padding (16px)
-          const headerHeight = 50
-          const leftPadding = 16
-          const topPadding = 16
-
-          const relativePosition = {
-            x: position.x - containerInfo.loopPosition.x - leftPadding,
-            y: position.y - containerInfo.loopPosition.y - headerHeight - topPadding,
+          // Calculate raw position relative to container origin
+          const rawPosition = {
+            x: position.x - containerInfo.loopPosition.x,
+            y: position.y - containerInfo.loopPosition.y,
           }
+
+          // Clamp position to keep block inside container's content area
+          const relativePosition = clampPositionToContainer(
+            rawPosition,
+            containerInfo.dimensions,
+            estimateBlockDimensions(data.type)
+          )
 
           // Capture existing child blocks before adding the new one
           const existingChildBlocks = Object.values(blocks).filter(
@@ -1642,11 +1648,6 @@ const WorkflowContent = React.memo(() => {
   const onConnect = useCallback(
     (connection: any) => {
       if (connection.source && connection.target) {
-        // Prevent self-connections
-        if (connection.source === connection.target) {
-          return
-        }
-
         // Check if connecting nodes across container boundaries
         const sourceNode = getNodes().find((n) => n.id === connection.source)
         const targetNode = getNodes().find((n) => n.id === connection.target)
@@ -1915,17 +1916,47 @@ const WorkflowContent = React.memo(() => {
       })
       document.body.style.cursor = ''
 
+      // Get the block's current parent (if any)
+      const currentBlock = blocks[node.id]
+      const currentParentId = currentBlock?.data?.parentId
+
+      // Calculate position - clamp if inside a container
+      let finalPosition = node.position
+      if (currentParentId) {
+        // Block is inside a container - clamp position to keep it fully inside
+        const parentNode = getNodes().find((n) => n.id === currentParentId)
+        if (parentNode) {
+          const containerDimensions = {
+            width: parentNode.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+            height: parentNode.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+          }
+          const blockDimensions = {
+            width: BLOCK_DIMENSIONS.FIXED_WIDTH,
+            height: Math.max(
+              currentBlock?.height || BLOCK_DIMENSIONS.MIN_HEIGHT,
+              BLOCK_DIMENSIONS.MIN_HEIGHT
+            ),
+          }
+
+          finalPosition = clampPositionToContainer(
+            node.position,
+            containerDimensions,
+            blockDimensions
+          )
+        }
+      }
+
       // Emit collaborative position update for the final position
       // This ensures other users see the smooth final position
-      collaborativeUpdateBlockPosition(node.id, node.position, true)
+      collaborativeUpdateBlockPosition(node.id, finalPosition, true)
 
       // Record single move entry on drag end to avoid micro-moves
       const start = getDragStartPosition()
       if (start && start.id === node.id) {
         const before = { x: start.x, y: start.y, parentId: start.parentId }
         const after = {
-          x: node.position.x,
-          y: node.position.y,
+          x: finalPosition.x,
+          y: finalPosition.y,
           parentId: node.parentId || blocks[node.id]?.data?.parentId,
         }
         const moved =

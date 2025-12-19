@@ -1,28 +1,12 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type {
+  SalesforceListObjectsParams,
+  SalesforceListObjectsResponse,
+} from '@/tools/salesforce/types'
+import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { extractErrorMessage, getInstanceUrl } from './utils'
 
 const logger = createLogger('SalesforceQuery')
-
-export interface SalesforceListObjectsParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-}
-
-export interface SalesforceListObjectsResponse {
-  success: boolean
-  output: {
-    objects: any[]
-    encoding?: string
-    maxBatchSize?: number
-    metadata: {
-      operation: 'list_objects'
-      totalReturned: number
-    }
-    success: boolean
-  }
-}
 
 /**
  * List all available Salesforce objects

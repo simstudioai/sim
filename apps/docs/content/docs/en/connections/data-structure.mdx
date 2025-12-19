@@ -106,26 +106,24 @@ Different block types produce different output structures. Here's what you can e
   <Tab>
     ```json
     {
-      "content": "Original content passed through",
       "conditionResult": true,
       "selectedPath": {
         "blockId": "2acd9007-27e8-4510-a487-73d3b825e7c1",
         "blockType": "agent",
         "blockTitle": "Follow-up Agent"
       },
-      "selectedConditionId": "condition-1"
+      "selectedOption": "condition-1"
     }
     ```
 
     ### Condition Block Output Fields
 
-    - **content**: The original content passed through
     - **conditionResult**: Boolean result of the condition evaluation
     - **selectedPath**: Information about the selected path
       - **blockId**: ID of the next block in the selected path
       - **blockType**: Type of the next block
       - **blockTitle**: Title of the next block
-    - **selectedConditionId**: ID of the selected condition
+    - **selectedOption**: ID of the selected condition
 
   </Tab>
   <Tab>

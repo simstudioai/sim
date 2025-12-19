@@ -74,6 +74,7 @@ export function TriggerSave({
     blockId,
     triggerId: effectiveTriggerId,
     isPreview,
+    useWebhookUrl: true, // to store the webhook url in the store
   })
 
   const triggerConfig = useSubBlockStore((state) => state.getValue(blockId, 'triggerConfig'))

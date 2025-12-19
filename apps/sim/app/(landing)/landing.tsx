@@ -2,7 +2,6 @@ import { Suspense } from 'react'
 import dynamic from 'next/dynamic'
 import { Background, Footer, Nav, StructuredData } from '@/app/(landing)/components'
 
-// Lazy load heavy components for better initial load performance
 const Hero = dynamic(() => import('@/app/(landing)/components/hero/hero'), {
   loading: () => <div className='h-[600px] animate-pulse bg-gray-50' />,
 })

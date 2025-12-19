@@ -110,28 +110,20 @@ export const auth = betterAuth({
     account: {
       create: {
         before: async (account) => {
+          // Only one credential per (userId, providerId) is allowed
+          // If user reconnects (even with a different external account), replace the existing one
           const existing = await db.query.account.findFirst({
             where: and(
               eq(schema.account.userId, account.userId),
-              eq(schema.account.providerId, account.providerId),
-              eq(schema.account.accountId, account.accountId)
+              eq(schema.account.providerId, account.providerId)
             ),
           })
 
           if (existing) {
-            logger.warn(
-              '[databaseHooks.account.create.before] Duplicate account detected, updating existing',
-              {
-                existingId: existing.id,
-                userId: account.userId,
-                providerId: account.providerId,
-                accountId: account.accountId,
-              }
-            )
-
             await db
               .update(schema.account)
               .set({
+                accountId: account.accountId,
                 accessToken: account.accessToken,
                 refreshToken: account.refreshToken,
                 idToken: account.idToken,
@@ -733,17 +725,17 @@ export const auth = betterAuth({
           scopes: ['login', 'data'],
           responseType: 'code',
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/wealthbox`,
-          getUserInfo: async (tokens) => {
+          getUserInfo: async (_tokens) => {
             try {
               logger.info('Creating Wealthbox user profile from token data')
 
-              const uniqueId = `wealthbox-${Date.now()}`
+              const uniqueId = 'wealthbox-user'
               const now = new Date()
 
               return {
                 id: uniqueId,
                 name: 'Wealthbox User',
-                email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@wealthbox.user`,
+                email: `${uniqueId}@wealthbox.user`,
                 emailVerified: false,
                 createdAt: now,
                 updatedAt: now,
@@ -1655,33 +1647,42 @@ export const auth = betterAuth({
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/slack`,
           getUserInfo: async (tokens) => {
             try {
-              logger.info('Creating Slack bot profile from token data')
+              const response = await fetch('https://slack.com/api/auth.test', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
 
-              // Extract user identifier from tokens if possible
-              let userId = 'slack-bot'
-              if (tokens.idToken) {
-                try {
-                  const decodedToken = JSON.parse(
-                    Buffer.from(tokens.idToken.split('.')[1], 'base64').toString()
-                  )
-                  if (decodedToken.sub) {
-                    userId = decodedToken.sub
-                  }
-                } catch (e) {
-                  logger.warn('Failed to decode Slack ID token', { error: e })
-                }
+              if (!response.ok) {
+                logger.error('Slack auth.test failed', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
               }
 
-              const uniqueId = `${userId}-${Date.now()}`
-              const now = new Date()
+              const data = await response.json()
+
+              if (!data.ok) {
+                logger.error('Slack auth.test returned error', { error: data.error })
+                return null
+              }
+
+              const teamId = data.team_id || 'unknown'
+              const userId = data.user_id || data.bot_id || 'bot'
+              const teamName = data.team || 'Slack Workspace'
+
+              const uniqueId = `${teamId}-${userId}`
+
+              logger.info('Slack credential identifier', { teamId, userId, uniqueId, teamName })
 
               return {
                 id: uniqueId,
-                name: 'Slack Bot',
-                email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@slack.bot`,
+                name: teamName,
+                email: `${teamId}-${userId}@slack.bot`,
                 emailVerified: false,
-                createdAt: now,
-                updatedAt: now,
+                createdAt: new Date(),
+                updatedAt: new Date(),
               }
             } catch (error) {
               logger.error('Error creating Slack bot profile:', { error })
@@ -1722,7 +1723,7 @@ export const auth = betterAuth({
               const data = await response.json()
               const now = new Date()
 
-              const userId = data.user_id || `webflow-${Date.now()}`
+              const userId = data.user_id || 'user'
               const uniqueId = `webflow-${userId}`
 
               return {

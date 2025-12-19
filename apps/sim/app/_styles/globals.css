@@ -759,3 +759,24 @@ input[type="search"]::-ms-clear {
     --surface-elevated: #202020;
   }
 }
+
+/**
+ * Remove backticks from inline code in prose (Tailwind Typography default)
+ */
+.prose code::before,
+.prose code::after {
+  content: none !important;
+}
+
+/**
+ * Remove underlines from heading anchor links in prose
+ */
+.prose h1 a,
+.prose h2 a,
+.prose h3 a,
+.prose h4 a,
+.prose h5 a,
+.prose h6 a {
+  text-decoration: none !important;
+  color: inherit !important;
+}
