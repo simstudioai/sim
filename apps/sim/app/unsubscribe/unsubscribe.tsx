@@ -39,7 +39,6 @@ function UnsubscribeContent() {
       return
     }
 
-    // Validate the unsubscribe link
     fetch(
       `/api/users/me/settings/unsubscribe?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`
     )
@@ -81,9 +80,7 @@ function UnsubscribeContent() {
 
       if (result.success) {
         setUnsubscribed(true)
-        // Update the data to reflect the change
         if (data) {
-          // Type-safe property construction with validation
           const validTypes = ['all', 'marketing', 'updates', 'notifications'] as const
           if (validTypes.includes(type)) {
             if (type === 'all') {
@@ -192,7 +189,6 @@ function UnsubscribeContent() {
     )
   }
 
-  // Handle transactional emails
   if (data?.isTransactional) {
     return (
       <div className='flex min-h-screen items-center justify-center bg-background p-4'>
