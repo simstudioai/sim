@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronRight, Folder, FolderOpen } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
@@ -15,7 +15,11 @@ import {
   useItemRename,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
-import { useDeleteFolder, useDuplicateFolder } from '@/app/workspace/[workspaceId]/w/hooks'
+import {
+  useCanDelete,
+  useDeleteFolder,
+  useDuplicateFolder,
+} from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCreateFolder, useUpdateFolder } from '@/hooks/queries/folders'
 import { useCreateWorkflow } from '@/hooks/queries/workflows'
 import type { FolderTreeNode } from '@/stores/folders/store'
@@ -51,6 +55,9 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   const createWorkflowMutation = useCreateWorkflow()
   const createFolderMutation = useCreateFolder()
   const userPermissions = useUserPermissionsContext()
+
+  const { canDeleteFolder } = useCanDelete({ workspaceId })
+  const canDelete = useMemo(() => canDeleteFolder(folder.id), [canDeleteFolder, folder.id])
 
   // Delete modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -316,7 +323,7 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
         disableCreate={!userPermissions.canEdit || createWorkflowMutation.isPending}
         disableCreateFolder={!userPermissions.canEdit || createFolderMutation.isPending}
         disableDuplicate={!userPermissions.canEdit}
-        disableDelete={!userPermissions.canEdit}
+        disableDelete={!userPermissions.canEdit || !canDelete}
       />
 
       {/* Delete Modal */}

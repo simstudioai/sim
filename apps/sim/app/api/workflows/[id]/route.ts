@@ -228,6 +228,21 @@ export async function DELETE(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
+    // Check if this is the last workflow in the workspace
+    if (workflowData.workspaceId) {
+      const totalWorkflowsInWorkspace = await db
+        .select({ id: workflow.id })
+        .from(workflow)
+        .where(eq(workflow.workspaceId, workflowData.workspaceId))
+
+      if (totalWorkflowsInWorkspace.length <= 1) {
+        return NextResponse.json(
+          { error: 'Cannot delete the only workflow in the workspace' },
+          { status: 400 }
+        )
+      }
+    }
+
     // Check if workflow has published templates before deletion
     const { searchParams } = new URL(request.url)
     const checkTemplates = searchParams.get('check-templates') === 'true'

@@ -14,6 +14,7 @@ const mockGetWorkflowById = vi.fn()
 const mockGetWorkflowAccessContext = vi.fn()
 const mockDbDelete = vi.fn()
 const mockDbUpdate = vi.fn()
+const mockDbSelect = vi.fn()
 
 vi.mock('@/lib/auth', () => ({
   getSession: () => mockGetSession(),
@@ -49,6 +50,7 @@ vi.mock('@sim/db', () => ({
   db: {
     delete: () => mockDbDelete(),
     update: () => mockDbUpdate(),
+    select: () => mockDbSelect(),
   },
   workflow: {},
 }))
@@ -327,6 +329,13 @@ describe('Workflow By ID API Route', () => {
         isWorkspaceOwner: false,
       })
 
+      // Mock db.select() to return multiple workflows so deletion is allowed
+      mockDbSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([{ id: 'workflow-123' }, { id: 'workflow-456' }]),
+        }),
+      })
+
       mockDbDelete.mockReturnValue({
         where: vi.fn().mockResolvedValue([{ id: 'workflow-123' }]),
       })
@@ -345,6 +354,46 @@ describe('Workflow By ID API Route', () => {
       expect(response.status).toBe(200)
       const data = await response.json()
       expect(data.success).toBe(true)
+    })
+
+    it('should prevent deletion of the last workflow in workspace', async () => {
+      const mockWorkflow = {
+        id: 'workflow-123',
+        userId: 'user-123',
+        name: 'Test Workflow',
+        workspaceId: 'workspace-456',
+      }
+
+      mockGetSession.mockResolvedValue({
+        user: { id: 'user-123' },
+      })
+
+      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
+      mockGetWorkflowAccessContext.mockResolvedValue({
+        workflow: mockWorkflow,
+        workspaceOwnerId: 'workspace-456',
+        workspacePermission: 'admin',
+        isOwner: true,
+        isWorkspaceOwner: false,
+      })
+
+      // Mock db.select() to return only 1 workflow (the one being deleted)
+      mockDbSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([{ id: 'workflow-123' }]),
+        }),
+      })
+
+      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
+        method: 'DELETE',
+      })
+      const params = Promise.resolve({ id: 'workflow-123' })
+
+      const response = await DELETE(req, { params })
+
+      expect(response.status).toBe(400)
+      const data = await response.json()
+      expect(data.error).toBe('Cannot delete the only workflow in the workspace')
     })
 
     it.concurrent('should deny deletion for non-admin users', async () => {

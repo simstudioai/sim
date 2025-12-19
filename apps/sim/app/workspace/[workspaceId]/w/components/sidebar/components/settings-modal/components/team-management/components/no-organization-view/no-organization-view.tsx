@@ -55,16 +55,31 @@ export function NoOrganizationView({
 
           {/* Form fields - clean layout without card */}
           <div className='space-y-4'>
+            {/* Hidden decoy field to prevent browser autofill */}
+            <input
+              type='text'
+              name='fakeusernameremembered'
+              autoComplete='username'
+              style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+              tabIndex={-1}
+              readOnly
+            />
             <div>
-              <Label htmlFor='orgName' className='font-medium text-[13px]'>
+              <Label htmlFor='team-name-field' className='font-medium text-[13px]'>
                 Team Name
               </Label>
               <Input
-                id='orgName'
+                id='team-name-field'
                 value={orgName}
                 onChange={onOrgNameChange}
                 placeholder='My Team'
                 className='mt-1'
+                name='team_name_field'
+                autoComplete='off'
+                autoCorrect='off'
+                autoCapitalize='off'
+                data-lpignore='true'
+                data-form-type='other'
               />
             </div>
 
@@ -116,31 +131,52 @@ export function NoOrganizationView({
             </ModalHeader>
 
             <div className='space-y-4'>
+              {/* Hidden decoy field to prevent browser autofill */}
+              <input
+                type='text'
+                name='fakeusernameremembered'
+                autoComplete='username'
+                style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+                tabIndex={-1}
+                readOnly
+              />
               <div>
-                <Label htmlFor='org-name' className='font-medium text-[13px]'>
+                <Label htmlFor='org-name-field' className='font-medium text-[13px]'>
                   Organization Name
                 </Label>
                 <Input
-                  id='org-name'
+                  id='org-name-field'
                   placeholder='Enter organization name'
                   value={orgName}
                   onChange={onOrgNameChange}
                   disabled={isCreatingOrg}
                   className='mt-1'
+                  name='org_name_field'
+                  autoComplete='off'
+                  autoCorrect='off'
+                  autoCapitalize='off'
+                  data-lpignore='true'
+                  data-form-type='other'
                 />
               </div>
 
               <div>
-                <Label htmlFor='org-slug' className='font-medium text-[13px]'>
+                <Label htmlFor='org-slug-field' className='font-medium text-[13px]'>
                   Organization Slug
                 </Label>
                 <Input
-                  id='org-slug'
+                  id='org-slug-field'
                   placeholder='organization-slug'
                   value={orgSlug}
                   onChange={(e) => setOrgSlug(e.target.value)}
                   disabled={isCreatingOrg}
                   className='mt-1'
+                  name='org_slug_field'
+                  autoComplete='off'
+                  autoCorrect='off'
+                  autoCapitalize='off'
+                  data-lpignore='true'
+                  data-form-type='other'
                 />
               </div>
             </div>
