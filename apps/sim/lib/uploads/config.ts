@@ -85,6 +85,18 @@ export const BLOB_PROFILE_PICTURES_CONFIG = {
   containerName: env.AZURE_STORAGE_PROFILE_PICTURES_CONTAINER_NAME || '',
 }
 
+export const S3_OG_IMAGES_CONFIG = {
+  bucket: env.S3_OG_IMAGES_BUCKET_NAME || '',
+  region: env.AWS_REGION || '',
+}
+
+export const BLOB_OG_IMAGES_CONFIG = {
+  accountName: env.AZURE_ACCOUNT_NAME || '',
+  accountKey: env.AZURE_ACCOUNT_KEY || '',
+  connectionString: env.AZURE_CONNECTION_STRING || '',
+  containerName: env.AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME || '',
+}
+
 /**
  * Get the current storage provider as a human-readable string
  */
@@ -151,6 +163,11 @@ function getS3Config(context: StorageContext): StorageConfig {
         bucket: S3_PROFILE_PICTURES_CONFIG.bucket,
         region: S3_PROFILE_PICTURES_CONFIG.region,
       }
+    case 'og-images':
+      return {
+        bucket: S3_OG_IMAGES_CONFIG.bucket || S3_CONFIG.bucket,
+        region: S3_OG_IMAGES_CONFIG.region || S3_CONFIG.region,
+      }
     default:
       return {
         bucket: S3_CONFIG.bucket,
@@ -205,6 +222,13 @@ function getBlobConfig(context: StorageContext): StorageConfig {
         accountKey: BLOB_PROFILE_PICTURES_CONFIG.accountKey,
         connectionString: BLOB_PROFILE_PICTURES_CONFIG.connectionString,
         containerName: BLOB_PROFILE_PICTURES_CONFIG.containerName,
+      }
+    case 'og-images':
+      return {
+        accountName: BLOB_OG_IMAGES_CONFIG.accountName || BLOB_CONFIG.accountName,
+        accountKey: BLOB_OG_IMAGES_CONFIG.accountKey || BLOB_CONFIG.accountKey,
+        connectionString: BLOB_OG_IMAGES_CONFIG.connectionString || BLOB_CONFIG.connectionString,
+        containerName: BLOB_OG_IMAGES_CONFIG.containerName || BLOB_CONFIG.containerName,
       }
     default:
       return {

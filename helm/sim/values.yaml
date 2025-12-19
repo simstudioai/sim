@@ -133,6 +133,7 @@ app:
     S3_CHAT_BUCKET_NAME: ""                               # S3 bucket for deployed chat files
     S3_COPILOT_BUCKET_NAME: ""                            # S3 bucket for copilot files
     S3_PROFILE_PICTURES_BUCKET_NAME: ""                   # S3 bucket for user profile pictures
+    S3_OG_IMAGES_BUCKET_NAME: ""                          # S3 bucket for OpenGraph preview images
 
     # Azure Blob Storage Configuration (optional - for file storage)
     # If configured, files will be stored in Azure Blob instead of local storage
@@ -146,6 +147,7 @@ app:
     AZURE_STORAGE_CHAT_CONTAINER_NAME: ""                 # Azure container for deployed chat files
     AZURE_STORAGE_COPILOT_CONTAINER_NAME: ""              # Azure container for copilot files
     AZURE_STORAGE_PROFILE_PICTURES_CONTAINER_NAME: ""     # Azure container for user profile pictures
+    AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME: ""            # Azure container for OpenGraph preview images
 
   # Service configuration
   service:

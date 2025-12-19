@@ -58,6 +58,7 @@ app:
     AZURE_STORAGE_CHAT_CONTAINER_NAME: "chat-files"       # Deployed chat assets container
     AZURE_STORAGE_COPILOT_CONTAINER_NAME: "copilot-files" # Copilot attachments container
     AZURE_STORAGE_PROFILE_PICTURES_CONTAINER_NAME: "profile-pictures"  # User avatars container
+    AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME: "og-images"   # OpenGraph preview images container
 
 # Realtime service
 realtime:

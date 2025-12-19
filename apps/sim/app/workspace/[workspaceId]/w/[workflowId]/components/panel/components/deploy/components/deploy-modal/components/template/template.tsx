@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import {
   Button,
@@ -18,6 +18,7 @@ import { Skeleton, TagInput } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
+import { captureAndUploadOGImage, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH } from '@/lib/og'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
 import {
   useCreateTemplate,
@@ -25,6 +26,7 @@ import {
   useTemplateByWorkflow,
   useUpdateTemplate,
 } from '@/hooks/queries/templates'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('TemplateDeploy')
@@ -79,6 +81,9 @@ export function TemplateDeploy({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [creatorOptions, setCreatorOptions] = useState<CreatorOption[]>([])
   const [loadingCreators, setLoadingCreators] = useState(false)
+  const [isCapturing, setIsCapturing] = useState(false)
+  const previewContainerRef = useRef<HTMLDivElement>(null)
+  const ogCaptureRef = useRef<HTMLDivElement>(null)
 
   const [formData, setFormData] = useState<TemplateFormData>(initialFormData)
 
@@ -208,6 +213,8 @@ export function TemplateDeploy({
         tags: formData.tags,
       }
 
+      let templateId: string
+
       if (existingTemplate) {
         await updateMutation.mutateAsync({
           id: existingTemplate.id,
@@ -216,11 +223,30 @@ export function TemplateDeploy({
             updateState: true,
           },
         })
+        templateId = existingTemplate.id
       } else {
-        await createMutation.mutateAsync({ ...templateData, workflowId })
+        const result = await createMutation.mutateAsync({ ...templateData, workflowId })
+        templateId = result.id
       }
 
       logger.info(`Template ${existingTemplate ? 'updated' : 'created'} successfully`)
+
+      setIsCapturing(true)
+      setTimeout(async () => {
+        try {
+          if (ogCaptureRef.current) {
+            const ogUrl = await captureAndUploadOGImage(ogCaptureRef.current, templateId)
+            if (ogUrl) {
+              logger.info(`OG image uploaded for template ${templateId}: ${ogUrl}`)
+            }
+          }
+        } catch (ogError) {
+          logger.warn('Failed to capture/upload OG image:', ogError)
+        } finally {
+          setIsCapturing(false)
+        }
+      }, 100)
+
       onDeploymentComplete?.()
     } catch (error) {
       logger.error('Failed to save template:', error)
@@ -275,6 +301,7 @@ export function TemplateDeploy({
               Live Template
             </Label>
             <div
+              ref={previewContainerRef}
               className='[&_*]:!cursor-default relative h-[260px] w-full cursor-default overflow-hidden rounded-[4px] border border-[var(--border)]'
               onWheelCapture={(e) => {
                 if (e.ctrlKey || e.metaKey) return
@@ -423,9 +450,62 @@ export function TemplateDeploy({
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Hidden container for OG image capture */}
+      {isCapturing && <OGCaptureContainer ref={ogCaptureRef} />}
     </div>
   )
 }
+
+/**
+ * Hidden container for OG image capture.
+ * Lazy-rendered only when capturing - gets workflow state from store on mount.
+ */
+const OGCaptureContainer = React.forwardRef<HTMLDivElement>((_, ref) => {
+  const blocks = useWorkflowStore((state) => state.blocks)
+  const edges = useWorkflowStore((state) => state.edges)
+  const loops = useWorkflowStore((state) => state.loops)
+  const parallels = useWorkflowStore((state) => state.parallels)
+
+  if (!blocks || Object.keys(blocks).length === 0) {
+    return null
+  }
+
+  const workflowState: WorkflowState = {
+    blocks,
+    edges: edges ?? [],
+    loops: loops ?? {},
+    parallels: parallels ?? {},
+    lastSaved: Date.now(),
+  }
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        position: 'absolute',
+        left: '-9999px',
+        top: '-9999px',
+        width: OG_IMAGE_WIDTH,
+        height: OG_IMAGE_HEIGHT,
+        backgroundColor: '#0c0c0c',
+        overflow: 'hidden',
+      }}
+      aria-hidden='true'
+    >
+      <WorkflowPreview
+        workflowState={workflowState}
+        showSubBlocks={true}
+        height='100%'
+        width='100%'
+        isPannable={false}
+        defaultZoom={0.5}
+      />
+    </div>
+  )
+})
+
+OGCaptureContainer.displayName = 'OGCaptureContainer'
 
 interface TemplatePreviewContentProps {
   existingTemplate:

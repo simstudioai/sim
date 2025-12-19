@@ -1381,6 +1381,7 @@ export const templates = pgTable(
     tags: text('tags').array().notNull().default(sql`'{}'::text[]`), // Array of tags
     requiredCredentials: jsonb('required_credentials').notNull().default('[]'), // Array of credential requirements
     state: jsonb('state').notNull(), // Store the workflow state directly
+    ogImageUrl: text('og_image_url'), // Pre-generated OpenGraph image URL
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
