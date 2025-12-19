@@ -1,3 +1,26 @@
+/**
+ * DatePicker component with calendar dropdown for date selection.
+ * Uses Radix UI Popover primitives for positioning and accessibility.
+ *
+ * @example
+ * ```tsx
+ * // Basic date picker
+ * <DatePicker
+ *   value={date}
+ *   onChange={(isoString) => setDate(isoString)}
+ *   placeholder="Select date"
+ * />
+ *
+ * // With time selection
+ * <DatePicker
+ *   value={dateTime}
+ *   onChange={(isoString) => setDateTime(isoString)}
+ *   includeTime
+ *   placeholder="Select date and time"
+ * />
+ * ```
+ */
+
 'use client'
 
 import * as React from 'react'
@@ -6,6 +29,10 @@ import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 import { Popover, PopoverAnchor, PopoverContent } from '../popover/popover'
 
+/**
+ * Variant styles for the date picker trigger button.
+ * Matches the combobox and input styling patterns.
+ */
 const datePickerVariants = cva(
   'flex w-full rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] dark:bg-[var(--surface-9)] px-[8px] font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] dark:placeholder:text-[var(--text-muted)] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 hover:border-[var(--surface-14)] hover:bg-[var(--surface-9)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--surface-11)]',
   {
@@ -42,6 +69,9 @@ export interface DatePickerProps
   size?: 'default' | 'sm'
 }
 
+/**
+ * Month names for calendar display.
+ */
 const MONTHS = [
   'January',
   'February',
@@ -57,16 +87,28 @@ const MONTHS = [
   'December',
 ]
 
+/**
+ * Day abbreviations for calendar header.
+ */
 const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
+/**
+ * Gets the number of days in a given month.
+ */
 function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate()
 }
 
+/**
+ * Gets the day of the week (0-6) for the first day of the month.
+ */
 function getFirstDayOfMonth(year: number, month: number): number {
   return new Date(year, month, 1).getDay()
 }
 
+/**
+ * Formats a date for display in the trigger button.
+ */
 function formatDateForDisplay(date: Date | null, includeTime: boolean): string {
   if (!date) return ''
   const options: Intl.DateTimeFormatOptions = {
@@ -81,6 +123,9 @@ function formatDateForDisplay(date: Date | null, includeTime: boolean): string {
   return date.toLocaleDateString('en-US', options)
 }
 
+/**
+ * Parses a string or Date value into a Date object.
+ */
 function parseDate(value: string | Date | undefined): Date | null {
   if (!value) return null
   if (value instanceof Date) return value
@@ -94,7 +139,7 @@ function parseDate(value: string | Date | undefined): Date | null {
 
 /**
  * DatePicker component matching emcn design patterns.
- * Provides a calendar dropdown for date selection.
+ * Provides a calendar dropdown for date selection with optional time input.
  */
 const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
   (
@@ -139,6 +184,9 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
       }
     }, [value])
 
+    /**
+     * Handles selection of a specific day in the calendar.
+     */
     const handleSelectDate = React.useCallback(
       (day: number) => {
         const newDate = new Date(viewYear, viewMonth, day, hour, minute)
@@ -150,6 +198,9 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
       [viewYear, viewMonth, hour, minute, onChange, includeTime]
     )
 
+    /**
+     * Handles time input changes.
+     */
     const handleTimeChange = React.useCallback(
       (newHour: number, newMinute: number) => {
         setHour(newHour)
@@ -168,24 +219,33 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
       [selectedDate, onChange]
     )
 
-    const goToPrevMonth = () => {
+    /**
+     * Navigates to the previous month.
+     */
+    const goToPrevMonth = React.useCallback(() => {
       if (viewMonth === 0) {
         setViewMonth(11)
-        setViewYear(viewYear - 1)
+        setViewYear((prev) => prev - 1)
       } else {
-        setViewMonth(viewMonth - 1)
+        setViewMonth((prev) => prev - 1)
       }
-    }
+    }, [viewMonth])
 
-    const goToNextMonth = () => {
+    /**
+     * Navigates to the next month.
+     */
+    const goToNextMonth = React.useCallback(() => {
       if (viewMonth === 11) {
         setViewMonth(0)
-        setViewYear(viewYear + 1)
+        setViewYear((prev) => prev + 1)
       } else {
-        setViewMonth(viewMonth + 1)
+        setViewMonth((prev) => prev + 1)
       }
-    }
+    }, [viewMonth])
 
+    /**
+     * Selects today's date and optionally closes the picker.
+     */
     const handleSelectToday = React.useCallback(() => {
       const now = new Date()
       // Update view to show today's month/year
@@ -202,30 +262,69 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
     const daysInMonth = getDaysInMonth(viewYear, viewMonth)
     const firstDayOfMonth = getFirstDayOfMonth(viewYear, viewMonth)
     const today = new Date()
-    const isToday = (day: number) => {
-      return (
-        today.getDate() === day &&
-        today.getMonth() === viewMonth &&
-        today.getFullYear() === viewYear
-      )
-    }
-    const isSelected = (day: number) => {
-      return (
-        selectedDate &&
-        selectedDate.getDate() === day &&
-        selectedDate.getMonth() === viewMonth &&
-        selectedDate.getFullYear() === viewYear
-      )
-    }
+
+    /**
+     * Checks if a day is today's date.
+     */
+    const isToday = React.useCallback(
+      (day: number) => {
+        return (
+          today.getDate() === day &&
+          today.getMonth() === viewMonth &&
+          today.getFullYear() === viewYear
+        )
+      },
+      [viewMonth, viewYear]
+    )
+
+    /**
+     * Checks if a day is the currently selected date.
+     */
+    const isSelected = React.useCallback(
+      (day: number) => {
+        return (
+          selectedDate &&
+          selectedDate.getDate() === day &&
+          selectedDate.getMonth() === viewMonth &&
+          selectedDate.getFullYear() === viewYear
+        )
+      },
+      [selectedDate, viewMonth, viewYear]
+    )
 
     // Build calendar grid
-    const calendarDays: (number | null)[] = []
-    for (let i = 0; i < firstDayOfMonth; i++) {
-      calendarDays.push(null)
-    }
-    for (let day = 1; day <= daysInMonth; day++) {
-      calendarDays.push(day)
-    }
+    const calendarDays = React.useMemo(() => {
+      const days: (number | null)[] = []
+      for (let i = 0; i < firstDayOfMonth; i++) {
+        days.push(null)
+      }
+      for (let day = 1; day <= daysInMonth; day++) {
+        days.push(day)
+      }
+      return days
+    }, [firstDayOfMonth, daysInMonth])
+
+    /**
+     * Handles keyboard events on the trigger.
+     */
+    const handleKeyDown = React.useCallback(
+      (e: React.KeyboardEvent) => {
+        if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault()
+          setOpen(!open)
+        }
+      },
+      [disabled, open]
+    )
+
+    /**
+     * Handles click on the trigger.
+     */
+    const handleTriggerClick = React.useCallback(() => {
+      if (!disabled) {
+        setOpen(!open)
+      }
+    }, [disabled, open])
 
     return (
       <Popover open={open} onOpenChange={setOpen}>
@@ -240,13 +339,8 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
                 'relative cursor-pointer items-center justify-between',
                 className
               )}
-              onClick={() => !disabled && setOpen(!open)}
-              onKeyDown={(e) => {
-                if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
-                  e.preventDefault()
-                  setOpen(!open)
-                }
-              }}
+              onClick={handleTriggerClick}
+              onKeyDown={handleKeyDown}
             >
               <span className={cn('flex-1 truncate', !selectedDate && 'text-[var(--text-muted)]')}>
                 {selectedDate ? formatDateForDisplay(selectedDate, includeTime) : placeholder}

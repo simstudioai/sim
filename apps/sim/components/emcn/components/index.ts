@@ -10,7 +10,7 @@ export {
   languages,
 } from './code/code'
 export { Combobox, type ComboboxOption } from './combobox/combobox'
-export { DatePicker } from './date-picker/date-picker'
+export { DatePicker, type DatePickerProps, datePickerVariants } from './date-picker/date-picker'
 export { Input } from './input/input'
 export { Label } from './label/label'
 export {
