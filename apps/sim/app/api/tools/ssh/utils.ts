@@ -1,4 +1,7 @@
 import { type Attributes, Client, type ConnectConfig } from 'ssh2'
+import { createLogger } from '@/lib/logs/console/logger'
+
+const logger = createLogger('SSHUtils')
 
 // File type constants from POSIX
 const S_IFMT = 0o170000 // bit mask for the file type bit field
@@ -32,7 +35,6 @@ function formatSSHError(err: Error, config: { host: string; port: number }): Err
   const host = config.host
   const port = config.port
 
-  // Connection refused - server not running or wrong port
   if (errorMessage.includes('econnrefused') || errorMessage.includes('connection refused')) {
     return new Error(
       `Connection refused to ${host}:${port}. ` +
@@ -42,7 +44,6 @@ function formatSSHError(err: Error, config: { host: string; port: number }): Err
     )
   }
 
-  // Connection reset - server closed connection unexpectedly
   if (errorMessage.includes('econnreset') || errorMessage.includes('connection reset')) {
     return new Error(
       `Connection reset by ${host}:${port}. ` +
@@ -53,7 +54,6 @@ function formatSSHError(err: Error, config: { host: string; port: number }): Err
     )
   }
 
-  // Timeout - server unreachable or slow
   if (errorMessage.includes('etimedout') || errorMessage.includes('timeout')) {
     return new Error(
       `Connection timed out to ${host}:${port}. ` +
@@ -63,7 +63,6 @@ function formatSSHError(err: Error, config: { host: string; port: number }): Err
     )
   }
 
-  // DNS/hostname resolution
   if (errorMessage.includes('enotfound') || errorMessage.includes('getaddrinfo')) {
     return new Error(
       `Could not resolve hostname "${host}". ` +
@@ -71,7 +70,6 @@ function formatSSHError(err: Error, config: { host: string; port: number }): Err
     )
   }
 
-  // Authentication failure
   if (errorMessage.includes('authentication') || errorMessage.includes('auth')) {
     return new Error(
       `Authentication failed for user on ${host}:${port}. ` +
@@ -81,7 +79,6 @@ function formatSSHError(err: Error, config: { host: string; port: number }): Err
     )
   }
 
-  // Private key format issues
   if (
     errorMessage.includes('key') &&
     (errorMessage.includes('parse') || errorMessage.includes('invalid'))
@@ -93,7 +90,6 @@ function formatSSHError(err: Error, config: { host: string; port: number }): Err
     )
   }
 
-  // Host key verification (first connection)
   if (errorMessage.includes('host key') || errorMessage.includes('hostkey')) {
     return new Error(
       `Host key verification issue for ${host}. ` +
@@ -101,7 +97,6 @@ function formatSSHError(err: Error, config: { host: string; port: number }): Err
     )
   }
 
-  // Return original error with context if no specific match
   return new Error(`SSH connection to ${host}:${port} failed: ${err.message}`)
 }
 
@@ -205,18 +200,118 @@ export function executeSSHCommand(client: Client, command: string): Promise<SSHC
 
 /**
  * Sanitize command input to prevent command injection
+ *
+ * Removes null bytes and other dangerous control characters while preserving
+ * legitimate shell syntax. Logs warnings for potentially dangerous patterns.
+ *
+ * Note: This function does not block complex shell commands (pipes, redirects, etc.)
+ * as users legitimately need these features for remote command execution.
+ *
+ * @param command - The command to sanitize
+ * @returns The sanitized command string
+ *
+ * @example
+ * ```typescript
+ * const safeCommand = sanitizeCommand(userInput)
+ * // Use safeCommand for SSH execution
+ * ```
  */
 export function sanitizeCommand(command: string): string {
-  return command.trim()
+  let sanitized = command.replace(/\0/g, '')
+
+  sanitized = sanitized.replace(/[\x0B\x0C]/g, '')
+
+  sanitized = sanitized.trim()
+
+  const dangerousPatterns = [
+    { pattern: /\$\(.*\)/, name: 'command substitution $()' },
+    { pattern: /`.*`/, name: 'backtick command substitution' },
+    { pattern: /;\s*rm\s+-rf/i, name: 'destructive rm -rf command' },
+    { pattern: /;\s*dd\s+/i, name: 'dd command (disk operations)' },
+    { pattern: /mkfs/i, name: 'filesystem formatting command' },
+    { pattern: />\s*\/dev\/sd[a-z]/i, name: 'direct disk write' },
+  ]
+
+  for (const { pattern, name } of dangerousPatterns) {
+    if (pattern.test(sanitized)) {
+      logger.warn(`Command contains ${name}`, {
+        command: sanitized.substring(0, 100) + (sanitized.length > 100 ? '...' : ''),
+      })
+    }
+  }
+
+  return sanitized
 }
 
 /**
- * Sanitize file path - removes null bytes and trims whitespace
+ * Sanitize and validate file path to prevent path traversal attacks
+ *
+ * This function validates that a file path does not contain:
+ * - Null bytes
+ * - Path traversal sequences (.. or ../)
+ * - URL-encoded path traversal attempts
+ *
+ * @param path - The file path to sanitize and validate
+ * @returns The sanitized path if valid
+ * @throws Error if path traversal is detected
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   const safePath = sanitizePath(userInput)
+ *   // Use safePath safely
+ * } catch (error) {
+ *   // Handle invalid path
+ * }
+ * ```
  */
 export function sanitizePath(path: string): string {
   let sanitized = path.replace(/\0/g, '')
-
   sanitized = sanitized.trim()
+
+  if (sanitized.includes('%00')) {
+    logger.warn('Path contains URL-encoded null bytes', {
+      path: path.substring(0, 100),
+    })
+    throw new Error('Path contains invalid characters')
+  }
+
+  const pathTraversalPatterns = [
+    '../', // Standard Unix path traversal
+    '..\\', // Windows path traversal
+    '/../', // Mid-path traversal
+    '\\..\\', // Windows mid-path traversal
+    '%2e%2e%2f', // Fully encoded ../
+    '%2e%2e/', // Partially encoded ../
+    '%2e%2e%5c', // Fully encoded ..\
+    '%2e%2e\\', // Partially encoded ..\
+    '..%2f', // .. with encoded /
+    '..%5c', // .. with encoded \
+    '%252e%252e', // Double URL encoded ..
+    '..%252f', // .. with double encoded /
+    '..%255c', // .. with double encoded \
+  ]
+
+  const lowerPath = sanitized.toLowerCase()
+  for (const pattern of pathTraversalPatterns) {
+    if (lowerPath.includes(pattern.toLowerCase())) {
+      logger.warn('Path traversal attempt detected', {
+        pattern,
+        path: path.substring(0, 100),
+      })
+      throw new Error('Path contains invalid path traversal sequences')
+    }
+  }
+
+  const segments = sanitized.split(/[/\\]/)
+  for (const segment of segments) {
+    if (segment === '..') {
+      logger.warn('Path traversal attempt detected (.. as path segment)', {
+        path: path.substring(0, 100),
+      })
+      throw new Error('Path contains invalid path traversal sequences')
+    }
+  }
 
   return sanitized
 }

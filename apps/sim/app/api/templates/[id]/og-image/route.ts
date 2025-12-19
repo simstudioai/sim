@@ -6,6 +6,7 @@ import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
+import { verifyTemplateOwnership } from '@/lib/templates/permissions'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { isValidPng } from '@/lib/uploads/utils/validation'
 
@@ -27,15 +28,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const [template] = await db
-      .select({ id: templates.id, workflowId: templates.workflowId })
-      .from(templates)
-      .where(eq(templates.id, id))
-      .limit(1)
-
-    if (!template) {
-      logger.warn(`[${requestId}] Template not found for OG image upload: ${id}`)
-      return NextResponse.json({ error: 'Template not found' }, { status: 404 })
+    const { authorized, error, status } = await verifyTemplateOwnership(
+      id,
+      session.user.id,
+      'admin'
+    )
+    if (!authorized) {
+      logger.warn(`[${requestId}] User denied permission to upload OG image for template ${id}`)
+      return NextResponse.json({ error }, { status: status || 403 })
     }
 
     const body = await request.json()
@@ -112,6 +112,16 @@ export async function DELETE(
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { authorized, error, status } = await verifyTemplateOwnership(
+      id,
+      session.user.id,
+      'admin'
+    )
+    if (!authorized) {
+      logger.warn(`[${requestId}] User denied permission to delete OG image for template ${id}`)
+      return NextResponse.json({ error }, { status: status || 403 })
     }
 
     await db

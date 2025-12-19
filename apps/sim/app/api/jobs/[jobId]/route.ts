@@ -1,7 +1,6 @@
 import { runs } from '@trigger.dev/sdk'
 import { type NextRequest, NextResponse } from 'next/server'
-import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
-import { getSession } from '@/lib/auth'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { createErrorResponse } from '@/app/api/workflows/utils'
@@ -18,38 +17,44 @@ export async function GET(
   try {
     logger.debug(`[${requestId}] Getting status for task: ${taskId}`)
 
-    // Try session auth first (for web UI)
-    const session = await getSession()
-    let authenticatedUserId: string | null = session?.user?.id || null
-
-    if (!authenticatedUserId) {
-      const apiKeyHeader = request.headers.get('x-api-key')
-      if (apiKeyHeader) {
-        const authResult = await authenticateApiKeyFromHeader(apiKeyHeader)
-        if (authResult.success && authResult.userId) {
-          authenticatedUserId = authResult.userId
-          if (authResult.keyId) {
-            await updateApiKeyLastUsed(authResult.keyId).catch((error) => {
-              logger.warn(`[${requestId}] Failed to update API key last used timestamp:`, {
-                keyId: authResult.keyId,
-                error,
-              })
-            })
-          }
-        }
-      }
+    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    if (!authResult.success || !authResult.userId) {
+      logger.warn(`[${requestId}] Unauthorized task status request`)
+      return createErrorResponse(authResult.error || 'Authentication required', 401)
     }
 
-    if (!authenticatedUserId) {
-      return createErrorResponse('Authentication required', 401)
-    }
+    const authenticatedUserId = authResult.userId
 
-    // Fetch task status from Trigger.dev
     const run = await runs.retrieve(taskId)
 
     logger.debug(`[${requestId}] Task ${taskId} status: ${run.status}`)
 
-    // Map Trigger.dev status to our format
+    const payload = run.payload as any
+    if (payload?.workflowId) {
+      const { verifyWorkflowAccess } = await import('@/socket-server/middleware/permissions')
+      const accessCheck = await verifyWorkflowAccess(authenticatedUserId, payload.workflowId)
+      if (!accessCheck.hasAccess) {
+        logger.warn(`[${requestId}] User ${authenticatedUserId} denied access to task ${taskId}`, {
+          workflowId: payload.workflowId,
+        })
+        return createErrorResponse('Access denied', 403)
+      }
+      logger.debug(`[${requestId}] User ${authenticatedUserId} has access to task ${taskId}`)
+    } else {
+      if (payload?.userId && payload.userId !== authenticatedUserId) {
+        logger.warn(
+          `[${requestId}] User ${authenticatedUserId} attempted to access task ${taskId} owned by ${payload.userId}`
+        )
+        return createErrorResponse('Access denied', 403)
+      }
+      if (!payload?.userId) {
+        logger.warn(
+          `[${requestId}] Task ${taskId} has no ownership information in payload. Denying access for security.`
+        )
+        return createErrorResponse('Access denied', 403)
+      }
+    }
+
     const statusMap = {
       QUEUED: 'queued',
       WAITING_FOR_DEPLOY: 'queued',
@@ -67,7 +72,6 @@ export async function GET(
 
     const mappedStatus = statusMap[run.status as keyof typeof statusMap] || 'unknown'
 
-    // Build response based on status
     const response: any = {
       success: true,
       taskId,
@@ -77,21 +81,18 @@ export async function GET(
       },
     }
 
-    // Add completion details if finished
     if (mappedStatus === 'completed') {
       response.output = run.output // This contains the workflow execution results
       response.metadata.completedAt = run.finishedAt
       response.metadata.duration = run.durationMs
     }
 
-    // Add error details if failed
     if (mappedStatus === 'failed') {
       response.error = run.error
       response.metadata.completedAt = run.finishedAt
       response.metadata.duration = run.durationMs
     }
 
-    // Add progress info if still processing
     if (mappedStatus === 'processing' || mappedStatus === 'queued') {
       response.estimatedDuration = 180000 // 3 minutes max from our config
     }
@@ -107,6 +108,3 @@ export async function GET(
     return createErrorResponse('Failed to fetch task status', 500)
   }
 }
-
-// TODO: Implement task cancellation via Trigger.dev API if needed
-// export async function DELETE() { ... }

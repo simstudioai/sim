@@ -1,32 +1,72 @@
 import { db } from '@sim/db'
-import { workflowExecutionLogs, workflowExecutionSnapshots } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
+import {
+  permissions,
+  workflow,
+  workflowExecutionLogs,
+  workflowExecutionSnapshots,
+} from '@sim/db/schema'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('LogsByExecutionIdAPI')
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ executionId: string }> }
 ) {
+  const requestId = generateRequestId()
+
   try {
     const { executionId } = await params
 
-    logger.debug(`Fetching execution data for: ${executionId}`)
+    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    if (!authResult.success || !authResult.userId) {
+      logger.warn(`[${requestId}] Unauthorized execution data access attempt for: ${executionId}`)
+      return NextResponse.json(
+        { error: authResult.error || 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
-    // Get the workflow execution log to find the snapshot
+    const authenticatedUserId = authResult.userId
+
+    logger.debug(
+      `[${requestId}] Fetching execution data for: ${executionId} (auth: ${authResult.authType})`
+    )
+
     const [workflowLog] = await db
-      .select()
+      .select({
+        id: workflowExecutionLogs.id,
+        workflowId: workflowExecutionLogs.workflowId,
+        executionId: workflowExecutionLogs.executionId,
+        stateSnapshotId: workflowExecutionLogs.stateSnapshotId,
+        trigger: workflowExecutionLogs.trigger,
+        startedAt: workflowExecutionLogs.startedAt,
+        endedAt: workflowExecutionLogs.endedAt,
+        totalDurationMs: workflowExecutionLogs.totalDurationMs,
+        cost: workflowExecutionLogs.cost,
+      })
       .from(workflowExecutionLogs)
+      .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+      .innerJoin(
+        permissions,
+        and(
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityId, workflow.workspaceId),
+          eq(permissions.userId, authenticatedUserId)
+        )
+      )
       .where(eq(workflowExecutionLogs.executionId, executionId))
       .limit(1)
 
     if (!workflowLog) {
+      logger.warn(`[${requestId}] Execution not found or access denied: ${executionId}`)
       return NextResponse.json({ error: 'Workflow execution not found' }, { status: 404 })
     }
 
-    // Get the workflow state snapshot
     const [snapshot] = await db
       .select()
       .from(workflowExecutionSnapshots)
@@ -34,6 +74,7 @@ export async function GET(
       .limit(1)
 
     if (!snapshot) {
+      logger.warn(`[${requestId}] Workflow state snapshot not found for execution: ${executionId}`)
       return NextResponse.json({ error: 'Workflow state snapshot not found' }, { status: 404 })
     }
 
@@ -50,14 +91,14 @@ export async function GET(
       },
     }
 
-    logger.debug(`Successfully fetched execution data for: ${executionId}`)
+    logger.debug(`[${requestId}] Successfully fetched execution data for: ${executionId}`)
     logger.debug(
-      `Workflow state contains ${Object.keys((snapshot.stateData as any)?.blocks || {}).length} blocks`
+      `[${requestId}] Workflow state contains ${Object.keys((snapshot.stateData as any)?.blocks || {}).length} blocks`
     )
 
     return NextResponse.json(response)
   } catch (error) {
-    logger.error('Error fetching execution data:', error)
+    logger.error(`[${requestId}] Error fetching execution data:`, error)
     return NextResponse.json({ error: 'Failed to fetch execution data' }, { status: 500 })
   }
 }
