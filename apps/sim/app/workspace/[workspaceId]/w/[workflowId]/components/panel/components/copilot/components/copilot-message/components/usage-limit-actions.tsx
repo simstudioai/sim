@@ -8,11 +8,12 @@ import { isHosted } from '@/lib/core/config/feature-flags'
 import { useSubscriptionData, useUpdateUsageLimit } from '@/hooks/queries/subscription'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 
-/**
- * Component that displays actionable UI when a user hits their usage limit
- * Shows button options to increase limit or button to upgrade plan
- * After updating limit, retries the original user query
- */
+const LIMIT_INCREMENTS = [0, 50, 100] as const
+
+function roundUpToNearest50(value: number): number {
+  return Math.ceil(value / 50) * 50
+}
+
 export function UsageLimitActions() {
   const { data: subscriptionData } = useSubscriptionData()
   const updateUsageLimitMutation = useUpdateUsageLimit()
@@ -23,7 +24,9 @@ export function UsageLimitActions() {
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
   const [isHidden, setIsHidden] = useState(false)
 
-  const limitOptions = [50, 100, 150]
+  const currentLimit = subscription?.usage_limit ?? 0
+  const baseLimit = roundUpToNearest50(currentLimit) || 50
+  const limitOptions = LIMIT_INCREMENTS.map((increment) => baseLimit + increment)
 
   const handleUpdateLimit = async (newLimit: number) => {
     setSelectedAmount(newLimit)
