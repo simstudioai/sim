@@ -964,10 +964,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             const outputPaths = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks, true)
             blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
           }
-        } else if (
-          accessibleBlock.type === 'approval' ||
-          accessibleBlock.type === 'human_in_the_loop'
-        ) {
+        } else if (accessibleBlock.type === 'approval') {
           const dynamicOutputs = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks)
 
           const isSelfReference = accessibleBlockId === blockId
@@ -980,6 +977,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
             blockTags = isSelfReference ? allTags.filter((tag) => tag.endsWith('.url')) : allTags
           }
+        } else if (accessibleBlock.type === 'human_in_the_loop') {
+          blockTags = [`${normalizedBlockName}.url`]
         } else {
           const operationValue =
             mergedSubBlocks?.operation?.value ?? getSubBlockValue(accessibleBlockId, 'operation')
