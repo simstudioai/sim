@@ -81,7 +81,11 @@ async function formatTeamsGraphNotification(
   foundWorkflow: any,
   request: NextRequest
 ): Promise<any> {
-  const notification = body.value[0]
+  const notification = body.value?.[0]
+  if (!notification) {
+    logger.warn('Received empty Teams notification body')
+    return null
+  }
   const changeType = notification.changeType || 'created'
   const resource = notification.resource || ''
   const subscriptionId = notification.subscriptionId || ''

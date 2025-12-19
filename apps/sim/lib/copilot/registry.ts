@@ -33,6 +33,7 @@ export const ToolIds = z.enum([
   'knowledge_base',
   'manage_custom_tool',
   'manage_mcp_tool',
+  'sleep',
 ])
 export type ToolId = z.infer<typeof ToolIds>
 
@@ -252,6 +253,14 @@ export const ToolArgSchemas = {
       .optional()
       .describe('Required for add and edit operations. The MCP server configuration.'),
   }),
+
+  sleep: z.object({
+    seconds: z
+      .number()
+      .min(0)
+      .max(180)
+      .describe('The number of seconds to sleep (0-180, max 3 minutes)'),
+  }),
 } as const
 export type ToolArgSchemaMap = typeof ToolArgSchemas
 
@@ -318,6 +327,7 @@ export const ToolSSESchemas = {
   knowledge_base: toolCallSSEFor('knowledge_base', ToolArgSchemas.knowledge_base),
   manage_custom_tool: toolCallSSEFor('manage_custom_tool', ToolArgSchemas.manage_custom_tool),
   manage_mcp_tool: toolCallSSEFor('manage_mcp_tool', ToolArgSchemas.manage_mcp_tool),
+  sleep: toolCallSSEFor('sleep', ToolArgSchemas.sleep),
 } as const
 export type ToolSSESchemaMap = typeof ToolSSESchemas
 
@@ -550,6 +560,11 @@ export const ToolResultSchemas = {
     operation: z.enum(['add', 'edit', 'delete']),
     serverId: z.string().optional(),
     serverName: z.string().optional(),
+    message: z.string().optional(),
+  }),
+  sleep: z.object({
+    success: z.boolean(),
+    seconds: z.number(),
     message: z.string().optional(),
   }),
 } as const

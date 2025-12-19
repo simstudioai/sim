@@ -1,27 +1,12 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type {
+  SalesforceListDashboardsParams,
+  SalesforceListDashboardsResponse,
+} from '@/tools/salesforce/types'
+import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { extractErrorMessage, getInstanceUrl } from './utils'
 
 const logger = createLogger('SalesforceDashboards')
-
-export interface SalesforceListDashboardsParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  folderName?: string
-}
-
-export interface SalesforceListDashboardsResponse {
-  success: boolean
-  output: {
-    dashboards: any[]
-    metadata: {
-      operation: 'list_dashboards'
-      totalReturned: number
-    }
-    success: boolean
-  }
-}
 
 /**
  * List all dashboards accessible by the current user

@@ -1,23 +1,9 @@
+import type {
+  SalesforceDeleteTaskParams,
+  SalesforceDeleteTaskResponse,
+} from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
-
-export interface SalesforceDeleteTaskParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  taskId: string
-}
-
-export interface SalesforceDeleteTaskResponse {
-  success: boolean
-  output: {
-    id: string
-    deleted: boolean
-    metadata: {
-      operation: 'delete_task'
-    }
-  }
-}
 
 export const salesforceDeleteTaskTool: ToolConfig<
   SalesforceDeleteTaskParams,

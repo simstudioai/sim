@@ -1,32 +1,9 @@
+import type {
+  SalesforceCreateLeadParams,
+  SalesforceCreateLeadResponse,
+} from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
-
-export interface SalesforceCreateLeadParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  lastName: string
-  company: string
-  firstName?: string
-  email?: string
-  phone?: string
-  status?: string
-  leadSource?: string
-  title?: string
-  description?: string
-}
-
-export interface SalesforceCreateLeadResponse {
-  success: boolean
-  output: {
-    id: string
-    success: boolean
-    created: boolean
-    metadata: {
-      operation: 'create_lead'
-    }
-  }
-}
 
 export const salesforceCreateLeadTool: ToolConfig<
   SalesforceCreateLeadParams,

@@ -1,24 +1,12 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type {
+  SalesforceDeleteContactParams,
+  SalesforceDeleteContactResponse,
+} from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
 
 const logger = createLogger('SalesforceContacts')
-
-export interface SalesforceDeleteContactParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  contactId: string
-}
-
-export interface SalesforceDeleteContactResponse {
-  success: boolean
-  output: {
-    id: string
-    deleted: boolean
-    metadata: { operation: 'delete_contact' }
-  }
-}
 
 export const salesforceDeleteContactTool: ToolConfig<
   SalesforceDeleteContactParams,

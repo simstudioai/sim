@@ -1,30 +1,9 @@
+import type {
+  SalesforceCreateTaskParams,
+  SalesforceCreateTaskResponse,
+} from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
-
-export interface SalesforceCreateTaskParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  subject: string
-  status?: string
-  priority?: string
-  activityDate?: string
-  whoId?: string
-  whatId?: string
-  description?: string
-}
-
-export interface SalesforceCreateTaskResponse {
-  success: boolean
-  output: {
-    id: string
-    success: boolean
-    created: boolean
-    metadata: {
-      operation: 'create_task'
-    }
-  }
-}
 
 export const salesforceCreateTaskTool: ToolConfig<
   SalesforceCreateTaskParams,

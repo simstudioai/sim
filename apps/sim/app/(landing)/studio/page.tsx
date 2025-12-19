@@ -1,8 +1,7 @@
-import Image from 'next/image'
 import Link from 'next/link'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
+import { PostGrid } from '@/app/(landing)/studio/post-grid'
 
 export const revalidate = 3600
 
@@ -18,7 +17,6 @@ export default async function StudioIndex({
   const all = await getAllPostMeta()
   const filtered = tag ? all.filter((p) => p.tags.includes(tag)) : all
 
-  // Sort to ensure featured post is first on page 1
   const sorted =
     pageNum === 1
       ? filtered.sort((a, b) => {
@@ -63,69 +61,7 @@ export default async function StudioIndex({
       </div> */}
 
       {/* Grid layout for consistent rows */}
-      <div className='grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-3'>
-        {posts.map((p, i) => {
-          return (
-            <Link key={p.slug} href={`/studio/${p.slug}`} className='group flex flex-col'>
-              <div className='flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 transition-colors duration-300 hover:border-gray-300'>
-                <Image
-                  src={p.ogImage}
-                  alt={p.title}
-                  width={800}
-                  height={450}
-                  className='h-48 w-full object-cover'
-                  sizes='(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw'
-                  loading='lazy'
-                  unoptimized
-                />
-                <div className='flex flex-1 flex-col p-4'>
-                  <div className='mb-2 text-gray-600 text-xs'>
-                    {new Date(p.date).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
-                  </div>
-                  <h3 className='shine-text mb-1 font-medium text-lg leading-tight'>{p.title}</h3>
-                  <p className='mb-3 line-clamp-3 flex-1 text-gray-700 text-sm'>{p.description}</p>
-                  <div className='flex items-center gap-2'>
-                    <div className='-space-x-1.5 flex'>
-                      {(p.authors && p.authors.length > 0 ? p.authors : [p.author])
-                        .slice(0, 3)
-                        .map((author, idx) => (
-                          <Avatar key={idx} className='size-4 border border-white'>
-                            <AvatarImage src={author?.avatarUrl} alt={author?.name} />
-                            <AvatarFallback className='border border-white bg-gray-100 text-[10px] text-gray-600'>
-                              {author?.name.slice(0, 2)}
-                            </AvatarFallback>
-                          </Avatar>
-                        ))}
-                    </div>
-                    <span className='text-gray-600 text-xs'>
-                      {(p.authors && p.authors.length > 0 ? p.authors : [p.author])
-                        .slice(0, 2)
-                        .map((a) => a?.name)
-                        .join(', ')}
-                      {(p.authors && p.authors.length > 0 ? p.authors : [p.author]).length > 2 && (
-                        <>
-                          {' '}
-                          and{' '}
-                          {(p.authors && p.authors.length > 0 ? p.authors : [p.author]).length - 2}{' '}
-                          other
-                          {(p.authors && p.authors.length > 0 ? p.authors : [p.author]).length - 2 >
-                          1
-                            ? 's'
-                            : ''}
-                        </>
-                      )}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </Link>
-          )
-        })}
-      </div>
+      <PostGrid posts={posts} />
 
       {totalPages > 1 && (
         <div className='mt-10 flex items-center justify-center gap-3'>

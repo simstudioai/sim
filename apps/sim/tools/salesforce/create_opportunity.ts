@@ -1,30 +1,9 @@
+import type {
+  SalesforceCreateOpportunityParams,
+  SalesforceCreateOpportunityResponse,
+} from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
-
-export interface SalesforceCreateOpportunityParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  name: string
-  stageName: string
-  closeDate: string
-  accountId?: string
-  amount?: string
-  probability?: string
-  description?: string
-}
-
-export interface SalesforceCreateOpportunityResponse {
-  success: boolean
-  output: {
-    id: string
-    success: boolean
-    created: boolean
-    metadata: {
-      operation: 'create_opportunity'
-    }
-  }
-}
 
 export const salesforceCreateOpportunityTool: ToolConfig<
   SalesforceCreateOpportunityParams,

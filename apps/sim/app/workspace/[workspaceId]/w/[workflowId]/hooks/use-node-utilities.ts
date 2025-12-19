@@ -7,6 +7,61 @@ import { getBlock } from '@/blocks/registry'
 const logger = createLogger('NodeUtilities')
 
 /**
+ * Estimates block dimensions based on block type.
+ * Uses subblock count to estimate height for blocks that haven't been measured yet.
+ *
+ * @param blockType - The type of block (e.g., 'condition', 'agent')
+ * @returns Estimated width and height for the block
+ */
+export function estimateBlockDimensions(blockType: string): { width: number; height: number } {
+  const blockConfig = getBlock(blockType)
+  const subBlockCount = blockConfig?.subBlocks?.length ?? 3
+  // Many subblocks are conditionally rendered (advanced mode, provider-specific, etc.)
+  // Use roughly half the config count as a reasonable estimate, capped between 3-7 rows
+  const estimatedRows = Math.max(3, Math.min(Math.ceil(subBlockCount / 2), 7))
+  const hasErrorRow = blockType !== 'starter' && blockType !== 'response' ? 1 : 0
+
+  const height =
+    BLOCK_DIMENSIONS.HEADER_HEIGHT +
+    BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING +
+    (estimatedRows + hasErrorRow) * BLOCK_DIMENSIONS.WORKFLOW_ROW_HEIGHT
+
+  return {
+    width: BLOCK_DIMENSIONS.FIXED_WIDTH,
+    height: Math.max(height, BLOCK_DIMENSIONS.MIN_HEIGHT),
+  }
+}
+
+/**
+ * Clamps a position to keep a block fully inside a container's content area.
+ * Content area starts after the header and padding, and ends before the right/bottom padding.
+ *
+ * @param position - Raw position relative to container origin
+ * @param containerDimensions - Container width and height
+ * @param blockDimensions - Block width and height
+ * @returns Clamped position that keeps block inside content area
+ */
+export function clampPositionToContainer(
+  position: { x: number; y: number },
+  containerDimensions: { width: number; height: number },
+  blockDimensions: { width: number; height: number }
+): { x: number; y: number } {
+  const { width: containerWidth, height: containerHeight } = containerDimensions
+  const { width: blockWidth, height: blockHeight } = blockDimensions
+
+  // Content area bounds (where blocks can be placed)
+  const minX = CONTAINER_DIMENSIONS.LEFT_PADDING
+  const minY = CONTAINER_DIMENSIONS.HEADER_HEIGHT + CONTAINER_DIMENSIONS.TOP_PADDING
+  const maxX = containerWidth - CONTAINER_DIMENSIONS.RIGHT_PADDING - blockWidth
+  const maxY = containerHeight - CONTAINER_DIMENSIONS.BOTTOM_PADDING - blockHeight
+
+  return {
+    x: Math.max(minX, Math.min(position.x, Math.max(minX, maxX))),
+    y: Math.max(minY, Math.min(position.y, Math.max(minY, maxY))),
+  }
+}
+
+/**
  * Hook providing utilities for node position, hierarchy, and dimension calculations
  */
 export function useNodeUtilities(blocks: Record<string, any>) {
@@ -21,7 +76,7 @@ export function useNodeUtilities(blocks: Record<string, any>) {
 
   /**
    * Get the dimensions of a block.
-   * For regular blocks, estimates height based on block config if not yet measured.
+   * For regular blocks, uses stored height or estimates based on block config.
    */
   const getBlockDimensions = useCallback(
     (blockId: string): { width: number; height: number } => {
@@ -41,32 +96,16 @@ export function useNodeUtilities(blocks: Record<string, any>) {
         }
       }
 
-      // Workflow block nodes have fixed visual width
-      const width = BLOCK_DIMENSIONS.FIXED_WIDTH
-
       // Prefer deterministic height published by the block component; fallback to estimate
-      let height = block.height
-
-      if (!height) {
-        // Estimate height based on block config's subblock count for more accurate initial sizing
-        // This is critical for subflow containers to size correctly before child blocks are measured
-        const blockConfig = getBlock(block.type)
-        const subBlockCount = blockConfig?.subBlocks?.length ?? 3
-        // Many subblocks are conditionally rendered (advanced mode, provider-specific, etc.)
-        // Use roughly half the config count as a reasonable estimate, capped between 3-7 rows
-        const estimatedRows = Math.max(3, Math.min(Math.ceil(subBlockCount / 2), 7))
-        const hasErrorRow = block.type !== 'starter' && block.type !== 'response' ? 1 : 0
-
-        height =
-          BLOCK_DIMENSIONS.HEADER_HEIGHT +
-          BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING +
-          (estimatedRows + hasErrorRow) * BLOCK_DIMENSIONS.WORKFLOW_ROW_HEIGHT
+      if (block.height) {
+        return {
+          width: BLOCK_DIMENSIONS.FIXED_WIDTH,
+          height: Math.max(block.height, BLOCK_DIMENSIONS.MIN_HEIGHT),
+        }
       }
 
-      return {
-        width,
-        height: Math.max(height, BLOCK_DIMENSIONS.MIN_HEIGHT),
-      }
+      // Use shared estimation utility for blocks without measured height
+      return estimateBlockDimensions(block.type)
     },
     [blocks, isContainerType]
   )
@@ -164,29 +203,36 @@ export function useNodeUtilities(blocks: Record<string, any>) {
   )
 
   /**
-   * Calculates the relative position of a node to a new parent's content area.
-   * Accounts for header height and padding offsets in container nodes.
+   * Calculates the relative position of a node to a new parent's origin.
+   * React Flow positions children relative to parent origin, so we clamp
+   * to the content area bounds (after header and padding).
    * @param nodeId ID of the node being repositioned
    * @param newParentId ID of the new parent
-   * @returns Relative position coordinates {x, y} within the parent's content area
+   * @returns Relative position coordinates {x, y} within the parent
    */
   const calculateRelativePosition = useCallback(
     (nodeId: string, newParentId: string): { x: number; y: number } => {
       const nodeAbsPos = getNodeAbsolutePosition(nodeId)
       const parentAbsPos = getNodeAbsolutePosition(newParentId)
+      const parentNode = getNodes().find((n) => n.id === newParentId)
 
-      // Account for container's header and padding
-      // Children are positioned relative to content area, not container origin
-      const headerHeight = 50
-      const leftPadding = 16
-      const topPadding = 16
-
-      return {
-        x: nodeAbsPos.x - parentAbsPos.x - leftPadding,
-        y: nodeAbsPos.y - parentAbsPos.y - headerHeight - topPadding,
+      // Calculate raw relative position (relative to parent origin)
+      const rawPosition = {
+        x: nodeAbsPos.x - parentAbsPos.x,
+        y: nodeAbsPos.y - parentAbsPos.y,
       }
+
+      // Get container and block dimensions
+      const containerDimensions = {
+        width: parentNode?.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+        height: parentNode?.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+      }
+      const blockDimensions = getBlockDimensions(nodeId)
+
+      // Clamp position to keep block inside content area
+      return clampPositionToContainer(rawPosition, containerDimensions, blockDimensions)
     },
-    [getNodeAbsolutePosition]
+    [getNodeAbsolutePosition, getNodes, getBlockDimensions]
   )
 
   /**
@@ -252,7 +298,11 @@ export function useNodeUtilities(blocks: Record<string, any>) {
    */
   const calculateLoopDimensions = useCallback(
     (nodeId: string): { width: number; height: number } => {
-      const childNodes = getNodes().filter((node) => node.parentId === nodeId)
+      // Check both React Flow's node.parentId AND blocks store's data.parentId
+      // This ensures we catch children even if React Flow hasn't re-rendered yet
+      const childNodes = getNodes().filter(
+        (node) => node.parentId === nodeId || blocks[node.id]?.data?.parentId === nodeId
+      )
       if (childNodes.length === 0) {
         return {
           width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
@@ -265,8 +315,11 @@ export function useNodeUtilities(blocks: Record<string, any>) {
 
       childNodes.forEach((node) => {
         const { width: nodeWidth, height: nodeHeight } = getBlockDimensions(node.id)
-        maxRight = Math.max(maxRight, node.position.x + nodeWidth)
-        maxBottom = Math.max(maxBottom, node.position.y + nodeHeight)
+        // Use block position from store if available (more up-to-date)
+        const block = blocks[node.id]
+        const position = block?.position || node.position
+        maxRight = Math.max(maxRight, position.x + nodeWidth)
+        maxBottom = Math.max(maxBottom, position.y + nodeHeight)
       })
 
       const width = Math.max(
@@ -283,7 +336,7 @@ export function useNodeUtilities(blocks: Record<string, any>) {
 
       return { width, height }
     },
-    [getNodes, getBlockDimensions]
+    [getNodes, getBlockDimensions, blocks]
   )
 
   /**

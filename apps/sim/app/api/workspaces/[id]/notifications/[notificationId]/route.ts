@@ -6,13 +6,14 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { createLogger } from '@/lib/logs/console/logger'
+import { ALL_TRIGGER_TYPES } from '@/lib/logs/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { MAX_EMAIL_RECIPIENTS, MAX_WORKFLOW_IDS } from '../constants'
 
 const logger = createLogger('WorkspaceNotificationAPI')
 
 const levelFilterSchema = z.array(z.enum(['info', 'error']))
-const triggerFilterSchema = z.array(z.enum(['api', 'webhook', 'schedule', 'manual', 'chat']))
+const triggerFilterSchema = z.array(z.enum(ALL_TRIGGER_TYPES))
 
 const alertRuleSchema = z.enum([
   'consecutive_failures',

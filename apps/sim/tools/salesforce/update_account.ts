@@ -1,38 +1,11 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type {
+  SalesforceUpdateAccountParams,
+  SalesforceUpdateAccountResponse,
+} from '@/tools/salesforce/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceUpdateAccount')
-
-export interface SalesforceUpdateAccountParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  accountId: string
-  name?: string
-  type?: string
-  industry?: string
-  phone?: string
-  website?: string
-  billingStreet?: string
-  billingCity?: string
-  billingState?: string
-  billingPostalCode?: string
-  billingCountry?: string
-  description?: string
-  annualRevenue?: string
-  numberOfEmployees?: string
-}
-
-export interface SalesforceUpdateAccountResponse {
-  success: boolean
-  output: {
-    id: string
-    updated: boolean
-    metadata: {
-      operation: 'update_account'
-    }
-  }
-}
 
 export const salesforceUpdateAccountTool: ToolConfig<
   SalesforceUpdateAccountParams,

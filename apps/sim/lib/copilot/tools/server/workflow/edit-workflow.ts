@@ -8,6 +8,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -49,6 +50,8 @@ type SkippedItemType =
   | 'invalid_block_type'
   | 'invalid_edge_target'
   | 'invalid_edge_source'
+  | 'invalid_source_handle'
+  | 'invalid_target_handle'
   | 'invalid_subblock_field'
   | 'missing_required_params'
   | 'invalid_subflow_parent'
@@ -733,8 +736,279 @@ function normalizeResponseFormat(value: any): string {
   }
 }
 
+interface EdgeHandleValidationResult {
+  valid: boolean
+  error?: string
+}
+
 /**
- * Helper to add connections as edges for a block
+ * Validates source handle is valid for the block type
+ */
+function validateSourceHandleForBlock(
+  sourceHandle: string,
+  sourceBlockType: string,
+  sourceBlock: any
+): EdgeHandleValidationResult {
+  if (sourceHandle === 'error') {
+    return { valid: true }
+  }
+
+  switch (sourceBlockType) {
+    case 'loop':
+      if (sourceHandle === 'loop-start-source' || sourceHandle === 'loop-end-source') {
+        return { valid: true }
+      }
+      return {
+        valid: false,
+        error: `Invalid source handle "${sourceHandle}" for loop block. Valid handles: loop-start-source, loop-end-source, error`,
+      }
+
+    case 'parallel':
+      if (sourceHandle === 'parallel-start-source' || sourceHandle === 'parallel-end-source') {
+        return { valid: true }
+      }
+      return {
+        valid: false,
+        error: `Invalid source handle "${sourceHandle}" for parallel block. Valid handles: parallel-start-source, parallel-end-source, error`,
+      }
+
+    case 'condition': {
+      if (!sourceHandle.startsWith('condition-')) {
+        return {
+          valid: false,
+          error: `Invalid source handle "${sourceHandle}" for condition block. Must start with "condition-"`,
+        }
+      }
+
+      const conditionsValue = sourceBlock?.subBlocks?.conditions?.value
+      if (!conditionsValue) {
+        return {
+          valid: false,
+          error: `Invalid condition handle "${sourceHandle}" - no conditions defined`,
+        }
+      }
+
+      return validateConditionHandle(sourceHandle, sourceBlock.id, conditionsValue)
+    }
+
+    case 'router':
+      if (sourceHandle === 'source' || sourceHandle.startsWith('router-')) {
+        return { valid: true }
+      }
+      return {
+        valid: false,
+        error: `Invalid source handle "${sourceHandle}" for router block. Valid handles: source, router-{targetId}, error`,
+      }
+
+    default:
+      if (sourceHandle === 'source') {
+        return { valid: true }
+      }
+      return {
+        valid: false,
+        error: `Invalid source handle "${sourceHandle}" for ${sourceBlockType} block. Valid handles: source, error`,
+      }
+  }
+}
+
+/**
+ * Validates condition handle references a valid condition in the block.
+ * Accepts both internal IDs (condition-blockId-if) and semantic keys (condition-blockId-else-if)
+ */
+function validateConditionHandle(
+  sourceHandle: string,
+  blockId: string,
+  conditionsValue: string | any[]
+): EdgeHandleValidationResult {
+  let conditions: any[]
+  if (typeof conditionsValue === 'string') {
+    try {
+      conditions = JSON.parse(conditionsValue)
+    } catch {
+      return {
+        valid: false,
+        error: `Cannot validate condition handle "${sourceHandle}" - conditions is not valid JSON`,
+      }
+    }
+  } else if (Array.isArray(conditionsValue)) {
+    conditions = conditionsValue
+  } else {
+    return {
+      valid: false,
+      error: `Cannot validate condition handle "${sourceHandle}" - conditions is not an array`,
+    }
+  }
+
+  if (!Array.isArray(conditions) || conditions.length === 0) {
+    return {
+      valid: false,
+      error: `Invalid condition handle "${sourceHandle}" - no conditions defined`,
+    }
+  }
+
+  const validHandles = new Set<string>()
+  const semanticPrefix = `condition-${blockId}-`
+  let elseIfCount = 0
+
+  for (const condition of conditions) {
+    if (condition.id) {
+      validHandles.add(`condition-${condition.id}`)
+    }
+
+    const title = condition.title?.toLowerCase()
+    if (title === 'if') {
+      validHandles.add(`${semanticPrefix}if`)
+    } else if (title === 'else if') {
+      elseIfCount++
+      validHandles.add(
+        elseIfCount === 1 ? `${semanticPrefix}else-if` : `${semanticPrefix}else-if-${elseIfCount}`
+      )
+    } else if (title === 'else') {
+      validHandles.add(`${semanticPrefix}else`)
+    }
+  }
+
+  if (validHandles.has(sourceHandle)) {
+    return { valid: true }
+  }
+
+  const validOptions = Array.from(validHandles).slice(0, 5)
+  const moreCount = validHandles.size - validOptions.length
+  let validOptionsStr = validOptions.join(', ')
+  if (moreCount > 0) {
+    validOptionsStr += `, ... and ${moreCount} more`
+  }
+
+  return {
+    valid: false,
+    error: `Invalid condition handle "${sourceHandle}". Valid handles: ${validOptionsStr}`,
+  }
+}
+
+/**
+ * Validates target handle is valid (must be 'target')
+ */
+function validateTargetHandle(targetHandle: string): EdgeHandleValidationResult {
+  if (targetHandle === 'target') {
+    return { valid: true }
+  }
+  return {
+    valid: false,
+    error: `Invalid target handle "${targetHandle}". Expected "target"`,
+  }
+}
+
+/**
+ * Creates a validated edge between two blocks.
+ * Returns true if edge was created, false if skipped due to validation errors.
+ */
+function createValidatedEdge(
+  modifiedState: any,
+  sourceBlockId: string,
+  targetBlockId: string,
+  sourceHandle: string,
+  targetHandle: string,
+  operationType: string,
+  logger: ReturnType<typeof createLogger>,
+  skippedItems?: SkippedItem[]
+): boolean {
+  if (!modifiedState.blocks[targetBlockId]) {
+    logger.warn(`Target block "${targetBlockId}" not found. Edge skipped.`, {
+      sourceBlockId,
+      targetBlockId,
+      sourceHandle,
+    })
+    skippedItems?.push({
+      type: 'invalid_edge_target',
+      operationType,
+      blockId: sourceBlockId,
+      reason: `Edge from "${sourceBlockId}" to "${targetBlockId}" skipped - target block does not exist`,
+      details: { sourceHandle, targetHandle, targetId: targetBlockId },
+    })
+    return false
+  }
+
+  const sourceBlock = modifiedState.blocks[sourceBlockId]
+  if (!sourceBlock) {
+    logger.warn(`Source block "${sourceBlockId}" not found. Edge skipped.`, {
+      sourceBlockId,
+      targetBlockId,
+    })
+    skippedItems?.push({
+      type: 'invalid_edge_source',
+      operationType,
+      blockId: sourceBlockId,
+      reason: `Edge from "${sourceBlockId}" to "${targetBlockId}" skipped - source block does not exist`,
+      details: { sourceHandle, targetHandle, targetId: targetBlockId },
+    })
+    return false
+  }
+
+  const sourceBlockType = sourceBlock.type
+  if (!sourceBlockType) {
+    logger.warn(`Source block "${sourceBlockId}" has no type. Edge skipped.`, {
+      sourceBlockId,
+      targetBlockId,
+    })
+    skippedItems?.push({
+      type: 'invalid_edge_source',
+      operationType,
+      blockId: sourceBlockId,
+      reason: `Edge from "${sourceBlockId}" to "${targetBlockId}" skipped - source block has no type`,
+      details: { sourceHandle, targetHandle, targetId: targetBlockId },
+    })
+    return false
+  }
+
+  const sourceValidation = validateSourceHandleForBlock(sourceHandle, sourceBlockType, sourceBlock)
+  if (!sourceValidation.valid) {
+    logger.warn(`Invalid source handle. Edge skipped.`, {
+      sourceBlockId,
+      targetBlockId,
+      sourceHandle,
+      error: sourceValidation.error,
+    })
+    skippedItems?.push({
+      type: 'invalid_source_handle',
+      operationType,
+      blockId: sourceBlockId,
+      reason: sourceValidation.error || `Invalid source handle "${sourceHandle}"`,
+      details: { sourceHandle, targetHandle, targetId: targetBlockId },
+    })
+    return false
+  }
+
+  const targetValidation = validateTargetHandle(targetHandle)
+  if (!targetValidation.valid) {
+    logger.warn(`Invalid target handle. Edge skipped.`, {
+      sourceBlockId,
+      targetBlockId,
+      targetHandle,
+      error: targetValidation.error,
+    })
+    skippedItems?.push({
+      type: 'invalid_target_handle',
+      operationType,
+      blockId: sourceBlockId,
+      reason: targetValidation.error || `Invalid target handle "${targetHandle}"`,
+      details: { sourceHandle, targetHandle, targetId: targetBlockId },
+    })
+    return false
+  }
+
+  modifiedState.edges.push({
+    id: crypto.randomUUID(),
+    source: sourceBlockId,
+    sourceHandle,
+    target: targetBlockId,
+    targetHandle,
+    type: 'default',
+  })
+  return true
+}
+
+/**
+ * Adds connections as edges for a block
  */
 function addConnectionsAsEdges(
   modifiedState: any,
@@ -746,34 +1020,16 @@ function addConnectionsAsEdges(
   Object.entries(connections).forEach(([sourceHandle, targets]) => {
     const targetArray = Array.isArray(targets) ? targets : [targets]
     targetArray.forEach((targetId: string) => {
-      // Validate target block exists - skip edge if target doesn't exist
-      if (!modifiedState.blocks[targetId]) {
-        logger.warn(
-          `Target block "${targetId}" not found when creating connection from "${blockId}". ` +
-            `Edge skipped.`,
-          {
-            sourceBlockId: blockId,
-            targetBlockId: targetId,
-            existingBlocks: Object.keys(modifiedState.blocks),
-          }
-        )
-        skippedItems?.push({
-          type: 'invalid_edge_target',
-          operationType: 'add_edge',
-          blockId: blockId,
-          reason: `Edge from "${blockId}" to "${targetId}" skipped - target block does not exist`,
-          details: { sourceHandle, targetId },
-        })
-        return
-      }
-      modifiedState.edges.push({
-        id: crypto.randomUUID(),
-        source: blockId,
+      createValidatedEdge(
+        modifiedState,
+        blockId,
+        targetId,
         sourceHandle,
-        target: targetId,
-        targetHandle: 'target',
-        type: 'default',
-      })
+        'target',
+        'add_edge',
+        logger,
+        skippedItems
+      )
     })
   })
 }
@@ -850,13 +1106,18 @@ function applyOperationsToWorkflowState(
    * Reorder operations to ensure correct execution sequence:
    * 1. delete - Remove blocks first to free up IDs and clean state
    * 2. extract_from_subflow - Extract blocks from subflows before modifications
-   * 3. add - Create new blocks so they exist before being referenced
+   * 3. add - Create new blocks (sorted by connection dependencies)
    * 4. insert_into_subflow - Insert blocks into subflows (sorted by parent dependency)
    * 5. edit - Edit existing blocks last, so connections to newly added blocks work
    *
-   * This ordering is CRITICAL: edit operations may reference blocks being added
-   * in the same batch (e.g., connecting block A to newly added block B).
-   * Without proper ordering, the target block wouldn't exist yet.
+   * This ordering is CRITICAL: operations may reference blocks being added/inserted
+   * in the same batch. Without proper ordering, target blocks wouldn't exist yet.
+   *
+   * For add operations, we use a two-pass approach:
+   * - Pass 1: Create all blocks (without connections)
+   * - Pass 2: Add all connections (now all blocks exist)
+   * This ensures that if block A connects to block B, and both are being added,
+   * B will exist when we try to create the edge from A to B.
    */
   const deletes = operations.filter((op) => op.operation_type === 'delete')
   const extracts = operations.filter((op) => op.operation_type === 'extract_from_subflow')
@@ -868,6 +1129,8 @@ function applyOperationsToWorkflowState(
   // This handles cases where a loop/parallel is being added along with its children
   const sortedInserts = topologicalSortInserts(inserts, adds)
 
+  // We'll process add operations in two passes (handled in the switch statement below)
+  // This is tracked via a separate flag to know which pass we're in
   const orderedOperations: EditWorkflowOperation[] = [
     ...deletes,
     ...extracts,
@@ -877,14 +1140,45 @@ function applyOperationsToWorkflowState(
   ]
 
   logger.info('Operations after reordering:', {
-    order: orderedOperations.map(
+    totalOperations: orderedOperations.length,
+    deleteCount: deletes.length,
+    extractCount: extracts.length,
+    addCount: adds.length,
+    insertCount: sortedInserts.length,
+    editCount: edits.length,
+    operationOrder: orderedOperations.map(
       (op) =>
         `${op.operation_type}:${op.block_id}${op.params?.subflowId ? `(parent:${op.params.subflowId})` : ''}`
     ),
   })
 
+  // Two-pass processing for add operations:
+  // Pass 1: Create all blocks (without connections)
+  // Pass 2: Add all connections (all blocks now exist)
+  const addOperationsWithConnections: Array<{
+    blockId: string
+    connections: Record<string, any>
+  }> = []
+
   for (const operation of orderedOperations) {
     const { operation_type, block_id, params } = operation
+
+    // CRITICAL: Validate block_id is a valid string and not "undefined"
+    // This prevents undefined keys from being set in the workflow state
+    if (!isValidKey(block_id)) {
+      logSkippedItem(skippedItems, {
+        type: 'missing_required_params',
+        operationType: operation_type,
+        blockId: String(block_id || 'invalid'),
+        reason: `Invalid block_id "${block_id}" (type: ${typeof block_id}) - operation skipped. Block IDs must be valid non-empty strings.`,
+      })
+      logger.error('Invalid block_id detected in operation', {
+        operation_type,
+        block_id,
+        block_id_type: typeof block_id,
+      })
+      continue
+    }
 
     logger.debug(`Executing operation: ${operation_type} for block ${block_id}`, {
       params: params ? Object.keys(params) : [],
@@ -1128,6 +1422,22 @@ function applyOperationsToWorkflowState(
 
           // Add new nested blocks
           Object.entries(params.nestedNodes).forEach(([childId, childBlock]: [string, any]) => {
+            // Validate childId is a valid string
+            if (!isValidKey(childId)) {
+              logSkippedItem(skippedItems, {
+                type: 'missing_required_params',
+                operationType: 'add_nested_node',
+                blockId: String(childId || 'invalid'),
+                reason: `Invalid childId "${childId}" in nestedNodes - child block skipped`,
+              })
+              logger.error('Invalid childId detected in nestedNodes', {
+                parentBlockId: block_id,
+                childId,
+                childId_type: typeof childId,
+              })
+              return
+            }
+
             const childBlockState = createBlockFromParams(
               childId,
               childBlock,
@@ -1202,67 +1512,44 @@ function applyOperationsToWorkflowState(
 
         // Handle connections update (convert to edges)
         if (params?.connections) {
-          // Remove existing edges from this block
           modifiedState.edges = modifiedState.edges.filter((edge: any) => edge.source !== block_id)
 
-          // Add new edges based on connections
           Object.entries(params.connections).forEach(([connectionType, targets]) => {
             if (targets === null) return
 
-            // Map semantic connection names to actual React Flow handle IDs
-            // 'success' in YAML/connections maps to 'source' handle in React Flow
             const mapConnectionTypeToHandle = (type: string): string => {
               if (type === 'success') return 'source'
               if (type === 'error') return 'error'
-              // Conditions and other types pass through as-is
               return type
             }
 
-            const actualSourceHandle = mapConnectionTypeToHandle(connectionType)
+            const sourceHandle = mapConnectionTypeToHandle(connectionType)
 
-            const addEdge = (targetBlock: string, targetHandle?: string) => {
-              // Validate target block exists - skip edge if target doesn't exist
-              if (!modifiedState.blocks[targetBlock]) {
-                logger.warn(
-                  `Target block "${targetBlock}" not found when creating connection from "${block_id}". ` +
-                    `Edge skipped.`,
-                  {
-                    sourceBlockId: block_id,
-                    targetBlockId: targetBlock,
-                    existingBlocks: Object.keys(modifiedState.blocks),
-                  }
-                )
-                logSkippedItem(skippedItems, {
-                  type: 'invalid_edge_target',
-                  operationType: 'edit',
-                  blockId: block_id,
-                  reason: `Edge from "${block_id}" to "${targetBlock}" skipped - target block does not exist`,
-                  details: { sourceHandle: actualSourceHandle, targetId: targetBlock },
-                })
-                return
-              }
-              modifiedState.edges.push({
-                id: crypto.randomUUID(),
-                source: block_id,
-                sourceHandle: actualSourceHandle,
-                target: targetBlock,
-                targetHandle: targetHandle || 'target',
-                type: 'default',
-              })
+            const addEdgeForTarget = (targetBlock: string, targetHandle?: string) => {
+              createValidatedEdge(
+                modifiedState,
+                block_id,
+                targetBlock,
+                sourceHandle,
+                targetHandle || 'target',
+                'edit',
+                logger,
+                skippedItems
+              )
             }
 
             if (typeof targets === 'string') {
-              addEdge(targets)
+              addEdgeForTarget(targets)
             } else if (Array.isArray(targets)) {
               targets.forEach((target: any) => {
                 if (typeof target === 'string') {
-                  addEdge(target)
+                  addEdgeForTarget(target)
                 } else if (target?.block) {
-                  addEdge(target.block, target.handle)
+                  addEdgeForTarget(target.block, target.handle)
                 }
               })
             } else if (typeof targets === 'object' && (targets as any)?.block) {
-              addEdge((targets as any).block, (targets as any).handle)
+              addEdgeForTarget((targets as any).block, (targets as any).handle)
             }
           })
         }
@@ -1360,6 +1647,22 @@ function applyOperationsToWorkflowState(
         // Handle nested nodes (for loops/parallels created from scratch)
         if (params.nestedNodes) {
           Object.entries(params.nestedNodes).forEach(([childId, childBlock]: [string, any]) => {
+            // Validate childId is a valid string
+            if (!isValidKey(childId)) {
+              logSkippedItem(skippedItems, {
+                type: 'missing_required_params',
+                operationType: 'add_nested_node',
+                blockId: String(childId || 'invalid'),
+                reason: `Invalid childId "${childId}" in nestedNodes - child block skipped`,
+              })
+              logger.error('Invalid childId detected in nestedNodes', {
+                parentBlockId: block_id,
+                childId,
+                childId_type: typeof childId,
+              })
+              return
+            }
+
             const childBlockState = createBlockFromParams(
               childId,
               childBlock,
@@ -1368,21 +1671,22 @@ function applyOperationsToWorkflowState(
             )
             modifiedState.blocks[childId] = childBlockState
 
+            // Defer connection processing to ensure all blocks exist first
             if (childBlock.connections) {
-              addConnectionsAsEdges(
-                modifiedState,
-                childId,
-                childBlock.connections,
-                logger,
-                skippedItems
-              )
+              addOperationsWithConnections.push({
+                blockId: childId,
+                connections: childBlock.connections,
+              })
             }
           })
         }
 
-        // Add connections as edges
+        // Defer connection processing to ensure all blocks exist first (pass 2)
         if (params.connections) {
-          addConnectionsAsEdges(modifiedState, block_id, params.connections, logger, skippedItems)
+          addOperationsWithConnections.push({
+            blockId: block_id,
+            connections: params.connections,
+          })
         }
         break
       }
@@ -1506,13 +1810,18 @@ function applyOperationsToWorkflowState(
           modifiedState.blocks[block_id] = newBlock
         }
 
-        // Add/update connections as edges
+        // Defer connection processing to ensure all blocks exist first
+        // This is particularly important when multiple blocks are being inserted
+        // and they have connections to each other
         if (params.connections) {
-          // Remove existing edges from this block
+          // Remove existing edges from this block first
           modifiedState.edges = modifiedState.edges.filter((edge: any) => edge.source !== block_id)
 
-          // Add new connections
-          addConnectionsAsEdges(modifiedState, block_id, params.connections, logger, skippedItems)
+          // Add to deferred connections list
+          addOperationsWithConnections.push({
+            blockId: block_id,
+            connections: params.connections,
+          })
         }
         break
       }
@@ -1560,6 +1869,34 @@ function applyOperationsToWorkflowState(
         break
       }
     }
+  }
+
+  // Pass 2: Add all deferred connections from add/insert operations
+  // Now all blocks exist (from add, insert, and edit operations), so connections can be safely created
+  // This ensures that if block A connects to block B, and both are being added/inserted,
+  // B will exist when we create the edge from A to B
+  if (addOperationsWithConnections.length > 0) {
+    logger.info('Processing deferred connections from add/insert operations', {
+      deferredConnectionCount: addOperationsWithConnections.length,
+      totalBlocks: Object.keys(modifiedState.blocks).length,
+    })
+
+    for (const { blockId, connections } of addOperationsWithConnections) {
+      // Verify the source block still exists (it might have been deleted by a later operation)
+      if (!modifiedState.blocks[blockId]) {
+        logger.warn('Source block no longer exists for deferred connection', {
+          blockId,
+          availableBlocks: Object.keys(modifiedState.blocks),
+        })
+        continue
+      }
+
+      addConnectionsAsEdges(modifiedState, blockId, connections, logger, skippedItems)
+    }
+
+    logger.info('Finished processing deferred connections', {
+      totalEdges: modifiedState.edges.length,
+    })
   }
 
   // Regenerate loops and parallels after modifications

@@ -1,25 +1,11 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type {
+  SalesforceDeleteAccountParams,
+  SalesforceDeleteAccountResponse,
+} from '@/tools/salesforce/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceDeleteAccount')
-
-export interface SalesforceDeleteAccountParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  accountId: string
-}
-
-export interface SalesforceDeleteAccountResponse {
-  success: boolean
-  output: {
-    id: string
-    deleted: boolean
-    metadata: {
-      operation: 'delete_account'
-    }
-  }
-}
 
 export const salesforceDeleteAccountTool: ToolConfig<
   SalesforceDeleteAccountParams,
