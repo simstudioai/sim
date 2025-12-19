@@ -363,11 +363,10 @@ const SubBlockRow = ({
       return null
     }
     const baseUrl = getBaseUrl()
-    const triggerPath = allSubBlockValues?.triggerPath?.value as string | undefined
-    return triggerPath
-      ? `${baseUrl}/api/webhooks/trigger/${triggerPath}`
-      : `${baseUrl}/api/webhooks/trigger/${blockId}`
-  }, [subBlock?.id, blockId, allSubBlockValues])
+    // Always use blockId for consistency - the webhook path should always match blockId
+    // This prevents the URL from changing after loading webhook data
+    return `${baseUrl}/api/webhooks/trigger/${blockId}`
+  }, [subBlock?.id, blockId])
 
   const allVariables = useVariablesStore((state) => state.variables)
 

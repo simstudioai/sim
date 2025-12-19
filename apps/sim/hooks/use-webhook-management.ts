@@ -108,13 +108,11 @@ export function useWebhookManagement({
   const isChecked = useSubBlockStore((state) => state.checkedWebhooks.has(blockId))
 
   const webhookUrl = useMemo(() => {
-    if (!webhookPath) {
-      const baseUrl = getBaseUrl()
-      return `${baseUrl}/api/webhooks/trigger/${blockId}`
-    }
     const baseUrl = getBaseUrl()
-    return `${baseUrl}/api/webhooks/trigger/${webhookPath}`
-  }, [webhookPath, blockId])
+    // Always use blockId for consistency - the webhook path should always match blockId
+    // This prevents the URL from changing after loading webhook data from the API
+    return `${baseUrl}/api/webhooks/trigger/${blockId}`
+  }, [blockId])
 
   const [isSaving, setIsSaving] = useState(false)
 
