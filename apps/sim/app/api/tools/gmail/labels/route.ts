@@ -3,6 +3,7 @@ import { account } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -36,6 +37,12 @@ export async function GET(request: NextRequest) {
     if (!credentialId) {
       logger.warn(`[${requestId}] Missing credentialId parameter`)
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
+    }
+
+    const credentialIdValidation = validateAlphanumericId(credentialId, 'credentialId', 255)
+    if (!credentialIdValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid credential ID: ${credentialIdValidation.error}`)
+      return NextResponse.json({ error: credentialIdValidation.error }, { status: 400 })
     }
 
     let credentials = await db

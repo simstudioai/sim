@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -52,6 +53,29 @@ export async function POST(request: NextRequest) {
       .split(',')
       .map((id) => id.trim())
       .filter((id) => id.length > 0)
+
+    for (const labelId of labelIds) {
+      const labelIdValidation = validateAlphanumericId(labelId, 'labelId', 255)
+      if (!labelIdValidation.isValid) {
+        logger.warn(`[${requestId}] Invalid label ID: ${labelIdValidation.error}`)
+        return NextResponse.json(
+          {
+            success: false,
+            error: labelIdValidation.error,
+          },
+          { status: 400 }
+        )
+      }
+    }
+
+    const messageIdValidation = validateAlphanumericId(validatedData.messageId, 'messageId', 255)
+    if (!messageIdValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid message ID: ${messageIdValidation.error}`)
+      return NextResponse.json(
+        { success: false, error: messageIdValidation.error },
+        { status: 400 }
+      )
+    }
 
     const gmailResponse = await fetch(
       `${GMAIL_API_BASE}/messages/${validatedData.messageId}/modify`,

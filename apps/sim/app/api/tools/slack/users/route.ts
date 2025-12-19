@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -20,11 +21,19 @@ export async function POST(request: Request) {
   try {
     const requestId = generateRequestId()
     const body = await request.json()
-    const { credential, workflowId } = body
+    const { credential, workflowId, userId } = body
 
     if (!credential) {
       logger.error('Missing credential in request')
       return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
+    }
+
+    if (userId !== undefined && userId !== null) {
+      const validation = validateAlphanumericId(userId, 'userId', 100)
+      if (!validation.isValid) {
+        logger.warn('Invalid Slack user ID', { userId, error: validation.error })
+        return NextResponse.json({ error: validation.error }, { status: 400 })
+      }
     }
 
     let accessToken: string
@@ -63,6 +72,17 @@ export async function POST(request: Request) {
       logger.info('Using OAuth token for Slack API')
     }
 
+    if (userId) {
+      const userData = await fetchSlackUser(accessToken, userId)
+      const user = {
+        id: userData.user.id,
+        name: userData.user.name,
+        real_name: userData.user.real_name || userData.user.name,
+      }
+      logger.info(`Successfully fetched Slack user: ${userId}`)
+      return NextResponse.json({ user })
+    }
+
     const data = await fetchSlackUsers(accessToken)
 
     const users = (data.members || [])
@@ -85,6 +105,31 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
+}
+
+async function fetchSlackUser(accessToken: string, userId: string) {
+  const url = new URL('https://slack.com/api/users.info')
+  url.searchParams.append('user', userId)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Slack API error: ${response.status} ${response.statusText}`)
+  }
+
+  const data = await response.json()
+
+  if (!data.ok) {
+    throw new Error(data.error || 'Failed to fetch user')
+  }
+
+  return data
 }
 
 async function fetchSlackUsers(accessToken: string) {
