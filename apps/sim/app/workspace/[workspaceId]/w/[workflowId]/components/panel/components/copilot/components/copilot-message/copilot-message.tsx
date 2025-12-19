@@ -459,7 +459,11 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
               <StreamingIndicator />
             )}
 
-            {message.errorType === 'usage_limit' && <UsageLimitActions />}
+            {message.errorType === 'usage_limit' && (
+              <div className='mt-3 flex gap-1.5'>
+                <UsageLimitActions />
+              </div>
+            )}
 
             {/* Action buttons for completed messages */}
             {!isStreaming && cleanTextContent && (

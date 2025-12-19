@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/emcn'
 import { canEditUsageLimit } from '@/lib/billing/subscriptions/utils'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { useSubscriptionData, useUpdateUsageLimit } from '@/hooks/queries/subscription'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 
@@ -54,25 +55,27 @@ export function UsageLimitActions() {
   }
 
   const handleNavigateToUpgrade = () => {
-    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'subscription' } }))
+    if (isHosted) {
+      window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'subscription' } }))
+    } else {
+      window.open('https://www.sim.ai', '_blank')
+    }
   }
 
   if (isHidden) {
     return null
   }
 
-  if (!canEdit) {
+  if (!isHosted || !canEdit) {
     return (
-      <div className='mt-[12px] flex gap-[6px]'>
-        <Button onClick={handleNavigateToUpgrade} variant='default'>
-          Upgrade Plan
-        </Button>
-      </div>
+      <Button onClick={handleNavigateToUpgrade} variant='default'>
+        Upgrade
+      </Button>
     )
   }
 
   return (
-    <div className='mt-[12px] flex gap-[6px]'>
+    <>
       {limitOptions.map((limit) => {
         const isLoading = updateUsageLimitMutation.isPending && selectedAmount === limit
         const isDisabled = updateUsageLimitMutation.isPending
@@ -88,6 +91,6 @@ export function UsageLimitActions() {
           </Button>
         )
       })}
-    </div>
+    </>
   )
 }
