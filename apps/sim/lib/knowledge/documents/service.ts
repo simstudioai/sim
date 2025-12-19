@@ -1391,13 +1391,13 @@ export async function updateDocument(
     // Number slots: convert string to number
     if (slot.startsWith('number')) {
       const num = Number.parseFloat(value)
-      return isNaN(num) ? null : num
+      return Number.isNaN(num) ? null : num
     }
 
     // Date slots: convert ISO string to Date
     if (slot.startsWith('date')) {
       const date = new Date(value)
-      return isNaN(date.getTime()) ? null : date
+      return Number.isNaN(date.getTime()) ? null : date
     }
 
     // Boolean slots: convert string to boolean

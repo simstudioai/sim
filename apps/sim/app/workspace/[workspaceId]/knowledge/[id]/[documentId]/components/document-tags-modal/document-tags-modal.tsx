@@ -141,7 +141,7 @@ export function DocumentTagsModal({
         // Use empty string for slots that should be cleared
         ALL_TAG_SLOTS.forEach((slot) => {
           const tag = tagsToSave.find((t) => t.slot === slot)
-          if (tag && tag.value.trim()) {
+          if (tag?.value.trim()) {
             tagData[slot] = tag.value.trim()
           } else {
             // Use empty string to clear a tag (API schema expects string, not null)

@@ -131,7 +131,7 @@ function parseDate(value: string | Date | undefined): Date | null {
   if (value instanceof Date) return value
   try {
     const date = new Date(value)
-    return isNaN(date.getTime()) ? null : date
+    return Number.isNaN(date.getTime()) ? null : date
   } catch {
     return null
   }
@@ -362,7 +362,7 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
             className='w-[280px] rounded-[6px] border border-[var(--surface-11)] p-0'
           >
             {/* Calendar Header */}
-            <div className='flex items-center justify-between border-b border-[var(--surface-11)] px-[12px] py-[10px]'>
+            <div className='flex items-center justify-between border-[var(--surface-11)] border-b px-[12px] py-[10px]'>
               <button
                 type='button'
                 className='flex h-[24px] w-[24px] items-center justify-center rounded-[4px] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)]'
@@ -420,7 +420,7 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
 
             {/* Time Selection */}
             {includeTime && (
-              <div className='flex items-center justify-center gap-[8px] border-t border-[var(--surface-11)] px-[12px] py-[10px]'>
+              <div className='flex items-center justify-center gap-[8px] border-[var(--surface-11)] border-t px-[12px] py-[10px]'>
                 <span className='text-[12px] text-[var(--text-muted)]'>Time:</span>
                 <input
                   type='number'
@@ -449,7 +449,7 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
             )}
 
             {/* Today Button */}
-            <div className='border-t border-[var(--surface-11)] px-[8px] py-[8px]'>
+            <div className='border-[var(--surface-11)] border-t px-[8px] py-[8px]'>
               <button
                 type='button'
                 className='w-full rounded-[4px] py-[6px] text-[12px] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)]'
