@@ -58,6 +58,8 @@ export class ExecutionEngine {
         metadata: this.context.metadata,
       }
     } catch (error) {
+      await this.waitForAllExecutionsToSettle()
+
       const endTime = Date.now()
       this.context.metadata.endTime = new Date(endTime).toISOString()
       this.context.metadata.duration = endTime - startTime
@@ -127,6 +129,12 @@ export class ExecutionEngine {
 
   private async waitForAllExecutions(): Promise<void> {
     await Promise.all(Array.from(this.executing))
+  }
+
+  private async waitForAllExecutionsToSettle(): Promise<void> {
+    if (this.executing.size > 0) {
+      await Promise.allSettled(Array.from(this.executing))
+    }
   }
 
   private async withQueueLock<T>(fn: () => Promise<T> | T): Promise<T> {
