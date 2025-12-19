@@ -100,7 +100,6 @@ export async function POST(request: Request) {
     }
 
     if (priority !== undefined && priority !== null && priority !== '') {
-      // Check if priority is a numeric ID or a name
       const isNumericId = /^\d+$/.test(priority)
       fields.priority = isNumericId ? { id: priority } : { name: priority }
     }
@@ -137,7 +136,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // Handle team assignment via custom field
     if (
       customFieldId !== undefined &&
       customFieldId !== null &&
@@ -146,12 +144,10 @@ export async function POST(request: Request) {
       customFieldValue !== null &&
       customFieldValue !== ''
     ) {
-      // Normalize the field ID (ensure it starts with customfield_)
       const fieldId = customFieldId.startsWith('customfield_')
         ? customFieldId
         : `customfield_${customFieldId}`
 
-      // Use the team UUID directly
       fields[fieldId] = customFieldValue
     }
 
