@@ -557,29 +557,6 @@ export function validateFileExtension(
 }
 
 /**
- * Sanitizes a string for safe logging (removes potential sensitive data patterns)
- *
- * @param value - The value to sanitize
- * @param maxLength - Maximum length to return (default: 100)
- * @returns Sanitized string safe for logging
- */
-export function sanitizeForLogging(value: string, maxLength = 100): string {
-  if (!value) return ''
-
-  // Truncate long values
-  let sanitized = value.substring(0, maxLength)
-
-  // Mask common sensitive patterns
-  sanitized = sanitized
-    .replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi, 'Bearer [REDACTED]')
-    .replace(/password['":\s]*['"]\w+['"]/gi, 'password: "[REDACTED]"')
-    .replace(/token['":\s]*['"]\w+['"]/gi, 'token: "[REDACTED]"')
-    .replace(/api[_-]?key['":\s]*['"]\w+['"]/gi, 'api_key: "[REDACTED]"')
-
-  return sanitized
-}
-
-/**
  * Validates Microsoft Graph API resource IDs
  *
  * Microsoft Graph IDs can be complex - for example, SharePoint site IDs can include:

@@ -80,7 +80,7 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
               return { entries: state.entries }
             }
 
-            // Redact API keys from output
+            // Redact API keys from output and input
             const redactedEntry = { ...entry }
             if (
               !isStreamingOutput(entry.output) &&
@@ -88,6 +88,9 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
               typeof redactedEntry.output === 'object'
             ) {
               redactedEntry.output = redactApiKeys(redactedEntry.output)
+            }
+            if (redactedEntry.input && typeof redactedEntry.input === 'object') {
+              redactedEntry.input = redactApiKeys(redactedEntry.input)
             }
 
             // Create new entry with ID and timestamp
@@ -275,12 +278,17 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
               }
 
               if (update.replaceOutput !== undefined) {
-                updatedEntry.output = update.replaceOutput
+                updatedEntry.output =
+                  typeof update.replaceOutput === 'object' && update.replaceOutput !== null
+                    ? redactApiKeys(update.replaceOutput)
+                    : update.replaceOutput
               } else if (update.output !== undefined) {
-                updatedEntry.output = {
+                const mergedOutput = {
                   ...(entry.output || {}),
                   ...update.output,
                 }
+                updatedEntry.output =
+                  typeof mergedOutput === 'object' ? redactApiKeys(mergedOutput) : mergedOutput
               }
 
               if (update.error !== undefined) {
@@ -304,7 +312,10 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
               }
 
               if (update.input !== undefined) {
-                updatedEntry.input = update.input
+                updatedEntry.input =
+                  typeof update.input === 'object' && update.input !== null
+                    ? redactApiKeys(update.input)
+                    : update.input
               }
 
               return updatedEntry
