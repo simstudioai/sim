@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { ArrowRight, Loader2 } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { canEditUsageLimit } from '@/lib/billing/subscriptions/utils'
 import { useSubscriptionData, useUpdateUsageLimit } from '@/hooks/queries/subscription'
@@ -14,9 +13,6 @@ import { useCopilotStore } from '@/stores/panel/copilot/store'
  * After updating limit, retries the original user query
  */
 export function UsageLimitActions() {
-  const router = useRouter()
-  const params = useParams()
-  const workspaceId = params?.workspaceId as string
   const { data: subscriptionData } = useSubscriptionData()
   const updateUsageLimitMutation = useUpdateUsageLimit()
 
@@ -70,7 +66,7 @@ export function UsageLimitActions() {
   }
 
   const handleNavigateToUpgrade = () => {
-    router.push(`/workspace/${workspaceId}/settings?tab=subscription`)
+    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'subscription' } }))
   }
 
   // Hide if already processed
