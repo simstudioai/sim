@@ -108,13 +108,11 @@ export function useWebhookManagement({
   const isChecked = useSubBlockStore((state) => state.checkedWebhooks.has(blockId))
 
   const webhookUrl = useMemo(() => {
-    if (!webhookPath) {
-      const baseUrl = getBaseUrl()
-      return `${baseUrl}/api/webhooks/trigger/${blockId}`
-    }
     const baseUrl = getBaseUrl()
-    return `${baseUrl}/api/webhooks/trigger/${webhookPath}`
-  }, [webhookPath, blockId])
+    // Always use blockId as the path for consistency
+    // This ensures the URL doesn't change even if database has a different path
+    return `${baseUrl}/api/webhooks/trigger/${blockId}`
+  }, [blockId])
 
   const [isSaving, setIsSaving] = useState(false)
 
@@ -164,6 +162,44 @@ export function useWebhookManagement({
 
             if (webhook.path) {
               useSubBlockStore.getState().setValue(blockId, 'triggerPath', webhook.path)
+            }
+
+            // If the webhook path differs from blockId, update it for consistency
+            // This ensures the URL based on blockId will work correctly
+            if (webhook.path && webhook.path !== blockId) {
+              logger.warn('Webhook path differs from blockId, updating to match', {
+                blockId,
+                oldPath: webhook.path,
+                webhookId: webhook.id,
+              })
+              
+              // Update the webhook path in the database to match blockId
+              try {
+                const response = await fetch(`/api/webhooks/${webhook.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    path: blockId,
+                  }),
+                })
+
+                if (response.ok) {
+                  logger.info('Successfully updated webhook path to match blockId', {
+                    blockId,
+                    webhookId: webhook.id,
+                  })
+                  // Update the store with the new path
+                  useSubBlockStore.getState().setValue(blockId, 'triggerPath', blockId)
+                } else {
+                  logger.error('Failed to update webhook path', {
+                    blockId,
+                    webhookId: webhook.id,
+                    status: response.status,
+                  })
+                }
+              } catch (error) {
+                logger.error('Error updating webhook path', { error, blockId, webhookId: webhook.id })
+              }
             }
 
             if (webhook.providerConfig) {
