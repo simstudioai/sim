@@ -65,6 +65,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const messageIdValidation = validateAlphanumericId(validatedData.messageId, 'messageId', 255)
+    if (!messageIdValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid message ID: ${messageIdValidation.error}`)
+      return NextResponse.json(
+        { success: false, error: messageIdValidation.error },
+        { status: 400 }
+      )
+    }
+
     const gmailResponse = await fetch(
       `${GMAIL_API_BASE}/messages/${validatedData.messageId}/modify`,
       {
