@@ -20,6 +20,12 @@ export async function POST(request: Request) {
       cloudId: providedCloudId,
       issueType,
       parent,
+      labels,
+      duedate,
+      reporter,
+      environment,
+      customFieldId,
+      customFieldValue,
     } = await request.json()
 
     if (!domain) {
@@ -94,15 +100,59 @@ export async function POST(request: Request) {
     }
 
     if (priority !== undefined && priority !== null && priority !== '') {
-      fields.priority = {
-        name: priority,
+      // Check if priority is a numeric ID or a name
+      const isNumericId = /^\d+$/.test(priority)
+      fields.priority = isNumericId ? { id: priority } : { name: priority }
+    }
+
+    if (labels !== undefined && labels !== null && Array.isArray(labels) && labels.length > 0) {
+      fields.labels = labels
+    }
+
+    if (duedate !== undefined && duedate !== null && duedate !== '') {
+      fields.duedate = duedate
+    }
+
+    if (reporter !== undefined && reporter !== null && reporter !== '') {
+      fields.reporter = {
+        id: reporter,
       }
     }
 
-    if (assignee !== undefined && assignee !== null && assignee !== '') {
-      fields.assignee = {
-        id: assignee,
+    if (environment !== undefined && environment !== null && environment !== '') {
+      fields.environment = {
+        type: 'doc',
+        version: 1,
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: environment,
+              },
+            ],
+          },
+        ],
       }
+    }
+
+    // Handle team assignment via custom field
+    if (
+      customFieldId !== undefined &&
+      customFieldId !== null &&
+      customFieldId !== '' &&
+      customFieldValue !== undefined &&
+      customFieldValue !== null &&
+      customFieldValue !== ''
+    ) {
+      // Normalize the field ID (ensure it starts with customfield_)
+      const fieldId = customFieldId.startsWith('customfield_')
+        ? customFieldId
+        : `customfield_${customFieldId}`
+
+      // Use the team UUID directly
+      fields[fieldId] = customFieldValue
     }
 
     const body = { fields }
@@ -132,16 +182,47 @@ export async function POST(request: Request) {
     }
 
     const responseData = await response.json()
-    logger.info('Successfully created Jira issue:', responseData.key)
+    const issueKey = responseData.key || 'unknown'
+    logger.info('Successfully created Jira issue:', issueKey)
+
+    let assigneeId: string | undefined
+    if (assignee !== undefined && assignee !== null && assignee !== '') {
+      const assignUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${issueKey}/assignee`
+      logger.info('Assigning issue to:', assignee)
+
+      const assignResponse = await fetch(assignUrl, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          accountId: assignee,
+        }),
+      })
+
+      if (!assignResponse.ok) {
+        const assignErrorText = await assignResponse.text()
+        logger.warn('Failed to assign issue (issue was created successfully):', {
+          status: assignResponse.status,
+          error: assignErrorText,
+        })
+      } else {
+        assigneeId = assignee
+        logger.info('Successfully assigned issue to:', assignee)
+      }
+    }
 
     return NextResponse.json({
       success: true,
       output: {
         ts: new Date().toISOString(),
-        issueKey: responseData.key || 'unknown',
+        issueKey: issueKey,
         summary: responseData.fields?.summary || 'Issue created',
         success: true,
-        url: `https://${domain}/browse/${responseData.key}`,
+        url: `https://${domain}/browse/${issueKey}`,
+        ...(assigneeId && { assigneeId }),
       },
     })
   } catch (error: any) {

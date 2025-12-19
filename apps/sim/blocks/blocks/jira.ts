@@ -43,6 +43,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
         { label: 'Delete Issue Link', id: 'delete_link' },
         { label: 'Add Watcher', id: 'add_watcher' },
         { label: 'Remove Watcher', id: 'remove_watcher' },
+        { label: 'Get Users', id: 'get_users' },
       ],
       value: () => 'read',
     },
@@ -193,6 +194,71 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Enter new description for the issue',
       dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['update', 'write'] },
+    },
+    // Write Issue additional fields
+    {
+      id: 'assignee',
+      title: 'Assignee Account ID',
+      type: 'short-input',
+      placeholder: 'Assignee account ID (e.g., 5b109f2e9729b51b54dc274d)',
+      dependsOn: ['projectId'],
+      condition: { field: 'operation', value: 'write' },
+    },
+    {
+      id: 'priority',
+      title: 'Priority',
+      type: 'short-input',
+      placeholder: 'Priority ID or name (e.g., "10000" or "High")',
+      dependsOn: ['projectId'],
+      condition: { field: 'operation', value: 'write' },
+    },
+    {
+      id: 'labels',
+      title: 'Labels',
+      type: 'short-input',
+      placeholder: 'Comma-separated labels (e.g., bug, urgent)',
+      dependsOn: ['projectId'],
+      condition: { field: 'operation', value: 'write' },
+    },
+    {
+      id: 'duedate',
+      title: 'Due Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD (e.g., 2024-12-31)',
+      dependsOn: ['projectId'],
+      condition: { field: 'operation', value: 'write' },
+    },
+    {
+      id: 'reporter',
+      title: 'Reporter Account ID',
+      type: 'short-input',
+      placeholder: 'Reporter account ID',
+      dependsOn: ['projectId'],
+      condition: { field: 'operation', value: 'write' },
+    },
+    {
+      id: 'environment',
+      title: 'Environment',
+      type: 'long-input',
+      placeholder: 'Environment information (e.g., Production, Staging)',
+      dependsOn: ['projectId'],
+      condition: { field: 'operation', value: 'write' },
+    },
+    {
+      id: 'customFieldId',
+      title: 'Custom Field ID',
+      type: 'short-input',
+      placeholder: 'e.g., customfield_10001 or 10001',
+      dependsOn: ['projectId'],
+      condition: { field: 'operation', value: 'write' },
+    },
+    {
+      id: 'customFieldValue',
+      title: 'Team UUID',
+      type: 'short-input',
+      placeholder: 'e.g., b3aa307a-76ea-462d-b6f1-a6e89ce9858a',
+      dependsOn: ['projectId'],
+      condition: { field: 'operation', value: 'write' },
     },
     // Delete Issue fields
     {
@@ -351,6 +417,28 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Enter link ID to delete',
       condition: { field: 'operation', value: 'delete_link' },
     },
+    // Get Users fields
+    {
+      id: 'userAccountId',
+      title: 'Account ID',
+      type: 'short-input',
+      placeholder: 'Enter account ID for specific user',
+      condition: { field: 'operation', value: 'get_users' },
+    },
+    {
+      id: 'usersStartAt',
+      title: 'Start At',
+      type: 'short-input',
+      placeholder: 'Pagination start index (default: 0)',
+      condition: { field: 'operation', value: 'get_users' },
+    },
+    {
+      id: 'usersMaxResults',
+      title: 'Max Results',
+      type: 'short-input',
+      placeholder: 'Maximum users to return (default: 50)',
+      condition: { field: 'operation', value: 'get_users' },
+    },
     // Trigger SubBlocks
     ...getTrigger('jira_issue_created').subBlocks,
     ...getTrigger('jira_issue_updated').subBlocks,
@@ -383,6 +471,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       'jira_delete_issue_link',
       'jira_add_watcher',
       'jira_remove_watcher',
+      'jira_get_users',
     ],
     config: {
       tool: (params) => {
@@ -438,6 +527,8 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
             return 'jira_add_watcher'
           case 'remove_watcher':
             return 'jira_remove_watcher'
+          case 'get_users':
+            return 'jira_get_users'
           default:
             return 'jira_retrieve'
         }
@@ -461,12 +552,29 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
                 'Project ID is required. Please select a project or enter a project ID manually.'
               )
             }
+            // Parse comma-separated strings into arrays
+            const parseCommaSeparated = (value: string | undefined): string[] | undefined => {
+              if (!value || value.trim() === '') return undefined
+              return value
+                .split(',')
+                .map((item) => item.trim())
+                .filter((item) => item !== '')
+            }
+
             const writeParams = {
               projectId: effectiveProjectId,
               summary: params.summary || '',
               description: params.description || '',
               issueType: params.issueType || 'Task',
               parent: params.parentIssue ? { key: params.parentIssue } : undefined,
+              assignee: params.assignee || undefined,
+              priority: params.priority || undefined,
+              labels: parseCommaSeparated(params.labels),
+              duedate: params.duedate || undefined,
+              reporter: params.reporter || undefined,
+              environment: params.environment || undefined,
+              customFieldId: params.customFieldId || undefined,
+              customFieldValue: params.customFieldValue || undefined,
             }
             return {
               ...baseParams,
@@ -704,6 +812,16 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
               accountId: params.accountId,
             }
           }
+          case 'get_users': {
+            return {
+              ...baseParams,
+              accountId: params.userAccountId || undefined,
+              startAt: params.usersStartAt ? Number.parseInt(params.usersStartAt) : undefined,
+              maxResults: params.usersMaxResults
+                ? Number.parseInt(params.usersMaxResults)
+                : undefined,
+            }
+          }
           default:
             return baseParams
         }
@@ -722,6 +840,15 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     summary: { type: 'string', description: 'Issue summary' },
     description: { type: 'string', description: 'Issue description' },
     issueType: { type: 'string', description: 'Issue type' },
+    // Write operation additional inputs
+    assignee: { type: 'string', description: 'Assignee account ID' },
+    priority: { type: 'string', description: 'Priority ID or name' },
+    labels: { type: 'string', description: 'Comma-separated labels for the issue' },
+    duedate: { type: 'string', description: 'Due date in YYYY-MM-DD format' },
+    reporter: { type: 'string', description: 'Reporter account ID' },
+    environment: { type: 'string', description: 'Environment information' },
+    customFieldId: { type: 'string', description: 'Custom field ID (e.g., customfield_10001)' },
+    customFieldValue: { type: 'string', description: 'Value for the custom field' },
     // Delete operation inputs
     deleteSubtasks: { type: 'string', description: 'Whether to delete subtasks (true/false)' },
     // Assign/Watcher operation inputs
@@ -758,6 +885,13 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     linkType: { type: 'string', description: 'Type of link (e.g., "Blocks", "Relates")' },
     linkComment: { type: 'string', description: 'Optional comment for issue link' },
     linkId: { type: 'string', description: 'Link ID for delete operation' },
+    // Get Users operation inputs
+    userAccountId: {
+      type: 'string',
+      description: 'Account ID for specific user lookup (optional)',
+    },
+    usersStartAt: { type: 'string', description: 'Pagination start index for users' },
+    usersMaxResults: { type: 'string', description: 'Maximum users to return' },
   },
   outputs: {
     // Common outputs across all Jira operations
@@ -833,6 +967,12 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
 
     // jira_add_watcher, jira_remove_watcher outputs
     watcherAccountId: { type: 'string', description: 'Watcher account ID' },
+
+    // jira_get_users outputs
+    users: {
+      type: 'json',
+      description: 'Array of users with accountId, displayName, emailAddress, active status',
+    },
 
     // jira_bulk_read outputs
     // Note: bulk_read returns an array in the output field, each item contains:
