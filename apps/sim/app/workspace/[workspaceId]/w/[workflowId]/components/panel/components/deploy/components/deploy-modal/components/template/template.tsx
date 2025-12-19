@@ -495,11 +495,13 @@ const OGCaptureContainer = React.forwardRef<HTMLDivElement>((_, ref) => {
     >
       <WorkflowPreview
         workflowState={workflowState}
-        showSubBlocks={true}
+        showSubBlocks={false}
         height='100%'
         width='100%'
         isPannable={false}
-        defaultZoom={0.5}
+        defaultZoom={0.8}
+        fitPadding={0.2}
+        lightweight
       />
     </div>
   )

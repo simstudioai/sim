@@ -67,11 +67,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       context: 'og-images',
       preserveKey: true,
       customKey: storageKey,
-      metadata: {
-        templateId: id,
-        uploadedAt: new Date().toISOString(),
-        purpose: 'og-image',
-      },
     })
 
     const baseUrl = getBaseUrl()
