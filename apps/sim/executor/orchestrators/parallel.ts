@@ -1,8 +1,9 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import { DEFAULTS } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { ParallelScope } from '@/executor/execution/state'
-import type { BlockStateWriter } from '@/executor/execution/types'
-import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
+import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/types'
+import type { BlockLog, ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { ParallelConfigWithNodes } from '@/executor/types/parallel'
 import {
   buildBranchNodeId,
@@ -32,6 +33,7 @@ export interface ParallelAggregationResult {
 
 export class ParallelOrchestrator {
   private resolver: VariableResolver | null = null
+  private contextExtensions: ContextExtensions | null = null
 
   constructor(
     private dag: DAG,
@@ -42,6 +44,10 @@ export class ParallelOrchestrator {
     this.resolver = resolver
   }
 
+  setContextExtensions(contextExtensions: ContextExtensions): void {
+    this.contextExtensions = contextExtensions
+  }
+
   initializeParallelScope(
     ctx: ExecutionContext,
     parallelId: string,
@@ -49,10 +55,58 @@ export class ParallelOrchestrator {
     terminalNodesCount = 1
   ): ParallelScope {
     const parallelConfig = this.dag.parallelConfigs.get(parallelId)
+
+    // Validate distribution items if parallel uses distribution
+    if (parallelConfig?.distribution !== undefined && parallelConfig?.distribution !== null) {
+      if (!Array.isArray(parallelConfig.distribution)) {
+        const errorMessage =
+          'Parallel distribution is not a valid array. Parallel execution blocked.'
+        logger.error(errorMessage, { parallelId, distribution: parallelConfig.distribution })
+        this.addParallelErrorLog(ctx, parallelId, errorMessage)
+
+        const scope: ParallelScope = {
+          parallelId,
+          totalBranches: 0,
+          branchOutputs: new Map(),
+          completedCount: 0,
+          totalExpectedNodes: 0,
+          items: [],
+          validationError: errorMessage,
+        }
+        if (!ctx.parallelExecutions) {
+          ctx.parallelExecutions = new Map()
+        }
+        ctx.parallelExecutions.set(parallelId, scope)
+        return scope
+      }
+    }
+
     const items = parallelConfig ? this.resolveDistributionItems(ctx, parallelConfig) : undefined
 
     // If we have more items than pre-built branches, expand the DAG
     const actualBranchCount = items && items.length > totalBranches ? items.length : totalBranches
+
+    // Validate branch count doesn't exceed maximum
+    if (actualBranchCount > DEFAULTS.MAX_PARALLEL_BRANCHES) {
+      const errorMessage = `Parallel branch count (${actualBranchCount}) exceeds maximum allowed (${DEFAULTS.MAX_PARALLEL_BRANCHES}). Parallel execution blocked.`
+      logger.error(errorMessage, { parallelId, actualBranchCount })
+      this.addParallelErrorLog(ctx, parallelId, errorMessage)
+
+      const scope: ParallelScope = {
+        parallelId,
+        totalBranches: 0,
+        branchOutputs: new Map(),
+        completedCount: 0,
+        totalExpectedNodes: 0,
+        items: [],
+        validationError: errorMessage,
+      }
+      if (!ctx.parallelExecutions) {
+        ctx.parallelExecutions = new Map()
+      }
+      ctx.parallelExecutions.set(parallelId, scope)
+      return scope
+    }
 
     const scope: ParallelScope = {
       parallelId,
@@ -106,6 +160,46 @@ export class ParallelOrchestrator {
     }
 
     return scope
+  }
+
+  /**
+   * Adds an error log entry for parallel validation errors.
+   * These errors appear in the block console on the logs dashboard.
+   */
+  private addParallelErrorLog(
+    ctx: ExecutionContext,
+    parallelId: string,
+    errorMessage: string
+  ): void {
+    const now = new Date().toISOString()
+
+    // Get the actual parallel block name from the workflow
+    const parallelBlock = ctx.workflow?.blocks?.find((b) => b.id === parallelId)
+    const blockName = parallelBlock?.metadata?.name || 'Parallel'
+
+    const blockLog: BlockLog = {
+      blockId: parallelId,
+      blockName,
+      blockType: 'parallel',
+      startedAt: now,
+      endedAt: now,
+      durationMs: 0,
+      success: false,
+      error: errorMessage,
+      input: {},
+      output: { error: errorMessage },
+      parallelId,
+    }
+    ctx.blockLogs.push(blockLog)
+
+    // Emit the error through onBlockComplete callback so it appears in the UI console
+    if (this.contextExtensions?.onBlockComplete) {
+      this.contextExtensions.onBlockComplete(parallelId, blockName, 'parallel', {
+        input: {},
+        output: { error: errorMessage },
+        executionTime: 0,
+      })
+    }
   }
 
   /**

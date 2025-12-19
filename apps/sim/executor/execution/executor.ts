@@ -63,8 +63,10 @@ export class DAGExecutor {
 
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
     const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
+    loopOrchestrator.setContextExtensions(this.contextExtensions)
     const parallelOrchestrator = new ParallelOrchestrator(dag, state)
     parallelOrchestrator.setResolver(resolver)
+    parallelOrchestrator.setContextExtensions(this.contextExtensions)
     const allHandlers = createBlockHandlers()
     const blockExecutor = new BlockExecutor(allHandlers, resolver, this.contextExtensions, state)
     const edgeManager = new EdgeManager(dag)

@@ -5,8 +5,8 @@ import { buildLoopIndexCondition, DEFAULTS, EDGE } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { LoopScope } from '@/executor/execution/state'
-import type { BlockStateController } from '@/executor/execution/types'
-import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
+import type { BlockStateController, ContextExtensions } from '@/executor/execution/types'
+import type { BlockLog, ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { LoopConfigWithNodes } from '@/executor/types/loop'
 import { replaceValidReferences } from '@/executor/utils/reference-validation'
 import {
@@ -32,12 +32,17 @@ export interface LoopContinuationResult {
 
 export class LoopOrchestrator {
   private edgeManager: EdgeManager | null = null
+  private contextExtensions: ContextExtensions | null = null
 
   constructor(
     private dag: DAG,
     private state: BlockStateController,
     private resolver: VariableResolver
   ) {}
+
+  setContextExtensions(contextExtensions: ContextExtensions): void {
+    this.contextExtensions = contextExtensions
+  }
 
   setEdgeManager(edgeManager: EdgeManager): void {
     this.edgeManager = edgeManager
@@ -58,18 +63,54 @@ export class LoopOrchestrator {
     const loopType = loopConfig.loopType
 
     switch (loopType) {
-      case 'for':
+      case 'for': {
         scope.loopType = 'for'
-        scope.maxIterations = loopConfig.iterations || DEFAULTS.MAX_LOOP_ITERATIONS
+        const requestedIterations = loopConfig.iterations || DEFAULTS.MAX_LOOP_ITERATIONS
+
+        if (requestedIterations > DEFAULTS.MAX_LOOP_ITERATIONS) {
+          const errorMessage = `For loop iterations (${requestedIterations}) exceeds maximum allowed (${DEFAULTS.MAX_LOOP_ITERATIONS}). Loop execution blocked.`
+          logger.error(errorMessage, { loopId, requestedIterations })
+          this.addLoopErrorLog(ctx, loopId, loopType, errorMessage)
+          // Set to 0 iterations to prevent loop from running
+          scope.maxIterations = 0
+          scope.validationError = errorMessage
+        } else {
+          scope.maxIterations = requestedIterations
+        }
+
         scope.condition = buildLoopIndexCondition(scope.maxIterations)
         break
+      }
 
       case 'forEach': {
         scope.loopType = 'forEach'
+        if (!Array.isArray(loopConfig.forEachItems)) {
+          const errorMessage =
+            'ForEach loop collection is not a valid array. Loop execution blocked.'
+          logger.error(errorMessage, { loopId, forEachItems: loopConfig.forEachItems })
+          this.addLoopErrorLog(ctx, loopId, loopType, errorMessage)
+          scope.items = []
+          scope.maxIterations = 0
+          scope.validationError = errorMessage
+          scope.condition = buildLoopIndexCondition(0)
+          break
+        }
         const items = this.resolveForEachItems(ctx, loopConfig.forEachItems)
-        scope.items = items
-        scope.maxIterations = items.length
-        scope.item = items[0]
+        const originalLength = items.length
+
+        if (originalLength > DEFAULTS.MAX_FOREACH_ITEMS) {
+          const errorMessage = `ForEach loop collection size (${originalLength}) exceeds maximum allowed (${DEFAULTS.MAX_FOREACH_ITEMS}). Loop execution blocked.`
+          logger.error(errorMessage, { loopId, originalLength })
+          this.addLoopErrorLog(ctx, loopId, loopType, errorMessage)
+          scope.items = []
+          scope.maxIterations = 0
+          scope.validationError = errorMessage
+        } else {
+          scope.items = items
+          scope.maxIterations = items.length
+          scope.item = items[0]
+        }
+
         scope.condition = buildLoopIndexCondition(scope.maxIterations)
         break
       }
@@ -79,15 +120,28 @@ export class LoopOrchestrator {
         scope.condition = loopConfig.whileCondition
         break
 
-      case 'doWhile':
+      case 'doWhile': {
         scope.loopType = 'doWhile'
         if (loopConfig.doWhileCondition) {
           scope.condition = loopConfig.doWhileCondition
         } else {
-          scope.maxIterations = loopConfig.iterations || DEFAULTS.MAX_LOOP_ITERATIONS
+          const requestedIterations = loopConfig.iterations || DEFAULTS.MAX_LOOP_ITERATIONS
+
+          if (requestedIterations > DEFAULTS.MAX_LOOP_ITERATIONS) {
+            const errorMessage = `Do-While loop iterations (${requestedIterations}) exceeds maximum allowed (${DEFAULTS.MAX_LOOP_ITERATIONS}). Loop execution blocked.`
+            logger.error(errorMessage, { loopId, requestedIterations })
+            this.addLoopErrorLog(ctx, loopId, loopType, errorMessage)
+            // Set to 0 iterations to prevent loop from running
+            scope.maxIterations = 0
+            scope.validationError = errorMessage
+          } else {
+            scope.maxIterations = requestedIterations
+          }
+
           scope.condition = buildLoopIndexCondition(scope.maxIterations)
         }
         break
+      }
 
       default:
         throw new Error(`Unknown loop type: ${loopType}`)
@@ -98,6 +152,47 @@ export class LoopOrchestrator {
     }
     ctx.loopExecutions.set(loopId, scope)
     return scope
+  }
+
+  /**
+   * Adds an error log entry for loop validation errors.
+   * These errors appear in the block console on the logs dashboard.
+   */
+  private addLoopErrorLog(
+    ctx: ExecutionContext,
+    loopId: string,
+    loopType: string,
+    errorMessage: string
+  ): void {
+    const now = new Date().toISOString()
+
+    // Get the actual loop block name from the workflow
+    const loopBlock = ctx.workflow?.blocks?.find((b) => b.id === loopId)
+    const blockName = loopBlock?.metadata?.name || `Loop`
+
+    const blockLog: BlockLog = {
+      blockId: loopId,
+      blockName,
+      blockType: 'loop',
+      startedAt: now,
+      endedAt: now,
+      durationMs: 0,
+      success: false,
+      error: errorMessage,
+      input: {},
+      output: { error: errorMessage },
+      loopId,
+    }
+    ctx.blockLogs.push(blockLog)
+
+    // Emit the error through onBlockComplete callback so it appears in the UI console
+    if (this.contextExtensions?.onBlockComplete) {
+      this.contextExtensions.onBlockComplete(loopId, blockName, 'loop', {
+        input: {},
+        output: { error: errorMessage },
+        executionTime: 0,
+      })
+    }
   }
 
   storeLoopNodeOutput(
