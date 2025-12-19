@@ -11,7 +11,6 @@ import {
   calculateBranchCount,
   extractBaseBlockId,
   extractBranchIndex,
-  hasValidInput,
   parseDistributionItems,
   resolveArrayInput,
   validateMaxCount,
@@ -60,19 +59,15 @@ export class ParallelOrchestrator {
   ): ParallelScope {
     const parallelConfig = this.dag.parallelConfigs.get(parallelId)
 
-    const items = parallelConfig ? this.resolveDistributionItems(ctx, parallelConfig) : undefined
-
-    if (parallelConfig?.distribution !== undefined && parallelConfig?.distribution !== null) {
-      const rawDistribution = parallelConfig.distribution
-      const inputWasEmptyArray = Array.isArray(rawDistribution) && rawDistribution.length === 0
-
-      if (hasValidInput(rawDistribution) && !inputWasEmptyArray && (!items || items.length === 0)) {
-        const errorMessage =
-          'Parallel distribution is not a valid array. Parallel execution blocked.'
+    let items: any[] | undefined
+    if (parallelConfig) {
+      try {
+        items = this.resolveDistributionItems(ctx, parallelConfig)
+      } catch (error) {
+        const errorMessage = `Parallel distribution resolution failed: ${error instanceof Error ? error.message : String(error)}`
         logger.error(errorMessage, {
           parallelId,
           distribution: parallelConfig.distribution,
-          resolvedItems: items,
         })
         this.addParallelErrorLog(ctx, parallelId, errorMessage, {
           distribution: parallelConfig.distribution,

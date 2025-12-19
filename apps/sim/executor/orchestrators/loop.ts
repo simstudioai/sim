@@ -14,7 +14,6 @@ import {
   buildSentinelEndId,
   buildSentinelStartId,
   extractBaseBlockId,
-  hasValidInput,
   resolveArrayInput,
   validateMaxCount,
 } from '@/executor/utils/subflow-utils'
@@ -94,11 +93,11 @@ export class LoopOrchestrator {
 
       case 'forEach': {
         scope.loopType = 'forEach'
-        const items = this.resolveForEachItems(ctx, loopConfig.forEachItems)
-
-        if (hasValidInput(loopConfig.forEachItems) && items.length === 0) {
-          const errorMessage =
-            'ForEach loop collection is not a valid array. Loop execution blocked.'
+        let items: any[]
+        try {
+          items = this.resolveForEachItems(ctx, loopConfig.forEachItems)
+        } catch (error) {
+          const errorMessage = `ForEach loop resolution failed: ${error instanceof Error ? error.message : String(error)}`
           logger.error(errorMessage, { loopId, forEachItems: loopConfig.forEachItems })
           this.addLoopErrorLog(ctx, loopId, loopType, errorMessage, {
             forEachItems: loopConfig.forEachItems,

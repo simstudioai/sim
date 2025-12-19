@@ -137,17 +137,6 @@ export function normalizeNodeId(nodeId: string): string {
 }
 
 /**
- * Checks if a value represents valid input (not empty/null/undefined).
- */
-export function hasValidInput(value: any): boolean {
-  if (value === undefined || value === null) return false
-  if (typeof value === 'string') return value !== ''
-  if (Array.isArray(value)) return value.length > 0
-  if (typeof value === 'object') return Object.keys(value).length > 0
-  return true
-}
-
-/**
  * Validates that a count doesn't exceed a maximum limit.
  * Returns an error message if validation fails, undefined otherwise.
  */
@@ -161,6 +150,7 @@ export function validateMaxCount(count: number, max: number, itemType: string): 
 /**
  * Resolves array input at runtime. Handles arrays, objects, references, and JSON strings.
  * Used by both loop forEach and parallel distribution resolution.
+ * Throws an error if resolution fails.
  */
 export function resolveArrayInput(
   ctx: ExecutionContext,
@@ -177,14 +167,23 @@ export function resolveArrayInput(
 
   if (typeof items === 'string') {
     if (items.startsWith(REFERENCE.START) && items.endsWith(REFERENCE.END) && resolver) {
-      const resolved = resolver.resolveSingleReference(ctx, '', items)
-      if (Array.isArray(resolved)) {
-        return resolved
+      try {
+        const resolved = resolver.resolveSingleReference(ctx, '', items)
+        if (Array.isArray(resolved)) {
+          return resolved
+        }
+        if (typeof resolved === 'object' && resolved !== null) {
+          return Object.entries(resolved)
+        }
+        throw new Error(`Reference "${items}" did not resolve to an array or object`)
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith('Reference "')) {
+          throw error
+        }
+        throw new Error(
+          `Failed to resolve reference "${items}": ${error instanceof Error ? error.message : String(error)}`
+        )
       }
-      if (typeof resolved === 'object' && resolved !== null) {
-        return Object.entries(resolved)
-      }
-      return []
     }
 
     try {
@@ -196,9 +195,12 @@ export function resolveArrayInput(
       if (typeof parsed === 'object' && parsed !== null) {
         return Object.entries(parsed)
       }
-      return []
-    } catch {
-      return []
+      throw new Error(`Parsed value is not an array or object`)
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Parsed value')) {
+        throw error
+      }
+      throw new Error(`Failed to parse items as JSON: "${items}"`)
     }
   }
 
@@ -208,9 +210,14 @@ export function resolveArrayInput(
       if (Array.isArray(resolved)) {
         return resolved
       }
-      return []
-    } catch {
-      return []
+      throw new Error(`Resolved items is not an array`)
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Resolved items')) {
+        throw error
+      }
+      throw new Error(
+        `Failed to resolve items: ${error instanceof Error ? error.message : String(error)}`
+      )
     }
   }
 
