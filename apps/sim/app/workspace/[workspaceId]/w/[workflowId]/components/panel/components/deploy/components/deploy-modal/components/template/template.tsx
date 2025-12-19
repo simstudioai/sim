@@ -232,20 +232,22 @@ export function TemplateDeploy({
       logger.info(`Template ${existingTemplate ? 'updated' : 'created'} successfully`)
 
       setIsCapturing(true)
-      setTimeout(async () => {
-        try {
-          if (ogCaptureRef.current) {
-            const ogUrl = await captureAndUploadOGImage(ogCaptureRef.current, templateId)
-            if (ogUrl) {
-              logger.info(`OG image uploaded for template ${templateId}: ${ogUrl}`)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(async () => {
+          try {
+            if (ogCaptureRef.current) {
+              const ogUrl = await captureAndUploadOGImage(ogCaptureRef.current, templateId)
+              if (ogUrl) {
+                logger.info(`OG image uploaded for template ${templateId}: ${ogUrl}`)
+              }
             }
+          } catch (ogError) {
+            logger.warn('Failed to capture/upload OG image:', ogError)
+          } finally {
+            setIsCapturing(false)
           }
-        } catch (ogError) {
-          logger.warn('Failed to capture/upload OG image:', ogError)
-        } finally {
-          setIsCapturing(false)
-        }
-      }, 100)
+        })
+      })
 
       onDeploymentComplete?.()
     } catch (error) {

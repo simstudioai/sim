@@ -7,6 +7,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
+import { isValidPng } from '@/lib/uploads/utils/validation'
 
 const logger = createLogger('TemplateOGImageAPI')
 
@@ -49,6 +50,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const base64Data = imageData.includes(',') ? imageData.split(',')[1] : imageData
     const imageBuffer = Buffer.from(base64Data, 'base64')
+
+    if (!isValidPng(imageBuffer)) {
+      return NextResponse.json({ error: 'Invalid PNG image data' }, { status: 400 })
+    }
 
     const maxSize = 5 * 1024 * 1024
     if (imageBuffer.length > maxSize) {
