@@ -29,30 +29,24 @@ export const metadata: Metadata = {
     locale: 'en_US',
     images: [
       {
-        url: '/social/og-image.png',
-        width: 1200,
-        height: 630,
-        alt: 'Sim - Visual AI Workflow Builder',
+        url: '/logo/primary/rounded.png',
+        width: 512,
+        height: 512,
+        alt: 'Sim - AI Agent Workflow Builder',
         type: 'image/png',
-      },
-      {
-        url: '/social/og-image-square.png',
-        width: 600,
-        height: 600,
-        alt: 'Sim Logo',
       },
     ],
   },
   twitter: {
-    card: 'summary_large_image',
+    card: 'summary',
     site: '@simdotai',
     creator: '@simdotai',
     title: 'Sim - AI Agent Workflow Builder | Open Source',
     description:
       'Open-source platform for agentic workflows. 60,000+ developers. Visual builder. 100+ integrations. SOC2 & HIPAA compliant.',
     images: {
-      url: '/social/twitter-image.png',
-      alt: 'Sim - Visual AI Workflow Builder',
+      url: '/logo/primary/rounded.png',
+      alt: 'Sim - AI Agent Workflow Builder',
     },
   },
   alternates: {
@@ -77,7 +71,6 @@ export const metadata: Metadata = {
   category: 'technology',
   classification: 'AI Development Tools',
   referrer: 'origin-when-cross-origin',
-  // LLM SEO optimizations
   other: {
     'llm:content-type': 'AI workflow builder, visual programming, no-code AI development',
     'llm:use-cases':

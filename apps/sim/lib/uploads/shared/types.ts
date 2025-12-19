@@ -5,6 +5,7 @@ export type StorageContext =
   | 'execution'
   | 'workspace'
   | 'profile-pictures'
+  | 'og-images'
   | 'logs'
 
 export interface FileInfo {
