@@ -95,28 +95,28 @@ export function useCanDelete({ workspaceId }: UseCanDeleteProps): UseCanDeleteRe
   )
 
   /**
-   * Check if the given workflow IDs can be deleted
+   * Check if the given workflow IDs can be deleted.
+   * Returns false if deleting would remove all workflows from the workspace.
    */
   const canDeleteWorkflows = useCallback(
     (workflowIds: string[]): boolean => {
-      if (totalWorkflows === 0) return true
-
       const workflowsToDelete = workflowIds.filter((id) => workflowIdSet.has(id)).length
 
-      return workflowsToDelete < totalWorkflows
+      // Must have at least one workflow remaining after deletion
+      return totalWorkflows > 0 && workflowsToDelete < totalWorkflows
     },
     [totalWorkflows, workflowIdSet]
   )
 
   /**
-   * Check if the given folder can be deleted
+   * Check if the given folder can be deleted.
+   * Empty folders are always deletable. Folders containing all workspace workflows are not.
    */
   const canDeleteFolder = useCallback(
     (folderId: string): boolean => {
-      if (totalWorkflows === 0) return true
-
       const workflowsInFolder = countWorkflowsInFolder(folderId)
 
+      if (workflowsInFolder === 0) return true
       return workflowsInFolder < totalWorkflows
     },
     [totalWorkflows, countWorkflowsInFolder]
