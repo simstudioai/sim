@@ -16,15 +16,15 @@
 export const USAGE_PILL_COUNT = 8
 
 /**
- * Color values for usage pill states
+ * Color values for usage pill states using CSS variables
  */
 export const USAGE_PILL_COLORS = {
   /** Unfilled pill color (gray) */
-  UNFILLED: '#414141',
+  UNFILLED: 'var(--surface-5)',
   /** Normal filled pill color (blue) */
-  FILLED: '#34B5FF',
+  FILLED: 'var(--brand-secondary)',
   /** Warning/limit reached pill color (red) */
-  AT_LIMIT: '#ef4444',
+  AT_LIMIT: 'var(--text-error)',
 } as const
 
 /**

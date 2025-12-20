@@ -407,14 +407,14 @@ export function FieldFormat({
           key={field.id}
           data-field-id={field.id}
           className={cn(
-            'rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-3)] dark:bg-[#1F1F1F]',
+            'rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-3)] dark:bg-[#1F1F1F]',
             field.collapsed ? 'overflow-hidden' : 'overflow-visible'
           )}
         >
           {renderFieldHeader(field, index)}
 
           {!field.collapsed && (
-            <div className='flex flex-col gap-[6px] border-[var(--border-strong)] border-t px-[10px] pt-[6px] pb-[10px]'>
+            <div className='flex flex-col gap-[6px] border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>
               <div className='flex flex-col gap-[4px]'>
                 <Label className='text-[13px]'>Name</Label>
                 <Input

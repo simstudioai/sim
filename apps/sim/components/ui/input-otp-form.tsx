@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 
@@ -55,14 +54,7 @@ export function OTPInputForm({
       {error && <p className='text-center text-destructive text-sm'>{error}</p>}
 
       <Button type='submit' className='w-full' disabled={value.length !== length || isLoading}>
-        {isLoading ? (
-          <div className='flex items-center justify-center'>
-            <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-            Verifying...
-          </div>
-        ) : (
-          'Verify'
-        )}
+        {isLoading ? 'Verifying...' : 'Verify'}
       </Button>
     </form>
   )

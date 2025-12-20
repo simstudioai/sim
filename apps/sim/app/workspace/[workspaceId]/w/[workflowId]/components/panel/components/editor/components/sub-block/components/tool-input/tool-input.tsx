@@ -1825,7 +1825,7 @@ export function ToolInput({
       {selectedTools.length === 0 ? (
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-4)] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[var(--surface-4)]'>
+            <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[var(--surface-4)]'>
               <div className='flex items-center text-[13px] text-[var(--text-muted)]'>
                 <PlusIcon className='mr-2 h-4 w-4' />
                 Add Tool
@@ -2056,7 +2056,7 @@ export function ToolInput({
               <div
                 key={`${tool.customToolId || tool.toolId || toolIndex}-${toolIndex}`}
                 className={cn(
-                  'group relative flex flex-col overflow-visible rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-4)] transition-all duration-200 ease-in-out',
+                  'group relative flex flex-col overflow-visible rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] transition-all duration-200 ease-in-out',
                   draggedIndex === toolIndex ? 'scale-95 opacity-40' : '',
                   dragOverIndex === toolIndex && draggedIndex !== toolIndex && draggedIndex !== null
                     ? 'translate-y-1 transform border-t-2 border-t-muted-foreground/40'
@@ -2068,9 +2068,7 @@ export function ToolInput({
                 <div
                   className={cn(
                     'flex items-center justify-between gap-[8px] px-[10px] py-[8px]',
-                    isExpandedForDisplay &&
-                      !isCustomTool &&
-                      'border-[var(--border-strong)] border-b',
+                    isExpandedForDisplay && !isCustomTool && 'border-[var(--border-1)] border-b',
                     'cursor-pointer',
                     selectedTools.length > 1 && !isPreview && !disabled
                       ? 'cursor-grab active:cursor-grabbing'
@@ -2406,7 +2404,7 @@ export function ToolInput({
           {/* Add Tool Button */}
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-              <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-4)] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[var(--surface-4)]'>
+              <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[var(--surface-4)]'>
                 <div className='flex items-center text-[13px] text-[var(--text-muted)]'>
                   <PlusIcon className='mr-2 h-4 w-4' />
                   Add Tool

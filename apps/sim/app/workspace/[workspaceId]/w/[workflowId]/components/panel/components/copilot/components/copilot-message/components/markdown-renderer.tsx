@@ -256,8 +256,8 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
               : 'javascript'
 
         return (
-          <div className='my-6 w-0 min-w-full overflow-hidden rounded-md border border-[var(--border-strong)] bg-[#1F1F1F] text-sm'>
-            <div className='flex items-center justify-between border-[var(--border-strong)] border-b px-4 py-1.5'>
+          <div className='my-6 w-0 min-w-full overflow-hidden rounded-md border border-[var(--border-1)] bg-[#1F1F1F] text-sm'>
+            <div className='flex items-center justify-between border-[var(--border-1)] border-b px-4 py-1.5'>
               <span className='font-season text-[#A3A3A3] text-xs'>
                 {language === 'code' ? viewerLanguage : language}
               </span>
@@ -293,7 +293,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
         if (inline) {
           return (
             <code
-              className='whitespace-normal break-all rounded border border-[var(--border-strong)] bg-[#1F1F1F] px-1 py-0.5 font-mono text-[#eeeeee] text-[0.9em]'
+              className='whitespace-normal break-all rounded border border-[var(--border-1)] bg-[#1F1F1F] px-1 py-0.5 font-mono text-[#eeeeee] text-[0.9em]'
               {...props}
             >
               {children}
@@ -331,7 +331,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
 
       // Blockquotes
       blockquote: ({ children }: React.HTMLAttributes<HTMLQuoteElement>) => (
-        <blockquote className='my-4 border-[var(--border-strong)] border-l-4 py-1 pl-4 font-season text-[#3a3d41] italic dark:border-gray-600 dark:text-[#E0E0E0]'>
+        <blockquote className='my-4 border-[var(--border-1)] border-l-4 py-1 pl-4 font-season text-[#3a3d41] italic dark:border-gray-600 dark:text-[#E0E0E0]'>
           {children}
         </blockquote>
       ),

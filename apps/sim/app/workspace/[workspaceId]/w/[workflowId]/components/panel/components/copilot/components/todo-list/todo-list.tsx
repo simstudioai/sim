@@ -66,7 +66,7 @@ export const TodoList = memo(function TodoList({
   return (
     <div
       className={cn(
-        'w-full rounded-t-[4px] rounded-b-none border-[var(--surface-11)] border-x border-t bg-[var(--surface-5)] dark:bg-[var(--surface-5)]',
+        'w-full rounded-t-[4px] rounded-b-none border-[var(--border-1)] border-x border-t bg-[var(--surface-5)] dark:bg-[var(--surface-5)]',
         className
       )}
     >
@@ -92,7 +92,7 @@ export const TodoList = memo(function TodoList({
 
         <div className='flex flex-1 items-center gap-[8px] pl-[10px]'>
           {/* Progress bar */}
-          <div className='h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--surface-11)]'>
+          <div className='h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--border-1)]'>
             <div
               className='h-full bg-[var(--brand-400)] transition-all duration-300 ease-out'
               style={{ width: `${progress}%` }}
@@ -119,8 +119,8 @@ export const TodoList = memo(function TodoList({
             <div
               key={todo.id}
               className={cn(
-                'flex items-start gap-2 px-3 py-1.5 transition-colors hover:bg-[var(--surface-5)]/50 dark:hover:bg-[var(--surface-11)]/50',
-                index !== todos.length - 1 && 'border-[var(--surface-11)] border-b'
+                'flex items-start gap-2 px-3 py-1.5 transition-colors hover:bg-[var(--surface-5)]/50 dark:hover:bg-[var(--border-1)]/50',
+                index !== todos.length - 1 && 'border-[var(--border-1)] border-b'
               )}
             >
               {todo.executing ? (

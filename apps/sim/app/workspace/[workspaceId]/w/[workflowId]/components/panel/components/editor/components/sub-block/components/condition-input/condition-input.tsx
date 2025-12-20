@@ -709,14 +709,14 @@ export function ConditionInput({
       {conditionalBlocks.map((block, index) => (
         <div
           key={block.id}
-          className='group relative overflow-visible rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-3)] dark:bg-[#1F1F1F]'
+          className='group relative overflow-visible rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-3)] dark:bg-[#1F1F1F]'
         >
           <div
             className={cn(
               'flex items-center justify-between overflow-hidden bg-transparent px-[10px] py-[5px]',
               block.title === 'else'
                 ? 'rounded-[4px] border-0'
-                : 'rounded-t-[4px] border-[var(--border-strong)] border-b'
+                : 'rounded-t-[4px] border-[var(--border-1)] border-b'
             )}
           >
             <span className='font-medium text-[14px] text-[var(--text-tertiary)]'>

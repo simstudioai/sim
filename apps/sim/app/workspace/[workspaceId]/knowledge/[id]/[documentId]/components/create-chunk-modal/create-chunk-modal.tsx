@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import {
   Button,
   Label,
@@ -162,14 +162,7 @@ export function CreateChunkModal({
                 type='button'
                 disabled={!isFormValid || isCreating}
               >
-                {isCreating ? (
-                  <>
-                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                    Creating...
-                  </>
-                ) : (
-                  'Create Chunk'
-                )}
+                {isCreating ? 'Creating...' : 'Create Chunk'}
               </Button>
             </ModalFooter>
           </form>

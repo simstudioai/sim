@@ -256,7 +256,7 @@ export function InputMapping({
 
   if (!selectedWorkflowId) {
     return (
-      <div className='flex flex-col items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-3)] p-8 text-center dark:bg-[#1F1F1F]'>
+      <div className='flex flex-col items-center justify-center rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-3)] p-8 text-center dark:bg-[#1F1F1F]'>
         <svg
           className='mb-3 h-10 w-10 text-[var(--text-tertiary)]'
           fill='none'
@@ -368,7 +368,7 @@ function InputMappingField({
   return (
     <div
       className={cn(
-        'rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-3)] dark:bg-[#1F1F1F]',
+        'rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-3)] dark:bg-[#1F1F1F]',
         collapsed ? 'overflow-hidden' : 'overflow-visible'
       )}
     >
@@ -385,7 +385,7 @@ function InputMappingField({
       </div>
 
       {!collapsed && (
-        <div className='flex flex-col gap-[6px] border-[var(--border-strong)] border-t px-[10px] pt-[6px] pb-[10px]'>
+        <div className='flex flex-col gap-[6px] border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>
           <div className='space-y-[4px]'>
             <Label className='text-[13px]'>Value</Label>
             <div className='relative'>

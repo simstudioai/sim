@@ -379,11 +379,7 @@ export function TriggerSave({
             disabled={disabled || isProcessing}
             className='h-[32px] rounded-[8px] px-[12px]'
           >
-            {deleteStatus === 'deleting' ? (
-              <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
-            ) : (
-              <Trash className='h-[14px] w-[14px]' />
-            )}
+            <Trash className='h-[14px] w-[14px]' />
           </Button>
         )}
       </div>

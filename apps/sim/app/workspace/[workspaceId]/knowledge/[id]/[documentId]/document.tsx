@@ -1092,18 +1092,13 @@ export function Document({
             )}
 
             {documentData?.processingStatus === 'completed' && totalPages > 1 && (
-              <div className='flex items-center justify-center border-t bg-background px-6 py-4'>
+              <div className='flex items-center justify-center border-t bg-background px-4 pt-[10px]'>
                 <div className='flex items-center gap-1'>
-                  <Button
-                    variant='ghost'
-                    onClick={prevPage}
-                    disabled={!hasPrevPage}
-                    className='h-8 w-8 p-0'
-                  >
-                    <ChevronLeft className='h-4 w-4' />
+                  <Button variant='ghost' onClick={prevPage} disabled={!hasPrevPage}>
+                    <ChevronLeft className='h-3.5 w-3.5' />
                   </Button>
 
-                  <div className='mx-4 flex items-center gap-6'>
+                  <div className='mx-[12px] flex items-center gap-[16px]'>
                     {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
                       let page: number
                       if (totalPages <= 5) {
@@ -1133,13 +1128,8 @@ export function Document({
                     })}
                   </div>
 
-                  <Button
-                    variant='ghost'
-                    onClick={nextPage}
-                    disabled={!hasNextPage}
-                    className='h-8 w-8 p-0'
-                  >
-                    <ChevronRight className='h-4 w-4' />
+                  <Button variant='ghost' onClick={nextPage} disabled={!hasNextPage}>
+                    <ChevronRight className='h-3.5 w-3.5' />
                   </Button>
                 </div>
               </div>

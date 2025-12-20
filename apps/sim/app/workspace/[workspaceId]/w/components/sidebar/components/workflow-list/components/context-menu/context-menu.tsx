@@ -142,7 +142,7 @@ export function ContextMenu({
   disableCreateFolder = false,
 }: ContextMenuProps) {
   return (
-    <Popover open={isOpen} onOpenChange={onClose} variant='tertiary' size='sm'>
+    <Popover open={isOpen} onOpenChange={onClose} variant='secondary' size='sm'>
       <PopoverAnchor
         style={{
           position: 'fixed',

@@ -265,7 +265,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
               {/* Inline Checkpoint Discard Confirmation - shown below input in edit mode */}
               {showCheckpointDiscardModal && (
-                <div className='mt-[8px] rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-5)] p-[10px] dark:bg-[var(--surface-5)]'>
+                <div className='mt-[8px] rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] p-[10px] dark:bg-[var(--surface-5)]'>
                   <p className='mb-[8px] text-[var(--text-primary)] text-sm'>
                     Continue from a previous message?
                   </p>
@@ -312,7 +312,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 onClick={handleMessageClick}
                 onMouseEnter={() => setIsHoveringMessage(true)}
                 onMouseLeave={() => setIsHoveringMessage(false)}
-                className='group relative w-full cursor-pointer rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-5)] px-[6px] py-[6px] transition-all duration-200 hover:border-[var(--surface-14)] hover:bg-[var(--surface-5)] dark:bg-[var(--surface-5)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--surface-11)]'
+                className='group relative w-full cursor-pointer rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[6px] py-[6px] transition-all duration-200 hover:border-[var(--surface-14)] hover:bg-[var(--surface-5)] dark:bg-[var(--surface-5)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--border-1)]'
               >
                 <div
                   ref={messageContentRef}
@@ -358,7 +358,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
                 {/* Gradient fade when truncated - applies to entire message box */}
                 {!isExpanded && needsExpansion && (
-                  <div className='pointer-events-none absolute right-0 bottom-0 left-0 h-6 bg-gradient-to-t from-0% from-[var(--surface-5)] via-40% via-[var(--surface-5)]/70 to-100% to-transparent group-hover:from-[var(--surface-5)] group-hover:via-[var(--surface-5)]/70 dark:from-[var(--surface-5)] dark:via-[var(--surface-5)]/70 dark:group-hover:from-[var(--surface-11)] dark:group-hover:via-[var(--surface-11)]/70' />
+                  <div className='pointer-events-none absolute right-0 bottom-0 left-0 h-6 bg-gradient-to-t from-0% from-[var(--surface-5)] via-40% via-[var(--surface-5)]/70 to-100% to-transparent group-hover:from-[var(--surface-5)] group-hover:via-[var(--surface-5)]/70 dark:from-[var(--surface-5)] dark:via-[var(--surface-5)]/70 dark:group-hover:from-[var(--border-1)] dark:group-hover:via-[var(--border-1)]/70' />
                 )}
 
                 {/* Abort button when hovering and response is generating (only on last user message) */}
@@ -406,7 +406,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
           {/* Inline Restore Checkpoint Confirmation */}
           {showRestoreConfirmation && (
-            <div className='mt-[8px] rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-5)] p-[10px] dark:bg-[var(--surface-5)]'>
+            <div className='mt-[8px] rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] p-[10px] dark:bg-[var(--surface-5)]'>
               <p className='mb-[8px] text-[var(--text-primary)] text-sm'>
                 Revert to checkpoint? This will restore your workflow to the state saved at this
                 checkpoint.{' '}

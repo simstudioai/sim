@@ -93,7 +93,7 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
             return (
               <code
                 {...props}
-                className='whitespace-normal rounded bg-gray-200 px-1 py-0.5 font-mono text-[#F59E0B] text-xs dark:bg-[var(--surface-11)]'
+                className='whitespace-normal rounded bg-gray-200 px-1 py-0.5 font-mono text-[#F59E0B] text-xs dark:bg-[var(--border-1)]'
               >
                 {children}
               </code>
@@ -150,7 +150,7 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
         ),
         em: ({ children }: any) => <em className='break-words text-[#B8B8B8]'>{children}</em>,
         blockquote: ({ children }: any) => (
-          <blockquote className='my-4 break-words border-[var(--border-strong)] border-l-4 py-1 pl-4 text-[#B8B8B8] italic'>
+          <blockquote className='my-4 break-words border-[var(--border-1)] border-l-4 py-1 pl-4 text-[#B8B8B8] italic'>
             {children}
           </blockquote>
         ),

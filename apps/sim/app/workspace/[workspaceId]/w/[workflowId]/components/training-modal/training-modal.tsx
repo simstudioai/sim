@@ -635,10 +635,7 @@ export function TrainingModal() {
                                   }
                                 >
                                   {sendingDatasets.has(dataset.id) ? (
-                                    <>
-                                      <div className='mr-[6px] h-[12px] w-[12px] animate-spin rounded-full border-2 border-current border-t-transparent' />
-                                      Sending...
-                                    </>
+                                    'Sending...'
                                   ) : sentDatasets.has(dataset.id) ? (
                                     <>
                                       <CheckCircle2 className='mr-[6px] h-[12px] w-[12px]' />
@@ -763,10 +760,7 @@ export function TrainingModal() {
                 )}
               >
                 {sendingLiveWorkflow ? (
-                  <>
-                    <div className='mr-[6px] h-[14px] w-[14px] animate-spin rounded-full border-2 border-current border-t-transparent' />
-                    Sending...
-                  </>
+                  'Sending...'
                 ) : liveWorkflowSent ? (
                   <>
                     <CheckCircle2 className='mr-[6px] h-[14px] w-[14px]' />

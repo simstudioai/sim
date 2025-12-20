@@ -120,8 +120,8 @@ export const Notifications = memo(function Notifications() {
           <div
             key={notification.id}
             style={{ transform: `translateX(${xOffset}px)` }}
-            className={`relative h-[78px] w-[240px] overflow-hidden rounded-[4px] border bg-[var(--surface-2)] transition-transform duration-200 ${
-              index > 0 ? '-mt-[78px]' : ''
+            className={`relative h-[80px] w-[240px] overflow-hidden rounded-[4px] border bg-[var(--surface-2)] transition-transform duration-200 ${
+              index > 0 ? '-mt-[80px]' : ''
             }`}
           >
             <div className='flex h-full flex-col justify-between px-[8px] pt-[6px] pb-[8px]'>
@@ -144,19 +144,17 @@ export const Notifications = memo(function Notifications() {
                 {notification.message}
               </div>
               {hasAction && (
-                <div className='mt-[4px]'>
-                  <Button
-                    variant='active'
-                    onClick={() => executeAction(notification.id, notification.action!)}
-                    className='w-full px-[8px] py-[4px] font-medium text-[12px]'
-                  >
-                    {notification.action!.type === 'copilot'
-                      ? 'Fix in Copilot'
-                      : notification.action!.type === 'refresh'
-                        ? 'Refresh'
-                        : 'Take action'}
-                  </Button>
-                </div>
+                <Button
+                  variant='active'
+                  onClick={() => executeAction(notification.id, notification.action!)}
+                  className='w-full px-[8px] py-[4px] font-medium text-[12px]'
+                >
+                  {notification.action!.type === 'copilot'
+                    ? 'Fix in Copilot'
+                    : notification.action!.type === 'refresh'
+                      ? 'Refresh'
+                      : 'Take action'}
+                </Button>
               )}
             </div>
           </div>

@@ -317,10 +317,10 @@ export default function PlaygroundPage() {
                 </PopoverContent>
               </Popover>
             </VariantRow>
-            <VariantRow label='primary variant'>
-              <Popover variant='primary'>
+            <VariantRow label='secondary variant'>
+              <Popover variant='secondary'>
                 <PopoverTrigger asChild>
-                  <Button variant='primary'>Primary Popover</Button>
+                  <Button variant='secondary'>Secondary Popover</Button>
                 </PopoverTrigger>
                 <PopoverContent>
                   <PopoverItem>Item 1</PopoverItem>

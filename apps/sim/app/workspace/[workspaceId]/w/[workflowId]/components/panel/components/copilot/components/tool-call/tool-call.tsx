@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Loader2 } from 'lucide-react'
 import { Button, Code } from '@/components/emcn'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
@@ -503,12 +502,10 @@ function RunSkipButtons({
   return (
     <div className='mt-[12px] flex gap-[6px]'>
       <Button onClick={onRun} disabled={isProcessing} variant='tertiary'>
-        {isProcessing ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
-        Allow
+        {isProcessing ? 'Allowing...' : 'Allow'}
       </Button>
       <Button onClick={onAlwaysAllow} disabled={isProcessing} variant='default'>
-        {isProcessing ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
-        Always Allow
+        {isProcessing ? 'Allowing...' : 'Always Allow'}
       </Button>
       <Button onClick={onSkip} disabled={isProcessing} variant='default'>
         Skip
@@ -604,11 +601,11 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
       const url = editedParams.url || ''
       const method = (editedParams.method || '').toUpperCase()
       return (
-        <div className='w-full overflow-hidden rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]'>
+        <div className='w-full overflow-hidden rounded-[4px] border border-[var(--border-1)] bg-[#1F1F1F]'>
           <table className='w-full table-fixed bg-transparent'>
             <thead className='bg-transparent'>
-              <tr className='border-[var(--border-strong)] border-b bg-transparent'>
-                <th className='w-[26%] border-[var(--border-strong)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
+              <tr className='border-[var(--border-1)] border-b bg-transparent'>
+                <th className='w-[26%] border-[var(--border-1)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
                   Method
                 </th>
                 <th className='w-[74%] bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
@@ -617,8 +614,8 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
               </tr>
             </thead>
             <tbody className='bg-transparent'>
-              <tr className='group relative border-[var(--border-strong)] border-t bg-transparent'>
-                <td className='relative w-[26%] border-[var(--border-strong)] border-r bg-transparent p-0'>
+              <tr className='group relative border-[var(--border-1)] border-t bg-transparent'>
+                <td className='relative w-[26%] border-[var(--border-1)] border-r bg-transparent p-0'>
                   <div className='px-[10px] py-[8px]'>
                     <input
                       type='text'
@@ -666,11 +663,11 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
       })
 
       return (
-        <div className='w-full overflow-hidden rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]'>
+        <div className='w-full overflow-hidden rounded-[4px] border border-[var(--border-1)] bg-[#1F1F1F]'>
           <table className='w-full table-fixed bg-transparent'>
             <thead className='bg-transparent'>
-              <tr className='border-[var(--border-strong)] border-b bg-transparent'>
-                <th className='w-[36%] border-[var(--border-strong)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
+              <tr className='border-[var(--border-1)] border-b bg-transparent'>
+                <th className='w-[36%] border-[var(--border-1)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
                   Name
                 </th>
                 <th className='w-[64%] bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
@@ -680,7 +677,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
             </thead>
             <tbody className='bg-transparent'>
               {normalizedEntries.length === 0 ? (
-                <tr className='border-[var(--border-strong)] border-t bg-transparent'>
+                <tr className='border-[var(--border-1)] border-t bg-transparent'>
                   <td colSpan={2} className='px-[10px] py-[8px] text-muted-foreground text-xs'>
                     No variables provided
                   </td>
@@ -689,9 +686,9 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
                 normalizedEntries.map(([originalKey, name, value]) => (
                   <tr
                     key={originalKey}
-                    className='group relative border-[var(--border-strong)] border-t bg-transparent'
+                    className='group relative border-[var(--border-1)] border-t bg-transparent'
                   >
-                    <td className='relative w-[36%] border-[var(--border-strong)] border-r bg-transparent p-0'>
+                    <td className='relative w-[36%] border-[var(--border-1)] border-r bg-transparent p-0'>
                       <div className='px-[10px] py-[8px]'>
                         <input
                           type='text'
@@ -862,11 +859,11 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
       const inputEntries = Object.entries(safeInputs)
 
       return (
-        <div className='w-full overflow-hidden rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]'>
+        <div className='w-full overflow-hidden rounded-[4px] border border-[var(--border-1)] bg-[#1F1F1F]'>
           <table className='w-full table-fixed bg-transparent'>
             <thead className='bg-transparent'>
-              <tr className='border-[var(--border-strong)] border-b bg-transparent'>
-                <th className='w-[36%] border-[var(--border-strong)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
+              <tr className='border-[var(--border-1)] border-b bg-transparent'>
+                <th className='w-[36%] border-[var(--border-1)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
                   Input
                 </th>
                 <th className='w-[64%] bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
@@ -876,7 +873,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
             </thead>
             <tbody className='bg-transparent'>
               {inputEntries.length === 0 ? (
-                <tr className='border-[var(--border-strong)] border-t bg-transparent'>
+                <tr className='border-[var(--border-1)] border-t bg-transparent'>
                   <td colSpan={2} className='px-[10px] py-[8px] text-muted-foreground text-xs'>
                     No inputs provided
                   </td>
@@ -885,9 +882,9 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
                 inputEntries.map(([key, value]) => (
                   <tr
                     key={key}
-                    className='group relative border-[var(--border-strong)] border-t bg-transparent'
+                    className='group relative border-[var(--border-1)] border-t bg-transparent'
                   >
-                    <td className='relative w-[36%] border-[var(--border-strong)] border-r bg-transparent p-0'>
+                    <td className='relative w-[36%] border-[var(--border-1)] border-r bg-transparent p-0'>
                       <div className='px-[10px] py-[8px]'>
                         <span className='truncate font-medium text-foreground text-xs'>{key}</span>
                       </div>

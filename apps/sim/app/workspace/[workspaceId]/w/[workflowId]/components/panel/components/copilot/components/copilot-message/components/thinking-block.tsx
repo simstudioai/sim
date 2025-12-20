@@ -194,7 +194,7 @@ export function ThinkingBlock({
       </button>
 
       {isExpanded && (
-        <div className='ml-1 border-[var(--border-strong)] border-l-2 pl-2'>
+        <div className='ml-1 border-[var(--border-1)] border-l-2 pl-2'>
           <pre
             className='whitespace-pre-wrap font-[470] font-season text-[12px] leading-[1.15rem]'
             style={{ color: '#B8B8B8' }}

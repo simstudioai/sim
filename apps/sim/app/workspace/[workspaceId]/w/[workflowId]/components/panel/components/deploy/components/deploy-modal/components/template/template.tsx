@@ -1,8 +1,7 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Loader2 } from 'lucide-react'
+import { forwardRef, useEffect, useRef, useState } from 'react'
 import {
   Button,
   Combobox,
@@ -439,14 +438,7 @@ export function TemplateDeploy({
               onClick={handleDelete}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? (
-                <>
-                  <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
-                  Deleting...
-                </>
-              ) : (
-                'Delete'
-              )}
+              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -462,7 +454,7 @@ export function TemplateDeploy({
  * Hidden container for OG image capture.
  * Lazy-rendered only when capturing - gets workflow state from store on mount.
  */
-const OGCaptureContainer = React.forwardRef<HTMLDivElement>((_, ref) => {
+const OGCaptureContainer = forwardRef<HTMLDivElement>((_, ref) => {
   const blocks = useWorkflowStore((state) => state.blocks)
   const edges = useWorkflowStore((state) => state.edges)
   const loops = useWorkflowStore((state) => state.loops)

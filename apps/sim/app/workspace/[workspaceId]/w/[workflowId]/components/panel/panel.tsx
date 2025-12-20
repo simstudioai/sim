@@ -439,7 +439,11 @@ export function Panel() {
           <div className='flex flex-shrink-0 items-center justify-between px-[8px] pt-[14px]'>
             <div className='flex gap-[4px]'>
               <Button
-                className='h-[28px] truncate rounded-[6px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                className={`h-[28px] truncate rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
+                  _hasHydrated && activeTab === 'copilot'
+                    ? 'border-[var(--border-1)]'
+                    : 'border-transparent hover:border-[var(--border-1)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                }`}
                 variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('copilot')}
                 data-tab-button='copilot'
@@ -447,7 +451,11 @@ export function Panel() {
                 Copilot
               </Button>
               <Button
-                className='h-[28px] rounded-[6px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                className={`h-[28px] rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
+                  _hasHydrated && activeTab === 'toolbar'
+                    ? 'border-[var(--border-1)]'
+                    : 'border-transparent hover:border-[var(--border-1)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                }`}
                 variant={_hasHydrated && activeTab === 'toolbar' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('toolbar')}
                 data-tab-button='toolbar'
@@ -455,7 +463,11 @@ export function Panel() {
                 Toolbar
               </Button>
               <Button
-                className='h-[28px] rounded-[6px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                className={`h-[28px] rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
+                  _hasHydrated && activeTab === 'editor'
+                    ? 'border-[var(--border-1)]'
+                    : 'border-transparent hover:border-[var(--border-1)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                }`}
                 variant={_hasHydrated && activeTab === 'editor' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('editor')}
                 data-tab-button='editor'
@@ -464,7 +476,7 @@ export function Panel() {
               </Button>
             </div>
 
-            {/* Workflow Controls (Undo/Redo and Zoom) */}
+            {/* Workflow Controls (Undo/Redo) */}
             {/* <WorkflowControls /> */}
           </div>
 

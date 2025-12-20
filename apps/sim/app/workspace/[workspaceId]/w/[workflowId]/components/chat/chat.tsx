@@ -974,7 +974,7 @@ export function Chat() {
           {/* Combined input container */}
           <div
             className={`rounded-[4px] border bg-[var(--surface-5)] py-0 pr-[6px] pl-[4px] transition-colors ${
-              isDragOver ? 'border-[var(--brand-secondary)]' : 'border-[var(--surface-11)]'
+              isDragOver ? 'border-[var(--brand-secondary)]' : 'border-[var(--border-1)]'
             }`}
           >
             {/* File thumbnails */}

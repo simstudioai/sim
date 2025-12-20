@@ -85,7 +85,7 @@ const POPOVER_ICON_SIZE_CLASSES: Record<PopoverSize, string> = {
  * Variant-specific active state styles for popover items.
  */
 const POPOVER_ITEM_ACTIVE_CLASSES = {
-  primary: 'bg-[var(--brand-secondary)] text-[var(--surface-0)] [&_svg]:text-[var(--surface-0)]',
+  secondary: 'bg-[var(--brand-secondary)] text-[var(--surface-0)] [&_svg]:text-[var(--surface-0)]',
   default: 'bg-[var(--surface-5)] text-[var(--text-primary)] [&_svg]:text-[var(--text-primary)]',
 }
 
@@ -93,13 +93,13 @@ const POPOVER_ITEM_ACTIVE_CLASSES = {
  * Variant-specific hover state styles for popover items.
  */
 const POPOVER_ITEM_HOVER_CLASSES = {
-  primary:
+  secondary:
     'hover:bg-[var(--brand-secondary)] hover:text-[var(--surface-0)] hover:[&_svg]:text-[var(--surface-0)]',
   default:
     'hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)] hover:[&_svg]:text-[var(--text-primary)]',
 }
 
-type PopoverVariant = 'default' | 'primary'
+type PopoverVariant = 'default' | 'secondary'
 
 interface PopoverContextValue {
   openFolder: (
@@ -417,7 +417,7 @@ const PopoverContent = React.forwardRef<
           // If width is constrained by the caller (prop or style), ensure inner flexible text truncates by default,
           // and also truncate section headers.
           hasUserWidthConstraint && '[&_.flex-1]:truncate [&_[data-popover-section]]:truncate',
-          border && 'border border-[var(--surface-11)]',
+          border && 'border border-[var(--border-1)]',
           className
         )}
         style={{

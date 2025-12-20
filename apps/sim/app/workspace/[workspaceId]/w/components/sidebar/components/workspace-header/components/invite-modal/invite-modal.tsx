@@ -2,7 +2,6 @@
 
 import React, { type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Loader2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -719,7 +718,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                   tabIndex={-1}
                   readOnly
                 />
-                <div className='scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-5)] px-[6px] py-[4px] focus-within:outline-none dark:bg-[var(--surface-5)]'>
+                <div className='scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[6px] py-[4px] focus-within:outline-none dark:bg-[var(--surface-5)]'>
                   {invalidEmails.map((email, index) => (
                     <EmailTag
                       key={`invalid-${index}`}
@@ -813,8 +812,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                   onClick={handleSaveChanges}
                   className='h-[32px] gap-[8px] px-[12px] font-medium'
                 >
-                  {isSaving && <Loader2 className='h-4 w-4 animate-spin' />}
-                  Save Changes
+                  {isSaving ? 'Saving...' : 'Save Changes'}
                 </Button>
               </div>
             )}
@@ -828,8 +826,11 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               }
               className='ml-auto'
             >
-              {isSubmitting && <Loader2 className='h-4 w-4 animate-spin' />}
-              {!userPerms.canAdmin ? 'Admin Access Required' : 'Invite'}
+              {!userPerms.canAdmin
+                ? 'Admin Access Required'
+                : isSubmitting
+                  ? 'Inviting...'
+                  : 'Invite'}
             </Button>
           </ModalFooter>
         </form>
@@ -861,10 +862,8 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               variant='destructive'
               onClick={handleRemoveMemberConfirm}
               disabled={isRemovingMember}
-              className='gap-[8px]'
             >
-              {isRemovingMember && <Loader2 className='mr-1 h-4 w-4 animate-spin' />}
-              Remove Member
+              {isRemovingMember ? 'Removing...' : 'Remove Member'}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -895,10 +894,8 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               variant='destructive'
               onClick={handleRemoveInvitationConfirm}
               disabled={isRemovingInvitation}
-              className='gap-[8px]'
             >
-              {isRemovingInvitation && <Loader2 className='mr-1 h-4 w-4 animate-spin' />}
-              Cancel Invitation
+              {isRemovingInvitation ? 'Cancelling...' : 'Cancel Invitation'}
             </Button>
           </ModalFooter>
         </ModalContent>

@@ -1,4 +1,3 @@
-import { RefreshCw } from 'lucide-react'
 import {
   Button,
   Input,
@@ -113,8 +112,7 @@ export function NoOrganizationView({
                   disabled={!orgName || !orgSlug || isCreatingOrg}
                   className='h-[32px] px-[12px]'
                 >
-                  {isCreatingOrg && <RefreshCw className='mr-2 h-4 w-4 animate-spin' />}
-                  Create Team Workspace
+                  {isCreatingOrg ? 'Creating...' : 'Create Team Workspace'}
                 </Button>
               </div>
             </div>
@@ -201,8 +199,7 @@ export function NoOrganizationView({
                 disabled={isCreatingOrg || !orgName.trim()}
                 className='h-[32px] px-[12px]'
               >
-                {isCreatingOrg && <RefreshCw className='mr-2 h-4 w-4 animate-spin' />}
-                Create Organization
+                {isCreatingOrg ? 'Creating...' : 'Create Organization'}
               </Button>
             </ModalFooter>
           </ModalContent>

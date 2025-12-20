@@ -186,7 +186,7 @@ function SModalSidebarItem({
     <Button
       variant={active ? 'active' : 'ghost'}
       className={cn(
-        'w-full justify-start gap-[8px] rounded-[6px] text-[13px]',
+        'w-full justify-start gap-[8px] rounded-[6px] border-0 text-[13px]',
         !active &&
           'text-[var(--text-tertiary)] hover:bg-[var(--border)] hover:text-[var(--text-primary)]',
         className

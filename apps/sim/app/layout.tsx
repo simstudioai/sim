@@ -84,7 +84,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     var panelWidth = panelState && panelState.panelWidth;
                     var maxPanelWidth = window.innerWidth * 0.4;
 
-                    if (panelWidth >= 244 && panelWidth <= maxPanelWidth) {
+                    if (panelWidth >= 260 && panelWidth <= maxPanelWidth) {
                       document.documentElement.style.setProperty('--panel-width', panelWidth + 'px');
                     } else if (panelWidth > maxPanelWidth) {
                       document.documentElement.style.setProperty('--panel-width', maxPanelWidth + 'px');

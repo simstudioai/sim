@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { createLogger } from '@sim/logger'
-import { AlertCircle, ChevronDown, ChevronUp, Loader2, X } from 'lucide-react'
+import { AlertCircle, ChevronDown, ChevronUp, X } from 'lucide-react'
 import {
   Button,
   Label,
@@ -280,14 +280,7 @@ export function EditChunkModal({
                   type='button'
                   disabled={!isFormValid || isSaving || !hasUnsavedChanges || isNavigating}
                 >
-                  {isSaving ? (
-                    <>
-                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save'
-                  )}
+                  {isSaving ? 'Saving...' : 'Save'}
                 </Button>
               )}
             </ModalFooter>

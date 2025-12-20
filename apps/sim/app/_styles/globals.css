@@ -8,7 +8,7 @@
  */
 :root {
   --sidebar-width: 232px;
-  --panel-width: 244px;
+  --panel-width: 260px;
   --toolbar-triggers-height: 300px;
   --editor-connections-height: 200px;
   --terminal-height: 196px;
@@ -181,10 +181,10 @@
     --surface-1: #1e1e1e;
     --surface-2: #232323;
     --surface-3: #242424;
-    --surface-4: #282828;
+    --surface-4: #292929;
     --border: #2c2c2c;
     --surface-5: #363636;
-    --surface-11: #3d3d3d;
+    --border-1: #3d3d3d;
     --surface-12: #434343;
     --surface-13: #454545;
     --surface-14: #4a4a4a;
@@ -203,7 +203,7 @@
 
     /* Borders / dividers */
 
-    --border-strong: #303030;
+    /* --border-strong: #303030; */
     --divider: #393939;
     --border-muted: #424242;
     --border-success: #575757;
@@ -224,7 +224,7 @@
     --font-weight-semibold: 550;
 
     /* RGB for opacity usage */
-    --surface-4-rgb: 40 40 40;
+    --surface-4-rgb: 41 41 41;
     --surface-5-rgb: 39 39 39;
     --surface-7-rgb: 44 44 44;
     --surface-9-rgb: 54 54 54;
@@ -606,7 +606,7 @@ input[type="search"]::-ms-clear {
   }
 
   html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="copilot"] {
-    background-color: var(--surface-11) !important;
+    background-color: var(--border-1) !important;
     color: var(--text-primary) !important;
   }
   html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="toolbar"],
@@ -616,7 +616,7 @@ input[type="search"]::-ms-clear {
   }
 
   html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="toolbar"] {
-    background-color: var(--surface-11) !important;
+    background-color: var(--border-1) !important;
     color: var(--text-primary) !important;
   }
   html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="copilot"],
@@ -626,7 +626,7 @@ input[type="search"]::-ms-clear {
   }
 
   html[data-panel-active-tab="editor"] .panel-container [data-tab-button="editor"] {
-    background-color: var(--surface-11) !important;
+    background-color: var(--border-1) !important;
     color: var(--text-primary) !important;
   }
   html[data-panel-active-tab="editor"] .panel-container [data-tab-button="copilot"],

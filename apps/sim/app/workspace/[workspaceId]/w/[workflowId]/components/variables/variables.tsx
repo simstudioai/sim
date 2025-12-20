@@ -451,7 +451,7 @@ export function Variables() {
                 <div
                   key={variable.id}
                   className={cn(
-                    'rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-1)]',
+                    'rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-1)]',
                     (collapsedById[variable.id] ?? false) ? 'overflow-hidden' : 'overflow-visible'
                   )}
                 >
@@ -460,7 +460,7 @@ export function Variables() {
                   {!(collapsedById[variable.id] ?? false) && (
                     <div
                       id={`variable-content-${variable.id}`}
-                      className='flex flex-col gap-[6px] border-[var(--border-strong)] border-t px-[10px] pt-[6px] pb-[10px]'
+                      className='flex flex-col gap-[6px] border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'
                     >
                       <div className='flex flex-col gap-[4px]'>
                         <Label className='text-[13px]'>{STRINGS.labels.name}</Label>

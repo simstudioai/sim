@@ -105,7 +105,7 @@ export function CustomTools() {
         <div className='flex items-center gap-[8px]'>
           <div
             className={cn(
-              'flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-5)] px-[8px] py-[5px]',
+              'flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]',
               isLoading && 'opacity-50'
             )}
           >
