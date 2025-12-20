@@ -91,13 +91,19 @@ Jira 的主要功能包括：
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
-| `projectId` | 字符串 | 是 | 问题的项目 ID |
-| `summary` | 字符串 | 是 | 问题的摘要 |
-| `description` | 字符串 | 否 | 问题的描述 |
-| `priority` | 字符串 | 否 | 问题的优先级 |
-| `assignee` | 字符串 | 否 | 问题的负责人 |
-| `cloudId` | 字符串 | 否 | 实例的 Jira 云 ID。如果未提供，将使用域名获取。 |
-| `issueType` | 字符串 | 是 | 要创建的问题类型 \(例如：任务、故事\) |
+| `projectId` | 字符串 | 是 | 问题所属项目 ID |
+| `summary` | 字符串 | 是 | 问题摘要 |
+| `description` | 字符串 | 否 | 问题描述 |
+| `priority` | 字符串 | 否 | 问题优先级 ID 或名称 \(例如：“10000”或“High”\) |
+| `assignee` | 字符串 | 否 | 问题负责人账户 ID |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+| `issueType` | 字符串 | 是 | 要创建的问题类型 \(例如：Task、Story\) |
+| `labels` | 数组 | 否 | 问题标签 \(标签名称数组\) |
+| `duedate` | 字符串 | 否 | 问题截止日期 \(格式：YYYY-MM-DD\) |
+| `reporter` | 字符串 | 否 | 问题报告人账户 ID |
+| `environment` | 字符串 | 否 | 问题环境信息 |
+| `customFieldId` | 字符串 | 否 | 自定义字段 ID \(例如：customfield_10001\) |
+| `customFieldValue` | 字符串 | 否 | 自定义字段的值 |
 
 #### 输出
 
@@ -107,6 +113,7 @@ Jira 的主要功能包括：
 | `issueKey` | 字符串 | 创建的问题键 \(例如：PROJ-123\) |
 | `summary` | 字符串 | 问题摘要 |
 | `url` | 字符串 | 创建的问题的 URL |
+| `assigneeId` | 字符串 | 已分配用户的账户 ID（如已分配） |
 
 ### `jira_bulk_read`
 
@@ -520,7 +527,31 @@ Jira 的主要功能包括：
 | `issueKey` | string | 问题键 |
 | `watcherAccountId` | string | 移除的观察者账户 ID |
 
-## 注意事项
+### `jira_get_users`
 
-- 类别: `tools`
-- 类型: `jira`
+获取 Jira 用户。如果提供了账户 ID，则返回单个用户，否则返回所有用户的列表。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `accountId` | 字符串 | 否 | 可选账户 ID，用于获取特定用户。如果未提供，则返回所有用户。 |
+| `startAt` | 数字 | 否 | 要返回的第一个用户的索引 \(用于分页，默认值：0\) |
+| `maxResults` | 数字 | 否 | 要返回的最大用户数 \(默认值：50\) |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | 字符串 | 操作的时间戳 |
+| `users` | json | 用户数组，包含 accountId、displayName、emailAddress、active 状态和 avatarUrls |
+| `total` | 数字 | 返回的用户总数 |
+| `startAt` | 数字 | 分页起始索引 |
+| `maxResults` | 数字 | 每页最大结果数 |
+
+## 备注
+
+- 分类：`tools`
+- 类型：`jira`

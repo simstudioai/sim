@@ -1,15 +1,13 @@
 import { ServiceNowIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
 import type { ServiceNowResponse } from '@/tools/servicenow/types'
 
 export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
   type: 'servicenow',
   name: 'ServiceNow',
-  description: 'Create, read, update, delete, and bulk import ServiceNow records',
-  authMode: AuthMode.OAuth,
+  description: 'Create, read, update, and delete ServiceNow records',
   longDescription:
-    'Integrate ServiceNow into your workflow. Can create, read, update, and delete records in any ServiceNow table (incidents, tasks, users, etc.). Supports bulk import operations for data migration and ETL.',
+    'Integrate ServiceNow into your workflow. Create, read, update, and delete records in any ServiceNow table including incidents, tasks, change requests, users, and more.',
   docsLink: 'https://docs.sim.ai/tools/servicenow',
   category: 'tools',
   bgColor: '#032D42',
@@ -21,12 +19,12 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        { label: 'Create Record', id: 'create' },
-        { label: 'Read Records', id: 'read' },
-        { label: 'Update Record', id: 'update' },
-        { label: 'Delete Record', id: 'delete' },
+        { label: 'Create Record', id: 'servicenow_create_record' },
+        { label: 'Read Records', id: 'servicenow_read_record' },
+        { label: 'Update Record', id: 'servicenow_update_record' },
+        { label: 'Delete Record', id: 'servicenow_delete_record' },
       ],
-      value: () => 'read',
+      value: () => 'servicenow_read_record',
     },
     // Instance URL
     {
@@ -35,17 +33,26 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
       type: 'short-input',
       placeholder: 'https://instance.service-now.com',
       required: true,
-      description: 'Your ServiceNow instance URL',
+      description: 'Your ServiceNow instance URL (e.g., https://yourcompany.service-now.com)',
     },
-    // OAuth Credential
+    // Username
     {
-      id: 'credential',
-      title: 'ServiceNow Account',
-      type: 'oauth-input',
-      serviceId: 'servicenow',
-      requiredScopes: ['useraccount'],
-      placeholder: 'Select ServiceNow account',
+      id: 'username',
+      title: 'Username',
+      type: 'short-input',
+      placeholder: 'Enter your ServiceNow username',
       required: true,
+      description: 'ServiceNow user with web service access',
+    },
+    // Password
+    {
+      id: 'password',
+      title: 'Password',
+      type: 'short-input',
+      placeholder: 'Enter your ServiceNow password',
+      password: true,
+      required: true,
+      description: 'Password for the ServiceNow user',
     },
     // Table Name
     {
@@ -63,7 +70,7 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
       type: 'code',
       language: 'json',
       placeholder: '{\n  "short_description": "Issue description",\n  "priority": "1"\n}',
-      condition: { field: 'operation', value: 'create' },
+      condition: { field: 'operation', value: 'servicenow_create_record' },
       required: true,
       wandConfig: {
         enabled: true,
@@ -96,21 +103,21 @@ Output: {"short_description": "Network outage", "description": "Network connecti
       title: 'Record sys_id',
       type: 'short-input',
       placeholder: 'Specific record sys_id (optional)',
-      condition: { field: 'operation', value: 'read' },
+      condition: { field: 'operation', value: 'servicenow_read_record' },
     },
     {
       id: 'number',
       title: 'Record Number',
       type: 'short-input',
       placeholder: 'e.g., INC0010001 (optional)',
-      condition: { field: 'operation', value: 'read' },
+      condition: { field: 'operation', value: 'servicenow_read_record' },
     },
     {
       id: 'query',
       title: 'Query String',
       type: 'short-input',
       placeholder: 'active=true^priority=1',
-      condition: { field: 'operation', value: 'read' },
+      condition: { field: 'operation', value: 'servicenow_read_record' },
       description: 'ServiceNow encoded query string',
     },
     {
@@ -118,14 +125,14 @@ Output: {"short_description": "Network outage", "description": "Network connecti
       title: 'Limit',
       type: 'short-input',
       placeholder: '10',
-      condition: { field: 'operation', value: 'read' },
+      condition: { field: 'operation', value: 'servicenow_read_record' },
     },
     {
       id: 'fields',
       title: 'Fields to Return',
       type: 'short-input',
       placeholder: 'number,short_description,priority',
-      condition: { field: 'operation', value: 'read' },
+      condition: { field: 'operation', value: 'servicenow_read_record' },
       description: 'Comma-separated list of fields',
     },
     // Update-specific: sysId and fields
@@ -134,7 +141,7 @@ Output: {"short_description": "Network outage", "description": "Network connecti
       title: 'Record sys_id',
       type: 'short-input',
       placeholder: 'Record sys_id to update',
-      condition: { field: 'operation', value: 'update' },
+      condition: { field: 'operation', value: 'servicenow_update_record' },
       required: true,
     },
     {
@@ -143,7 +150,7 @@ Output: {"short_description": "Network outage", "description": "Network connecti
       type: 'code',
       language: 'json',
       placeholder: '{\n  "state": "2",\n  "assigned_to": "user.sys_id"\n}',
-      condition: { field: 'operation', value: 'update' },
+      condition: { field: 'operation', value: 'servicenow_update_record' },
       required: true,
       wandConfig: {
         enabled: true,
@@ -175,7 +182,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       title: 'Record sys_id',
       type: 'short-input',
       placeholder: 'Record sys_id to delete',
-      condition: { field: 'operation', value: 'delete' },
+      condition: { field: 'operation', value: 'servicenow_delete_record' },
       required: true,
     },
   ],
@@ -187,60 +194,26 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       'servicenow_delete_record',
     ],
     config: {
-      tool: (params) => {
-        switch (params.operation) {
-          case 'create':
-            return 'servicenow_create_record'
-          case 'read':
-            return 'servicenow_read_record'
-          case 'update':
-            return 'servicenow_update_record'
-          case 'delete':
-            return 'servicenow_delete_record'
-          default:
-            throw new Error(`Invalid ServiceNow operation: ${params.operation}`)
-        }
-      },
+      tool: (params) => params.operation,
       params: (params) => {
-        const { operation, fields, records, credential, ...rest } = params
+        const { operation, fields, ...rest } = params
+        const isCreateOrUpdate =
+          operation === 'servicenow_create_record' || operation === 'servicenow_update_record'
 
-        // Parse JSON fields if provided
-        let parsedFields: Record<string, any> | undefined
-        if (fields && (operation === 'create' || operation === 'update')) {
-          try {
-            parsedFields = typeof fields === 'string' ? JSON.parse(fields) : fields
-          } catch (error) {
-            throw new Error(
-              `Invalid JSON in fields: ${error instanceof Error ? error.message : String(error)}`
-            )
-          }
+        if (fields && isCreateOrUpdate) {
+          const parsedFields = typeof fields === 'string' ? JSON.parse(fields) : fields
+          return { ...rest, fields: parsedFields }
         }
 
-        // Validate OAuth credential
-        if (!credential) {
-          throw new Error('ServiceNow account credential is required')
-        }
-
-        // Build params
-        const baseParams: Record<string, any> = {
-          ...rest,
-          credential,
-        }
-
-        if (operation === 'create' || operation === 'update') {
-          return {
-            ...baseParams,
-            fields: parsedFields,
-          }
-        }
-        return baseParams
+        return rest
       },
     },
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     instanceUrl: { type: 'string', description: 'ServiceNow instance URL' },
-    credential: { type: 'string', description: 'ServiceNow OAuth credential ID' },
+    username: { type: 'string', description: 'ServiceNow username' },
+    password: { type: 'string', description: 'ServiceNow password' },
     tableName: { type: 'string', description: 'Table name' },
     sysId: { type: 'string', description: 'Record sys_id' },
     number: { type: 'string', description: 'Record number' },

@@ -20,7 +20,11 @@ import type {
   WorkflowState,
   WorkflowStore,
 } from '@/stores/workflows/workflow/types'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
+import {
+  generateLoopBlocks,
+  generateParallelBlocks,
+  wouldCreateCycle,
+} from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('WorkflowStore')
 
@@ -425,6 +429,15 @@ export const useWorkflowStore = create<WorkflowStore>()(
         const targetBlock = get().blocks[edge.target]
 
         if (isAnnotationOnlyBlock(sourceBlock?.type) || isAnnotationOnlyBlock(targetBlock?.type)) {
+          return
+        }
+
+        // Prevent self-connections and cycles
+        if (wouldCreateCycle(get().edges, edge.source, edge.target)) {
+          logger.warn('Prevented edge that would create a cycle', {
+            source: edge.source,
+            target: edge.target,
+          })
           return
         }
 

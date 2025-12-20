@@ -225,6 +225,13 @@ export function getBlockOutputs(
     return getUnifiedStartOutputs(subBlocks)
   }
 
+  if (blockType === 'human_in_the_loop') {
+    // For human_in_the_loop, only expose url (inputFormat fields are only available after resume)
+    return {
+      url: { type: 'string', description: 'Resume UI URL' },
+    }
+  }
+
   if (blockType === 'approval') {
     // Start with only url (apiUrl commented out - not accessible as output)
     const pauseResumeOutputs: Record<string, any> = {

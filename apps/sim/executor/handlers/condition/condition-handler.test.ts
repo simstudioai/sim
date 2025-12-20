@@ -1,10 +1,51 @@
-import '@/executor/__test-utils__/mock-dependencies'
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import { ConditionBlockHandler } from '@/executor/handlers/condition/condition-handler'
 import type { BlockState, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+
+vi.mock('@/lib/logs/console/logger', () => ({
+  createLogger: vi.fn(() => ({
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+  })),
+}))
+
+vi.mock('@/lib/core/utils/request', () => ({
+  generateRequestId: vi.fn(() => 'test-request-id'),
+}))
+
+vi.mock('@/tools', () => ({
+  executeTool: vi.fn(),
+}))
+
+import { executeTool } from '@/tools'
+
+const mockExecuteTool = executeTool as ReturnType<typeof vi.fn>
+
+/**
+ * Simulates what the function_execute tool does when evaluating condition code
+ */
+function simulateConditionExecution(code: string): {
+  success: boolean
+  output?: { result: unknown }
+  error?: string
+} {
+  try {
+    // The code is in format: "const context = {...};\nreturn Boolean(...)"
+    // We need to execute it and return the result
+    const fn = new Function(code)
+    const result = fn()
+    return { success: true, output: { result } }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message,
+    }
+  }
+}
 
 describe('ConditionBlockHandler', () => {
   let handler: ConditionBlockHandler
@@ -18,7 +59,6 @@ describe('ConditionBlockHandler', () => {
   let mockPathTracker: any
 
   beforeEach(() => {
-    // Define blocks first
     mockSourceBlock = {
       id: 'source-block-1',
       metadata: { id: 'source', name: 'Source Block' },
@@ -33,7 +73,7 @@ describe('ConditionBlockHandler', () => {
       metadata: { id: BlockType.CONDITION, name: 'Test Condition' },
       position: { x: 50, y: 50 },
       config: { tool: BlockType.CONDITION, params: {} },
-      inputs: { conditions: 'json' }, // Corrected based on previous step
+      inputs: { conditions: 'json' },
       outputs: {},
       enabled: true,
     }
@@ -56,7 +96,6 @@ describe('ConditionBlockHandler', () => {
       enabled: true,
     }
 
-    // Then define workflow using the block objects
     mockWorkflow = {
       blocks: [mockSourceBlock, mockBlock, mockTargetBlock1, mockTargetBlock2],
       connections: [
@@ -84,7 +123,6 @@ describe('ConditionBlockHandler', () => {
 
     handler = new ConditionBlockHandler(mockPathTracker, mockResolver)
 
-    // Define mock context *after* workflow and blocks are set up
     mockContext = {
       workflowId: 'test-workflow-id',
       blockStates: new Map<string, BlockState>([
@@ -99,7 +137,7 @@ describe('ConditionBlockHandler', () => {
       ]),
       blockLogs: [],
       metadata: { duration: 0 },
-      environmentVariables: {}, // Now set the context's env vars
+      environmentVariables: {},
       decisions: { router: new Map(), condition: new Map() },
       loopExecutions: new Map(),
       executedBlocks: new Set([mockSourceBlock.id]),
@@ -108,11 +146,11 @@ describe('ConditionBlockHandler', () => {
       completedLoops: new Set(),
     }
 
-    // Reset mocks using vi
     vi.clearAllMocks()
 
-    // Default mock implementations - Removed as it's in the shared mock now
-    // mockResolver.resolveBlockReferences.mockImplementation((value) => value)
+    mockExecuteTool.mockImplementation(async (_toolId: string, params: { code: string }) => {
+      return simulateConditionExecution(params.code)
+    })
   })
 
   it('should handle condition blocks', () => {
@@ -137,11 +175,9 @@ describe('ConditionBlockHandler', () => {
         blockType: 'target',
         blockTitle: 'Target Block 1',
       },
-      selectedConditionId: 'cond1',
       selectedOption: 'cond1',
     }
 
-    // Mock the full resolution pipeline
     mockResolver.resolveVariableReferences.mockReturnValue('context.value > 5')
     mockResolver.resolveBlockReferences.mockReturnValue('context.value > 5')
     mockResolver.resolveEnvVariables.mockReturnValue('context.value > 5')
@@ -178,11 +214,9 @@ describe('ConditionBlockHandler', () => {
         blockType: 'target',
         blockTitle: 'Target Block 2',
       },
-      selectedConditionId: 'else1',
       selectedOption: 'else1',
     }
 
-    // Mock the full resolution pipeline
     mockResolver.resolveVariableReferences.mockReturnValue('context.value < 0')
     mockResolver.resolveBlockReferences.mockReturnValue('context.value < 0')
     mockResolver.resolveEnvVariables.mockReturnValue('context.value < 0')
@@ -207,7 +241,7 @@ describe('ConditionBlockHandler', () => {
     const inputs = { conditions: '{ "invalid json ' }
 
     await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
-      /^Invalid conditions format: Unterminated string.*/
+      /^Invalid conditions format:/
     )
   })
 
@@ -218,7 +252,6 @@ describe('ConditionBlockHandler', () => {
     ]
     const inputs = { conditions: JSON.stringify(conditions) }
 
-    // Mock the full resolution pipeline
     mockResolver.resolveVariableReferences.mockReturnValue('{{source-block-1.value}} > 5')
     mockResolver.resolveBlockReferences.mockReturnValue('10 > 5')
     mockResolver.resolveEnvVariables.mockReturnValue('10 > 5')
@@ -245,7 +278,6 @@ describe('ConditionBlockHandler', () => {
     ]
     const inputs = { conditions: JSON.stringify(conditions) }
 
-    // Mock the full resolution pipeline for variable resolution
     mockResolver.resolveVariableReferences.mockReturnValue('"john" !== null')
     mockResolver.resolveBlockReferences.mockReturnValue('"john" !== null')
     mockResolver.resolveEnvVariables.mockReturnValue('"john" !== null')
@@ -272,7 +304,6 @@ describe('ConditionBlockHandler', () => {
     ]
     const inputs = { conditions: JSON.stringify(conditions) }
 
-    // Mock the full resolution pipeline for env variable resolution
     mockResolver.resolveVariableReferences.mockReturnValue('{{POOP}} === "hi"')
     mockResolver.resolveBlockReferences.mockReturnValue('{{POOP}} === "hi"')
     mockResolver.resolveEnvVariables.mockReturnValue('"hi" === "hi"')
@@ -300,7 +331,6 @@ describe('ConditionBlockHandler', () => {
     const inputs = { conditions: JSON.stringify(conditions) }
 
     const resolutionError = new Error('Could not resolve reference: invalid-ref')
-    // Mock the pipeline to throw at the variable resolution stage
     mockResolver.resolveVariableReferences.mockImplementation(() => {
       throw resolutionError
     })
@@ -317,7 +347,6 @@ describe('ConditionBlockHandler', () => {
     ]
     const inputs = { conditions: JSON.stringify(conditions) }
 
-    // Mock the full resolution pipeline
     mockResolver.resolveVariableReferences.mockReturnValue(
       'context.nonExistentProperty.doSomething()'
     )
@@ -325,7 +354,7 @@ describe('ConditionBlockHandler', () => {
     mockResolver.resolveEnvVariables.mockReturnValue('context.nonExistentProperty.doSomething()')
 
     await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
-      /^Evaluation error in condition "if": Evaluation error in condition: Cannot read properties of undefined \(reading 'doSomething'\)\. \(Resolved: context\.nonExistentProperty\.doSomething\(\)\)$/
+      /Evaluation error in condition "if".*doSomething/
     )
   })
 
@@ -333,7 +362,6 @@ describe('ConditionBlockHandler', () => {
     const conditions = [{ id: 'cond1', title: 'if', value: 'true' }]
     const inputs = { conditions: JSON.stringify(conditions) }
 
-    // Create a new context with empty blockStates instead of trying to delete from readonly map
     const contextWithoutSource = {
       ...mockContext,
       blockStates: new Map<string, BlockState>(),
@@ -346,7 +374,7 @@ describe('ConditionBlockHandler', () => {
     const result = await handler.execute(contextWithoutSource, mockBlock, inputs)
 
     expect(result).toHaveProperty('conditionResult', true)
-    expect(result).toHaveProperty('selectedConditionId', 'cond1')
+    expect(result).toHaveProperty('selectedOption', 'cond1')
   })
 
   it('should throw error if target block is missing', async () => {
@@ -355,7 +383,6 @@ describe('ConditionBlockHandler', () => {
 
     mockContext.workflow!.blocks = [mockSourceBlock, mockBlock, mockTargetBlock2]
 
-    // Mock the full resolution pipeline
     mockResolver.resolveVariableReferences.mockReturnValue('true')
     mockResolver.resolveBlockReferences.mockReturnValue('true')
     mockResolver.resolveEnvVariables.mockReturnValue('true')
@@ -381,7 +408,6 @@ describe('ConditionBlockHandler', () => {
       },
     ]
 
-    // Mock the full resolution pipeline
     mockResolver.resolveVariableReferences
       .mockReturnValueOnce('false')
       .mockReturnValueOnce('context.value === 99')
@@ -394,12 +420,9 @@ describe('ConditionBlockHandler', () => {
 
     const result = await handler.execute(mockContext, mockBlock, inputs)
 
-    // Should return success with no path selected (branch ends gracefully)
     expect((result as any).conditionResult).toBe(false)
     expect((result as any).selectedPath).toBeNull()
-    expect((result as any).selectedConditionId).toBeNull()
     expect((result as any).selectedOption).toBeNull()
-    // Decision should not be set when no condition matches
     expect(mockContext.decisions.condition.has(mockBlock.id)).toBe(false)
   })
 
@@ -410,7 +433,6 @@ describe('ConditionBlockHandler', () => {
     ]
     const inputs = { conditions: JSON.stringify(conditions) }
 
-    // Mock the full resolution pipeline
     mockResolver.resolveVariableReferences.mockReturnValue('context.item === "apple"')
     mockResolver.resolveBlockReferences.mockReturnValue('context.item === "apple"')
     mockResolver.resolveEnvVariables.mockReturnValue('context.item === "apple"')
@@ -418,6 +440,6 @@ describe('ConditionBlockHandler', () => {
     const result = await handler.execute(mockContext, mockBlock, inputs)
 
     expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('else1')
-    expect((result as any).selectedConditionId).toBe('else1')
+    expect((result as any).selectedOption).toBe('else1')
   })
 })

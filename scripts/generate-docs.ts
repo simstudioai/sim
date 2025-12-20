@@ -71,7 +71,7 @@ async function generateIconMapping(): Promise<Record<string, string>> {
     console.log('Generating icon mapping from block definitions...')
 
     const iconMapping: Record<string, string> = {}
-    const blockFiles = await glob(`${BLOCKS_PATH}/*.ts`)
+    const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
 
     for (const blockFile of blockFiles) {
       const fileContent = fs.readFileSync(blockFile, 'utf-8')
@@ -132,6 +132,7 @@ function writeIconMapping(iconMapping: Record<string, string>): void {
 
     // Generate mapping with direct references (no dynamic access for tree shaking)
     const mappingEntries = Object.entries(iconMapping)
+      .sort(([a], [b]) => a.localeCompare(b))
       .map(([blockType, iconName]) => `  ${blockType}: ${iconName},`)
       .join('\n')
 
@@ -1165,7 +1166,7 @@ async function generateAllBlockDocs() {
     const iconMapping = await generateIconMapping()
     writeIconMapping(iconMapping)
 
-    const blockFiles = await glob(`${BLOCKS_PATH}/*.ts`)
+    const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
 
     for (const blockFile of blockFiles) {
       await generateBlockDoc(blockFile)

@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
-import { member, templateCreators, templates, workflow } from '@sim/db/schema'
-import { and, eq, or, sql } from 'drizzle-orm'
+import { templateCreators, templates, workflow } from '@sim/db/schema'
+import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -15,7 +15,6 @@ const logger = createLogger('TemplateByIdAPI')
 
 export const revalidate = 0
 
-// GET /api/templates/[id] - Retrieve a single template by ID
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId()
   const { id } = await params
@@ -25,7 +24,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     logger.debug(`[${requestId}] Fetching template: ${id}`)
 
-    // Fetch the template by ID with creator info
     const result = await db
       .select({
         template: templates,
@@ -47,12 +45,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       creator: creator || undefined,
     }
 
-    // Only show approved templates to non-authenticated users
     if (!session?.user?.id && template.status !== 'approved') {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 })
     }
 
-    // Check if user has starred (only if authenticated)
     let isStarred = false
     if (session?.user?.id) {
       const { templateStars } = await import('@sim/db/schema')
@@ -80,7 +76,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
         logger.debug(`[${requestId}] Incremented view count for template: ${id}`)
       } catch (viewError) {
-        // Log the error but don't fail the request
         logger.warn(`[${requestId}] Failed to increment view count for template: ${id}`, viewError)
       }
     }
@@ -138,7 +133,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const { name, details, creatorId, tags, updateState } = validationResult.data
 
-    // Check if template exists
     const existingTemplate = await db.select().from(templates).where(eq(templates.id, id)).limit(1)
 
     if (existingTemplate.length === 0) {
@@ -146,32 +140,54 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Template not found' }, { status: 404 })
     }
 
-    // No permission check needed - template updates only happen from within the workspace
-    // where the user is already editing the connected workflow
+    const template = existingTemplate[0]
 
-    // Prepare update data - only include fields that were provided
+    if (!template.creatorId) {
+      logger.warn(`[${requestId}] Template ${id} has no creator, denying update`)
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    const { verifyCreatorPermission } = await import('@/lib/templates/permissions')
+    const { hasPermission, error: permissionError } = await verifyCreatorPermission(
+      session.user.id,
+      template.creatorId,
+      'admin'
+    )
+
+    if (!hasPermission) {
+      logger.warn(`[${requestId}] User denied permission to update template ${id}`)
+      return NextResponse.json({ error: permissionError || 'Access denied' }, { status: 403 })
+    }
+
     const updateData: any = {
       updatedAt: new Date(),
     }
 
-    // Only update fields that were provided
     if (name !== undefined) updateData.name = name
     if (details !== undefined) updateData.details = details
     if (tags !== undefined) updateData.tags = tags
     if (creatorId !== undefined) updateData.creatorId = creatorId
 
-    // Only update the state if explicitly requested and the template has a connected workflow
-    if (updateState && existingTemplate[0].workflowId) {
-      // Load the current workflow state from normalized tables
+    if (updateState && template.workflowId) {
+      const { verifyWorkflowAccess } = await import('@/socket-server/middleware/permissions')
+      const { hasAccess: hasWorkflowAccess } = await verifyWorkflowAccess(
+        session.user.id,
+        template.workflowId
+      )
+
+      if (!hasWorkflowAccess) {
+        logger.warn(`[${requestId}] User denied workflow access for state sync on template ${id}`)
+        return NextResponse.json({ error: 'Access denied to workflow' }, { status: 403 })
+      }
+
       const { loadWorkflowFromNormalizedTables } = await import('@/lib/workflows/persistence/utils')
-      const normalizedData = await loadWorkflowFromNormalizedTables(existingTemplate[0].workflowId)
+      const normalizedData = await loadWorkflowFromNormalizedTables(template.workflowId)
 
       if (normalizedData) {
-        // Also fetch workflow variables
         const [workflowRecord] = await db
           .select({ variables: workflow.variables })
           .from(workflow)
-          .where(eq(workflow.id, existingTemplate[0].workflowId))
+          .where(eq(workflow.id, template.workflowId))
           .limit(1)
 
         const currentState = {
@@ -183,17 +199,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           lastSaved: Date.now(),
         }
 
-        // Extract credential requirements from the new state
         const requiredCredentials = extractRequiredCredentials(currentState)
 
-        // Sanitize the state before storing
         const sanitizedState = sanitizeCredentials(currentState)
 
         updateData.state = sanitizedState
         updateData.requiredCredentials = requiredCredentials
 
         logger.info(
-          `[${requestId}] Updating template state and credentials from current workflow: ${existingTemplate[0].workflowId}`
+          `[${requestId}] Updating template state and credentials from current workflow: ${template.workflowId}`
         )
       } else {
         logger.warn(`[${requestId}] Could not load workflow state for template: ${id}`)
@@ -233,7 +247,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Fetch template
     const existing = await db.select().from(templates).where(eq(templates.id, id)).limit(1)
     if (existing.length === 0) {
       logger.warn(`[${requestId}] Template not found for delete: ${id}`)
@@ -242,41 +255,21 @@ export async function DELETE(
 
     const template = existing[0]
 
-    // Permission: Only admin/owner of creator profile can delete
-    if (template.creatorId) {
-      const creatorProfile = await db
-        .select()
-        .from(templateCreators)
-        .where(eq(templateCreators.id, template.creatorId))
-        .limit(1)
+    if (!template.creatorId) {
+      logger.warn(`[${requestId}] Template ${id} has no creator, denying delete`)
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
 
-      if (creatorProfile.length > 0) {
-        const creator = creatorProfile[0]
-        let hasPermission = false
+    const { verifyCreatorPermission } = await import('@/lib/templates/permissions')
+    const { hasPermission, error: permissionError } = await verifyCreatorPermission(
+      session.user.id,
+      template.creatorId,
+      'admin'
+    )
 
-        if (creator.referenceType === 'user') {
-          hasPermission = creator.referenceId === session.user.id
-        } else if (creator.referenceType === 'organization') {
-          // For delete, require admin/owner role
-          const membership = await db
-            .select()
-            .from(member)
-            .where(
-              and(
-                eq(member.userId, session.user.id),
-                eq(member.organizationId, creator.referenceId),
-                or(eq(member.role, 'admin'), eq(member.role, 'owner'))
-              )
-            )
-            .limit(1)
-          hasPermission = membership.length > 0
-        }
-
-        if (!hasPermission) {
-          logger.warn(`[${requestId}] User denied permission to delete template ${id}`)
-          return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-        }
-      }
+    if (!hasPermission) {
+      logger.warn(`[${requestId}] User denied permission to delete template ${id}`)
+      return NextResponse.json({ error: permissionError || 'Access denied' }, { status: 403 })
     }
 
     await db.delete(templates).where(eq(templates.id, id))

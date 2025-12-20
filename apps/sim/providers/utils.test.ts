@@ -383,6 +383,17 @@ describe('Model Capabilities', () => {
       expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5-mini')
       expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5-nano')
 
+      // Should contain gpt-5.2 models
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.2')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5.2')
+
+      // Should contain o-series reasoning models (reasoning_effort added Dec 17, 2024)
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('o1')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('o3')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('o4-mini')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/o3')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/o4-mini')
+
       // Should NOT contain non-reasoning GPT-5 models
       expect(MODELS_WITH_REASONING_EFFORT).not.toContain('gpt-5-chat-latest')
       expect(MODELS_WITH_REASONING_EFFORT).not.toContain('azure/gpt-5-chat-latest')
@@ -390,7 +401,6 @@ describe('Model Capabilities', () => {
       // Should NOT contain other models
       expect(MODELS_WITH_REASONING_EFFORT).not.toContain('gpt-4o')
       expect(MODELS_WITH_REASONING_EFFORT).not.toContain('claude-sonnet-4-0')
-      expect(MODELS_WITH_REASONING_EFFORT).not.toContain('o1')
     })
 
     it.concurrent('should have correct models in MODELS_WITH_VERBOSITY', () => {
@@ -409,19 +419,37 @@ describe('Model Capabilities', () => {
       expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5-mini')
       expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5-nano')
 
+      // Should contain gpt-5.2 models
+      expect(MODELS_WITH_VERBOSITY).toContain('gpt-5.2')
+      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5.2')
+
       // Should NOT contain non-reasoning GPT-5 models
       expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5-chat-latest')
       expect(MODELS_WITH_VERBOSITY).not.toContain('azure/gpt-5-chat-latest')
 
+      // Should NOT contain o-series models (they support reasoning_effort but not verbosity)
+      expect(MODELS_WITH_VERBOSITY).not.toContain('o1')
+      expect(MODELS_WITH_VERBOSITY).not.toContain('o3')
+      expect(MODELS_WITH_VERBOSITY).not.toContain('o4-mini')
+
       // Should NOT contain other models
       expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-4o')
       expect(MODELS_WITH_VERBOSITY).not.toContain('claude-sonnet-4-0')
-      expect(MODELS_WITH_VERBOSITY).not.toContain('o1')
     })
 
-    it.concurrent('should have same models in both reasoning effort and verbosity arrays', () => {
-      // GPT-5 models that support reasoning effort should also support verbosity and vice versa
-      expect(MODELS_WITH_REASONING_EFFORT.sort()).toEqual(MODELS_WITH_VERBOSITY.sort())
+    it.concurrent('should have GPT-5 models in both reasoning effort and verbosity arrays', () => {
+      // GPT-5 series models support both reasoning effort and verbosity
+      const gpt5ModelsWithReasoningEffort = MODELS_WITH_REASONING_EFFORT.filter(
+        (m) => m.includes('gpt-5') && !m.includes('chat-latest')
+      )
+      const gpt5ModelsWithVerbosity = MODELS_WITH_VERBOSITY.filter(
+        (m) => m.includes('gpt-5') && !m.includes('chat-latest')
+      )
+      expect(gpt5ModelsWithReasoningEffort.sort()).toEqual(gpt5ModelsWithVerbosity.sort())
+
+      // o-series models have reasoning effort but NOT verbosity
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('o1')
+      expect(MODELS_WITH_VERBOSITY).not.toContain('o1')
     })
   })
 })

@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
-import { and, avg, count, desc, eq, gte } from 'drizzle-orm'
+import { and, avg, count, desc, eq, gte, inArray } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('AlertRules')
@@ -135,25 +135,29 @@ export function isInCooldown(lastAlertAt: Date | null): boolean {
   return new Date() < cooldownEnd
 }
 
-/**
- * Context passed to alert check functions
- */
 export interface AlertCheckContext {
   workflowId: string
   executionId: string
   status: 'success' | 'error'
   durationMs: number
   cost: number
+  triggerFilter: string[]
 }
 
-/**
- * Check if consecutive failures threshold is met
- */
-async function checkConsecutiveFailures(workflowId: string, threshold: number): Promise<boolean> {
+async function checkConsecutiveFailures(
+  workflowId: string,
+  threshold: number,
+  triggerFilter: string[]
+): Promise<boolean> {
   const recentLogs = await db
     .select({ level: workflowExecutionLogs.level })
     .from(workflowExecutionLogs)
-    .where(eq(workflowExecutionLogs.workflowId, workflowId))
+    .where(
+      and(
+        eq(workflowExecutionLogs.workflowId, workflowId),
+        inArray(workflowExecutionLogs.trigger, triggerFilter)
+      )
+    )
     .orderBy(desc(workflowExecutionLogs.createdAt))
     .limit(threshold)
 
@@ -162,13 +166,11 @@ async function checkConsecutiveFailures(workflowId: string, threshold: number): 
   return recentLogs.every((log) => log.level === 'error')
 }
 
-/**
- * Check if failure rate exceeds threshold
- */
 async function checkFailureRate(
   workflowId: string,
   ratePercent: number,
-  windowHours: number
+  windowHours: number,
+  triggerFilter: string[]
 ): Promise<boolean> {
   const windowStart = new Date(Date.now() - windowHours * 60 * 60 * 1000)
 
@@ -181,7 +183,8 @@ async function checkFailureRate(
     .where(
       and(
         eq(workflowExecutionLogs.workflowId, workflowId),
-        gte(workflowExecutionLogs.createdAt, windowStart)
+        gte(workflowExecutionLogs.createdAt, windowStart),
+        inArray(workflowExecutionLogs.trigger, triggerFilter)
       )
     )
     .orderBy(workflowExecutionLogs.createdAt)
@@ -206,14 +209,12 @@ function checkLatencyThreshold(durationMs: number, thresholdMs: number): boolean
   return durationMs > thresholdMs
 }
 
-/**
- * Check if execution duration is significantly above average
- */
 async function checkLatencySpike(
   workflowId: string,
   currentDurationMs: number,
   spikePercent: number,
-  windowHours: number
+  windowHours: number,
+  triggerFilter: string[]
 ): Promise<boolean> {
   const windowStart = new Date(Date.now() - windowHours * 60 * 60 * 1000)
 
@@ -226,7 +227,8 @@ async function checkLatencySpike(
     .where(
       and(
         eq(workflowExecutionLogs.workflowId, workflowId),
-        gte(workflowExecutionLogs.createdAt, windowStart)
+        gte(workflowExecutionLogs.createdAt, windowStart),
+        inArray(workflowExecutionLogs.trigger, triggerFilter)
       )
     )
 
@@ -248,13 +250,11 @@ function checkCostThreshold(cost: number, thresholdDollars: number): boolean {
   return cost > thresholdDollars
 }
 
-/**
- * Check if error count exceeds threshold within window
- */
 async function checkErrorCount(
   workflowId: string,
   threshold: number,
-  windowHours: number
+  windowHours: number,
+  triggerFilter: string[]
 ): Promise<boolean> {
   const windowStart = new Date(Date.now() - windowHours * 60 * 60 * 1000)
 
@@ -265,7 +265,8 @@ async function checkErrorCount(
       and(
         eq(workflowExecutionLogs.workflowId, workflowId),
         eq(workflowExecutionLogs.level, 'error'),
-        gte(workflowExecutionLogs.createdAt, windowStart)
+        gte(workflowExecutionLogs.createdAt, windowStart),
+        inArray(workflowExecutionLogs.trigger, triggerFilter)
       )
     )
 
@@ -273,9 +274,6 @@ async function checkErrorCount(
   return errorCount >= threshold
 }
 
-/**
- * Evaluates if an alert should be triggered based on the configuration
- */
 export async function shouldTriggerAlert(
   config: AlertConfig,
   context: AlertCheckContext,
@@ -287,16 +285,21 @@ export async function shouldTriggerAlert(
   }
 
   const { rule } = config
-  const { workflowId, status, durationMs, cost } = context
+  const { workflowId, status, durationMs, cost, triggerFilter } = context
 
   switch (rule) {
     case 'consecutive_failures':
       if (status !== 'error') return false
-      return checkConsecutiveFailures(workflowId, config.consecutiveFailures!)
+      return checkConsecutiveFailures(workflowId, config.consecutiveFailures!, triggerFilter)
 
     case 'failure_rate':
       if (status !== 'error') return false
-      return checkFailureRate(workflowId, config.failureRatePercent!, config.windowHours!)
+      return checkFailureRate(
+        workflowId,
+        config.failureRatePercent!,
+        config.windowHours!,
+        triggerFilter
+      )
 
     case 'latency_threshold':
       return checkLatencyThreshold(durationMs, config.durationThresholdMs!)
@@ -306,19 +309,24 @@ export async function shouldTriggerAlert(
         workflowId,
         durationMs,
         config.latencySpikePercent!,
-        config.windowHours!
+        config.windowHours!,
+        triggerFilter
       )
 
     case 'cost_threshold':
       return checkCostThreshold(cost, config.costThresholdDollars!)
 
     case 'no_activity':
-      // no_activity alerts are handled by the hourly polling job, not execution events
       return false
 
     case 'error_count':
       if (status !== 'error') return false
-      return checkErrorCount(workflowId, config.errorCountThreshold!, config.windowHours!)
+      return checkErrorCount(
+        workflowId,
+        config.errorCountThreshold!,
+        config.windowHours!,
+        triggerFilter
+      )
 
     default:
       logger.warn(`Unknown alert rule: ${rule}`)

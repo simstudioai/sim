@@ -22,6 +22,7 @@ import { SlackIcon } from '@/components/icons'
 import { Skeleton } from '@/components/ui'
 import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
+import { ALL_TRIGGER_TYPES, type TriggerType } from '@/lib/logs/types'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import {
   type NotificationSubscription,
@@ -43,7 +44,6 @@ const PRIMARY_BUTTON_STYLES =
 
 type NotificationType = 'webhook' | 'email' | 'slack'
 type LogLevel = 'info' | 'error'
-type TriggerType = 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
 type AlertRule =
   | 'none'
   | 'consecutive_failures'
@@ -84,7 +84,6 @@ interface NotificationSettingsProps {
 }
 
 const LOG_LEVELS: LogLevel[] = ['info', 'error']
-const TRIGGER_TYPES: TriggerType[] = ['api', 'webhook', 'schedule', 'manual', 'chat']
 
 function formatAlertConfigLabel(config: {
   rule: AlertRule
@@ -137,7 +136,7 @@ export function NotificationSettings({
     workflowIds: [] as string[],
     allWorkflows: true,
     levelFilter: ['info', 'error'] as LogLevel[],
-    triggerFilter: ['api', 'webhook', 'schedule', 'manual', 'chat'] as TriggerType[],
+    triggerFilter: [...ALL_TRIGGER_TYPES] as TriggerType[],
     includeFinalOutput: false,
     includeTraceSpans: false,
     includeRateLimits: false,
@@ -207,7 +206,7 @@ export function NotificationSettings({
       workflowIds: [],
       allWorkflows: true,
       levelFilter: ['info', 'error'],
-      triggerFilter: ['api', 'webhook', 'schedule', 'manual', 'chat'],
+      triggerFilter: [...ALL_TRIGGER_TYPES],
       includeFinalOutput: false,
       includeTraceSpans: false,
       includeRateLimits: false,
@@ -768,7 +767,7 @@ export function NotificationSettings({
                   <Combobox
                     options={slackAccounts.map((acc) => ({
                       value: acc.id,
-                      label: acc.accountId,
+                      label: acc.displayName || 'Slack Workspace',
                     }))}
                     value={formData.slackAccountId}
                     onChange={(value) => {
@@ -859,7 +858,7 @@ export function NotificationSettings({
           <div className='flex flex-col gap-[8px]'>
             <Label className='text-[var(--text-secondary)]'>Trigger Type Filters</Label>
             <Combobox
-              options={TRIGGER_TYPES.map((trigger) => ({
+              options={ALL_TRIGGER_TYPES.map((trigger) => ({
                 label: trigger.charAt(0).toUpperCase() + trigger.slice(1),
                 value: trigger,
               }))}

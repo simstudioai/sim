@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -12,11 +13,19 @@ export async function POST(request: Request) {
   try {
     const requestId = generateRequestId()
     const body = await request.json()
-    const { credential, workflowId } = body
+    const { credential, workflowId, siteId } = body
 
     if (!credential) {
       logger.error('Missing credential in request')
       return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
+    }
+
+    if (siteId) {
+      const siteIdValidation = validateAlphanumericId(siteId, 'siteId')
+      if (!siteIdValidation.isValid) {
+        logger.error('Invalid siteId', { error: siteIdValidation.error })
+        return NextResponse.json({ error: siteIdValidation.error }, { status: 400 })
+      }
     }
 
     const authz = await authorizeCredentialUse(request as any, {
@@ -46,7 +55,11 @@ export async function POST(request: Request) {
       )
     }
 
-    const response = await fetch('https://api.webflow.com/v2/sites', {
+    const url = siteId
+      ? `https://api.webflow.com/v2/sites/${siteId}`
+      : 'https://api.webflow.com/v2/sites'
+
+    const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         accept: 'application/json',
@@ -58,6 +71,7 @@ export async function POST(request: Request) {
       logger.error('Failed to fetch Webflow sites', {
         status: response.status,
         error: errorData,
+        siteId: siteId || 'all',
       })
       return NextResponse.json(
         { error: 'Failed to fetch Webflow sites', details: errorData },
@@ -66,7 +80,13 @@ export async function POST(request: Request) {
     }
 
     const data = await response.json()
-    const sites = data.sites || []
+
+    let sites: any[]
+    if (siteId) {
+      sites = [data]
+    } else {
+      sites = data.sites || []
+    }
 
     const formattedSites = sites.map((site: any) => ({
       id: site.id,

@@ -1,28 +1,12 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type {
+  SalesforceListReportsParams,
+  SalesforceListReportsResponse,
+} from '@/tools/salesforce/types'
+import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { extractErrorMessage, getInstanceUrl } from './utils'
 
 const logger = createLogger('SalesforceReports')
-
-export interface SalesforceListReportsParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  folderName?: string
-  searchTerm?: string
-}
-
-export interface SalesforceListReportsResponse {
-  success: boolean
-  output: {
-    reports: any[]
-    metadata: {
-      operation: 'list_reports'
-      totalReturned: number
-    }
-    success: boolean
-  }
-}
 
 /**
  * List all reports accessible by the current user

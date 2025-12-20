@@ -110,26 +110,24 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
     ```json
     {
-      "content": "Original content passed through",
       "conditionResult": true,
       "selectedPath": {
         "blockId": "2acd9007-27e8-4510-a487-73d3b825e7c1",
         "blockType": "agent",
         "blockTitle": "Follow-up Agent"
       },
-      "selectedConditionId": "condition-1"
+      "selectedOption": "condition-1"
     }
     ```
 
     ### 条件模块输出字段
 
-    - **content**：传递的原始内容
-    - **conditionResult**：条件评估的布尔结果
-    - **selectedPath**：关于选定路径的信息
-      - **blockId**：选定路径中下一个模块的 ID
-      - **blockType**：下一个模块的类型
-      - **blockTitle**：下一个模块的标题
-    - **selectedConditionId**：选定条件的 ID
+    - **conditionResult**：条件判断的布尔值结果
+    - **selectedPath**：所选路径的信息
+      - **blockId**：所选路径下一个区块的 ID
+      - **blockType**：下一个区块的类型
+      - **blockTitle**：下一个区块的标题
+    - **selectedOption**：所选条件的 ID
 
   </Tab>
   <Tab>

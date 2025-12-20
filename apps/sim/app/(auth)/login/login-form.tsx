@@ -573,10 +573,10 @@ export default function LoginPage({
       <Dialog open={forgotPasswordOpen} onOpenChange={setForgotPasswordOpen}>
         <DialogContent className='auth-card auth-card-shadow max-w-[540px] rounded-[10px] border backdrop-blur-sm'>
           <DialogHeader>
-            <DialogTitle className='auth-text-primary font-semibold text-xl tracking-tight'>
+            <DialogTitle className='font-semibold text-black text-xl tracking-tight'>
               Reset Password
             </DialogTitle>
-            <DialogDescription className='auth-text-secondary text-sm'>
+            <DialogDescription className='text-muted-foreground text-sm'>
               Enter your email address and we'll send you a link to reset your password if your
               account exists.
             </DialogDescription>

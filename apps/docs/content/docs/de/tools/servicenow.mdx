@@ -1,0 +1,124 @@
+---
+title: ServiceNow
+description: ServiceNow-Datensätze erstellen, lesen, aktualisieren und löschen
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="servicenow"
+  color="#032D42"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ServiceNow](https://www.servicenow.com/) ist eine leistungsstarke Cloud-Plattform zur Optimierung und Automatisierung von IT-Service-Management (ITSM), Workflows und Geschäftsprozessen in Ihrem Unternehmen. ServiceNow ermöglicht Ihnen die Verwaltung von Vorfällen, Anfragen, Aufgaben, Benutzern und mehr über seine umfangreiche API.
+
+Mit ServiceNow können Sie:
+
+- **IT-Workflows automatisieren**: Datensätze in jeder ServiceNow-Tabelle erstellen, lesen, aktualisieren und löschen, z. B. Vorfälle, Aufgaben, Änderungsanfragen und Benutzer.
+- **Systeme integrieren**: ServiceNow mit Ihren anderen Tools und Prozessen für nahtlose Automatisierung verbinden.
+- **Eine einzige Informationsquelle pflegen**: Alle Ihre Service- und Betriebsdaten organisiert und zugänglich halten.
+- **Betriebliche Effizienz steigern**: Manuelle Arbeit reduzieren und Servicequalität mit anpassbaren Workflows und Automatisierung verbessern.
+
+In Sim ermöglicht die ServiceNow-Integration Ihren Agenten, direkt mit Ihrer ServiceNow-Instanz als Teil ihrer Workflows zu interagieren. Agenten können Datensätze in jeder ServiceNow-Tabelle erstellen, lesen, aktualisieren oder löschen und Ticket- oder Benutzerdaten für ausgefeilte Automatisierung und Entscheidungsfindung nutzen. Diese Integration verbindet Ihre Workflow-Automatisierung und IT-Betrieb und befähigt Ihre Agenten, Serviceanfragen, Vorfälle, Benutzer und Assets ohne manuelle Eingriffe zu verwalten. Durch die Verbindung von Sim mit ServiceNow können Sie Service-Management-Aufgaben automatisieren, Reaktionszeiten verbessern und konsistenten, sicheren Zugriff auf die wichtigen Servicedaten Ihres Unternehmens gewährleisten.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integrieren Sie ServiceNow in Ihren Workflow. Erstellen, lesen, aktualisieren und löschen Sie Datensätze in jeder ServiceNow-Tabelle, einschließlich Vorfälle, Aufgaben, Änderungsanfragen, Benutzer und mehr.
+
+## Tools
+
+### `servicenow_create_record`
+
+Einen neuen Datensatz in einer ServiceNow-Tabelle erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Ja | ServiceNow-Instanz-URL \(z. B. https://instance.service-now.com\) |
+| `username` | string | Ja | ServiceNow-Benutzername |
+| `password` | string | Ja | ServiceNow-Passwort |
+| `tableName` | string | Ja | Tabellenname \(z. B. incident, task, sys_user\) |
+| `fields` | json | Ja | Felder, die für den Datensatz festgelegt werden sollen \(JSON-Objekt\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `record` | json | Erstellter ServiceNow-Datensatz mit sys_id und anderen Feldern |
+| `metadata` | json | Metadaten der Operation |
+
+### `servicenow_read_record`
+
+Datensätze aus einer ServiceNow-Tabelle lesen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Ja | ServiceNow-Instanz-URL \(z. B. https://instance.service-now.com\) |
+| `username` | string | Ja | ServiceNow-Benutzername |
+| `password` | string | Ja | ServiceNow-Passwort |
+| `tableName` | string | Ja | Tabellenname |
+| `sysId` | string | Nein | Spezifische Datensatz-sys_id |
+| `number` | string | Nein | Datensatznummer \(z. B. INC0010001\) |
+| `query` | string | Nein | Kodierte Abfragezeichenfolge \(z. B. "active=true^priority=1"\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Datensätze |
+| `fields` | string | Nein | Durch Kommas getrennte Liste der zurückzugebenden Felder |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `records` | array | Array von ServiceNow-Datensätzen |
+| `metadata` | json | Metadaten der Operation |
+
+### `servicenow_update_record`
+
+Einen bestehenden Datensatz in einer ServiceNow-Tabelle aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Ja | ServiceNow-Instanz-URL \(z. B. https://instance.service-now.com\) |
+| `username` | string | Ja | ServiceNow-Benutzername |
+| `password` | string | Ja | ServiceNow-Passwort |
+| `tableName` | string | Ja | Tabellenname |
+| `sysId` | string | Ja | Datensatz-sys_id zum Aktualisieren |
+| `fields` | json | Ja | Zu aktualisierende Felder \(JSON-Objekt\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `record` | json | Aktualisierter ServiceNow-Datensatz |
+| `metadata` | json | Metadaten der Operation |
+
+### `servicenow_delete_record`
+
+Einen Datensatz aus einer ServiceNow-Tabelle löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Ja | ServiceNow-Instanz-URL \(z. B. https://instance.service-now.com\) |
+| `username` | string | Ja | ServiceNow-Benutzername |
+| `password` | string | Ja | ServiceNow-Passwort |
+| `tableName` | string | Ja | Tabellenname |
+| `sysId` | string | Ja | Datensatz-sys_id zum Löschen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob das Löschen erfolgreich war |
+| `metadata` | json | Metadaten der Operation |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `servicenow`

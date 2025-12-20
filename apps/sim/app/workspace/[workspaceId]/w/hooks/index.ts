@@ -1,3 +1,4 @@
+export { useCanDelete } from './use-can-delete'
 export { useDeleteFolder } from './use-delete-folder'
 export { useDeleteWorkflow } from './use-delete-workflow'
 export { useDuplicateFolder } from './use-duplicate-folder'

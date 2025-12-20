@@ -1,0 +1,124 @@
+---
+title: ServiceNow
+description: Créer, lire, mettre à jour et supprimer des enregistrements ServiceNow
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="servicenow"
+  color="#032D42"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ServiceNow](https://www.servicenow.com/) est une plateforme cloud puissante conçue pour rationaliser et automatiser la gestion des services informatiques (ITSM), les workflows et les processus métier au sein de votre organisation. ServiceNow vous permet de gérer les incidents, les demandes, les tâches, les utilisateurs et bien plus encore grâce à son API étendue.
+
+Avec ServiceNow, vous pouvez :
+
+- **Automatiser les workflows informatiques** : créer, lire, mettre à jour et supprimer des enregistrements dans n'importe quelle table ServiceNow, tels que les incidents, les tâches, les demandes de changement et les utilisateurs.
+- **Intégrer les systèmes** : connecter ServiceNow avec vos autres outils et processus pour une automatisation transparente.
+- **Maintenir une source unique de vérité** : garder toutes vos données de service et d'exploitation organisées et accessibles.
+- **Améliorer l'efficacité opérationnelle** : réduire le travail manuel et améliorer la qualité du service grâce à des workflows personnalisables et à l'automatisation.
+
+Dans Sim, l'intégration ServiceNow permet à vos agents d'interagir directement avec votre instance ServiceNow dans le cadre de leurs workflows. Les agents peuvent créer, lire, mettre à jour ou supprimer des enregistrements dans n'importe quelle table ServiceNow et exploiter les données de tickets ou d'utilisateurs pour une automatisation et une prise de décision sophistiquées. Cette intégration relie votre automatisation de workflow et vos opérations informatiques, permettant à vos agents de gérer les demandes de service, les incidents, les utilisateurs et les actifs sans intervention manuelle. En connectant Sim avec ServiceNow, vous pouvez automatiser les tâches de gestion des services, améliorer les temps de réponse et garantir un accès cohérent et sécurisé aux données de service vitales de votre organisation.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez ServiceNow dans votre workflow. Créez, lisez, mettez à jour et supprimez des enregistrements dans n'importe quelle table ServiceNow, y compris les incidents, les tâches, les demandes de changement, les utilisateurs et bien plus encore.
+
+## Outils
+
+### `servicenow_create_record`
+
+Créer un nouvel enregistrement dans une table ServiceNow
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Oui | URL de l'instance ServiceNow (par ex., https://instance.service-now.com) |
+| `username` | string | Oui | Nom d'utilisateur ServiceNow |
+| `password` | string | Oui | Mot de passe ServiceNow |
+| `tableName` | string | Oui | Nom de la table (par ex., incident, task, sys_user) |
+| `fields` | json | Oui | Champs à définir sur l'enregistrement (objet JSON) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Enregistrement ServiceNow créé avec sys_id et autres champs |
+| `metadata` | json | Métadonnées de l'opération |
+
+### `servicenow_read_record`
+
+Lire des enregistrements d'une table ServiceNow
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Oui | URL de l'instance ServiceNow (par ex., https://instance.service-now.com) |
+| `username` | string | Oui | Nom d'utilisateur ServiceNow |
+| `password` | string | Oui | Mot de passe ServiceNow |
+| `tableName` | string | Oui | Nom de la table |
+| `sysId` | string | Non | sys_id d'enregistrement spécifique |
+| `number` | string | Non | Numéro d'enregistrement (par ex., INC0010001) |
+| `query` | string | Non | Chaîne de requête encodée (par ex., "active=true^priority=1") |
+| `limit` | number | Non | Nombre maximum d'enregistrements à retourner |
+| `fields` | string | Non | Liste de champs à retourner, séparés par des virgules |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | Tableau d'enregistrements ServiceNow |
+| `metadata` | json | Métadonnées de l'opération |
+
+### `servicenow_update_record`
+
+Mettre à jour un enregistrement existant dans une table ServiceNow
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Oui | URL de l'instance ServiceNow \(par exemple, https://instance.service-now.com\) |
+| `username` | string | Oui | Nom d'utilisateur ServiceNow |
+| `password` | string | Oui | Mot de passe ServiceNow |
+| `tableName` | string | Oui | Nom de la table |
+| `sysId` | string | Oui | sys_id de l'enregistrement à mettre à jour |
+| `fields` | json | Oui | Champs à mettre à jour \(objet JSON\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Enregistrement ServiceNow mis à jour |
+| `metadata` | json | Métadonnées de l'opération |
+
+### `servicenow_delete_record`
+
+Supprimer un enregistrement d'une table ServiceNow
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Oui | URL de l'instance ServiceNow \(par exemple, https://instance.service-now.com\) |
+| `username` | string | Oui | Nom d'utilisateur ServiceNow |
+| `password` | string | Oui | Mot de passe ServiceNow |
+| `tableName` | string | Oui | Nom de la table |
+| `sysId` | string | Oui | sys_id de l'enregistrement à supprimer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indique si la suppression a réussi |
+| `metadata` | json | Métadonnées de l'opération |
+
+## Remarques
+
+- Catégorie : `tools`
+- Type : `servicenow`

@@ -12,6 +12,12 @@ import {
 
 const logger = createLogger('Providers')
 
+/**
+ * Maximum number of iterations for tool call loops to prevent infinite loops.
+ * Used across all providers that support tool/function calling.
+ */
+export const MAX_TOOL_ITERATIONS = 20
+
 function sanitizeRequest(request: ProviderRequest): ProviderRequest {
   const sanitizedRequest = { ...request }
 
@@ -44,7 +50,6 @@ export async function executeProviderRequest(
   }
   const sanitizedRequest = sanitizeRequest(request)
 
-  // If responseFormat is provided, modify the system prompt to enforce structured output
   if (sanitizedRequest.responseFormat) {
     if (
       typeof sanitizedRequest.responseFormat === 'string' &&
@@ -53,12 +58,10 @@ export async function executeProviderRequest(
       logger.info('Empty response format provided, ignoring it')
       sanitizedRequest.responseFormat = undefined
     } else {
-      // Generate structured output instructions
       const structuredOutputInstructions = generateStructuredOutputInstructions(
         sanitizedRequest.responseFormat
       )
 
-      // Only add additional instructions if they're not empty
       if (structuredOutputInstructions.trim()) {
         const originalPrompt = sanitizedRequest.systemPrompt || ''
         sanitizedRequest.systemPrompt =
@@ -69,10 +72,8 @@ export async function executeProviderRequest(
     }
   }
 
-  // Execute the request using the provider's implementation
   const response = await provider.executeRequest(sanitizedRequest)
 
-  // If we received a StreamingExecution or ReadableStream, just pass it through
   if (isStreamingExecution(response)) {
     logger.info('Provider returned StreamingExecution')
     return response

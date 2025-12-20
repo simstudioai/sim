@@ -3,8 +3,11 @@ import type { BlockOutput } from '@/blocks/types'
 import { BlockType, CONDITION, DEFAULTS, EDGE } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
+import { executeTool } from '@/tools'
 
 const logger = createLogger('ConditionBlockHandler')
+
+const CONDITION_TIMEOUT_MS = 5000
 
 /**
  * Evaluates a single condition expression with variable/block reference resolution
@@ -35,11 +38,38 @@ export async function evaluateConditionExpression(
   }
 
   try {
-    const conditionMet = new Function(
-      'context',
-      `with(context) { return ${resolvedConditionValue} }`
-    )(evalContext)
-    return Boolean(conditionMet)
+    const contextSetup = `const context = ${JSON.stringify(evalContext)};`
+    const code = `${contextSetup}\nreturn Boolean(${resolvedConditionValue})`
+
+    const result = await executeTool(
+      'function_execute',
+      {
+        code,
+        timeout: CONDITION_TIMEOUT_MS,
+        envVars: {},
+        _context: {
+          workflowId: ctx.workflowId,
+          workspaceId: ctx.workspaceId,
+        },
+      },
+      false,
+      false,
+      ctx
+    )
+
+    if (!result.success) {
+      logger.error(`Failed to evaluate condition: ${result.error}`, {
+        originalCondition: conditionExpression,
+        resolvedCondition: resolvedConditionValue,
+        evalContext,
+        error: result.error,
+      })
+      throw new Error(
+        `Evaluation error in condition: ${result.error}. (Resolved: ${resolvedConditionValue})`
+      )
+    }
+
+    return Boolean(result.output?.result)
   } catch (evalError: any) {
     logger.error(`Failed to evaluate condition: ${evalError.message}`, {
       originalCondition: conditionExpression,
@@ -87,13 +117,11 @@ export class ConditionBlockHandler implements BlockHandler {
       block
     )
 
-    // Handle case where no condition matched and no else exists - branch ends gracefully
     if (!selectedConnection || !selectedCondition) {
       return {
         ...((sourceOutput as any) || {}),
         conditionResult: false,
         selectedPath: null,
-        selectedConditionId: null,
         selectedOption: null,
       }
     }
@@ -115,7 +143,6 @@ export class ConditionBlockHandler implements BlockHandler {
         blockTitle: targetBlock.metadata?.name || DEFAULTS.BLOCK_TITLE,
       },
       selectedOption: selectedCondition.id,
-      selectedConditionId: selectedCondition.id,
     }
   }
 
@@ -206,14 +233,12 @@ export class ConditionBlockHandler implements BlockHandler {
       if (elseConnection) {
         return { selectedConnection: elseConnection, selectedCondition: elseCondition }
       }
-      // Else exists but has no connection - treat as no match, branch ends
       logger.info(`No condition matched and else has no connection - branch ending`, {
         blockId: block.id,
       })
       return { selectedConnection: null, selectedCondition: null }
     }
 
-    // No condition matched and no else exists - branch ends gracefully
     logger.info(`No condition matched and no else block - branch ending`, { blockId: block.id })
     return { selectedConnection: null, selectedCondition: null }
   }

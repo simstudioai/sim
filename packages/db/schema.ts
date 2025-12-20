@@ -109,6 +109,7 @@ export const verification = pgTable(
   },
   (table) => ({
     identifierIdx: index('verification_identifier_idx').on(table.identifier),
+    expiresAtIdx: index('verification_expires_at_idx').on(table.expiresAt),
   })
 )
 
@@ -198,6 +199,7 @@ export const workflowBlocks = pgTable(
   },
   (table) => ({
     workflowIdIdx: index('workflow_blocks_workflow_id_idx').on(table.workflowId),
+    typeIdx: index('workflow_blocks_type_idx').on(table.type),
   })
 )
 
@@ -619,6 +621,8 @@ export const apiKey = pgTable(
       'workspace_type_check',
       sql`(type = 'workspace' AND workspace_id IS NOT NULL) OR (type = 'personal' AND workspace_id IS NULL)`
     ),
+    workspaceTypeIdx: index('api_key_workspace_type_idx').on(table.workspaceId, table.type),
+    userTypeIdx: index('api_key_user_type_idx').on(table.userId, table.type),
   })
 )
 
@@ -1436,6 +1440,7 @@ export const templates = pgTable(
     tags: text('tags').array().notNull().default(sql`'{}'::text[]`), // Array of tags
     requiredCredentials: jsonb('required_credentials').notNull().default('[]'), // Array of credential requirements
     state: jsonb('state').notNull(), // Store the workflow state directly
+    ogImageUrl: text('og_image_url'), // Pre-generated OpenGraph image URL
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

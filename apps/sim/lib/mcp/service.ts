@@ -404,15 +404,11 @@ class McpService {
           failedCount++
           const errorMessage =
             result.reason instanceof Error ? result.reason.message : 'Unknown error'
-          logger.warn(
-            `[${requestId}] Failed to discover tools from server ${server.name}:`,
-            result.reason
-          )
+          logger.warn(`[${requestId}] Failed to discover tools from server ${server.name}:`)
           statusUpdates.push(this.updateServerStatus(server.id!, workspaceId, false, errorMessage))
         }
       })
 
-      // Update server statuses in parallel (don't block on this)
       Promise.allSettled(statusUpdates).catch((err) => {
         logger.error(`[${requestId}] Error updating server statuses:`, err)
       })

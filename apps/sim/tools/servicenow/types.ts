@@ -7,12 +7,10 @@ export interface ServiceNowRecord {
 }
 
 export interface ServiceNowBaseParams {
-  instanceUrl?: string
+  instanceUrl: string
+  username: string
+  password: string
   tableName: string
-  // OAuth fields (injected by the system when using OAuth)
-  credential?: string
-  accessToken?: string
-  idToken?: string // Stores the instance URL from OAuth
 }
 
 export interface ServiceNowCreateParams extends ServiceNowBaseParams {

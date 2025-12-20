@@ -30,23 +30,41 @@ export async function createMongoDBConnection(config: MongoDBConnectionConfig) {
   return client
 }
 
+/**
+ * Recursively checks an object for dangerous MongoDB operators
+ * @param obj - The object to check
+ * @param dangerousOperators - Array of operator names to block
+ * @returns true if a dangerous operator is found
+ */
+function containsDangerousOperator(obj: unknown, dangerousOperators: string[]): boolean {
+  if (typeof obj !== 'object' || obj === null) return false
+
+  for (const key of Object.keys(obj as Record<string, unknown>)) {
+    if (dangerousOperators.includes(key)) return true
+    if (
+      typeof (obj as Record<string, unknown>)[key] === 'object' &&
+      containsDangerousOperator((obj as Record<string, unknown>)[key], dangerousOperators)
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
 export function validateFilter(filter: string): { isValid: boolean; error?: string } {
   try {
     const parsed = JSON.parse(filter)
 
-    const dangerousOperators = ['$where', '$regex', '$expr', '$function', '$accumulator', '$let']
+    const dangerousOperators = [
+      '$where', // Executes arbitrary JavaScript
+      '$regex', // Can cause ReDoS attacks
+      '$expr', // Expression evaluation
+      '$function', // Custom JavaScript functions
+      '$accumulator', // Custom JavaScript accumulators
+      '$let', // Variable definitions that could be exploited
+    ]
 
-    const checkForDangerousOps = (obj: any): boolean => {
-      if (typeof obj !== 'object' || obj === null) return false
-
-      for (const key of Object.keys(obj)) {
-        if (dangerousOperators.includes(key)) return true
-        if (typeof obj[key] === 'object' && checkForDangerousOps(obj[key])) return true
-      }
-      return false
-    }
-
-    if (checkForDangerousOps(parsed)) {
+    if (containsDangerousOperator(parsed, dangerousOperators)) {
       return {
         isValid: false,
         error: 'Filter contains potentially dangerous operators',
@@ -74,29 +92,19 @@ export function validatePipeline(pipeline: string): { isValid: boolean; error?: 
     }
 
     const dangerousOperators = [
-      '$where',
-      '$function',
-      '$accumulator',
-      '$let',
-      '$merge',
-      '$out',
-      '$currentOp',
-      '$listSessions',
-      '$listLocalSessions',
+      '$where', // Executes arbitrary JavaScript
+      '$function', // Custom JavaScript functions
+      '$accumulator', // Custom JavaScript accumulators
+      '$let', // Variable definitions that could be exploited
+      '$merge', // Writes to external collections
+      '$out', // Writes to external collections
+      '$currentOp', // Exposes system operation info
+      '$listSessions', // Exposes session info
+      '$listLocalSessions', // Exposes local session info
     ]
 
-    const checkPipelineStage = (stage: any): boolean => {
-      if (typeof stage !== 'object' || stage === null) return false
-
-      for (const key of Object.keys(stage)) {
-        if (dangerousOperators.includes(key)) return true
-        if (typeof stage[key] === 'object' && checkPipelineStage(stage[key])) return true
-      }
-      return false
-    }
-
     for (const stage of parsed) {
-      if (checkPipelineStage(stage)) {
+      if (containsDangerousOperator(stage, dangerousOperators)) {
         return {
           isValid: false,
           error: 'Pipeline contains potentially dangerous operators',

@@ -21,6 +21,8 @@ import {
   getModelsWithVerbosity,
   getProviderModels as getProviderModelsFromDefinitions,
   getProvidersWithToolUsageControl,
+  getReasoningEffortValuesForModel as getReasoningEffortValuesForModelFromDefinitions,
+  getVerbosityValuesForModel as getVerbosityValuesForModelFromDefinitions,
   PROVIDER_DEFINITIONS,
   supportsTemperature as supportsTemperatureFromDefinitions,
   supportsToolUsageControl as supportsToolUsageControlFromDefinitions,
@@ -30,6 +32,7 @@ import { ollamaProvider } from '@/providers/ollama'
 import { openaiProvider } from '@/providers/openai'
 import { openRouterProvider } from '@/providers/openrouter'
 import type { ProviderConfig, ProviderId, ProviderToolConfig } from '@/providers/types'
+import { vertexProvider } from '@/providers/vertex'
 import { vllmProvider } from '@/providers/vllm'
 import { xAIProvider } from '@/providers/xai'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
@@ -66,6 +69,11 @@ export const providers: Record<
     ...googleProvider,
     models: getProviderModelsFromDefinitions('google'),
     modelPatterns: PROVIDER_DEFINITIONS.google.modelPatterns,
+  },
+  vertex: {
+    ...vertexProvider,
+    models: getProviderModelsFromDefinitions('vertex'),
+    modelPatterns: PROVIDER_DEFINITIONS.vertex.modelPatterns,
   },
   deepseek: {
     ...deepseekProvider,
@@ -274,16 +282,12 @@ export function getProviderIcon(model: string): React.ComponentType<{ className?
 }
 
 export function generateStructuredOutputInstructions(responseFormat: any): string {
-  // Handle null/undefined input
   if (!responseFormat) return ''
 
-  // If using the new JSON Schema format, don't add additional instructions
-  // This is necessary because providers now handle the schema directly
   if (responseFormat.schema || (responseFormat.type === 'object' && responseFormat.properties)) {
     return ''
   }
 
-  // Handle legacy format with fields array
   if (!responseFormat.fields) return ''
 
   function generateFieldStructure(field: any): string {
@@ -335,10 +339,8 @@ Each metric should be an object containing 'score' (number) and 'reasoning' (str
 }
 
 export function extractAndParseJSON(content: string): any {
-  // First clean up the string
   const trimmed = content.trim()
 
-  // Find the first '{' and last '}'
   const firstBrace = trimmed.indexOf('{')
   const lastBrace = trimmed.lastIndexOf('}')
 
@@ -346,17 +348,15 @@ export function extractAndParseJSON(content: string): any {
     throw new Error('No JSON object found in content')
   }
 
-  // Extract just the JSON part
   const jsonStr = trimmed.slice(firstBrace, lastBrace + 1)
 
   try {
     return JSON.parse(jsonStr)
   } catch (_error) {
-    // If parsing fails, try to clean up common issues
     const cleaned = jsonStr
-      .replace(/\n/g, ' ') // Remove newlines
-      .replace(/\s+/g, ' ') // Normalize whitespace
-      .replace(/,\s*([}\]])/g, '$1') // Remove trailing commas
+      .replace(/\n/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/,\s*([}\]])/g, '$1')
 
     try {
       return JSON.parse(cleaned)
@@ -386,10 +386,10 @@ export function transformCustomTool(customTool: any): ProviderToolConfig {
   }
 
   return {
-    id: `custom_${customTool.id}`, // Prefix with 'custom_' to identify custom tools
+    id: `custom_${customTool.id}`,
     name: schema.function.name,
     description: schema.function.description || '',
-    params: {}, // This will be derived from parameters
+    params: {},
     parameters: {
       type: schema.function.parameters.type,
       properties: schema.function.parameters.properties,
@@ -402,10 +402,8 @@ export function transformCustomTool(customTool: any): ProviderToolConfig {
  * Gets all available custom tools as provider tool configs
  */
 export function getCustomTools(): ProviderToolConfig[] {
-  // Get custom tools from the store
   const customTools = useCustomToolsStore.getState().getAllTools()
 
-  // Transform each custom tool into a provider tool config
   return customTools.map(transformCustomTool)
 }
 
@@ -427,20 +425,16 @@ export async function transformBlockTool(
 ): Promise<ProviderToolConfig | null> {
   const { selectedOperation, getAllBlocks, getTool, getToolAsync } = options
 
-  // Get the block definition
   const blockDef = getAllBlocks().find((b: any) => b.type === block.type)
   if (!blockDef) {
     logger.warn(`Block definition not found for type: ${block.type}`)
     return null
   }
 
-  // If the block has multiple operations, use the selected one or the first one
   let toolId: string | null = null
 
   if ((blockDef.tools?.access?.length || 0) > 1) {
-    // If we have an operation dropdown in the block and a selected operation
     if (selectedOperation && blockDef.tools?.config?.tool) {
-      // Use the block's tool selection function to get the right tool
       try {
         toolId = blockDef.tools.config.tool({
           ...block.params,
@@ -455,11 +449,9 @@ export async function transformBlockTool(
         return null
       }
     } else {
-      // Default to first tool if no operation specified
       toolId = blockDef.tools.access[0]
     }
   } else {
-    // Single tool case
     toolId = blockDef.tools?.access?.[0] || null
   }
 
@@ -468,14 +460,11 @@ export async function transformBlockTool(
     return null
   }
 
-  // Get the tool config - check if it's a custom tool that needs async fetching
   let toolConfig: any
 
   if (toolId.startsWith('custom_') && getToolAsync) {
-    // Use the async version for custom tools
     toolConfig = await getToolAsync(toolId)
   } else {
-    // Use the synchronous version for built-in tools
     toolConfig = getTool(toolId)
   }
 
@@ -484,18 +473,22 @@ export async function transformBlockTool(
     return null
   }
 
-  // Import the new tool parameter utilities
   const { createLLMToolSchema } = await import('@/tools/params')
 
-  // Get user-provided parameters from the block
   const userProvidedParams = block.params || {}
 
-  // Create LLM schema that excludes user-provided parameters
   const llmSchema = await createLLMToolSchema(toolConfig, userProvidedParams)
 
-  // Return formatted tool config
+  // Create unique tool ID by appending resource ID for multi-instance tools
+  let uniqueToolId = toolConfig.id
+  if (toolId === 'workflow_executor' && userProvidedParams.workflowId) {
+    uniqueToolId = `${toolConfig.id}_${userProvidedParams.workflowId}`
+  } else if (toolId.startsWith('knowledge_') && userProvidedParams.knowledgeBaseId) {
+    uniqueToolId = `${toolConfig.id}_${userProvidedParams.knowledgeBaseId}`
+  }
+
   return {
-    id: toolConfig.id,
+    id: uniqueToolId,
     name: toolConfig.name,
     description: toolConfig.description,
     params: userProvidedParams,
@@ -521,15 +514,12 @@ export function calculateCost(
   inputMultiplier?: number,
   outputMultiplier?: number
 ) {
-  // First check if it's an embedding model
   let pricing = getEmbeddingModelPricing(model)
 
-  // If not found, check chat models
   if (!pricing) {
     pricing = getModelPricingFromDefinitions(model)
   }
 
-  // If no pricing found, return default pricing
   if (!pricing) {
     const defaultPricing = {
       input: 1.0,
@@ -545,8 +535,6 @@ export function calculateCost(
     }
   }
 
-  // Calculate costs in USD
-  // Convert from "per million tokens" to "per token" by dividing by 1,000,000
   const inputCost =
     promptTokens *
     (useCachedInput && pricing.cachedInput
@@ -559,7 +547,7 @@ export function calculateCost(
   const finalTotalCost = finalInputCost + finalOutputCost
 
   return {
-    input: Number.parseFloat(finalInputCost.toFixed(8)), // Use 8 decimal places for small costs
+    input: Number.parseFloat(finalInputCost.toFixed(8)),
     output: Number.parseFloat(finalOutputCost.toFixed(8)),
     total: Number.parseFloat(finalTotalCost.toFixed(8)),
     pricing,
@@ -995,6 +983,22 @@ export function getMaxTemperature(model: string): number | undefined {
  */
 export function supportsToolUsageControl(provider: string): boolean {
   return supportsToolUsageControlFromDefinitions(provider)
+}
+
+/**
+ * Get reasoning effort values for a specific model
+ * Returns the valid options for that model, or null if the model doesn't support reasoning effort
+ */
+export function getReasoningEffortValuesForModel(model: string): string[] | null {
+  return getReasoningEffortValuesForModelFromDefinitions(model)
+}
+
+/**
+ * Get verbosity values for a specific model
+ * Returns the valid options for that model, or null if the model doesn't support verbosity
+ */
+export function getVerbosityValuesForModel(model: string): string[] | null {
+  return getVerbosityValuesForModelFromDefinitions(model)
 }
 
 /**

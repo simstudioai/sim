@@ -1,0 +1,124 @@
+---
+title: ServiceNow
+description: 创建、读取、更新和删除 ServiceNow 记录
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="servicenow"
+  color="#032D42"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ServiceNow](https://www.servicenow.com/) 是一款强大的云平台，旨在简化和自动化 IT 服务管理（ITSM）、工作流以及企业各类业务流程。ServiceNow 让您能够通过其强大的 API 管理事件、请求、任务、用户等多种内容。
+
+使用 ServiceNow，您可以：
+
+- **自动化 IT 工作流**：在任意 ServiceNow 表中创建、读取、更新和删除记录，如事件、任务、变更请求和用户等。
+- **集成系统**：将 ServiceNow 与您的其他工具和流程连接，实现无缝自动化。
+- **维护单一数据源**：让所有服务和运营数据井然有序，便于访问。
+- **提升运营效率**：通过可定制的工作流和自动化，减少手动操作，提高服务质量。
+
+在 Sim 中，ServiceNow 集成让您的代理能够在工作流中直接与 ServiceNow 实例交互。代理可以在任意 ServiceNow 表中创建、读取、更新或删除记录，并利用工单或用户数据实现复杂的自动化和决策。这一集成将您的工作流自动化与 IT 运维无缝衔接，使代理能够自动化管理服务请求、事件、用户和资产，无需人工干预。通过将 Sim 与 ServiceNow 连接，您可以自动化服务管理任务、提升响应速度，并确保对组织关键服务数据的持续、安全访问。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 ServiceNow 集成到您的工作流中。在任意 ServiceNow 表（包括事件、任务、变更请求、用户等）中创建、读取、更新和删除记录。
+
+## 工具
+
+### `servicenow_create_record`
+
+在 ServiceNow 表中创建新记录
+
+#### 输入
+
+| 参数 | 类型 | 是否必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | 是 | ServiceNow 实例 URL（例如：https://instance.service-now.com） |
+| `username` | string | 是 | ServiceNow 用户名 |
+| `password` | string | 是 | ServiceNow 密码 |
+| `tableName` | string | 是 | 表名（例如：incident、task、sys_user） |
+| `fields` | json | 是 | 记录中要设置的字段（JSON 对象） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `record` | json | 创建的 ServiceNow 记录，包含 sys_id 及其他字段 |
+| `metadata` | json | 操作元数据 |
+
+### `servicenow_read_record`
+
+从 ServiceNow 表中读取记录
+
+#### 输入
+
+| 参数 | 类型 | 是否必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | 是 | ServiceNow 实例 URL（例如：https://instance.service-now.com） |
+| `username` | string | 是 | ServiceNow 用户名 |
+| `password` | string | 是 | ServiceNow 密码 |
+| `tableName` | string | 是 | 表名 |
+| `sysId` | string | 否 | 指定记录 sys_id |
+| `number` | string | 否 | 记录编号（例如：INC0010001） |
+| `query` | string | 否 | 编码查询字符串（例如："active=true^priority=1"） |
+| `limit` | number | 否 | 返回的最大记录数 |
+| `fields` | string | 否 | 要返回的字段列表（以逗号分隔） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `records` | array | ServiceNow 记录数组 |
+| `metadata` | json | 操作元数据 |
+
+### `servicenow_update_record`
+
+更新 ServiceNow 表中的现有记录
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | 是 | ServiceNow 实例 URL（例如：https://instance.service-now.com） |
+| `username` | string | 是 | ServiceNow 用户名 |
+| `password` | string | 是 | ServiceNow 密码 |
+| `tableName` | string | 是 | 表名 |
+| `sysId` | string | 是 | 要更新的记录 sys_id |
+| `fields` | json | 是 | 要更新的字段（JSON 对象） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `record` | json | 已更新的 ServiceNow 记录 |
+| `metadata` | json | 操作元数据 |
+
+### `servicenow_delete_record`
+
+从 ServiceNow 表中删除记录
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | 是 | ServiceNow 实例 URL（例如：https://instance.service-now.com） |
+| `username` | string | 是 | ServiceNow 用户名 |
+| `password` | string | 是 | ServiceNow 密码 |
+| `tableName` | string | 是 | 表名 |
+| `sysId` | string | 是 | 要删除的记录 sys_id |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 删除是否成功 |
+| `metadata` | json | 操作元数据 |
+
+## 备注
+
+- 分类：`tools`
+- 类型：`servicenow`

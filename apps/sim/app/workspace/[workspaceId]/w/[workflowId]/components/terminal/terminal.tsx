@@ -1741,7 +1741,7 @@ export function Terminal() {
               )}
 
               {/* Content */}
-              <div className='flex-1 overflow-x-auto overflow-y-auto'>
+              <div className={clsx('flex-1 overflow-y-auto', !wrapText && 'overflow-x-auto')}>
                 {shouldShowCodeDisplay ? (
                   <OutputCodeContent
                     code={selectedEntry.input.code}
