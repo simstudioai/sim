@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
       workflowName: workflow.name,
     }
 
-    let conditions: SQL | undefined = eq(workflow.workspaceId, params.workspaceId)
+    let conditions: SQL | undefined = eq(workflowExecutionLogs.workspaceId, params.workspaceId)
 
     if (params.level && params.level !== 'all') {
       const levels = params.level.split(',').filter(Boolean)
@@ -134,7 +134,7 @@ export async function GET(request: NextRequest) {
                 permissions,
                 and(
                   eq(permissions.entityType, 'workspace'),
-                  eq(permissions.entityId, workflow.workspaceId),
+                  eq(permissions.entityId, workflowExecutionLogs.workspaceId),
                   eq(permissions.userId, userId)
                 )
               )

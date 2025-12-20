@@ -25,8 +25,7 @@ export interface LogFilters {
 export function buildLogFilters(filters: LogFilters): SQL<unknown> {
   const conditions: SQL<unknown>[] = []
 
-  // Required: workspace and permissions check
-  conditions.push(eq(workflow.workspaceId, filters.workspaceId))
+  conditions.push(eq(workflowExecutionLogs.workspaceId, filters.workspaceId))
 
   // Cursor-based pagination
   if (filters.cursor) {

@@ -5,7 +5,7 @@ export interface ExecutionMetadata {
   requestId: string
   executionId: string
   workflowId: string
-  workspaceId?: string
+  workspaceId: string
   userId: string
   sessionUserId?: string
   workflowUserId?: string

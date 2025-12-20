@@ -409,10 +409,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const actorUserId = preprocessResult.actorUserId!
     const workflow = preprocessResult.workflowRecord!
 
+    if (!workflow.workspaceId) {
+      logger.error(`[${requestId}] Workflow ${workflowId} has no workspaceId`)
+      return NextResponse.json({ error: 'Workflow has no associated workspace' }, { status: 500 })
+    }
+    const workspaceId = workflow.workspaceId
+
     logger.info(`[${requestId}] Preprocessing passed`, {
       workflowId,
       actorUserId,
-      workspaceId: workflow.workspaceId,
+      workspaceId,
     })
 
     if (isAsyncMode) {
@@ -460,7 +466,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         )
 
         const executionContext = {
-          workspaceId: workflow.workspaceId || '',
+          workspaceId,
           workflowId,
           executionId,
         }
@@ -478,7 +484,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
       await loggingSession.safeStart({
         userId: actorUserId,
-        workspaceId: workflow.workspaceId || '',
+        workspaceId,
         variables: {},
       })
 
@@ -507,7 +513,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           requestId,
           executionId,
           workflowId,
-          workspaceId: workflow.workspaceId ?? undefined,
+          workspaceId,
           userId: actorUserId,
           sessionUserId: isClientSession ? userId : undefined,
           workflowUserId: workflow.userId,
@@ -589,7 +595,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         workflow: {
           id: workflow.id,
           userId: actorUserId,
-          workspaceId: workflow.workspaceId,
+          workspaceId,
           isDeployed: workflow.isDeployed,
           variables: (workflow as any).variables,
         },
@@ -775,7 +781,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             requestId,
             executionId,
             workflowId,
-            workspaceId: workflow.workspaceId ?? undefined,
+            workspaceId,
             userId: actorUserId,
             sessionUserId: isClientSession ? userId : undefined,
             workflowUserId: workflow.userId,
