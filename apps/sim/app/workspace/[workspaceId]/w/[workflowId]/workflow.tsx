@@ -33,6 +33,7 @@ import {
 import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/cursors/cursors'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
+import type { SubflowNodeData } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
 import { TrainingModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/training-modal/training-modal'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
@@ -524,7 +525,7 @@ const WorkflowContent = React.memo(() => {
   useEffect(() => {
     const handleRemoveFromSubflow = (event: Event) => {
       const customEvent = event as CustomEvent<{ blockId: string }>
-      const { blockId } = customEvent.detail || ({} as any)
+      const blockId = customEvent.detail?.blockId
       if (!blockId) return
 
       try {
@@ -620,7 +621,7 @@ const WorkflowContent = React.memo(() => {
   const getContainerStartHandle = useCallback(
     (containerId: string): string => {
       const containerNode = getNodes().find((n) => n.id === containerId)
-      return (containerNode?.data as any)?.kind === 'loop'
+      return (containerNode?.data as SubflowNodeData)?.kind === 'loop'
         ? 'loop-start-source'
         : 'parallel-start-source'
     },
@@ -811,12 +812,7 @@ const WorkflowContent = React.memo(() => {
         const id = crypto.randomUUID()
         // Prefer semantic default names for triggers; then ensure unique numbering centrally
         const defaultTriggerNameDrop = TriggerUtils.getDefaultTriggerName(data.type)
-        const baseName =
-          data.type === 'loop'
-            ? 'Loop'
-            : data.type === 'parallel'
-              ? 'Parallel'
-              : defaultTriggerNameDrop || blockConfig!.name
+        const baseName = defaultTriggerNameDrop || blockConfig.name
         const name = getUniqueBlockName(baseName, blocks)
 
         if (containerInfo) {
@@ -1016,6 +1012,9 @@ const WorkflowContent = React.memo(() => {
         return
       }
 
+      // Check trigger constraints first
+      if (checkTriggerConstraints(type)) return
+
       // Create a new block with a unique ID
       const id = crypto.randomUUID()
       // Prefer semantic default names for triggers; then ensure unique numbering centrally
@@ -1028,9 +1027,6 @@ const WorkflowContent = React.memo(() => {
         enableTriggerMode,
         targetParentId: null,
       })
-
-      // Centralized trigger constraints
-      if (checkTriggerConstraints(type)) return
 
       // Add the block to the workflow with auto-connect edge
       // Enable trigger mode if this is a trigger-capable block from the triggers tab
@@ -1255,12 +1251,12 @@ const WorkflowContent = React.memo(() => {
             const containerNode = getNodes().find((n) => n.id === containerInfo.loopId)
             if (
               containerNode?.type === 'subflowNode' &&
-              (containerNode.data as any)?.kind === 'loop'
+              (containerNode.data as SubflowNodeData)?.kind === 'loop'
             ) {
               containerElement.classList.add('loop-node-drag-over')
             } else if (
               containerNode?.type === 'subflowNode' &&
-              (containerNode.data as any)?.kind === 'parallel'
+              (containerNode.data as SubflowNodeData)?.kind === 'parallel'
             ) {
               containerElement.classList.add('parallel-node-drag-over')
             }
@@ -1607,7 +1603,7 @@ const WorkflowContent = React.memo(() => {
   /**
    * Effect to resize loops when nodes change (add/remove/position change).
    * Runs on structural changes only - not during drag (position-only changes).
-   * Skips during loading to avoid unnecessary work.
+   * Skips during loading.
    */
   useEffect(() => {
     // Skip during initial render when nodes aren't loaded yet or workflow not ready
@@ -1898,12 +1894,12 @@ const WorkflowContent = React.memo(() => {
           // Apply appropriate class based on container type
           if (
             bestContainerMatch.container.type === 'subflowNode' &&
-            (bestContainerMatch.container.data as any)?.kind === 'loop'
+            (bestContainerMatch.container.data as SubflowNodeData)?.kind === 'loop'
           ) {
             containerElement.classList.add('loop-node-drag-over')
           } else if (
             bestContainerMatch.container.type === 'subflowNode' &&
-            (bestContainerMatch.container.data as any)?.kind === 'parallel'
+            (bestContainerMatch.container.data as SubflowNodeData)?.kind === 'parallel'
           ) {
             containerElement.classList.add('parallel-node-drag-over')
           }
