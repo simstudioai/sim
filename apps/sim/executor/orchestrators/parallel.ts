@@ -64,7 +64,7 @@ export class ParallelOrchestrator {
       try {
         items = this.resolveDistributionItems(ctx, parallelConfig)
       } catch (error) {
-        const errorMessage = `Parallel distribution resolution failed: ${error instanceof Error ? error.message : String(error)}`
+        const errorMessage = `Parallel Items did not resolve: ${error instanceof Error ? error.message : String(error)}`
         logger.error(errorMessage, {
           parallelId,
           distribution: parallelConfig.distribution,
@@ -364,7 +364,15 @@ export class ParallelOrchestrator {
   }
 
   private resolveDistributionItems(ctx: ExecutionContext, config: SerializedParallel): any[] {
-    if (config.distribution === undefined || config.distribution === null) {
+    if (config.parallelType === 'count') {
+      return []
+    }
+
+    if (
+      config.distribution === undefined ||
+      config.distribution === null ||
+      config.distribution === ''
+    ) {
       return []
     }
     return resolveArrayInput(ctx, config.distribution, this.resolver)
