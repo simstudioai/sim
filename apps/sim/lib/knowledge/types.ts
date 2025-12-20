@@ -48,3 +48,13 @@ export interface UpdateTagDefinitionData {
   displayName?: string
   fieldType?: string
 }
+
+/** Tag filter for knowledge base search */
+export interface StructuredFilter {
+  tagName?: string // Human-readable name (input from frontend)
+  tagSlot: string // Database column (resolved from tagName)
+  fieldType: string
+  operator: string
+  value: string | number | boolean
+  valueTo?: string | number
+}

@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { document, embedding } from '@sim/db/schema'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import type { StructuredFilter } from '@/lib/knowledge/types'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('KnowledgeSearchUtils')
@@ -57,15 +58,6 @@ export interface SearchResult {
   boolean3: boolean | null
   distance: number
   knowledgeBaseId: string
-}
-
-/** Structured filter with operator support */
-export interface StructuredFilter {
-  tagSlot: string
-  fieldType: string
-  operator: string
-  value: string | number | boolean
-  valueTo?: string | number
 }
 
 export interface SearchParams {

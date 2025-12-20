@@ -1,3 +1,4 @@
+import type { StructuredFilter } from '@/lib/knowledge/types'
 import type { KnowledgeSearchResponse } from '@/tools/knowledge/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -54,7 +55,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       const knowledgeBaseIds = [params.knowledgeBaseId]
 
       // Parse dynamic tag filters
-      let structuredFilters: any[] = []
+      let structuredFilters: StructuredFilter[] = []
       if (params.tagFilters) {
         let tagFilters = params.tagFilters
 
@@ -62,7 +63,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
         if (typeof tagFilters === 'string') {
           try {
             tagFilters = JSON.parse(tagFilters)
-          } catch (error) {
+          } catch {
             tagFilters = []
           }
         }
@@ -70,20 +71,20 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
         if (Array.isArray(tagFilters)) {
           // Send full filter objects with operator support
           structuredFilters = tagFilters
-            .filter((filter: any) => {
+            .filter((filter: Record<string, unknown>) => {
               // For boolean, any value is valid; for others, check for non-empty string
               if (filter.fieldType === 'boolean') {
                 return filter.tagName && filter.tagValue !== undefined
               }
               return filter.tagName && filter.tagValue && String(filter.tagValue).trim().length > 0
             })
-            .map((filter: any) => ({
-              tagName: filter.tagName,
-              tagSlot: filter.tagSlot,
-              fieldType: filter.fieldType || 'text',
-              operator: filter.operator || 'eq',
-              value: filter.tagValue,
-              valueTo: filter.valueTo,
+            .map((filter: Record<string, unknown>) => ({
+              tagName: filter.tagName as string,
+              tagSlot: (filter.tagSlot as string) || '', // Will be resolved by API from tagName
+              fieldType: (filter.fieldType as string) || 'text',
+              operator: (filter.operator as string) || 'eq',
+              value: filter.tagValue as string | number | boolean,
+              valueTo: filter.valueTo as string | number | undefined,
             }))
         }
       }
