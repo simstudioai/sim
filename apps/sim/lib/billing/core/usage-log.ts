@@ -180,7 +180,6 @@ export async function logWorkflowUsageBatch(params: LogWorkflowUsageBatchParams)
     executionId: string | null
   }> = []
 
-  // Add base execution fee entry
   if (params.baseExecutionCharge && params.baseExecutionCharge > 0) {
     entries.push({
       id: crypto.randomUUID(),
@@ -196,7 +195,6 @@ export async function logWorkflowUsageBatch(params: LogWorkflowUsageBatchParams)
     })
   }
 
-  // Add per-model entries
   if (params.models) {
     for (const [modelName, modelData] of Object.entries(params.models)) {
       if (modelData.total > 0) {
@@ -299,7 +297,6 @@ export async function getUserUsageLogs(
   const { source, workspaceId, startDate, endDate, limit = 50, cursor } = options
 
   try {
-    // Build conditions
     const conditions = [eq(usageLog.userId, userId)]
 
     if (source) {
@@ -319,7 +316,6 @@ export async function getUserUsageLogs(
     }
 
     if (cursor) {
-      // For cursor-based pagination, get logs older than the cursor
       const cursorLog = await db
         .select({ createdAt: usageLog.createdAt })
         .from(usageLog)
@@ -327,25 +323,22 @@ export async function getUserUsageLogs(
         .limit(1)
 
       if (cursorLog.length > 0) {
-        conditions.push(lte(usageLog.createdAt, cursorLog[0].createdAt))
-        // Exclude the cursor itself
-        conditions.push(sql`${usageLog.id} != ${cursor}`)
+        conditions.push(
+          sql`(${usageLog.createdAt} < ${cursorLog[0].createdAt} OR (${usageLog.createdAt} = ${cursorLog[0].createdAt} AND ${usageLog.id} < ${cursor}))`
+        )
       }
     }
 
-    // Fetch logs with one extra to check if there are more
     const logs = await db
       .select()
       .from(usageLog)
       .where(and(...conditions))
-      .orderBy(desc(usageLog.createdAt))
+      .orderBy(desc(usageLog.createdAt), desc(usageLog.id))
       .limit(limit + 1)
 
-    // Check if there are more results
     const hasMore = logs.length > limit
     const resultLogs = hasMore ? logs.slice(0, limit) : logs
 
-    // Transform to response format
     const transformedLogs: UsageLogEntry[] = resultLogs.map((log) => ({
       id: log.id,
       createdAt: log.createdAt.toISOString(),
@@ -359,7 +352,6 @@ export async function getUserUsageLogs(
       ...(log.executionId ? { executionId: log.executionId } : {}),
     }))
 
-    // Calculate summary (for the filtered period, not just this page)
     const summaryConditions = [eq(usageLog.userId, userId)]
     if (source) summaryConditions.push(eq(usageLog.source, source))
     if (workspaceId) summaryConditions.push(eq(usageLog.workspaceId, workspaceId))
