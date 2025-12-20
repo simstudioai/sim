@@ -146,6 +146,9 @@ function migrateAgentParamsToMessages(
   }
 }
 
+/**
+ * Test comment for the Serializer class
+ */
 export class Serializer {
   serializeWorkflow(
     blocks: Record<string, BlockState>,
