@@ -42,9 +42,23 @@ app:
     # Optional: API Key Encryption (RECOMMENDED for production)
     # Generate 64-character hex string using: openssl rand -hex 32
     API_ENCRYPTION_KEY: "your-64-char-hex-api-encryption-key-here"  # Optional but recommended
-    
+
     NODE_ENV: "production"
     NEXT_TELEMETRY_DISABLED: "1"
+
+    # Azure Blob Storage Configuration (RECOMMENDED for production)
+    # Create a storage account and containers in your Azure subscription
+    AZURE_ACCOUNT_NAME: "simstudiostorageacct"           # Azure storage account name
+    AZURE_ACCOUNT_KEY: ""                                 # Storage account access key
+    # Or use connection string instead of account name/key:
+    # AZURE_CONNECTION_STRING: "DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;EndpointSuffix=core.windows.net"
+    AZURE_STORAGE_CONTAINER_NAME: "workspace-files"       # Workspace files container
+    AZURE_STORAGE_KB_CONTAINER_NAME: "knowledge-base"     # Knowledge base documents container
+    AZURE_STORAGE_EXECUTION_FILES_CONTAINER_NAME: "execution-files"  # Workflow execution outputs
+    AZURE_STORAGE_CHAT_CONTAINER_NAME: "chat-files"       # Deployed chat assets container
+    AZURE_STORAGE_COPILOT_CONTAINER_NAME: "copilot-files" # Copilot attachments container
+    AZURE_STORAGE_PROFILE_PICTURES_CONTAINER_NAME: "profile-pictures"  # User avatars container
+    AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME: "og-images"   # OpenGraph preview images container
 
 # Realtime service
 realtime:

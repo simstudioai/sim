@@ -1,38 +1,12 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type {
+  SalesforceGetContactsParams,
+  SalesforceGetContactsResponse,
+} from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
 
 const logger = createLogger('SalesforceContacts')
-
-export interface SalesforceGetContactsParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  contactId?: string
-  limit?: string
-  fields?: string
-  orderBy?: string
-}
-
-export interface SalesforceGetContactsResponse {
-  success: boolean
-  output: {
-    contacts?: any[]
-    contact?: any
-    paging?: {
-      nextRecordsUrl?: string
-      totalSize: number
-      done: boolean
-    }
-    metadata: {
-      operation: 'get_contacts'
-      totalReturned?: number
-      hasMore?: boolean
-      singleContact?: boolean
-    }
-    success: boolean
-  }
-}
 
 export const salesforceGetContactsTool: ToolConfig<
   SalesforceGetContactsParams,

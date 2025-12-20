@@ -44,9 +44,19 @@ app:
     
     NODE_ENV: "production"
     NEXT_TELEMETRY_DISABLED: "1"
-    
-    # AWS-specific environment variables
+
+    # AWS S3 Cloud Storage Configuration (RECOMMENDED for production)
+    # Create S3 buckets in your AWS account and configure IAM permissions
     AWS_REGION: "us-west-2"
+    AWS_ACCESS_KEY_ID: ""                               # AWS access key (or use IRSA for EKS)
+    AWS_SECRET_ACCESS_KEY: ""                           # AWS secret key (or use IRSA for EKS)
+    S3_BUCKET_NAME: "workspace-files"         # Workspace files
+    S3_KB_BUCKET_NAME: "knowledge-base"       # Knowledge base documents
+    S3_EXECUTION_FILES_BUCKET_NAME: "execution-files"  # Workflow execution outputs
+    S3_CHAT_BUCKET_NAME: "chat-files"         # Deployed chat assets
+    S3_COPILOT_BUCKET_NAME: "copilot-files"   # Copilot attachments
+    S3_PROFILE_PICTURES_BUCKET_NAME: "profile-pictures"  # User avatars
+    S3_OG_IMAGES_BUCKET_NAME: "og-images"                 # OpenGraph preview images
 
 # Realtime service
 realtime:

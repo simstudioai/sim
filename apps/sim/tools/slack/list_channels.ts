@@ -110,10 +110,15 @@ export const slackListChannelsTool: ToolConfig<SlackListChannelsParams, SlackLis
         creator: channel.creator,
       }))
 
+      const ids = channels.map((channel: { id: string }) => channel.id)
+      const names = channels.map((channel: { name: string }) => channel.name)
+
       return {
         success: true,
         output: {
           channels,
+          ids,
+          names,
           count: channels.length,
         },
       }
@@ -141,6 +146,14 @@ export const slackListChannelsTool: ToolConfig<SlackListChannelsParams, SlackLis
             creator: { type: 'string', description: 'User ID of channel creator' },
           },
         },
+      },
+      ids: {
+        type: 'array',
+        description: 'Array of channel IDs for easy access',
+      },
+      names: {
+        type: 'array',
+        description: 'Array of channel names for easy access',
       },
       count: {
         type: 'number',

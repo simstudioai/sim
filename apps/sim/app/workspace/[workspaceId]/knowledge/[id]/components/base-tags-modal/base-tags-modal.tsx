@@ -1,9 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import {
   Button,
+  Combobox,
+  type ComboboxOption,
   Input,
   Label,
   Modal,
@@ -14,7 +16,7 @@ import {
   Trash,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { MAX_TAG_SLOTS } from '@/lib/knowledge/constants'
+import { SUPPORTED_FIELD_TYPES, TAG_SLOT_CONFIG } from '@/lib/knowledge/constants'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import {
@@ -23,6 +25,14 @@ import {
 } from '@/hooks/use-knowledge-base-tag-definitions'
 
 const logger = createLogger('BaseTagsModal')
+
+/** Field type display labels */
+const FIELD_TYPE_LABELS: Record<string, string> = {
+  text: 'Text',
+  number: 'Number',
+  date: 'Date',
+  boolean: 'Boolean',
+}
 
 interface TagUsageData {
   tagName: string
@@ -174,22 +184,55 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
     return createTagForm.displayName.trim() && !hasTagNameConflict(createTagForm.displayName)
   }
 
+  /** Get slot usage counts per field type */
+  const getSlotUsageByFieldType = (fieldType: string): { used: number; max: number } => {
+    const config = TAG_SLOT_CONFIG[fieldType as keyof typeof TAG_SLOT_CONFIG]
+    if (!config) return { used: 0, max: 0 }
+    const used = kbTagDefinitions.filter((def) => def.fieldType === fieldType).length
+    return { used, max: config.maxSlots }
+  }
+
+  /** Check if a field type has available slots */
+  const hasAvailableSlots = (fieldType: string): boolean => {
+    const { used, max } = getSlotUsageByFieldType(fieldType)
+    return used < max
+  }
+
+  /** Field type options for Combobox */
+  const fieldTypeOptions: ComboboxOption[] = useMemo(() => {
+    return SUPPORTED_FIELD_TYPES.filter((type) => hasAvailableSlots(type)).map((type) => {
+      const { used, max } = getSlotUsageByFieldType(type)
+      return {
+        value: type,
+        label: `${FIELD_TYPE_LABELS[type]} (${used}/${max})`,
+      }
+    })
+  }, [kbTagDefinitions])
+
   const saveTagDefinition = async () => {
     if (!canSaveTag()) return
 
     setIsSavingTag(true)
     try {
-      const usedSlots = new Set(kbTagDefinitions.map((def) => def.tagSlot))
-      const availableSlot = (
-        ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
-      ).find((slot) => !usedSlots.has(slot))
+      // Check if selected field type has available slots
+      if (!hasAvailableSlots(createTagForm.fieldType)) {
+        throw new Error(`No available slots for ${createTagForm.fieldType} type`)
+      }
 
-      if (!availableSlot) {
-        throw new Error('No available tag slots')
+      // Get the next available slot from the API
+      const slotResponse = await fetch(
+        `/api/knowledge/${knowledgeBaseId}/next-available-slot?fieldType=${createTagForm.fieldType}`
+      )
+      if (!slotResponse.ok) {
+        throw new Error('Failed to get available slot')
+      }
+      const slotResult = await slotResponse.json()
+      if (!slotResult.success || !slotResult.data?.nextAvailableSlot) {
+        throw new Error('No available tag slots for this field type')
       }
 
       const newTagDefinition = {
-        tagSlot: availableSlot,
+        tagSlot: slotResult.data.nextAvailableSlot,
         displayName: createTagForm.displayName.trim(),
         fieldType: createTagForm.fieldType,
       }
@@ -277,7 +320,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                 <Label>
                   Tags:{' '}
                   <span className='pl-[6px] text-[var(--text-tertiary)]'>
-                    {kbTagDefinitions.length}/{MAX_TAG_SLOTS} slots used
+                    {kbTagDefinitions.length} defined
                   </span>
                 </Label>
 
@@ -299,6 +342,9 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                     >
                       <span className='min-w-0 truncate text-[12px] text-[var(--text-primary)]'>
                         {tag.displayName}
+                      </span>
+                      <span className='rounded-[3px] bg-[var(--surface-3)] px-[6px] py-[2px] text-[10px] text-[var(--text-muted)]'>
+                        {FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
                       </span>
                       <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[#3A3A3A]' />
                       <span className='min-w-0 flex-1 text-[11px] text-[var(--text-muted)]'>
@@ -324,7 +370,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                   <Button
                     variant='default'
                     onClick={openTagCreator}
-                    disabled={kbTagDefinitions.length >= MAX_TAG_SLOTS}
+                    disabled={!SUPPORTED_FIELD_TYPES.some((type) => hasAvailableSlots(type))}
                     className='w-full'
                   >
                     Add Tag
@@ -361,12 +407,22 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                       )}
                     </div>
 
-                    {/* Type selector commented out - only "text" type is currently supported
                     <div className='flex flex-col gap-[8px]'>
                       <Label htmlFor='tagType'>Type</Label>
-                      <Input id='tagType' value='Text' disabled className='capitalize' />
+                      <Combobox
+                        options={fieldTypeOptions}
+                        value={createTagForm.fieldType}
+                        onChange={(value) =>
+                          setCreateTagForm({ ...createTagForm, fieldType: value })
+                        }
+                        placeholder='Select type'
+                      />
+                      {!hasAvailableSlots(createTagForm.fieldType) && (
+                        <span className='text-[11px] text-[var(--text-error)]'>
+                          No available slots for this type. Choose a different type.
+                        </span>
+                      )}
                     </div>
-                    */}
 
                     <div className='flex gap-[8px]'>
                       <Button variant='default' onClick={cancelCreatingTag} className='flex-1'>
@@ -376,7 +432,11 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                         variant='primary'
                         onClick={saveTagDefinition}
                         className='flex-1'
-                        disabled={!canSaveTag() || isSavingTag}
+                        disabled={
+                          !canSaveTag() ||
+                          isSavingTag ||
+                          !hasAvailableSlots(createTagForm.fieldType)
+                        }
                       >
                         {isSavingTag ? (
                           <>

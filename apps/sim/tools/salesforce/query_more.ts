@@ -1,31 +1,12 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type {
+  SalesforceQueryMoreParams,
+  SalesforceQueryMoreResponse,
+} from '@/tools/salesforce/types'
+import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { extractErrorMessage, getInstanceUrl } from './utils'
 
 const logger = createLogger('SalesforceQuery')
-
-export interface SalesforceQueryMoreParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  nextRecordsUrl: string
-}
-
-export interface SalesforceQueryMoreResponse {
-  success: boolean
-  output: {
-    records: any[]
-    totalSize: number
-    done: boolean
-    nextRecordsUrl?: string
-    metadata: {
-      operation: 'query_more'
-      totalReturned: number
-      hasMore: boolean
-    }
-    success: boolean
-  }
-}
 
 /**
  * Retrieve additional query results using the nextRecordsUrl

@@ -5,6 +5,7 @@ import {
   check,
   customType,
   decimal,
+  doublePrecision,
   index,
   integer,
   json,
@@ -108,6 +109,7 @@ export const verification = pgTable(
   },
   (table) => ({
     identifierIdx: index('verification_identifier_idx').on(table.identifier),
+    expiresAtIdx: index('verification_expires_at_idx').on(table.expiresAt),
   })
 )
 
@@ -197,6 +199,7 @@ export const workflowBlocks = pgTable(
   },
   (table) => ({
     workflowIdIdx: index('workflow_blocks_workflow_id_idx').on(table.workflowId),
+    typeIdx: index('workflow_blocks_type_idx').on(table.type),
   })
 )
 
@@ -618,6 +621,8 @@ export const apiKey = pgTable(
       'workspace_type_check',
       sql`(type = 'workspace' AND workspace_id IS NOT NULL) OR (type = 'personal' AND workspace_id IS NULL)`
     ),
+    workspaceTypeIdx: index('api_key_workspace_type_idx').on(table.workspaceId, table.type),
+    userTypeIdx: index('api_key_user_type_idx').on(table.userId, table.type),
   })
 )
 
@@ -1043,6 +1048,7 @@ export const document = pgTable(
     deletedAt: timestamp('deleted_at'), // Soft delete
 
     // Document tags for filtering (inherited by all chunks)
+    // Text tags (7 slots)
     tag1: text('tag1'),
     tag2: text('tag2'),
     tag3: text('tag3'),
@@ -1050,6 +1056,19 @@ export const document = pgTable(
     tag5: text('tag5'),
     tag6: text('tag6'),
     tag7: text('tag7'),
+    // Number tags (5 slots)
+    number1: doublePrecision('number1'),
+    number2: doublePrecision('number2'),
+    number3: doublePrecision('number3'),
+    number4: doublePrecision('number4'),
+    number5: doublePrecision('number5'),
+    // Date tags (2 slots)
+    date1: timestamp('date1'),
+    date2: timestamp('date2'),
+    // Boolean tags (3 slots)
+    boolean1: boolean('boolean1'),
+    boolean2: boolean('boolean2'),
+    boolean3: boolean('boolean3'),
 
     // Timestamps
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
@@ -1064,7 +1083,7 @@ export const document = pgTable(
       table.knowledgeBaseId,
       table.processingStatus
     ),
-    // Tag indexes for filtering
+    // Text tag indexes
     tag1Idx: index('doc_tag1_idx').on(table.tag1),
     tag2Idx: index('doc_tag2_idx').on(table.tag2),
     tag3Idx: index('doc_tag3_idx').on(table.tag3),
@@ -1072,6 +1091,19 @@ export const document = pgTable(
     tag5Idx: index('doc_tag5_idx').on(table.tag5),
     tag6Idx: index('doc_tag6_idx').on(table.tag6),
     tag7Idx: index('doc_tag7_idx').on(table.tag7),
+    // Number tag indexes (5 slots)
+    number1Idx: index('doc_number1_idx').on(table.number1),
+    number2Idx: index('doc_number2_idx').on(table.number2),
+    number3Idx: index('doc_number3_idx').on(table.number3),
+    number4Idx: index('doc_number4_idx').on(table.number4),
+    number5Idx: index('doc_number5_idx').on(table.number5),
+    // Date tag indexes (2 slots)
+    date1Idx: index('doc_date1_idx').on(table.date1),
+    date2Idx: index('doc_date2_idx').on(table.date2),
+    // Boolean tag indexes (3 slots)
+    boolean1Idx: index('doc_boolean1_idx').on(table.boolean1),
+    boolean2Idx: index('doc_boolean2_idx').on(table.boolean2),
+    boolean3Idx: index('doc_boolean3_idx').on(table.boolean3),
   })
 )
 
@@ -1133,6 +1165,7 @@ export const embedding = pgTable(
     endOffset: integer('end_offset').notNull(),
 
     // Tag columns inherited from document for efficient filtering
+    // Text tags (7 slots)
     tag1: text('tag1'),
     tag2: text('tag2'),
     tag3: text('tag3'),
@@ -1140,6 +1173,19 @@ export const embedding = pgTable(
     tag5: text('tag5'),
     tag6: text('tag6'),
     tag7: text('tag7'),
+    // Number tags (5 slots)
+    number1: doublePrecision('number1'),
+    number2: doublePrecision('number2'),
+    number3: doublePrecision('number3'),
+    number4: doublePrecision('number4'),
+    number5: doublePrecision('number5'),
+    // Date tags (2 slots)
+    date1: timestamp('date1'),
+    date2: timestamp('date2'),
+    // Boolean tags (3 slots)
+    boolean1: boolean('boolean1'),
+    boolean2: boolean('boolean2'),
+    boolean3: boolean('boolean3'),
 
     // Chunk state - enable/disable from knowledge base
     enabled: boolean('enabled').notNull().default(true),
@@ -1178,7 +1224,7 @@ export const embedding = pgTable(
         ef_construction: 64,
       }),
 
-    // Tag indexes for efficient filtering
+    // Text tag indexes
     tag1Idx: index('emb_tag1_idx').on(table.tag1),
     tag2Idx: index('emb_tag2_idx').on(table.tag2),
     tag3Idx: index('emb_tag3_idx').on(table.tag3),
@@ -1186,6 +1232,19 @@ export const embedding = pgTable(
     tag5Idx: index('emb_tag5_idx').on(table.tag5),
     tag6Idx: index('emb_tag6_idx').on(table.tag6),
     tag7Idx: index('emb_tag7_idx').on(table.tag7),
+    // Number tag indexes (5 slots)
+    number1Idx: index('emb_number1_idx').on(table.number1),
+    number2Idx: index('emb_number2_idx').on(table.number2),
+    number3Idx: index('emb_number3_idx').on(table.number3),
+    number4Idx: index('emb_number4_idx').on(table.number4),
+    number5Idx: index('emb_number5_idx').on(table.number5),
+    // Date tag indexes (2 slots)
+    date1Idx: index('emb_date1_idx').on(table.date1),
+    date2Idx: index('emb_date2_idx').on(table.date2),
+    // Boolean tag indexes (3 slots)
+    boolean1Idx: index('emb_boolean1_idx').on(table.boolean1),
+    boolean2Idx: index('emb_boolean2_idx').on(table.boolean2),
+    boolean3Idx: index('emb_boolean3_idx').on(table.boolean3),
 
     // Full-text search index
     contentFtsIdx: index('emb_content_fts_idx').using('gin', table.contentTsv),
@@ -1381,6 +1440,7 @@ export const templates = pgTable(
     tags: text('tags').array().notNull().default(sql`'{}'::text[]`), // Array of tags
     requiredCredentials: jsonb('required_credentials').notNull().default('[]'), // Array of credential requirements
     state: jsonb('state').notNull(), // Store the workflow state directly
+    ogImageUrl: text('og_image_url'), // Pre-generated OpenGraph image URL
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

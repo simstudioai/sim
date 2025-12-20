@@ -135,28 +135,110 @@ const isMessagesArray = (value: unknown): value is Array<{ role: string; content
 }
 
 /**
+ * Type guard for tag filter array (used in knowledge block filters)
+ */
+interface TagFilterItem {
+  id: string
+  tagName: string
+  fieldType?: string
+  operator?: string
+  tagValue: string
+}
+
+const isTagFilterArray = (value: unknown): value is TagFilterItem[] => {
+  if (!Array.isArray(value) || value.length === 0) return false
+  const firstItem = value[0]
+  return (
+    typeof firstItem === 'object' &&
+    firstItem !== null &&
+    'tagName' in firstItem &&
+    'tagValue' in firstItem
+  )
+}
+
+/**
+ * Type guard for document tag entry array (used in knowledge block create document)
+ */
+interface DocumentTagItem {
+  id: string
+  tagName: string
+  fieldType?: string
+  value: string
+}
+
+const isDocumentTagArray = (value: unknown): value is DocumentTagItem[] => {
+  if (!Array.isArray(value) || value.length === 0) return false
+  const firstItem = value[0]
+  return (
+    typeof firstItem === 'object' &&
+    firstItem !== null &&
+    'tagName' in firstItem &&
+    'value' in firstItem &&
+    !('tagValue' in firstItem) // Distinguish from tag filters
+  )
+}
+
+/**
+ * Attempts to parse a JSON string, returns the parsed value or the original value if parsing fails
+ */
+const tryParseJson = (value: unknown): unknown => {
+  if (typeof value !== 'string') return value
+  try {
+    const trimmed = value.trim()
+    if (
+      (trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+      (trimmed.startsWith('{') && trimmed.endsWith('}'))
+    ) {
+      return JSON.parse(trimmed)
+    }
+  } catch {
+    // Not valid JSON, return original
+  }
+  return value
+}
+
+/**
  * Formats a subblock value for display, intelligently handling nested objects and arrays.
  */
 const getDisplayValue = (value: unknown): string => {
   if (value == null || value === '') return '-'
 
-  if (isMessagesArray(value)) {
-    const firstMessage = value[0]
+  // Try parsing JSON strings first
+  const parsedValue = tryParseJson(value)
+
+  if (isMessagesArray(parsedValue)) {
+    const firstMessage = parsedValue[0]
     if (!firstMessage?.content || firstMessage.content.trim() === '') return '-'
     const content = firstMessage.content.trim()
     return content.length > 50 ? `${content.slice(0, 50)}...` : content
   }
 
-  if (isVariableAssignmentsArray(value)) {
-    const names = value.map((a) => a.variableName).filter((name): name is string => !!name)
+  if (isVariableAssignmentsArray(parsedValue)) {
+    const names = parsedValue.map((a) => a.variableName).filter((name): name is string => !!name)
     if (names.length === 0) return '-'
     if (names.length === 1) return names[0]
     if (names.length === 2) return `${names[0]}, ${names[1]}`
     return `${names[0]}, ${names[1]} +${names.length - 2}`
   }
 
-  if (isTableRowArray(value)) {
-    const nonEmptyRows = value.filter((row) => {
+  if (isTagFilterArray(parsedValue)) {
+    const validFilters = parsedValue.filter((f) => f.tagName?.trim())
+    if (validFilters.length === 0) return '-'
+    if (validFilters.length === 1) return validFilters[0].tagName
+    if (validFilters.length === 2) return `${validFilters[0].tagName}, ${validFilters[1].tagName}`
+    return `${validFilters[0].tagName}, ${validFilters[1].tagName} +${validFilters.length - 2}`
+  }
+
+  if (isDocumentTagArray(parsedValue)) {
+    const validTags = parsedValue.filter((t) => t.tagName?.trim())
+    if (validTags.length === 0) return '-'
+    if (validTags.length === 1) return validTags[0].tagName
+    if (validTags.length === 2) return `${validTags[0].tagName}, ${validTags[1].tagName}`
+    return `${validTags[0].tagName}, ${validTags[1].tagName} +${validTags.length - 2}`
+  }
+
+  if (isTableRowArray(parsedValue)) {
+    const nonEmptyRows = parsedValue.filter((row) => {
       const cellValues = Object.values(row.cells)
       return cellValues.some((cell) => cell && cell.trim() !== '')
     })
@@ -175,16 +257,16 @@ const getDisplayValue = (value: unknown): string => {
     return `${nonEmptyRows.length} rows`
   }
 
-  if (isFieldFormatArray(value)) {
-    const namedFields = value.filter((field) => field.name && field.name.trim() !== '')
+  if (isFieldFormatArray(parsedValue)) {
+    const namedFields = parsedValue.filter((field) => field.name && field.name.trim() !== '')
     if (namedFields.length === 0) return '-'
     if (namedFields.length === 1) return namedFields[0].name
     if (namedFields.length === 2) return `${namedFields[0].name}, ${namedFields[1].name}`
     return `${namedFields[0].name}, ${namedFields[1].name} +${namedFields.length - 2}`
   }
 
-  if (isPlainObject(value)) {
-    const entries = Object.entries(value).filter(
+  if (isPlainObject(parsedValue)) {
+    const entries = Object.entries(parsedValue).filter(
       ([, val]) => val !== null && val !== undefined && val !== ''
     )
 
@@ -201,8 +283,10 @@ const getDisplayValue = (value: unknown): string => {
     return entries.length > 2 ? `${preview} +${entries.length - 2}` : preview
   }
 
-  if (Array.isArray(value)) {
-    const nonEmptyItems = value.filter((item) => item !== null && item !== undefined && item !== '')
+  if (Array.isArray(parsedValue)) {
+    const nonEmptyItems = parsedValue.filter(
+      (item) => item !== null && item !== undefined && item !== ''
+    )
     if (nonEmptyItems.length === 0) return '-'
 
     const getItemDisplayValue = (item: unknown): string => {
@@ -220,10 +304,11 @@ const getDisplayValue = (value: unknown): string => {
     return `${getItemDisplayValue(nonEmptyItems[0])}, ${getItemDisplayValue(nonEmptyItems[1])} +${nonEmptyItems.length - 2}`
   }
 
+  // For non-array, non-object values, use original value for string conversion
   const stringValue = String(value)
   if (stringValue === '[object Object]') {
     try {
-      const json = JSON.stringify(value)
+      const json = JSON.stringify(parsedValue)
       if (json.length <= 40) return json
       return `${json.slice(0, 37)}...`
     } catch {

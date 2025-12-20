@@ -1,34 +1,6 @@
+import type { SalesforceGetTasksParams, SalesforceGetTasksResponse } from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
-
-export interface SalesforceGetTasksParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  taskId?: string
-  limit?: string
-  fields?: string
-  orderBy?: string
-}
-
-export interface SalesforceGetTasksResponse {
-  success: boolean
-  output: {
-    task?: any
-    tasks?: any[]
-    paging?: {
-      nextRecordsUrl?: string
-      totalSize: number
-      done: boolean
-    }
-    metadata: {
-      operation: 'get_tasks'
-      totalReturned?: number
-      hasMore?: boolean
-    }
-    success: boolean
-  }
-}
 
 export const salesforceGetTasksTool: ToolConfig<
   SalesforceGetTasksParams,

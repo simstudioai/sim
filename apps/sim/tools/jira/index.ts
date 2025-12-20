@@ -11,6 +11,7 @@ import { jiraDeleteIssueLinkTool } from '@/tools/jira/delete_issue_link'
 import { jiraDeleteWorklogTool } from '@/tools/jira/delete_worklog'
 import { jiraGetAttachmentsTool } from '@/tools/jira/get_attachments'
 import { jiraGetCommentsTool } from '@/tools/jira/get_comments'
+import { jiraGetUsersTool } from '@/tools/jira/get_users'
 import { jiraGetWorklogsTool } from '@/tools/jira/get_worklogs'
 import { jiraRemoveWatcherTool } from '@/tools/jira/remove_watcher'
 import { jiraRetrieveTool } from '@/tools/jira/retrieve'
@@ -44,4 +45,5 @@ export {
   jiraDeleteIssueLinkTool,
   jiraAddWatcherTool,
   jiraRemoveWatcherTool,
+  jiraGetUsersTool,
 }

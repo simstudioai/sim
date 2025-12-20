@@ -5,12 +5,18 @@ import { tasks } from '@trigger.dev/sdk'
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import { getStorageMethod, isRedisStorage } from '@/lib/core/storage'
-import { getSlotsForFieldType, type TAG_SLOT_CONFIG } from '@/lib/knowledge/constants'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import { DocumentProcessingQueue } from '@/lib/knowledge/documents/queue'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
-import { getNextAvailableSlot } from '@/lib/knowledge/tags/service'
+import {
+  buildUndefinedTagsError,
+  parseBooleanValue,
+  parseDateValue,
+  parseNumberValue,
+  validateTagValue,
+} from '@/lib/knowledge/tags/utils'
+import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { DocumentProcessingPayload } from '@/background/knowledge-processing'
 
@@ -113,80 +119,194 @@ export interface DocumentTagData {
 }
 
 /**
- * Process structured document tags and create tag definitions
+ * Process structured document tags and validate them against existing definitions
+ * Throws an error if a tag doesn't exist or if the value doesn't match the expected type
  */
 export async function processDocumentTags(
   knowledgeBaseId: string,
   tagData: DocumentTagData[],
   requestId: string
-): Promise<Record<string, string | null>> {
-  const result: Record<string, string | null> = {}
+): Promise<ProcessedDocumentTags> {
+  // Helper to set a tag value with proper typing
+  const setTagValue = (
+    tags: ProcessedDocumentTags,
+    slot: string,
+    value: string | number | Date | boolean | null
+  ): void => {
+    switch (slot) {
+      case 'tag1':
+        tags.tag1 = value as string | null
+        break
+      case 'tag2':
+        tags.tag2 = value as string | null
+        break
+      case 'tag3':
+        tags.tag3 = value as string | null
+        break
+      case 'tag4':
+        tags.tag4 = value as string | null
+        break
+      case 'tag5':
+        tags.tag5 = value as string | null
+        break
+      case 'tag6':
+        tags.tag6 = value as string | null
+        break
+      case 'tag7':
+        tags.tag7 = value as string | null
+        break
+      case 'number1':
+        tags.number1 = value as number | null
+        break
+      case 'number2':
+        tags.number2 = value as number | null
+        break
+      case 'number3':
+        tags.number3 = value as number | null
+        break
+      case 'number4':
+        tags.number4 = value as number | null
+        break
+      case 'number5':
+        tags.number5 = value as number | null
+        break
+      case 'date1':
+        tags.date1 = value as Date | null
+        break
+      case 'date2':
+        tags.date2 = value as Date | null
+        break
+      case 'boolean1':
+        tags.boolean1 = value as boolean | null
+        break
+      case 'boolean2':
+        tags.boolean2 = value as boolean | null
+        break
+      case 'boolean3':
+        tags.boolean3 = value as boolean | null
+        break
+    }
+  }
 
-  const textSlots = getSlotsForFieldType('text')
-  textSlots.forEach((slot) => {
-    result[slot] = null
-  })
+  const result: ProcessedDocumentTags = {
+    tag1: null,
+    tag2: null,
+    tag3: null,
+    tag4: null,
+    tag5: null,
+    tag6: null,
+    tag7: null,
+    number1: null,
+    number2: null,
+    number3: null,
+    number4: null,
+    number5: null,
+    date1: null,
+    date2: null,
+    boolean1: null,
+    boolean2: null,
+    boolean3: null,
+  }
 
   if (!Array.isArray(tagData) || tagData.length === 0) {
     return result
   }
 
-  try {
-    const existingDefinitions = await db
-      .select()
-      .from(knowledgeBaseTagDefinitions)
-      .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
+  // Fetch existing tag definitions
+  const existingDefinitions = await db
+    .select()
+    .from(knowledgeBaseTagDefinitions)
+    .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
 
-    const existingByName = new Map(existingDefinitions.map((def) => [def.displayName, def]))
-    const existingBySlot = new Map(existingDefinitions.map((def) => [def.tagSlot as string, def]))
+  const existingByName = new Map(existingDefinitions.map((def) => [def.displayName, def]))
 
-    for (const tag of tagData) {
-      if (!tag.tagName?.trim() || !tag.value?.trim()) continue
+  // First pass: collect all validation errors
+  const undefinedTags: string[] = []
+  const typeErrors: string[] = []
 
-      const tagName = tag.tagName.trim()
-      const fieldType = tag.fieldType
-      const value = tag.value.trim()
+  for (const tag of tagData) {
+    // Skip if no tag name
+    if (!tag.tagName?.trim()) continue
 
-      let targetSlot: string | null = null
+    const tagName = tag.tagName.trim()
+    const fieldType = tag.fieldType || 'text'
 
-      // Check if tag definition already exists
-      const existingDef = existingByName.get(tagName)
-      if (existingDef) {
-        targetSlot = existingDef.tagSlot
-      } else {
-        // Find next available slot using the tags service function
-        targetSlot = await getNextAvailableSlot(knowledgeBaseId, fieldType, existingBySlot)
+    // For boolean, check if value is defined; for others, check if value is non-empty
+    const hasValue =
+      fieldType === 'boolean'
+        ? tag.value !== undefined && tag.value !== null && tag.value !== ''
+        : tag.value?.trim && tag.value.trim().length > 0
 
-        // Create new tag definition if we have a slot
-        if (targetSlot) {
-          const newDefinition = {
-            id: randomUUID(),
-            knowledgeBaseId,
-            tagSlot: targetSlot as (typeof TAG_SLOT_CONFIG.text.slots)[number],
-            displayName: tagName,
-            fieldType,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }
+    if (!hasValue) continue
 
-          await db.insert(knowledgeBaseTagDefinitions).values(newDefinition)
-          existingBySlot.set(targetSlot, newDefinition)
-
-          logger.info(`[${requestId}] Created tag definition: ${tagName} -> ${targetSlot}`)
-        }
-      }
-
-      // Assign value to the slot
-      if (targetSlot) {
-        result[targetSlot] = value
-      }
+    // Check if tag exists
+    const existingDef = existingByName.get(tagName)
+    if (!existingDef) {
+      undefinedTags.push(tagName)
+      continue
     }
 
-    return result
-  } catch (error) {
-    logger.error(`[${requestId}] Error processing document tags:`, error)
-    return result
+    // Validate value type using shared validation
+    const rawValue = typeof tag.value === 'string' ? tag.value.trim() : tag.value
+    const actualFieldType = existingDef.fieldType || fieldType
+    const validationError = validateTagValue(tagName, String(rawValue), actualFieldType)
+    if (validationError) {
+      typeErrors.push(validationError)
+    }
   }
+
+  // Throw combined error if there are any validation issues
+  if (undefinedTags.length > 0 || typeErrors.length > 0) {
+    const errorParts: string[] = []
+
+    if (undefinedTags.length > 0) {
+      errorParts.push(buildUndefinedTagsError(undefinedTags))
+    }
+
+    if (typeErrors.length > 0) {
+      errorParts.push(...typeErrors)
+    }
+
+    throw new Error(errorParts.join('\n'))
+  }
+
+  // Second pass: process valid tags
+  for (const tag of tagData) {
+    if (!tag.tagName?.trim()) continue
+
+    const tagName = tag.tagName.trim()
+    const fieldType = tag.fieldType || 'text'
+
+    const hasValue =
+      fieldType === 'boolean'
+        ? tag.value !== undefined && tag.value !== null && tag.value !== ''
+        : tag.value?.trim && tag.value.trim().length > 0
+
+    if (!hasValue) continue
+
+    const existingDef = existingByName.get(tagName)
+    if (!existingDef) continue // Already validated above
+
+    const targetSlot = existingDef.tagSlot
+    const actualFieldType = existingDef.fieldType || fieldType
+    const rawValue = typeof tag.value === 'string' ? tag.value.trim() : tag.value
+    const stringValue = String(rawValue).trim()
+
+    // Assign value to the slot with proper type conversion (values already validated)
+    if (actualFieldType === 'boolean') {
+      setTagValue(result, targetSlot, parseBooleanValue(stringValue) ?? false)
+    } else if (actualFieldType === 'number') {
+      setTagValue(result, targetSlot, parseNumberValue(stringValue))
+    } else if (actualFieldType === 'date') {
+      setTagValue(result, targetSlot, parseDateValue(stringValue))
+    } else {
+      setTagValue(result, targetSlot, stringValue)
+    }
+
+    logger.info(`[${requestId}] Set tag ${tagName} (${targetSlot}) = ${stringValue}`)
+  }
+
+  return result
 }
 
 /**
@@ -375,6 +495,7 @@ export async function processDocumentAsync(
 
         const documentRecord = await db
           .select({
+            // Text tags (7 slots)
             tag1: document.tag1,
             tag2: document.tag2,
             tag3: document.tag3,
@@ -382,6 +503,19 @@ export async function processDocumentAsync(
             tag5: document.tag5,
             tag6: document.tag6,
             tag7: document.tag7,
+            // Number tags (5 slots)
+            number1: document.number1,
+            number2: document.number2,
+            number3: document.number3,
+            number4: document.number4,
+            number5: document.number5,
+            // Date tags (2 slots)
+            date1: document.date1,
+            date2: document.date2,
+            // Boolean tags (3 slots)
+            boolean1: document.boolean1,
+            boolean2: document.boolean2,
+            boolean3: document.boolean3,
           })
           .from(document)
           .where(eq(document.id, documentId))
@@ -404,7 +538,7 @@ export async function processDocumentAsync(
           embeddingModel: 'text-embedding-3-small',
           startOffset: chunk.metadata.startIndex,
           endOffset: chunk.metadata.endIndex,
-          // Copy tags from document
+          // Copy text tags from document (7 slots)
           tag1: documentTags.tag1,
           tag2: documentTags.tag2,
           tag3: documentTags.tag3,
@@ -412,6 +546,19 @@ export async function processDocumentAsync(
           tag5: documentTags.tag5,
           tag6: documentTags.tag6,
           tag7: documentTags.tag7,
+          // Copy number tags from document (5 slots)
+          number1: documentTags.number1,
+          number2: documentTags.number2,
+          number3: documentTags.number3,
+          number4: documentTags.number4,
+          number5: documentTags.number5,
+          // Copy date tags from document (2 slots)
+          date1: documentTags.date1,
+          date2: documentTags.date2,
+          // Copy boolean tags from document (3 slots)
+          boolean1: documentTags.boolean1,
+          boolean2: documentTags.boolean2,
+          boolean3: documentTags.boolean3,
           createdAt: now,
           updatedAt: now,
         }))
@@ -568,15 +715,7 @@ export async function createDocumentRecords(
     for (const docData of documents) {
       const documentId = randomUUID()
 
-      let processedTags: Record<string, string | null> = {
-        tag1: null,
-        tag2: null,
-        tag3: null,
-        tag4: null,
-        tag5: null,
-        tag6: null,
-        tag7: null,
-      }
+      let processedTags: Record<string, any> = {}
 
       if (docData.documentTagsData) {
         try {
@@ -585,7 +724,12 @@ export async function createDocumentRecords(
             processedTags = await processDocumentTags(knowledgeBaseId, tagData, requestId)
           }
         } catch (error) {
-          logger.warn(`[${requestId}] Failed to parse documentTagsData for bulk document:`, error)
+          // Re-throw validation errors, only catch JSON parse errors
+          if (error instanceof SyntaxError) {
+            logger.warn(`[${requestId}] Failed to parse documentTagsData for bulk document:`, error)
+          } else {
+            throw error
+          }
         }
       }
 
@@ -602,14 +746,27 @@ export async function createDocumentRecords(
         processingStatus: 'pending' as const,
         enabled: true,
         uploadedAt: now,
-        // Use processed tags if available, otherwise fall back to individual tag fields
-        tag1: processedTags.tag1 || docData.tag1 || null,
-        tag2: processedTags.tag2 || docData.tag2 || null,
-        tag3: processedTags.tag3 || docData.tag3 || null,
-        tag4: processedTags.tag4 || docData.tag4 || null,
-        tag5: processedTags.tag5 || docData.tag5 || null,
-        tag6: processedTags.tag6 || docData.tag6 || null,
-        tag7: processedTags.tag7 || docData.tag7 || null,
+        // Text tags - use processed tags if available, otherwise fall back to individual tag fields
+        tag1: processedTags.tag1 ?? docData.tag1 ?? null,
+        tag2: processedTags.tag2 ?? docData.tag2 ?? null,
+        tag3: processedTags.tag3 ?? docData.tag3 ?? null,
+        tag4: processedTags.tag4 ?? docData.tag4 ?? null,
+        tag5: processedTags.tag5 ?? docData.tag5 ?? null,
+        tag6: processedTags.tag6 ?? docData.tag6 ?? null,
+        tag7: processedTags.tag7 ?? docData.tag7 ?? null,
+        // Number tags (5 slots)
+        number1: processedTags.number1 ?? null,
+        number2: processedTags.number2 ?? null,
+        number3: processedTags.number3 ?? null,
+        number4: processedTags.number4 ?? null,
+        number5: processedTags.number5 ?? null,
+        // Date tags (2 slots)
+        date1: processedTags.date1 ?? null,
+        date2: processedTags.date2 ?? null,
+        // Boolean tags (3 slots)
+        boolean1: processedTags.boolean1 ?? null,
+        boolean2: processedTags.boolean2 ?? null,
+        boolean3: processedTags.boolean3 ?? null,
       }
 
       documentRecords.push(newDocument)
@@ -679,6 +836,7 @@ export async function getDocuments(
     processingError: string | null
     enabled: boolean
     uploadedAt: Date
+    // Text tags
     tag1: string | null
     tag2: string | null
     tag3: string | null
@@ -686,6 +844,19 @@ export async function getDocuments(
     tag5: string | null
     tag6: string | null
     tag7: string | null
+    // Number tags
+    number1: number | null
+    number2: number | null
+    number3: number | null
+    number4: number | null
+    number5: number | null
+    // Date tags
+    date1: Date | null
+    date2: Date | null
+    // Boolean tags
+    boolean1: boolean | null
+    boolean2: boolean | null
+    boolean3: boolean | null
   }>
   pagination: {
     total: number
@@ -772,7 +943,7 @@ export async function getDocuments(
       processingError: document.processingError,
       enabled: document.enabled,
       uploadedAt: document.uploadedAt,
-      // Include tags in response
+      // Text tags (7 slots)
       tag1: document.tag1,
       tag2: document.tag2,
       tag3: document.tag3,
@@ -780,6 +951,19 @@ export async function getDocuments(
       tag5: document.tag5,
       tag6: document.tag6,
       tag7: document.tag7,
+      // Number tags (5 slots)
+      number1: document.number1,
+      number2: document.number2,
+      number3: document.number3,
+      number4: document.number4,
+      number5: document.number5,
+      // Date tags (2 slots)
+      date1: document.date1,
+      date2: document.date2,
+      // Boolean tags (3 slots)
+      boolean1: document.boolean1,
+      boolean2: document.boolean2,
+      boolean3: document.boolean3,
     })
     .from(document)
     .where(and(...whereConditions))
@@ -807,6 +991,7 @@ export async function getDocuments(
       processingError: doc.processingError,
       enabled: doc.enabled,
       uploadedAt: doc.uploadedAt,
+      // Text tags
       tag1: doc.tag1,
       tag2: doc.tag2,
       tag3: doc.tag3,
@@ -814,6 +999,19 @@ export async function getDocuments(
       tag5: doc.tag5,
       tag6: doc.tag6,
       tag7: doc.tag7,
+      // Number tags
+      number1: doc.number1,
+      number2: doc.number2,
+      number3: doc.number3,
+      number4: doc.number4,
+      number5: doc.number5,
+      // Date tags
+      date1: doc.date1,
+      date2: doc.date2,
+      // Boolean tags
+      boolean1: doc.boolean1,
+      boolean2: doc.boolean2,
+      boolean3: doc.boolean3,
     })),
     pagination: {
       total,
@@ -883,14 +1081,28 @@ export async function createSingleDocument(
   const now = new Date()
 
   // Process structured tag data if provided
-  let processedTags: Record<string, string | null> = {
-    tag1: documentData.tag1 || null,
-    tag2: documentData.tag2 || null,
-    tag3: documentData.tag3 || null,
-    tag4: documentData.tag4 || null,
-    tag5: documentData.tag5 || null,
-    tag6: documentData.tag6 || null,
-    tag7: documentData.tag7 || null,
+  let processedTags: Record<string, any> = {
+    // Text tags (7 slots)
+    tag1: documentData.tag1 ?? null,
+    tag2: documentData.tag2 ?? null,
+    tag3: documentData.tag3 ?? null,
+    tag4: documentData.tag4 ?? null,
+    tag5: documentData.tag5 ?? null,
+    tag6: documentData.tag6 ?? null,
+    tag7: documentData.tag7 ?? null,
+    // Number tags (5 slots)
+    number1: null,
+    number2: null,
+    number3: null,
+    number4: null,
+    number5: null,
+    // Date tags (2 slots)
+    date1: null,
+    date2: null,
+    // Boolean tags (3 slots)
+    boolean1: null,
+    boolean2: null,
+    boolean3: null,
   }
 
   if (documentData.documentTagsData) {
@@ -901,7 +1113,12 @@ export async function createSingleDocument(
         processedTags = await processDocumentTags(knowledgeBaseId, tagData, requestId)
       }
     } catch (error) {
-      logger.warn(`[${requestId}] Failed to parse documentTagsData:`, error)
+      // Re-throw validation errors, only catch JSON parse errors
+      if (error instanceof SyntaxError) {
+        logger.warn(`[${requestId}] Failed to parse documentTagsData:`, error)
+      } else {
+        throw error
+      }
     }
   }
 
@@ -1183,6 +1400,7 @@ export async function updateDocument(
     characterCount?: number
     processingStatus?: 'pending' | 'processing' | 'completed' | 'failed'
     processingError?: string
+    // Text tags
     tag1?: string
     tag2?: string
     tag3?: string
@@ -1190,6 +1408,19 @@ export async function updateDocument(
     tag5?: string
     tag6?: string
     tag7?: string
+    // Number tags
+    number1?: string
+    number2?: string
+    number3?: string
+    number4?: string
+    number5?: string
+    // Date tags
+    date1?: string
+    date2?: string
+    // Boolean tags
+    boolean1?: string
+    boolean2?: string
+    boolean3?: string
   },
   requestId: string
 ): Promise<{
@@ -1215,6 +1446,16 @@ export async function updateDocument(
   tag5: string | null
   tag6: string | null
   tag7: string | null
+  number1: number | null
+  number2: number | null
+  number3: number | null
+  number4: number | null
+  number5: number | null
+  date1: Date | null
+  date2: Date | null
+  boolean1: boolean | null
+  boolean2: boolean | null
+  boolean3: boolean | null
   deletedAt: Date | null
 }> {
   const dbUpdateData: Partial<{
@@ -1234,9 +1475,38 @@ export async function updateDocument(
     tag5: string | null
     tag6: string | null
     tag7: string | null
+    number1: number | null
+    number2: number | null
+    number3: number | null
+    number4: number | null
+    number5: number | null
+    date1: Date | null
+    date2: Date | null
+    boolean1: boolean | null
+    boolean2: boolean | null
+    boolean3: boolean | null
   }> = {}
-  const TAG_SLOTS = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
-  type TagSlot = (typeof TAG_SLOTS)[number]
+  // All tag slots across all field types
+  const ALL_TAG_SLOTS = [
+    'tag1',
+    'tag2',
+    'tag3',
+    'tag4',
+    'tag5',
+    'tag6',
+    'tag7',
+    'number1',
+    'number2',
+    'number3',
+    'number4',
+    'number5',
+    'date1',
+    'date2',
+    'boolean1',
+    'boolean2',
+    'boolean3',
+  ] as const
+  type TagSlot = (typeof ALL_TAG_SLOTS)[number]
 
   // Regular field updates
   if (updateData.filename !== undefined) dbUpdateData.filename = updateData.filename
@@ -1250,23 +1520,49 @@ export async function updateDocument(
   if (updateData.processingError !== undefined)
     dbUpdateData.processingError = updateData.processingError
 
-  TAG_SLOTS.forEach((slot: TagSlot) => {
+  // Helper to convert string values to proper types for the database
+  const convertTagValue = (
+    slot: string,
+    value: string | undefined
+  ): string | number | Date | boolean | null => {
+    if (value === undefined || value === '') return null
+
+    // Number slots
+    if (slot.startsWith('number')) {
+      return parseNumberValue(value)
+    }
+
+    // Date slots
+    if (slot.startsWith('date')) {
+      return parseDateValue(value)
+    }
+
+    // Boolean slots
+    if (slot.startsWith('boolean')) {
+      return parseBooleanValue(value) ?? false
+    }
+
+    // Text slots: keep as string
+    return value || null
+  }
+
+  ALL_TAG_SLOTS.forEach((slot: TagSlot) => {
     const updateValue = (updateData as any)[slot]
     if (updateValue !== undefined) {
-      ;(dbUpdateData as any)[slot] = updateValue
+      ;(dbUpdateData as any)[slot] = convertTagValue(slot, updateValue)
     }
   })
 
   await db.transaction(async (tx) => {
     await tx.update(document).set(dbUpdateData).where(eq(document.id, documentId))
 
-    const hasTagUpdates = TAG_SLOTS.some((field) => (updateData as any)[field] !== undefined)
+    const hasTagUpdates = ALL_TAG_SLOTS.some((field) => (updateData as any)[field] !== undefined)
 
     if (hasTagUpdates) {
-      const embeddingUpdateData: Record<string, string | null> = {}
-      TAG_SLOTS.forEach((field) => {
+      const embeddingUpdateData: Record<string, any> = {}
+      ALL_TAG_SLOTS.forEach((field) => {
         if ((updateData as any)[field] !== undefined) {
-          embeddingUpdateData[field] = (updateData as any)[field] || null
+          embeddingUpdateData[field] = convertTagValue(field, (updateData as any)[field])
         }
       })
 
@@ -1313,6 +1609,16 @@ export async function updateDocument(
     tag5: doc.tag5,
     tag6: doc.tag6,
     tag7: doc.tag7,
+    number1: doc.number1,
+    number2: doc.number2,
+    number3: doc.number3,
+    number4: doc.number4,
+    number5: doc.number5,
+    date1: doc.date1,
+    date2: doc.date2,
+    boolean1: doc.boolean1,
+    boolean2: doc.boolean2,
+    boolean3: doc.boolean3,
     deletedAt: doc.deletedAt,
   }
 }

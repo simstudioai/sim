@@ -1,32 +1,9 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type { SalesforceQueryParams, SalesforceQueryResponse } from '@/tools/salesforce/types'
+import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { extractErrorMessage, getInstanceUrl } from './utils'
 
 const logger = createLogger('SalesforceQuery')
-
-export interface SalesforceQueryParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  query: string
-}
-
-export interface SalesforceQueryResponse {
-  success: boolean
-  output: {
-    records: any[]
-    totalSize: number
-    done: boolean
-    nextRecordsUrl?: string
-    query: string
-    metadata: {
-      operation: 'query'
-      totalReturned: number
-      hasMore: boolean
-    }
-    success: boolean
-  }
-}
 
 /**
  * Execute a custom SOQL query

@@ -390,11 +390,26 @@ export function TemplateProfile() {
                   disabled={isUploadingProfilePicture}
                 />
               </div>
+              {/* Hidden decoy field to prevent browser autofill */}
+              <input
+                type='text'
+                name='fakeusernameremembered'
+                autoComplete='username'
+                style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+                tabIndex={-1}
+                readOnly
+              />
               <Input
                 placeholder='Name'
                 value={formData.name}
                 onChange={(e) => updateField('name', e.target.value)}
                 className='h-9 flex-1'
+                name='profile_display_name'
+                autoComplete='off'
+                autoCorrect='off'
+                autoCapitalize='off'
+                data-lpignore='true'
+                data-form-type='other'
               />
             </div>
             {uploadError && <p className='text-[12px] text-[var(--text-error)]'>{uploadError}</p>}

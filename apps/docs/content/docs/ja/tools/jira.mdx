@@ -94,10 +94,16 @@ Jira課題を作成する
 | `projectId` | string | はい | 課題のプロジェクトID |
 | `summary` | string | はい | 課題の要約 |
 | `description` | string | いいえ | 課題の説明 |
-| `priority` | string | いいえ | 課題の優先度 |
-| `assignee` | string | いいえ | 課題の担当者 |
+| `priority` | string | いいえ | 課題の優先度IDまたは名前（例：「10000」または「高」） |
+| `assignee` | string | いいえ | 課題の担当者アカウントID |
 | `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
 | `issueType` | string | はい | 作成する課題のタイプ（例：タスク、ストーリー） |
+| `labels` | array | いいえ | 課題のラベル（ラベル名の配列） |
+| `duedate` | string | いいえ | 課題の期限（形式：YYYY-MM-DD） |
+| `reporter` | string | いいえ | 課題の報告者アカウントID |
+| `environment` | string | いいえ | 課題の環境情報 |
+| `customFieldId` | string | いいえ | カスタムフィールドID（例：customfield_10001） |
+| `customFieldValue` | string | いいえ | カスタムフィールドの値 |
 
 #### 出力
 
@@ -106,7 +112,8 @@ Jira課題を作成する
 | `ts` | string | 操作のタイムスタンプ |
 | `issueKey` | string | 作成された課題キー（例：PROJ-123） |
 | `summary` | string | 課題の要約 |
-| `url` | string | 作成された課題へのURL |
+| `url` | string | 作成された課題のURL |
+| `assigneeId` | string | 割り当てられたユーザーのアカウントID（割り当てられている場合） |
 
 ### `jira_bulk_read`
 
@@ -520,7 +527,31 @@ Jira課題からウォッチャーを削除する
 | `issueKey` | string | 課題キー |
 | `watcherAccountId` | string | 削除されたウォッチャーのアカウントID |
 
-## 注意事項
+### `jira_get_users`
 
-- カテゴリー: `tools`
-- タイプ: `jira`
+Jiraユーザーを取得します。アカウントIDが提供された場合、単一のユーザーを返します。それ以外の場合、すべてのユーザーのリストを返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `accountId` | string | いいえ | 特定のユーザーを取得するためのオプションのアカウントID。提供されない場合、すべてのユーザーを返します。 |
+| `startAt` | number | いいえ | 返す最初のユーザーのインデックス（ページネーション用、デフォルト：0） |
+| `maxResults` | number | いいえ | 返すユーザーの最大数（デフォルト：50） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `users` | json | accountId、displayName、emailAddress、activeステータス、avatarUrlsを含むユーザーの配列 |
+| `total` | number | 返されたユーザーの総数 |
+| `startAt` | number | ページネーション開始インデックス |
+| `maxResults` | number | ページあたりの最大結果数 |
+
+## 注記
+
+- カテゴリ：`tools`
+- タイプ：`jira`
