@@ -2,9 +2,23 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
-import { Button, Input, Switch, Trash } from '@/components/emcn'
+import {
+  Button,
+  Input,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverItem,
+  PopoverScrollArea,
+  Trash,
+} from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { SUPPORTED_FIELD_TYPES, TAG_SLOT_CONFIG } from '@/lib/knowledge/constants'
+import {
+  FIELD_TYPE_LABELS,
+  getPlaceholderForFieldType,
+  SUPPORTED_FIELD_TYPES,
+  TAG_SLOT_CONFIG,
+} from '@/lib/knowledge/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
@@ -111,28 +125,61 @@ export function DocumentTagEntry({
     (def) => !usedTagNames.has(def.displayName.toLowerCase())
   )
 
-  // Calculate total available slots across all field types
-  const totalSlots = Object.values(TAG_SLOT_CONFIG).reduce(
-    (sum, config) => sum + config.maxSlots,
-    0
-  )
+  // Calculate used slots per field type (from existing KB definitions + new tags in form)
+  const usedSlotsByType = useMemo(() => {
+    const counts: Record<string, number> = {
+      text: 0,
+      number: 0,
+      date: 0,
+      boolean: 0,
+    }
 
-  // Check if we can add more tags
-  const newTagsBeingCreated = rows.filter(
-    (row) =>
-      row.cells.tagName?.trim() &&
-      !tagDefinitions.some(
-        (def) => def.displayName.toLowerCase() === row.cells.tagName.toLowerCase()
-      )
-  ).length
-  const canAddMoreTags = tagDefinitions.length + newTagsBeingCreated < totalSlots
+    // Count existing tag definitions
+    for (const def of tagDefinitions) {
+      const type = def.fieldType || 'text'
+      if (type in counts) {
+        counts[type]++
+      }
+    }
 
-  // Field type labels for display
-  const FIELD_TYPE_LABELS: Record<string, string> = {
-    text: 'Text',
-    number: 'Number',
-    date: 'Date',
-    boolean: 'Boolean',
+    // Count new tags being created in the form (not yet saved as definitions)
+    for (const row of rows) {
+      if (row.cells.tagName?.trim()) {
+        const isExistingTag = tagDefinitions.some(
+          (def) => def.displayName.toLowerCase() === row.cells.tagName.toLowerCase()
+        )
+        if (!isExistingTag) {
+          const type = row.cells.type || 'text'
+          if (type in counts) {
+            counts[type]++
+          }
+        }
+      }
+    }
+
+    return counts
+  }, [tagDefinitions, rows])
+
+  // Check which field types have available slots
+  const availableTypeSlots = useMemo(() => {
+    const available: Record<string, number> = {}
+    for (const [type, config] of Object.entries(TAG_SLOT_CONFIG)) {
+      available[type] = config.maxSlots - (usedSlotsByType[type] || 0)
+    }
+    return available
+  }, [usedSlotsByType])
+
+  // Can add more tags if at least one type has available slots
+  const canAddMoreTags = Object.values(availableTypeSlots).some((slots) => slots > 0)
+
+  // Get the first type with available slots (for new rows)
+  const getDefaultTypeForNewRow = () => {
+    for (const type of SUPPORTED_FIELD_TYPES) {
+      if ((availableTypeSlots[type] || 0) > 0) {
+        return type
+      }
+    }
+    return 'text' // Fallback, shouldn't happen if canAddMoreTags is true
   }
 
   // Function to pre-fill existing tags
@@ -167,6 +214,17 @@ export function DocumentTagEntry({
             if (row.cells.type !== tagDef.fieldType) {
               newCells.value = ''
             }
+          } else {
+            // New tag - check if current type has available slots
+            // If not, auto-switch to first available type
+            const currentType = newCells.type || 'text'
+            if ((availableTypeSlots[currentType] || 0) <= 0) {
+              const newType = getDefaultTypeForNewRow()
+              if (newType !== currentType) {
+                newCells.type = newType
+                newCells.value = ''
+              }
+            }
           }
         }
 
@@ -197,30 +255,6 @@ export function DocumentTagEntry({
   const handleCellChange = (rowIndex: number, column: string, value: string) => {
     if (isPreview || disabled) return
 
-    // Check if this is a new tag name that would exceed the limit
-    if (column === 'tagName' && value.trim()) {
-      const isExistingTag = tagDefinitions.some(
-        (def) => def.displayName.toLowerCase() === value.toLowerCase()
-      )
-
-      if (!isExistingTag) {
-        // Count current new tags being created (excluding the current row)
-        const currentNewTags = rows.filter(
-          (row, idx) =>
-            idx !== rowIndex &&
-            row.cells.tagName?.trim() &&
-            !tagDefinitions.some(
-              (def) => def.displayName.toLowerCase() === row.cells.tagName.toLowerCase()
-            )
-        ).length
-
-        if (tagDefinitions.length + currentNewTags >= totalSlots) {
-          // Don't allow creating new tags if we've reached the limit
-          return
-        }
-      }
-    }
-
     const jsonString = updateRowsAndGenerateJson(rowIndex, column, value)
     setStoreValue(jsonString)
   }
@@ -235,10 +269,14 @@ export function DocumentTagEntry({
   const handleAddRow = () => {
     if (isPreview || disabled) return
 
-    // Get current data and add a new empty row
+    // Get current data and add a new empty row with first available type
     const currentData = currentValue ? JSON.parse(currentValue) : []
     const newRowId = `tag-${currentData.length}-${Math.random().toString(36).substr(2, 9)}`
-    const newData = [...currentData, { id: newRowId, tagName: '', fieldType: 'text', value: '' }]
+    const defaultType = getDefaultTypeForNewRow()
+    const newData = [
+      ...currentData,
+      { id: newRowId, tagName: '', fieldType: defaultType, value: '' },
+    ]
     setStoreValue(JSON.stringify(newData))
   }
 
@@ -288,85 +326,66 @@ export function DocumentTagEntry({
   const renderTagNameCell = (row: DocumentTagRow, rowIndex: number) => {
     const cellValue = row.cells.tagName || ''
     const isDuplicate = getDuplicateStatus(rowIndex, cellValue)
-    const showDropdown = dropdownStates[rowIndex] || false
+    const isOpen = dropdownStates[rowIndex] || false
 
-    const setShowDropdown = (show: boolean) => {
-      setDropdownStates((prev) => ({ ...prev, [rowIndex]: show }))
+    const setIsOpen = (open: boolean) => {
+      setDropdownStates((prev) => ({ ...prev, [rowIndex]: open }))
     }
 
-    const handleDropdownClick = (e: React.MouseEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      if (!disabled) {
-        if (!showDropdown) {
-          setShowDropdown(true)
-        }
-      }
-    }
-
-    const handleFocus = () => {
-      if (!disabled) {
-        setShowDropdown(true)
-      }
-    }
-
-    const handleBlur = () => {
-      // Delay closing to allow dropdown selection
-      setTimeout(() => setShowDropdown(false), 150)
-    }
+    const filteredTags = availableTagDefinitions.filter((tagDef) =>
+      tagDef.displayName.toLowerCase().includes(cellValue.toLowerCase())
+    )
 
     return (
       <td className='relative border-r p-1'>
-        <div className='relative w-full'>
-          <Input
-            value={cellValue}
-            onChange={(e) => handleCellChange(rowIndex, 'tagName', e.target.value)}
-            onFocus={handleFocus}
-            onBlur={handleBlur}
-            disabled={disabled}
-            autoComplete='off'
-            className={cn(
-              'w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0',
-              isDuplicate && 'border-red-500 bg-red-50'
-            )}
-          />
-          <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
-            <div className='whitespace-pre'>
-              {formatDisplayText(cellValue, {
-                accessiblePrefixes,
-                highlightAll: !accessiblePrefixes,
-              })}
-            </div>
-          </div>
-          {showDropdown && availableTagDefinitions.length > 0 && (
-            <div className='absolute top-full left-0 z-[100] mt-1 w-full'>
-              <div className='allow-scroll fade-in-0 zoom-in-95 animate-in rounded-md border bg-popover text-popover-foreground shadow-lg'>
-                <div
-                  className='allow-scroll max-h-48 overflow-y-auto p-1'
-                  style={{ scrollbarWidth: 'thin' }}
-                >
-                  {availableTagDefinitions
-                    .filter((tagDef) =>
-                      tagDef.displayName.toLowerCase().includes(cellValue.toLowerCase())
-                    )
-                    .map((tagDef) => (
-                      <div
-                        key={tagDef.id}
-                        className='relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground'
-                        onMouseDown={(e) => {
-                          e.preventDefault()
-                          handleCellChange(rowIndex, 'tagName', tagDef.displayName)
-                          setShowDropdown(false)
-                        }}
-                      >
-                        <span className='flex-1 truncate'>{tagDef.displayName}</span>
-                      </div>
-                    ))}
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+          <PopoverAnchor asChild>
+            <div className='relative w-full'>
+              <Input
+                value={cellValue}
+                onChange={(e) => handleCellChange(rowIndex, 'tagName', e.target.value)}
+                onFocus={() => !disabled && setIsOpen(true)}
+                disabled={disabled}
+                autoComplete='off'
+                className={cn(
+                  'w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0',
+                  isDuplicate && 'border-red-500 bg-red-50'
+                )}
+              />
+              <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
+                <div className='whitespace-pre'>
+                  {formatDisplayText(cellValue, {
+                    accessiblePrefixes,
+                    highlightAll: !accessiblePrefixes,
+                  })}
                 </div>
               </div>
             </div>
+          </PopoverAnchor>
+          {filteredTags.length > 0 && (
+            <PopoverContent
+              side='bottom'
+              align='start'
+              sideOffset={4}
+              maxHeight={192}
+              className='w-[200px]'
+            >
+              <PopoverScrollArea>
+                {filteredTags.map((tagDef) => (
+                  <PopoverItem
+                    key={tagDef.id}
+                    onClick={() => {
+                      handleCellChange(rowIndex, 'tagName', tagDef.displayName)
+                      setIsOpen(false)
+                    }}
+                  >
+                    <span className='flex-1 truncate'>{tagDef.displayName}</span>
+                  </PopoverItem>
+                ))}
+              </PopoverScrollArea>
+            </PopoverContent>
           )}
-        </div>
+        </Popover>
       </td>
     )
   }
@@ -381,84 +400,81 @@ export function DocumentTagEntry({
     )
     const isReadOnly = !!existingTag
 
-    const showTypeDropdown = typeDropdownStates[rowIndex] || false
+    const isOpen = typeDropdownStates[rowIndex] || false
 
-    const setShowTypeDropdown = (show: boolean) => {
-      setTypeDropdownStates((prev) => ({ ...prev, [rowIndex]: show }))
+    const setIsOpen = (open: boolean) => {
+      setTypeDropdownStates((prev) => ({ ...prev, [rowIndex]: open }))
     }
 
-    const handleTypeDropdownClick = (e: React.MouseEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      if (!disabled && !isReadOnly) {
-        if (!showTypeDropdown) {
-          setShowTypeDropdown(true)
-        }
+    // Check if this row is a new tag (counts against the slot limit)
+    const isNewTag =
+      tagName.trim() &&
+      !tagDefinitions.some((def) => def.displayName.toLowerCase() === tagName.toLowerCase())
+
+    // Filter type options - disable types with no available slots
+    // Exception: if this row already has a type selected (for a new tag), that type should remain available
+    const typeOptions = SUPPORTED_FIELD_TYPES.map((type) => {
+      const availableSlots = availableTypeSlots[type] || 0
+      // Type is disabled if no slots AND it's not the currently selected type for this new tag
+      const isCurrentTypeForNewTag = isNewTag && cellValue === type
+      const isDisabled = availableSlots <= 0 && !isCurrentTypeForNewTag
+
+      return {
+        value: type,
+        label: FIELD_TYPE_LABELS[type] || type,
+        disabled: isDisabled,
       }
-    }
-
-    const handleTypeFocus = () => {
-      if (!disabled && !isReadOnly) {
-        setShowTypeDropdown(true)
-      }
-    }
-
-    const handleTypeBlur = () => {
-      // Delay closing to allow dropdown selection
-      setTimeout(() => setShowTypeDropdown(false), 150)
-    }
-
-    const typeOptions = SUPPORTED_FIELD_TYPES.map((type) => ({
-      value: type,
-      label: FIELD_TYPE_LABELS[type] || type,
-    }))
+    })
 
     return (
       <td className='border-r p-1'>
-        <div className='relative w-full'>
-          <Input
-            value={cellValue}
-            readOnly
-            disabled={disabled || isReadOnly}
-            autoComplete='off'
-            className='w-full cursor-pointer border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
-            onClick={handleTypeDropdownClick}
-            onFocus={handleTypeFocus}
-            onBlur={handleTypeBlur}
-          />
-          <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
-            <div className='whitespace-pre text-muted-foreground'>
-              {formatDisplayText(cellValue, {
-                accessiblePrefixes,
-                highlightAll: !accessiblePrefixes,
-              })}
-            </div>
-          </div>
-          {showTypeDropdown && !isReadOnly && (
-            <div className='absolute top-full left-0 z-[100] mt-1 w-full'>
-              <div className='allow-scroll fade-in-0 zoom-in-95 animate-in rounded-md border bg-popover text-popover-foreground shadow-lg'>
-                <div
-                  className='allow-scroll max-h-48 overflow-y-auto p-1'
-                  style={{ scrollbarWidth: 'thin' }}
-                >
-                  {typeOptions.map((option) => (
-                    <div
-                      key={option.value}
-                      className='relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground'
-                      onMouseDown={(e) => {
-                        e.preventDefault()
-                        handleCellChange(rowIndex, 'type', option.value)
-                        setShowTypeDropdown(false)
-                      }}
-                    >
-                      <span className='flex-1 truncate'>{option.label}</span>
-                    </div>
-                  ))}
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+          <PopoverAnchor asChild>
+            <div
+              className='relative w-full cursor-pointer'
+              onClick={() => !disabled && !isReadOnly && setIsOpen(true)}
+            >
+              <Input
+                value={cellValue}
+                readOnly
+                disabled={disabled || isReadOnly}
+                autoComplete='off'
+                className='w-full cursor-pointer border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
+              />
+              <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
+                <div className='whitespace-pre text-muted-foreground'>
+                  {FIELD_TYPE_LABELS[cellValue] || cellValue}
                 </div>
               </div>
             </div>
+          </PopoverAnchor>
+          {!isReadOnly && (
+            <PopoverContent
+              side='bottom'
+              align='start'
+              sideOffset={4}
+              maxHeight={192}
+              className='w-[120px]'
+            >
+              <PopoverScrollArea>
+                {typeOptions
+                  .filter((option) => !option.disabled)
+                  .map((option) => (
+                    <PopoverItem
+                      key={option.value}
+                      active={option.value === cellValue}
+                      onClick={() => {
+                        handleCellChange(rowIndex, 'type', option.value)
+                        setIsOpen(false)
+                      }}
+                    >
+                      <span className='flex-1 truncate'>{option.label}</span>
+                    </PopoverItem>
+                  ))}
+              </PopoverScrollArea>
+            </PopoverContent>
           )}
-        </div>
+        </Popover>
       </td>
     )
   }
@@ -467,6 +483,7 @@ export function DocumentTagEntry({
     const cellValue = row.cells.value || ''
     const fieldType = row.cells.type || 'text'
     const cellKey = `value-${rowIndex}`
+    const placeholder = getPlaceholderForFieldType(fieldType)
 
     const fieldState = inputController.fieldHelpers.getFieldState(cellKey)
     const handlers = inputController.fieldHelpers.createFieldHandlers(
@@ -480,91 +497,7 @@ export function DocumentTagEntry({
       (newValue) => handleTagDropdownSelection(rowIndex, 'value', newValue)
     )
 
-    // Render boolean as a switch
-    if (fieldType === 'boolean') {
-      const boolValue = cellValue === 'true'
-      return (
-        <td className='p-1'>
-          <div className='flex h-9 items-center justify-center'>
-            <Switch
-              checked={boolValue}
-              onCheckedChange={(checked) => handleCellChange(rowIndex, 'value', String(checked))}
-              disabled={disabled}
-            />
-          </div>
-        </td>
-      )
-    }
-
-    // Render date as date input
-    if (fieldType === 'date') {
-      return (
-        <td className='p-1'>
-          <div className='relative w-full'>
-            <Input
-              ref={(el) => {
-                if (el) valueInputRefs.current[rowIndex] = el
-              }}
-              type='datetime-local'
-              value={cellValue}
-              onChange={(e) => handleCellChange(rowIndex, 'value', e.target.value)}
-              disabled={disabled}
-              className='w-full border-0 focus-visible:ring-0 focus-visible:ring-offset-0'
-            />
-          </div>
-        </td>
-      )
-    }
-
-    // Render number as number input
-    if (fieldType === 'number') {
-      return (
-        <td className='p-1'>
-          <div className='relative w-full'>
-            <Input
-              ref={(el) => {
-                if (el) valueInputRefs.current[rowIndex] = el
-              }}
-              type='number'
-              value={cellValue}
-              onChange={handlers.onChange}
-              onKeyDown={handlers.onKeyDown}
-              onDrop={handlers.onDrop}
-              onDragOver={handlers.onDragOver}
-              disabled={disabled}
-              autoComplete='off'
-              className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
-            />
-            <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
-              <div className='whitespace-pre'>
-                {formatDisplayText(cellValue, {
-                  accessiblePrefixes,
-                  highlightAll: !accessiblePrefixes,
-                })}
-              </div>
-            </div>
-            {fieldState.showTags && (
-              <TagDropdown
-                visible={fieldState.showTags}
-                onSelect={tagSelectHandler}
-                blockId={blockId}
-                activeSourceBlockId={fieldState.activeSourceBlockId}
-                inputValue={cellValue}
-                cursorPosition={fieldState.cursorPosition}
-                onClose={() => inputController.fieldHelpers.hideFieldDropdowns(cellKey)}
-                inputRef={
-                  {
-                    current: valueInputRefs.current[rowIndex] || null,
-                  } as React.RefObject<HTMLInputElement>
-                }
-              />
-            )}
-          </div>
-        </td>
-      )
-    }
-
-    // Default: text input with tag dropdown support
+    // Unified text input for all field types with tag dropdown support
     return (
       <td className='p-1'>
         <div className='relative w-full'>
@@ -579,6 +512,7 @@ export function DocumentTagEntry({
             onDragOver={handlers.onDragOver}
             disabled={disabled}
             autoComplete='off'
+            placeholder={placeholder}
             className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
           />
           <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
@@ -661,9 +595,9 @@ export function DocumentTagEntry({
         </table>
       </div>
 
-      {/* Add Row Button and Tag slots usage indicator */}
+      {/* Add Row Button */}
       {!isPreview && !disabled && (
-        <div className='mt-3 flex items-center justify-between'>
+        <div className='mt-3'>
           <Button
             variant='outline'
             onClick={handleAddRow}
@@ -673,11 +607,6 @@ export function DocumentTagEntry({
             <Plus className='mr-1 h-2.5 w-2.5' />
             Add Tag
           </Button>
-
-          {/* Tag slots usage indicator */}
-          <div className='text-muted-foreground text-xs'>
-            {tagDefinitions.length + newTagsBeingCreated} of {totalSlots} tag slots used
-          </div>
         </div>
       )}
     </div>

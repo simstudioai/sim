@@ -1,7 +1,30 @@
+/**
+ * A minimal input component matching the emcn design system.
+ *
+ * @example
+ * ```tsx
+ * import { Input } from '@/components/emcn'
+ *
+ * // Basic usage
+ * <Input placeholder="Enter text..." />
+ *
+ * // Controlled input
+ * <Input value={value} onChange={(e) => setValue(e.target.value)} />
+ *
+ * // Disabled state
+ * <Input disabled placeholder="Cannot edit" />
+ * ```
+ *
+ * @see inputVariants for available styling variants
+ */
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/core/utils/cn'
 
+/**
+ * Variant styles for the Input component.
+ * Currently supports a 'default' variant.
+ */
 const inputVariants = cva(
   'flex w-full rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] dark:bg-[var(--surface-9)] px-[8px] py-[6px] font-medium font-sans text-sm text-foreground transition-colors placeholder:text-[var(--text-muted)] dark:placeholder:text-[var(--text-muted)] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50',
   {
@@ -16,6 +39,10 @@ const inputVariants = cva(
   }
 )
 
+/**
+ * Props for the Input component.
+ * Extends native input attributes with variant support.
+ */
 export interface InputProps
   extends React.InputHTMLAttributes<HTMLInputElement>,
     VariantProps<typeof inputVariants> {}

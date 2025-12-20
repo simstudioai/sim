@@ -8,9 +8,14 @@ import {
   type ComboboxOption,
   Input,
   Label,
-  Switch,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverItem,
+  PopoverScrollArea,
   Trash,
 } from '@/components/emcn'
+import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
@@ -266,93 +271,61 @@ export function KnowledgeTagFilters({
     </thead>
   )
 
-  /** Field type labels for display */
-  const FIELD_TYPE_LABELS: Record<string, string> = {
-    text: 'Text',
-    number: 'Number',
-    date: 'Date',
-    boolean: 'Boolean',
-  }
-
   const renderTagNameCell = (row: TagFilterRow, rowIndex: number) => {
     const cellValue = row.cells.tagName || ''
-    const fieldType = row.cells.fieldType || 'text'
-    const showDropdown = dropdownStates[rowIndex] || false
+    const isOpen = dropdownStates[rowIndex] || false
 
-    const setShowDropdown = (show: boolean) => {
-      setDropdownStates((prev) => ({ ...prev, [rowIndex]: show }))
-    }
-
-    const handleDropdownClick = (e: React.MouseEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      if (!disabled && !isLoading) {
-        if (!showDropdown) {
-          setShowDropdown(true)
-        }
-      }
-    }
-
-    const handleFocus = () => {
-      if (!disabled && !isLoading) {
-        setShowDropdown(true)
-      }
-    }
-
-    const handleBlur = () => {
-      // Delay closing to allow dropdown selection
-      setTimeout(() => setShowDropdown(false), 150)
+    const setIsOpen = (open: boolean) => {
+      setDropdownStates((prev) => ({ ...prev, [rowIndex]: open }))
     }
 
     return (
       <td className='relative border-r p-1'>
-        <div className='relative w-full'>
-          <Input
-            value={cellValue}
-            readOnly
-            disabled={disabled || isLoading}
-            autoComplete='off'
-            className='w-full cursor-pointer border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
-            onClick={handleDropdownClick}
-            onFocus={handleFocus}
-            onBlur={handleBlur}
-          />
-          <div className='pointer-events-none absolute inset-0 flex items-center gap-1.5 overflow-hidden bg-transparent px-3 text-sm'>
-            <span className='truncate'>{cellValue || 'Select tag'}</span>
-            {cellValue && (
-              <span className='flex-shrink-0 rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground'>
-                {FIELD_TYPE_LABELS[fieldType]}
-              </span>
-            )}
-          </div>
-          {showDropdown && tagDefinitions.length > 0 && (
-            <div className='absolute top-full left-0 z-[100] mt-1 w-full'>
-              <div className='allow-scroll fade-in-0 zoom-in-95 animate-in rounded-md border bg-popover text-popover-foreground shadow-lg'>
-                <div
-                  className='allow-scroll max-h-48 overflow-y-auto p-1'
-                  style={{ scrollbarWidth: 'thin' }}
-                >
-                  {tagDefinitions.map((tag) => (
-                    <div
-                      key={tag.id}
-                      className='relative flex cursor-pointer select-none items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground'
-                      onMouseDown={(e) => {
-                        e.preventDefault()
-                        handleTagNameSelection(rowIndex, tag.displayName)
-                        setShowDropdown(false)
-                      }}
-                    >
-                      <span className='flex-1 truncate'>{tag.displayName}</span>
-                      <span className='flex-shrink-0 rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground'>
-                        {FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+          <PopoverAnchor asChild>
+            <div
+              className='relative w-full cursor-pointer'
+              onClick={() => !disabled && !isLoading && setIsOpen(true)}
+            >
+              <Input
+                value={cellValue}
+                readOnly
+                disabled={disabled || isLoading}
+                autoComplete='off'
+                className='w-full cursor-pointer border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
+              />
+              <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
+                <span className='truncate'>{cellValue || 'Select tag'}</span>
               </div>
             </div>
+          </PopoverAnchor>
+          {tagDefinitions.length > 0 && (
+            <PopoverContent
+              side='bottom'
+              align='start'
+              sideOffset={4}
+              maxHeight={192}
+              className='w-[200px]'
+            >
+              <PopoverScrollArea>
+                {tagDefinitions.map((tag) => (
+                  <PopoverItem
+                    key={tag.id}
+                    onClick={() => {
+                      handleTagNameSelection(rowIndex, tag.displayName)
+                      setIsOpen(false)
+                    }}
+                  >
+                    <span className='flex-1 truncate'>{tag.displayName}</span>
+                    <span className='flex-shrink-0 rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground'>
+                      {FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}
+                    </span>
+                  </PopoverItem>
+                ))}
+              </PopoverScrollArea>
+            </PopoverContent>
           )}
-        </div>
+        </Popover>
       </td>
     )
   }
@@ -389,110 +362,21 @@ export function KnowledgeTagFilters({
     const isBetween = operator === 'between'
     const valueTo = row.cells.valueTo || ''
     const isDisabled = disabled || !row.cells.tagName
+    const placeholder = getPlaceholderForFieldType(fieldType)
 
-    // Render boolean switch
-    if (fieldType === 'boolean') {
-      return (
-        <td className='p-1'>
-          <div className='flex items-center justify-center gap-2 px-2'>
-            <Switch
-              checked={cellValue === 'true'}
-              onCheckedChange={(checked) => handleCellChange(rowIndex, 'value', String(checked))}
-              disabled={isDisabled}
-            />
-            <span className='text-muted-foreground text-sm'>
-              {cellValue === 'true' ? 'Yes' : 'No'}
-            </span>
-          </div>
-        </td>
-      )
-    }
+    // Single text input for all field types with variable support
+    const renderInput = (value: string, column: 'value' | 'valueTo') => (
+      <div className='relative w-full'>
+        <Input
+          value={value}
+          onChange={(e) => {
+            const newValue = e.target.value
+            const cursorPosition = e.target.selectionStart ?? 0
 
-    // Render number input
-    if (fieldType === 'number') {
-      return (
-        <td className='p-1'>
-          <div className='flex items-center gap-1'>
-            <Input
-              type='number'
-              value={cellValue}
-              onChange={(e) => handleCellChange(rowIndex, 'value', e.target.value)}
-              disabled={isDisabled}
-              placeholder='Value'
-              className='h-8 border-0 focus-visible:ring-0 focus-visible:ring-offset-0'
-            />
-            {isBetween && (
-              <>
-                <span className='text-muted-foreground text-xs'>to</span>
-                <Input
-                  type='number'
-                  value={valueTo}
-                  onChange={(e) => handleCellChange(rowIndex, 'valueTo', e.target.value)}
-                  disabled={isDisabled}
-                  placeholder='Value'
-                  className='h-8 border-0 focus-visible:ring-0 focus-visible:ring-offset-0'
-                />
-              </>
-            )}
-          </div>
-        </td>
-      )
-    }
+            handleCellChange(rowIndex, column, newValue)
 
-    // Render date input
-    if (fieldType === 'date') {
-      return (
-        <td className='p-1'>
-          <div className='flex items-center gap-1'>
-            <Input
-              type='date'
-              value={cellValue ? cellValue.slice(0, 10) : ''}
-              onChange={(e) =>
-                handleCellChange(
-                  rowIndex,
-                  'value',
-                  e.target.value ? new Date(e.target.value).toISOString() : ''
-                )
-              }
-              disabled={isDisabled}
-              className='h-8 border-0 focus-visible:ring-0 focus-visible:ring-offset-0'
-            />
-            {isBetween && (
-              <>
-                <span className='text-muted-foreground text-xs'>to</span>
-                <Input
-                  type='date'
-                  value={valueTo ? valueTo.slice(0, 10) : ''}
-                  onChange={(e) =>
-                    handleCellChange(
-                      rowIndex,
-                      'valueTo',
-                      e.target.value ? new Date(e.target.value).toISOString() : ''
-                    )
-                  }
-                  disabled={isDisabled}
-                  className='h-8 border-0 focus-visible:ring-0 focus-visible:ring-offset-0'
-                />
-              </>
-            )}
-          </div>
-        </td>
-      )
-    }
-
-    // Render text input (default) with variable support
-    return (
-      <td className='p-1'>
-        <div className='relative w-full'>
-          <Input
-            value={cellValue}
-            onChange={(e) => {
-              const newValue = e.target.value
-              const cursorPosition = e.target.selectionStart ?? 0
-
-              handleCellChange(rowIndex, 'value', newValue)
-
-              // Check for tag trigger
+            // Check for tag trigger (only for primary value input)
+            if (column === 'value') {
               const tagTrigger = checkTagTrigger(newValue, cursorPosition)
 
               setActiveTagDropdown({
@@ -502,42 +386,59 @@ export function KnowledgeTagFilters({
                 activeSourceBlockId: null,
                 element: e.target,
               })
-            }}
-            onFocus={(e) => {
-              if (!isDisabled) {
-                setActiveTagDropdown({
-                  rowIndex,
-                  showTags: false,
-                  cursorPosition: 0,
-                  activeSourceBlockId: null,
-                  element: e.target,
-                })
-              }
-            }}
-            onBlur={() => {
+            }
+          }}
+          onFocus={(e) => {
+            if (!isDisabled && column === 'value') {
+              setActiveTagDropdown({
+                rowIndex,
+                showTags: false,
+                cursorPosition: 0,
+                activeSourceBlockId: null,
+                element: e.target,
+              })
+            }
+          }}
+          onBlur={() => {
+            if (column === 'value') {
               setTimeout(() => setActiveTagDropdown(null), 200)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setActiveTagDropdown(null)
-              }
-            }}
-            disabled={isDisabled}
-            autoComplete='off'
-            placeholder='Enter value'
-            className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
-          />
-          <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
-            <div className='whitespace-pre'>
-              {formatDisplayText(cellValue || '', {
-                accessiblePrefixes,
-                highlightAll: !accessiblePrefixes,
-              })}
-            </div>
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setActiveTagDropdown(null)
+            }
+          }}
+          disabled={isDisabled}
+          autoComplete='off'
+          placeholder={placeholder}
+          className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
+        />
+        <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
+          <div className='whitespace-pre'>
+            {formatDisplayText(value || '', {
+              accessiblePrefixes,
+              highlightAll: !accessiblePrefixes,
+            })}
           </div>
         </div>
-      </td>
+      </div>
     )
+
+    // Render with optional "between" second input
+    if (isBetween) {
+      return (
+        <td className='p-1'>
+          <div className='flex items-center gap-1'>
+            {renderInput(cellValue, 'value')}
+            <span className='flex-shrink-0 text-muted-foreground text-xs'>to</span>
+            {renderInput(valueTo, 'valueTo')}
+          </div>
+        </td>
+      )
+    }
+
+    return <td className='p-1'>{renderInput(cellValue, 'value')}</td>
   }
 
   const renderDeleteButton = (rowIndex: number) => {
