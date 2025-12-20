@@ -8238,19 +8238,6 @@
       "schema": "public",
       "values": ["pending", "approved", "rejected"]
     },
-<<<<<<< HEAD
-=======
-    "public.usage_log_category": {
-      "name": "usage_log_category",
-      "schema": "public",
-      "values": ["model", "fixed"]
-    },
-    "public.usage_log_source": {
-      "name": "usage_log_source",
-      "schema": "public",
-      "values": ["workflow", "wand", "copilot"]
-    },
->>>>>>> ce0e4338e (feat(audit): added audit log for billing line items)
     "public.workspace_invitation_status": {
       "name": "workspace_invitation_status",
       "schema": "public",
