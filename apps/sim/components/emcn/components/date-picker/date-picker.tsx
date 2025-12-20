@@ -18,8 +18,13 @@
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Button } from '@/components/emcn/components/button/button'
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from '@/components/emcn/components/popover/popover'
 import { cn } from '@/lib/core/utils/cn'
-import { Popover, PopoverAnchor, PopoverContent } from '../popover/popover'
 
 /**
  * Variant styles for the date picker trigger button.
@@ -388,13 +393,9 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
 
             {/* Today Button */}
             <div className='border-[var(--surface-11)] border-t px-[8px] py-[8px]'>
-              <button
-                type='button'
-                className='w-full rounded-[4px] py-[6px] text-[12px] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)]'
-                onClick={handleSelectToday}
-              >
+              <Button variant='active' className='w-full' onClick={handleSelectToday}>
                 Today
-              </button>
+              </Button>
             </div>
           </PopoverContent>
         </div>
