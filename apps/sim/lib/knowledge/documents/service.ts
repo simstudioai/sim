@@ -5,12 +5,18 @@ import { tasks } from '@trigger.dev/sdk'
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import { getStorageMethod, isRedisStorage } from '@/lib/core/storage'
-import { getSlotsForFieldType } from '@/lib/knowledge/constants'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import { DocumentProcessingQueue } from '@/lib/knowledge/documents/queue'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
-import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
+import {
+  buildUndefinedTagsError,
+  parseBooleanValue,
+  parseDateValue,
+  parseNumberValue,
+  validateTagValue,
+} from '@/lib/knowledge/tags/utils'
+import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { DocumentProcessingPayload } from '@/background/knowledge-processing'
 
@@ -120,17 +126,87 @@ export async function processDocumentTags(
   knowledgeBaseId: string,
   tagData: DocumentTagData[],
   requestId: string
-): Promise<Record<string, any>> {
-  const result: Record<string, any> = {}
+): Promise<ProcessedDocumentTags> {
+  // Helper to set a tag value with proper typing
+  const setTagValue = (
+    tags: ProcessedDocumentTags,
+    slot: string,
+    value: string | number | Date | boolean | null
+  ): void => {
+    switch (slot) {
+      case 'tag1':
+        tags.tag1 = value as string | null
+        break
+      case 'tag2':
+        tags.tag2 = value as string | null
+        break
+      case 'tag3':
+        tags.tag3 = value as string | null
+        break
+      case 'tag4':
+        tags.tag4 = value as string | null
+        break
+      case 'tag5':
+        tags.tag5 = value as string | null
+        break
+      case 'tag6':
+        tags.tag6 = value as string | null
+        break
+      case 'tag7':
+        tags.tag7 = value as string | null
+        break
+      case 'number1':
+        tags.number1 = value as number | null
+        break
+      case 'number2':
+        tags.number2 = value as number | null
+        break
+      case 'number3':
+        tags.number3 = value as number | null
+        break
+      case 'number4':
+        tags.number4 = value as number | null
+        break
+      case 'number5':
+        tags.number5 = value as number | null
+        break
+      case 'date1':
+        tags.date1 = value as Date | null
+        break
+      case 'date2':
+        tags.date2 = value as Date | null
+        break
+      case 'boolean1':
+        tags.boolean1 = value as boolean | null
+        break
+      case 'boolean2':
+        tags.boolean2 = value as boolean | null
+        break
+      case 'boolean3':
+        tags.boolean3 = value as boolean | null
+        break
+    }
+  }
 
-  // Initialize all slot types
-  const fieldTypes = ['text', 'number', 'date', 'boolean'] as const
-  fieldTypes.forEach((type) => {
-    const slots = getSlotsForFieldType(type)
-    slots.forEach((slot) => {
-      result[slot] = null
-    })
-  })
+  const result: ProcessedDocumentTags = {
+    tag1: null,
+    tag2: null,
+    tag3: null,
+    tag4: null,
+    tag5: null,
+    tag6: null,
+    tag7: null,
+    number1: null,
+    number2: null,
+    number3: null,
+    number4: null,
+    number5: null,
+    date1: null,
+    date2: null,
+    boolean1: null,
+    boolean2: null,
+    boolean3: null,
+  }
 
   if (!Array.isArray(tagData) || tagData.length === 0) {
     return result
@@ -216,15 +292,15 @@ export async function processDocumentTags(
     const rawValue = typeof tag.value === 'string' ? tag.value.trim() : tag.value
     const stringValue = String(rawValue).trim()
 
-    // Assign value to the slot with proper type conversion
+    // Assign value to the slot with proper type conversion (values already validated)
     if (actualFieldType === 'boolean') {
-      result[targetSlot] = stringValue.toLowerCase() === 'true'
+      setTagValue(result, targetSlot, parseBooleanValue(stringValue) ?? false)
     } else if (actualFieldType === 'number') {
-      result[targetSlot] = Number.parseFloat(stringValue)
+      setTagValue(result, targetSlot, parseNumberValue(stringValue))
     } else if (actualFieldType === 'date') {
-      result[targetSlot] = new Date(stringValue)
+      setTagValue(result, targetSlot, parseDateValue(stringValue))
     } else {
-      result[targetSlot] = stringValue
+      setTagValue(result, targetSlot, stringValue)
     }
 
     logger.info(`[${requestId}] Set tag ${tagName} (${targetSlot}) = ${stringValue}`)
@@ -1445,24 +1521,25 @@ export async function updateDocument(
     dbUpdateData.processingError = updateData.processingError
 
   // Helper to convert string values to proper types for the database
-  const convertTagValue = (slot: string, value: string | undefined): any => {
+  const convertTagValue = (
+    slot: string,
+    value: string | undefined
+  ): string | number | Date | boolean | null => {
     if (value === undefined || value === '') return null
 
-    // Number slots: convert string to number
+    // Number slots
     if (slot.startsWith('number')) {
-      const num = Number.parseFloat(value)
-      return Number.isNaN(num) ? null : num
+      return parseNumberValue(value)
     }
 
-    // Date slots: convert ISO string to Date
+    // Date slots
     if (slot.startsWith('date')) {
-      const date = new Date(value)
-      return Number.isNaN(date.getTime()) ? null : date
+      return parseDateValue(value)
     }
 
-    // Boolean slots: convert string to boolean
+    // Boolean slots
     if (slot.startsWith('boolean')) {
-      return value === 'true'
+      return parseBooleanValue(value) ?? false
     }
 
     // Text slots: keep as string

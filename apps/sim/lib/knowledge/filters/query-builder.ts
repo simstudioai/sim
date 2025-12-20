@@ -348,17 +348,17 @@ export function validateFilterCondition(condition: FilterCondition): string[] {
       }
       break
     case 'date':
-      if (typeof condition.value !== 'string' || Number.isNaN(Date.parse(condition.value))) {
-        errors.push('Date filter value must be a valid ISO date string')
+      if (typeof condition.value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(condition.value)) {
+        errors.push('Date filter value must be in YYYY-MM-DD format')
       }
       if (condition.operator === 'between' && condition.valueTo === undefined) {
         errors.push('Between operator requires a second value')
       }
       if (
         condition.valueTo !== undefined &&
-        (typeof condition.valueTo !== 'string' || Number.isNaN(Date.parse(condition.valueTo)))
+        (typeof condition.valueTo !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(condition.valueTo))
       ) {
-        errors.push('Date filter second value must be a valid ISO date string')
+        errors.push('Date filter second value must be in YYYY-MM-DD format')
       }
       break
     case 'boolean':
