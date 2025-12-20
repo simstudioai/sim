@@ -821,7 +821,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
 
             <Button
               type='button'
-              variant='primary'
+              variant='tertiary'
               onClick={() => formRef.current?.requestSubmit()}
               disabled={
                 !userPerms.canAdmin || isSubmitting || isSaving || !workspaceId || !hasNewInvites
@@ -858,10 +858,10 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               Cancel
             </Button>
             <Button
-              variant='primary'
+              variant='destructive'
               onClick={handleRemoveMemberConfirm}
               disabled={isRemovingMember}
-              className='gap-[8px] bg-[var(--text-error)] text-[13px] text-white hover:bg-[var(--text-error)]'
+              className='gap-[8px]'
             >
               {isRemovingMember && <Loader2 className='mr-1 h-4 w-4 animate-spin' />}
               Remove Member
@@ -892,10 +892,10 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               Cancel
             </Button>
             <Button
-              variant='primary'
+              variant='destructive'
               onClick={handleRemoveInvitationConfirm}
               disabled={isRemovingInvitation}
-              className='gap-[8px] bg-[var(--text-error)] text-[13px] text-white hover:bg-[var(--text-error)]'
+              className='gap-[8px]'
             >
               {isRemovingInvitation && <Loader2 className='mr-1 h-4 w-4 animate-spin' />}
               Cancel Invitation

@@ -371,12 +371,12 @@ export function TrainingModal() {
                     Cancel
                   </Button>
                   <Button
-                    variant='primary'
+                    variant='tertiary'
                     onClick={() => {
                       useCopilotTrainingStore.getState().stopTraining()
                       setLocalPrompt('')
                     }}
-                    className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90 flex-1'
+                    className='flex-1'
                   >
                     <Check className='mr-[6px] h-[14px] w-[14px]' />
                     Save Dataset
@@ -438,7 +438,8 @@ export function TrainingModal() {
               <Button
                 onClick={handleStart}
                 disabled={!localTitle.trim() || !localPrompt.trim()}
-                className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90 w-full'
+                variant='tertiary'
+                className='w-full'
               >
                 Start Training Session
               </Button>
@@ -468,10 +469,9 @@ export function TrainingModal() {
                     <div className='flex gap-[8px]'>
                       {selectedDatasets.size > 0 && (
                         <Button
-                          variant='primary'
+                          variant='tertiary'
                           onClick={handleSendSelected}
                           disabled={sendingSelected}
-                          className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
                         >
                           <Send className='mr-[6px] h-[12px] w-[12px]' />
                           {sendingSelected
@@ -755,13 +755,11 @@ export function TrainingModal() {
                   sendingLiveWorkflow ||
                   currentWorkflow.getBlockCount() === 0
                 }
+                variant='tertiary'
                 className={cn(
                   'w-full',
-                  liveWorkflowSent
-                    ? '!bg-green-600 !text-white hover:!bg-green-700'
-                    : liveWorkflowFailed
-                      ? '!bg-red-600 !text-white hover:!bg-red-700'
-                      : '!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+                  liveWorkflowSent && '!bg-green-600 !text-white hover:!bg-green-700',
+                  liveWorkflowFailed && '!bg-red-600 !text-white hover:!bg-red-700'
                 )}
               >
                 {sendingLiveWorkflow ? (

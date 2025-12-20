@@ -364,7 +364,7 @@ export function TemplateDeploy({
               </p>
               <Button
                 type='button'
-                variant='primary'
+                variant='tertiary'
                 onClick={() => {
                   try {
                     const event = new CustomEvent('open-settings', {
@@ -435,10 +435,9 @@ export function TemplateDeploy({
               Cancel
             </Button>
             <Button
-              variant='primary'
+              variant='destructive'
               onClick={handleDelete}
               disabled={deleteMutation.isPending}
-              className='bg-[var(--text-error)] text-[13px] text-white hover:bg-[var(--text-error)]'
             >
               {deleteMutation.isPending ? (
                 <>

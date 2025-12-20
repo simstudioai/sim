@@ -150,9 +150,8 @@ export function Copilot() {
               setIsCreateDialogOpen(true)
               setCreateError(null)
             }}
-            variant='primary'
+            variant='tertiary'
             disabled={isLoading}
-            className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90 disabled:cursor-not-allowed disabled:opacity-60'
           >
             <Plus className='mr-[6px] h-[13px] w-[13px]' />
             Create
@@ -253,10 +252,9 @@ export function Copilot() {
             </Button>
             <Button
               type='button'
-              variant='primary'
+              variant='tertiary'
               onClick={handleCreateKey}
               disabled={!newKeyName.trim() || generateKey.isPending}
-              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
             >
               {generateKey.isPending ? 'Creating...' : 'Create'}
             </Button>
@@ -336,10 +334,9 @@ export function Copilot() {
               Cancel
             </Button>
             <Button
-              variant='primary'
+              variant='destructive'
               onClick={handleDeleteKey}
               disabled={deleteKeyMutation.isPending}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {deleteKeyMutation.isPending ? 'Deleting...' : 'Delete'}
             </Button>

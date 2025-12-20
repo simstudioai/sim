@@ -272,11 +272,7 @@ export function GeneralDeploy({
             <Button variant='default' onClick={() => setShowLoadDialog(false)}>
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={confirmLoadDeployment}
-              className='bg-[var(--text-error)] text-white hover:bg-[var(--text-error)]'
-            >
+            <Button variant='destructive' onClick={confirmLoadDeployment}>
               Load deployment
             </Button>
           </ModalFooter>
@@ -302,7 +298,7 @@ export function GeneralDeploy({
             <Button variant='default' onClick={() => setShowPromoteDialog(false)}>
               Cancel
             </Button>
-            <Button variant='primary' onClick={confirmPromoteToLive}>
+            <Button variant='tertiary' onClick={confirmPromoteToLive}>
               Promote to live
             </Button>
           </ModalFooter>

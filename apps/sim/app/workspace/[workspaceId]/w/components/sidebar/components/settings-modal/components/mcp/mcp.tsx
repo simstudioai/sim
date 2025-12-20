@@ -595,11 +595,7 @@ export function MCP({ initialServerId }: MCPProps) {
                 ? 'Refreshed'
                 : 'Refresh Tools'}
           </Button>
-          <Button
-            onClick={handleBackToList}
-            variant='primary'
-            className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-          >
+          <Button onClick={handleBackToList} variant='tertiary'>
             Back
           </Button>
         </div>
@@ -625,9 +621,8 @@ export function MCP({ initialServerId }: MCPProps) {
           </div>
           <Button
             onClick={() => setShowAddForm(!showAddForm)}
-            variant='primary'
+            variant='tertiary'
             disabled={serversLoading}
-            className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
           >
             <Plus className='mr-[6px] h-[13px] w-[13px]' />
             Add
@@ -719,11 +714,7 @@ export function MCP({ initialServerId }: MCPProps) {
                   <Button variant='ghost' onClick={handleCancelForm}>
                     Cancel
                   </Button>
-                  <Button
-                    onClick={handleAddServer}
-                    disabled={isSubmitDisabled}
-                    className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-                  >
+                  <Button onClick={handleAddServer} disabled={isSubmitDisabled} variant='tertiary'>
                     {isSubmitDisabled && isFormValid ? 'Adding...' : 'Add Server'}
                   </Button>
                 </div>
@@ -793,11 +784,7 @@ export function MCP({ initialServerId }: MCPProps) {
             <Button variant='default' onClick={() => setShowDeleteDialog(false)}>
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={confirmDeleteServer}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={confirmDeleteServer}>
               Delete
             </Button>
           </ModalFooter>

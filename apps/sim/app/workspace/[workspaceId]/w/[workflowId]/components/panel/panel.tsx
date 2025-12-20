@@ -352,10 +352,10 @@ export function Panel() {
           {/* Header */}
           <div className='flex flex-shrink-0 items-center justify-between px-[8px]'>
             {/* More and Chat */}
-            <div className='flex gap-[4px]'>
+            <div className='flex gap-[6px]'>
               <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <PopoverTrigger asChild>
-                  <Button className='h-[32px] w-[32px]'>
+                  <Button className='h-[30px] w-[30px] rounded-[5px]'>
                     <MoreHorizontal />
                   </Button>
                 </PopoverTrigger>
@@ -408,7 +408,7 @@ export function Panel() {
                 </PopoverContent>
               </Popover>
               <Button
-                className='h-[32px] w-[32px]'
+                className='h-[30px] w-[30px] rounded-[5px]'
                 variant={isChatOpen ? 'active' : 'default'}
                 onClick={() => setIsChatOpen(!isChatOpen)}
               >
@@ -417,11 +417,11 @@ export function Panel() {
             </div>
 
             {/* Deploy and Run */}
-            <div className='flex gap-[4px]'>
+            <div className='flex gap-[6px]'>
               <Deploy activeWorkflowId={activeWorkflowId} userPermissions={userPermissions} />
               <Button
-                className='h-[32px] w-[61.5px] gap-[8px]'
-                variant={isExecuting ? 'active' : 'primary'}
+                className='h-[30px] gap-[8px] px-[10px]'
+                variant={isExecuting ? 'active' : 'tertiary'}
                 onClick={isExecuting ? cancelWorkflow : () => runWorkflow()}
                 disabled={!isExecuting && isButtonDisabled}
               >
@@ -430,7 +430,7 @@ export function Panel() {
                 ) : (
                   <Play className='h-[11.5px] w-[11.5px]' />
                 )}
-                Run
+                {isExecuting ? 'Stop' : 'Run'}
               </Button>
             </div>
           </div>
@@ -439,7 +439,7 @@ export function Panel() {
           <div className='flex flex-shrink-0 items-center justify-between px-[8px] pt-[14px]'>
             <div className='flex gap-[4px]'>
               <Button
-                className='h-[28px] truncate px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                className='h-[28px] truncate rounded-[6px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
                 variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('copilot')}
                 data-tab-button='copilot'
@@ -447,7 +447,7 @@ export function Panel() {
                 Copilot
               </Button>
               <Button
-                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                className='h-[28px] rounded-[6px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
                 variant={_hasHydrated && activeTab === 'toolbar' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('toolbar')}
                 data-tab-button='toolbar'
@@ -455,7 +455,7 @@ export function Panel() {
                 Toolbar
               </Button>
               <Button
-                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                className='h-[28px] rounded-[6px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
                 variant={_hasHydrated && activeTab === 'editor' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('editor')}
                 data-tab-button='editor'
@@ -538,12 +538,7 @@ export function Panel() {
             >
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={handleDeleteWorkflow}
-              disabled={isDeleting}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={handleDeleteWorkflow} disabled={isDeleting}>
               {isDeleting ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>

@@ -229,9 +229,8 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
             setKeyType(defaultKeyType)
             setCreateError(null)
           }}
-          variant='primary'
+          variant='tertiary'
           disabled={createButtonDisabled}
-          className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90 disabled:cursor-not-allowed disabled:opacity-60'
         >
           <Plus className='mr-[6px] h-[13px] w-[13px]' />
           Create
@@ -542,14 +541,13 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
             </Button>
             <Button
               type='button'
-              variant='primary'
+              variant='tertiary'
               onClick={handleCreateKey}
               disabled={
                 !newKeyName.trim() ||
                 createApiKeyMutation.isPending ||
                 (keyType === 'workspace' && !canManageWorkspaceKeys)
               }
-              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
             >
               {createApiKeyMutation.isPending ? 'Creating...' : 'Create'}
             </Button>
@@ -627,10 +625,9 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
               Cancel
             </Button>
             <Button
-              variant='primary'
+              variant='destructive'
               onClick={handleDeleteKey}
               disabled={deleteApiKeyMutation.isPending}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {deleteApiKeyMutation.isPending ? 'Deleting...' : 'Delete'}
             </Button>

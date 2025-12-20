@@ -141,13 +141,11 @@ function ShimmerOverlayText({
 }: ShimmerOverlayTextProps) {
   const [actionVerb, remainder] = splitActionVerb(text)
 
-  // Special tools: use gradient for entire text
+  // Special tools: use tertiary-2 color for entire text with shimmer
   if (isSpecial) {
     return (
       <span className={`relative inline-block ${className || ''}`}>
-        <span className='bg-gradient-to-r from-[#7c3aed] to-[#9061f9] bg-clip-text text-transparent dark:from-[#B99FFD] dark:to-[#D1BFFF]'>
-          {text}
-        </span>
+        <span className='text-[var(--brand-tertiary-2)]'>{text}</span>
         {active ? (
           <span
             aria-hidden='true'
@@ -157,7 +155,7 @@ function ShimmerOverlayText({
               className='block text-transparent'
               style={{
                 backgroundImage:
-                  'linear-gradient(90deg, rgba(142,76,251,0) 0%, rgba(255,255,255,0.6) 50%, rgba(142,76,251,0) 100%)',
+                  'linear-gradient(90deg, rgba(51,196,129,0) 0%, rgba(255,255,255,0.6) 50%, rgba(51,196,129,0) 100%)',
                 backgroundSize: '200% 100%',
                 backgroundRepeat: 'no-repeat',
                 WebkitBackgroundClip: 'text',
@@ -504,7 +502,7 @@ function RunSkipButtons({
   // Standardized buttons for all interrupt tools: Allow, Always Allow, Skip
   return (
     <div className='mt-[12px] flex gap-[6px]'>
-      <Button onClick={onRun} disabled={isProcessing} variant='primary'>
+      <Button onClick={onRun} disabled={isProcessing} variant='tertiary'>
         {isProcessing ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
         Allow
       </Button>
@@ -1104,7 +1102,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
                 onStateChange?.('background')
               } catch {}
             }}
-            variant='primary'
+            variant='tertiary'
             title='Move to Background'
           >
             Move to Background
@@ -1135,7 +1133,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
                 onStateChange?.('background')
               } catch {}
             }}
-            variant='primary'
+            variant='tertiary'
             title='Wake'
           >
             Wake

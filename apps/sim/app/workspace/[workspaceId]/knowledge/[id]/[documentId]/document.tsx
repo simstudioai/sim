@@ -242,7 +242,7 @@ function DocumentLoading({
                 className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
               />
             </div>
-            <Button disabled variant='primary' className='h-[32px] rounded-[6px]'>
+            <Button disabled variant='tertiary' className='h-[32px] rounded-[6px]'>
               Create Chunk
             </Button>
           </div>
@@ -882,7 +882,7 @@ export function Document({
                 <Button
                   onClick={() => setIsCreateChunkModalOpen(true)}
                   disabled={documentData?.processingStatus === 'failed' || !userPermissions.canEdit}
-                  variant='primary'
+                  variant='tertiary'
                   className='h-[32px] rounded-[6px]'
                 >
                   Create Chunk
@@ -1245,10 +1245,9 @@ export function Document({
               Cancel
             </Button>
             <Button
-              variant='primary'
+              variant='destructive'
               onClick={handleDeleteDocument}
               disabled={isDeletingDocument}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {isDeletingDocument ? 'Deleting...' : 'Delete Document'}
             </Button>

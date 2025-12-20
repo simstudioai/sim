@@ -39,9 +39,6 @@ import { WorkflowSelector } from './components/workflow-selector'
 
 const logger = createLogger('NotificationSettings')
 
-const PRIMARY_BUTTON_STYLES =
-  '!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-
 type NotificationType = 'webhook' | 'email' | 'slack'
 type LogLevel = 'info' | 'error'
 type AlertRule =
@@ -618,10 +615,9 @@ export function NotificationSettings({
 
           <div className='flex flex-shrink-0 items-center gap-[8px]'>
             <Button
-              variant='primary'
+              variant='tertiary'
               onClick={() => handleTest(subscription.id)}
               disabled={testNotification.isPending && testStatus?.id !== subscription.id}
-              className={PRIMARY_BUTTON_STYLES}
             >
               {testStatus?.id === subscription.id
                 ? testStatus.success
@@ -1302,10 +1298,9 @@ export function NotificationSettings({
                   </Button>
                 )}
                 <Button
-                  variant='primary'
+                  variant='tertiary'
                   onClick={handleSave}
                   disabled={createNotification.isPending || updateNotification.isPending}
-                  className={PRIMARY_BUTTON_STYLES}
                 >
                   {createNotification.isPending || updateNotification.isPending
                     ? editingId
@@ -1322,9 +1317,8 @@ export function NotificationSettings({
                   resetForm()
                   setShowForm(true)
                 }}
-                variant='primary'
+                variant='tertiary'
                 disabled={isLoading}
-                className={PRIMARY_BUTTON_STYLES}
               >
                 <Plus className='mr-[6px] h-[13px] w-[13px]' />
                 Add
@@ -1352,10 +1346,9 @@ export function NotificationSettings({
               Cancel
             </Button>
             <Button
-              variant='primary'
+              variant='destructive'
               onClick={handleDelete}
               disabled={deleteNotification.isPending}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {deleteNotification.isPending ? 'Deleting...' : 'Delete'}
             </Button>

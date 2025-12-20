@@ -732,7 +732,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                 <>
                   {!currentUserId ? (
                     <Button
-                      variant='primary'
+                      variant='tertiary'
                       onClick={() => {
                         const callbackUrl =
                           isWorkspaceContext && workspaceId
@@ -748,7 +748,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                     </Button>
                   ) : isWorkspaceContext ? (
                     <Button
-                      variant='primary'
+                      variant='tertiary'
                       onClick={handleUseTemplate}
                       disabled={isUsing}
                       className='!text-[#FFFFFF] h-[32px] rounded-[6px] px-[12px] text-[14px]'

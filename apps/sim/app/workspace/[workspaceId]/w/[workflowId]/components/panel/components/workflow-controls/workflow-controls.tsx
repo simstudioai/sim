@@ -59,7 +59,7 @@ export function WorkflowControls() {
       </div>
 
       {/* Zoom Badge */}
-      <Button className='flex h-[28px] w-[40px] items-center justify-center rounded-[4px] px-[8px] py-[5px] font-medium text-[12.5px]'>
+      <Button className='flex h-[28px] w-[40px] items-center justify-center rounded-[6px] px-[8px] py-[5px] font-medium text-[12.5px]'>
         {currentZoom}%
       </Button>
     </div>

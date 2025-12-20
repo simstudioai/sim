@@ -184,7 +184,7 @@ export function Knowledge() {
                     <Button
                       onClick={() => setIsCreateModalOpen(true)}
                       disabled={userPermissions.canEdit !== true}
-                      variant='primary'
+                      variant='tertiary'
                       className='h-[32px] rounded-[6px]'
                     >
                       Create

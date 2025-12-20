@@ -554,7 +554,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                     }}
                     onClick={() => handleItemClick(trigger.type, isTriggerCapable)}
                     className={clsx(
-                      'group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px]',
+                      'group flex h-[28px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px]',
                       'cursor-pointer hover:bg-[var(--surface-5)] active:cursor-grabbing',
                       'focus-visible:bg-[var(--surface-5)] focus-visible:outline-none'
                     )}
@@ -567,7 +567,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                     }}
                   >
                     <div
-                      className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+                      className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
                       style={{ background: trigger.bgColor }}
                     >
                       {Icon && (
@@ -575,7 +575,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                           className={clsx(
                             'toolbar-item-icon text-white transition-transform duration-200',
                             'group-hover:scale-110',
-                            '!h-[9px] !w-[9px]'
+                            '!h-[10px] !w-[10px]'
                           )}
                         />
                       )}
@@ -643,7 +643,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                     }}
                     onClick={() => handleItemClick(block.type, false)}
                     className={clsx(
-                      'group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px]',
+                      'group flex h-[28px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px]',
                       'cursor-pointer hover:bg-[var(--surface-5)] active:cursor-grabbing',
                       'focus-visible:bg-[var(--surface-5)] focus-visible:outline-none'
                     )}
@@ -656,7 +656,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                     }}
                   >
                     <div
-                      className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+                      className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
                       style={{ background: block.bgColor }}
                     >
                       {Icon && (
@@ -664,7 +664,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                           className={clsx(
                             'toolbar-item-icon text-white transition-transform duration-200',
                             'group-hover:scale-110',
-                            '!h-[9px] !w-[9px]'
+                            '!h-[10px] !w-[10px]'
                           )}
                         />
                       )}

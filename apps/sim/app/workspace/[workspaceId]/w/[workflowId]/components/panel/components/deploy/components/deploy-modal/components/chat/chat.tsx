@@ -411,10 +411,10 @@ export function ChatDeploy({
               Cancel
             </Button>
             <Button
-              variant='primary'
+              variant='destructive'
               onClick={handleDelete}
               disabled={isDeleting}
-              className='gap-[8px] bg-[var(--text-error)] text-[13px] text-white hover:bg-[var(--text-error)]'
+              className='gap-[8px]'
             >
               {isDeleting && <Loader2 className='mr-1 h-4 w-4 animate-spin' />}
               {isDeleting ? 'Deleting...' : 'Delete'}

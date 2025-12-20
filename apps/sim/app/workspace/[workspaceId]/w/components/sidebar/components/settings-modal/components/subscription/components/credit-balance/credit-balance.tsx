@@ -165,7 +165,7 @@ export function CreditBalance({
                   <Button disabled={isPurchasing}>Cancel</Button>
                 </ModalClose>
                 <Button
-                  variant='primary'
+                  variant='tertiary'
                   onClick={handlePurchase}
                   disabled={isPurchasing || !amount}
                 >

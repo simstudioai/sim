@@ -68,11 +68,7 @@ export function RemoveMemberDialog({
           <Button variant='active' onClick={onCancel}>
             Cancel
           </Button>
-          <Button
-            variant='primary'
-            onClick={() => onConfirmRemove(shouldReduceSeats)}
-            className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-          >
+          <Button variant='destructive' onClick={() => onConfirmRemove(shouldReduceSeats)}>
             {isSelfRemoval ? 'Leave Organization' : 'Remove'}
           </Button>
         </ModalFooter>

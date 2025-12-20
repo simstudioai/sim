@@ -114,12 +114,7 @@ export function DeleteModal({
           <Button variant='active' onClick={onClose} disabled={isDeleting}>
             Cancel
           </Button>
-          <Button
-            variant='primary'
-            onClick={onConfirm}
-            disabled={isDeleting}
-            className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-          >
+          <Button variant='destructive' onClick={onConfirm} disabled={isDeleting}>
             {isDeleting ? 'Deleting...' : 'Delete'}
           </Button>
         </ModalFooter>

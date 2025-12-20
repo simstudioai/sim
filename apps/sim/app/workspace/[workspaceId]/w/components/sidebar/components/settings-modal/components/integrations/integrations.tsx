@@ -357,8 +357,7 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
                         </Button>
                       ) : (
                         <Button
-                          variant='primary'
-                          className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+                          variant='tertiary'
                           onClick={() => handleConnect(service)}
                           disabled={connectService.isPending}
                         >
@@ -399,11 +398,7 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
             <Button variant='default' onClick={() => setShowDisconnectDialog(false)}>
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={confirmDisconnect}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={confirmDisconnect}>
               Disconnect
             </Button>
           </ModalFooter>

@@ -20,14 +20,14 @@
  *       <PopoverContent>
  *         <PopoverBackButton />
  *         <PopoverItem rootOnly onClick={() => console.log('Docs')}>
- *           <BookOpen className="h-3 w-3" />
+ *           <BookOpen className="h-3.5 w-3.5" />
  *           <span>Docs</span>
  *         </PopoverItem>
  *
  *         <PopoverFolder
  *           id="workflows"
  *           title="All workflows"
- *           icon={<Workflow className="h-3 w-3" />}
+ *           icon={<Workflow className="h-3.5 w-3.5" />}
  *           onOpen={async () => {
  *             const data = await fetchWorkflows()
  *             setWorkflows(data)
@@ -35,7 +35,7 @@
  *         >
  *           {workflows.map(wf => (
  *             <PopoverItem key={wf.id} onClick={() => selectWorkflow(wf)}>
- *               <div className="h-3 w-3 rounded" style={{ backgroundColor: wf.color }} />
+ *               <div className="h-3.5 w-3.5 rounded" style={{ backgroundColor: wf.color }} />
  *               <span>{wf.name}</span>
  *             </PopoverItem>
  *           ))}
@@ -54,21 +54,39 @@ import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { Check, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 
+type PopoverSize = 'sm' | 'md'
+
 /**
  * Shared base styles for all popover interactive items.
- * Ensures consistent height and styling across items, folders, and back button.
+ * Ensures consistent styling across items, folders, and back button.
  */
 const POPOVER_ITEM_BASE_CLASSES =
-  'flex h-[25px] min-w-0 cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-base text-[var(--text-primary)] text-[12px] dark:text-[var(--text-primary)]'
+  'flex min-w-0 cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-base text-[var(--text-primary)] disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed'
+
+/**
+ * Size-specific styles for popover items.
+ * SM: 11px text, 22px height
+ * MD: 13px text, 26px height
+ */
+const POPOVER_ITEM_SIZE_CLASSES: Record<PopoverSize, string> = {
+  sm: 'h-[22px] text-[11px]',
+  md: 'h-[26px] text-[13px]',
+}
+
+/**
+ * Size-specific icon classes for popover items.
+ */
+const POPOVER_ICON_SIZE_CLASSES: Record<PopoverSize, string> = {
+  sm: 'h-3 w-3',
+  md: 'h-3.5 w-3.5',
+}
 
 /**
  * Variant-specific active state styles for popover items.
  */
 const POPOVER_ITEM_ACTIVE_CLASSES = {
-  primary:
-    'bg-[var(--brand-secondary)] text-[var(--surface-0)] dark:bg-[var(--brand-secondary)] dark:text-[var(--surface-0)] [&_svg]:text-[var(--surface-0)] dark:[&_svg]:text-[var(--surface-0)]',
-  default:
-    'bg-[var(--surface-5)] text-[var(--text-primary)] dark:bg-[var(--surface-5)] dark:text-[var(--text-primary)] [&_svg]:text-[var(--text-primary)] dark:[&_svg]:text-[var(--text-primary)]',
+  primary: 'bg-[var(--brand-secondary)] text-[var(--surface-0)] [&_svg]:text-[var(--surface-0)]',
+  default: 'bg-[var(--surface-5)] text-[var(--text-primary)] [&_svg]:text-[var(--text-primary)]',
 }
 
 /**
@@ -76,9 +94,9 @@ const POPOVER_ITEM_ACTIVE_CLASSES = {
  */
 const POPOVER_ITEM_HOVER_CLASSES = {
   primary:
-    'hover:bg-[var(--brand-secondary)] hover:text-[var(--surface-0)] dark:hover:bg-[var(--brand-secondary)] dark:hover:text-[var(--surface-0)] hover:[&_svg]:text-[var(--surface-0)] dark:hover:[&_svg]:text-[var(--surface-0)]',
+    'hover:bg-[var(--brand-secondary)] hover:text-[var(--surface-0)] hover:[&_svg]:text-[var(--surface-0)]',
   default:
-    'hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)] dark:hover:bg-[var(--surface-5)] dark:hover:text-[var(--text-primary)] hover:[&_svg]:text-[var(--text-primary)] dark:hover:[&_svg]:text-[var(--text-primary)]',
+    'hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)] hover:[&_svg]:text-[var(--text-primary)]',
 }
 
 type PopoverVariant = 'default' | 'primary'
@@ -96,6 +114,7 @@ interface PopoverContextValue {
   folderTitle: string | null
   onFolderSelect: (() => void) | null
   variant: PopoverVariant
+  size: PopoverSize
   searchQuery: string
   setSearchQuery: (query: string) => void
 }
@@ -116,6 +135,13 @@ export interface PopoverProps extends PopoverPrimitive.PopoverProps {
    * @default 'default'
    */
   variant?: PopoverVariant
+  /**
+   * Size variant of the popover
+   * - sm: 11px text, compact spacing (for logs, notifications, context menus)
+   * - md: 13px text, default spacing
+   * @default 'md'
+   */
+  size?: PopoverSize
 }
 
 /**
@@ -123,13 +149,18 @@ export interface PopoverProps extends PopoverPrimitive.PopoverProps {
  *
  * @example
  * ```tsx
- * <Popover open={open} onOpenChange={setOpen} variant="default">
+ * <Popover open={open} onOpenChange={setOpen} variant="default" size="md">
  *   <PopoverAnchor>...</PopoverAnchor>
  *   <PopoverContent>...</PopoverContent>
  * </Popover>
  * ```
  */
-const Popover: React.FC<PopoverProps> = ({ children, variant = 'default', ...props }) => {
+const Popover: React.FC<PopoverProps> = ({
+  children,
+  variant = 'default',
+  size = 'md',
+  ...props
+}) => {
   const [currentFolder, setCurrentFolder] = React.useState<string | null>(null)
   const [folderTitle, setFolderTitle] = React.useState<string | null>(null)
   const [onFolderSelect, setOnFolderSelect] = React.useState<(() => void) | null>(null)
@@ -162,10 +193,20 @@ const Popover: React.FC<PopoverProps> = ({ children, variant = 'default', ...pro
       folderTitle,
       onFolderSelect,
       variant,
+      size,
       searchQuery,
       setSearchQuery,
     }),
-    [openFolder, closeFolder, currentFolder, folderTitle, onFolderSelect, variant, searchQuery]
+    [
+      openFolder,
+      closeFolder,
+      currentFolder,
+      folderTitle,
+      onFolderSelect,
+      variant,
+      size,
+      searchQuery,
+    ]
   )
 
   return (
@@ -254,6 +295,12 @@ export interface PopoverContentProps
 }
 
 /**
+ * Shared styles for popover content container.
+ * Both sizes use same padding and 6px border radius.
+ */
+const POPOVER_CONTENT_CLASSES = 'px-[6px] py-[6px] rounded-[6px]'
+
+/**
  * Popover content component with automatic positioning and collision detection.
  * Wraps children in a styled container with scrollable area.
  *
@@ -284,10 +331,15 @@ const PopoverContent = React.forwardRef<
       collisionPadding = 8,
       border = false,
       avoidCollisions = true,
+      onOpenAutoFocus,
+      onCloseAutoFocus,
       ...restProps
     },
     ref
   ) => {
+    const context = React.useContext(PopoverContext)
+    const size = context?.size || 'md'
+
     // Smart default offset: larger offset when rendering above to avoid covering cursor
     const effectiveSideOffset = sideOffset ?? (side === 'top' ? 20 : 14)
 
@@ -326,6 +378,24 @@ const PopoverContent = React.forwardRef<
       container.scrollTop += deltaY
     }
 
+    const handleOpenAutoFocus = React.useCallback(
+      (e: Event) => {
+        // Always prevent auto-focus to avoid flickering from focus-triggered repositioning
+        e.preventDefault()
+        onOpenAutoFocus?.(e)
+      },
+      [onOpenAutoFocus]
+    )
+
+    const handleCloseAutoFocus = React.useCallback(
+      (e: Event) => {
+        // Always prevent auto-focus to avoid flickering from focus-triggered repositioning
+        e.preventDefault()
+        onCloseAutoFocus?.(e)
+      },
+      [onCloseAutoFocus]
+    )
+
     const content = (
       <PopoverPrimitive.Content
         ref={ref}
@@ -335,10 +405,15 @@ const PopoverContent = React.forwardRef<
         collisionPadding={collisionPadding}
         avoidCollisions={avoidCollisions}
         sticky='partial'
+        hideWhenDetached={false}
         onWheel={handleWheel}
+        onOpenAutoFocus={handleOpenAutoFocus}
+        onCloseAutoFocus={handleCloseAutoFocus}
         {...restProps}
         className={cn(
-          'z-[10000200] flex flex-col overflow-auto rounded-[8px] bg-[var(--surface-3)] px-[5.5px] py-[5px] text-foreground outline-none dark:bg-[var(--surface-3)]',
+          // will-change-transform creates a new GPU compositing layer to prevent paint flickering
+          'z-[10000200] flex flex-col overflow-auto bg-[var(--surface-3)] text-foreground outline-none will-change-transform',
+          POPOVER_CONTENT_CLASSES,
           // If width is constrained by the caller (prop or style), ensure inner flexible text truncates by default,
           // and also truncate section headers.
           hasUserWidthConstraint && '[&_.flex-1]:truncate [&_[data-popover-section]]:truncate',
@@ -350,7 +425,13 @@ const PopoverContent = React.forwardRef<
           maxWidth: maxWidth !== undefined ? `${maxWidth}px` : 'calc(100vw - 16px)',
           // Only enforce default min width when the user hasn't set width constraints
           minWidth:
-            minWidth !== undefined ? `${minWidth}px` : hasUserWidthConstraint ? undefined : '160px',
+            minWidth !== undefined
+              ? `${minWidth}px`
+              : hasUserWidthConstraint
+                ? undefined
+                : size === 'sm'
+                  ? '140px'
+                  : '160px',
           ...style,
         }}
       >
@@ -424,7 +505,7 @@ export interface PopoverItemProps extends React.HTMLAttributes<HTMLDivElement> {
  * @example
  * ```tsx
  * <PopoverItem active={isActive} disabled={isDisabled} onClick={() => handleClick()}>
- *   <Icon className="h-4 w-4" />
+ *   <Icon className="h-3.5 w-3.5" />
  *   <span>Item label</span>
  * </PopoverItem>
  * ```
@@ -437,6 +518,7 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
     // Try to get context - if not available, we're outside Popover (shouldn't happen)
     const context = React.useContext(PopoverContext)
     const variant = context?.variant || 'default'
+    const size = context?.size || 'md'
 
     // If rootOnly is true and we're in a folder, don't render
     if (rootOnly && context?.isInFolder) {
@@ -455,9 +537,9 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
       <div
         className={cn(
           POPOVER_ITEM_BASE_CLASSES,
-          !disabled &&
-            (active ? POPOVER_ITEM_ACTIVE_CLASSES[variant] : POPOVER_ITEM_HOVER_CLASSES[variant]),
-          disabled && 'cursor-default opacity-50',
+          POPOVER_ITEM_SIZE_CLASSES[size],
+          active ? POPOVER_ITEM_ACTIVE_CLASSES[variant] : POPOVER_ITEM_HOVER_CLASSES[variant],
+          disabled && 'pointer-events-none cursor-not-allowed opacity-50',
           className
         )}
         ref={ref}
@@ -468,7 +550,9 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
         {...props}
       >
         {children}
-        {showCheck && active && <Check className='ml-auto h-[12px] w-[12px]' />}
+        {showCheck && active && (
+          <Check className={cn('ml-auto', POPOVER_ICON_SIZE_CLASSES[size])} />
+        )}
       </div>
     )
   }
@@ -484,6 +568,15 @@ export interface PopoverSectionProps extends React.HTMLAttributes<HTMLDivElement
 }
 
 /**
+ * Size-specific styles for popover section headers.
+ * Shared: 6px padding, 4px vertical padding
+ */
+const POPOVER_SECTION_SIZE_CLASSES: Record<PopoverSize, string> = {
+  sm: 'px-[6px] py-[4px] text-[11px]',
+  md: 'px-[6px] py-[4px] text-[13px]',
+}
+
+/**
  * Popover section header component for grouping items with a title.
  *
  * @example
@@ -496,6 +589,7 @@ export interface PopoverSectionProps extends React.HTMLAttributes<HTMLDivElement
 const PopoverSection = React.forwardRef<HTMLDivElement, PopoverSectionProps>(
   ({ className, rootOnly, ...props }, ref) => {
     const context = React.useContext(PopoverContext)
+    const size = context?.size || 'md'
 
     // If rootOnly is true and we're in a folder, don't render
     if (rootOnly && context?.isInFolder) {
@@ -505,7 +599,8 @@ const PopoverSection = React.forwardRef<HTMLDivElement, PopoverSectionProps>(
     return (
       <div
         className={cn(
-          'min-w-0 px-[6px] py-[4px] font-base text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]',
+          'min-w-0 font-base text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]',
+          POPOVER_SECTION_SIZE_CLASSES[size],
           className
         )}
         data-popover-section=''
@@ -563,7 +658,7 @@ export interface PopoverFolderProps extends Omit<React.HTMLAttributes<HTMLDivEle
  */
 const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
   ({ className, id, title, icon, onOpen, onSelect, children, active, ...props }, ref) => {
-    const { openFolder, currentFolder, isInFolder, variant } = usePopoverContext()
+    const { openFolder, currentFolder, isInFolder, variant, size } = usePopoverContext()
 
     // Don't render if we're in a different folder
     if (isInFolder && currentFolder !== id) {
@@ -587,6 +682,7 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
         ref={ref}
         className={cn(
           POPOVER_ITEM_BASE_CLASSES,
+          POPOVER_ITEM_SIZE_CLASSES[size],
           active ? POPOVER_ITEM_ACTIVE_CLASSES[variant] : POPOVER_ITEM_HOVER_CLASSES[variant],
           className
         )}
@@ -598,7 +694,7 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
       >
         {icon}
         <span className='flex-1'>{title}</span>
-        <ChevronRight className='h-3 w-3' />
+        <ChevronRight className={POPOVER_ICON_SIZE_CLASSES[size]} />
       </div>
     )
   }
@@ -637,7 +733,8 @@ export interface PopoverBackButtonProps extends React.HTMLAttributes<HTMLDivElem
  */
 const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProps>(
   ({ className, folderTitleRef, folderTitleActive, onFolderTitleMouseEnter, ...props }, ref) => {
-    const { isInFolder, closeFolder, folderTitle, onFolderSelect, variant } = usePopoverContext()
+    const { isInFolder, closeFolder, folderTitle, onFolderSelect, variant, size } =
+      usePopoverContext()
 
     if (!isInFolder) {
       return null
@@ -647,12 +744,17 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
       <div className='flex flex-col'>
         <div
           ref={ref}
-          className={cn(POPOVER_ITEM_BASE_CLASSES, POPOVER_ITEM_HOVER_CLASSES[variant], className)}
+          className={cn(
+            POPOVER_ITEM_BASE_CLASSES,
+            POPOVER_ITEM_SIZE_CLASSES[size],
+            POPOVER_ITEM_HOVER_CLASSES[variant],
+            className
+          )}
           role='button'
           onClick={closeFolder}
           {...props}
         >
-          <ChevronLeft className='h-3 w-3' />
+          <ChevronLeft className={POPOVER_ICON_SIZE_CLASSES[size]} />
           <span>Back</span>
         </div>
         {folderTitle && onFolderSelect && (
@@ -660,6 +762,7 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
             ref={folderTitleRef}
             className={cn(
               POPOVER_ITEM_BASE_CLASSES,
+              POPOVER_ITEM_SIZE_CLASSES[size],
               folderTitleActive
                 ? POPOVER_ITEM_ACTIVE_CLASSES[variant]
                 : POPOVER_ITEM_HOVER_CLASSES[variant]
@@ -675,7 +778,12 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
           </div>
         )}
         {folderTitle && !onFolderSelect && (
-          <div className='px-[6px] py-[4px] font-base text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+          <div
+            className={cn(
+              'font-base text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]',
+              POPOVER_SECTION_SIZE_CLASSES[size]
+            )}
+          >
             {folderTitle}
           </div>
         )}
@@ -699,6 +807,15 @@ export interface PopoverSearchProps extends React.HTMLAttributes<HTMLDivElement>
 }
 
 /**
+ * Size-specific styles for popover search container.
+ * Shared: padding
+ */
+const POPOVER_SEARCH_SIZE_CLASSES: Record<PopoverSize, string> = {
+  sm: 'px-[8px] py-[6px] text-[11px]',
+  md: 'px-[8px] py-[6px] text-[13px]',
+}
+
+/**
  * Search input component for filtering popover items.
  *
  * @example
@@ -715,7 +832,7 @@ export interface PopoverSearchProps extends React.HTMLAttributes<HTMLDivElement>
  */
 const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
   ({ className, placeholder = 'Search...', onValueChange, ...props }, ref) => {
-    const { searchQuery, setSearchQuery } = usePopoverContext()
+    const { searchQuery, setSearchQuery, size } = usePopoverContext()
     const inputRef = React.useRef<HTMLInputElement>(null)
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -731,11 +848,20 @@ const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
     }, [setSearchQuery, onValueChange])
 
     return (
-      <div ref={ref} className={cn('flex items-center px-[8px] py-[6px]', className)} {...props}>
-        <Search className='mr-2 h-[12px] w-[12px] shrink-0 text-[var(--text-muted)]' />
+      <div
+        ref={ref}
+        className={cn('flex items-center', POPOVER_SEARCH_SIZE_CLASSES[size], className)}
+        {...props}
+      >
+        <Search
+          className={cn('mr-2 shrink-0 text-[var(--text-muted)]', POPOVER_ICON_SIZE_CLASSES[size])}
+        />
         <input
           ref={inputRef}
-          className='w-full bg-transparent font-base text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none'
+          className={cn(
+            'w-full bg-transparent font-base text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none',
+            size === 'sm' ? 'text-[11px]' : 'text-[13px]'
+          )}
           placeholder={placeholder}
           value={searchQuery}
           onChange={handleChange}
@@ -760,3 +886,5 @@ export {
   PopoverSearch,
   usePopoverContext,
 }
+
+export type { PopoverSize }

@@ -1131,11 +1131,7 @@ try {
           {activeSection === 'schema' && (
             <ModalFooter className='items-center justify-between'>
               {isEditing ? (
-                <Button
-                  variant='default'
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className='bg-[var(--text-error)] text-white hover:bg-[var(--text-error)]'
-                >
+                <Button variant='destructive' onClick={() => setShowDeleteConfirm(true)}>
                   Delete
                 </Button>
               ) : (
@@ -1146,7 +1142,7 @@ try {
                   Cancel
                 </Button>
                 <Button
-                  variant='primary'
+                  variant='tertiary'
                   onClick={() => setActiveSection('code')}
                   disabled={!isSchemaValid || !!schemaError}
                 >
@@ -1159,11 +1155,7 @@ try {
           {activeSection === 'code' && (
             <ModalFooter className='items-center justify-between'>
               {isEditing ? (
-                <Button
-                  variant='default'
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className='bg-[var(--text-error)] text-white hover:bg-[var(--text-error)]'
-                >
+                <Button variant='destructive' onClick={() => setShowDeleteConfirm(true)}>
                   Delete
                 </Button>
               ) : (
@@ -1176,7 +1168,7 @@ try {
                   Cancel
                 </Button>
                 <Button
-                  variant='primary'
+                  variant='tertiary'
                   onClick={handleSave}
                   disabled={!isSchemaValid || !!schemaError}
                 >
@@ -1206,10 +1198,9 @@ try {
               Cancel
             </Button>
             <Button
-              variant='primary'
+              variant='destructive'
               onClick={handleDelete}
               disabled={deleteToolMutation.isPending}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {deleteToolMutation.isPending ? 'Deleting...' : 'Delete'}
             </Button>

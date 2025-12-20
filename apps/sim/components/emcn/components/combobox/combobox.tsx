@@ -26,13 +26,13 @@ const comboboxVariants = cva(
         default: '',
       },
       size: {
-        default: 'py-[6px] text-sm',
         sm: 'py-[5px] text-[12px]',
+        md: 'py-[6px] text-sm',
       },
     },
     defaultVariants: {
       variant: 'default',
-      size: 'default',
+      size: 'md',
     },
   }
 )
@@ -91,7 +91,7 @@ export interface ComboboxProps
   /** Placeholder for search input */
   searchPlaceholder?: string
   /** Size variant */
-  size?: 'default' | 'sm'
+  size?: 'sm' | 'md'
   /** Dropdown alignment */
   align?: 'start' | 'center' | 'end'
   /** Dropdown width - 'trigger' matches trigger width, or provide a pixel value */

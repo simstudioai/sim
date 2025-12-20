@@ -186,7 +186,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
   if (isLoading) {
     return (
-      <div className='flex flex-shrink-0 flex-col gap-[8px] border-t pt-[12px] pr-[13.5px] pb-[10px] pl-[12px] dark:border-[var(--border)]'>
+      <div className='flex flex-shrink-0 flex-col gap-[8px] border-[var(--border)] border-t pt-[12px] pr-[13.5px] pb-[10px] pl-[12px]'>
         {/* Top row skeleton */}
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-[6px]'>
@@ -276,7 +276,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
       {/* Top row */}
       <div className='flex items-center justify-between'>
         <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
-          <span className='flex-shrink-0 font-medium text-[#FFFFFF] text-[12px]'>
+          <span className='flex-shrink-0 font-medium text-[12px] text-[var(--text-primary)]'>
             {PLAN_NAMES[planType]}
           </span>
           <div className='h-[14px] w-[1.5px] flex-shrink-0 bg-[var(--divider)]' />

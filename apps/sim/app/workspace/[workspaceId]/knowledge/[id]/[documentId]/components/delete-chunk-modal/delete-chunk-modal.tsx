@@ -78,12 +78,7 @@ export function DeleteChunkModal({
           <Button variant='active' disabled={isDeleting} onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            variant='primary'
-            onClick={handleDeleteChunk}
-            disabled={isDeleting}
-            className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-          >
+          <Button variant='destructive' onClick={handleDeleteChunk} disabled={isDeleting}>
             {isDeleting ? <>Deleting...</> : <>Delete</>}
           </Button>
         </ModalFooter>

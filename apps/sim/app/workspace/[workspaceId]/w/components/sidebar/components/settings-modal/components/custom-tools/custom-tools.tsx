@@ -121,12 +121,7 @@ export function CustomTools() {
               className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-100'
             />
           </div>
-          <Button
-            onClick={() => setShowAddForm(true)}
-            disabled={isLoading}
-            variant='primary'
-            className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-          >
+          <Button onClick={() => setShowAddForm(true)} disabled={isLoading} variant='tertiary'>
             <Plus className='mr-[6px] h-[13px] w-[13px]' />
             Add
           </Button>
@@ -224,11 +219,7 @@ export function CustomTools() {
             <Button variant='default' onClick={() => setShowDeleteDialog(false)}>
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={handleDeleteTool}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={handleDeleteTool}>
               Delete
             </Button>
           </ModalFooter>

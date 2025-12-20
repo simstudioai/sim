@@ -157,7 +157,7 @@ export function CreateChunkModal({
                 Cancel
               </Button>
               <Button
-                variant='primary'
+                variant='tertiary'
                 onClick={handleCreateChunk}
                 type='button'
                 disabled={!isFormValid || isCreating}
@@ -193,12 +193,7 @@ export function CreateChunkModal({
             >
               Keep Editing
             </Button>
-            <Button
-              variant='primary'
-              onClick={handleConfirmDiscard}
-              type='button'
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={handleConfirmDiscard} type='button'>
               Discard Changes
             </Button>
           </ModalFooter>

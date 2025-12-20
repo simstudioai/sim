@@ -438,7 +438,7 @@ export function Sidebar() {
     <>
       {isCollapsed ? (
         /* Floating collapsed header */
-        <div className='fixed top-[14px] left-[10px] z-10 max-w-[232px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] px-[12px] py-[8px]'>
+        <div className='fixed top-[14px] left-[10px] z-10 max-w-[232px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-1)] px-[12px] py-[6px]'>
           <WorkspaceHeader
             activeWorkspace={activeWorkspace}
             workspaceId={workspaceId}
@@ -469,7 +469,7 @@ export function Sidebar() {
             aria-label='Workspace sidebar'
             onClick={handleSidebarClick}
           >
-            <div className='flex h-full flex-col border-[var(--border)] border-r pt-[14px]'>
+            <div className='flex h-full flex-col border-[var(--border)] border-r pt-[12px]'>
               {/* Header */}
               <div className='flex-shrink-0 px-[14px]'>
                 <WorkspaceHeader
@@ -496,7 +496,7 @@ export function Sidebar() {
 
               {/* Search */}
               <div
-                className='mx-[8px] mt-[12px] flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[6px] dark:bg-[var(--surface-4)]'
+                className='mx-[8px] mt-[10px] flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[6px] dark:bg-[var(--surface-4)]'
                 onClick={() => setIsSearchModalOpen(true)}
               >
                 <div className='flex items-center gap-[6px]'>

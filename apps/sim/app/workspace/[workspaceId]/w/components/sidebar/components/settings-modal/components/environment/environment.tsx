@@ -29,8 +29,6 @@ import {
 const logger = createLogger('EnvironmentVariables')
 
 const GRID_COLS = 'grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_auto] items-center'
-const PRIMARY_BUTTON_STYLES =
-  '!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
 
 const generateRowId = (() => {
   let counter = 0
@@ -715,12 +713,7 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
               className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
             />
           </div>
-          <Button
-            onClick={addEnvVar}
-            variant='primary'
-            disabled={isLoading}
-            className={PRIMARY_BUTTON_STYLES}
-          >
+          <Button onClick={addEnvVar} variant='tertiary' disabled={isLoading}>
             <Plus className='mr-[6px] h-[13px] w-[13px]' />
             Add
           </Button>
@@ -729,8 +722,8 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
               <Button
                 onClick={handleSave}
                 disabled={isLoading || !hasChanges || hasConflicts || hasInvalidKeys}
-                variant='primary'
-                className={`${PRIMARY_BUTTON_STYLES} ${hasConflicts || hasInvalidKeys ? 'cursor-not-allowed opacity-50' : ''}`}
+                variant='tertiary'
+                className={`${hasConflicts || hasInvalidKeys ? 'cursor-not-allowed opacity-50' : ''}`}
               >
                 Save
               </Button>
@@ -846,8 +839,8 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
                 <Tooltip.Trigger asChild>
                   <Button
                     disabled={true}
-                    variant='primary'
-                    className={`${PRIMARY_BUTTON_STYLES} cursor-not-allowed opacity-50`}
+                    variant='tertiary'
+                    className='cursor-not-allowed opacity-50'
                   >
                     Save Changes
                   </Button>
@@ -859,7 +852,7 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
                 </Tooltip.Content>
               </Tooltip.Root>
             ) : (
-              <Button onClick={handleSave} variant='primary' className={PRIMARY_BUTTON_STYLES}>
+              <Button onClick={handleSave} variant='tertiary'>
                 Save Changes
               </Button>
             )}

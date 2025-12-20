@@ -123,7 +123,7 @@ export function TeamSeats({
             <Tooltip.Trigger asChild>
               <span>
                 <Button
-                  variant='primary'
+                  variant='tertiary'
                   onClick={() => onConfirm(selectedSeats)}
                   disabled={
                     isLoading ||

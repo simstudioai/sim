@@ -31,9 +31,6 @@ import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 const logger = createLogger('FileUploadsSettings')
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
-const PRIMARY_BUTTON_STYLES =
-  '!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-
 const SUPPORTED_EXTENSIONS = [
   // Documents
   'pdf',
@@ -340,8 +337,7 @@ export function Files() {
             <Button
               onClick={handleUploadClick}
               disabled={uploading || permissionsLoading}
-              variant='primary'
-              className={PRIMARY_BUTTON_STYLES}
+              variant='tertiary'
             >
               <Plus className='mr-[6px] h-[13px] w-[13px]' />
               {uploading && uploadProgress.total > 0

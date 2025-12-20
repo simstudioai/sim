@@ -181,7 +181,7 @@
     --surface-1: #1e1e1e;
     --surface-2: #232323;
     --surface-3: #242424;
-    --surface-4: #272727;
+    --surface-4: #282828;
     --border: #2c2c2c;
     --surface-5: #363636;
     --surface-11: #3d3d3d;
@@ -224,7 +224,7 @@
     --font-weight-semibold: 550;
 
     /* RGB for opacity usage */
-    --surface-4-rgb: 37 37 37;
+    --surface-4-rgb: 40 40 40;
     --surface-5-rgb: 39 39 39;
     --surface-7-rgb: 44 44 44;
     --surface-9-rgb: 54 54 54;

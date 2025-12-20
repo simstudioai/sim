@@ -628,7 +628,7 @@ export function DeployModal({
                 {chatExists && (
                   <Button
                     type='button'
-                    variant='default'
+                    variant='destructive'
                     onClick={handleChatDelete}
                     disabled={chatSubmitting}
                   >
@@ -637,7 +637,7 @@ export function DeployModal({
                 )}
                 <Button
                   type='button'
-                  variant='primary'
+                  variant='tertiary'
                   onClick={handleChatFormSubmit}
                   disabled={chatSubmitting || !isChatFormValid}
                 >
@@ -667,7 +667,7 @@ export function DeployModal({
                 {hasExistingTemplate && (
                   <Button
                     type='button'
-                    variant='default'
+                    variant='destructive'
                     onClick={handleTemplateDelete}
                     disabled={templateSubmitting}
                   >
@@ -676,7 +676,7 @@ export function DeployModal({
                 )}
                 <Button
                   type='button'
-                  variant='primary'
+                  variant='tertiary'
                   onClick={handleTemplateFormSubmit}
                   disabled={templateSubmitting || !templateFormValid}
                 >
@@ -713,12 +713,7 @@ export function DeployModal({
             >
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={handleUndeploy}
-              disabled={isUndeploying}
-              className='bg-[var(--text-error)] text-[13px] text-white hover:bg-[var(--text-error)]'
-            >
+            <Button variant='destructive' onClick={handleUndeploy} disabled={isUndeploying}>
               {isUndeploying ? 'Undeploying...' : 'Undeploy'}
             </Button>
           </ModalFooter>
@@ -830,8 +825,8 @@ function GeneralFooter({
   if (!isDeployed) {
     return (
       <ModalFooter>
-        <Button variant='primary' onClick={onDeploy} disabled={isSubmitting}>
-          {isSubmitting ? 'Deploying...' : 'Deploy API'}
+        <Button variant='tertiary' onClick={onDeploy} disabled={isSubmitting}>
+          {isSubmitting ? 'Deploying...' : 'Deploy'}
         </Button>
       </ModalFooter>
     )
@@ -845,7 +840,7 @@ function GeneralFooter({
           {isUndeploying ? 'Undeploying...' : 'Undeploy'}
         </Button>
         {needsRedeployment && (
-          <Button variant='primary' onClick={onRedeploy} disabled={isSubmitting || isUndeploying}>
+          <Button variant='tertiary' onClick={onRedeploy} disabled={isSubmitting || isUndeploying}>
             {isSubmitting ? 'Updating...' : 'Update'}
           </Button>
         )}

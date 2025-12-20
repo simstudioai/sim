@@ -193,7 +193,7 @@ function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoadingProps) 
                 className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
               />
             </div>
-            <Button disabled variant='primary' className='h-[32px] rounded-[6px]'>
+            <Button disabled variant='tertiary' className='h-[32px] rounded-[6px]'>
               Add Documents
             </Button>
           </div>
@@ -999,7 +999,7 @@ export function KnowledgeBase({
                 <Button
                   onClick={handleAddDocuments}
                   disabled={userPermissions.canEdit !== true}
-                  variant='primary'
+                  variant='tertiary'
                   className='h-[32px] rounded-[6px]'
                 >
                   Add Documents
@@ -1330,12 +1330,7 @@ export function KnowledgeBase({
             >
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={handleDeleteKnowledgeBase}
-              disabled={isDeleting}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={handleDeleteKnowledgeBase} disabled={isDeleting}>
               {isDeleting ? 'Deleting...' : 'Delete Knowledge Base'}
             </Button>
           </ModalFooter>
@@ -1362,11 +1357,7 @@ export function KnowledgeBase({
             >
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={confirmDeleteDocument}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={confirmDeleteDocument}>
               Delete Document
             </Button>
           </ModalFooter>
@@ -1387,12 +1378,7 @@ export function KnowledgeBase({
             <Button variant='active' onClick={() => setShowBulkDeleteModal(false)}>
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={confirmBulkDelete}
-              disabled={isBulkOperating}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={confirmBulkDelete} disabled={isBulkOperating}>
               {isBulkOperating
                 ? 'Deleting...'
                 : `Delete ${selectedDocuments.size} Document${selectedDocuments.size === 1 ? '' : 's'}`}

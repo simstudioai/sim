@@ -429,7 +429,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                         Cancel
                       </Button>
                       <Button
-                        variant='primary'
+                        variant='tertiary'
                         onClick={saveTagDefinition}
                         className='flex-1'
                         disabled={
@@ -494,12 +494,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
             >
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={confirmDeleteTag}
-              disabled={isDeletingTag}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={confirmDeleteTag} disabled={isDeletingTag}>
               {isDeletingTag ? <>Deleting...</> : 'Delete Tag'}
             </Button>
           </ModalFooter>

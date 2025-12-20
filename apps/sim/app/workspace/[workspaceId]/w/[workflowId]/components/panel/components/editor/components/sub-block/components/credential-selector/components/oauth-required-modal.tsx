@@ -423,12 +423,7 @@ export function OAuthRequiredModal({
           <Button variant='active' onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            variant='primary'
-            type='button'
-            onClick={handleConnectDirectly}
-            className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-          >
+          <Button variant='tertiary' type='button' onClick={handleConnectDirectly}>
             Connect
           </Button>
         </ModalFooter>
