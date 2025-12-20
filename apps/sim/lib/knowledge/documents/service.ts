@@ -5,12 +5,12 @@ import { tasks } from '@trigger.dev/sdk'
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import { getStorageMethod, isRedisStorage } from '@/lib/core/storage'
-import { type AllTagSlot, getSlotsForFieldType } from '@/lib/knowledge/constants'
+import { getSlotsForFieldType } from '@/lib/knowledge/constants'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import { DocumentProcessingQueue } from '@/lib/knowledge/documents/queue'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
-import { getNextAvailableSlot } from '@/lib/knowledge/tags/service'
+import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { DocumentProcessingPayload } from '@/background/knowledge-processing'
 
@@ -113,7 +113,8 @@ export interface DocumentTagData {
 }
 
 /**
- * Process structured document tags and create tag definitions
+ * Process structured document tags and validate them against existing definitions
+ * Throws an error if a tag doesn't exist or if the value doesn't match the expected type
  */
 export async function processDocumentTags(
   knowledgeBaseId: string,
@@ -135,118 +136,101 @@ export async function processDocumentTags(
     return result
   }
 
-  try {
-    const existingDefinitions = await db
-      .select()
-      .from(knowledgeBaseTagDefinitions)
-      .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
+  // Fetch existing tag definitions
+  const existingDefinitions = await db
+    .select()
+    .from(knowledgeBaseTagDefinitions)
+    .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
 
-    const existingByName = new Map(existingDefinitions.map((def) => [def.displayName, def]))
-    const existingBySlot = new Map(existingDefinitions.map((def) => [def.tagSlot as string, def]))
+  const existingByName = new Map(existingDefinitions.map((def) => [def.displayName, def]))
 
-    for (const tag of tagData) {
-      // Skip if no tag name
-      if (!tag.tagName?.trim()) continue
+  // First pass: collect all validation errors
+  const undefinedTags: string[] = []
+  const typeErrors: string[] = []
 
-      // For boolean, check if value is defined; for others, check if value is non-empty
-      const fieldType = tag.fieldType || 'text'
-      const hasValue =
-        fieldType === 'boolean'
-          ? tag.value !== undefined && tag.value !== null && tag.value !== ''
-          : tag.value?.trim && tag.value.trim().length > 0
+  for (const tag of tagData) {
+    // Skip if no tag name
+    if (!tag.tagName?.trim()) continue
 
-      if (!hasValue) continue
+    const tagName = tag.tagName.trim()
+    const fieldType = tag.fieldType || 'text'
 
-      const tagName = tag.tagName.trim()
-      const rawValue = typeof tag.value === 'string' ? tag.value.trim() : tag.value
+    // For boolean, check if value is defined; for others, check if value is non-empty
+    const hasValue =
+      fieldType === 'boolean'
+        ? tag.value !== undefined && tag.value !== null && tag.value !== ''
+        : tag.value?.trim && tag.value.trim().length > 0
 
-      let targetSlot: string | null = null
-      let actualFieldType = fieldType
+    if (!hasValue) continue
 
-      // Check if tag definition already exists
-      const existingDef = existingByName.get(tagName)
-      if (existingDef) {
-        targetSlot = existingDef.tagSlot
-        // Use the existing field type for value conversion (not the user-provided one)
-        actualFieldType = existingDef.fieldType || fieldType
-      } else {
-        // Find next available slot using the tags service function
-        targetSlot = await getNextAvailableSlot(knowledgeBaseId, fieldType, existingBySlot)
-
-        // Create new tag definition if we have a slot
-        if (targetSlot) {
-          const newDefinition = {
-            id: randomUUID(),
-            knowledgeBaseId,
-            tagSlot: targetSlot as AllTagSlot,
-            displayName: tagName,
-            fieldType,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }
-
-          await db.insert(knowledgeBaseTagDefinitions).values(newDefinition)
-          existingBySlot.set(
-            targetSlot,
-            newDefinition as typeof existingBySlot extends Map<string, infer V> ? V : never
-          )
-          existingByName.set(
-            tagName,
-            newDefinition as typeof existingByName extends Map<string, infer V> ? V : never
-          )
-
-          logger.info(
-            `[${requestId}] Created tag definition: ${tagName} -> ${targetSlot} (${fieldType})`
-          )
-        }
-      }
-
-      // Assign value to the slot with proper type conversion based on the actual field type
-      if (targetSlot) {
-        const stringValue = String(rawValue).trim()
-
-        if (actualFieldType === 'boolean') {
-          // Accept case-insensitive true/false
-          const lowerValue = stringValue.toLowerCase()
-          if (lowerValue === 'true' || lowerValue === '1' || lowerValue === 'yes') {
-            result[targetSlot] = true
-          } else if (lowerValue === 'false' || lowerValue === '0' || lowerValue === 'no') {
-            result[targetSlot] = false
-          } else {
-            logger.warn(
-              `[${requestId}] Invalid boolean value for ${tagName}: "${stringValue}", skipping`
-            )
-          }
-        } else if (actualFieldType === 'number') {
-          const numValue = Number.parseFloat(stringValue)
-          if (Number.isNaN(numValue)) {
-            logger.warn(
-              `[${requestId}] Invalid number value for ${tagName}: "${stringValue}", skipping`
-            )
-            continue
-          }
-          result[targetSlot] = numValue
-        } else if (actualFieldType === 'date') {
-          // Try parsing the date
-          const dateValue = new Date(stringValue)
-          if (Number.isNaN(dateValue.getTime())) {
-            logger.warn(
-              `[${requestId}] Invalid date value for ${tagName}: "${stringValue}", skipping`
-            )
-            continue
-          }
-          result[targetSlot] = dateValue
-        } else {
-          result[targetSlot] = stringValue
-        }
-      }
+    // Check if tag exists
+    const existingDef = existingByName.get(tagName)
+    if (!existingDef) {
+      undefinedTags.push(tagName)
+      continue
     }
 
-    return result
-  } catch (error) {
-    logger.error(`[${requestId}] Error processing document tags:`, error)
-    return result
+    // Validate value type using shared validation
+    const rawValue = typeof tag.value === 'string' ? tag.value.trim() : tag.value
+    const actualFieldType = existingDef.fieldType || fieldType
+    const validationError = validateTagValue(tagName, String(rawValue), actualFieldType)
+    if (validationError) {
+      typeErrors.push(validationError)
+    }
   }
+
+  // Throw combined error if there are any validation issues
+  if (undefinedTags.length > 0 || typeErrors.length > 0) {
+    const errorParts: string[] = []
+
+    if (undefinedTags.length > 0) {
+      errorParts.push(buildUndefinedTagsError(undefinedTags))
+    }
+
+    if (typeErrors.length > 0) {
+      errorParts.push(...typeErrors)
+    }
+
+    throw new Error(errorParts.join('\n'))
+  }
+
+  // Second pass: process valid tags
+  for (const tag of tagData) {
+    if (!tag.tagName?.trim()) continue
+
+    const tagName = tag.tagName.trim()
+    const fieldType = tag.fieldType || 'text'
+
+    const hasValue =
+      fieldType === 'boolean'
+        ? tag.value !== undefined && tag.value !== null && tag.value !== ''
+        : tag.value?.trim && tag.value.trim().length > 0
+
+    if (!hasValue) continue
+
+    const existingDef = existingByName.get(tagName)
+    if (!existingDef) continue // Already validated above
+
+    const targetSlot = existingDef.tagSlot
+    const actualFieldType = existingDef.fieldType || fieldType
+    const rawValue = typeof tag.value === 'string' ? tag.value.trim() : tag.value
+    const stringValue = String(rawValue).trim()
+
+    // Assign value to the slot with proper type conversion
+    if (actualFieldType === 'boolean') {
+      result[targetSlot] = stringValue.toLowerCase() === 'true'
+    } else if (actualFieldType === 'number') {
+      result[targetSlot] = Number.parseFloat(stringValue)
+    } else if (actualFieldType === 'date') {
+      result[targetSlot] = new Date(stringValue)
+    } else {
+      result[targetSlot] = stringValue
+    }
+
+    logger.info(`[${requestId}] Set tag ${tagName} (${targetSlot}) = ${stringValue}`)
+  }
+
+  return result
 }
 
 /**
@@ -664,7 +648,12 @@ export async function createDocumentRecords(
             processedTags = await processDocumentTags(knowledgeBaseId, tagData, requestId)
           }
         } catch (error) {
-          logger.warn(`[${requestId}] Failed to parse documentTagsData for bulk document:`, error)
+          // Re-throw validation errors, only catch JSON parse errors
+          if (error instanceof SyntaxError) {
+            logger.warn(`[${requestId}] Failed to parse documentTagsData for bulk document:`, error)
+          } else {
+            throw error
+          }
         }
       }
 
@@ -1048,7 +1037,12 @@ export async function createSingleDocument(
         processedTags = await processDocumentTags(knowledgeBaseId, tagData, requestId)
       }
     } catch (error) {
-      logger.warn(`[${requestId}] Failed to parse documentTagsData:`, error)
+      // Re-throw validation errors, only catch JSON parse errors
+      if (error instanceof SyntaxError) {
+        logger.warn(`[${requestId}] Failed to parse documentTagsData:`, error)
+      } else {
+        throw error
+      }
     }
   }
 
