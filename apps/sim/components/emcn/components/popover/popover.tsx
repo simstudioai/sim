@@ -720,6 +720,8 @@ const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
     }
 
     React.useEffect(() => {
+      setSearchQuery('')
+      onValueChange?.('')
       inputRef.current?.focus()
     }, [])
 
