@@ -723,7 +723,7 @@ const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
       setSearchQuery('')
       onValueChange?.('')
       inputRef.current?.focus()
-    }, [])
+    }, [setSearchQuery, onValueChange])
 
     return (
       <div ref={ref} className={cn('flex items-center px-[8px] py-[6px]', className)} {...props}>
