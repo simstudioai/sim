@@ -1,0 +1,163 @@
+name: Upstream Mirror Sync
+
+on:
+  schedule:
+    # Run daily at 3:00 AM UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      force_sync:
+        description: 'Force sync even if already up-to-date'
+        required: false
+        default: false
+        type: boolean
+      upstream_branch:
+        description: 'Upstream branch to sync from (default: main)'
+        required: false
+        default: 'main'
+        type: string
+
+env:
+  # Configure these values for your upstream repository
+  UPSTREAM_REPO: ${{ vars.UPSTREAM_REPO_URL || 'https://github.com/OWNER/REPO.git' }}
+  UPSTREAM_BRANCH: ${{ inputs.upstream_branch || 'main' }}
+  MIRROR_BRANCH: ${{ vars.MIRROR_BRANCH || 'upstream-mirror' }}
+
+jobs:
+  sync-upstream:
+    name: Sync from Upstream
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream "${{ env.UPSTREAM_REPO }}" || \
+            git remote set-url upstream "${{ env.UPSTREAM_REPO }}"
+          echo "✅ Configured upstream remote: ${{ env.UPSTREAM_REPO }}"
+
+      - name: Fetch upstream
+        run: |
+          echo "📥 Fetching upstream/${{ env.UPSTREAM_BRANCH }}..."
+          git fetch upstream "${{ env.UPSTREAM_BRANCH }}" --no-tags
+          echo "✅ Fetched upstream successfully"
+
+      - name: Check if mirror branch exists
+        id: check-branch
+        run: |
+          if git ls-remote --heads origin "${{ env.MIRROR_BRANCH }}" | grep -q "${{ env.MIRROR_BRANCH }}"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "ℹ️ Mirror branch '${{ env.MIRROR_BRANCH }}' exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ Mirror branch '${{ env.MIRROR_BRANCH }}' does not exist, will create it"
+          fi
+
+      - name: Create or update mirror branch
+        id: sync
+        run: |
+          UPSTREAM_SHA=$(git rev-parse upstream/${{ env.UPSTREAM_BRANCH }})
+          echo "upstream_sha=${UPSTREAM_SHA}" >> $GITHUB_OUTPUT
+          echo "📍 Upstream HEAD: ${UPSTREAM_SHA}"
+
+          if [ "${{ steps.check-branch.outputs.exists }}" = "true" ]; then
+            # Fetch the existing mirror branch
+            git fetch origin "${{ env.MIRROR_BRANCH }}"
+            MIRROR_SHA=$(git rev-parse origin/${{ env.MIRROR_BRANCH }})
+            echo "mirror_sha=${MIRROR_SHA}" >> $GITHUB_OUTPUT
+            echo "📍 Current mirror HEAD: ${MIRROR_SHA}"
+
+            if [ "${UPSTREAM_SHA}" = "${MIRROR_SHA}" ] && [ "${{ inputs.force_sync }}" != "true" ]; then
+              echo "✅ Mirror branch is already up-to-date"
+              echo "synced=false" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            # Update the mirror branch to match upstream
+            git checkout -B "${{ env.MIRROR_BRANCH }}" "upstream/${{ env.UPSTREAM_BRANCH }}"
+          else
+            # Create new mirror branch from upstream
+            git checkout -b "${{ env.MIRROR_BRANCH }}" "upstream/${{ env.UPSTREAM_BRANCH }}"
+          fi
+
+          echo "synced=true" >> $GITHUB_OUTPUT
+
+      - name: Push mirror branch
+        if: steps.sync.outputs.synced == 'true'
+        run: |
+          echo "📤 Pushing to origin/${{ env.MIRROR_BRANCH }}..."
+          git push -u origin "${{ env.MIRROR_BRANCH }}" --force-with-lease
+          echo "✅ Successfully synced mirror branch"
+
+      - name: Generate sync summary
+        if: always()
+        run: |
+          echo "## 🔄 Upstream Mirror Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Upstream Repository | \`${{ env.UPSTREAM_REPO }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Upstream Branch | \`${{ env.UPSTREAM_BRANCH }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Mirror Branch | \`${{ env.MIRROR_BRANCH }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Upstream SHA | \`${{ steps.sync.outputs.upstream_sha || 'N/A' }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Synced | ${{ steps.sync.outputs.synced == 'true' && '✅ Yes' || '⏭️ No (already up-to-date)' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.sync.outputs.synced }}" = "true" ]; then
+            echo "### 📝 Recent Commits from Upstream" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            git log --oneline -10 "upstream/${{ env.UPSTREAM_BRANCH }}" 2>/dev/null || echo "Unable to fetch commit log"
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  notify-on-failure:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    needs: sync-upstream
+    if: failure()
+    steps:
+      - name: Create issue on sync failure
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '🔴 Upstream Mirror Sync Failed';
+            const body = `## Sync Failure Report
+
+            The scheduled upstream mirror sync has failed.
+
+            **Workflow Run:** [View Details](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})
+
+            **Upstream Repository:** \`${{ env.UPSTREAM_REPO }}\`
+            **Upstream Branch:** \`${{ env.UPSTREAM_BRANCH }}\`
+            **Mirror Branch:** \`${{ env.MIRROR_BRANCH }}\`
+
+            Please investigate and resolve the issue.
+            `;
+
+            // Check if there's already an open issue
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'upstream-sync-failure'
+            });
+
+            if (issues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['upstream-sync-failure', 'automated']
+              });
+            }
