@@ -1,3 +1,4 @@
+import type { StructuredFilter } from '@/lib/knowledge/types'
 import type { KnowledgeSearchResponse } from '@/tools/knowledge/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -53,8 +54,8 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       // Use single knowledge base ID
       const knowledgeBaseIds = [params.knowledgeBaseId]
 
-      // Parse dynamic tag filters and send display names to API
-      const filters: Record<string, string> = {}
+      // Parse dynamic tag filters
+      let structuredFilters: StructuredFilter[] = []
       if (params.tagFilters) {
         let tagFilters = params.tagFilters
 
@@ -62,27 +63,29 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
         if (typeof tagFilters === 'string') {
           try {
             tagFilters = JSON.parse(tagFilters)
-          } catch (error) {
+          } catch {
             tagFilters = []
           }
         }
 
         if (Array.isArray(tagFilters)) {
-          // Group filters by tag name for OR logic within same tag
-          const groupedFilters: Record<string, string[]> = {}
-          tagFilters.forEach((filter: any) => {
-            if (filter.tagName && filter.tagValue && filter.tagValue.trim().length > 0) {
-              if (!groupedFilters[filter.tagName]) {
-                groupedFilters[filter.tagName] = []
+          // Send full filter objects with operator support
+          structuredFilters = tagFilters
+            .filter((filter: Record<string, unknown>) => {
+              // For boolean, any value is valid; for others, check for non-empty string
+              if (filter.fieldType === 'boolean') {
+                return filter.tagName && filter.tagValue !== undefined
               }
-              groupedFilters[filter.tagName].push(filter.tagValue)
-            }
-          })
-
-          // Convert to filters format - for now, join multiple values with OR separator
-          Object.entries(groupedFilters).forEach(([tagName, values]) => {
-            filters[tagName] = values.join('|OR|') // Use special separator for OR logic
-          })
+              return filter.tagName && filter.tagValue && String(filter.tagValue).trim().length > 0
+            })
+            .map((filter: Record<string, unknown>) => ({
+              tagName: filter.tagName as string,
+              tagSlot: (filter.tagSlot as string) || '', // Will be resolved by API from tagName
+              fieldType: (filter.fieldType as string) || 'text',
+              operator: (filter.operator as string) || 'eq',
+              value: filter.tagValue as string | number | boolean,
+              valueTo: filter.valueTo as string | number | undefined,
+            }))
         }
       }
 
@@ -90,7 +93,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
         knowledgeBaseIds,
         query: params.query,
         topK: params.topK ? Math.max(1, Math.min(100, Number(params.topK))) : 10,
-        ...(Object.keys(filters).length > 0 && { filters }),
+        ...(structuredFilters.length > 0 && { tagFilters: structuredFilters }),
         ...(workflowId && { workflowId }),
       }
 

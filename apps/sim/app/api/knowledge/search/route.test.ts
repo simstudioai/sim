@@ -64,6 +64,11 @@ vi.mock('@/app/api/knowledge/utils', () => ({
   checkKnowledgeBaseAccess: mockCheckKnowledgeBaseAccess,
 }))
 
+const mockGetDocumentTagDefinitions = vi.fn()
+vi.mock('@/lib/knowledge/tags/service', () => ({
+  getDocumentTagDefinitions: mockGetDocumentTagDefinitions,
+}))
+
 const mockHandleTagOnlySearch = vi.fn()
 const mockHandleVectorOnlySearch = vi.fn()
 const mockHandleTagAndVectorSearch = vi.fn()
@@ -156,6 +161,7 @@ describe('Knowledge Search API Route', () => {
       doc1: 'Document 1',
       doc2: 'Document 2',
     })
+    mockGetDocumentTagDefinitions.mockClear()
 
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('mock-uuid-1234-5678'),
@@ -659,8 +665,8 @@ describe('Knowledge Search API Route', () => {
 
   describe('Optional Query Search', () => {
     const mockTagDefinitions = [
-      { tagSlot: 'tag1', displayName: 'category' },
-      { tagSlot: 'tag2', displayName: 'priority' },
+      { tagSlot: 'tag1', displayName: 'category', fieldType: 'text' },
+      { tagSlot: 'tag2', displayName: 'priority', fieldType: 'text' },
     ]
 
     const mockTaggedResults = [
@@ -689,9 +695,7 @@ describe('Knowledge Search API Route', () => {
     it('should perform tag-only search without query', async () => {
       const tagOnlyData = {
         knowledgeBaseIds: 'kb-123',
-        filters: {
-          category: 'api',
-        },
+        tagFilters: [{ tagName: 'category', value: 'api', fieldType: 'text', operator: 'eq' }],
         topK: 10,
       }
 
@@ -706,10 +710,11 @@ describe('Knowledge Search API Route', () => {
         },
       })
 
-      // Mock tag definitions queries for filter mapping and display mapping
-      mockDbChain.limit
-        .mockResolvedValueOnce(mockTagDefinitions) // Tag definitions for filter mapping
-        .mockResolvedValueOnce(mockTagDefinitions) // Tag definitions for display mapping
+      // Mock tag definitions for validation
+      mockGetDocumentTagDefinitions.mockResolvedValue(mockTagDefinitions)
+
+      // Mock tag definitions queries for display mapping
+      mockDbChain.limit.mockResolvedValueOnce(mockTagDefinitions)
 
       // Mock the tag-only search handler
       mockHandleTagOnlySearch.mockResolvedValue(mockTaggedResults)
@@ -729,7 +734,9 @@ describe('Knowledge Search API Route', () => {
       expect(mockHandleTagOnlySearch).toHaveBeenCalledWith({
         knowledgeBaseIds: ['kb-123'],
         topK: 10,
-        filters: { category: 'api' }, // Note: When no tag definitions are found, it uses the original filter key
+        structuredFilters: [
+          { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'api', valueTo: undefined },
+        ],
       })
     })
 
@@ -737,9 +744,7 @@ describe('Knowledge Search API Route', () => {
       const combinedData = {
         knowledgeBaseIds: 'kb-123',
         query: 'test search',
-        filters: {
-          category: 'api',
-        },
+        tagFilters: [{ tagName: 'category', value: 'api', fieldType: 'text', operator: 'eq' }],
         topK: 10,
       }
 
@@ -754,10 +759,11 @@ describe('Knowledge Search API Route', () => {
         },
       })
 
-      // Mock tag definitions queries for filter mapping and display mapping
-      mockDbChain.limit
-        .mockResolvedValueOnce(mockTagDefinitions) // Tag definitions for filter mapping
-        .mockResolvedValueOnce(mockTagDefinitions) // Tag definitions for display mapping
+      // Mock tag definitions for validation
+      mockGetDocumentTagDefinitions.mockResolvedValue(mockTagDefinitions)
+
+      // Mock tag definitions queries for display mapping
+      mockDbChain.limit.mockResolvedValueOnce(mockTagDefinitions)
 
       // Mock the tag + vector search handler
       mockHandleTagAndVectorSearch.mockResolvedValue(mockSearchResults)
@@ -784,7 +790,9 @@ describe('Knowledge Search API Route', () => {
       expect(mockHandleTagAndVectorSearch).toHaveBeenCalledWith({
         knowledgeBaseIds: ['kb-123'],
         topK: 10,
-        filters: { category: 'api' }, // Note: When no tag definitions are found, it uses the original filter key
+        structuredFilters: [
+          { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'api', valueTo: undefined },
+        ],
         queryVector: JSON.stringify(mockEmbedding),
         distanceThreshold: 1, // Single KB uses threshold of 1.0
       })
@@ -928,10 +936,10 @@ describe('Knowledge Search API Route', () => {
     it('should handle tag-only search with multiple knowledge bases', async () => {
       const multiKbTagData = {
         knowledgeBaseIds: ['kb-123', 'kb-456'],
-        filters: {
-          category: 'docs',
-          priority: 'high',
-        },
+        tagFilters: [
+          { tagName: 'category', value: 'docs', fieldType: 'text', operator: 'eq' },
+          { tagName: 'priority', value: 'high', fieldType: 'text', operator: 'eq' },
+        ],
         topK: 10,
       }
 
@@ -951,37 +959,14 @@ describe('Knowledge Search API Route', () => {
           knowledgeBase: { id: 'kb-456', userId: 'user-123', name: 'Test KB 2' },
         })
 
-      // Reset all mocks before setting up specific behavior
-      Object.values(mockDbChain).forEach((fn) => {
-        if (typeof fn === 'function') {
-          fn.mockClear().mockReturnThis()
-        }
-      })
+      // Mock tag definitions for validation
+      mockGetDocumentTagDefinitions.mockResolvedValue(mockTagDefinitions)
 
-      // Create fresh mocks for multiple database calls needed for multi-KB tag search
-      const mockTagDefsQuery1 = {
-        ...mockDbChain,
-        limit: vi.fn().mockResolvedValue(mockTagDefinitions),
-      }
-      const mockTagSearchQuery = {
-        ...mockDbChain,
-        limit: vi.fn().mockResolvedValue(mockTaggedResults),
-      }
-      const mockTagDefsQuery2 = {
-        ...mockDbChain,
-        limit: vi.fn().mockResolvedValue(mockTagDefinitions),
-      }
-      const mockTagDefsQuery3 = {
-        ...mockDbChain,
-        limit: vi.fn().mockResolvedValue(mockTagDefinitions),
-      }
+      // Mock the tag-only search handler
+      mockHandleTagOnlySearch.mockResolvedValue(mockTaggedResults)
 
-      // Chain the mocks for: tag defs, search, display mapping KB1, display mapping KB2
-      mockDbChain.select
-        .mockReturnValueOnce(mockTagDefsQuery1)
-        .mockReturnValueOnce(mockTagSearchQuery)
-        .mockReturnValueOnce(mockTagDefsQuery2)
-        .mockReturnValueOnce(mockTagDefsQuery3)
+      // Mock tag definitions queries for display mapping
+      mockDbChain.limit.mockResolvedValueOnce(mockTagDefinitions)
 
       const req = createMockRequest('POST', multiKbTagData)
       const { POST } = await import('@/app/api/knowledge/search/route')
@@ -1076,6 +1061,11 @@ describe('Knowledge Search API Route', () => {
         },
       })
 
+      // Mock tag definitions for validation
+      mockGetDocumentTagDefinitions.mockResolvedValue([
+        { tagSlot: 'tag1', displayName: 'tag1', fieldType: 'text' },
+      ])
+
       mockHandleTagOnlySearch.mockResolvedValue([
         {
           id: 'chunk-2',
@@ -1108,13 +1098,15 @@ describe('Knowledge Search API Route', () => {
       const mockTagDefs = {
         select: vi.fn().mockReturnThis(),
         from: vi.fn().mockReturnThis(),
-        where: vi.fn().mockResolvedValue([]),
+        where: vi
+          .fn()
+          .mockResolvedValue([{ tagSlot: 'tag1', displayName: 'tag1', fieldType: 'text' }]),
       }
       mockDbChain.select.mockReturnValueOnce(mockTagDefs)
 
       const req = createMockRequest('POST', {
         knowledgeBaseIds: ['kb-123'],
-        filters: { tag1: 'api' },
+        tagFilters: [{ tagName: 'tag1', value: 'api', fieldType: 'text', operator: 'eq' }],
         topK: 10,
       })
 
@@ -1142,6 +1134,11 @@ describe('Knowledge Search API Route', () => {
           deletedAt: null,
         },
       })
+
+      // Mock tag definitions for validation
+      mockGetDocumentTagDefinitions.mockResolvedValue([
+        { tagSlot: 'tag1', displayName: 'tag1', fieldType: 'text' },
+      ])
 
       mockHandleTagAndVectorSearch.mockResolvedValue([
         {
@@ -1176,14 +1173,16 @@ describe('Knowledge Search API Route', () => {
       const mockTagDefs = {
         select: vi.fn().mockReturnThis(),
         from: vi.fn().mockReturnThis(),
-        where: vi.fn().mockResolvedValue([]),
+        where: vi
+          .fn()
+          .mockResolvedValue([{ tagSlot: 'tag1', displayName: 'tag1', fieldType: 'text' }]),
       }
       mockDbChain.select.mockReturnValueOnce(mockTagDefs)
 
       const req = createMockRequest('POST', {
         knowledgeBaseIds: ['kb-123'],
         query: 'relevant content',
-        filters: { tag1: 'guide' },
+        tagFilters: [{ tagName: 'tag1', value: 'guide', fieldType: 'text', operator: 'eq' }],
         topK: 10,
       })
 

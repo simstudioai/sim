@@ -247,6 +247,11 @@ export interface PopoverContentProps
    * @default false
    */
   border?: boolean
+  /**
+   * When true, the popover will flip to avoid collisions with viewport edges
+   * @default true
+   */
+  avoidCollisions?: boolean
 }
 
 /**
@@ -279,6 +284,7 @@ const PopoverContent = React.forwardRef<
       sideOffset,
       collisionPadding = 8,
       border = false,
+      avoidCollisions = true,
       ...restProps
     },
     ref
@@ -328,7 +334,7 @@ const PopoverContent = React.forwardRef<
         align={align}
         sideOffset={effectiveSideOffset}
         collisionPadding={collisionPadding}
-        avoidCollisions={true}
+        avoidCollisions={avoidCollisions}
         sticky='partial'
         onWheel={handleWheel}
         {...restProps}

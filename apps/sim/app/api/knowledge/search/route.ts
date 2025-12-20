@@ -1,8 +1,10 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { TAG_SLOTS } from '@/lib/knowledge/constants'
+import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
+import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
+import type { StructuredFilter } from '@/lib/knowledge/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { getUserId } from '@/app/api/auth/oauth/utils'
@@ -19,6 +21,16 @@ import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('VectorSearchAPI')
+
+/** Structured tag filter with operator support */
+const StructuredTagFilterSchema = z.object({
+  tagName: z.string(),
+  tagSlot: z.string().optional(),
+  fieldType: z.enum(['text', 'number', 'date', 'boolean']).default('text'),
+  operator: z.string().default('eq'),
+  value: z.union([z.string(), z.number(), z.boolean()]),
+  valueTo: z.union([z.string(), z.number()]).optional(),
+})
 
 const VectorSearchSchema = z
   .object({
@@ -39,18 +51,17 @@ const VectorSearchSchema = z
       .nullable()
       .default(10)
       .transform((val) => val ?? 10),
-    filters: z
-      .record(z.string())
+    tagFilters: z
+      .array(StructuredTagFilterSchema)
       .optional()
       .nullable()
-      .transform((val) => val || undefined), // Allow dynamic filter keys (display names)
+      .transform((val) => val || undefined),
   })
   .refine(
     (data) => {
-      // Ensure at least query or filters are provided
       const hasQuery = data.query && data.query.trim().length > 0
-      const hasFilters = data.filters && Object.keys(data.filters).length > 0
-      return hasQuery || hasFilters
+      const hasTagFilters = data.tagFilters && data.tagFilters.length > 0
+      return hasQuery || hasTagFilters
     },
     {
       message: 'Please provide either a search query or tag filters to search your knowledge base',
@@ -88,45 +99,81 @@ export async function POST(request: NextRequest) {
       )
 
       // Map display names to tag slots for filtering
-      let mappedFilters: Record<string, string> = {}
-      if (validatedData.filters && accessibleKbIds.length > 0) {
-        try {
-          // Fetch tag definitions for the first accessible KB (since we're using single KB now)
-          const kbId = accessibleKbIds[0]
-          const tagDefs = await getDocumentTagDefinitions(kbId)
+      let structuredFilters: StructuredFilter[] = []
 
-          logger.debug(`[${requestId}] Found tag definitions:`, tagDefs)
-          logger.debug(`[${requestId}] Original filters:`, validatedData.filters)
+      // Handle tag filters
+      if (validatedData.tagFilters && accessibleKbIds.length > 0) {
+        const kbId = accessibleKbIds[0]
+        const tagDefs = await getDocumentTagDefinitions(kbId)
 
-          // Create mapping from display name to tag slot
-          const displayNameToSlot: Record<string, string> = {}
-          tagDefs.forEach((def) => {
-            displayNameToSlot[def.displayName] = def.tagSlot
-          })
+        // Create mapping from display name to tag slot and fieldType
+        const displayNameToTagDef: Record<string, { tagSlot: string; fieldType: string }> = {}
+        tagDefs.forEach((def) => {
+          displayNameToTagDef[def.displayName] = {
+            tagSlot: def.tagSlot,
+            fieldType: def.fieldType,
+          }
+        })
 
-          // Map the filters and handle OR logic
-          Object.entries(validatedData.filters).forEach(([key, value]) => {
-            if (value) {
-              const tagSlot = displayNameToSlot[key] || key // Fallback to key if no mapping found
+        // Validate all tag filters first
+        const undefinedTags: string[] = []
+        const typeErrors: string[] = []
 
-              // Check if this is an OR filter (contains |OR| separator)
-              if (value.includes('|OR|')) {
-                logger.debug(
-                  `[${requestId}] OR filter detected: "${key}" -> "${tagSlot}" = "${value}"`
-                )
-              }
+        for (const filter of validatedData.tagFilters) {
+          const tagDef = displayNameToTagDef[filter.tagName]
 
-              mappedFilters[tagSlot] = value
-              logger.debug(`[${requestId}] Mapped filter: "${key}" -> "${tagSlot}" = "${value}"`)
-            }
-          })
+          // Check if tag exists
+          if (!tagDef) {
+            undefinedTags.push(filter.tagName)
+            continue
+          }
 
-          logger.debug(`[${requestId}] Final mapped filters:`, mappedFilters)
-        } catch (error) {
-          logger.error(`[${requestId}] Filter mapping error:`, error)
-          // If mapping fails, use original filters
-          mappedFilters = validatedData.filters
+          // Validate value type using shared validation
+          const validationError = validateTagValue(
+            filter.tagName,
+            String(filter.value),
+            tagDef.fieldType
+          )
+          if (validationError) {
+            typeErrors.push(validationError)
+          }
         }
+
+        // Throw combined error if there are any validation issues
+        if (undefinedTags.length > 0 || typeErrors.length > 0) {
+          const errorParts: string[] = []
+
+          if (undefinedTags.length > 0) {
+            errorParts.push(buildUndefinedTagsError(undefinedTags))
+          }
+
+          if (typeErrors.length > 0) {
+            errorParts.push(...typeErrors)
+          }
+
+          return NextResponse.json({ error: errorParts.join('\n') }, { status: 400 })
+        }
+
+        // Build structured filters with validated data
+        structuredFilters = validatedData.tagFilters.map((filter) => {
+          const tagDef = displayNameToTagDef[filter.tagName]!
+          const tagSlot = filter.tagSlot || tagDef.tagSlot
+          const fieldType = filter.fieldType || tagDef.fieldType
+
+          logger.debug(
+            `[${requestId}] Structured filter: ${filter.tagName} -> ${tagSlot} (${fieldType}) ${filter.operator} ${filter.value}`
+          )
+
+          return {
+            tagSlot,
+            fieldType,
+            operator: filter.operator,
+            value: filter.value,
+            valueTo: filter.valueTo,
+          }
+        })
+
+        logger.debug(`[${requestId}] Processed ${structuredFilters.length} structured filters`)
       }
 
       if (accessibleKbIds.length === 0) {
@@ -155,26 +202,29 @@ export async function POST(request: NextRequest) {
 
       let results: SearchResult[]
 
-      const hasFilters = mappedFilters && Object.keys(mappedFilters).length > 0
+      const hasFilters = structuredFilters && structuredFilters.length > 0
 
       if (!hasQuery && hasFilters) {
         // Tag-only search without vector similarity
-        logger.debug(`[${requestId}] Executing tag-only search with filters:`, mappedFilters)
+        logger.debug(`[${requestId}] Executing tag-only search with filters:`, structuredFilters)
         results = await handleTagOnlySearch({
           knowledgeBaseIds: accessibleKbIds,
           topK: validatedData.topK,
-          filters: mappedFilters,
+          structuredFilters,
         })
       } else if (hasQuery && hasFilters) {
         // Tag + Vector search
-        logger.debug(`[${requestId}] Executing tag + vector search with filters:`, mappedFilters)
+        logger.debug(
+          `[${requestId}] Executing tag + vector search with filters:`,
+          structuredFilters
+        )
         const strategy = getQueryStrategy(accessibleKbIds.length, validatedData.topK)
         const queryVector = JSON.stringify(await queryEmbeddingPromise)
 
         results = await handleTagAndVectorSearch({
           knowledgeBaseIds: accessibleKbIds,
           topK: validatedData.topK,
-          filters: mappedFilters,
+          structuredFilters,
           queryVector,
           distanceThreshold: strategy.distanceThreshold,
         })
@@ -257,9 +307,9 @@ export async function POST(request: NextRequest) {
             // Create tags object with display names
             const tags: Record<string, any> = {}
 
-            TAG_SLOTS.forEach((slot) => {
+            ALL_TAG_SLOTS.forEach((slot) => {
               const tagValue = (result as any)[slot]
-              if (tagValue) {
+              if (tagValue !== null && tagValue !== undefined) {
                 const displayName = kbTagMap[slot] || slot
                 logger.debug(
                   `[${requestId}] Mapping ${slot}="${tagValue}" -> "${displayName}"="${tagValue}"`

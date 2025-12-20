@@ -10,7 +10,8 @@ export {
   languages,
 } from './code/code'
 export { Combobox, type ComboboxOption } from './combobox/combobox'
-export { Input } from './input/input'
+export { DatePicker, type DatePickerProps, datePickerVariants } from './date-picker/date-picker'
+export { Input, type InputProps, inputVariants } from './input/input'
 export { Label } from './label/label'
 export {
   MODAL_SIZES,

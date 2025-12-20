@@ -54,7 +54,7 @@ describe('Knowledge Search Utils', () => {
       const params = {
         knowledgeBaseIds: ['kb-123'],
         topK: 10,
-        filters: {},
+        structuredFilters: [],
       }
 
       await expect(handleTagOnlySearch(params)).rejects.toThrow(
@@ -66,14 +66,14 @@ describe('Knowledge Search Utils', () => {
       const params = {
         knowledgeBaseIds: ['kb-123'],
         topK: 10,
-        filters: { tag1: 'api' },
+        structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'api' }],
       }
 
       // This test validates the function accepts the right parameters
       // The actual database interaction is tested via route tests
       expect(params.knowledgeBaseIds).toEqual(['kb-123'])
       expect(params.topK).toBe(10)
-      expect(params.filters).toEqual({ tag1: 'api' })
+      expect(params.structuredFilters).toHaveLength(1)
     })
   })
 
@@ -123,7 +123,7 @@ describe('Knowledge Search Utils', () => {
       const params = {
         knowledgeBaseIds: ['kb-123'],
         topK: 10,
-        filters: {},
+        structuredFilters: [],
         queryVector: JSON.stringify([0.1, 0.2, 0.3]),
         distanceThreshold: 0.8,
       }
@@ -137,7 +137,7 @@ describe('Knowledge Search Utils', () => {
       const params = {
         knowledgeBaseIds: ['kb-123'],
         topK: 10,
-        filters: { tag1: 'api' },
+        structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'api' }],
         distanceThreshold: 0.8,
       }
 
@@ -150,7 +150,7 @@ describe('Knowledge Search Utils', () => {
       const params = {
         knowledgeBaseIds: ['kb-123'],
         topK: 10,
-        filters: { tag1: 'api' },
+        structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'api' }],
         queryVector: JSON.stringify([0.1, 0.2, 0.3]),
       }
 
@@ -163,7 +163,7 @@ describe('Knowledge Search Utils', () => {
       const params = {
         knowledgeBaseIds: ['kb-123'],
         topK: 10,
-        filters: { tag1: 'api' },
+        structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'api' }],
         queryVector: JSON.stringify([0.1, 0.2, 0.3]),
         distanceThreshold: 0.8,
       }
@@ -171,7 +171,7 @@ describe('Knowledge Search Utils', () => {
       // This test validates the function accepts the right parameters
       expect(params.knowledgeBaseIds).toEqual(['kb-123'])
       expect(params.topK).toBe(10)
-      expect(params.filters).toEqual({ tag1: 'api' })
+      expect(params.structuredFilters).toHaveLength(1)
       expect(params.queryVector).toBe(JSON.stringify([0.1, 0.2, 0.3]))
       expect(params.distanceThreshold).toBe(0.8)
     })

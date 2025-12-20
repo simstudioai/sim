@@ -92,7 +92,7 @@ export async function queryChunks(
 export async function createChunk(
   knowledgeBaseId: string,
   documentId: string,
-  docTags: Record<string, string | null>,
+  docTags: Record<string, string | number | boolean | Date | null>,
   chunkData: CreateChunkData,
   requestId: string
 ): Promise<ChunkData> {
@@ -131,14 +131,27 @@ export async function createChunk(
       embeddingModel: 'text-embedding-3-small',
       startOffset: 0, // Manual chunks don't have document offsets
       endOffset: chunkData.content.length,
-      // Inherit tags from parent document
-      tag1: docTags.tag1,
-      tag2: docTags.tag2,
-      tag3: docTags.tag3,
-      tag4: docTags.tag4,
-      tag5: docTags.tag5,
-      tag6: docTags.tag6,
-      tag7: docTags.tag7,
+      // Inherit text tags from parent document
+      tag1: docTags.tag1 as string | null,
+      tag2: docTags.tag2 as string | null,
+      tag3: docTags.tag3 as string | null,
+      tag4: docTags.tag4 as string | null,
+      tag5: docTags.tag5 as string | null,
+      tag6: docTags.tag6 as string | null,
+      tag7: docTags.tag7 as string | null,
+      // Inherit number tags from parent document (5 slots)
+      number1: docTags.number1 as number | null,
+      number2: docTags.number2 as number | null,
+      number3: docTags.number3 as number | null,
+      number4: docTags.number4 as number | null,
+      number5: docTags.number5 as number | null,
+      // Inherit date tags from parent document (2 slots)
+      date1: docTags.date1 as Date | null,
+      date2: docTags.date2 as Date | null,
+      // Inherit boolean tags from parent document (3 slots)
+      boolean1: docTags.boolean1 as boolean | null,
+      boolean2: docTags.boolean2 as boolean | null,
+      boolean3: docTags.boolean3 as boolean | null,
       enabled: chunkData.enabled ?? true,
       createdAt: now,
       updatedAt: now,

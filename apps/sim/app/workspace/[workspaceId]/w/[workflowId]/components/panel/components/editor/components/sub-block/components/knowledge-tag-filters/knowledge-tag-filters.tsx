@@ -2,10 +2,21 @@
 
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
-import { Trash } from '@/components/emcn/icons/trash'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import {
+  Button,
+  Combobox,
+  type ComboboxOption,
+  Input,
+  Label,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverItem,
+  PopoverScrollArea,
+  Trash,
+} from '@/components/emcn'
+import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
+import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   checkTagTrigger,
@@ -20,14 +31,22 @@ import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 interface TagFilter {
   id: string
   tagName: string
+  tagSlot?: string
+  fieldType: FilterFieldType
+  operator: string
   tagValue: string
+  valueTo?: string // For 'between' operator
 }
 
 interface TagFilterRow {
   id: string
   cells: {
     tagName: string
+    tagSlot?: string
+    fieldType: FilterFieldType
+    operator: string
     value: string
+    valueTo?: string
   }
 }
 
@@ -77,7 +96,13 @@ export function KnowledgeTagFilters({
   const parseFilters = (filterValue: string | null): TagFilter[] => {
     if (!filterValue) return []
     try {
-      return JSON.parse(filterValue)
+      const parsed = JSON.parse(filterValue)
+      // Handle legacy format (without fieldType/operator)
+      return parsed.map((f: TagFilter) => ({
+        ...f,
+        fieldType: f.fieldType || 'text',
+        operator: f.operator || 'eq',
+      }))
     } catch {
       return []
     }
@@ -93,13 +118,17 @@ export function KnowledgeTagFilters({
           id: filter.id,
           cells: {
             tagName: filter.tagName || '',
+            tagSlot: filter.tagSlot,
+            fieldType: filter.fieldType || 'text',
+            operator: filter.operator || 'eq',
             value: filter.tagValue || '',
+            valueTo: filter.valueTo,
           },
         }))
       : [
           {
             id: 'empty-row-0',
-            cells: { tagName: '', value: '' },
+            cells: { tagName: '', fieldType: 'text', operator: 'eq', value: '' },
           },
         ]
 
@@ -109,27 +138,75 @@ export function KnowledgeTagFilters({
     setStoreValue(value)
   }
 
-  const handleCellChange = (rowIndex: number, column: string, value: string) => {
+  /** Convert rows back to TagFilter format */
+  const rowsToFilters = (rowsToConvert: TagFilterRow[]): TagFilter[] => {
+    return rowsToConvert.map((row) => ({
+      id: row.id,
+      tagName: row.cells.tagName || '',
+      tagSlot: row.cells.tagSlot,
+      fieldType: row.cells.fieldType || 'text',
+      operator: row.cells.operator || 'eq',
+      tagValue: row.cells.value || '',
+      valueTo: row.cells.valueTo,
+    }))
+  }
+
+  const handleCellChange = (rowIndex: number, column: string, value: string | FilterFieldType) => {
     if (isPreview || disabled) return
+
+    const updatedRows = [...rows].map((row, idx) => {
+      if (idx === rowIndex) {
+        const newCells = { ...row.cells, [column]: value }
+
+        // Reset operator when field type changes
+        if (column === 'fieldType') {
+          const operators = getOperatorsForFieldType(value as FilterFieldType)
+          newCells.operator = operators[0]?.value || 'eq'
+          newCells.value = '' // Reset value when type changes
+          newCells.valueTo = undefined
+        }
+
+        // Reset valueTo if operator is not 'between'
+        if (column === 'operator' && value !== 'between') {
+          newCells.valueTo = undefined
+        }
+
+        return { ...row, cells: newCells }
+      }
+      return row
+    })
+
+    updateFilters(rowsToFilters(updatedRows))
+  }
+
+  /** Handle tag name selection from dropdown */
+  const handleTagNameSelection = (rowIndex: number, tagName: string) => {
+    if (isPreview || disabled) return
+
+    // Find the tag definition to get fieldType and tagSlot
+    const tagDef = tagDefinitions.find((t) => t.displayName === tagName)
+    const fieldType = (tagDef?.fieldType || 'text') as FilterFieldType
+    const operators = getOperatorsForFieldType(fieldType)
 
     const updatedRows = [...rows].map((row, idx) => {
       if (idx === rowIndex) {
         return {
           ...row,
-          cells: { ...row.cells, [column]: value },
+          cells: {
+            ...row.cells,
+            tagName,
+            tagSlot: tagDef?.tagSlot,
+            fieldType,
+            operator: operators[0]?.value || 'eq',
+            value: '', // Reset value when tag changes
+            valueTo: undefined,
+          },
         }
       }
       return row
     })
 
-    // Convert back to TagFilter format - keep all rows, even empty ones
-    const updatedFilters = updatedRows.map((row) => ({
-      id: row.id,
-      tagName: row.cells.tagName || '',
-      tagValue: row.cells.value || '',
-    }))
-
-    updateFilters(updatedFilters)
+    updateFilters(rowsToFilters(updatedRows))
   }
 
   const handleTagDropdownSelection = (rowIndex: number, column: string, value: string) => {
@@ -145,36 +222,29 @@ export function KnowledgeTagFilters({
       return row
     })
 
-    // Convert back to TagFilter format - keep all rows, even empty ones
-    const updatedFilters = updatedRows.map((row) => ({
-      id: row.id,
-      tagName: row.cells.tagName || '',
-      tagValue: row.cells.value || '',
-    }))
-
-    const jsonValue = updatedFilters.length > 0 ? JSON.stringify(updatedFilters) : null
+    const jsonValue =
+      rowsToFilters(updatedRows).length > 0 ? JSON.stringify(rowsToFilters(updatedRows)) : null
     emitTagSelection(jsonValue)
   }
 
   const handleAddRow = () => {
     if (isPreview || disabled) return
 
-    const newRowId = `filter-${filters.length}-${Math.random().toString(36).substr(2, 9)}`
-    const newFilters = [...filters, { id: newRowId, tagName: '', tagValue: '' }]
-    updateFilters(newFilters)
+    const newRowId = `filter-${filters.length}-${Math.random().toString(36).slice(2, 11)}`
+    const newFilter: TagFilter = {
+      id: newRowId,
+      tagName: '',
+      fieldType: 'text',
+      operator: 'eq',
+      tagValue: '',
+    }
+    updateFilters([...filters, newFilter])
   }
 
   const handleDeleteRow = (rowIndex: number) => {
     if (isPreview || disabled || rows.length <= 1) return
     const updatedRows = rows.filter((_, idx) => idx !== rowIndex)
-
-    const updatedFilters = updatedRows.map((row) => ({
-      id: row.id,
-      tagName: row.cells.tagName || '',
-      tagValue: row.cells.value || '',
-    }))
-
-    updateFilters(updatedFilters)
+    updateFilters(rowsToFilters(updatedRows))
   }
 
   if (isPreview) {
@@ -193,106 +263,120 @@ export function KnowledgeTagFilters({
   const renderHeader = () => (
     <thead>
       <tr className='border-b'>
-        <th className='w-2/5 border-r px-4 py-2 text-center font-medium text-sm'>Tag Name</th>
-        <th className='px-4 py-2 text-center font-medium text-sm'>Value</th>
+        <th className='w-[35%] border-r px-2 py-2 text-center font-medium text-sm'>Tag</th>
+        <th className='w-[25%] border-r px-2 py-2 text-center font-medium text-sm'>Operator</th>
+        <th className='border-r px-2 py-2 text-center font-medium text-sm'>Value</th>
+        <th className='w-10' />
       </tr>
     </thead>
   )
 
   const renderTagNameCell = (row: TagFilterRow, rowIndex: number) => {
     const cellValue = row.cells.tagName || ''
-    const showDropdown = dropdownStates[rowIndex] || false
+    const isOpen = dropdownStates[rowIndex] || false
 
-    const setShowDropdown = (show: boolean) => {
-      setDropdownStates((prev) => ({ ...prev, [rowIndex]: show }))
-    }
-
-    const handleDropdownClick = (e: React.MouseEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      if (!disabled && !isLoading) {
-        if (!showDropdown) {
-          setShowDropdown(true)
-        }
-      }
-    }
-
-    const handleFocus = () => {
-      if (!disabled && !isLoading) {
-        setShowDropdown(true)
-      }
-    }
-
-    const handleBlur = () => {
-      // Delay closing to allow dropdown selection
-      setTimeout(() => setShowDropdown(false), 150)
+    const setIsOpen = (open: boolean) => {
+      setDropdownStates((prev) => ({ ...prev, [rowIndex]: open }))
     }
 
     return (
       <td className='relative border-r p-1'>
-        <div className='relative w-full'>
-          <Input
-            value={cellValue}
-            readOnly
-            disabled={disabled || isLoading}
-            autoComplete='off'
-            className='w-full cursor-pointer border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
-            onClick={handleDropdownClick}
-            onFocus={handleFocus}
-            onBlur={handleBlur}
-          />
-          <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
-            <div className='whitespace-pre'>
-              {formatDisplayText(cellValue || 'Select tag', {
-                accessiblePrefixes,
-                highlightAll: !accessiblePrefixes,
-              })}
-            </div>
-          </div>
-          {showDropdown && tagDefinitions.length > 0 && (
-            <div className='absolute top-full left-0 z-[100] mt-1 w-full'>
-              <div className='allow-scroll fade-in-0 zoom-in-95 animate-in rounded-md border bg-popover text-popover-foreground shadow-lg'>
-                <div
-                  className='allow-scroll max-h-48 overflow-y-auto p-1'
-                  style={{ scrollbarWidth: 'thin' }}
-                >
-                  {tagDefinitions.map((tag) => (
-                    <div
-                      key={tag.id}
-                      className='relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground'
-                      onMouseDown={(e) => {
-                        e.preventDefault()
-                        handleCellChange(rowIndex, 'tagName', tag.displayName)
-                        setShowDropdown(false)
-                      }}
-                    >
-                      <span className='flex-1 truncate'>{tag.displayName}</span>
-                    </div>
-                  ))}
-                </div>
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+          <PopoverAnchor asChild>
+            <div
+              className='relative w-full cursor-pointer'
+              onClick={() => !disabled && !isLoading && setIsOpen(true)}
+            >
+              <Input
+                value={cellValue}
+                readOnly
+                disabled={disabled || isLoading}
+                autoComplete='off'
+                className='w-full cursor-pointer border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
+              />
+              <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-[8px] font-medium font-sans text-sm'>
+                <span className='truncate'>{cellValue || 'Select tag'}</span>
               </div>
             </div>
+          </PopoverAnchor>
+          {tagDefinitions.length > 0 && (
+            <PopoverContent
+              side='bottom'
+              align='start'
+              sideOffset={4}
+              maxHeight={192}
+              className='w-[200px]'
+            >
+              <PopoverScrollArea>
+                {tagDefinitions.map((tag) => (
+                  <PopoverItem
+                    key={tag.id}
+                    onClick={() => {
+                      handleTagNameSelection(rowIndex, tag.displayName)
+                      setIsOpen(false)
+                    }}
+                  >
+                    <span className='flex-1 truncate'>{tag.displayName}</span>
+                    <span className='flex-shrink-0 rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground'>
+                      {FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}
+                    </span>
+                  </PopoverItem>
+                ))}
+              </PopoverScrollArea>
+            </PopoverContent>
           )}
-        </div>
+        </Popover>
+      </td>
+    )
+  }
+
+  /** Render operator cell */
+  const renderOperatorCell = (row: TagFilterRow, rowIndex: number) => {
+    const fieldType = row.cells.fieldType || 'text'
+    const operator = row.cells.operator || 'eq'
+    const operators = getOperatorsForFieldType(fieldType)
+
+    const operatorOptions: ComboboxOption[] = operators.map((op) => ({
+      value: op.value,
+      label: op.label,
+    }))
+
+    return (
+      <td className='border-r p-1'>
+        <Combobox
+          options={operatorOptions}
+          value={operator}
+          onChange={(value) => handleCellChange(rowIndex, 'operator', value)}
+          disabled={disabled || !row.cells.tagName}
+          placeholder='Operator'
+          size='sm'
+        />
       </td>
     )
   }
 
   const renderValueCell = (row: TagFilterRow, rowIndex: number) => {
     const cellValue = row.cells.value || ''
+    const fieldType = row.cells.fieldType || 'text'
+    const operator = row.cells.operator || 'eq'
+    const isBetween = operator === 'between'
+    const valueTo = row.cells.valueTo || ''
+    const isDisabled = disabled || !row.cells.tagName
+    const placeholder = getPlaceholderForFieldType(fieldType)
 
-    return (
-      <td className='p-1'>
-        <div className='relative w-full'>
-          <Input
-            value={cellValue}
-            onChange={(e) => {
-              const newValue = e.target.value
-              const cursorPosition = e.target.selectionStart ?? 0
+    // Single text input for all field types with variable support
+    const renderInput = (value: string, column: 'value' | 'valueTo') => (
+      <div className='relative w-full'>
+        <Input
+          value={value}
+          onChange={(e) => {
+            const newValue = e.target.value
+            const cursorPosition = e.target.selectionStart ?? 0
 
-              handleCellChange(rowIndex, 'value', newValue)
+            handleCellChange(rowIndex, column, newValue)
 
-              // Check for tag trigger
+            // Check for tag trigger (only for primary value input)
+            if (column === 'value') {
               const tagTrigger = checkTagTrigger(newValue, cursorPosition)
 
               setActiveTagDropdown({
@@ -302,52 +386,69 @@ export function KnowledgeTagFilters({
                 activeSourceBlockId: null,
                 element: e.target,
               })
-            }}
-            onFocus={(e) => {
-              if (!disabled) {
-                setActiveTagDropdown({
-                  rowIndex,
-                  showTags: false,
-                  cursorPosition: 0,
-                  activeSourceBlockId: null,
-                  element: e.target,
-                })
-              }
-            }}
-            onBlur={() => {
+            }
+          }}
+          onFocus={(e) => {
+            if (!isDisabled && column === 'value') {
+              setActiveTagDropdown({
+                rowIndex,
+                showTags: false,
+                cursorPosition: 0,
+                activeSourceBlockId: null,
+                element: e.target,
+              })
+            }
+          }}
+          onBlur={() => {
+            if (column === 'value') {
               setTimeout(() => setActiveTagDropdown(null), 200)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setActiveTagDropdown(null)
-              }
-            }}
-            disabled={disabled}
-            autoComplete='off'
-            className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
-          />
-          <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
-            <div className='whitespace-pre'>
-              {formatDisplayText(cellValue, {
-                accessiblePrefixes,
-                highlightAll: !accessiblePrefixes,
-              })}
-            </div>
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setActiveTagDropdown(null)
+            }
+          }}
+          disabled={isDisabled}
+          autoComplete='off'
+          placeholder={placeholder}
+          className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
+        />
+        <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-[8px] font-medium font-sans text-sm'>
+          <div className='whitespace-pre'>
+            {formatDisplayText(value || '', {
+              accessiblePrefixes,
+              highlightAll: !accessiblePrefixes,
+            })}
           </div>
         </div>
-      </td>
+      </div>
     )
+
+    // Render with optional "between" second input
+    if (isBetween) {
+      return (
+        <td className='p-1'>
+          <div className='flex items-center gap-1'>
+            {renderInput(cellValue, 'value')}
+            <span className='flex-shrink-0 text-muted-foreground text-xs'>to</span>
+            {renderInput(valueTo, 'valueTo')}
+          </div>
+        </td>
+      )
+    }
+
+    return <td className='p-1'>{renderInput(cellValue, 'value')}</td>
   }
 
   const renderDeleteButton = (rowIndex: number) => {
     const canDelete = !isPreview && !disabled
 
     return canDelete ? (
-      <td className='w-0 p-0'>
+      <td className='w-10 p-1'>
         <Button
           variant='ghost'
-          size='icon'
-          className='-translate-y-1/2 absolute top-1/2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100'
+          className='h-8 w-8 p-0 opacity-0 group-hover:opacity-100'
           onClick={() => handleDeleteRow(rowIndex)}
         >
           <Trash className='h-4 w-4 text-muted-foreground' />
@@ -369,6 +470,7 @@ export function KnowledgeTagFilters({
             {rows.map((row, rowIndex) => (
               <tr key={row.id} className='group relative border-t'>
                 {renderTagNameCell(row, rowIndex)}
+                {renderOperatorCell(row, rowIndex)}
                 {renderValueCell(row, rowIndex)}
                 {renderDeleteButton(rowIndex)}
               </tr>
@@ -400,7 +502,7 @@ export function KnowledgeTagFilters({
       {/* Add Filter Button */}
       {!isPreview && !disabled && (
         <div className='mt-3 flex items-center justify-between'>
-          <Button variant='outline' size='sm' onClick={handleAddRow} className='h-7 px-2 text-xs'>
+          <Button variant='outline' onClick={handleAddRow} className='h-7 px-2 text-xs'>
             <Plus className='mr-1 h-2.5 w-2.5' />
             Add Filter
           </Button>
