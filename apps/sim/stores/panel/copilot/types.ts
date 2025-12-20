@@ -39,6 +39,7 @@ export interface CopilotMessage {
   >
   fileAttachments?: MessageFileAttachment[]
   contexts?: ChatContext[]
+  errorType?: 'usage_limit' | 'unauthorized' | 'forbidden' | 'rate_limit' | 'upgrade_required'
 }
 
 // Contexts attached to a user message

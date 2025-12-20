@@ -9,6 +9,7 @@ import {
   SmoothStreamingText,
   StreamingIndicator,
   ThinkingBlock,
+  UsageLimitActions,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components'
 import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
 import {
@@ -456,6 +457,12 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
             {/* Streaming indicator when no content yet */}
             {!cleanTextContent && !message.contentBlocks?.length && isStreaming && (
               <StreamingIndicator />
+            )}
+
+            {message.errorType === 'usage_limit' && (
+              <div className='mt-3 flex gap-1.5'>
+                <UsageLimitActions />
+              </div>
             )}
 
             {/* Action buttons for completed messages */}
