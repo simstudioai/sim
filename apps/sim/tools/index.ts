@@ -17,6 +17,26 @@ import {
 const logger = createLogger('Tools')
 
 /**
+ * Normalizes a tool ID by stripping resource ID suffix (UUID).
+ * Workflow tools: 'workflow_executor_<uuid>' -> 'workflow_executor'
+ * Knowledge tools: 'knowledge_search_<uuid>' -> 'knowledge_search'
+ */
+function normalizeToolId(toolId: string): string {
+  // Check for workflow_executor_<uuid> pattern
+  if (toolId.startsWith('workflow_executor_') && toolId.length > 'workflow_executor_'.length) {
+    return 'workflow_executor'
+  }
+  // Check for knowledge_<operation>_<uuid> pattern
+  const knowledgeOps = ['knowledge_search', 'knowledge_upload_chunk', 'knowledge_create_document']
+  for (const op of knowledgeOps) {
+    if (toolId.startsWith(`${op}_`) && toolId.length > op.length + 1) {
+      return op
+    }
+  }
+  return toolId
+}
+
+/**
  * Maximum request body size in bytes before we warn/error about size limits.
  * Next.js 16 has a default middleware/proxy body limit of 10MB.
  */
@@ -186,20 +206,29 @@ export async function executeTool(
   try {
     let tool: ToolConfig | undefined
 
+    // Normalize tool ID to strip resource suffixes (e.g., workflow_executor_<uuid> -> workflow_executor)
+    const normalizedToolId = normalizeToolId(toolId)
+
     // If it's a custom tool, use the async version with workflowId
-    if (toolId.startsWith('custom_')) {
+    if (normalizedToolId.startsWith('custom_')) {
       const workflowId = params._context?.workflowId
-      tool = await getToolAsync(toolId, workflowId)
+      tool = await getToolAsync(normalizedToolId, workflowId)
       if (!tool) {
-        logger.error(`[${requestId}] Custom tool not found: ${toolId}`)
+        logger.error(`[${requestId}] Custom tool not found: ${normalizedToolId}`)
       }
-    } else if (toolId.startsWith('mcp-')) {
-      return await executeMcpTool(toolId, params, executionContext, requestId, startTimeISO)
+    } else if (normalizedToolId.startsWith('mcp-')) {
+      return await executeMcpTool(
+        normalizedToolId,
+        params,
+        executionContext,
+        requestId,
+        startTimeISO
+      )
     } else {
       // For built-in tools, use the synchronous version
-      tool = getTool(toolId)
+      tool = getTool(normalizedToolId)
       if (!tool) {
-        logger.error(`[${requestId}] Built-in tool not found: ${toolId}`)
+        logger.error(`[${requestId}] Built-in tool not found: ${normalizedToolId}`)
       }
     }
 
