@@ -1,4 +1,4 @@
-const MAX_STRING_LENGTH = 100000
+const MAX_STRING_LENGTH = 15000
 const MAX_DEPTH = 50
 
 function truncateString(value: string, maxLength = MAX_STRING_LENGTH): string {
