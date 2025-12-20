@@ -1664,3 +1664,51 @@ export const ssoProvider = pgTable(
     organizationIdIdx: index('sso_provider_organization_id_idx').on(table.organizationId),
   })
 )
+
+// Usage logging for tracking individual billable operations
+export const usageLogCategoryEnum = pgEnum('usage_log_category', ['model', 'fixed'])
+export const usageLogSourceEnum = pgEnum('usage_log_source', ['workflow', 'wand', 'copilot'])
+
+export const usageLog = pgTable(
+  'usage_log',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+
+    // Charge category: 'model' (token-based) or 'fixed' (flat fee)
+    category: usageLogCategoryEnum('category').notNull(),
+
+    // What generated this charge: 'workflow', 'wand', 'copilot'
+    source: usageLogSourceEnum('source').notNull(),
+
+    // For model charges: model name (e.g., 'gpt-4o', 'claude-4.5-opus')
+    // For fixed charges: charge type (e.g., 'execution_fee', 'search_query')
+    description: text('description').notNull(),
+
+    // Category-specific metadata (e.g., tokens for 'model' category)
+    metadata: jsonb('metadata'),
+
+    // Cost in USD
+    cost: decimal('cost').notNull(),
+
+    // Optional context references
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'set null' }),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
+    executionId: text('execution_id'),
+
+    // Timestamp
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Index for querying user's usage history (most common query)
+    userCreatedAtIdx: index('usage_log_user_created_at_idx').on(table.userId, table.createdAt),
+    // Index for filtering by source
+    sourceIdx: index('usage_log_source_idx').on(table.source),
+    // Index for workspace-specific queries
+    workspaceIdIdx: index('usage_log_workspace_id_idx').on(table.workspaceId),
+    // Index for workflow-specific queries
+    workflowIdIdx: index('usage_log_workflow_id_idx').on(table.workflowId),
+  })
+)
