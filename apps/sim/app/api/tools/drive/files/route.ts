@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -106,6 +107,14 @@ export async function GET(request: NextRequest) {
 
     if (!accessToken) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
+    }
+
+    if (folderId) {
+      const folderIdValidation = validateAlphanumericId(folderId, 'folderId', 50)
+      if (!folderIdValidation.isValid) {
+        logger.warn(`[${requestId}] Invalid folderId`, { error: folderIdValidation.error })
+        return NextResponse.json({ error: folderIdValidation.error }, { status: 400 })
+      }
     }
 
     const qParts: string[] = ['trashed = false']

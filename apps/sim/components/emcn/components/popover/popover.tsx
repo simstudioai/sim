@@ -60,7 +60,7 @@ import { cn } from '@/lib/core/utils/cn'
  * Uses fast transitions (duration-75) to prevent hover state "jumping" during rapid mouse movement.
  */
 const POPOVER_ITEM_BASE_CLASSES =
-  'flex h-[25px] min-w-0 cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-base text-[var(--text-primary)] text-[12px] transition-colors duration-75 dark:text-[var(--text-primary)] [&_svg]:transition-colors [&_svg]:duration-75 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed'
+  'flex h-[25px] min-w-0 cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-base text-[var(--text-primary)] text-[12px] transition-colors duration-75 dark:text-[var(--text-primary)] [&_svg]:transition-colors [&_svg]:duration-75'
 
 /**
  * Variant-specific active state styles for popover items.
@@ -247,6 +247,11 @@ export interface PopoverContentProps
    * @default false
    */
   border?: boolean
+  /**
+   * When true, the popover will flip to avoid collisions with viewport edges
+   * @default true
+   */
+  avoidCollisions?: boolean
 }
 
 /**
@@ -279,6 +284,7 @@ const PopoverContent = React.forwardRef<
       sideOffset,
       collisionPadding = 8,
       border = false,
+      avoidCollisions = true,
       ...restProps
     },
     ref
@@ -328,7 +334,7 @@ const PopoverContent = React.forwardRef<
         align={align}
         sideOffset={effectiveSideOffset}
         collisionPadding={collisionPadding}
-        avoidCollisions={true}
+        avoidCollisions={avoidCollisions}
         sticky='partial'
         onWheel={handleWheel}
         {...restProps}
@@ -425,7 +431,10 @@ export interface PopoverItemProps extends React.HTMLAttributes<HTMLDivElement> {
  * ```
  */
 const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
-  ({ className, active, rootOnly, disabled, showCheck = false, children, ...props }, ref) => {
+  (
+    { className, active, rootOnly, disabled, showCheck = false, children, onClick, ...props },
+    ref
+  ) => {
     // Try to get context - if not available, we're outside Popover (shouldn't happen)
     const context = React.useContext(PopoverContext)
     const variant = context?.variant || 'default'
@@ -435,18 +444,28 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
       return null
     }
 
+    const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+      if (disabled) {
+        e.stopPropagation()
+        return
+      }
+      onClick?.(e)
+    }
+
     return (
       <div
         className={cn(
           POPOVER_ITEM_BASE_CLASSES,
-          active ? POPOVER_ITEM_ACTIVE_CLASSES[variant] : POPOVER_ITEM_HOVER_CLASSES[variant],
-          disabled && 'pointer-events-none cursor-not-allowed opacity-50',
+          !disabled &&
+            (active ? POPOVER_ITEM_ACTIVE_CLASSES[variant] : POPOVER_ITEM_HOVER_CLASSES[variant]),
+          disabled && 'cursor-default opacity-50',
           className
         )}
         ref={ref}
         role='menuitem'
         aria-selected={active}
         aria-disabled={disabled}
+        onClick={handleClick}
         {...props}
       >
         {children}
@@ -707,8 +726,10 @@ const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
     }
 
     React.useEffect(() => {
+      setSearchQuery('')
+      onValueChange?.('')
       inputRef.current?.focus()
-    }, [])
+    }, [setSearchQuery, onValueChange])
 
     return (
       <div ref={ref} className={cn('flex items-center px-[8px] py-[6px]', className)} {...props}>

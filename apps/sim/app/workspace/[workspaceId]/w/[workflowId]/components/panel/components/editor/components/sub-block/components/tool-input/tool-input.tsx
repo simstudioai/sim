@@ -982,6 +982,11 @@ export function ToolInput({
     if (hasMultipleOperations(blockType)) {
       return false
     }
+    // Allow multiple instances for workflow and knowledge blocks
+    // Each instance can target a different workflow/knowledge base
+    if (blockType === 'workflow' || blockType === 'knowledge') {
+      return false
+    }
     return selectedTools.some((tool) => tool.toolId === toolId)
   }
 

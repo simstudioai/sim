@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { createPinnedUrl, validateUrlWithDNS } from '@/lib/core/security/input-validation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -18,7 +19,6 @@ export async function handleWhatsAppVerification(
   challenge: string | null
 ): Promise<NextResponse | null> {
   if (mode && token && challenge) {
-    // This is a WhatsApp verification request
     logger.info(`[${requestId}] WhatsApp verification request received for path: ${path}`)
 
     if (mode !== 'subscribe') {
@@ -26,13 +26,11 @@ export async function handleWhatsAppVerification(
       return new NextResponse('Invalid mode', { status: 400 })
     }
 
-    // Find all active WhatsApp webhooks
     const webhooks = await db
       .select()
       .from(webhook)
       .where(and(eq(webhook.provider, 'whatsapp'), eq(webhook.isActive, true)))
 
-    // Check if any webhook has a matching verification token
     for (const wh of webhooks) {
       const providerConfig = (wh.providerConfig as Record<string, any>) || {}
       const verificationToken = providerConfig.verificationToken
@@ -44,7 +42,6 @@ export async function handleWhatsAppVerification(
 
       if (token === verificationToken) {
         logger.info(`[${requestId}] WhatsApp verification successful for webhook ${wh.id}`)
-        // Return ONLY the challenge as plain text (exactly as WhatsApp expects)
         return new NextResponse(challenge, {
           status: 200,
           headers: {
@@ -73,6 +70,52 @@ export function handleSlackChallenge(body: any): NextResponse | null {
 }
 
 /**
+ * Fetches a URL with DNS pinning to prevent DNS rebinding attacks
+ * @param url - The URL to fetch
+ * @param accessToken - Authorization token (optional for pre-signed URLs)
+ * @param requestId - Request ID for logging
+ * @returns The fetch Response or null if validation fails
+ */
+async function fetchWithDNSPinning(
+  url: string,
+  accessToken: string,
+  requestId: string
+): Promise<Response | null> {
+  try {
+    const urlValidation = await validateUrlWithDNS(url, 'contentUrl')
+    if (!urlValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid content URL: ${urlValidation.error}`, {
+        url: url.substring(0, 100),
+      })
+      return null
+    }
+
+    const pinnedUrl = createPinnedUrl(url, urlValidation.resolvedIP!)
+
+    const headers: Record<string, string> = {
+      Host: urlValidation.originalHostname!,
+    }
+
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`
+    }
+
+    const response = await fetch(pinnedUrl, {
+      headers,
+      redirect: 'follow',
+    })
+
+    return response
+  } catch (error) {
+    logger.error(`[${requestId}] Error fetching URL with DNS pinning`, {
+      error: error instanceof Error ? error.message : String(error),
+      url: url.substring(0, 100),
+    })
+    return null
+  }
+}
+
+/**
  * Format Microsoft Teams Graph change notification
  */
 async function formatTeamsGraphNotification(
@@ -90,7 +133,6 @@ async function formatTeamsGraphNotification(
   const resource = notification.resource || ''
   const subscriptionId = notification.subscriptionId || ''
 
-  // Extract chatId and messageId from resource path
   let chatId: string | null = null
   let messageId: string | null = null
 
@@ -159,7 +201,6 @@ async function formatTeamsGraphNotification(
     []
   let accessToken: string | null = null
 
-  // Teams chat subscriptions require credentials
   if (!credentialId) {
     logger.error('Missing credentialId for Teams chat subscription', {
       chatId: resolvedChatId,
@@ -170,11 +211,9 @@ async function formatTeamsGraphNotification(
     })
   } else {
     try {
-      // Get userId from credential
       const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
       if (rows.length === 0) {
         logger.error('Teams credential not found', { credentialId, chatId: resolvedChatId })
-        // Continue without message data
       } else {
         const effectiveUserId = rows[0].userId
         accessToken = await refreshAccessTokenIfNeeded(
@@ -207,19 +246,20 @@ async function formatTeamsGraphNotification(
 
                 if (contentUrl.includes('sharepoint.com') || contentUrl.includes('onedrive')) {
                   try {
-                    const directRes = await fetch(contentUrl, {
-                      headers: { Authorization: `Bearer ${accessToken}` },
-                      redirect: 'follow',
-                    })
+                    const directRes = await fetchWithDNSPinning(
+                      contentUrl,
+                      accessToken,
+                      'teams-attachment'
+                    )
 
-                    if (directRes.ok) {
+                    if (directRes?.ok) {
                       const arrayBuffer = await directRes.arrayBuffer()
                       buffer = Buffer.from(arrayBuffer)
                       mimeType =
                         directRes.headers.get('content-type') ||
                         contentTypeHint ||
                         'application/octet-stream'
-                    } else {
+                    } else if (directRes) {
                       const encodedUrl = Buffer.from(contentUrl)
                         .toString('base64')
                         .replace(/\+/g, '-')
@@ -310,9 +350,13 @@ async function formatTeamsGraphNotification(
                       const downloadUrl = metadata['@microsoft.graph.downloadUrl']
 
                       if (downloadUrl) {
-                        const downloadRes = await fetch(downloadUrl)
+                        const downloadRes = await fetchWithDNSPinning(
+                          downloadUrl,
+                          '', // downloadUrl is a pre-signed URL, no auth needed
+                          'teams-onedrive-download'
+                        )
 
-                        if (downloadRes.ok) {
+                        if (downloadRes?.ok) {
                           const arrayBuffer = await downloadRes.arrayBuffer()
                           buffer = Buffer.from(arrayBuffer)
                           mimeType =
@@ -336,10 +380,12 @@ async function formatTeamsGraphNotification(
                   }
                 } else {
                   try {
-                    const ares = await fetch(contentUrl, {
-                      headers: { Authorization: `Bearer ${accessToken}` },
-                    })
-                    if (ares.ok) {
+                    const ares = await fetchWithDNSPinning(
+                      contentUrl,
+                      accessToken,
+                      'teams-attachment-generic'
+                    )
+                    if (ares?.ok) {
                       const arrayBuffer = await ares.arrayBuffer()
                       buffer = Buffer.from(arrayBuffer)
                       mimeType =
@@ -377,7 +423,6 @@ async function formatTeamsGraphNotification(
     }
   }
 
-  // If no message was fetched, return minimal data
   if (!message) {
     logger.warn('No message data available for Teams notification', {
       chatId: resolvedChatId,
@@ -413,8 +458,6 @@ async function formatTeamsGraphNotification(
     }
   }
 
-  // Extract data from message - we know it exists now
-  // body.content is the HTML/text content, summary is a plain text preview (max 280 chars)
   const messageText = message.body?.content || ''
   const from = message.from?.user || {}
   const createdAt = message.createdDateTime || ''

@@ -1,17 +1,17 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Switch } from '@/components/emcn'
-import { Skeleton } from '@/components/ui'
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  Label,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverSection,
+  PopoverTrigger,
+  Switch,
+} from '@/components/emcn'
+import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
 import { cn } from '@/lib/core/utils/cn'
@@ -270,7 +270,6 @@ export function Subscription() {
     }
   )
 
-  // UI state computed values
   const showBadge = permissions.canEditUsageLimit && !permissions.showTeamMemberView
   const badgeText = subscription.isFree ? 'Upgrade' : 'Increase Limit'
 
@@ -333,7 +332,7 @@ export function Subscription() {
             <PlanCard
               key='enterprise'
               name='Enterprise'
-              price={<span className='font-semibold text-xl'>Custom</span>}
+              price={<span className='font-semibold text-[20px]'>Custom</span>}
               priceSubtext={
                 layout === 'horizontal'
                   ? 'Custom solutions tailored to your enterprise needs'
@@ -458,7 +457,7 @@ export function Subscription() {
       {/* Enterprise Usage Limit Notice */}
       {subscription.isEnterprise && (
         <div className='text-center'>
-          <p className='text-[var(--text-muted)] text-xs'>
+          <p className='text-[12px] text-[var(--text-muted)]'>
             Contact enterprise for support usage limit changes
           </p>
         </div>
@@ -467,7 +466,7 @@ export function Subscription() {
       {/* Team Member Notice */}
       {permissions.showTeamMemberView && (
         <div className='text-center'>
-          <p className='text-[var(--text-muted)] text-xs'>
+          <p className='text-[12px] text-[var(--text-muted)]'>
             Contact your team admin to increase limits
           </p>
         </div>
@@ -534,72 +533,78 @@ export function Subscription() {
       {/* Next Billing Date */}
       {subscription.isPaid && subscriptionData?.data?.periodEnd && (
         <div className='flex items-center justify-between'>
-          <span className='font-medium text-[13px]'>Next Billing Date</span>
-          <span className='text-[13px] text-[var(--text-muted)]'>
+          <Label>Next Billing Date</Label>
+          <span className='text-[13px] text-[var(--text-secondary)]'>
             {new Date(subscriptionData.data.periodEnd).toLocaleDateString()}
           </span>
         </div>
       )}
 
-      {/* Billing usage notifications toggle */}
+      {/* Usage notifications */}
       {subscription.isPaid && <BillingUsageNotificationsToggle />}
 
       {/* Cancel Subscription */}
       {permissions.canCancelSubscription && (
-        <div className='mt-[8px]'>
-          <CancelSubscription
-            subscription={{
-              plan: subscription.plan,
-              status: subscription.status,
-              isPaid: subscription.isPaid,
-            }}
-            subscriptionData={{
-              periodEnd: subscriptionData?.data?.periodEnd || null,
-              cancelAtPeriodEnd: subscriptionData?.data?.cancelAtPeriodEnd,
-            }}
-          />
-        </div>
+        <CancelSubscription
+          subscription={{
+            plan: subscription.plan,
+            status: subscription.status,
+            isPaid: subscription.isPaid,
+          }}
+          subscriptionData={{
+            periodEnd: subscriptionData?.data?.periodEnd || null,
+            cancelAtPeriodEnd: subscriptionData?.data?.cancelAtPeriodEnd,
+          }}
+        />
       )}
 
-      {/* Workspace API Billing Settings */}
+      {/* Billed Account for Workspace */}
       {canManageWorkspaceKeys && (
-        <div className='mt-[24px] flex items-center justify-between'>
-          <span className='font-medium text-[13px]'>Billed Account for Workspace</span>
+        <div className='flex items-center justify-between'>
+          <Label>Billed Account for Workspace</Label>
           {isWorkspaceLoading ? (
             <Skeleton className='h-8 w-[200px] rounded-[6px]' />
           ) : workspaceAdmins.length === 0 ? (
-            <div className='rounded-[6px] border border-dashed px-3 py-1.5 text-[var(--text-muted)] text-xs'>
+            <div className='rounded-[6px] border border-dashed px-3 py-1.5 text-[12px] text-[var(--text-muted)]'>
               No admin members available
             </div>
           ) : (
-            <Select
-              value={billedAccountUserId ?? ''}
-              onValueChange={async (value) => {
-                if (value === billedAccountUserId) return
-                try {
-                  await updateWorkspaceSettings({ billedAccountUserId: value })
-                } catch (error) {
-                  // Error is already logged in updateWorkspaceSettings
-                }
-              }}
-              disabled={!canManageWorkspaceKeys || updateWorkspaceMutation.isPending}
-            >
-              <SelectTrigger className='h-8 w-[200px] justify-between text-left text-xs'>
-                <SelectValue placeholder='Select admin' />
-              </SelectTrigger>
-              <SelectContent align='start' className='z-[10000050]'>
-                <SelectGroup>
-                  <SelectLabel className='px-3 py-1 text-[11px] text-[var(--text-muted)] uppercase'>
-                    Workspace admins
-                  </SelectLabel>
-                  {workspaceAdmins.map((admin: any) => (
-                    <SelectItem key={admin.userId} value={admin.userId} className='py-1 text-xs'>
-                      {admin.email}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  className='flex h-8 w-[200px] items-center justify-between gap-2 rounded-[6px] border border-[var(--border)] bg-transparent px-3 text-left text-[13px] transition-colors hover:bg-[var(--surface-3)] disabled:pointer-events-none disabled:opacity-50'
+                  disabled={!canManageWorkspaceKeys || updateWorkspaceMutation.isPending}
+                >
+                  <span className='flex-1 truncate text-[var(--text-primary)]'>
+                    {billedAccountUserId
+                      ? workspaceAdmins.find((admin: any) => admin.userId === billedAccountUserId)
+                          ?.email || 'Select admin'
+                      : 'Select admin'}
+                  </span>
+                  <ChevronDown className='h-3 w-3 shrink-0 text-[var(--text-secondary)]' />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align='end' minWidth={200} border>
+                <PopoverSection>Workspace admins</PopoverSection>
+                {workspaceAdmins.map((admin: any) => (
+                  <PopoverItem
+                    key={admin.userId}
+                    active={billedAccountUserId === admin.userId}
+                    showCheck
+                    onClick={async () => {
+                      if (admin.userId === billedAccountUserId) return
+                      try {
+                        await updateWorkspaceSettings({ billedAccountUserId: admin.userId })
+                      } catch (error) {
+                        // Error is already logged in updateWorkspaceSettings
+                      }
+                    }}
+                  >
+                    <span className='flex-1 truncate'>{admin.email}</span>
+                  </PopoverItem>
+                ))}
+              </PopoverContent>
+            </Popover>
           )}
         </div>
       )}
@@ -614,11 +619,14 @@ function BillingUsageNotificationsToggle() {
 
   return (
     <div className='flex items-center justify-between'>
-      <div className='flex flex-col'>
-        <span className='font-medium text-[13px]'>Usage notifications</span>
-        <span className='text-[var(--text-muted)] text-xs'>Email me when I reach 80% usage</span>
+      <div className='flex flex-col gap-[2px]'>
+        <Label htmlFor='usage-notifications'>Usage notifications</Label>
+        <span className='text-[12px] text-[var(--text-muted)]'>
+          Email me when I reach 80% usage
+        </span>
       </div>
       <Switch
+        id='usage-notifications'
         checked={!!enabled}
         disabled={isLoading}
         onCheckedChange={(v: boolean) => {

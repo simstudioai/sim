@@ -239,6 +239,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     traceSpans?: TraceSpan[]
     workflowInput?: any
     isResume?: boolean // If true, merge with existing data instead of replacing
+    level?: 'info' | 'error' // Optional override for log level (used in cost-only fallback)
   }): Promise<WorkflowExecutionLog> {
     const {
       executionId,
@@ -249,6 +250,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       traceSpans,
       workflowInput,
       isResume,
+      level: levelOverride,
     } = params
 
     logger.debug(`Completing workflow execution ${executionId}`, { isResume })
@@ -265,6 +267,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     }
 
     // Determine if workflow failed by checking trace spans for errors
+    // Use the override if provided (for cost-only fallback scenarios)
     const hasErrors = traceSpans?.some((span: any) => {
       const checkSpanForErrors = (s: any): boolean => {
         if (s.status === 'error') return true
@@ -276,7 +279,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       return checkSpanForErrors(span)
     })
 
-    const level = hasErrors ? 'error' : 'info'
+    const level = levelOverride ?? (hasErrors ? 'error' : 'info')
 
     // Extract files from trace spans, final output, and workflow input
     const executionFiles = this.extractFilesFromExecution(traceSpans, finalOutput, workflowInput)
