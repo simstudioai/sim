@@ -211,7 +211,7 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
           >
             {/* Subflow Start */}
             <div
-              className='absolute top-[16px] left-[16px] flex items-center justify-center rounded-[8px] bg-[var(--surface-2)] px-[12px] py-[6px]'
+              className='absolute top-[16px] left-[16px] flex items-center justify-center rounded-[8px] border border-[var(--divider)] bg-[var(--surface-2)] px-[12px] py-[6px]'
               style={{ pointerEvents: isPreview ? 'none' : 'auto' }}
               data-parent-id={id}
               data-node-role={`${data.kind}-start`}
