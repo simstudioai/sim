@@ -29,7 +29,7 @@ export interface SessionCompleteParams {
   endedAt?: string
   totalDurationMs?: number
   finalOutput?: any
-  traceSpans?: any[]
+  traceSpans?: TraceSpan[]
   workflowInput?: any
 }
 
@@ -336,6 +336,7 @@ export class LoggingSession {
         endedAt: params.endedAt,
         totalDurationMs: params.totalDurationMs,
         errorMessage: 'Trace spans too large to store',
+        isError: false,
       })
     }
   }
@@ -349,6 +350,7 @@ export class LoggingSession {
         endedAt: params?.endedAt,
         totalDurationMs: params?.totalDurationMs,
         errorMessage: params?.error?.message || 'Execution failed, trace spans too large to store',
+        isError: true,
       })
     }
   }
@@ -358,6 +360,7 @@ export class LoggingSession {
     endedAt?: string
     totalDurationMs?: number
     errorMessage: string
+    isError: boolean
   }): Promise<void> {
     logger.warn(
       `[${this.requestId || 'unknown'}] Logging completion failed for execution ${this.executionId} - attempting cost-only fallback`
@@ -386,6 +389,7 @@ export class LoggingSession {
         finalOutput: { _fallback: true, error: params.errorMessage },
         traceSpans: [],
         isResume: this.isResume,
+        level: params.isError ? 'error' : 'info',
       })
 
       logger.info(
