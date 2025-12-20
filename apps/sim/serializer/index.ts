@@ -400,6 +400,24 @@ export class Serializer {
       allValues[id] = subBlock.value
     })
 
+    // Apply default values to allValues before condition evaluation
+    // This ensures that fields with default value functions (like dropdowns)
+    // have their defaults applied when evaluating conditions for other fields
+    blockConfig.subBlocks.forEach((subBlockConfig) => {
+      const id = subBlockConfig.id
+      if (
+        (allValues[id] === null || allValues[id] === undefined) &&
+        subBlockConfig.value &&
+        shouldIncludeField(subBlockConfig, isAdvancedMode)
+      ) {
+        try {
+          allValues[id] = subBlockConfig.value(allValues)
+        } catch {
+          // If the default value function fails, keep the original value
+        }
+      }
+    })
+
     // Second pass: filter by mode and conditions
     Object.entries(block.subBlocks).forEach(([id, subBlock]) => {
       const matchingConfigs = blockConfig.subBlocks.filter((config) => config.id === id)

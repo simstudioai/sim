@@ -992,6 +992,46 @@ describe('Serializer', () => {
     })
 
     it.concurrent(
+      'should include conditional fields when condition field has default value but null stored value',
+      () => {
+        const serializer = new Serializer()
+
+        // This simulates the cursor block scenario where:
+        // - operation has a default value function: () => 'cursor_launch_agent'
+        // - branchName has condition: { field: 'operation', value: 'cursor_launch_agent' }
+        // - But operation's stored value is null (user never changed the dropdown)
+        // We'll use slack block which has similar conditional field behavior
+        const slackBlockWithNullChannel: any = {
+          id: 'slack-1',
+          type: 'slack',
+          name: 'Slack',
+          position: { x: 0, y: 0 },
+          advancedMode: false,
+          subBlocks: {
+            channel: { value: 'general' }, // This simulates the 'operation' dropdown
+            text: { value: 'Hello world' }, // This has a condition on channel
+            // manualChannel would be null as it's in advanced mode
+          },
+          outputs: {},
+          enabled: true,
+        }
+
+        const serialized = serializer.serializeWorkflow(
+          { 'slack-1': slackBlockWithNullChannel },
+          [],
+          {}
+        )
+
+        const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
+        expect(slackBlock).toBeDefined()
+
+        // Both fields should be included since channel (the condition field) has a value
+        expect(slackBlock?.config.params.channel).toBe('general')
+        expect(slackBlock?.config.params.text).toBe('Hello world')
+      }
+    )
+
+    it.concurrent(
       'should preserve legacy agent fields (systemPrompt, userPrompt, memories) for backward compatibility',
       () => {
         const serializer = new Serializer()
