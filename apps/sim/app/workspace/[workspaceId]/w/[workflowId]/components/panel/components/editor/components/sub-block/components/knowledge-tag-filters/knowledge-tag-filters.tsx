@@ -216,7 +216,14 @@ export function KnowledgeTagFilters({
   }
 
   const handleDeleteRow = (rowIndex: number) => {
-    if (isPreview || disabled || rows.length <= 1) return
+    if (isPreview || disabled) return
+
+    if (rows.length <= 1) {
+      // Clear the single row instead of deleting
+      setStoreValue(null)
+      return
+    }
+
     const updatedRows = rows.filter((_, idx) => idx !== rowIndex)
     updateFilters(rowsToFilters(updatedRows))
   }
@@ -385,19 +392,19 @@ export function KnowledgeTagFilters({
   }
 
   const renderDeleteButton = (rowIndex: number) => {
-    const canDelete = !isPreview && !disabled && rows.length > 1
+    if (isPreview || disabled) return null
 
-    return canDelete ? (
+    return (
       <td className='w-0 p-0'>
         <Button
           variant='ghost'
-          className='-translate-y-1/2 absolute top-1/2 right-[8px] opacity-0 transition-opacity group-hover:opacity-100'
+          className='-translate-y-1/2 absolute top-1/2 right-[8px] transition-opacity'
           onClick={() => handleDeleteRow(rowIndex)}
         >
           <Trash className='h-[14px] w-[14px]' />
         </Button>
       </td>
-    ) : null
+    )
   }
 
   if (isLoading) {

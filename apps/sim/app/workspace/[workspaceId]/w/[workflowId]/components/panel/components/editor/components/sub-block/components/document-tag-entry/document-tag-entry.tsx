@@ -1,18 +1,9 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef } from 'react'
 import { Plus } from 'lucide-react'
-import {
-  Button,
-  Input,
-  Label,
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverItem,
-  PopoverScrollArea,
-  Trash,
-} from '@/components/emcn'
+import { Button, Combobox, type ComboboxOption, Label, Trash } from '@/components/emcn'
+import { Input } from '@/components/ui/input'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
@@ -73,9 +64,6 @@ export function DocumentTagEntry({
   const { tagDefinitions, isLoading } = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
 
   const emitTagSelection = useTagSelection(blockId, subBlock.id)
-
-  // State for tag name dropdown visibility - one for each row
-  const [dropdownStates, setDropdownStates] = useState<Record<number, boolean>>({})
 
   // Use preview value when in preview mode, otherwise use store value
   const currentValue = isPreview ? previewValue : storeValue
@@ -194,7 +182,13 @@ export function DocumentTagEntry({
   }
 
   const handleDeleteRow = (rowIndex: number) => {
-    if (isPreview || disabled || rows.length <= 1) return
+    if (isPreview || disabled) return
+
+    if (rows.length <= 1) {
+      // Clear the single row instead of deleting
+      setStoreValue('')
+      return
+    }
 
     const updatedRows = rows.filter((_, idx) => idx !== rowIndex)
     const tableDataForStorage = updatedRows.map((row) => ({
@@ -227,88 +221,55 @@ export function DocumentTagEntry({
 
   if (tagDefinitions.length === 0) {
     return (
-      <div className='rounded-md border p-4 text-center text-muted-foreground text-sm'>
-        No tags defined for this knowledge base.
-        <br />
-        Define tags at the knowledge base level first.
+      <div className='flex h-32 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
+        <div className='text-center'>
+          <p className='font-medium text-[var(--text-secondary)] text-sm'>
+            No tags defined for this knowledge base
+          </p>
+          <p className='mt-1 text-[var(--text-muted)] text-xs'>
+            Define tags at the knowledge base level first
+          </p>
+        </div>
       </div>
     )
   }
 
   const renderHeader = () => (
-    <thead>
-      <tr className='border-b'>
-        <th className='w-2/5 border-r px-4 py-2 text-center font-medium text-sm'>Tag</th>
-        <th className='border-r px-4 py-2 text-center font-medium text-sm'>Value</th>
-        <th className='w-10' />
+    <thead className='bg-transparent'>
+      <tr className='border-[var(--border-strong)] border-b bg-transparent'>
+        <th className='w-[50%] min-w-0 border-[var(--border-strong)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
+          Tag
+        </th>
+        <th className='w-[50%] min-w-0 bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
+          Value
+        </th>
       </tr>
     </thead>
   )
 
   const renderTagNameCell = (row: DocumentTagRow, rowIndex: number) => {
     const cellValue = row.cells.tagName || ''
-    const isOpen = dropdownStates[rowIndex] || false
-
-    const setIsOpen = (open: boolean) => {
-      setDropdownStates((prev) => ({ ...prev, [rowIndex]: open }))
-    }
 
     // Show tags that are either available OR currently selected for this row
     const selectableTags = tagDefinitions.filter(
       (def) => def.displayName === cellValue || !usedTagNames.has(def.displayName.toLowerCase())
     )
 
+    const tagOptions: ComboboxOption[] = selectableTags.map((tag) => ({
+      value: tag.displayName,
+      label: `${tag.displayName} (${FIELD_TYPE_LABELS[tag.fieldType] || 'Text'})`,
+    }))
+
     return (
-      <td className='relative border-r p-1'>
-        <Popover open={isOpen} onOpenChange={setIsOpen}>
-          <PopoverAnchor asChild>
-            <div
-              className='relative w-full cursor-pointer'
-              onClick={() => !disabled && setIsOpen(true)}
-            >
-              <Input
-                value={cellValue}
-                readOnly
-                disabled={disabled}
-                autoComplete='off'
-                placeholder='Select tag'
-                className='w-full cursor-pointer border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-              <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-[8px] font-medium font-sans text-sm'>
-                <span className='truncate'>
-                  {cellValue || <span className='text-muted-foreground/50'>Select tag</span>}
-                </span>
-              </div>
-            </div>
-          </PopoverAnchor>
-          {selectableTags.length > 0 && (
-            <PopoverContent
-              side='bottom'
-              align='start'
-              sideOffset={4}
-              maxHeight={192}
-              className='w-[200px]'
-            >
-              <PopoverScrollArea>
-                {selectableTags.map((tagDef) => (
-                  <PopoverItem
-                    key={tagDef.id}
-                    active={tagDef.displayName === cellValue}
-                    onClick={() => {
-                      handleTagSelection(rowIndex, tagDef.displayName)
-                      setIsOpen(false)
-                    }}
-                  >
-                    <span className='flex-1 truncate'>{tagDef.displayName}</span>
-                    <span className='flex-shrink-0 rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground'>
-                      {FIELD_TYPE_LABELS[tagDef.fieldType] || 'Text'}
-                    </span>
-                  </PopoverItem>
-                ))}
-              </PopoverScrollArea>
-            </PopoverContent>
-          )}
-        </Popover>
+      <td className='relative min-w-0 overflow-hidden border-[var(--border-strong)] border-r bg-transparent p-0'>
+        <Combobox
+          options={tagOptions}
+          value={cellValue}
+          onChange={(value) => handleTagSelection(rowIndex, value)}
+          disabled={disabled || isLoading}
+          placeholder='Select tag'
+          className='!border-0 !bg-transparent hover:!bg-transparent px-[10px] py-[8px] font-medium text-sm leading-[21px] focus-visible:ring-0 focus-visible:ring-offset-0 [&>span]:truncate'
+        />
       </td>
     )
   }
@@ -333,7 +294,7 @@ export function DocumentTagEntry({
     )
 
     return (
-      <td className='p-1'>
+      <td className='relative min-w-0 overflow-hidden bg-transparent p-0'>
         <div className='relative w-full'>
           <Input
             ref={(el) => {
@@ -347,10 +308,10 @@ export function DocumentTagEntry({
             disabled={disabled || !isTagSelected}
             autoComplete='off'
             placeholder={isTagSelected ? placeholder : 'Select a tag first'}
-            className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='w-full border-0 bg-transparent px-[10px] py-[8px] font-medium text-sm text-transparent leading-[21px] caret-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
           />
-          <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-[8px] font-medium font-sans text-sm'>
-            <div className='whitespace-pre'>
+          <div className='scrollbar-hide pointer-events-none absolute top-0 right-[10px] bottom-0 left-[10px] overflow-x-auto overflow-y-hidden bg-transparent'>
+            <div className='whitespace-pre py-[8px] font-medium text-[var(--text-primary)] text-sm leading-[21px]'>
               {formatDisplayText(cellValue, {
                 accessiblePrefixes,
                 highlightAll: !accessiblePrefixes,
@@ -379,29 +340,32 @@ export function DocumentTagEntry({
   }
 
   const renderDeleteButton = (rowIndex: number) => {
-    const canDelete = !isPreview && !disabled
+    if (isPreview || disabled) return null
 
-    return canDelete ? (
-      <td className='w-10 p-1'>
+    return (
+      <td className='w-0 p-0'>
         <Button
           variant='ghost'
-          className='h-8 w-8 p-0 opacity-0 group-hover:opacity-100'
+          className='-translate-y-1/2 absolute top-1/2 right-[8px] transition-opacity'
           onClick={() => handleDeleteRow(rowIndex)}
         >
-          <Trash className='h-4 w-4 text-muted-foreground' />
+          <Trash className='h-[14px] w-[14px]' />
         </Button>
       </td>
-    ) : null
+    )
   }
 
   return (
-    <div className='relative'>
-      <div className='overflow-visible rounded-md border'>
-        <table className='w-full'>
+    <div className='relative w-full'>
+      <div className='overflow-hidden rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-2)] dark:bg-[#1F1F1F]'>
+        <table className='w-full table-fixed bg-transparent'>
           {renderHeader()}
-          <tbody>
+          <tbody className='bg-transparent'>
             {rows.map((row, rowIndex) => (
-              <tr key={row.id} className='group relative border-t'>
+              <tr
+                key={row.id}
+                className='group relative border-[var(--border-strong)] border-t bg-transparent'
+              >
                 {renderTagNameCell(row, rowIndex)}
                 {renderValueCell(row, rowIndex)}
                 {renderDeleteButton(rowIndex)}
@@ -411,15 +375,10 @@ export function DocumentTagEntry({
         </table>
       </div>
 
-      {/* Add Row Button */}
+      {/* Add Tag Button */}
       {!isPreview && !disabled && (
         <div className='mt-3'>
-          <Button
-            variant='outline'
-            onClick={handleAddRow}
-            disabled={!canAddMoreTags}
-            className='h-7 px-2 text-xs'
-          >
+          <Button onClick={handleAddRow} disabled={!canAddMoreTags} className='h-7 px-2 text-xs'>
             <Plus className='mr-1 h-2.5 w-2.5' />
             Add Tag
           </Button>
