@@ -50,6 +50,24 @@ function getSourceHandleYOffset(block: BlockState, sourceHandle?: string | null)
     }
   }
 
+  if (block.type === 'router' && sourceHandle?.startsWith('router-')) {
+    const routeId = sourceHandle.replace('router-', '')
+    try {
+      const routesValue = block.subBlocks?.routes?.value
+      if (typeof routesValue === 'string' && routesValue) {
+        const routes = JSON.parse(routesValue) as Array<{ id?: string }>
+        const routeIndex = routes.findIndex((r) => r.id === routeId)
+        if (routeIndex >= 0) {
+          return (
+            HANDLE_POSITIONS.CONDITION_START_Y + routeIndex * HANDLE_POSITIONS.CONDITION_ROW_HEIGHT
+          )
+        }
+      }
+    } catch {
+      // Fall back to default offset
+    }
+  }
+
   return HANDLE_POSITIONS.DEFAULT_Y_OFFSET
 }
 

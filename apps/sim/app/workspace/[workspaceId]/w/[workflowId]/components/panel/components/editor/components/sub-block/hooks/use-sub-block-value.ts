@@ -95,8 +95,7 @@ export function useSubBlockValue<T = any>(
   )
 
   // Determine if this is a provider-based block type
-  const isProviderBasedBlock =
-    blockType === 'agent' || blockType === 'router' || blockType === 'evaluator'
+  const isProviderBasedBlock = blockType === 'agent' || blockType === 'evaluator'
 
   // Compute the modelValue based on block type
   const modelValue = isProviderBasedBlock ? (modelSubBlockValue as string) : null

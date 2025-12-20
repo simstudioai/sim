@@ -102,7 +102,7 @@ function getModelForBlock(log: BlockLog): string {
 
   // Use block type specific defaults
   const blockType = log.blockType
-  if (blockType === 'agent' || blockType === 'router' || blockType === 'evaluator') {
+  if (blockType === 'agent' || blockType === 'evaluator') {
     return TOKENIZATION_CONFIG.defaults.model
   }
 

@@ -1,20 +1,21 @@
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateRouterPrompt } from '@/blocks/blocks/router'
 import type { BlockOutput } from '@/blocks/types'
-import { BlockType, DEFAULTS, HTTP, isAgentBlockType, ROUTER } from '@/executor/constants'
+import { BlockType, DEFAULTS, EDGE } from '@/executor/constants'
+import { evaluateConditionExpression } from '@/executor/handlers/condition/condition-handler'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
-import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('RouterBlockHandler')
 
+const ROUTER = {
+  ELSE_TITLE: 'else',
+} as const
+
 /**
- * Handler for Router blocks that dynamically select execution paths.
+ * Handler for Router blocks that evaluate conditions to determine execution paths.
+ * Works similarly to the ConditionBlockHandler but with router-specific logic.
  */
 export class RouterBlockHandler implements BlockHandler {
-  constructor(private pathTracker?: any) {}
-
   canHandle(block: SerializedBlock): boolean {
     return block.metadata?.id === BlockType.ROUTER
   }
@@ -24,132 +25,131 @@ export class RouterBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<BlockOutput> {
-    const targetBlocks = this.getTargetBlocks(ctx, block)
+    const routes = this.parseRoutes(inputs.routes)
 
-    const routerConfig = {
-      prompt: inputs.prompt,
-      model: inputs.model || ROUTER.DEFAULT_MODEL,
-      apiKey: inputs.apiKey,
+    const sourceBlockId = ctx.workflow?.connections.find((conn) => conn.target === block.id)?.source
+    const evalContext = this.buildEvaluationContext(ctx, sourceBlockId)
+    const sourceOutput = sourceBlockId ? ctx.blockStates.get(sourceBlockId)?.output : null
+
+    const outgoingConnections = ctx.workflow?.connections.filter((conn) => conn.source === block.id)
+
+    const { selectedConnection, selectedRoute } = await this.evaluateRoutes(
+      routes,
+      outgoingConnections || [],
+      evalContext,
+      ctx
+    )
+
+    if (!selectedConnection || !selectedRoute) {
+      return {
+        ...((sourceOutput as any) || {}),
+        conditionResult: false,
+        selectedPath: null,
+        selectedOption: null,
+      }
     }
 
-    const providerId = getProviderFromModel(routerConfig.model)
+    const targetBlock = ctx.workflow?.blocks.find((b) => b.id === selectedConnection?.target)
+    if (!targetBlock) {
+      throw new Error(`Target block ${selectedConnection?.target} not found`)
+    }
 
-    try {
-      const url = new URL('/api/providers', getBaseUrl())
+    const decisionKey = ctx.currentVirtualBlockId || block.id
+    ctx.decisions.router.set(decisionKey, selectedRoute.id)
 
-      const messages = [{ role: 'user', content: routerConfig.prompt }]
-      const systemPrompt = generateRouterPrompt(routerConfig.prompt, targetBlocks)
-      const providerRequest = {
-        provider: providerId,
-        model: routerConfig.model,
-        systemPrompt: systemPrompt,
-        context: JSON.stringify(messages),
-        temperature: ROUTER.INFERENCE_TEMPERATURE,
-        apiKey: routerConfig.apiKey,
-        workflowId: ctx.workflowId,
-      }
-
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: {
-          'Content-Type': HTTP.CONTENT_TYPE.JSON,
-        },
-        body: JSON.stringify(providerRequest),
-      })
-
-      if (!response.ok) {
-        let errorMessage = `Provider API request failed with status ${response.status}`
-        try {
-          const errorData = await response.json()
-          if (errorData.error) {
-            errorMessage = errorData.error
-          }
-        } catch (_e) {}
-        throw new Error(errorMessage)
-      }
-
-      const result = await response.json()
-
-      const chosenBlockId = result.content.trim().toLowerCase()
-      const chosenBlock = targetBlocks?.find((b) => b.id === chosenBlockId)
-
-      if (!chosenBlock) {
-        logger.error(
-          `Invalid routing decision. Response content: "${result.content}", available blocks:`,
-          targetBlocks?.map((b) => ({ id: b.id, title: b.title })) || []
-        )
-        throw new Error(`Invalid routing decision: ${chosenBlockId}`)
-      }
-
-      const tokens = result.tokens || {
-        prompt: DEFAULTS.TOKENS.PROMPT,
-        completion: DEFAULTS.TOKENS.COMPLETION,
-        total: DEFAULTS.TOKENS.TOTAL,
-      }
-
-      const cost = calculateCost(
-        result.model,
-        tokens.prompt || DEFAULTS.TOKENS.PROMPT,
-        tokens.completion || DEFAULTS.TOKENS.COMPLETION,
-        false
-      )
-
-      return {
-        prompt: inputs.prompt,
-        model: result.model,
-        tokens: {
-          prompt: tokens.prompt || DEFAULTS.TOKENS.PROMPT,
-          completion: tokens.completion || DEFAULTS.TOKENS.COMPLETION,
-          total: tokens.total || DEFAULTS.TOKENS.TOTAL,
-        },
-        cost: {
-          input: cost.input,
-          output: cost.output,
-          total: cost.total,
-        },
-        selectedPath: {
-          blockId: chosenBlock.id,
-          blockType: chosenBlock.type || DEFAULTS.BLOCK_TYPE,
-          blockTitle: chosenBlock.title || DEFAULTS.BLOCK_TITLE,
-        },
-        selectedRoute: String(chosenBlock.id),
-      } as BlockOutput
-    } catch (error) {
-      logger.error('Router execution failed:', error)
-      throw error
+    return {
+      ...((sourceOutput as any) || {}),
+      conditionResult: true,
+      selectedPath: {
+        blockId: targetBlock.id,
+        blockType: targetBlock.metadata?.id || DEFAULTS.BLOCK_TYPE,
+        blockTitle: targetBlock.metadata?.name || DEFAULTS.BLOCK_TITLE,
+      },
+      selectedOption: selectedRoute.id,
     }
   }
 
-  private getTargetBlocks(ctx: ExecutionContext, block: SerializedBlock) {
-    return ctx.workflow?.connections
-      .filter((conn) => conn.source === block.id)
-      .map((conn) => {
-        const targetBlock = ctx.workflow?.blocks.find((b) => b.id === conn.target)
-        if (!targetBlock) {
-          throw new Error(`Target block ${conn.target} not found`)
+  private parseRoutes(input: any): Array<{ id: string; title: string; value: string }> {
+    try {
+      const routes = Array.isArray(input) ? input : JSON.parse(input || '[]')
+      return routes
+    } catch (error: any) {
+      logger.error('Failed to parse routes:', { input, error })
+      throw new Error(`Invalid routes format: ${error.message}`)
+    }
+  }
+
+  private buildEvaluationContext(
+    ctx: ExecutionContext,
+    sourceBlockId?: string
+  ): Record<string, any> {
+    let evalContext: Record<string, any> = {}
+
+    if (sourceBlockId) {
+      const sourceOutput = ctx.blockStates.get(sourceBlockId)?.output
+      if (sourceOutput && typeof sourceOutput === 'object' && sourceOutput !== null) {
+        evalContext = {
+          ...evalContext,
+          ...sourceOutput,
         }
+      }
+    }
 
-        let systemPrompt = ''
-        if (isAgentBlockType(targetBlock.metadata?.id)) {
-          systemPrompt =
-            targetBlock.config?.params?.systemPrompt || targetBlock.inputs?.systemPrompt || ''
+    return evalContext
+  }
 
-          if (!systemPrompt && targetBlock.inputs) {
-            systemPrompt = targetBlock.inputs.systemPrompt || ''
+  private async evaluateRoutes(
+    routes: Array<{ id: string; title: string; value: string }>,
+    outgoingConnections: Array<{ source: string; target: string; sourceHandle?: string }>,
+    evalContext: Record<string, any>,
+    ctx: ExecutionContext
+  ): Promise<{
+    selectedConnection: { target: string; sourceHandle?: string } | null
+    selectedRoute: { id: string; title: string; value: string } | null
+  }> {
+    for (const route of routes) {
+      if (route.title === ROUTER.ELSE_TITLE) {
+        const connection = this.findConnectionForRoute(outgoingConnections, route.id)
+        if (connection) {
+          return { selectedConnection: connection, selectedRoute: route }
+        }
+        continue
+      }
+
+      const routeValueString = String(route.value || '')
+      try {
+        const conditionMet = await evaluateConditionExpression(ctx, routeValueString, evalContext)
+
+        if (conditionMet) {
+          const connection = this.findConnectionForRoute(outgoingConnections, route.id)
+          if (connection) {
+            return { selectedConnection: connection, selectedRoute: route }
           }
+          // Condition is true but has no outgoing edge - branch ends gracefully
+          return { selectedConnection: null, selectedRoute: null }
         }
+      } catch (error: any) {
+        logger.error(`Failed to evaluate route "${route.title}": ${error.message}`)
+        throw new Error(`Evaluation error in route "${route.title}": ${error.message}`)
+      }
+    }
 
-        return {
-          id: targetBlock.id,
-          type: targetBlock.metadata?.id,
-          title: targetBlock.metadata?.name,
-          description: targetBlock.metadata?.description,
-          subBlocks: {
-            ...targetBlock.config.params,
-            systemPrompt: systemPrompt,
-          },
-          currentState: ctx.blockStates.get(targetBlock.id)?.output,
-        }
-      })
+    const elseRoute = routes.find((r) => r.title === ROUTER.ELSE_TITLE)
+    if (elseRoute) {
+      const elseConnection = this.findConnectionForRoute(outgoingConnections, elseRoute.id)
+      if (elseConnection) {
+        return { selectedConnection: elseConnection, selectedRoute: elseRoute }
+      }
+      return { selectedConnection: null, selectedRoute: null }
+    }
+
+    return { selectedConnection: null, selectedRoute: null }
+  }
+
+  private findConnectionForRoute(
+    connections: Array<{ source: string; target: string; sourceHandle?: string }>,
+    routeId: string
+  ): { target: string; sourceHandle?: string } | undefined {
+    return connections.find((conn) => conn.sourceHandle === `${EDGE.ROUTER_PREFIX}${routeId}`)
   }
 }

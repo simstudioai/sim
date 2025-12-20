@@ -19,10 +19,16 @@ interface ConditionConfig {
   condition: string
 }
 
+interface RouterRouteConfig {
+  id: string
+  title: string
+  value: string
+}
+
 interface EdgeMetadata {
   blockTypeMap: Map<string, string>
   conditionConfigMap: Map<string, ConditionConfig[]>
-  routerBlockIds: Set<string>
+  routerRouteConfigMap: Map<string, RouterRouteConfig[]>
 }
 
 export class EdgeConstructor {
@@ -57,7 +63,7 @@ export class EdgeConstructor {
   private buildMetadataMaps(workflow: SerializedWorkflow): EdgeMetadata {
     const blockTypeMap = new Map<string, string>()
     const conditionConfigMap = new Map<string, ConditionConfig[]>()
-    const routerBlockIds = new Set<string>()
+    const routerRouteConfigMap = new Map<string, RouterRouteConfig[]>()
 
     for (const block of workflow.blocks) {
       const blockType = block.metadata?.id ?? ''
@@ -70,11 +76,15 @@ export class EdgeConstructor {
           conditionConfigMap.set(block.id, conditions)
         }
       } else if (isRouterBlockType(blockType)) {
-        routerBlockIds.add(block.id)
+        const routes = this.parseRouterRouteConfig(block)
+
+        if (routes) {
+          routerRouteConfigMap.set(block.id, routes)
+        }
       }
     }
 
-    return { blockTypeMap, conditionConfigMap, routerBlockIds }
+    return { blockTypeMap, conditionConfigMap, routerRouteConfigMap }
   }
 
   private parseConditionConfig(block: any): ConditionConfig[] | null {
@@ -92,6 +102,29 @@ export class EdgeConstructor {
       return null
     } catch (error) {
       logger.warn('Failed to parse condition config', {
+        blockId: block.id,
+        error: error instanceof Error ? error.message : String(error),
+      })
+
+      return null
+    }
+  }
+
+  private parseRouterRouteConfig(block: any): RouterRouteConfig[] | null {
+    try {
+      const routesJson = block.config.params?.routes
+
+      if (typeof routesJson === 'string') {
+        return JSON.parse(routesJson)
+      }
+
+      if (Array.isArray(routesJson)) {
+        return routesJson
+      }
+
+      return null
+    } catch (error) {
+      logger.warn('Failed to parse router route config', {
         blockId: block.id,
         error: error instanceof Error ? error.message : String(error),
       })
@@ -123,8 +156,18 @@ export class EdgeConstructor {
       }
     }
 
-    if (metadata.routerBlockIds.has(source) && handle !== EDGE.ERROR) {
-      handle = `${EDGE.ROUTER_PREFIX}${target}`
+    if (!handle && isRouterBlockType(metadata.blockTypeMap.get(source) ?? '')) {
+      const routes = metadata.routerRouteConfigMap.get(source)
+
+      if (routes && routes.length > 0) {
+        const edgesFromRouter = workflow.connections.filter((c) => c.source === source)
+        const edgeIndex = edgesFromRouter.findIndex((e) => e.target === target)
+
+        if (edgeIndex >= 0 && edgeIndex < routes.length) {
+          const correspondingRoute = routes[edgeIndex]
+          handle = `${EDGE.ROUTER_PREFIX}${correspondingRoute.id}`
+        }
+      }
     }
 
     return handle

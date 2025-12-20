@@ -51,6 +51,7 @@ export type SubBlockType =
   | 'checkbox-list' // Multiple selection
   | 'grouped-checkbox-list' // Grouped, scrollable checkbox list with select all
   | 'condition-input' // Conditional logic
+  | 'router-input' // Router conditional logic
   | 'eval-input' // Evaluation input
   | 'time-input' // Time input
   | 'oauth-input' // OAuth credential selector

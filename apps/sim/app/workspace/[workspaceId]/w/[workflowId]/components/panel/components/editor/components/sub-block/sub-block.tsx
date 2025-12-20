@@ -29,6 +29,7 @@ import {
   MessagesInput,
   ProjectSelectorInput,
   ResponseFormat,
+  RouterInput,
   ScheduleSave,
   ShortInput,
   SlackSelectorInput,
@@ -547,6 +548,17 @@ function SubBlockComponent({
       case 'condition-input':
         return (
           <ConditionInput
+            blockId={blockId}
+            subBlockId={config.id}
+            isPreview={isPreview}
+            previewValue={previewValue as any}
+            disabled={isDisabled}
+          />
+        )
+
+      case 'router-input':
+        return (
+          <RouterInput
             blockId={blockId}
             subBlockId={config.id}
             isPreview={isPreview}

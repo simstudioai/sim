@@ -44,6 +44,8 @@ export class VariableResolver {
     const resolved: Record<string, any> = {}
 
     const isConditionBlock = block?.metadata?.id === BlockType.CONDITION
+    const isRouterBlock = block?.metadata?.id === BlockType.ROUTER
+
     if (isConditionBlock && typeof params.conditions === 'string') {
       try {
         const parsed = JSON.parse(params.conditions)
@@ -79,8 +81,34 @@ export class VariableResolver {
       }
     }
 
+    if (isRouterBlock && typeof params.routes === 'string') {
+      try {
+        const parsed = JSON.parse(params.routes)
+        if (Array.isArray(parsed)) {
+          resolved.routes = parsed.map((route: any) => ({
+            ...route,
+            value:
+              typeof route.value === 'string'
+                ? this.resolveTemplateWithoutConditionFormatting(ctx, currentNodeId, route.value)
+                : route.value,
+          }))
+        } else {
+          resolved.routes = this.resolveValue(ctx, currentNodeId, params.routes, undefined, block)
+        }
+      } catch (parseError) {
+        logger.warn('Failed to parse routes JSON, falling back to normal resolution', {
+          error: parseError,
+          routes: params.routes,
+        })
+        resolved.routes = this.resolveValue(ctx, currentNodeId, params.routes, undefined, block)
+      }
+    }
+
     for (const [key, value] of Object.entries(params)) {
       if (isConditionBlock && key === 'conditions') {
+        continue
+      }
+      if (isRouterBlock && key === 'routes') {
         continue
       }
       resolved[key] = this.resolveValue(ctx, currentNodeId, value, undefined, block)

@@ -200,6 +200,13 @@ function sanitizeSubBlocks(
       return
     }
 
+    // Special handling for router-input type - clean UI metadata (same format as conditions)
+    if (subBlock.type === 'router-input' && typeof subBlock.value === 'string') {
+      const cleanedRoutes: string = sanitizeConditions(subBlock.value)
+      sanitized[key] = cleanedRoutes
+      return
+    }
+
     if (key === 'tools' && Array.isArray(subBlock.value)) {
       sanitized[key] = sanitizeTools(subBlock.value)
       return

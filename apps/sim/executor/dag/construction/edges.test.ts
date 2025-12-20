@@ -241,7 +241,14 @@ describe('EdgeConstructor', () => {
       const target1Id = 'target-1'
       const target2Id = 'target-2'
 
-      const routerBlock = createMockBlock(routerId, 'router')
+      const routes = [
+        { id: 'route-if', title: 'if', value: 'value > 10' },
+        { id: 'route-else', title: 'else', value: '' },
+      ]
+
+      const routerBlock = createMockBlock(routerId, 'router', {
+        routes: JSON.stringify(routes),
+      })
 
       const workflow = createMockWorkflow(
         [routerBlock, createMockBlock(target1Id), createMockBlock(target2Id)],
@@ -265,9 +272,9 @@ describe('EdgeConstructor', () => {
       const routerNode = dag.nodes.get(routerId)!
       const edges = Array.from(routerNode.outgoingEdges.values())
 
-      // Router edges should have router- prefix with target ID
-      expect(edges[0].sourceHandle).toBe(`router-${target1Id}`)
-      expect(edges[1].sourceHandle).toBe(`router-${target2Id}`)
+      // Router edges should have router- prefix with route ID
+      expect(edges[0].sourceHandle).toBe('router-route-if')
+      expect(edges[1].sourceHandle).toBe('router-route-else')
     })
   })
 

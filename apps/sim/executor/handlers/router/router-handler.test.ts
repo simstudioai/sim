@@ -1,16 +1,27 @@
 import '@/executor/__test-utils__/mock-dependencies'
 
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
-import { generateRouterPrompt } from '@/blocks/blocks/router'
-import { BlockType } from '@/executor/constants'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { BlockType, EDGE } from '@/executor/constants'
+import { evaluateConditionExpression } from '@/executor/handlers/condition/condition-handler'
 import { RouterBlockHandler } from '@/executor/handlers/router/router-handler'
-import type { ExecutionContext } from '@/executor/types'
-import { getProviderFromModel } from '@/providers/utils'
+import type { BlockState, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
-const mockGenerateRouterPrompt = generateRouterPrompt as Mock
-const mockGetProviderFromModel = getProviderFromModel as Mock
-const mockFetch = global.fetch as unknown as Mock
+interface RouterResult {
+  conditionResult: boolean
+  selectedPath: {
+    blockId: string
+    blockType: string
+    blockTitle: string
+  } | null
+  selectedOption: string | null
+}
+
+vi.mock('@/executor/handlers/condition/condition-handler', () => ({
+  evaluateConditionExpression: vi.fn(),
+}))
+
+const mockEvaluateConditionExpression = evaluateConditionExpression as ReturnType<typeof vi.fn>
 
 describe('RouterBlockHandler', () => {
   let handler: RouterBlockHandler
@@ -19,11 +30,12 @@ describe('RouterBlockHandler', () => {
   let mockWorkflow: Partial<SerializedWorkflow>
   let mockTargetBlock1: SerializedBlock
   let mockTargetBlock2: SerializedBlock
+  let mockTargetBlock3: SerializedBlock
 
   beforeEach(() => {
     mockTargetBlock1 = {
       id: 'target-block-1',
-      metadata: { id: 'target', name: 'Option A', description: 'Choose A' },
+      metadata: { id: 'agent', name: 'Option A', description: 'Choose A' },
       position: { x: 100, y: 100 },
       config: { tool: 'tool_a', params: { p: 'a' } },
       inputs: {},
@@ -32,31 +44,60 @@ describe('RouterBlockHandler', () => {
     }
     mockTargetBlock2 = {
       id: 'target-block-2',
-      metadata: { id: 'target', name: 'Option B', description: 'Choose B' },
+      metadata: { id: 'agent', name: 'Option B', description: 'Choose B' },
       position: { x: 100, y: 150 },
       config: { tool: 'tool_b', params: { p: 'b' } },
       inputs: {},
       outputs: {},
       enabled: true,
     }
+    mockTargetBlock3 = {
+      id: 'target-block-3',
+      metadata: { id: 'agent', name: 'Option C', description: 'Choose C' },
+      position: { x: 100, y: 200 },
+      config: { tool: 'tool_c', params: { p: 'c' } },
+      inputs: {},
+      outputs: {},
+      enabled: true,
+    }
+
+    const routes = [
+      { id: 'route-if', title: 'if', value: 'value > 10' },
+      { id: 'route-else-if', title: 'else if', value: 'value > 5' },
+      { id: 'route-else', title: 'else', value: '' },
+    ]
+
     mockBlock = {
       id: 'router-block-1',
       metadata: { id: BlockType.ROUTER, name: 'Test Router' },
       position: { x: 50, y: 50 },
-      config: { tool: BlockType.ROUTER, params: {} },
-      inputs: { prompt: 'string', model: 'string' }, // Using ParamType strings
+      config: { tool: BlockType.ROUTER, params: { routes: JSON.stringify(routes) } },
+      inputs: {},
       outputs: {},
       enabled: true,
     }
     mockWorkflow = {
-      blocks: [mockBlock, mockTargetBlock1, mockTargetBlock2],
+      blocks: [mockBlock, mockTargetBlock1, mockTargetBlock2, mockTargetBlock3],
       connections: [
-        { source: mockBlock.id, target: mockTargetBlock1.id, sourceHandle: 'condition-then1' },
-        { source: mockBlock.id, target: mockTargetBlock2.id, sourceHandle: 'condition-else1' },
+        {
+          source: mockBlock.id,
+          target: mockTargetBlock1.id,
+          sourceHandle: `${EDGE.ROUTER_PREFIX}route-if`,
+        },
+        {
+          source: mockBlock.id,
+          target: mockTargetBlock2.id,
+          sourceHandle: `${EDGE.ROUTER_PREFIX}route-else-if`,
+        },
+        {
+          source: mockBlock.id,
+          target: mockTargetBlock3.id,
+          sourceHandle: `${EDGE.ROUTER_PREFIX}route-else`,
+        },
       ],
     }
 
-    handler = new RouterBlockHandler({})
+    handler = new RouterBlockHandler()
 
     mockContext = {
       workflowId: 'test-workflow-id',
@@ -72,27 +113,7 @@ describe('RouterBlockHandler', () => {
       workflow: mockWorkflow as SerializedWorkflow,
     }
 
-    // Reset mocks using vi
     vi.clearAllMocks()
-
-    // Default mock implementations
-    mockGetProviderFromModel.mockReturnValue('openai')
-    mockGenerateRouterPrompt.mockReturnValue('Generated System Prompt')
-
-    // Set up fetch mock to return a successful response
-    mockFetch.mockImplementation(() => {
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            content: 'target-block-1',
-            model: 'mock-model',
-            tokens: { prompt: 100, completion: 5, total: 105 },
-            cost: 0.003,
-            timing: { total: 300 },
-          }),
-      })
-    })
   })
 
   it('should handle router blocks', () => {
@@ -101,141 +122,173 @@ describe('RouterBlockHandler', () => {
     expect(handler.canHandle(nonRouterBlock)).toBe(false)
   })
 
-  it('should execute router block correctly and select a path', async () => {
+  it('should select first route when its condition is true', async () => {
+    mockEvaluateConditionExpression.mockResolvedValueOnce(true)
+
     const inputs = {
-      prompt: 'Choose the best option.',
-      model: 'gpt-4o',
-      temperature: 0.1,
+      routes: JSON.stringify([
+        { id: 'route-if', title: 'if', value: 'value > 10' },
+        { id: 'route-else-if', title: 'else if', value: 'value > 5' },
+        { id: 'route-else', title: 'else', value: '' },
+      ]),
     }
 
-    const expectedTargetBlocks = [
+    const result = (await handler.execute(
+      mockContext,
+      mockBlock,
+      inputs
+    )) as unknown as RouterResult
+
+    expect(mockEvaluateConditionExpression).toHaveBeenCalledWith(mockContext, 'value > 10', {})
+    expect(result.conditionResult).toBe(true)
+    expect(result.selectedPath).toEqual({
+      blockId: 'target-block-1',
+      blockType: 'agent',
+      blockTitle: 'Option A',
+    })
+    expect(result.selectedOption).toBe('route-if')
+    expect(mockContext.decisions.router.get(mockBlock.id)).toBe('route-if')
+  })
+
+  it('should select second route when first condition is false', async () => {
+    mockEvaluateConditionExpression.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+
+    const inputs = {
+      routes: JSON.stringify([
+        { id: 'route-if', title: 'if', value: 'value > 10' },
+        { id: 'route-else-if', title: 'else if', value: 'value > 5' },
+        { id: 'route-else', title: 'else', value: '' },
+      ]),
+    }
+
+    const result = (await handler.execute(
+      mockContext,
+      mockBlock,
+      inputs
+    )) as unknown as RouterResult
+
+    expect(mockEvaluateConditionExpression).toHaveBeenCalledTimes(2)
+    expect(result.conditionResult).toBe(true)
+    expect(result.selectedPath).toEqual({
+      blockId: 'target-block-2',
+      blockType: 'agent',
+      blockTitle: 'Option B',
+    })
+    expect(result.selectedOption).toBe('route-else-if')
+    expect(mockContext.decisions.router.get(mockBlock.id)).toBe('route-else-if')
+  })
+
+  it('should select else route when all conditions are false', async () => {
+    mockEvaluateConditionExpression.mockResolvedValueOnce(false).mockResolvedValueOnce(false)
+
+    const inputs = {
+      routes: JSON.stringify([
+        { id: 'route-if', title: 'if', value: 'value > 10' },
+        { id: 'route-else-if', title: 'else if', value: 'value > 5' },
+        { id: 'route-else', title: 'else', value: '' },
+      ]),
+    }
+
+    const result = (await handler.execute(
+      mockContext,
+      mockBlock,
+      inputs
+    )) as unknown as RouterResult
+
+    expect(mockEvaluateConditionExpression).toHaveBeenCalledTimes(2)
+    expect(result.conditionResult).toBe(true)
+    expect(result.selectedPath).toEqual({
+      blockId: 'target-block-3',
+      blockType: 'agent',
+      blockTitle: 'Option C',
+    })
+    expect(result.selectedOption).toBe('route-else')
+    expect(mockContext.decisions.router.get(mockBlock.id)).toBe('route-else')
+  })
+
+  it('should return no selection when no routes match and no else', async () => {
+    mockEvaluateConditionExpression.mockResolvedValue(false)
+
+    const routes = [{ id: 'route-if', title: 'if', value: 'value > 10' }]
+
+    mockWorkflow.connections = [
       {
-        id: 'target-block-1',
-        type: 'target',
-        title: 'Option A',
-        description: 'Choose A',
-        subBlocks: {
-          p: 'a',
-          systemPrompt: '',
-        },
-        currentState: undefined,
-      },
-      {
-        id: 'target-block-2',
-        type: 'target',
-        title: 'Option B',
-        description: 'Choose B',
-        subBlocks: {
-          p: 'b',
-          systemPrompt: '',
-        },
-        currentState: undefined,
+        source: mockBlock.id,
+        target: mockTargetBlock1.id,
+        sourceHandle: `${EDGE.ROUTER_PREFIX}route-if`,
       },
     ]
 
-    const result = await handler.execute(mockContext, mockBlock, inputs)
+    const inputs = {
+      routes: JSON.stringify(routes),
+    }
 
-    expect(mockGenerateRouterPrompt).toHaveBeenCalledWith(inputs.prompt, expectedTargetBlocks)
-    expect(mockGetProviderFromModel).toHaveBeenCalledWith('gpt-4o')
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.any(Object),
-        body: expect.any(String),
-      })
-    )
+    const result = (await handler.execute(
+      mockContext,
+      mockBlock,
+      inputs
+    )) as unknown as RouterResult
 
-    // Verify the request body contains the expected data
-    const fetchCallArgs = mockFetch.mock.calls[0]
-    const requestBody = JSON.parse(fetchCallArgs[1].body)
-    expect(requestBody).toMatchObject({
-      provider: 'openai',
-      model: 'gpt-4o',
-      systemPrompt: 'Generated System Prompt',
-      context: JSON.stringify([{ role: 'user', content: 'Choose the best option.' }]),
-      temperature: 0.1,
-    })
-
-    expect(result).toEqual({
-      prompt: 'Choose the best option.',
-      model: 'mock-model',
-      tokens: { prompt: 100, completion: 5, total: 105 },
-      cost: {
-        input: 0,
-        output: 0,
-        total: 0,
-      },
-      selectedPath: {
-        blockId: 'target-block-1',
-        blockType: 'target',
-        blockTitle: 'Option A',
-      },
-      selectedRoute: 'target-block-1',
-    })
+    expect(result.conditionResult).toBe(false)
+    expect(result.selectedPath).toBe(null)
+    expect(result.selectedOption).toBe(null)
   })
 
-  it('should throw error if target block is missing', async () => {
-    const inputs = { prompt: 'Test' }
-    mockContext.workflow!.blocks = [mockBlock, mockTargetBlock2]
-
-    // Expect execute to throw because getTargetBlocks (called internally) will throw
-    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
-      'Target block target-block-1 not found'
-    )
-    expect(mockFetch).not.toHaveBeenCalled()
-  })
-
-  it('should throw error if LLM response is not a valid target block ID', async () => {
-    const inputs = { prompt: 'Test' }
-
-    // Override fetch mock to return an invalid block ID
-    mockFetch.mockImplementationOnce(() => {
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            content: 'invalid-block-id',
-            model: 'mock-model',
-            tokens: {},
-            cost: 0,
-            timing: {},
-          }),
-      })
-    })
+  it('should throw error on invalid routes format', async () => {
+    const inputs = {
+      routes: 'invalid-json',
+    }
 
     await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
-      'Invalid routing decision: invalid-block-id'
+      'Invalid routes format'
     )
   })
 
-  it('should use default model and temperature if not provided', async () => {
-    const inputs = { prompt: 'Choose.' }
+  it('should throw error when condition evaluation fails', async () => {
+    mockEvaluateConditionExpression.mockRejectedValue(new Error('Evaluation failed'))
+
+    const inputs = {
+      routes: JSON.stringify([{ id: 'route-if', title: 'if', value: 'invalid.expression' }]),
+    }
+
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
+      'Evaluation error in route "if": Evaluation failed'
+    )
+  })
+
+  it('should use source block output for evaluation context', async () => {
+    const sourceBlockId = 'source-block'
+    const sourceOutput = { value: 15, message: 'test' }
+
+    const blockStates = new Map<string, BlockState>()
+    blockStates.set(sourceBlockId, {
+      output: sourceOutput,
+      executed: true,
+      executionTime: 100,
+    })
+    mockContext.blockStates = blockStates
+
+    mockWorkflow.connections = [
+      { source: sourceBlockId, target: mockBlock.id },
+      {
+        source: mockBlock.id,
+        target: mockTargetBlock1.id,
+        sourceHandle: `${EDGE.ROUTER_PREFIX}route-if`,
+      },
+    ]
+
+    mockEvaluateConditionExpression.mockResolvedValueOnce(true)
+
+    const inputs = {
+      routes: JSON.stringify([{ id: 'route-if', title: 'if', value: 'value > 10' }]),
+    }
 
     await handler.execute(mockContext, mockBlock, inputs)
 
-    expect(mockGetProviderFromModel).toHaveBeenCalledWith('gpt-4o')
-
-    const fetchCallArgs = mockFetch.mock.calls[0]
-    const requestBody = JSON.parse(fetchCallArgs[1].body)
-    expect(requestBody).toMatchObject({
-      model: 'gpt-4o',
-      temperature: 0.1,
-    })
-  })
-
-  it('should handle server error responses', async () => {
-    const inputs = { prompt: 'Test error handling.' }
-
-    // Override fetch mock to return an error
-    mockFetch.mockImplementationOnce(() => {
-      return Promise.resolve({
-        ok: false,
-        status: 500,
-        json: () => Promise.resolve({ error: 'Server error' }),
-      })
-    })
-
-    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow('Server error')
+    expect(mockEvaluateConditionExpression).toHaveBeenCalledWith(
+      mockContext,
+      'value > 10',
+      sourceOutput
+    )
   })
 })
