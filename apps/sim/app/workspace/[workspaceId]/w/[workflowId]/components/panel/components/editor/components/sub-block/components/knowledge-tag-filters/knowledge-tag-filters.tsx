@@ -117,7 +117,7 @@ export function KnowledgeTagFilters({
 
   const rowsToFilters = (rowsToConvert: TagFilterRow[]): TagFilter[] => {
     return rowsToConvert
-      .filter((row) => row.cells.tagName?.trim() && row.cells.value?.trim())
+      .filter((row) => row.cells.tagName?.trim())
       .map((row) => ({
         id: row.id,
         tagName: row.cells.tagName || '',
