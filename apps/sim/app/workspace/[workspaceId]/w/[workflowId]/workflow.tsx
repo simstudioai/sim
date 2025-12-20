@@ -18,6 +18,7 @@ import { useShallow } from 'zustand/react/shallow'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/other/oauth-request-access'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { OAuthProvider } from '@/lib/oauth'
+import { DEFAULT_HORIZONTAL_SPACING } from '@/lib/workflows/autolayout/constants'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -602,6 +603,152 @@ const WorkflowContent = React.memo(() => {
     return 'source'
   }, [])
 
+  /** Creates a standardized edge object for workflow connections. */
+  const createEdgeObject = useCallback(
+    (sourceId: string, targetId: string, sourceHandle: string): Edge => ({
+      id: crypto.randomUUID(),
+      source: sourceId,
+      target: targetId,
+      sourceHandle,
+      targetHandle: 'target',
+      type: 'workflowEdge',
+    }),
+    []
+  )
+
+  /** Gets the appropriate start handle for a container node (loop or parallel). */
+  const getContainerStartHandle = useCallback(
+    (containerId: string): string => {
+      const containerNode = getNodes().find((n) => n.id === containerId)
+      return (containerNode?.data as any)?.kind === 'loop'
+        ? 'loop-start-source'
+        : 'parallel-start-source'
+    },
+    [getNodes]
+  )
+
+  /** Finds the closest non-response block to a position within a set of blocks. */
+  const findClosestBlockInSet = useCallback(
+    (
+      candidateBlocks: { id: string; type: string; position: { x: number; y: number } }[],
+      targetPosition: { x: number; y: number }
+    ): { id: string; type: string; position: { x: number; y: number } } | undefined => {
+      return candidateBlocks
+        .filter((b) => b.type !== 'response')
+        .map((b) => ({
+          block: b,
+          distance: Math.sqrt(
+            (b.position.x - targetPosition.x) ** 2 + (b.position.y - targetPosition.y) ** 2
+          ),
+        }))
+        .sort((a, b) => a.distance - b.distance)[0]?.block
+    },
+    []
+  )
+
+  /**
+   * Attempts to create an auto-connect edge for a new block being added.
+   * Returns the edge object if auto-connect should occur, or undefined otherwise.
+   *
+   * @param position - The position where the new block will be placed
+   * @param targetBlockId - The ID of the new block being added
+   * @param options - Configuration for auto-connect behavior
+   */
+  const tryCreateAutoConnectEdge = useCallback(
+    (
+      position: { x: number; y: number },
+      targetBlockId: string,
+      options: {
+        blockType: string
+        enableTriggerMode?: boolean
+        targetParentId?: string | null
+        existingChildBlocks?: { id: string; type: string; position: { x: number; y: number } }[]
+        containerId?: string
+      }
+    ): Edge | undefined => {
+      const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
+      if (!isAutoConnectEnabled) return undefined
+
+      // Don't auto-connect starter or annotation-only blocks
+      if (options.blockType === 'starter' || isAnnotationOnlyBlock(options.blockType)) {
+        return undefined
+      }
+
+      // Check if target is a trigger block
+      const targetBlockConfig = getBlock(options.blockType)
+      const isTargetTrigger =
+        options.enableTriggerMode || targetBlockConfig?.category === 'triggers'
+      if (isTargetTrigger) return undefined
+
+      // Case 1: Adding block inside a container with existing children
+      if (options.existingChildBlocks && options.existingChildBlocks.length > 0) {
+        const closestBlock = findClosestBlockInSet(options.existingChildBlocks, position)
+        if (closestBlock) {
+          const sourceHandle = determineSourceHandle({
+            id: closestBlock.id,
+            type: closestBlock.type,
+          })
+          return createEdgeObject(closestBlock.id, targetBlockId, sourceHandle)
+        }
+        return undefined
+      }
+
+      // Case 2: Adding block inside an empty container - connect from container start
+      if (
+        options.containerId &&
+        (!options.existingChildBlocks || options.existingChildBlocks.length === 0)
+      ) {
+        const startHandle = getContainerStartHandle(options.containerId)
+        return createEdgeObject(options.containerId, targetBlockId, startHandle)
+      }
+
+      // Case 3: Adding block at root level - use findClosestOutput
+      const closestBlock = findClosestOutput(position)
+      if (!closestBlock) return undefined
+
+      // Don't create cross-container edges
+      const closestBlockParentId = blocks[closestBlock.id]?.data?.parentId
+      if (closestBlockParentId && !options.targetParentId) {
+        return undefined
+      }
+
+      const sourceHandle = determineSourceHandle(closestBlock)
+      return createEdgeObject(closestBlock.id, targetBlockId, sourceHandle)
+    },
+    [
+      blocks,
+      findClosestOutput,
+      determineSourceHandle,
+      createEdgeObject,
+      getContainerStartHandle,
+      findClosestBlockInSet,
+    ]
+  )
+
+  /**
+   * Checks if adding a trigger block would violate constraints and shows notification if so.
+   * @returns true if validation failed (caller should return early), false if ok to proceed
+   */
+  const checkTriggerConstraints = useCallback(
+    (blockType: string): boolean => {
+      const issue = TriggerUtils.getTriggerAdditionIssue(blocks, blockType)
+      if (issue) {
+        const message =
+          issue.issue === 'legacy'
+            ? 'Cannot add new trigger blocks when a legacy Start block exists. Available in newer workflows.'
+            : `A workflow can only have one ${issue.triggerName} trigger block. Please remove the existing one before adding a new one.`
+        addNotification({
+          level: 'error',
+          message,
+          workflowId: activeWorkflowId || undefined,
+        })
+        return true
+      }
+      return false
+    },
+    [blocks, addNotification, activeWorkflowId]
+  )
+
   /**
    * Shared handler for drops of toolbar items onto the workflow canvas.
    *
@@ -630,21 +777,10 @@ const WorkflowContent = React.memo(() => {
           const baseName = data.type === 'loop' ? 'Loop' : 'Parallel'
           const name = getUniqueBlockName(baseName, blocks)
 
-          const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
-          let autoConnectEdge
-          if (isAutoConnectEnabled) {
-            const closestBlock = findClosestOutput(position)
-            if (closestBlock) {
-              autoConnectEdge = {
-                id: crypto.randomUUID(),
-                source: closestBlock.id,
-                target: id,
-                sourceHandle: determineSourceHandle(closestBlock),
-                targetHandle: 'target',
-                type: 'workflowEdge',
-              }
-            }
-          }
+          const autoConnectEdge = tryCreateAutoConnectEdge(position, id, {
+            blockType: data.type,
+            targetParentId: null,
+          })
 
           addBlock(
             id,
@@ -652,8 +788,8 @@ const WorkflowContent = React.memo(() => {
             name,
             position,
             {
-              width: 500,
-              height: 300,
+              width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+              height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
               type: 'subflowNode',
             },
             undefined,
@@ -712,72 +848,18 @@ const WorkflowContent = React.memo(() => {
             estimateBlockDimensions(data.type)
           )
 
-          // Capture existing child blocks before adding the new one
-          const existingChildBlocks = Object.values(blocks).filter(
-            (b) => b.data?.parentId === containerInfo.loopId
-          )
+          // Capture existing child blocks for auto-connect
+          const existingChildBlocks = Object.values(blocks)
+            .filter((b) => b.data?.parentId === containerInfo.loopId)
+            .map((b) => ({ id: b.id, type: b.type, position: b.position }))
 
-          // Auto-connect logic for blocks inside containers
-          const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
-          let autoConnectEdge
-          if (
-            isAutoConnectEnabled &&
-            data.type !== 'starter' &&
-            !isAnnotationOnlyBlock(data.type)
-          ) {
-            if (existingChildBlocks.length > 0) {
-              // Connect to the nearest existing child block within the container
-              // Filter out response blocks since they have no outgoing handles
-              const closestBlock = existingChildBlocks
-                .filter((b) => b.type !== 'response')
-                .map((b) => ({
-                  block: b,
-                  distance: Math.sqrt(
-                    (b.position.x - relativePosition.x) ** 2 +
-                      (b.position.y - relativePosition.y) ** 2
-                  ),
-                }))
-                .sort((a, b) => a.distance - b.distance)[0]?.block
-
-              if (closestBlock) {
-                // Don't create edges into trigger blocks or annotation blocks
-                const targetBlockConfig = getBlock(data.type)
-                const isTargetTrigger =
-                  data.enableTriggerMode === true || targetBlockConfig?.category === 'triggers'
-
-                if (!isTargetTrigger) {
-                  const sourceHandle = determineSourceHandle({
-                    id: closestBlock.id,
-                    type: closestBlock.type,
-                  })
-                  autoConnectEdge = {
-                    id: crypto.randomUUID(),
-                    source: closestBlock.id,
-                    target: id,
-                    sourceHandle,
-                    targetHandle: 'target',
-                    type: 'workflowEdge',
-                  }
-                }
-              }
-            } else {
-              // No existing children: connect from the container's start handle to the moved node
-              const containerNode = getNodes().find((n) => n.id === containerInfo.loopId)
-              const startSourceHandle =
-                (containerNode?.data as any)?.kind === 'loop'
-                  ? 'loop-start-source'
-                  : 'parallel-start-source'
-
-              autoConnectEdge = {
-                id: crypto.randomUUID(),
-                source: containerInfo.loopId,
-                target: id,
-                sourceHandle: startSourceHandle,
-                targetHandle: 'target',
-                type: 'workflowEdge',
-              }
-            }
-          }
+          const autoConnectEdge = tryCreateAutoConnectEdge(relativePosition, id, {
+            blockType: data.type,
+            enableTriggerMode: data.enableTriggerMode,
+            targetParentId: containerInfo.loopId,
+            existingChildBlocks,
+            containerId: containerInfo.loopId,
+          })
 
           // Add block with parent info AND autoConnectEdge (atomic operation)
           addBlock(
@@ -799,49 +881,13 @@ const WorkflowContent = React.memo(() => {
           resizeLoopNodesWrapper()
         } else {
           // Centralized trigger constraints
-          const dropIssue = TriggerUtils.getTriggerAdditionIssue(blocks, data.type)
-          if (dropIssue) {
-            const message =
-              dropIssue.issue === 'legacy'
-                ? 'Cannot add new trigger blocks when a legacy Start block exists. Available in newer workflows.'
-                : `A workflow can only have one ${dropIssue.triggerName} trigger block. Please remove the existing one before adding a new one.`
-            addNotification({
-              level: 'error',
-              message,
-              workflowId: activeWorkflowId || undefined,
-            })
-            return
-          }
+          if (checkTriggerConstraints(data.type)) return
 
-          // Regular auto-connect logic
-          const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
-          let autoConnectEdge
-          if (
-            isAutoConnectEnabled &&
-            data.type !== 'starter' &&
-            !isAnnotationOnlyBlock(data.type)
-          ) {
-            const closestBlock = findClosestOutput(position)
-            if (closestBlock) {
-              // Don't create edges into trigger blocks or annotation blocks
-              const targetBlockConfig = getBlock(data.type)
-              const isTargetTrigger =
-                data.enableTriggerMode === true || targetBlockConfig?.category === 'triggers'
-
-              if (!isTargetTrigger) {
-                const sourceHandle = determineSourceHandle(closestBlock)
-
-                autoConnectEdge = {
-                  id: crypto.randomUUID(),
-                  source: closestBlock.id,
-                  target: id,
-                  sourceHandle,
-                  targetHandle: 'target',
-                  type: 'workflowEdge',
-                }
-              }
-            }
-          }
+          const autoConnectEdge = tryCreateAutoConnectEdge(position, id, {
+            blockType: data.type,
+            enableTriggerMode: data.enableTriggerMode,
+            targetParentId: null,
+          })
 
           // Regular canvas drop with auto-connect edge
           // Use enableTriggerMode from drag data if present (when dragging from Triggers tab)
@@ -864,14 +910,13 @@ const WorkflowContent = React.memo(() => {
     },
     [
       blocks,
-      getNodes,
-      findClosestOutput,
-      determineSourceHandle,
       isPointInLoopNode,
       resizeLoopNodesWrapper,
       addBlock,
       addNotification,
       activeWorkflowId,
+      tryCreateAutoConnectEdge,
+      checkTriggerConstraints,
     ]
   )
 
@@ -888,44 +933,73 @@ const WorkflowContent = React.memo(() => {
       if (!type) return
       if (type === 'connectionBlock') return
 
+      // Calculate smart position - to the right of existing root-level blocks
+      const calculateSmartPosition = (): { x: number; y: number } => {
+        // Get all root-level blocks (no parentId)
+        const rootBlocks = Object.values(blocks).filter((b) => !b.data?.parentId)
+
+        if (rootBlocks.length === 0) {
+          // No blocks yet, use viewport center
+          return screenToFlowPosition({
+            x: window.innerWidth / 2,
+            y: window.innerHeight / 2,
+          })
+        }
+
+        // Find the rightmost block
+        let maxRight = Number.NEGATIVE_INFINITY
+        let rightmostBlockY = 0
+        for (const block of rootBlocks) {
+          const blockWidth =
+            block.type === 'loop' || block.type === 'parallel'
+              ? block.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH
+              : BLOCK_DIMENSIONS.FIXED_WIDTH
+          const blockRight = block.position.x + blockWidth
+          if (blockRight > maxRight) {
+            maxRight = blockRight
+            rightmostBlockY = block.position.y
+          }
+        }
+
+        // Position to the right with autolayout spacing
+        const position = {
+          x: maxRight + DEFAULT_HORIZONTAL_SPACING,
+          y: rightmostBlockY,
+        }
+
+        // Ensure position doesn't overlap any container
+        let container = isPointInLoopNode(position)
+        while (container) {
+          position.x =
+            container.loopPosition.x + container.dimensions.width + DEFAULT_HORIZONTAL_SPACING
+          container = isPointInLoopNode(position)
+        }
+
+        return position
+      }
+
+      const basePosition = calculateSmartPosition()
+
       // Special handling for container nodes (loop or parallel)
       if (type === 'loop' || type === 'parallel') {
         const id = crypto.randomUUID()
         const baseName = type === 'loop' ? 'Loop' : 'Parallel'
         const name = getUniqueBlockName(baseName, blocks)
 
-        const centerPosition = screenToFlowPosition({
-          x: window.innerWidth / 2,
-          y: window.innerHeight / 2,
+        const autoConnectEdge = tryCreateAutoConnectEdge(basePosition, id, {
+          blockType: type,
+          targetParentId: null,
         })
-
-        // Auto-connect logic for container nodes
-        const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
-        let autoConnectEdge
-        if (isAutoConnectEnabled) {
-          const closestBlock = findClosestOutput(centerPosition)
-          if (closestBlock) {
-            const sourceHandle = determineSourceHandle(closestBlock)
-            autoConnectEdge = {
-              id: crypto.randomUUID(),
-              source: closestBlock.id,
-              target: id,
-              sourceHandle,
-              targetHandle: 'target',
-              type: 'workflowEdge',
-            }
-          }
-        }
 
         // Add the container node with default dimensions and auto-connect edge
         addBlock(
           id,
           type,
           name,
-          centerPosition,
+          basePosition,
           {
-            width: 500,
-            height: 300,
+            width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+            height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
             type: 'subflowNode',
           },
           undefined,
@@ -942,12 +1016,6 @@ const WorkflowContent = React.memo(() => {
         return
       }
 
-      // Calculate the center position of the viewport
-      const centerPosition = screenToFlowPosition({
-        x: window.innerWidth / 2,
-        y: window.innerHeight / 2,
-      })
-
       // Create a new block with a unique ID
       const id = crypto.randomUUID()
       // Prefer semantic default names for triggers; then ensure unique numbering centrally
@@ -955,51 +1023,14 @@ const WorkflowContent = React.memo(() => {
       const baseName = defaultTriggerName || blockConfig.name
       const name = getUniqueBlockName(baseName, blocks)
 
-      // Auto-connect logic
-      const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
-      let autoConnectEdge
-      if (isAutoConnectEnabled && type !== 'starter' && !isAnnotationOnlyBlock(type)) {
-        const closestBlock = findClosestOutput(centerPosition)
-        logger.info('Closest block found:', closestBlock)
-        if (closestBlock) {
-          // Don't create edges into trigger blocks or annotation blocks
-          const targetBlockConfig = blockConfig
-          const isTargetTrigger = enableTriggerMode || targetBlockConfig?.category === 'triggers'
-
-          if (!isTargetTrigger) {
-            const sourceHandle = determineSourceHandle(closestBlock)
-
-            autoConnectEdge = {
-              id: crypto.randomUUID(),
-              source: closestBlock.id,
-              target: id,
-              sourceHandle,
-              targetHandle: 'target',
-              type: 'workflowEdge',
-            }
-            logger.info('Auto-connect edge created:', autoConnectEdge)
-          } else {
-            logger.info('Skipping auto-connect into trigger block', {
-              target: type,
-            })
-          }
-        }
-      }
+      const autoConnectEdge = tryCreateAutoConnectEdge(basePosition, id, {
+        blockType: type,
+        enableTriggerMode,
+        targetParentId: null,
+      })
 
       // Centralized trigger constraints
-      const additionIssue = TriggerUtils.getTriggerAdditionIssue(blocks, type)
-      if (additionIssue) {
-        const message =
-          additionIssue.issue === 'legacy'
-            ? 'Cannot add new trigger blocks when a legacy Start block exists. Available in newer workflows.'
-            : `A workflow can only have one ${additionIssue.triggerName} trigger block. Please remove the existing one before adding a new one.`
-        addNotification({
-          level: 'error',
-          message,
-          workflowId: activeWorkflowId || undefined,
-        })
-        return
-      }
+      if (checkTriggerConstraints(type)) return
 
       // Add the block to the workflow with auto-connect edge
       // Enable trigger mode if this is a trigger-capable block from the triggers tab
@@ -1007,7 +1038,7 @@ const WorkflowContent = React.memo(() => {
         id,
         type,
         name,
-        centerPosition,
+        basePosition,
         undefined,
         undefined,
         undefined,
@@ -1028,11 +1059,12 @@ const WorkflowContent = React.memo(() => {
     screenToFlowPosition,
     blocks,
     addBlock,
-    findClosestOutput,
-    determineSourceHandle,
+    tryCreateAutoConnectEdge,
+    isPointInLoopNode,
     effectivePermissions.canEdit,
     addNotification,
     activeWorkflowId,
+    checkTriggerConstraints,
   ])
 
   /**
@@ -1427,8 +1459,8 @@ const WorkflowContent = React.memo(() => {
           data: {
             ...block.data,
             name: block.name,
-            width: block.data?.width || 500,
-            height: block.data?.height || 300,
+            width: block.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+            height: block.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
             kind: block.type === 'loop' ? 'loop' : 'parallel',
           },
         })
@@ -1487,8 +1519,8 @@ const WorkflowContent = React.memo(() => {
         },
         // Include dynamic dimensions for container resizing calculations (must match rendered size)
         // Both note and workflow blocks calculate dimensions deterministically via useBlockDimensions
-        width: 250, // Standard width for both block types
-        height: Math.max(block.height || 100, 100), // Use calculated height with minimum
+        width: BLOCK_DIMENSIONS.FIXED_WIDTH,
+        height: Math.max(block.height || BLOCK_DIMENSIONS.MIN_HEIGHT, BLOCK_DIMENSIONS.MIN_HEIGHT),
       })
     })
 
@@ -1797,12 +1829,15 @@ const WorkflowContent = React.memo(() => {
           const containerAbsolutePos = getNodeAbsolutePosition(n.id)
 
           // Get dimensions based on node type (must match actual rendered dimensions)
-          const nodeWidth = node.type === 'subflowNode' ? node.data?.width || 500 : 250 // All workflow blocks use w-[250px] in workflow-block.tsx
+          const nodeWidth =
+            node.type === 'subflowNode'
+              ? node.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH
+              : BLOCK_DIMENSIONS.FIXED_WIDTH
 
           const nodeHeight =
             node.type === 'subflowNode'
-              ? node.data?.height || 300
-              : Math.max(node.height || 100, 100) // Use actual node height with minimum 100
+              ? node.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
+              : Math.max(node.height || BLOCK_DIMENSIONS.MIN_HEIGHT, BLOCK_DIMENSIONS.MIN_HEIGHT)
 
           // Check intersection using absolute coordinates
           const nodeRect = {
@@ -1814,9 +1849,10 @@ const WorkflowContent = React.memo(() => {
 
           const containerRect = {
             left: containerAbsolutePos.x,
-            right: containerAbsolutePos.x + (n.data?.width || 500),
+            right: containerAbsolutePos.x + (n.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH),
             top: containerAbsolutePos.y,
-            bottom: containerAbsolutePos.y + (n.data?.height || 300),
+            bottom:
+              containerAbsolutePos.y + (n.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT),
           }
 
           // Check intersection with absolute coordinates for accurate detection
@@ -1832,7 +1868,9 @@ const WorkflowContent = React.memo(() => {
           container: n,
           depth: getNodeDepth(n.id),
           // Calculate size for secondary sorting
-          size: (n.data?.width || 500) * (n.data?.height || 300),
+          size:
+            (n.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH) *
+            (n.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT),
         }))
 
       // Update potential parent if there's at least one intersecting container node
@@ -2037,64 +2075,19 @@ const WorkflowContent = React.memo(() => {
           y: nodeAbsPosBefore.y - containerAbsPosBefore.y - headerHeight - topPadding,
         }
 
-        // Prepare edges that will be added when moving into the container
-        const edgesToAdd: any[] = []
-
         // Auto-connect when moving an existing block into a container
-        const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
-        // Don't auto-connect annotation blocks (like note blocks)
-        if (isAutoConnectEnabled && !isAnnotationOnlyBlock(node.data?.type)) {
-          // Existing children in the target container (excluding the moved node)
-          const existingChildBlocks = Object.values(blocks).filter(
-            (b) => b.data?.parentId === potentialParentId && b.id !== node.id
-          )
+        const existingChildBlocks = Object.values(blocks)
+          .filter((b) => b.data?.parentId === potentialParentId && b.id !== node.id)
+          .map((b) => ({ id: b.id, type: b.type, position: b.position }))
 
-          if (existingChildBlocks.length > 0) {
-            // Connect from nearest existing child inside the container
-            // Filter out response blocks since they have no outgoing handles
-            const closestBlock = existingChildBlocks
-              .filter((b) => b.type !== 'response')
-              .map((b) => ({
-                block: b,
-                distance: Math.sqrt(
-                  (b.position.x - relativePositionBefore.x) ** 2 +
-                    (b.position.y - relativePositionBefore.y) ** 2
-                ),
-              }))
-              .sort((a, b) => a.distance - b.distance)[0]?.block
+        const autoConnectEdge = tryCreateAutoConnectEdge(relativePositionBefore, node.id, {
+          blockType: node.data?.type || '',
+          targetParentId: potentialParentId,
+          existingChildBlocks,
+          containerId: potentialParentId,
+        })
 
-            if (closestBlock) {
-              const sourceHandle = determineSourceHandle({
-                id: closestBlock.id,
-                type: closestBlock.type,
-              })
-              edgesToAdd.push({
-                id: crypto.randomUUID(),
-                source: closestBlock.id,
-                target: node.id,
-                sourceHandle,
-                targetHandle: 'target',
-                type: 'workflowEdge',
-              })
-            }
-          } else {
-            // No children: connect from the container's start handle to the moved node
-            const containerNode = getNodes().find((n) => n.id === potentialParentId)
-            const startSourceHandle =
-              (containerNode?.data as any)?.kind === 'loop'
-                ? 'loop-start-source'
-                : 'parallel-start-source'
-
-            edgesToAdd.push({
-              id: crypto.randomUUID(),
-              source: potentialParentId,
-              target: node.id,
-              sourceHandle: startSourceHandle,
-              targetHandle: 'target',
-              type: 'workflowEdge',
-            })
-          }
-        }
+        const edgesToAdd: Edge[] = autoConnectEdge ? [autoConnectEdge] : []
 
         // Skip recording these edges separately since they're part of the parent update
         window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: true } }))
@@ -2119,7 +2112,7 @@ const WorkflowContent = React.memo(() => {
       updateNodeParent,
       collaborativeUpdateBlockPosition,
       addEdge,
-      determineSourceHandle,
+      tryCreateAutoConnectEdge,
       blocks,
       edgesForDisplay,
       removeEdgesForNode,
