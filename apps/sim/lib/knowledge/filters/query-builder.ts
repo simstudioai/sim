@@ -119,7 +119,17 @@ function buildNumberCondition(
 }
 
 /**
- * Build SQL condition for a date filter
+ * Parse a YYYY-MM-DD date string into a UTC Date object.
+ */
+function parseDateValue(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day))
+}
+
+/**
+ * Build SQL condition for a date filter.
+ * Expects date values in YYYY-MM-DD format.
  */
 function buildDateCondition(
   condition: DateFilterCondition,
@@ -134,7 +144,8 @@ function buildDateCondition(
   const column = table[tagSlot as DateSlot]
   if (!column) return null
 
-  const dateValue = new Date(value)
+  const dateValue = parseDateValue(value)
+  if (!dateValue) return null
 
   switch (operator) {
     case 'eq':
@@ -151,7 +162,8 @@ function buildDateCondition(
       return lte(column, dateValue)
     case 'between':
       if (valueTo !== undefined) {
-        const dateValueTo = new Date(valueTo)
+        const dateValueTo = parseDateValue(valueTo)
+        if (!dateValueTo) return null
         return and(gte(column, dateValue), lte(column, dateValueTo)) ?? null
       }
       return null

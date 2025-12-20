@@ -256,6 +256,8 @@ function getStructuredTagFilters(filters: StructuredFilter[], embeddingTable: an
     // Handle number operators
     if (fieldType === 'number') {
       const numValue = typeof value === 'number' ? value : Number.parseFloat(String(value))
+      if (Number.isNaN(numValue)) return sql`1=1`
+
       switch (operator) {
         case 'eq':
           return sql`${column} = ${numValue}`
@@ -273,6 +275,7 @@ function getStructuredTagFilters(filters: StructuredFilter[], embeddingTable: an
           if (valueTo !== undefined) {
             const numValueTo =
               typeof valueTo === 'number' ? valueTo : Number.parseFloat(String(valueTo))
+            if (Number.isNaN(numValueTo)) return sql`${column} = ${numValue}`
             return sql`${column} >= ${numValue} AND ${column} <= ${numValueTo}`
           }
           return sql`${column} = ${numValue}`
@@ -281,30 +284,41 @@ function getStructuredTagFilters(filters: StructuredFilter[], embeddingTable: an
       }
     }
 
-    // Handle date operators
+    // Handle date operators - expects YYYY-MM-DD format from frontend
     if (fieldType === 'date') {
-      const dateValue = new Date(String(value))
+      const dateStr = String(value)
+      // Validate YYYY-MM-DD format
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        logger.debug(
+          `[getStructuredTagFilters] Invalid date format: ${dateStr}, expected YYYY-MM-DD`
+        )
+        return sql`1=1`
+      }
+
       switch (operator) {
         case 'eq':
-          return sql`${column} = ${dateValue}`
+          return sql`${column}::date = ${dateStr}::date`
         case 'neq':
-          return sql`${column} != ${dateValue}`
+          return sql`${column}::date != ${dateStr}::date`
         case 'gt':
-          return sql`${column} > ${dateValue}`
+          return sql`${column}::date > ${dateStr}::date`
         case 'gte':
-          return sql`${column} >= ${dateValue}`
+          return sql`${column}::date >= ${dateStr}::date`
         case 'lt':
-          return sql`${column} < ${dateValue}`
+          return sql`${column}::date < ${dateStr}::date`
         case 'lte':
-          return sql`${column} <= ${dateValue}`
+          return sql`${column}::date <= ${dateStr}::date`
         case 'between':
           if (valueTo !== undefined) {
-            const dateValueTo = new Date(String(valueTo))
-            return sql`${column} >= ${dateValue} AND ${column} <= ${dateValueTo}`
+            const dateStrTo = String(valueTo)
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStrTo)) {
+              return sql`${column}::date = ${dateStr}::date`
+            }
+            return sql`${column}::date >= ${dateStr}::date AND ${column}::date <= ${dateStrTo}::date`
           }
-          return sql`${column} = ${dateValue}`
+          return sql`${column}::date = ${dateStr}::date`
         default:
-          return sql`${column} = ${dateValue}`
+          return sql`${column}::date = ${dateStr}::date`
       }
     }
 

@@ -203,17 +203,42 @@ export async function processDocumentTags(
 
       // Assign value to the slot with proper type conversion based on the actual field type
       if (targetSlot) {
-        const stringValue = String(rawValue)
+        const stringValue = String(rawValue).trim()
+
         if (actualFieldType === 'boolean') {
-          result[targetSlot] = stringValue === 'true'
+          // Accept case-insensitive true/false
+          const lowerValue = stringValue.toLowerCase()
+          if (lowerValue === 'true' || lowerValue === '1' || lowerValue === 'yes') {
+            result[targetSlot] = true
+          } else if (lowerValue === 'false' || lowerValue === '0' || lowerValue === 'no') {
+            result[targetSlot] = false
+          } else {
+            logger.warn(
+              `[${requestId}] Invalid boolean value for ${tagName}: "${stringValue}", skipping`
+            )
+          }
         } else if (actualFieldType === 'number') {
-          result[targetSlot] = Number.parseFloat(stringValue)
+          const numValue = Number.parseFloat(stringValue)
+          if (Number.isNaN(numValue)) {
+            logger.warn(
+              `[${requestId}] Invalid number value for ${tagName}: "${stringValue}", skipping`
+            )
+            continue
+          }
+          result[targetSlot] = numValue
         } else if (actualFieldType === 'date') {
-          result[targetSlot] = new Date(stringValue)
+          // Try parsing the date
+          const dateValue = new Date(stringValue)
+          if (Number.isNaN(dateValue.getTime())) {
+            logger.warn(
+              `[${requestId}] Invalid date value for ${tagName}: "${stringValue}", skipping`
+            )
+            continue
+          }
+          result[targetSlot] = dateValue
         } else {
           result[targetSlot] = stringValue
         }
-        logger.debug(`[${requestId}] Assigned ${tagName}: ${targetSlot} = ${result[targetSlot]}`)
       }
     }
 
@@ -746,6 +771,7 @@ export async function getDocuments(
     processingError: string | null
     enabled: boolean
     uploadedAt: Date
+    // Text tags
     tag1: string | null
     tag2: string | null
     tag3: string | null
@@ -753,6 +779,19 @@ export async function getDocuments(
     tag5: string | null
     tag6: string | null
     tag7: string | null
+    // Number tags
+    number1: number | null
+    number2: number | null
+    number3: number | null
+    number4: number | null
+    number5: number | null
+    // Date tags
+    date1: Date | null
+    date2: Date | null
+    // Boolean tags
+    boolean1: boolean | null
+    boolean2: boolean | null
+    boolean3: boolean | null
   }>
   pagination: {
     total: number
@@ -839,7 +878,7 @@ export async function getDocuments(
       processingError: document.processingError,
       enabled: document.enabled,
       uploadedAt: document.uploadedAt,
-      // Include tags in response
+      // Text tags (7 slots)
       tag1: document.tag1,
       tag2: document.tag2,
       tag3: document.tag3,
@@ -847,6 +886,19 @@ export async function getDocuments(
       tag5: document.tag5,
       tag6: document.tag6,
       tag7: document.tag7,
+      // Number tags (5 slots)
+      number1: document.number1,
+      number2: document.number2,
+      number3: document.number3,
+      number4: document.number4,
+      number5: document.number5,
+      // Date tags (2 slots)
+      date1: document.date1,
+      date2: document.date2,
+      // Boolean tags (3 slots)
+      boolean1: document.boolean1,
+      boolean2: document.boolean2,
+      boolean3: document.boolean3,
     })
     .from(document)
     .where(and(...whereConditions))
@@ -874,6 +926,7 @@ export async function getDocuments(
       processingError: doc.processingError,
       enabled: doc.enabled,
       uploadedAt: doc.uploadedAt,
+      // Text tags
       tag1: doc.tag1,
       tag2: doc.tag2,
       tag3: doc.tag3,
@@ -881,6 +934,19 @@ export async function getDocuments(
       tag5: doc.tag5,
       tag6: doc.tag6,
       tag7: doc.tag7,
+      // Number tags
+      number1: doc.number1,
+      number2: doc.number2,
+      number3: doc.number3,
+      number4: doc.number4,
+      number5: doc.number5,
+      // Date tags
+      date1: doc.date1,
+      date2: doc.date2,
+      // Boolean tags
+      boolean1: doc.boolean1,
+      boolean2: doc.boolean2,
+      boolean3: doc.boolean3,
     })),
     pagination: {
       total,
@@ -1310,16 +1376,16 @@ export async function updateDocument(
   tag5: string | null
   tag6: string | null
   tag7: string | null
-  number1: string | null
-  number2: string | null
-  number3: string | null
-  number4: string | null
-  number5: string | null
-  date1: string | null
-  date2: string | null
-  boolean1: string | null
-  boolean2: string | null
-  boolean3: string | null
+  number1: number | null
+  number2: number | null
+  number3: number | null
+  number4: number | null
+  number5: number | null
+  date1: Date | null
+  date2: Date | null
+  boolean1: boolean | null
+  boolean2: boolean | null
+  boolean3: boolean | null
   deletedAt: Date | null
 }> {
   const dbUpdateData: Partial<{
@@ -1339,16 +1405,16 @@ export async function updateDocument(
     tag5: string | null
     tag6: string | null
     tag7: string | null
-    number1: string | null
-    number2: string | null
-    number3: string | null
-    number4: string | null
-    number5: string | null
-    date1: string | null
-    date2: string | null
-    boolean1: string | null
-    boolean2: string | null
-    boolean3: string | null
+    number1: number | null
+    number2: number | null
+    number3: number | null
+    number4: number | null
+    number5: number | null
+    date1: Date | null
+    date2: Date | null
+    boolean1: boolean | null
+    boolean2: boolean | null
+    boolean3: boolean | null
   }> = {}
   // All tag slots across all field types
   const ALL_TAG_SLOTS = [

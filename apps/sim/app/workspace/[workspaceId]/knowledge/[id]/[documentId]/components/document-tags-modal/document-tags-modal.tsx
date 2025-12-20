@@ -57,7 +57,18 @@ function formatValueForDisplay(value: string, fieldType: string): string {
       return value === 'true' ? 'True' : 'False'
     case 'date':
       try {
-        return new Date(value).toLocaleDateString()
+        const date = new Date(value)
+        if (Number.isNaN(date.getTime())) return value
+        // For UTC dates, display the UTC date to prevent timezone shifts
+        // e.g., 2002-05-16T00:00:00.000Z should show as "May 16, 2002" not "May 15, 2002"
+        if (typeof value === 'string' && (value.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(value))) {
+          return new Date(
+            date.getUTCFullYear(),
+            date.getUTCMonth(),
+            date.getUTCDate()
+          ).toLocaleDateString()
+        }
+        return date.toLocaleDateString()
       } catch {
         return value
       }
@@ -536,7 +547,6 @@ export function DocumentTagsModal({
                             value={editTagForm.value || undefined}
                             onChange={(value) => setEditTagForm({ ...editTagForm, value })}
                             placeholder='Select date'
-                            includeTime
                           />
                         ) : (
                           <Input
@@ -690,7 +700,6 @@ export function DocumentTagsModal({
                         value={editTagForm.value || undefined}
                         onChange={(value) => setEditTagForm({ ...editTagForm, value })}
                         placeholder='Select date'
-                        includeTime
                       />
                     ) : (
                       <Input

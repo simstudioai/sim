@@ -7,16 +7,8 @@
  * // Basic date picker
  * <DatePicker
  *   value={date}
- *   onChange={(isoString) => setDate(isoString)}
+ *   onChange={(dateString) => setDate(dateString)}
  *   placeholder="Select date"
- * />
- *
- * // With time selection
- * <DatePicker
- *   value={dateTime}
- *   onChange={(isoString) => setDateTime(isoString)}
- *   includeTime
- *   placeholder="Select date and time"
  * />
  * ```
  */
@@ -55,16 +47,14 @@ const datePickerVariants = cva(
 export interface DatePickerProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onChange'>,
     VariantProps<typeof datePickerVariants> {
-  /** Current selected date value (ISO string or Date) */
+  /** Current selected date value (YYYY-MM-DD string or Date) */
   value?: string | Date
-  /** Callback when date changes */
+  /** Callback when date changes, returns YYYY-MM-DD format */
   onChange?: (value: string) => void
   /** Placeholder text when no value is selected */
   placeholder?: string
   /** Whether the picker is disabled */
   disabled?: boolean
-  /** Whether to include time selection */
-  includeTime?: boolean
   /** Size variant */
   size?: 'default' | 'sm'
 }
@@ -109,27 +99,52 @@ function getFirstDayOfMonth(year: number, month: number): number {
 /**
  * Formats a date for display in the trigger button.
  */
-function formatDateForDisplay(date: Date | null, includeTime: boolean): string {
+function formatDateForDisplay(date: Date | null): string {
   if (!date) return ''
-  const options: Intl.DateTimeFormatOptions = {
+  return date.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
-  }
-  if (includeTime) {
-    options.hour = '2-digit'
-    options.minute = '2-digit'
-  }
-  return date.toLocaleDateString('en-US', options)
+  })
+}
+
+/**
+ * Formats a date as YYYY-MM-DD string.
+ */
+function formatDateAsString(year: number, month: number, day: number): string {
+  const m = (month + 1).toString().padStart(2, '0')
+  const d = day.toString().padStart(2, '0')
+  return `${year}-${m}-${d}`
 }
 
 /**
  * Parses a string or Date value into a Date object.
+ * Handles various date formats including YYYY-MM-DD and ISO strings.
  */
 function parseDate(value: string | Date | undefined): Date | null {
   if (!value) return null
-  if (value instanceof Date) return value
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null
+    return value
+  }
+
   try {
+    // Handle YYYY-MM-DD format (treat as local date)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const [year, month, day] = value.split('-').map(Number)
+      return new Date(year, month - 1, day)
+    }
+
+    // Handle ISO strings with timezone (extract date part as local)
+    if (value.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(value)) {
+      const date = new Date(value)
+      if (Number.isNaN(date.getTime())) return null
+      // Use UTC date components to prevent timezone shift
+      return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+    }
+
+    // Fallback: try parsing as-is
     const date = new Date(value)
     return Number.isNaN(date.getTime()) ? null : date
   } catch {
@@ -139,21 +154,11 @@ function parseDate(value: string | Date | undefined): Date | null {
 
 /**
  * DatePicker component matching emcn design patterns.
- * Provides a calendar dropdown for date selection with optional time input.
+ * Provides a calendar dropdown for date selection.
  */
 const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
   (
-    {
-      className,
-      variant,
-      size,
-      value,
-      onChange,
-      placeholder = 'Select date',
-      disabled,
-      includeTime = false,
-      ...props
-    },
+    { className, variant, size, value, onChange, placeholder = 'Select date', disabled, ...props },
     ref
   ) => {
     const [open, setOpen] = React.useState(false)
@@ -167,20 +172,12 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
       const d = selectedDate || new Date()
       return d.getFullYear()
     })
-    const [hour, setHour] = React.useState(() => {
-      return selectedDate ? selectedDate.getHours() : 12
-    })
-    const [minute, setMinute] = React.useState(() => {
-      return selectedDate ? selectedDate.getMinutes() : 0
-    })
 
     // Update view when value changes externally
     React.useEffect(() => {
       if (selectedDate) {
         setViewMonth(selectedDate.getMonth())
         setViewYear(selectedDate.getFullYear())
-        setHour(selectedDate.getHours())
-        setMinute(selectedDate.getMinutes())
       }
     }, [value])
 
@@ -189,34 +186,10 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
      */
     const handleSelectDate = React.useCallback(
       (day: number) => {
-        const newDate = new Date(viewYear, viewMonth, day, hour, minute)
-        onChange?.(newDate.toISOString())
-        if (!includeTime) {
-          setOpen(false)
-        }
+        onChange?.(formatDateAsString(viewYear, viewMonth, day))
+        setOpen(false)
       },
-      [viewYear, viewMonth, hour, minute, onChange, includeTime]
-    )
-
-    /**
-     * Handles time input changes.
-     */
-    const handleTimeChange = React.useCallback(
-      (newHour: number, newMinute: number) => {
-        setHour(newHour)
-        setMinute(newMinute)
-        if (selectedDate) {
-          const newDate = new Date(
-            selectedDate.getFullYear(),
-            selectedDate.getMonth(),
-            selectedDate.getDate(),
-            newHour,
-            newMinute
-          )
-          onChange?.(newDate.toISOString())
-        }
-      },
-      [selectedDate, onChange]
+      [viewYear, viewMonth, onChange]
     )
 
     /**
@@ -244,20 +217,15 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
     }, [viewMonth])
 
     /**
-     * Selects today's date and optionally closes the picker.
+     * Selects today's date and closes the picker.
      */
     const handleSelectToday = React.useCallback(() => {
       const now = new Date()
-      // Update view to show today's month/year
       setViewMonth(now.getMonth())
       setViewYear(now.getFullYear())
-      // Create today's date with current time settings
-      const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute)
-      onChange?.(todayDate.toISOString())
-      if (!includeTime) {
-        setOpen(false)
-      }
-    }, [hour, minute, onChange, includeTime])
+      onChange?.(formatDateAsString(now.getFullYear(), now.getMonth(), now.getDate()))
+      setOpen(false)
+    }, [onChange])
 
     const daysInMonth = getDaysInMonth(viewYear, viewMonth)
     const firstDayOfMonth = getFirstDayOfMonth(viewYear, viewMonth)
@@ -343,7 +311,7 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
               onKeyDown={handleKeyDown}
             >
               <span className={cn('flex-1 truncate', !selectedDate && 'text-[var(--text-muted)]')}>
-                {selectedDate ? formatDateForDisplay(selectedDate, includeTime) : placeholder}
+                {selectedDate ? formatDateForDisplay(selectedDate) : placeholder}
               </span>
               <ChevronDown
                 className={cn(
@@ -417,36 +385,6 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
                 </div>
               ))}
             </div>
-
-            {/* Time Selection */}
-            {includeTime && (
-              <div className='flex items-center justify-center gap-[8px] border-[var(--surface-11)] border-t px-[12px] py-[10px]'>
-                <span className='text-[12px] text-[var(--text-muted)]'>Time:</span>
-                <input
-                  type='number'
-                  min={0}
-                  max={23}
-                  value={hour.toString().padStart(2, '0')}
-                  onChange={(e) => {
-                    const val = Math.min(23, Math.max(0, Number.parseInt(e.target.value) || 0))
-                    handleTimeChange(val, minute)
-                  }}
-                  className='w-[44px] rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[6px] py-[4px] text-center text-[12px] text-[var(--text-primary)] outline-none dark:bg-[var(--surface-9)]'
-                />
-                <span className='text-[var(--text-muted)]'>:</span>
-                <input
-                  type='number'
-                  min={0}
-                  max={59}
-                  value={minute.toString().padStart(2, '0')}
-                  onChange={(e) => {
-                    const val = Math.min(59, Math.max(0, Number.parseInt(e.target.value) || 0))
-                    handleTimeChange(hour, val)
-                  }}
-                  className='w-[44px] rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[6px] py-[4px] text-center text-[12px] text-[var(--text-primary)] outline-none dark:bg-[var(--surface-9)]'
-                />
-              </div>
-            )}
 
             {/* Today Button */}
             <div className='border-[var(--surface-11)] border-t px-[8px] py-[8px]'>
