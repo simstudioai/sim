@@ -479,8 +479,16 @@ export async function transformBlockTool(
 
   const llmSchema = await createLLMToolSchema(toolConfig, userProvidedParams)
 
+  // Create unique tool ID by appending resource ID for multi-instance tools
+  let uniqueToolId = toolConfig.id
+  if (toolId === 'workflow_executor' && userProvidedParams.workflowId) {
+    uniqueToolId = `${toolConfig.id}_${userProvidedParams.workflowId}`
+  } else if (toolId.startsWith('knowledge_') && userProvidedParams.knowledgeBaseId) {
+    uniqueToolId = `${toolConfig.id}_${userProvidedParams.knowledgeBaseId}`
+  }
+
   return {
-    id: toolConfig.id,
+    id: uniqueToolId,
     name: toolConfig.name,
     description: toolConfig.description,
     params: userProvidedParams,

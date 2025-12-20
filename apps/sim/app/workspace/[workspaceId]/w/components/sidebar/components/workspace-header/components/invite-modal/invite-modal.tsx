@@ -677,16 +677,48 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
       <ModalContent className='w-[500px]'>
         <ModalHeader>Invite members to {workspaceName || 'Workspace'}</ModalHeader>
 
-        <form ref={formRef} onSubmit={handleSubmit} className='flex min-h-0 flex-1 flex-col'>
+        <form
+          ref={formRef}
+          onSubmit={handleSubmit}
+          className='flex min-h-0 flex-1 flex-col'
+          autoComplete='off'
+        >
           <ModalBody>
             <div className='space-y-[12px]'>
               <div>
                 <Label
-                  htmlFor='emails'
+                  htmlFor='invite-field'
                   className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
                 >
                   Email Addresses
                 </Label>
+                {/* Hidden decoy fields to prevent browser autofill */}
+                <input
+                  type='text'
+                  name='fakeusernameremembered'
+                  autoComplete='username'
+                  style={{
+                    position: 'absolute',
+                    left: '-9999px',
+                    opacity: 0,
+                    pointerEvents: 'none',
+                  }}
+                  tabIndex={-1}
+                  readOnly
+                />
+                <input
+                  type='email'
+                  name='fakeemailremembered'
+                  autoComplete='email'
+                  style={{
+                    position: 'absolute',
+                    left: '-9999px',
+                    opacity: 0,
+                    pointerEvents: 'none',
+                  }}
+                  tabIndex={-1}
+                  readOnly
+                />
                 <div className='scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[6px] py-[4px] focus-within:outline-none dark:bg-[var(--surface-9)]'>
                   {invalidEmails.map((email, index) => (
                     <EmailTag
@@ -706,7 +738,8 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                     />
                   ))}
                   <Input
-                    id='emails'
+                    id='invite-field'
+                    name='invite_search_field'
                     type='text'
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
@@ -726,6 +759,13 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                     )}
                     autoFocus={userPerms.canAdmin}
                     disabled={isSubmitting || !userPerms.canAdmin}
+                    autoComplete='off'
+                    autoCorrect='off'
+                    autoCapitalize='off'
+                    spellCheck={false}
+                    data-lpignore='true'
+                    data-form-type='other'
+                    aria-autocomplete='none'
                   />
                 </div>
               </div>

@@ -1,14 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import type { TagSlot } from '@/lib/knowledge/constants'
+import type { AllTagSlot } from '@/lib/knowledge/constants'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('useTagDefinitions')
 
 export interface TagDefinition {
   id: string
-  tagSlot: TagSlot
+  tagSlot: AllTagSlot
   displayName: string
   fieldType: string
   createdAt: string
@@ -16,7 +16,7 @@ export interface TagDefinition {
 }
 
 export interface TagDefinitionInput {
-  tagSlot: TagSlot
+  tagSlot: AllTagSlot
   displayName: string
   fieldType: string
   // Optional: for editing existing definitions

@@ -578,7 +578,7 @@ export class EdgeConstructor {
       return
     }
 
-    const edgeId = `${sourceId}→${targetId}`
+    const edgeId = `${sourceId}→${targetId}${sourceHandle ? `-${sourceHandle}` : ''}`
 
     sourceNode.outgoingEdges.set(edgeId, {
       target: targetId,

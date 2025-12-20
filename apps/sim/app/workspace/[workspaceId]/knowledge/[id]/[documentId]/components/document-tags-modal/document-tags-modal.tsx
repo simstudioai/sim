@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react'
 import {
   Button,
   Combobox,
+  DatePicker,
   Input,
   Label,
   Modal,
@@ -15,7 +16,7 @@ import {
   Trash,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { MAX_TAG_SLOTS, TAG_SLOTS, type TagSlot } from '@/lib/knowledge/constants'
+import { ALL_TAG_SLOTS, type AllTagSlot, MAX_TAG_SLOTS } from '@/lib/knowledge/constants'
 import type { DocumentTag } from '@/lib/knowledge/tags/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -27,6 +28,54 @@ import { type TagDefinitionInput, useTagDefinitions } from '@/hooks/use-tag-defi
 import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 
 const logger = createLogger('DocumentTagsModal')
+
+/** Field type display labels */
+const FIELD_TYPE_LABELS: Record<string, string> = {
+  text: 'Text',
+  number: 'Number',
+  date: 'Date',
+  boolean: 'Boolean',
+}
+
+/**
+ * Gets the appropriate value when changing field types.
+ * Clears value when type changes to allow placeholder to show.
+ */
+function getValueForFieldType(
+  newFieldType: string,
+  currentFieldType: string,
+  currentValue: string
+): string {
+  return newFieldType === currentFieldType ? currentValue : ''
+}
+
+/** Format value for display based on field type */
+function formatValueForDisplay(value: string, fieldType: string): string {
+  if (!value) return ''
+  switch (fieldType) {
+    case 'boolean':
+      return value === 'true' ? 'True' : 'False'
+    case 'date':
+      try {
+        const date = new Date(value)
+        if (Number.isNaN(date.getTime())) return value
+        // For UTC dates, display the UTC date to prevent timezone shifts
+        // e.g., 2002-05-16T00:00:00.000Z should show as "May 16, 2002" not "May 15, 2002"
+        if (typeof value === 'string' && (value.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(value))) {
+          return new Date(
+            date.getUTCFullYear(),
+            date.getUTCMonth(),
+            date.getUTCDate()
+          ).toLocaleDateString()
+        }
+        return date.toLocaleDateString()
+      } catch {
+        return value
+      }
+    default:
+      return value
+  }
+}
 
 interface DocumentTagsModalProps {
   open: boolean
@@ -67,17 +116,21 @@ export function DocumentTagsModal({
   const buildDocumentTags = useCallback((docData: DocumentData, definitions: TagDefinition[]) => {
     const tags: DocumentTag[] = []
 
-    TAG_SLOTS.forEach((slot) => {
-      const value = docData[slot] as string | null | undefined
+    ALL_TAG_SLOTS.forEach((slot) => {
+      const rawValue = docData[slot]
       const definition = definitions.find((def) => def.tagSlot === slot)
 
-      if (value?.trim() && definition) {
-        tags.push({
-          slot,
-          displayName: definition.displayName,
-          fieldType: definition.fieldType,
-          value: value.trim(),
-        })
+      if (rawValue !== null && rawValue !== undefined && definition) {
+        // Convert value to string for storage
+        const stringValue = String(rawValue).trim()
+        if (stringValue) {
+          tags.push({
+            slot,
+            displayName: definition.displayName,
+            fieldType: definition.fieldType,
+            value: stringValue,
+          })
+        }
       }
     })
 
@@ -95,13 +148,15 @@ export function DocumentTagsModal({
       try {
         const tagData: Record<string, string> = {}
 
-        TAG_SLOTS.forEach((slot) => {
-          tagData[slot] = ''
-        })
-
-        tagsToSave.forEach((tag) => {
-          if (tag.value.trim()) {
-            tagData[tag.slot] = tag.value.trim()
+        // Only include tags that have values (omit empty ones)
+        // Use empty string for slots that should be cleared
+        ALL_TAG_SLOTS.forEach((slot) => {
+          const tag = tagsToSave.find((t) => t.slot === slot)
+          if (tag?.value.trim()) {
+            tagData[slot] = tag.value.trim()
+          } else {
+            // Use empty string to clear a tag (API schema expects string, not null)
+            tagData[slot] = ''
           }
         })
 
@@ -117,8 +172,8 @@ export function DocumentTagsModal({
           throw new Error('Failed to update document tags')
         }
 
-        updateDocumentInStore(knowledgeBaseId, documentId, tagData)
-        onDocumentUpdate?.(tagData)
+        updateDocumentInStore(knowledgeBaseId, documentId, tagData as Record<string, string>)
+        onDocumentUpdate?.(tagData as Record<string, string>)
 
         await fetchTagDefinitions()
       } catch (error) {
@@ -279,7 +334,7 @@ export function DocumentTagsModal({
           const newDefinition: TagDefinitionInput = {
             displayName: formData.displayName,
             fieldType: formData.fieldType,
-            tagSlot: targetSlot as TagSlot,
+            tagSlot: targetSlot as AllTagSlot,
           }
 
           if (saveTagDefinitions) {
@@ -359,20 +414,7 @@ export function DocumentTagsModal({
         <ModalBody className='!pb-[16px]'>
           <div className='min-h-0 flex-1 overflow-y-auto'>
             <div className='space-y-[8px]'>
-              <Label>
-                Tags{' '}
-                <span className='pl-[6px] text-[var(--text-tertiary)]'>
-                  {documentTags.length}/{MAX_TAG_SLOTS} slots used
-                </span>
-              </Label>
-
-              {documentTags.length === 0 && !isCreatingTag && (
-                <div className='rounded-[6px] border p-[16px] text-center'>
-                  <p className='text-[12px] text-[var(--text-tertiary)]'>
-                    No tags added yet. Add tags to help organize this document.
-                  </p>
-                </div>
-              )}
+              <Label>Tags</Label>
 
               {documentTags.map((tag, index) => (
                 <div key={index} className='space-y-[8px]'>
@@ -383,9 +425,12 @@ export function DocumentTagsModal({
                     <span className='min-w-0 truncate text-[12px] text-[var(--text-primary)]'>
                       {tag.displayName}
                     </span>
+                    <span className='rounded-[3px] bg-[var(--surface-3)] px-[6px] py-[2px] text-[10px] text-[var(--text-muted)]'>
+                      {FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
+                    </span>
                     <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[#3A3A3A]' />
                     <span className='min-w-0 flex-1 truncate text-[11px] text-[var(--text-muted)]'>
-                      {tag.value}
+                      {formatValueForDisplay(tag.value, tag.fieldType)}
                     </span>
                     <div className='flex flex-shrink-0 items-center gap-1'>
                       <Button
@@ -415,10 +460,16 @@ export function DocumentTagsModal({
                               const def = kbTagDefinitions.find(
                                 (d) => d.displayName.toLowerCase() === value.toLowerCase()
                               )
+                              const newFieldType = def?.fieldType || 'text'
                               setEditTagForm({
                                 ...editTagForm,
                                 displayName: value,
-                                fieldType: def?.fieldType || 'text',
+                                fieldType: newFieldType,
+                                value: getValueForFieldType(
+                                  newFieldType,
+                                  editTagForm.fieldType,
+                                  editTagForm.value
+                                ),
                               })
                             }}
                             placeholder='Enter or select tag name'
@@ -453,33 +504,70 @@ export function DocumentTagsModal({
                         )}
                       </div>
 
-                      {/* Type selector commented out - only "text" type is currently supported
-                      <div className='flex flex-col gap-[8px]'>
-                        <Label htmlFor={`tagType-${index}`}>Type</Label>
-                        <Input id={`tagType-${index}`} value='Text' disabled className='capitalize' />
-                      </div>
-                      */}
-
                       <div className='flex flex-col gap-[8px]'>
                         <Label htmlFor={`tagValue-${index}`}>Value</Label>
-                        <Input
-                          id={`tagValue-${index}`}
-                          value={editTagForm.value}
-                          onChange={(e) =>
-                            setEditTagForm({ ...editTagForm, value: e.target.value })
-                          }
-                          placeholder='Enter tag value'
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && canSaveTag) {
-                              e.preventDefault()
-                              saveDocumentTag()
+                        {editTagForm.fieldType === 'boolean' ? (
+                          <Combobox
+                            id={`tagValue-${index}`}
+                            options={[
+                              { label: 'True', value: 'true' },
+                              { label: 'False', value: 'false' },
+                            ]}
+                            value={editTagForm.value}
+                            selectedValue={editTagForm.value}
+                            onChange={(value) => setEditTagForm({ ...editTagForm, value })}
+                            placeholder='Select value'
+                          />
+                        ) : editTagForm.fieldType === 'number' ? (
+                          <Input
+                            id={`tagValue-${index}`}
+                            value={editTagForm.value}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              // Allow empty, digits, decimal point, and negative sign
+                              if (val === '' || /^-?\d*\.?\d*$/.test(val)) {
+                                setEditTagForm({ ...editTagForm, value: val })
+                              }
+                            }}
+                            placeholder='Enter number'
+                            inputMode='decimal'
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && canSaveTag) {
+                                e.preventDefault()
+                                saveDocumentTag()
+                              }
+                              if (e.key === 'Escape') {
+                                e.preventDefault()
+                                cancelEditingTag()
+                              }
+                            }}
+                          />
+                        ) : editTagForm.fieldType === 'date' ? (
+                          <DatePicker
+                            value={editTagForm.value || undefined}
+                            onChange={(value) => setEditTagForm({ ...editTagForm, value })}
+                            placeholder='Select date'
+                          />
+                        ) : (
+                          <Input
+                            id={`tagValue-${index}`}
+                            value={editTagForm.value}
+                            onChange={(e) =>
+                              setEditTagForm({ ...editTagForm, value: e.target.value })
                             }
-                            if (e.key === 'Escape') {
-                              e.preventDefault()
-                              cancelEditingTag()
-                            }
-                          }}
-                        />
+                            placeholder='Enter tag value'
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && canSaveTag) {
+                                e.preventDefault()
+                                saveDocumentTag()
+                              }
+                              if (e.key === 'Escape') {
+                                e.preventDefault()
+                                cancelEditingTag()
+                              }
+                            }}
+                          />
+                        )}
                       </div>
 
                       <div className='flex gap-[8px]'>
@@ -500,7 +588,7 @@ export function DocumentTagsModal({
                 </div>
               ))}
 
-              {!isTagEditing && (
+              {documentTags.length > 0 && !isTagEditing && (
                 <Button
                   variant='default'
                   onClick={openTagCreator}
@@ -511,7 +599,7 @@ export function DocumentTagsModal({
                 </Button>
               )}
 
-              {isCreatingTag && (
+              {(isCreatingTag || documentTags.length === 0) && editingTagIndex === null && (
                 <div className='space-y-[8px] rounded-[6px] border p-[12px]'>
                   <div className='flex flex-col gap-[8px]'>
                     <Label htmlFor='newTagName'>Tag Name</Label>
@@ -525,10 +613,16 @@ export function DocumentTagsModal({
                           const def = kbTagDefinitions.find(
                             (d) => d.displayName.toLowerCase() === value.toLowerCase()
                           )
+                          const newFieldType = def?.fieldType || 'text'
                           setEditTagForm({
                             ...editTagForm,
                             displayName: value,
-                            fieldType: def?.fieldType || 'text',
+                            fieldType: newFieldType,
+                            value: getValueForFieldType(
+                              newFieldType,
+                              editTagForm.fieldType,
+                              editTagForm.value
+                            ),
                           })
                         }}
                         placeholder='Enter or select tag name'
@@ -563,31 +657,68 @@ export function DocumentTagsModal({
                     )}
                   </div>
 
-                  {/* Type selector commented out - only "text" type is currently supported
-                  <div className='flex flex-col gap-[8px]'>
-                    <Label htmlFor='newTagType'>Type</Label>
-                    <Input id='newTagType' value='Text' disabled className='capitalize' />
-                  </div>
-                  */}
-
                   <div className='flex flex-col gap-[8px]'>
                     <Label htmlFor='newTagValue'>Value</Label>
-                    <Input
-                      id='newTagValue'
-                      value={editTagForm.value}
-                      onChange={(e) => setEditTagForm({ ...editTagForm, value: e.target.value })}
-                      placeholder='Enter tag value'
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && canSaveTag) {
-                          e.preventDefault()
-                          saveDocumentTag()
-                        }
-                        if (e.key === 'Escape') {
-                          e.preventDefault()
-                          cancelEditingTag()
-                        }
-                      }}
-                    />
+                    {editTagForm.fieldType === 'boolean' ? (
+                      <Combobox
+                        id='newTagValue'
+                        options={[
+                          { label: 'True', value: 'true' },
+                          { label: 'False', value: 'false' },
+                        ]}
+                        value={editTagForm.value}
+                        selectedValue={editTagForm.value}
+                        onChange={(value) => setEditTagForm({ ...editTagForm, value })}
+                        placeholder='Select value'
+                      />
+                    ) : editTagForm.fieldType === 'number' ? (
+                      <Input
+                        id='newTagValue'
+                        value={editTagForm.value}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          // Allow empty, digits, decimal point, and negative sign
+                          if (val === '' || /^-?\d*\.?\d*$/.test(val)) {
+                            setEditTagForm({ ...editTagForm, value: val })
+                          }
+                        }}
+                        placeholder='Enter number'
+                        inputMode='decimal'
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && canSaveTag) {
+                            e.preventDefault()
+                            saveDocumentTag()
+                          }
+                          if (e.key === 'Escape') {
+                            e.preventDefault()
+                            cancelEditingTag()
+                          }
+                        }}
+                      />
+                    ) : editTagForm.fieldType === 'date' ? (
+                      <DatePicker
+                        value={editTagForm.value || undefined}
+                        onChange={(value) => setEditTagForm({ ...editTagForm, value })}
+                        placeholder='Select date'
+                      />
+                    ) : (
+                      <Input
+                        id='newTagValue'
+                        value={editTagForm.value}
+                        onChange={(e) => setEditTagForm({ ...editTagForm, value: e.target.value })}
+                        placeholder='Enter tag value'
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && canSaveTag) {
+                            e.preventDefault()
+                            saveDocumentTag()
+                          }
+                          if (e.key === 'Escape') {
+                            e.preventDefault()
+                            cancelEditingTag()
+                          }
+                        }}
+                      />
+                    )}
                   </div>
 
                   {kbTagDefinitions.length >= MAX_TAG_SLOTS &&
@@ -604,9 +735,11 @@ export function DocumentTagsModal({
                     )}
 
                   <div className='flex gap-[8px]'>
-                    <Button variant='default' onClick={cancelEditingTag} className='flex-1'>
-                      Cancel
-                    </Button>
+                    {documentTags.length > 0 && (
+                      <Button variant='default' onClick={cancelEditingTag} className='flex-1'>
+                        Cancel
+                      </Button>
+                    )}
                     <Button
                       variant='primary'
                       onClick={saveDocumentTag}

@@ -490,6 +490,20 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                 <p className='font-medium text-[13px] text-[var(--text-secondary)]'>
                   Enter a name for your API key to help you identify it later.
                 </p>
+                {/* Hidden decoy fields to prevent browser autofill */}
+                <input
+                  type='text'
+                  name='fakeusernameremembered'
+                  autoComplete='username'
+                  style={{
+                    position: 'absolute',
+                    left: '-9999px',
+                    opacity: 0,
+                    pointerEvents: 'none',
+                  }}
+                  tabIndex={-1}
+                  readOnly
+                />
                 <EmcnInput
                   value={newKeyName}
                   onChange={(e) => {
@@ -499,6 +513,12 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                   placeholder='e.g., Development, Production'
                   className='h-9'
                   autoFocus
+                  name='api_key_label'
+                  autoComplete='off'
+                  autoCorrect='off'
+                  autoCapitalize='off'
+                  data-lpignore='true'
+                  data-form-type='other'
                 />
                 {createError && (
                   <p className='text-[11px] text-[var(--text-error)] leading-tight'>

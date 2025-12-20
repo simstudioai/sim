@@ -154,7 +154,7 @@ export function TeamMembers({
       <div className='space-y-4'>
         {teamItems.map((item) => (
           <div key={item.id} className='flex items-center justify-between'>
-            {/* Member info */}
+            {/* Left section: Avatar + Name/Role + Action buttons */}
             <div className='flex flex-1 items-center gap-3'>
               {/* Avatar */}
               <UserAvatar
@@ -165,7 +165,7 @@ export function TeamMembers({
               />
 
               {/* Name and email */}
-              <div className='min-w-0 flex-1'>
+              <div className='min-w-0'>
                 <div className='flex items-center gap-2'>
                   <span className='truncate font-medium text-sm'>{item.name}</span>
                   {item.type === 'member' && (
@@ -188,51 +188,50 @@ export function TeamMembers({
                 <div className='truncate text-[var(--text-muted)] text-xs'>{item.email}</div>
               </div>
 
-              {/* Usage stats - matching subscription layout */}
+              {/* Action buttons */}
               {isAdminOrOwner && (
-                <div className='hidden items-center text-xs tabular-nums sm:flex'>
-                  <div className='text-center'>
-                    <div className='text-[var(--text-muted)]'>Usage</div>
-                    <div className='font-medium'>
-                      {isLoadingUsage && item.type === 'member' ? (
-                        <span className='inline-block h-3 w-12 animate-pulse rounded bg-[var(--surface-3)]' />
-                      ) : (
-                        item.usage
-                      )}
-                    </div>
-                  </div>
+                <>
+                  {/* Admin/Owner can remove other members */}
+                  {item.type === 'member' &&
+                    item.role !== 'owner' &&
+                    item.email !== currentUserEmail && (
+                      <Button
+                        variant='ghost'
+                        onClick={() => onRemoveMember(item.member)}
+                        className='h-8 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                      >
+                        Remove
+                      </Button>
+                    )}
+
+                  {/* Admin can cancel invitations */}
+                  {item.type === 'invitation' && (
+                    <Button
+                      variant='ghost'
+                      onClick={() => handleCancelInvitation(item.invitation.id)}
+                      disabled={cancellingInvitations.has(item.invitation.id)}
+                      className='h-8 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                    >
+                      {cancellingInvitations.has(item.invitation.id) ? 'Cancelling...' : 'Cancel'}
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Right section: Usage column (right-aligned) */}
+            {isAdminOrOwner && (
+              <div className='ml-4 flex flex-col items-end'>
+                <div className='text-[var(--text-muted)] text-xs'>Usage</div>
+                <div className='font-medium text-xs tabular-nums'>
+                  {isLoadingUsage && item.type === 'member' ? (
+                    <span className='inline-block h-3 w-12 animate-pulse rounded bg-[var(--surface-3)]' />
+                  ) : (
+                    item.usage
+                  )}
                 </div>
-              )}
-            </div>
-
-            {/* Actions */}
-            <div className='ml-4 flex gap-1'>
-              {/* Admin/Owner can remove other members */}
-              {isAdminOrOwner &&
-                item.type === 'member' &&
-                item.role !== 'owner' &&
-                item.email !== currentUserEmail && (
-                  <Button
-                    variant='ghost'
-                    onClick={() => onRemoveMember(item.member)}
-                    className='h-8 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                  >
-                    Remove
-                  </Button>
-                )}
-
-              {/* Admin can cancel invitations */}
-              {isAdminOrOwner && item.type === 'invitation' && (
-                <Button
-                  variant='ghost'
-                  onClick={() => handleCancelInvitation(item.invitation.id)}
-                  disabled={cancellingInvitations.has(item.invitation.id)}
-                  className='h-8 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                >
-                  {cancellingInvitations.has(item.invitation.id) ? 'Cancelling...' : 'Cancel'}
-                </Button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         ))}
       </div>

@@ -72,6 +72,16 @@ describe('Document By ID API Route', () => {
     tag5: null,
     tag6: null,
     tag7: null,
+    number1: null,
+    number2: null,
+    number3: null,
+    number4: null,
+    number5: null,
+    date1: null,
+    date2: null,
+    boolean1: null,
+    boolean2: null,
+    boolean3: null,
     deletedAt: null,
   }
 

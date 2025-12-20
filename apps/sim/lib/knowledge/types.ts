@@ -48,3 +48,40 @@ export interface UpdateTagDefinitionData {
   displayName?: string
   fieldType?: string
 }
+
+/** Tag filter for knowledge base search */
+export interface StructuredFilter {
+  tagName?: string // Human-readable name (input from frontend)
+  tagSlot: string // Database column (resolved from tagName)
+  fieldType: string
+  operator: string
+  value: string | number | boolean
+  valueTo?: string | number
+}
+
+/** Processed document tags ready for database storage */
+export interface ProcessedDocumentTags {
+  // Text tags
+  tag1: string | null
+  tag2: string | null
+  tag3: string | null
+  tag4: string | null
+  tag5: string | null
+  tag6: string | null
+  tag7: string | null
+  // Number tags
+  number1: number | null
+  number2: number | null
+  number3: number | null
+  number4: number | null
+  number5: number | null
+  // Date tags
+  date1: Date | null
+  date2: Date | null
+  // Boolean tags
+  boolean1: boolean | null
+  boolean2: boolean | null
+  boolean3: boolean | null
+  // Index signature for dynamic access
+  [key: string]: string | number | Date | boolean | null
+}

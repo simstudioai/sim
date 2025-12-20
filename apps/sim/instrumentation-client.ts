@@ -3,6 +3,7 @@
  */
 
 import { env } from './lib/core/config/env'
+import { sanitizeEventData } from './lib/core/security/redaction'
 
 if (typeof window !== 'undefined') {
   const TELEMETRY_STATUS_KEY = 'simstudio-telemetry-status'
@@ -42,37 +43,6 @@ if (typeof window !== 'undefined') {
   }
 
   /**
-   * Sanitize event data to remove sensitive information
-   */
-  function sanitizeEvent(event: any): any {
-    const patterns = ['password', 'token', 'secret', 'key', 'auth', 'credential', 'private']
-    const sensitiveRe = new RegExp(patterns.join('|'), 'i')
-
-    const scrubString = (s: string) => (s && sensitiveRe.test(s) ? '[redacted]' : s)
-
-    if (event == null) return event
-    if (typeof event === 'string') return scrubString(event)
-    if (typeof event !== 'object') return event
-
-    if (Array.isArray(event)) {
-      return event.map((item) => sanitizeEvent(item))
-    }
-
-    const sanitized: Record<string, unknown> = {}
-    for (const [key, value] of Object.entries(event)) {
-      const lowerKey = key.toLowerCase()
-      if (patterns.some((p) => lowerKey.includes(p))) continue
-
-      if (typeof value === 'string') sanitized[key] = scrubString(value)
-      else if (Array.isArray(value)) sanitized[key] = value.map((v) => sanitizeEvent(v))
-      else if (value && typeof value === 'object') sanitized[key] = sanitizeEvent(value)
-      else sanitized[key] = value
-    }
-
-    return sanitized
-  }
-
-  /**
    * Flush batch of events to server
    */
   function flushBatch(): void {
@@ -84,7 +54,7 @@ if (typeof window !== 'undefined') {
       batchTimer = null
     }
 
-    const sanitizedBatch = batch.map(sanitizeEvent)
+    const sanitizedBatch = batch.map(sanitizeEventData)
 
     const payload = JSON.stringify({
       category: 'batch',

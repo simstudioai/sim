@@ -339,12 +339,31 @@ export function CreateBaseModal({
             <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
               <div className='space-y-[12px]'>
                 <div className='flex flex-col gap-[8px]'>
-                  <Label htmlFor='name'>Name</Label>
+                  <Label htmlFor='kb-name'>Name</Label>
+                  {/* Hidden decoy fields to prevent browser autofill */}
+                  <input
+                    type='text'
+                    name='fakeusernameremembered'
+                    autoComplete='username'
+                    style={{
+                      position: 'absolute',
+                      left: '-9999px',
+                      opacity: 0,
+                      pointerEvents: 'none',
+                    }}
+                    tabIndex={-1}
+                    readOnly
+                  />
                   <Input
-                    id='name'
+                    id='kb-name'
                     placeholder='Enter knowledge base name'
                     {...register('name')}
                     className={cn(errors.name && 'border-[var(--text-error)]')}
+                    autoComplete='off'
+                    autoCorrect='off'
+                    autoCapitalize='off'
+                    data-lpignore='true'
+                    data-form-type='other'
                   />
                 </div>
 

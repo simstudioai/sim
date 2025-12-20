@@ -2,7 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
+import {
+  Button,
+  Label,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+} from '@/components/emcn'
 import { useSession, useSubscription } from '@/lib/auth/auth-client'
 import { getSubscriptionStatus } from '@/lib/billing/client/utils'
 import { cn } from '@/lib/core/utils/cn'
@@ -68,7 +76,6 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
 
       if (subscriptionStatus.isTeam && activeOrgId) {
         referenceId = activeOrgId
-        // Get subscription ID for team/enterprise
         subscriptionId = subData?.data?.id
       }
 
@@ -132,14 +139,12 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
           referenceId = activeOrgId
           subscriptionId = subData?.data?.id
         } else {
-          // For personal subscriptions, use user ID and let better-auth find the subscription
           referenceId = session.user.id
           subscriptionId = undefined
         }
 
         logger.info('Restoring subscription', { referenceId, subscriptionId })
 
-        // Build restore params - only include subscriptionId if we have one (team/enterprise)
         const restoreParams: any = { referenceId }
         if (subscriptionId) {
           restoreParams.subscriptionId = subscriptionId
@@ -150,7 +155,6 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
         logger.info('Subscription restored successfully', result)
       }
 
-      // Invalidate queries to refresh data
       await queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
       if (activeOrgId) {
         await queryClient.invalidateQueries({ queryKey: organizationKeys.detail(activeOrgId) })
@@ -175,10 +179,8 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
     if (!date) return 'end of current billing period'
 
     try {
-      // Ensure we have a valid Date object
       const dateObj = date instanceof Date ? date : new Date(date)
 
-      // Check if the date is valid
       if (Number.isNaN(dateObj.getTime())) {
         return 'end of current billing period'
       }
@@ -196,20 +198,17 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
 
   const periodEndDate = getPeriodEndDate()
 
-  // Check if subscription is set to cancel at period end
   const isCancelAtPeriodEnd = subscriptionData?.cancelAtPeriodEnd === true
 
   return (
     <>
       <div className='flex items-center justify-between'>
-        <div>
-          <span className='font-medium text-[13px]'>
-            {isCancelAtPeriodEnd ? 'Restore Subscription' : 'Manage Subscription'}
-          </span>
+        <div className='flex flex-col gap-[2px]'>
+          <Label>{isCancelAtPeriodEnd ? 'Restore Subscription' : 'Manage Subscription'}</Label>
           {isCancelAtPeriodEnd && (
-            <p className='mt-1 text-[var(--text-muted)] text-xs'>
+            <span className='text-[12px] text-[var(--text-muted)]'>
               You'll keep access until {formatDate(periodEndDate)}
-            </p>
+            </span>
           )}
         </div>
         <Button
@@ -217,7 +216,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
           onClick={() => setIsDialogOpen(true)}
           disabled={isLoading}
           className={cn(
-            'h-8 rounded-[8px] font-medium text-xs',
+            'h-8 rounded-[8px] text-[13px]',
             error && 'border-[var(--text-error)] text-[var(--text-error)]'
           )}
         >
@@ -231,7 +230,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
             {isCancelAtPeriodEnd ? 'Restore' : 'Cancel'} {subscription.plan} Subscription
           </ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-muted)]'>
               {isCancelAtPeriodEnd
                 ? 'Your subscription is set to cancel at the end of the billing period. Would you like to keep your subscription active?'
                 : `You'll be redirected to Stripe to manage your subscription. You'll keep access until ${formatDate(
@@ -244,8 +243,8 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
 
             {!isCancelAtPeriodEnd && (
               <div className='mt-3'>
-                <div className='rounded-[8px] bg-[var(--surface-3)] p-3 text-sm'>
-                  <ul className='space-y-1 text-[var(--text-muted)] text-xs'>
+                <div className='rounded-[8px] bg-[var(--surface-5)] p-3'>
+                  <ul className='space-y-1 text-[12px] text-[var(--text-muted)]'>
                     <li>• Keep all features until {formatDate(periodEndDate)}</li>
                     <li>• No more charges</li>
                     <li>• Data preserved</li>

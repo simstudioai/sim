@@ -5,11 +5,10 @@ import {
   type ComboboxOption,
   Label,
   Modal,
+  ModalBody,
   ModalContent,
-  ModalDescription,
   ModalFooter,
   ModalHeader,
-  ModalTitle,
   Tooltip,
 } from '@/components/emcn'
 import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
@@ -55,50 +54,53 @@ export function TeamSeats({
   const totalMonthlyCost = selectedSeats * costPerSeat
   const costChange = currentSeats ? (selectedSeats - currentSeats) * costPerSeat : 0
 
-  const handleConfirm = async () => {
-    await onConfirm(selectedSeats)
-  }
-
   const seatOptions: ComboboxOption[] = [1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 40, 50].map((num) => ({
     value: num.toString(),
-    label: `${num} ${num === 1 ? 'seat' : 'seats'} ($${num * costPerSeat}/month)`,
+    label: `${num} ${num === 1 ? 'seat' : 'seats'}`,
   }))
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent>
-        <ModalHeader>
-          <ModalTitle>{title}</ModalTitle>
-          <ModalDescription>{description}</ModalDescription>
-        </ModalHeader>
+      <ModalContent size='sm'>
+        <ModalHeader>{title}</ModalHeader>
+        <ModalBody>
+          <p className='text-[12px] text-[var(--text-muted)]'>{description}</p>
 
-        <div className='py-4'>
-          <Label htmlFor='seats'>Number of seats</Label>
-          <Combobox
-            options={seatOptions}
-            value={selectedSeats.toString()}
-            onChange={(value) => setSelectedSeats(Number.parseInt(value))}
-            placeholder='Select number of seats'
-          />
+          <div className='mt-4 flex flex-col gap-[4px]'>
+            <Label htmlFor='seats'>Number of seats</Label>
+            <Combobox
+              options={seatOptions}
+              value={selectedSeats > 0 ? selectedSeats.toString() : ''}
+              onChange={(value) => {
+                const num = Number.parseInt(value, 10)
+                if (!Number.isNaN(num) && num > 0) {
+                  setSelectedSeats(num)
+                }
+              }}
+              placeholder='Select or enter number of seats'
+              editable
+              disabled={isLoading}
+            />
+          </div>
 
-          <p className='mt-2 text-[var(--text-muted)] text-sm'>
+          <p className='mt-3 text-[12px] text-[var(--text-muted)]'>
             Your team will have {selectedSeats} {selectedSeats === 1 ? 'seat' : 'seats'} with a
             total of ${totalMonthlyCost} inference credits per month.
           </p>
 
           {showCostBreakdown && currentSeats !== undefined && (
-            <div className='mt-3 rounded-[8px] bg-[var(--surface-3)] p-3'>
-              <div className='flex justify-between text-sm'>
+            <div className='mt-4 rounded-[6px] bg-[var(--surface-5)] p-3'>
+              <div className='flex justify-between text-[12px]'>
                 <span className='text-[var(--text-muted)]'>Current seats:</span>
-                <span>{currentSeats}</span>
+                <span className='text-[var(--text-primary)]'>{currentSeats}</span>
               </div>
-              <div className='flex justify-between text-sm'>
+              <div className='mt-2 flex justify-between text-[12px]'>
                 <span className='text-[var(--text-muted)]'>New seats:</span>
-                <span>{selectedSeats}</span>
+                <span className='text-[var(--text-primary)]'>{selectedSeats}</span>
               </div>
-              <div className='mt-2 flex justify-between border-t pt-2 font-medium text-sm'>
-                <span className='text-[var(--text-muted)]'>Monthly cost change:</span>
-                <span>
+              <div className='mt-3 flex justify-between border-[var(--border)] border-t pt-3 text-[12px]'>
+                <span className='font-medium text-[var(--text-primary)]'>Monthly cost change:</span>
+                <span className='font-medium text-[var(--text-primary)]'>
                   {costChange > 0 ? '+' : ''}${costChange}
                 </span>
               </div>
@@ -106,19 +108,14 @@ export function TeamSeats({
           )}
 
           {error && (
-            <p className='mt-3 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+            <p className='mt-3 text-[12px] text-[var(--text-error)]'>
               {error instanceof Error && error.message ? error.message : String(error)}
             </p>
           )}
-        </div>
+        </ModalBody>
 
         <ModalFooter>
-          <Button
-            variant='outline'
-            onClick={() => onOpenChange(false)}
-            disabled={isLoading}
-            className='h-[32px] px-[12px]'
-          >
+          <Button onClick={() => onOpenChange(false)} disabled={isLoading}>
             Cancel
           </Button>
 
@@ -127,22 +124,15 @@ export function TeamSeats({
               <span>
                 <Button
                   variant='primary'
-                  onClick={handleConfirm}
+                  onClick={() => onConfirm(selectedSeats)}
                   disabled={
                     isLoading ||
+                    selectedSeats < 1 ||
                     (showCostBreakdown && selectedSeats === currentSeats) ||
                     isCancelledAtPeriodEnd
                   }
-                  className='h-[32px] px-[12px]'
                 >
-                  {isLoading ? (
-                    <div className='flex items-center space-x-2'>
-                      <div className='h-4 w-4 animate-spin rounded-full border-2 border-current border-b-transparent' />
-                      <span>Loading...</span>
-                    </div>
-                  ) : (
-                    <span>{confirmButtonText}</span>
-                  )}
+                  {isLoading ? 'Updating...' : confirmButtonText}
                 </Button>
               </span>
             </Tooltip.Trigger>

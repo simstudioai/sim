@@ -2,11 +2,7 @@ import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBaseTagDefinitions } from '@sim/db/schema'
 import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
-import {
-  getSlotsForFieldType,
-  SUPPORTED_FIELD_TYPES,
-  type TAG_SLOT_CONFIG,
-} from '@/lib/knowledge/constants'
+import { getSlotsForFieldType, SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
 import type { BulkTagDefinitionsData, DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type {
   CreateTagDefinitionData,
@@ -17,12 +13,43 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('TagsService')
 
-const VALID_TAG_SLOTS = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
+/** Text tag slots */
+const VALID_TEXT_SLOTS = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
 
-function validateTagSlot(tagSlot: string): asserts tagSlot is (typeof VALID_TAG_SLOTS)[number] {
-  if (!VALID_TAG_SLOTS.includes(tagSlot as (typeof VALID_TAG_SLOTS)[number])) {
+const VALID_NUMBER_SLOTS = ['number1', 'number2', 'number3', 'number4', 'number5'] as const
+/** Date tag slots (reduced to 2 for write performance) */
+const VALID_DATE_SLOTS = ['date1', 'date2'] as const
+/** Boolean tag slots */
+const VALID_BOOLEAN_SLOTS = ['boolean1', 'boolean2', 'boolean3'] as const
+
+/** All valid tag slots combined */
+const VALID_TAG_SLOTS = [
+  ...VALID_TEXT_SLOTS,
+  ...VALID_NUMBER_SLOTS,
+  ...VALID_DATE_SLOTS,
+  ...VALID_BOOLEAN_SLOTS,
+] as const
+
+type ValidTagSlot = (typeof VALID_TAG_SLOTS)[number]
+
+/**
+ * Validates that a tag slot is a valid slot name
+ */
+function validateTagSlot(tagSlot: string): asserts tagSlot is ValidTagSlot {
+  if (!VALID_TAG_SLOTS.includes(tagSlot as ValidTagSlot)) {
     throw new Error(`Invalid tag slot: ${tagSlot}. Must be one of: ${VALID_TAG_SLOTS.join(', ')}`)
   }
+}
+
+/**
+ * Get the field type for a tag slot
+ */
+function getFieldTypeForSlot(tagSlot: string): string | null {
+  if ((VALID_TEXT_SLOTS as readonly string[]).includes(tagSlot)) return 'text'
+  if ((VALID_NUMBER_SLOTS as readonly string[]).includes(tagSlot)) return 'number'
+  if ((VALID_DATE_SLOTS as readonly string[]).includes(tagSlot)) return 'date'
+  if ((VALID_BOOLEAN_SLOTS as readonly string[]).includes(tagSlot)) return 'boolean'
+  return null
 }
 
 /**
@@ -215,7 +242,7 @@ export async function createOrUpdateTagDefinitionsBulk(
         const newDefinition = {
           id,
           knowledgeBaseId,
-          tagSlot: finalTagSlot as (typeof TAG_SLOT_CONFIG.text.slots)[number],
+          tagSlot: finalTagSlot as ValidTagSlot,
           displayName,
           fieldType,
           createdAt: now,
@@ -466,7 +493,7 @@ export async function createTagDefinition(
   const newDefinition = {
     id: tagDefinitionId,
     knowledgeBaseId: data.knowledgeBaseId,
-    tagSlot: data.tagSlot as (typeof TAG_SLOT_CONFIG.text.slots)[number],
+    tagSlot: data.tagSlot as ValidTagSlot,
     displayName: data.displayName,
     fieldType: data.fieldType,
     createdAt: now,
@@ -562,21 +589,31 @@ export async function getTagUsage(
     const tagSlot = def.tagSlot
     validateTagSlot(tagSlot)
 
+    // Build WHERE conditions based on field type
+    // Text columns need both IS NOT NULL and != '' checks
+    // Numeric/date/boolean columns only need IS NOT NULL
+    const fieldType = getFieldTypeForSlot(tagSlot)
+    const isTextColumn = fieldType === 'text'
+
+    const whereConditions = [
+      eq(document.knowledgeBaseId, knowledgeBaseId),
+      isNull(document.deletedAt),
+      isNotNull(sql`${sql.raw(tagSlot)}`),
+    ]
+
+    // Only add empty string check for text columns
+    if (isTextColumn) {
+      whereConditions.push(sql`${sql.raw(tagSlot)} != ''`)
+    }
+
     const documentsWithTag = await db
       .select({
         id: document.id,
         filename: document.filename,
-        tagValue: sql<string>`${sql.raw(tagSlot)}`,
+        tagValue: sql<string>`${sql.raw(tagSlot)}::text`,
       })
       .from(document)
-      .where(
-        and(
-          eq(document.knowledgeBaseId, knowledgeBaseId),
-          isNull(document.deletedAt),
-          isNotNull(sql`${sql.raw(tagSlot)}`),
-          sql`${sql.raw(tagSlot)} != ''`
-        )
-      )
+      .where(and(...whereConditions))
 
     usage.push({
       tagName: def.displayName,
