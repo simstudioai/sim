@@ -330,12 +330,17 @@ export class LoggingSession {
   async safeComplete(params: SessionCompleteParams = {}): Promise<void> {
     try {
       await this.complete(params)
-    } catch {
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      logger.warn(
+        `[${this.requestId || 'unknown'}] Complete failed for execution ${this.executionId}, attempting fallback`,
+        { error: errorMsg }
+      )
       await this.completeWithCostOnlyLog({
         traceSpans: params.traceSpans,
         endedAt: params.endedAt,
         totalDurationMs: params.totalDurationMs,
-        errorMessage: 'Trace spans too large to store',
+        errorMessage: `Failed to store trace spans: ${errorMsg}`,
         isError: false,
       })
     }
@@ -344,12 +349,18 @@ export class LoggingSession {
   async safeCompleteWithError(params?: SessionErrorCompleteParams): Promise<void> {
     try {
       await this.completeWithError(params)
-    } catch {
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      logger.warn(
+        `[${this.requestId || 'unknown'}] CompleteWithError failed for execution ${this.executionId}, attempting fallback`,
+        { error: errorMsg }
+      )
       await this.completeWithCostOnlyLog({
         traceSpans: params?.traceSpans,
         endedAt: params?.endedAt,
         totalDurationMs: params?.totalDurationMs,
-        errorMessage: params?.error?.message || 'Execution failed, trace spans too large to store',
+        errorMessage:
+          params?.error?.message || `Execution failed to store trace spans: ${errorMsg}`,
         isError: true,
       })
     }

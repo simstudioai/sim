@@ -55,12 +55,42 @@ function filterForDisplayInternal(data: any, seen: WeakSet<object>, depth: numbe
       return data
     }
 
-    if (typeof data === 'string') {
-      return truncateString(data)
+    const dataType = typeof data
+
+    if (dataType === 'string') {
+      // Remove null bytes which are not allowed in PostgreSQL JSONB
+      const sanitized = data.includes('\u0000') ? data.replace(/\u0000/g, '') : data
+      return truncateString(sanitized)
     }
 
-    if (typeof data !== 'object') {
+    if (dataType === 'number') {
+      if (Number.isNaN(data)) {
+        return '[NaN]'
+      }
+      if (!Number.isFinite(data)) {
+        return data > 0 ? '[Infinity]' : '[-Infinity]'
+      }
       return data
+    }
+
+    if (dataType === 'boolean') {
+      return data
+    }
+
+    if (dataType === 'bigint') {
+      return `[BigInt: ${data.toString()}]`
+    }
+
+    if (dataType === 'symbol') {
+      return `[Symbol: ${data.toString()}]`
+    }
+
+    if (dataType === 'function') {
+      return `[Function: ${data.name || 'anonymous'}]`
+    }
+
+    if (dataType !== 'object') {
+      return '[Unknown Type]'
     }
 
     if (seen.has(data)) {
