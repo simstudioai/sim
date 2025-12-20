@@ -92,8 +92,7 @@ export class ConditionBlockHandler implements BlockHandler {
       conditions,
       outgoingConnections || [],
       evalContext,
-      ctx,
-      block
+      ctx
     )
 
     if (!selectedConnection || !selectedCondition) {
@@ -158,8 +157,7 @@ export class ConditionBlockHandler implements BlockHandler {
     conditions: Array<{ id: string; title: string; value: string }>,
     outgoingConnections: Array<{ source: string; target: string; sourceHandle?: string }>,
     evalContext: Record<string, any>,
-    ctx: ExecutionContext,
-    block: SerializedBlock
+    ctx: ExecutionContext
   ): Promise<{
     selectedConnection: { target: string; sourceHandle?: string } | null
     selectedCondition: { id: string; title: string; value: string } | null
@@ -187,13 +185,6 @@ export class ConditionBlockHandler implements BlockHandler {
             return { selectedConnection: connection, selectedCondition: condition }
           }
           // Condition is true but has no outgoing edge - branch ends gracefully
-          logger.info(
-            `Condition "${condition.title}" is true but has no outgoing edge - branch ending`,
-            {
-              blockId: block.id,
-              conditionId: condition.id,
-            }
-          )
           return { selectedConnection: null, selectedCondition: null }
         }
       } catch (error: any) {
@@ -204,18 +195,13 @@ export class ConditionBlockHandler implements BlockHandler {
 
     const elseCondition = conditions.find((c) => c.title === CONDITION.ELSE_TITLE)
     if (elseCondition) {
-      logger.warn(`No condition met, selecting 'else' path`, { blockId: block.id })
       const elseConnection = this.findConnectionForCondition(outgoingConnections, elseCondition.id)
       if (elseConnection) {
         return { selectedConnection: elseConnection, selectedCondition: elseCondition }
       }
-      logger.info(`No condition matched and else has no connection - branch ending`, {
-        blockId: block.id,
-      })
       return { selectedConnection: null, selectedCondition: null }
     }
 
-    logger.info(`No condition matched and no else block - branch ending`, { blockId: block.id })
     return { selectedConnection: null, selectedCondition: null }
   }
 

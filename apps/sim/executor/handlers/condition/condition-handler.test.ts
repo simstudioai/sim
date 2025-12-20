@@ -43,8 +43,6 @@ function simulateConditionExecution(code: string): {
   error?: string
 } {
   try {
-    // The code is in format: "const context = {...};\nreturn Boolean(...)"
-    // We need to execute it and return the result
     const fn = new Function(code)
     const result = fn()
     return { success: true, output: { result } }
@@ -349,5 +347,284 @@ describe('ConditionBlockHandler', () => {
     await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
       /Evaluation error in condition "if".*Execution timeout/
     )
+  })
+
+  describe('Multiple branches to same target', () => {
+    it('should handle if and else pointing to same target', async () => {
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'context.value > 5' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      // Both branches point to the same target
+      mockContext.workflow!.connections = [
+        { source: mockSourceBlock.id, target: mockBlock.id },
+        { source: mockBlock.id, target: mockTargetBlock1.id, sourceHandle: 'condition-cond1' },
+        { source: mockBlock.id, target: mockTargetBlock1.id, sourceHandle: 'condition-else1' },
+      ]
+
+      const result = await handler.execute(mockContext, mockBlock, inputs)
+
+      expect((result as any).conditionResult).toBe(true)
+      expect((result as any).selectedOption).toBe('cond1')
+      expect((result as any).selectedPath).toEqual({
+        blockId: mockTargetBlock1.id,
+        blockType: 'target',
+        blockTitle: 'Target Block 1',
+      })
+    })
+
+    it('should select else branch to same target when if fails', async () => {
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'context.value < 0' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      // Both branches point to the same target
+      mockContext.workflow!.connections = [
+        { source: mockSourceBlock.id, target: mockBlock.id },
+        { source: mockBlock.id, target: mockTargetBlock1.id, sourceHandle: 'condition-cond1' },
+        { source: mockBlock.id, target: mockTargetBlock1.id, sourceHandle: 'condition-else1' },
+      ]
+
+      const result = await handler.execute(mockContext, mockBlock, inputs)
+
+      expect((result as any).conditionResult).toBe(true)
+      expect((result as any).selectedOption).toBe('else1')
+      expect((result as any).selectedPath).toEqual({
+        blockId: mockTargetBlock1.id,
+        blockType: 'target',
+        blockTitle: 'Target Block 1',
+      })
+    })
+
+    it('should handle if→A, elseif→B, else→A pattern', async () => {
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'context.value === 1' },
+        { id: 'cond2', title: 'else if', value: 'context.value === 2' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      mockContext.workflow!.connections = [
+        { source: mockSourceBlock.id, target: mockBlock.id },
+        { source: mockBlock.id, target: mockTargetBlock1.id, sourceHandle: 'condition-cond1' },
+        { source: mockBlock.id, target: mockTargetBlock2.id, sourceHandle: 'condition-cond2' },
+        { source: mockBlock.id, target: mockTargetBlock1.id, sourceHandle: 'condition-else1' },
+      ]
+
+      // value is 10, so else should be selected (pointing to target 1)
+      const result = await handler.execute(mockContext, mockBlock, inputs)
+
+      expect((result as any).conditionResult).toBe(true)
+      expect((result as any).selectedOption).toBe('else1')
+      expect((result as any).selectedPath?.blockId).toBe(mockTargetBlock1.id)
+    })
+  })
+
+  describe('Condition evaluation with different data types', () => {
+    it('should evaluate string comparison conditions', async () => {
+      ;(mockContext.blockStates as any).set(mockSourceBlock.id, {
+        output: { name: 'test', status: 'active' },
+        executed: true,
+        executionTime: 100,
+      })
+
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'context.status === "active"' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      const result = await handler.execute(mockContext, mockBlock, inputs)
+
+      expect((result as any).selectedOption).toBe('cond1')
+    })
+
+    it('should evaluate boolean conditions', async () => {
+      ;(mockContext.blockStates as any).set(mockSourceBlock.id, {
+        output: { isEnabled: true, count: 5 },
+        executed: true,
+        executionTime: 100,
+      })
+
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'context.isEnabled' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      const result = await handler.execute(mockContext, mockBlock, inputs)
+
+      expect((result as any).selectedOption).toBe('cond1')
+    })
+
+    it('should evaluate array length conditions', async () => {
+      ;(mockContext.blockStates as any).set(mockSourceBlock.id, {
+        output: { items: [1, 2, 3, 4, 5] },
+        executed: true,
+        executionTime: 100,
+      })
+
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'context.items.length > 3' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      const result = await handler.execute(mockContext, mockBlock, inputs)
+
+      expect((result as any).selectedOption).toBe('cond1')
+    })
+
+    it('should evaluate null/undefined check conditions', async () => {
+      ;(mockContext.blockStates as any).set(mockSourceBlock.id, {
+        output: { data: null },
+        executed: true,
+        executionTime: 100,
+      })
+
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'context.data === null' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      const result = await handler.execute(mockContext, mockBlock, inputs)
+
+      expect((result as any).selectedOption).toBe('cond1')
+    })
+  })
+
+  describe('Multiple else-if conditions', () => {
+    it('should evaluate multiple else-if conditions in order', async () => {
+      ;(mockContext.blockStates as any).set(mockSourceBlock.id, {
+        output: { score: 75 },
+        executed: true,
+        executionTime: 100,
+      })
+
+      const mockTargetBlock3: SerializedBlock = {
+        id: 'target-block-3',
+        metadata: { id: 'target', name: 'Target Block 3' },
+        position: { x: 100, y: 200 },
+        config: { tool: 'target_tool_3', params: {} },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      mockContext.workflow!.blocks!.push(mockTargetBlock3)
+
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'context.score >= 90' },
+        { id: 'cond2', title: 'else if', value: 'context.score >= 70' },
+        { id: 'cond3', title: 'else if', value: 'context.score >= 50' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      mockContext.workflow!.connections = [
+        { source: mockSourceBlock.id, target: mockBlock.id },
+        { source: mockBlock.id, target: mockTargetBlock1.id, sourceHandle: 'condition-cond1' },
+        { source: mockBlock.id, target: mockTargetBlock2.id, sourceHandle: 'condition-cond2' },
+        { source: mockBlock.id, target: mockTargetBlock3.id, sourceHandle: 'condition-cond3' },
+        { source: mockBlock.id, target: mockTargetBlock1.id, sourceHandle: 'condition-else1' },
+      ]
+
+      const result = await handler.execute(mockContext, mockBlock, inputs)
+
+      // Score is 75, so second condition (>=70) should match
+      expect((result as any).selectedOption).toBe('cond2')
+      expect((result as any).selectedPath?.blockId).toBe(mockTargetBlock2.id)
+    })
+
+    it('should skip to else when all else-if fail', async () => {
+      ;(mockContext.blockStates as any).set(mockSourceBlock.id, {
+        output: { score: 30 },
+        executed: true,
+        executionTime: 100,
+      })
+
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'context.score >= 90' },
+        { id: 'cond2', title: 'else if', value: 'context.score >= 70' },
+        { id: 'cond3', title: 'else if', value: 'context.score >= 50' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      const result = await handler.execute(mockContext, mockBlock, inputs)
+
+      expect((result as any).selectedOption).toBe('else1')
+    })
+  })
+
+  describe('Condition with no outgoing edge', () => {
+    it('should return null path when condition matches but has no edge', async () => {
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'true' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      // No connection for cond1
+      mockContext.workflow!.connections = [
+        { source: mockSourceBlock.id, target: mockBlock.id },
+        { source: mockBlock.id, target: mockTargetBlock2.id, sourceHandle: 'condition-else1' },
+      ]
+
+      const result = await handler.execute(mockContext, mockBlock, inputs)
+
+      // Condition matches but no edge for it
+      expect((result as any).conditionResult).toBe(false)
+      expect((result as any).selectedPath).toBeNull()
+    })
+  })
+
+  describe('Empty conditions handling', () => {
+    it('should handle empty conditions array', async () => {
+      const conditions: unknown[] = []
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      const result = await handler.execute(mockContext, mockBlock, inputs)
+
+      expect((result as any).conditionResult).toBe(false)
+      expect((result as any).selectedPath).toBeNull()
+      expect((result as any).selectedOption).toBeNull()
+    })
+
+    it('should handle conditions passed as array directly', async () => {
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'true' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      // Pass as array instead of JSON string
+      const inputs = { conditions }
+
+      const result = await handler.execute(mockContext, mockBlock, inputs)
+
+      expect((result as any).selectedOption).toBe('cond1')
+    })
+  })
+
+  describe('Virtual block ID handling', () => {
+    it('should use currentVirtualBlockId for decision key when available', async () => {
+      mockContext.currentVirtualBlockId = 'virtual-block-123'
+
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'true' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      await handler.execute(mockContext, mockBlock, inputs)
+
+      // Decision should be stored under virtual block ID, not actual block ID
+      expect(mockContext.decisions.condition.get('virtual-block-123')).toBe('cond1')
+      expect(mockContext.decisions.condition.has(mockBlock.id)).toBe(false)
+    })
   })
 })
