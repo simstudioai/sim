@@ -229,13 +229,13 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
 
     const daysInMonth = getDaysInMonth(viewYear, viewMonth)
     const firstDayOfMonth = getFirstDayOfMonth(viewYear, viewMonth)
-    const today = new Date()
 
     /**
      * Checks if a day is today's date.
      */
     const isToday = React.useCallback(
       (day: number) => {
+        const today = new Date()
         return (
           today.getDate() === day &&
           today.getMonth() === viewMonth &&

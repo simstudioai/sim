@@ -63,7 +63,6 @@ export interface SearchResult {
 export interface SearchParams {
   knowledgeBaseIds: string[]
   topK: number
-  filters?: Record<string, string>
   structuredFilters?: StructuredFilter[]
   queryVector?: string
   distanceThreshold?: number
@@ -134,202 +133,168 @@ const getSearchResultFields = (distanceExpr: any) => ({
   knowledgeBaseId: embedding.knowledgeBaseId,
 })
 
-function getTagFilters(filters: Record<string, string>, embeddingTable: any) {
-  return Object.entries(filters).map(([key, value]) => {
-    // Handle OR logic within same tag
-    const values = value.includes('|OR|') ? value.split('|OR|') : [value]
-    logger.debug(`[getTagFilters] Processing ${key}="${value}" -> values:`, values)
+/**
+ * Build a single SQL condition for a filter
+ */
+function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
+  const { tagSlot, fieldType, operator, value, valueTo } = filter
 
-    // Check if the key is a valid tag slot
-    if (!isTagSlotKey(key)) {
-      logger.debug(`[getTagFilters] Unknown tag slot key: ${key}`)
-      return sql`1=1` // No-op for unknown keys
+  if (!isTagSlotKey(tagSlot)) {
+    logger.debug(`[getStructuredTagFilters] Unknown tag slot: ${tagSlot}`)
+    return null
+  }
+
+  const column = embeddingTable[tagSlot]
+  if (!column) return null
+
+  logger.debug(
+    `[getStructuredTagFilters] Processing ${tagSlot} (${fieldType}) ${operator} ${value}`
+  )
+
+  // Handle text operators
+  if (fieldType === 'text') {
+    const stringValue = String(value)
+    switch (operator) {
+      case 'eq':
+        return sql`LOWER(${column}) = LOWER(${stringValue})`
+      case 'neq':
+        return sql`LOWER(${column}) != LOWER(${stringValue})`
+      case 'contains':
+        return sql`LOWER(${column}) LIKE LOWER(${`%${stringValue}%`})`
+      case 'not_contains':
+        return sql`LOWER(${column}) NOT LIKE LOWER(${`%${stringValue}%`})`
+      case 'starts_with':
+        return sql`LOWER(${column}) LIKE LOWER(${`${stringValue}%`})`
+      case 'ends_with':
+        return sql`LOWER(${column}) LIKE LOWER(${`%${stringValue}`})`
+      default:
+        return sql`LOWER(${column}) = LOWER(${stringValue})`
     }
+  }
 
-    const column = embeddingTable[key]
-    if (!column) return sql`1=1` // No-op if column doesn't exist
+  // Handle number operators
+  if (fieldType === 'number') {
+    const numValue = typeof value === 'number' ? value : Number.parseFloat(String(value))
+    if (Number.isNaN(numValue)) return null
 
-    // Determine if this is a text, number, date, or boolean column
-    const isTextTag = key.startsWith('tag')
-    const isNumberTag = key.startsWith('number')
-    const isDateTag = key.startsWith('date')
-    const isBooleanTag = key.startsWith('boolean')
-
-    if (isBooleanTag) {
-      // Boolean comparison
-      const boolValue = values[0].toLowerCase() === 'true'
-      logger.debug(`[getTagFilters] Boolean filter: ${key} = ${boolValue}`)
-      return sql`${column} = ${boolValue}`
-    }
-
-    if (isNumberTag) {
-      // Number comparison - for simple equality
-      const numValue = Number.parseFloat(values[0])
-      if (values.length === 1) {
-        logger.debug(`[getTagFilters] Number filter: ${key} = ${numValue}`)
+    switch (operator) {
+      case 'eq':
         return sql`${column} = ${numValue}`
-      }
-      // Multiple values - OR logic
-      const numValues = values.map((v) => Number.parseFloat(v))
-      logger.debug(`[getTagFilters] OR number filter: ${key} IN (${numValues.join(', ')})`)
-      const orConditions = numValues.map((v) => sql`${column} = ${v}`)
-      return sql`(${sql.join(orConditions, sql` OR `)})`
+      case 'neq':
+        return sql`${column} != ${numValue}`
+      case 'gt':
+        return sql`${column} > ${numValue}`
+      case 'gte':
+        return sql`${column} >= ${numValue}`
+      case 'lt':
+        return sql`${column} < ${numValue}`
+      case 'lte':
+        return sql`${column} <= ${numValue}`
+      case 'between':
+        if (valueTo !== undefined) {
+          const numValueTo =
+            typeof valueTo === 'number' ? valueTo : Number.parseFloat(String(valueTo))
+          if (Number.isNaN(numValueTo)) return sql`${column} = ${numValue}`
+          return sql`${column} >= ${numValue} AND ${column} <= ${numValueTo}`
+        }
+        return sql`${column} = ${numValue}`
+      default:
+        return sql`${column} = ${numValue}`
+    }
+  }
+
+  // Handle date operators - expects YYYY-MM-DD format from frontend
+  if (fieldType === 'date') {
+    const dateStr = String(value)
+    // Validate YYYY-MM-DD format
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      logger.debug(`[getStructuredTagFilters] Invalid date format: ${dateStr}, expected YYYY-MM-DD`)
+      return null
     }
 
-    if (isDateTag) {
-      // Date comparison - for simple equality
-      const dateValue = new Date(values[0])
-      if (values.length === 1) {
-        logger.debug(`[getTagFilters] Date filter: ${key} = ${dateValue.toISOString()}`)
-        return sql`${column} = ${dateValue}`
-      }
-      // Multiple values - OR logic
-      const dateValues = values.map((v) => new Date(v))
-      logger.debug(
-        `[getTagFilters] OR date filter: ${key} IN (${dateValues.map((d) => d.toISOString()).join(', ')})`
-      )
-      const orConditions = dateValues.map((v) => sql`${column} = ${v}`)
-      return sql`(${sql.join(orConditions, sql` OR `)})`
+    switch (operator) {
+      case 'eq':
+        return sql`${column}::date = ${dateStr}::date`
+      case 'neq':
+        return sql`${column}::date != ${dateStr}::date`
+      case 'gt':
+        return sql`${column}::date > ${dateStr}::date`
+      case 'gte':
+        return sql`${column}::date >= ${dateStr}::date`
+      case 'lt':
+        return sql`${column}::date < ${dateStr}::date`
+      case 'lte':
+        return sql`${column}::date <= ${dateStr}::date`
+      case 'between':
+        if (valueTo !== undefined) {
+          const dateStrTo = String(valueTo)
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStrTo)) {
+            return sql`${column}::date = ${dateStr}::date`
+          }
+          return sql`${column}::date >= ${dateStr}::date AND ${column}::date <= ${dateStrTo}::date`
+        }
+        return sql`${column}::date = ${dateStr}::date`
+      default:
+        return sql`${column}::date = ${dateStr}::date`
     }
+  }
 
-    // Text tag - case-insensitive comparison
-    if (values.length === 1) {
-      // Single value - simple equality
-      logger.debug(`[getTagFilters] Single value filter: ${key} = ${values[0]}`)
-      return sql`LOWER(${column}) = LOWER(${values[0]})`
+  // Handle boolean operators
+  if (fieldType === 'boolean') {
+    const boolValue = value === true || value === 'true'
+    switch (operator) {
+      case 'eq':
+        return sql`${column} = ${boolValue}`
+      case 'neq':
+        return sql`${column} != ${boolValue}`
+      default:
+        return sql`${column} = ${boolValue}`
     }
-    // Multiple values - OR logic
-    logger.debug(`[getTagFilters] OR filter: ${key} IN (${values.join(', ')})`)
-    const orConditions = values.map((v) => sql`LOWER(${column}) = LOWER(${v})`)
-    return sql`(${sql.join(orConditions, sql` OR `)})`
-  })
+  }
+
+  // Fallback to equality
+  return sql`${column} = ${value}`
 }
 
 /**
  * Build SQL conditions from structured filters with operator support
+ * - Same tag multiple times: OR logic
+ * - Different tags: AND logic
  */
 function getStructuredTagFilters(filters: StructuredFilter[], embeddingTable: any) {
-  return filters.map((filter) => {
-    const { tagSlot, fieldType, operator, value, valueTo } = filter
-
-    if (!isTagSlotKey(tagSlot)) {
-      logger.debug(`[getStructuredTagFilters] Unknown tag slot: ${tagSlot}`)
-      return sql`1=1`
+  // Group filters by tagSlot
+  const filtersBySlot = new Map<string, StructuredFilter[]>()
+  for (const filter of filters) {
+    const slot = filter.tagSlot
+    if (!filtersBySlot.has(slot)) {
+      filtersBySlot.set(slot, [])
     }
+    filtersBySlot.get(slot)!.push(filter)
+  }
 
-    const column = embeddingTable[tagSlot]
-    if (!column) return sql`1=1`
+  // Build conditions: OR within same slot, AND across different slots
+  const conditions: ReturnType<typeof sql>[] = []
 
-    logger.debug(
-      `[getStructuredTagFilters] Processing ${tagSlot} (${fieldType}) ${operator} ${value}`
-    )
+  for (const [slot, slotFilters] of filtersBySlot) {
+    const slotConditions = slotFilters
+      .map((f) => buildFilterCondition(f, embeddingTable))
+      .filter((c): c is ReturnType<typeof sql> => c !== null)
 
-    // Handle text operators
-    if (fieldType === 'text') {
-      const stringValue = String(value)
-      switch (operator) {
-        case 'eq':
-          return sql`LOWER(${column}) = LOWER(${stringValue})`
-        case 'neq':
-          return sql`LOWER(${column}) != LOWER(${stringValue})`
-        case 'contains':
-          return sql`LOWER(${column}) LIKE LOWER(${`%${stringValue}%`})`
-        case 'not_contains':
-          return sql`LOWER(${column}) NOT LIKE LOWER(${`%${stringValue}%`})`
-        case 'starts_with':
-          return sql`LOWER(${column}) LIKE LOWER(${`${stringValue}%`})`
-        case 'ends_with':
-          return sql`LOWER(${column}) LIKE LOWER(${`%${stringValue}`})`
-        default:
-          return sql`LOWER(${column}) = LOWER(${stringValue})`
-      }
+    if (slotConditions.length === 0) continue
+
+    if (slotConditions.length === 1) {
+      // Single condition for this slot
+      conditions.push(slotConditions[0])
+    } else {
+      // Multiple conditions for same slot - OR them together
+      logger.debug(
+        `[getStructuredTagFilters] OR'ing ${slotConditions.length} conditions for ${slot}`
+      )
+      conditions.push(sql`(${sql.join(slotConditions, sql` OR `)})`)
     }
+  }
 
-    // Handle number operators
-    if (fieldType === 'number') {
-      const numValue = typeof value === 'number' ? value : Number.parseFloat(String(value))
-      if (Number.isNaN(numValue)) return sql`1=1`
-
-      switch (operator) {
-        case 'eq':
-          return sql`${column} = ${numValue}`
-        case 'neq':
-          return sql`${column} != ${numValue}`
-        case 'gt':
-          return sql`${column} > ${numValue}`
-        case 'gte':
-          return sql`${column} >= ${numValue}`
-        case 'lt':
-          return sql`${column} < ${numValue}`
-        case 'lte':
-          return sql`${column} <= ${numValue}`
-        case 'between':
-          if (valueTo !== undefined) {
-            const numValueTo =
-              typeof valueTo === 'number' ? valueTo : Number.parseFloat(String(valueTo))
-            if (Number.isNaN(numValueTo)) return sql`${column} = ${numValue}`
-            return sql`${column} >= ${numValue} AND ${column} <= ${numValueTo}`
-          }
-          return sql`${column} = ${numValue}`
-        default:
-          return sql`${column} = ${numValue}`
-      }
-    }
-
-    // Handle date operators - expects YYYY-MM-DD format from frontend
-    if (fieldType === 'date') {
-      const dateStr = String(value)
-      // Validate YYYY-MM-DD format
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-        logger.debug(
-          `[getStructuredTagFilters] Invalid date format: ${dateStr}, expected YYYY-MM-DD`
-        )
-        return sql`1=1`
-      }
-
-      switch (operator) {
-        case 'eq':
-          return sql`${column}::date = ${dateStr}::date`
-        case 'neq':
-          return sql`${column}::date != ${dateStr}::date`
-        case 'gt':
-          return sql`${column}::date > ${dateStr}::date`
-        case 'gte':
-          return sql`${column}::date >= ${dateStr}::date`
-        case 'lt':
-          return sql`${column}::date < ${dateStr}::date`
-        case 'lte':
-          return sql`${column}::date <= ${dateStr}::date`
-        case 'between':
-          if (valueTo !== undefined) {
-            const dateStrTo = String(valueTo)
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStrTo)) {
-              return sql`${column}::date = ${dateStr}::date`
-            }
-            return sql`${column}::date >= ${dateStr}::date AND ${column}::date <= ${dateStrTo}::date`
-          }
-          return sql`${column}::date = ${dateStr}::date`
-        default:
-          return sql`${column}::date = ${dateStr}::date`
-      }
-    }
-
-    // Handle boolean operators
-    if (fieldType === 'boolean') {
-      const boolValue = value === true || value === 'true'
-      switch (operator) {
-        case 'eq':
-          return sql`${column} = ${boolValue}`
-        case 'neq':
-          return sql`${column} != ${boolValue}`
-        default:
-          return sql`${column} = ${boolValue}`
-      }
-    }
-
-    // Fallback to equality
-    return sql`${column} = ${value}`
-  })
+  return conditions
 }
 
 export function getQueryStrategy(kbCount: number, topK: number) {
@@ -347,15 +312,9 @@ export function getQueryStrategy(kbCount: number, topK: number) {
 
 async function executeTagFilterQuery(
   knowledgeBaseIds: string[],
-  filters?: Record<string, string>,
-  structuredFilters?: StructuredFilter[]
+  structuredFilters: StructuredFilter[]
 ): Promise<{ id: string }[]> {
-  // Use structured filters if provided, otherwise fall back to legacy filters
-  const tagFilterConditions = structuredFilters
-    ? getStructuredTagFilters(structuredFilters, embedding)
-    : filters
-      ? getTagFilters(filters, embedding)
-      : []
+  const tagFilterConditions = getStructuredTagFilters(structuredFilters, embedding)
 
   if (knowledgeBaseIds.length === 1) {
     return await db
@@ -415,26 +374,16 @@ async function executeVectorSearchOnIds(
 }
 
 export async function handleTagOnlySearch(params: SearchParams): Promise<SearchResult[]> {
-  const { knowledgeBaseIds, topK, filters, structuredFilters } = params
+  const { knowledgeBaseIds, topK, structuredFilters } = params
 
-  const hasLegacyFilters = filters && Object.keys(filters).length > 0
-  const hasStructuredFilters = structuredFilters && structuredFilters.length > 0
-
-  if (!hasLegacyFilters && !hasStructuredFilters) {
+  if (!structuredFilters || structuredFilters.length === 0) {
     throw new Error('Tag filters are required for tag-only search')
   }
 
-  logger.debug(
-    `[handleTagOnlySearch] Executing tag-only search with filters:`,
-    hasStructuredFilters ? structuredFilters : filters
-  )
+  logger.debug(`[handleTagOnlySearch] Executing tag-only search with filters:`, structuredFilters)
 
   const strategy = getQueryStrategy(knowledgeBaseIds.length, topK)
-
-  // Get filter conditions based on whether we have structured or legacy filters
-  const tagFilterConditions = hasStructuredFilters
-    ? getStructuredTagFilters(structuredFilters!, embedding)
-    : getTagFilters(filters!, embedding)
+  const tagFilterConditions = getStructuredTagFilters(structuredFilters, embedding)
 
   if (strategy.useParallel) {
     // Parallel approach for many KBs
@@ -531,13 +480,9 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
 }
 
 export async function handleTagAndVectorSearch(params: SearchParams): Promise<SearchResult[]> {
-  const { knowledgeBaseIds, topK, filters, structuredFilters, queryVector, distanceThreshold } =
-    params
+  const { knowledgeBaseIds, topK, structuredFilters, queryVector, distanceThreshold } = params
 
-  const hasLegacyFilters = filters && Object.keys(filters).length > 0
-  const hasStructuredFilters = structuredFilters && structuredFilters.length > 0
-
-  if (!hasLegacyFilters && !hasStructuredFilters) {
+  if (!structuredFilters || structuredFilters.length === 0) {
     throw new Error('Tag filters are required for tag and vector search')
   }
   if (!queryVector || !distanceThreshold) {
@@ -546,15 +491,11 @@ export async function handleTagAndVectorSearch(params: SearchParams): Promise<Se
 
   logger.debug(
     `[handleTagAndVectorSearch] Executing tag + vector search with filters:`,
-    hasStructuredFilters ? structuredFilters : filters
+    structuredFilters
   )
 
   // Step 1: Filter by tags first
-  const tagFilteredIds = await executeTagFilterQuery(
-    knowledgeBaseIds,
-    hasLegacyFilters ? filters : undefined,
-    hasStructuredFilters ? structuredFilters : undefined
-  )
+  const tagFilteredIds = await executeTagFilterQuery(knowledgeBaseIds, structuredFilters)
 
   if (tagFilteredIds.length === 0) {
     logger.debug(`[handleTagAndVectorSearch] No results found after tag filtering`)

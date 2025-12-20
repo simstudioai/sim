@@ -230,7 +230,7 @@ export function KnowledgeTagFilters({
   const handleAddRow = () => {
     if (isPreview || disabled) return
 
-    const newRowId = `filter-${filters.length}-${Math.random().toString(36).substr(2, 9)}`
+    const newRowId = `filter-${filters.length}-${Math.random().toString(36).slice(2, 11)}`
     const newFilter: TagFilter = {
       id: newRowId,
       tagName: '',

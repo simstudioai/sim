@@ -188,7 +188,7 @@ export function DocumentTagEntry({
     if (isPreview || disabled || !canAddMoreTags) return
 
     const currentData = currentValue ? JSON.parse(currentValue) : []
-    const newRowId = `tag-${currentData.length}-${Math.random().toString(36).substr(2, 9)}`
+    const newRowId = `tag-${currentData.length}-${Math.random().toString(36).slice(2, 11)}`
     const newData = [...currentData, { id: newRowId, tagName: '', fieldType: 'text', value: '' }]
     setStoreValue(JSON.stringify(newData))
   }
