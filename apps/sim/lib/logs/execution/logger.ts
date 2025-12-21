@@ -14,6 +14,7 @@ import {
   getOrgUsageLimit,
   maybeSendUsageThresholdEmail,
 } from '@/lib/billing/core/usage'
+import { logWorkflowUsageBatch } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
@@ -46,43 +47,6 @@ export interface ToolCall {
 const logger = createLogger('ExecutionLogger')
 
 export class ExecutionLogger implements IExecutionLoggerService {
-  private mergeTraceSpans(existing: TraceSpan[], additional: TraceSpan[]): TraceSpan[] {
-    // If no existing spans, just return additional
-    if (!existing || existing.length === 0) return additional
-    if (!additional || additional.length === 0) return existing
-
-    // Find the root "Workflow Execution" span in both arrays
-    const existingRoot = existing.find((s) => s.name === 'Workflow Execution')
-    const additionalRoot = additional.find((s) => s.name === 'Workflow Execution')
-
-    if (!existingRoot || !additionalRoot) {
-      // If we can't find both roots, just concatenate (fallback)
-      return [...existing, ...additional]
-    }
-
-    // Calculate the full duration from original start to resume end
-    const startTime = existingRoot.startTime
-    const endTime = additionalRoot.endTime || existingRoot.endTime
-    const fullDuration =
-      startTime && endTime
-        ? new Date(endTime).getTime() - new Date(startTime).getTime()
-        : (existingRoot.duration || 0) + (additionalRoot.duration || 0)
-
-    // Merge the children of the workflow execution spans
-    const mergedRoot = {
-      ...existingRoot,
-      children: [...(existingRoot.children || []), ...(additionalRoot.children || [])],
-      endTime,
-      duration: fullDuration,
-    }
-
-    // Return array with merged root plus any other top-level spans
-    const otherExisting = existing.filter((s) => s.name !== 'Workflow Execution')
-    const otherAdditional = additional.filter((s) => s.name !== 'Workflow Execution')
-
-    return [mergedRoot, ...otherExisting, ...otherAdditional]
-  }
-
   private mergeCostModels(
     existing: Record<string, any>,
     additional: Record<string, any>
@@ -109,6 +73,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
   async startWorkflowExecution(params: {
     workflowId: string
+    workspaceId: string
     executionId: string
     trigger: ExecutionTrigger
     environment: ExecutionEnvironment
@@ -118,8 +83,15 @@ export class ExecutionLogger implements IExecutionLoggerService {
     workflowLog: WorkflowExecutionLog
     snapshot: WorkflowExecutionSnapshot
   }> {
-    const { workflowId, executionId, trigger, environment, workflowState, deploymentVersionId } =
-      params
+    const {
+      workflowId,
+      workspaceId,
+      executionId,
+      trigger,
+      environment,
+      workflowState,
+      deploymentVersionId,
+    } = params
 
     logger.debug(`Starting workflow execution ${executionId} for workflow ${workflowId}`)
 
@@ -168,6 +140,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       .values({
         id: uuidv4(),
         workflowId,
+        workspaceId,
         executionId,
         stateSnapshotId: snapshotResult.snapshot.id,
         deploymentVersionId: deploymentVersionId ?? null,
@@ -374,7 +347,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
             await this.updateUserStats(
               updatedLog.workflowId,
               costSummary,
-              updatedLog.trigger as ExecutionTrigger['type']
+              updatedLog.trigger as ExecutionTrigger['type'],
+              executionId
             )
 
             const limit = before.usageData.limit
@@ -411,7 +385,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
             await this.updateUserStats(
               updatedLog.workflowId,
               costSummary,
-              updatedLog.trigger as ExecutionTrigger['type']
+              updatedLog.trigger as ExecutionTrigger['type'],
+              executionId
             )
 
             const percentBefore =
@@ -436,14 +411,16 @@ export class ExecutionLogger implements IExecutionLoggerService {
           await this.updateUserStats(
             updatedLog.workflowId,
             costSummary,
-            updatedLog.trigger as ExecutionTrigger['type']
+            updatedLog.trigger as ExecutionTrigger['type'],
+            executionId
           )
         }
       } else {
         await this.updateUserStats(
           updatedLog.workflowId,
           costSummary,
-          updatedLog.trigger as ExecutionTrigger['type']
+          updatedLog.trigger as ExecutionTrigger['type'],
+          executionId
         )
       }
     } catch (e) {
@@ -451,7 +428,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
         await this.updateUserStats(
           updatedLog.workflowId,
           costSummary,
-          updatedLog.trigger as ExecutionTrigger['type']
+          updatedLog.trigger as ExecutionTrigger['type'],
+          executionId
         )
       } catch {}
       logger.warn('Usage threshold notification check failed (non-fatal)', { error: e })
@@ -524,8 +502,18 @@ export class ExecutionLogger implements IExecutionLoggerService {
       totalCompletionTokens: number
       baseExecutionCharge: number
       modelCost: number
+      models?: Record<
+        string,
+        {
+          input: number
+          output: number
+          total: number
+          tokens: { prompt: number; completion: number; total: number }
+        }
+      >
     },
-    trigger: ExecutionTrigger['type']
+    trigger: ExecutionTrigger['type'],
+    executionId?: string
   ): Promise<void> {
     if (!isBillingEnabled) {
       logger.debug('Billing is disabled, skipping user stats cost update')
@@ -595,6 +583,16 @@ export class ExecutionLogger implements IExecutionLoggerService {
         trigger,
         addedCost: costToStore,
         addedTokens: costSummary.totalTokens,
+      })
+
+      // Log usage entries for auditing (batch insert for performance)
+      await logWorkflowUsageBatch({
+        userId,
+        workspaceId: workflowRecord.workspaceId ?? undefined,
+        workflowId,
+        executionId,
+        baseExecutionCharge: costSummary.baseExecutionCharge,
+        models: costSummary.models,
       })
 
       // Check if user has hit overage threshold and bill incrementally

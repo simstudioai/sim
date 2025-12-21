@@ -164,7 +164,10 @@ async function executeWebhookJobInternal(
       .from(workflowTable)
       .where(eq(workflowTable.id, payload.workflowId))
       .limit(1)
-    const workspaceId = wfRows[0]?.workspaceId || undefined
+    const workspaceId = wfRows[0]?.workspaceId
+    if (!workspaceId) {
+      throw new Error(`Workflow ${payload.workflowId} has no associated workspace`)
+    }
     const workflowVariables = (wfRows[0]?.variables as Record<string, any>) || {}
 
     // Merge subblock states (matching workflow-execution pattern)
@@ -298,7 +301,7 @@ async function executeWebhookJobInternal(
       // Start logging session so the complete call has a log entry to update
       await loggingSession.safeStart({
         userId: payload.userId,
-        workspaceId: workspaceId || '',
+        workspaceId,
         variables: {},
         triggerData: {
           isTest: payload.testMode === true,
@@ -356,7 +359,7 @@ async function executeWebhookJobInternal(
       // Start logging session so the complete call has a log entry to update
       await loggingSession.safeStart({
         userId: payload.userId,
-        workspaceId: workspaceId || '',
+        workspaceId,
         variables: {},
         triggerData: {
           isTest: payload.testMode === true,
@@ -398,7 +401,7 @@ async function executeWebhookJobInternal(
           if (triggerConfig.outputs) {
             logger.debug(`[${requestId}] Processing trigger ${resolvedTriggerId} file outputs`)
             const processedInput = await processTriggerFileOutputs(input, triggerConfig.outputs, {
-              workspaceId: workspaceId || '',
+              workspaceId,
               workflowId: payload.workflowId,
               executionId,
               requestId,
@@ -431,7 +434,7 @@ async function executeWebhookJobInternal(
 
           if (fileFields.length > 0 && typeof input === 'object' && input !== null) {
             const executionContext = {
-              workspaceId: workspaceId || '',
+              workspaceId,
               workflowId: payload.workflowId,
               executionId,
             }
@@ -542,9 +545,23 @@ async function executeWebhookJobInternal(
     })
 
     try {
+      const wfRow = await db
+        .select({ workspaceId: workflowTable.workspaceId })
+        .from(workflowTable)
+        .where(eq(workflowTable.id, payload.workflowId))
+        .limit(1)
+      const errorWorkspaceId = wfRow[0]?.workspaceId
+
+      if (!errorWorkspaceId) {
+        logger.warn(
+          `[${requestId}] Cannot log error: workflow ${payload.workflowId} has no workspace`
+        )
+        throw error
+      }
+
       await loggingSession.safeStart({
         userId: payload.userId,
-        workspaceId: '', // May not be available for early errors
+        workspaceId: errorWorkspaceId,
         variables: {},
         triggerData: {
           isTest: payload.testMode === true,

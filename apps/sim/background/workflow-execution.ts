@@ -59,7 +59,10 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
     }
 
     const actorUserId = preprocessResult.actorUserId!
-    const workspaceId = preprocessResult.workflowRecord?.workspaceId || undefined
+    const workspaceId = preprocessResult.workflowRecord?.workspaceId
+    if (!workspaceId) {
+      throw new Error(`Workflow ${workflowId} has no associated workspace`)
+    }
 
     logger.info(`[${requestId}] Preprocessing passed. Using actor: ${actorUserId}`)
 

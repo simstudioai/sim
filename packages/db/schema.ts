@@ -292,6 +292,9 @@ export const workflowExecutionLogs = pgTable(
     workflowId: text('workflow_id')
       .notNull()
       .references(() => workflow.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
     executionId: text('execution_id').notNull(),
     stateSnapshotId: text('state_snapshot_id')
       .notNull()
@@ -327,9 +330,12 @@ export const workflowExecutionLogs = pgTable(
     executionIdUnique: uniqueIndex('workflow_execution_logs_execution_id_unique').on(
       table.executionId
     ),
-    // Composite index for the new join-based query pattern
     workflowStartedAtIdx: index('workflow_execution_logs_workflow_started_at_idx').on(
       table.workflowId,
+      table.startedAt
+    ),
+    workspaceStartedAtIdx: index('workflow_execution_logs_workspace_started_at_idx').on(
+      table.workspaceId,
       table.startedAt
     ),
   })
@@ -1715,5 +1721,40 @@ export const workflowMcpTool = pgTable(
       table.serverId,
       table.workflowId
     ),
+  })
+)
+
+export const usageLogCategoryEnum = pgEnum('usage_log_category', ['model', 'fixed'])
+export const usageLogSourceEnum = pgEnum('usage_log_source', ['workflow', 'wand', 'copilot'])
+
+export const usageLog = pgTable(
+  'usage_log',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+
+    category: usageLogCategoryEnum('category').notNull(),
+
+    source: usageLogSourceEnum('source').notNull(),
+
+    description: text('description').notNull(),
+
+    metadata: jsonb('metadata'),
+
+    cost: decimal('cost').notNull(),
+
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'set null' }),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
+    executionId: text('execution_id'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userCreatedAtIdx: index('usage_log_user_created_at_idx').on(table.userId, table.createdAt),
+    sourceIdx: index('usage_log_source_idx').on(table.source),
+    workspaceIdIdx: index('usage_log_workspace_id_idx').on(table.workspaceId),
+    workflowIdIdx: index('usage_log_workflow_id_idx').on(table.workflowId),
   })
 )

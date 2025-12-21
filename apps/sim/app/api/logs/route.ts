@@ -130,6 +130,8 @@ export async function GET(request: NextRequest) {
               deploymentVersionName: sql<null>`NULL`,
             }
 
+      const workspaceFilter = eq(workflowExecutionLogs.workspaceId, params.workspaceId)
+
       const baseQuery = db
         .select(selectColumns)
         .from(workflowExecutionLogs)
@@ -141,18 +143,12 @@ export async function GET(request: NextRequest) {
           workflowDeploymentVersion,
           eq(workflowDeploymentVersion.id, workflowExecutionLogs.deploymentVersionId)
         )
-        .innerJoin(
-          workflow,
-          and(
-            eq(workflowExecutionLogs.workflowId, workflow.id),
-            eq(workflow.workspaceId, params.workspaceId)
-          )
-        )
+        .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
         .innerJoin(
           permissions,
           and(
             eq(permissions.entityType, 'workspace'),
-            eq(permissions.entityId, workflow.workspaceId),
+            eq(permissions.entityId, workflowExecutionLogs.workspaceId),
             eq(permissions.userId, userId)
           )
         )
@@ -300,7 +296,7 @@ export async function GET(request: NextRequest) {
       }
 
       const logs = await baseQuery
-        .where(conditions)
+        .where(and(workspaceFilter, conditions))
         .orderBy(desc(workflowExecutionLogs.startedAt))
         .limit(params.limit)
         .offset(params.offset)
@@ -312,22 +308,16 @@ export async function GET(request: NextRequest) {
           pausedExecutions,
           eq(pausedExecutions.executionId, workflowExecutionLogs.executionId)
         )
-        .innerJoin(
-          workflow,
-          and(
-            eq(workflowExecutionLogs.workflowId, workflow.id),
-            eq(workflow.workspaceId, params.workspaceId)
-          )
-        )
+        .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
         .innerJoin(
           permissions,
           and(
             eq(permissions.entityType, 'workspace'),
-            eq(permissions.entityId, workflow.workspaceId),
+            eq(permissions.entityId, workflowExecutionLogs.workspaceId),
             eq(permissions.userId, userId)
           )
         )
-        .where(conditions)
+        .where(and(eq(workflowExecutionLogs.workspaceId, params.workspaceId), conditions))
 
       const countResult = await countQuery
 
