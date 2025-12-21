@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { withMcpAuth } from '@/lib/mcp/middleware'
+import type { McpToolSchema } from '@/lib/mcp/types'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpStoredToolsAPI')
@@ -16,7 +17,7 @@ interface StoredMcpTool {
   serverId: string
   serverUrl?: string
   toolName: string
-  schema?: Record<string, unknown>
+  schema?: McpToolSchema
 }
 
 export const GET = withMcpAuth('read')(
@@ -66,7 +67,7 @@ export const GET = withMcpAuth('read')(
             serverId: params.serverId as string,
             serverUrl: params.serverUrl as string | undefined,
             toolName: params.toolName as string,
-            schema: tool.schema as Record<string, unknown> | undefined,
+            schema: tool.schema as McpToolSchema | undefined,
           })
         }
       }

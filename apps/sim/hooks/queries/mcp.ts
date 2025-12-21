@@ -1,10 +1,10 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { McpServerStatusConfig } from '@/lib/mcp/types'
+import type { McpServerStatusConfig, McpTool, McpToolSchema } from '@/lib/mcp/types'
 
 const logger = createLogger('McpQueries')
 
-export type { McpServerStatusConfig }
+export type { McpServerStatusConfig, McpTool }
 
 export const mcpKeys = {
   all: ['mcp'] as const,
@@ -40,14 +40,6 @@ export interface McpServerConfig {
   timeout: number
   headers?: Record<string, string>
   enabled: boolean
-}
-
-export interface McpTool {
-  serverId: string
-  serverName: string
-  name: string
-  description?: string
-  inputSchema?: unknown
 }
 
 async function fetchMcpServers(workspaceId: string): Promise<McpServer[]> {
@@ -377,7 +369,7 @@ export interface StoredMcpTool {
   serverId: string
   serverUrl?: string
   toolName: string
-  schema?: Record<string, unknown>
+  schema?: McpToolSchema
 }
 
 async function fetchStoredMcpTools(workspaceId: string): Promise<StoredMcpTool[]> {

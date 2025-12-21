@@ -1,5 +1,6 @@
 import isEqual from 'lodash/isEqual'
 import omit from 'lodash/omit'
+import type { McpToolSchema } from '@/lib/mcp/types'
 
 export type McpToolIssueType =
   | 'server_not_found'
@@ -17,7 +18,7 @@ export interface StoredMcpTool {
   serverId: string
   serverUrl?: string
   toolName: string
-  schema?: Record<string, unknown>
+  schema?: McpToolSchema
 }
 
 export interface ServerState {
@@ -30,12 +31,12 @@ export interface ServerState {
 export interface DiscoveredTool {
   serverId: string
   name: string
-  inputSchema?: Record<string, unknown>
+  inputSchema?: McpToolSchema
 }
 
 export function hasSchemaChanged(
-  storedSchema: Record<string, unknown> | undefined,
-  serverSchema: Record<string, unknown> | undefined
+  storedSchema: McpToolSchema | undefined,
+  serverSchema: McpToolSchema | undefined
 ): boolean {
   if (!storedSchema || !serverSchema) return false
 

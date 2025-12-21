@@ -57,14 +57,20 @@ export interface McpSecurityPolicy {
   auditLevel: 'none' | 'basic' | 'detailed'
 }
 
+/**
+ * JSON Schema for tool input parameters.
+ * Aligns with MCP SDK's Tool.inputSchema structure.
+ */
 export interface McpToolSchema {
-  type: string
+  type: 'object'
   properties?: Record<string, unknown>
   required?: string[]
-  additionalProperties?: boolean
-  description?: string
 }
 
+/**
+ * MCP Tool with server context.
+ * Extends the SDK's Tool type with app-specific server tracking.
+ */
 export interface McpTool {
   name: string
   description?: string
