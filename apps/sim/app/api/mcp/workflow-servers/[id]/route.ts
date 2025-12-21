@@ -31,8 +31,6 @@ export const GET = withMcpAuth<RouteParams>('read')(
           createdBy: workflowMcpServer.createdBy,
           name: workflowMcpServer.name,
           description: workflowMcpServer.description,
-          isPublished: workflowMcpServer.isPublished,
-          publishedAt: workflowMcpServer.publishedAt,
           createdAt: workflowMcpServer.createdAt,
           updatedAt: workflowMcpServer.updatedAt,
         })

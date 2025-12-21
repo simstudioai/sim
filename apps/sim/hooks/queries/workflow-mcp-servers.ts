@@ -24,8 +24,6 @@ export interface WorkflowMcpServer {
   createdBy: string
   name: string
   description: string | null
-  isPublished: boolean
-  publishedAt: string | null
   createdAt: string
   updatedAt: string
   toolCount?: number
@@ -39,7 +37,6 @@ export interface WorkflowMcpTool {
   toolName: string
   toolDescription: string | null
   parameterSchema: Record<string, unknown>
-  isEnabled: boolean
   createdAt: string
   updatedAt: string
   workflowName?: string
@@ -276,90 +273,6 @@ export function useDeleteWorkflowMcpServer() {
 }
 
 /**
- * Publish workflow MCP server mutation
- */
-interface PublishWorkflowMcpServerParams {
-  workspaceId: string
-  serverId: string
-}
-
-export interface PublishWorkflowMcpServerResult {
-  server: WorkflowMcpServer
-  mcpServerUrl: string
-  message: string
-}
-
-export function usePublishWorkflowMcpServer() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({
-      workspaceId,
-      serverId,
-    }: PublishWorkflowMcpServerParams): Promise<PublishWorkflowMcpServerResult> => {
-      const response = await fetch(
-        `/api/mcp/workflow-servers/${serverId}/publish?workspaceId=${workspaceId}`,
-        {
-          method: 'POST',
-        }
-      )
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to publish workflow MCP server')
-      }
-
-      logger.info(`Published workflow MCP server: ${serverId}`)
-      return data.data
-    },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: workflowMcpServerKeys.servers(variables.workspaceId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: workflowMcpServerKeys.server(variables.workspaceId, variables.serverId),
-      })
-    },
-  })
-}
-
-/**
- * Unpublish workflow MCP server mutation
- */
-export function useUnpublishWorkflowMcpServer() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ workspaceId, serverId }: PublishWorkflowMcpServerParams) => {
-      const response = await fetch(
-        `/api/mcp/workflow-servers/${serverId}/publish?workspaceId=${workspaceId}`,
-        {
-          method: 'DELETE',
-        }
-      )
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to unpublish workflow MCP server')
-      }
-
-      logger.info(`Unpublished workflow MCP server: ${serverId}`)
-      return data.data
-    },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: workflowMcpServerKeys.servers(variables.workspaceId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: workflowMcpServerKeys.server(variables.workspaceId, variables.serverId),
-      })
-    },
-  })
-}
-
-/**
  * Add tool to workflow MCP server mutation
  */
 interface AddWorkflowMcpToolParams {
@@ -425,7 +338,6 @@ interface UpdateWorkflowMcpToolParams {
   toolName?: string
   toolDescription?: string
   parameterSchema?: Record<string, unknown>
-  isEnabled?: boolean
 }
 
 export function useUpdateWorkflowMcpTool() {

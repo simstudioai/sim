@@ -62,7 +62,6 @@ export const GET = withMcpAuth<RouteParams>('read')(
           toolName: workflowMcpTool.toolName,
           toolDescription: workflowMcpTool.toolDescription,
           parameterSchema: workflowMcpTool.parameterSchema,
-          isEnabled: workflowMcpTool.isEnabled,
           createdAt: workflowMcpTool.createdAt,
           updatedAt: workflowMcpTool.updatedAt,
           workflowName: workflow.name,
@@ -203,7 +202,6 @@ export const POST = withMcpAuth<RouteParams>('write')(
           toolName,
           toolDescription,
           parameterSchema: body.parameterSchema || {},
-          isEnabled: true,
           createdAt: new Date(),
           updatedAt: new Date(),
         })

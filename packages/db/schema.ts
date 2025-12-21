@@ -1667,7 +1667,7 @@ export const ssoProvider = pgTable(
 
 /**
  * Workflow MCP Servers - User-created MCP servers that expose workflows as tools.
- * These servers can be published and accessed by external MCP clients via OAuth.
+ * These servers are accessible by external MCP clients via API key authentication.
  */
 export const workflowMcpServer = pgTable(
   'workflow_mcp_server',
@@ -1681,15 +1681,12 @@ export const workflowMcpServer = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     description: text('description'),
-    isPublished: boolean('is_published').notNull().default(false),
-    publishedAt: timestamp('published_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
     workspaceIdIdx: index('workflow_mcp_server_workspace_id_idx').on(table.workspaceId),
     createdByIdx: index('workflow_mcp_server_created_by_idx').on(table.createdBy),
-    isPublishedIdx: index('workflow_mcp_server_is_published_idx').on(table.isPublished),
   })
 )
 
@@ -1710,7 +1707,6 @@ export const workflowMcpTool = pgTable(
     toolName: text('tool_name').notNull(),
     toolDescription: text('tool_description'),
     parameterSchema: json('parameter_schema').notNull().default('{}'),
-    isEnabled: boolean('is_enabled').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

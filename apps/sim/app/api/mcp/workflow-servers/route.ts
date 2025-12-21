@@ -25,8 +25,6 @@ export const GET = withMcpAuth('read')(
           createdBy: workflowMcpServer.createdBy,
           name: workflowMcpServer.name,
           description: workflowMcpServer.description,
-          isPublished: workflowMcpServer.isPublished,
-          publishedAt: workflowMcpServer.publishedAt,
           createdAt: workflowMcpServer.createdAt,
           updatedAt: workflowMcpServer.updatedAt,
           toolCount: sql<number>`(
@@ -112,7 +110,6 @@ export const POST = withMcpAuth('write')(
           createdBy: userId,
           name: body.name.trim(),
           description: body.description?.trim() || null,
-          isPublished: false,
           createdAt: new Date(),
           updatedAt: new Date(),
         })

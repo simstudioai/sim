@@ -1,9 +1,7 @@
 /**
- * Model Context Protocol (MCP) Types
+ * MCP Types - for connecting to external MCP servers
  */
 
-// MCP Transport Types
-// Modern MCP uses Streamable HTTP which handles both HTTP POST and SSE responses
 export type McpTransport = 'streamable-http'
 
 export interface McpServerStatusConfig {
@@ -16,12 +14,8 @@ export interface McpServerConfig {
   name: string
   description?: string
   transport: McpTransport
-
-  // HTTP/SSE transport config
   url?: string
   headers?: Record<string, string>
-
-  // Common config
   timeout?: number
   retries?: number
   enabled?: boolean
@@ -30,31 +24,29 @@ export interface McpServerConfig {
   updatedAt?: string
 }
 
-// Version negotiation support
 export interface McpVersionInfo {
-  supported: string[] // List of supported protocol versions
-  preferred: string // Preferred version to use
+  supported: string[]
+  preferred: string
 }
 
-// Security and Consent Framework
 export interface McpConsentRequest {
   type: 'tool_execution' | 'resource_access' | 'data_sharing'
   context: {
     serverId: string
     serverName: string
-    action: string // Tool name or resource path
-    description?: string // Human-readable description
-    dataAccess?: string[] // Types of data being accessed
-    sideEffects?: string[] // Potential side effects
+    action: string
+    description?: string
+    dataAccess?: string[]
+    sideEffects?: string[]
   }
-  expires?: number // Consent expiration timestamp
+  expires?: number
 }
 
 export interface McpConsentResponse {
   granted: boolean
   expires?: number
-  restrictions?: Record<string, any> // Any access restrictions
-  auditId?: string // For audit trail
+  restrictions?: Record<string, unknown>
+  auditId?: string
 }
 
 export interface McpSecurityPolicy {
@@ -65,10 +57,9 @@ export interface McpSecurityPolicy {
   auditLevel: 'none' | 'basic' | 'detailed'
 }
 
-// MCP Tool Types
 export interface McpToolSchema {
   type: string
-  properties?: Record<string, any>
+  properties?: Record<string, unknown>
   required?: string[]
   additionalProperties?: boolean
   description?: string
@@ -84,10 +75,9 @@ export interface McpTool {
 
 export interface McpToolCall {
   name: string
-  arguments: Record<string, any>
+  arguments: Record<string, unknown>
 }
 
-// Standard MCP protocol response format
 export interface McpToolResult {
   content?: Array<{
     type: 'text' | 'image' | 'resource'
@@ -96,11 +86,9 @@ export interface McpToolResult {
     mimeType?: string
   }>
   isError?: boolean
-  // Allow additional fields that some MCP servers return
-  [key: string]: any
+  [key: string]: unknown
 }
 
-// Connection and Error Types
 export interface McpConnectionStatus {
   connected: boolean
   lastConnected?: Date
@@ -111,7 +99,7 @@ export class McpError extends Error {
   constructor(
     message: string,
     public code?: number,
-    public data?: any
+    public data?: unknown
   ) {
     super(message)
     this.name = 'McpError'
@@ -138,8 +126,7 @@ export interface McpServerSummary {
   error?: string
 }
 
-// API Response Types
-export interface McpApiResponse<T = any> {
+export interface McpApiResponse<T = unknown> {
   success: boolean
   data?: T
   error?: string

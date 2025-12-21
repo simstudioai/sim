@@ -107,9 +107,6 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
       if (body.parameterSchema !== undefined) {
         updateData.parameterSchema = body.parameterSchema
       }
-      if (body.isEnabled !== undefined) {
-        updateData.isEnabled = body.isEnabled
-      }
 
       const [updatedTool] = await db
         .update(workflowMcpTool)

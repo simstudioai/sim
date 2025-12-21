@@ -19,7 +19,6 @@ import {
   useCreateWorkflowMcpServer,
   useDeleteWorkflowMcpServer,
   useDeleteWorkflowMcpTool,
-  usePublishWorkflowMcpServer,
   useWorkflowMcpServer,
   useWorkflowMcpServers,
   type WorkflowMcpServer,
@@ -42,7 +41,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
   const [toolToDelete, setToolToDelete] = useState<WorkflowMcpTool | null>(null)
 
   const mcpServerUrl = useMemo(() => {
-    return `${getBaseUrl()}/api/mcp/serve/${serverId}/sse`
+    return `${getBaseUrl()}/api/mcp/serve/${serverId}`
   }, [serverId])
 
   const handleCopyUrl = () => {
@@ -204,7 +203,6 @@ export function WorkflowMcpServers() {
 
   const { data: servers = [], isLoading, error } = useWorkflowMcpServers(workspaceId)
   const createServerMutation = useCreateWorkflowMcpServer()
-  const publishServerMutation = usePublishWorkflowMcpServer()
   const deleteServerMutation = useDeleteWorkflowMcpServer()
 
   const [searchTerm, setSearchTerm] = useState('')
@@ -229,17 +227,10 @@ export function WorkflowMcpServers() {
     if (!formData.name.trim()) return
 
     try {
-      const server = await createServerMutation.mutateAsync({
+      await createServerMutation.mutateAsync({
         workspaceId,
         name: formData.name.trim(),
       })
-      // Auto-publish the server
-      if (server?.id) {
-        await publishServerMutation.mutateAsync({
-          workspaceId,
-          serverId: server.id,
-        })
-      }
       resetForm()
     } catch (err) {
       logger.error('Failed to create server:', err)
