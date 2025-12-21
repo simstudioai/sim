@@ -444,14 +444,14 @@ export function McpToolDeploy({
   return (
     <form
       id='mcp-tool-deploy-form'
-      className='-mx-1 space-y-4 overflow-y-auto px-1'
+      className='-mx-1 space-y-[12px] overflow-y-auto px-1'
       onSubmit={(e) => {
         e.preventDefault()
         handleSave()
       }}
     >
       {/* Hidden submit button for parent modal to trigger */}
-      <button type='submit' className='hidden' />
+      <button type='submit' hidden />
 
       {servers.map((server) => (
         <ServerToolsQuery
@@ -463,96 +463,92 @@ export function McpToolDeploy({
         />
       ))}
 
-      <div className='space-y-[12px]'>
+      <div>
+        <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          Tool name
+        </Label>
+        <Input
+          value={toolName}
+          onChange={(e) => setToolName(e.target.value)}
+          placeholder='e.g., book_flight'
+        />
+        <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
+          Use lowercase letters, numbers, and underscores only
+        </p>
+      </div>
+
+      <div>
+        <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          Description
+        </Label>
+        <Textarea
+          placeholder='Describe what this tool does...'
+          className='min-h-[100px] resize-none'
+          value={toolDescription}
+          onChange={(e) => setToolDescription(e.target.value)}
+        />
+      </div>
+
+      {inputFormat.length > 0 && (
         <div>
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Tool name
+            Parameters ({inputFormat.length})
           </Label>
-          <Input
-            value={toolName}
-            onChange={(e) => setToolName(e.target.value)}
-            placeholder='e.g., book_flight'
-          />
-          <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
-            Use lowercase letters, numbers, and underscores only
-          </p>
-        </div>
-
-        <div>
-          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Description
-          </Label>
-          <Textarea
-            placeholder='Describe what this tool does...'
-            className='min-h-[100px] resize-none'
-            value={toolDescription}
-            onChange={(e) => setToolDescription(e.target.value)}
-          />
-        </div>
-
-        {inputFormat.length > 0 && (
-          <div>
-            <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-              Parameters ({inputFormat.length})
-            </Label>
-            <div className='flex flex-col gap-[8px]'>
-              {inputFormat.map((field) => (
-                <div
-                  key={field.name}
-                  className='rounded-[6px] border bg-[var(--surface-3)] px-[10px] py-[8px]'
-                >
-                  <div className='flex items-center justify-between'>
-                    <p className='font-medium text-[13px] text-[var(--text-primary)]'>
-                      {field.name}
-                    </p>
-                    <Badge variant='outline' className='text-[10px]'>
-                      {field.type}
-                    </Badge>
-                  </div>
-                  <Input
-                    value={parameterDescriptions[field.name] || ''}
-                    onChange={(e) =>
-                      setParameterDescriptions((prev) => ({
-                        ...prev,
-                        [field.name]: e.target.value,
-                      }))
-                    }
-                    placeholder='Description'
-                    className='mt-[6px] h-[28px] text-[12px]'
-                  />
+          <div className='flex flex-col gap-[8px]'>
+            {inputFormat.map((field) => (
+              <div
+                key={field.name}
+                className='rounded-[6px] border bg-[var(--surface-3)] px-[10px] py-[8px]'
+              >
+                <div className='flex items-center justify-between'>
+                  <p className='font-medium text-[13px] text-[var(--text-primary)]'>{field.name}</p>
+                  <Badge variant='outline' className='text-[10px]'>
+                    {field.type}
+                  </Badge>
                 </div>
-              ))}
-            </div>
+                <Input
+                  value={parameterDescriptions[field.name] || ''}
+                  onChange={(e) =>
+                    setParameterDescriptions((prev) => ({
+                      ...prev,
+                      [field.name]: e.target.value,
+                    }))
+                  }
+                  placeholder='Description'
+                  className='mt-[6px] h-[28px] text-[12px]'
+                />
+              </div>
+            ))}
           </div>
-        )}
-
-        <div>
-          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Servers
-          </Label>
-          <Combobox
-            options={serverOptions}
-            multiSelect
-            multiSelectValues={selectedServerIds}
-            onMultiSelectChange={handleServerSelectionChange}
-            placeholder='Select servers...'
-            searchable
-            searchPlaceholder='Search servers...'
-            disabled={!toolName.trim() || isPending}
-            isLoading={isPending}
-            overlayContent={
-              <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
-                <Server className='h-[12px] w-[12px] flex-shrink-0 text-[var(--text-tertiary)]' />
-                <span className='truncate'>{selectedServersLabel}</span>
-              </span>
-            }
-          />
-          {!toolName.trim() && (
-            <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
-              Enter a tool name to select servers
-            </p>
-          )}
         </div>
+      )}
+
+      <div>
+        <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          Servers
+        </Label>
+        <Combobox
+          options={serverOptions}
+          multiSelect
+          multiSelectValues={selectedServerIds}
+          onMultiSelectChange={handleServerSelectionChange}
+          placeholder='Select servers...'
+          searchable
+          searchPlaceholder='Search servers...'
+          disabled={!toolName.trim() || isPending}
+          isLoading={isPending}
+          overlayContent={
+            <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
+              <Server className='h-[12px] w-[12px] flex-shrink-0 text-[var(--text-tertiary)]' />
+              <span className='truncate'>{selectedServersLabel}</span>
+            </span>
+          }
+        />
+        {!toolName.trim() && (
+          <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
+            Enter a tool name to select servers
+          </p>
+        )}
       </div>
 
       {addToolMutation.isError && (
