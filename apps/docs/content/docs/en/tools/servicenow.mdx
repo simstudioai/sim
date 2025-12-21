@@ -1,0 +1,129 @@
+---
+title: ServiceNow
+description: Create, read, update, and delete ServiceNow records
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="servicenow"
+  color="#032D42"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ServiceNow](https://www.servicenow.com/) is a powerful cloud platform designed to streamline and automate IT service management (ITSM), workflows, and business processes across your organization. ServiceNow enables you to manage incidents, requests, tasks, users, and more using its extensive API.
+
+With ServiceNow, you can:
+
+- **Automate IT workflows**: Create, read, update, and delete records in any ServiceNow table, such as incidents, tasks, change requests, and users.
+- **Integrate systems**: Connect ServiceNow with your other tools and processes for seamless automation.
+- **Maintain a single source of truth**: Keep all your service and operations data organized and accessible.
+- **Drive operational efficiency**: Reduce manual work and improve service quality with customizable workflows and automation.
+
+In Sim, the ServiceNow integration enables your agents to interact directly with your ServiceNow instance as part of their workflows. Agents can create, read, update, or delete records in any ServiceNow table and leverage ticket or user data for sophisticated automation and decision-making. This integration bridges your workflow automation and IT operations, empowering your agents to manage service requests, incidents, users, and assets without manual intervention. By connecting Sim with ServiceNow, you can automate service management tasks, improve response times, and ensure consistent, secure access to your organization's vital service data.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate ServiceNow into your workflow. Create, read, update, and delete records in any ServiceNow table including incidents, tasks, change requests, users, and more.
+
+
+
+## Tools
+
+### `servicenow_create_record`
+
+Create a new record in a ServiceNow table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table name \(e.g., incident, task, sys_user\) |
+| `fields` | json | Yes | Fields to set on the record \(JSON object\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Created ServiceNow record with sys_id and other fields |
+| `metadata` | json | Operation metadata |
+
+### `servicenow_read_record`
+
+Read records from a ServiceNow table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table name |
+| `sysId` | string | No | Specific record sys_id |
+| `number` | string | No | Record number \(e.g., INC0010001\) |
+| `query` | string | No | Encoded query string \(e.g., "active=true^priority=1"\) |
+| `limit` | number | No | Maximum number of records to return |
+| `fields` | string | No | Comma-separated list of fields to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | Array of ServiceNow records |
+| `metadata` | json | Operation metadata |
+
+### `servicenow_update_record`
+
+Update an existing record in a ServiceNow table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table name |
+| `sysId` | string | Yes | Record sys_id to update |
+| `fields` | json | Yes | Fields to update \(JSON object\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Updated ServiceNow record |
+| `metadata` | json | Operation metadata |
+
+### `servicenow_delete_record`
+
+Delete a record from a ServiceNow table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table name |
+| `sysId` | string | Yes | Record sys_id to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion was successful |
+| `metadata` | json | Operation metadata |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `servicenow`

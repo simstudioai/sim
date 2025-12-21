@@ -94,12 +94,19 @@ export function serializePauseSnapshot(
     dagIncomingEdges,
   }
 
+  const workspaceId = metadataFromContext?.workspaceId ?? context.workspaceId
+  if (!workspaceId) {
+    throw new Error(
+      `Cannot serialize pause snapshot: missing workspaceId for workflow ${context.workflowId}`
+    )
+  }
+
   const executionMetadata: ExecutionMetadata = {
     requestId:
       metadataFromContext?.requestId ?? context.executionId ?? context.workflowId ?? 'unknown',
     executionId: context.executionId ?? 'unknown',
     workflowId: context.workflowId,
-    workspaceId: context.workspaceId,
+    workspaceId,
     userId: metadataFromContext?.userId ?? '',
     sessionUserId: metadataFromContext?.sessionUserId,
     workflowUserId: metadataFromContext?.workflowUserId,

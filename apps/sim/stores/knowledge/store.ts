@@ -44,7 +44,7 @@ export interface DocumentData {
   processingError?: string | null
   enabled: boolean
   uploadedAt: string
-  // Document tags
+  // Text tags
   tag1?: string | null
   tag2?: string | null
   tag3?: string | null
@@ -52,6 +52,19 @@ export interface DocumentData {
   tag5?: string | null
   tag6?: string | null
   tag7?: string | null
+  // Number tags (5 slots)
+  number1?: number | null
+  number2?: number | null
+  number3?: number | null
+  number4?: number | null
+  number5?: number | null
+  // Date tags (2 slots)
+  date1?: string | null
+  date2?: string | null
+  // Boolean tags (3 slots)
+  boolean1?: boolean | null
+  boolean2?: boolean | null
+  boolean3?: boolean | null
 }
 
 export interface ChunkData {
@@ -63,6 +76,7 @@ export interface ChunkData {
   enabled: boolean
   startOffset: number
   endOffset: number
+  // Text tags
   tag1?: string | null
   tag2?: string | null
   tag3?: string | null
@@ -70,6 +84,19 @@ export interface ChunkData {
   tag5?: string | null
   tag6?: string | null
   tag7?: string | null
+  // Number tags (5 slots)
+  number1?: number | null
+  number2?: number | null
+  number3?: number | null
+  number4?: number | null
+  number5?: number | null
+  // Date tags (2 slots)
+  date1?: string | null
+  date2?: string | null
+  // Boolean tags (3 slots)
+  boolean1?: boolean | null
+  boolean2?: boolean | null
+  boolean3?: boolean | null
   createdAt: string
   updatedAt: string
 }

@@ -111,26 +111,24 @@ Diferentes tipos de bloques producen diferentes estructuras de salida. Esto es l
 
     ```json
     {
-      "content": "Original content passed through",
       "conditionResult": true,
       "selectedPath": {
         "blockId": "2acd9007-27e8-4510-a487-73d3b825e7c1",
         "blockType": "agent",
         "blockTitle": "Follow-up Agent"
       },
-      "selectedConditionId": "condition-1"
+      "selectedOption": "condition-1"
     }
     ```
 
     ### Campos de salida del bloque de condición
 
-    - **content**: El contenido original que se transmite
-    - **conditionResult**: Resultado booleano de la evaluación de la condición
-    - **selectedPath**: Información sobre la ruta seleccionada
+    - **conditionResult**: resultado booleano de la evaluación de la condición
+    - **selectedPath**: información sobre la ruta seleccionada
       - **blockId**: ID del siguiente bloque en la ruta seleccionada
-      - **blockType**: Tipo del siguiente bloque
-      - **blockTitle**: Título del siguiente bloque
-    - **selectedConditionId**: ID de la condición seleccionada
+      - **blockType**: tipo del siguiente bloque
+      - **blockTitle**: título del siguiente bloque
+    - **selectedOption**: ID de la condición seleccionada
 
   </Tab>
   <Tab>

@@ -1,37 +1,12 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type {
+  SalesforceDescribeObjectParams,
+  SalesforceDescribeObjectResponse,
+} from '@/tools/salesforce/types'
+import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { extractErrorMessage, getInstanceUrl } from './utils'
 
 const logger = createLogger('SalesforceQuery')
-
-export interface SalesforceDescribeObjectParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  objectName: string
-}
-
-export interface SalesforceDescribeObjectResponse {
-  success: boolean
-  output: {
-    objectName: string
-    label?: string
-    labelPlural?: string
-    fields?: any[]
-    keyPrefix?: string
-    queryable?: boolean
-    createable?: boolean
-    updateable?: boolean
-    deletable?: boolean
-    childRelationships?: any[]
-    recordTypeInfos?: any[]
-    metadata: {
-      operation: 'describe_object'
-      fieldCount: number
-    }
-    success: boolean
-  }
-}
 
 /**
  * Describe a Salesforce object to get its metadata/fields

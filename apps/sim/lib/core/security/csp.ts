@@ -1,4 +1,5 @@
 import { env, getEnv } from '../config/env'
+import { isDev } from '../config/feature-flags'
 
 /**
  * Content Security Policy (CSP) configuration builder
@@ -79,10 +80,16 @@ export const buildTimeCSPDirectives: CSPDirectives = {
   'connect-src': [
     "'self'",
     env.NEXT_PUBLIC_APP_URL || '',
-    env.OLLAMA_URL || 'http://localhost:11434',
-    env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002',
-    env.NEXT_PUBLIC_SOCKET_URL?.replace('http://', 'ws://').replace('https://', 'wss://') ||
-      'ws://localhost:3002',
+    // Only include localhost fallbacks in development mode
+    ...(env.OLLAMA_URL ? [env.OLLAMA_URL] : isDev ? ['http://localhost:11434'] : []),
+    ...(env.NEXT_PUBLIC_SOCKET_URL
+      ? [
+          env.NEXT_PUBLIC_SOCKET_URL,
+          env.NEXT_PUBLIC_SOCKET_URL.replace('http://', 'ws://').replace('https://', 'wss://'),
+        ]
+      : isDev
+        ? ['http://localhost:3002', 'ws://localhost:3002']
+        : []),
     'https://api.browser-use.com',
     'https://api.exa.ai',
     'https://api.firecrawl.dev',
@@ -128,11 +135,16 @@ export function buildCSPString(directives: CSPDirectives): string {
  * This maintains compatibility with existing inline scripts while fixing Docker env var issues
  */
 export function generateRuntimeCSP(): string {
-  const socketUrl = getEnv('NEXT_PUBLIC_SOCKET_URL') || 'http://localhost:3002'
-  const socketWsUrl =
-    socketUrl.replace('http://', 'ws://').replace('https://', 'wss://') || 'ws://localhost:3002'
   const appUrl = getEnv('NEXT_PUBLIC_APP_URL') || ''
-  const ollamaUrl = getEnv('OLLAMA_URL') || 'http://localhost:11434'
+
+  // Only include localhost URLs in development or when explicitly configured
+  const socketUrl = getEnv('NEXT_PUBLIC_SOCKET_URL') || (isDev ? 'http://localhost:3002' : '')
+  const socketWsUrl = socketUrl
+    ? socketUrl.replace('http://', 'ws://').replace('https://', 'wss://')
+    : isDev
+      ? 'ws://localhost:3002'
+      : ''
+  const ollamaUrl = getEnv('OLLAMA_URL') || (isDev ? 'http://localhost:11434' : '')
 
   const brandLogoDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL'))
   const brandFaviconDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_BRAND_FAVICON_URL'))

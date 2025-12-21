@@ -1,0 +1,124 @@
+---
+title: ServiceNow
+description: ServiceNowレコードの作成、読み取り、更新、削除
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="servicenow"
+  color="#032D42"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ServiceNow](https://www.servicenow.com/)は、組織全体のITサービス管理（ITSM）、ワークフロー、ビジネスプロセスを効率化し自動化するために設計された強力なクラウドプラットフォームです。ServiceNowを使用すると、広範なAPIを使用してインシデント、リクエスト、タスク、ユーザーなどを管理できます。
+
+ServiceNowでは、次のことができます。
+
+- **ITワークフローの自動化**: インシデント、タスク、変更リクエスト、ユーザーなど、任意のServiceNowテーブルのレコードを作成、読み取り、更新、削除します。
+- **システムの統合**: ServiceNowを他のツールやプロセスと接続して、シームレスな自動化を実現します。
+- **単一の信頼できる情報源の維持**: すべてのサービスおよび運用データを整理してアクセス可能な状態に保ちます。
+- **運用効率の向上**: カスタマイズ可能なワークフローと自動化により、手作業を削減し、サービス品質を向上させます。
+
+Simでは、ServiceNow統合により、エージェントがワークフローの一部としてServiceNowインスタンスと直接やり取りできるようになります。エージェントは、任意のServiceNowテーブルのレコードを作成、読み取り、更新、削除でき、チケットやユーザーデータを活用して高度な自動化と意思決定を行うことができます。この統合により、ワークフロー自動化とIT運用が橋渡しされ、エージェントは手動介入なしでサービスリクエスト、インシデント、ユーザー、資産を管理できるようになります。SimとServiceNowを接続することで、サービス管理タスクを自動化し、応答時間を改善し、組織の重要なサービスデータへの一貫性のある安全なアクセスを確保できます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+ServiceNowをワークフローに統合します。インシデント、タスク、変更リクエスト、ユーザーなど、任意のServiceNowテーブルのレコードを作成、読み取り、更新、削除します。
+
+## ツール
+
+### `servicenow_create_record`
+
+ServiceNowテーブルに新しいレコードを作成
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | はい | ServiceNowインスタンスURL(例: https://instance.service-now.com) |
+| `username` | string | はい | ServiceNowユーザー名 |
+| `password` | string | はい | ServiceNowパスワード |
+| `tableName` | string | はい | テーブル名(例: incident、task、sys_user) |
+| `fields` | json | はい | レコードに設定するフィールド(JSONオブジェクト) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `record` | json | sys_idおよびその他のフィールドを含む作成されたServiceNowレコード |
+| `metadata` | json | 操作メタデータ |
+
+### `servicenow_read_record`
+
+ServiceNowテーブルからレコードを読み取ります
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | はい | ServiceNowインスタンスURL(例: https://instance.service-now.com) |
+| `username` | string | はい | ServiceNowユーザー名 |
+| `password` | string | はい | ServiceNowパスワード |
+| `tableName` | string | はい | テーブル名 |
+| `sysId` | string | いいえ | 特定のレコードのsys_id |
+| `number` | string | いいえ | レコード番号(例: INC0010001) |
+| `query` | string | いいえ | エンコードされたクエリ文字列(例: "active=true^priority=1") |
+| `limit` | number | いいえ | 返すレコードの最大数 |
+| `fields` | string | いいえ | 返すフィールドのカンマ区切りリスト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `records` | array | ServiceNowレコードの配列 |
+| `metadata` | json | 操作メタデータ |
+
+### `servicenow_update_record`
+
+ServiceNowテーブル内の既存のレコードを更新
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | はい | ServiceNowインスタンスURL（例：https://instance.service-now.com） |
+| `username` | string | はい | ServiceNowユーザー名 |
+| `password` | string | はい | ServiceNowパスワード |
+| `tableName` | string | はい | テーブル名 |
+| `sysId` | string | はい | 更新するレコードのsys_id |
+| `fields` | json | はい | 更新するフィールド（JSONオブジェクト） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `record` | json | 更新されたServiceNowレコード |
+| `metadata` | json | 操作メタデータ |
+
+### `servicenow_delete_record`
+
+ServiceNowテーブルからレコードを削除
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | はい | ServiceNowインスタンスURL（例：https://instance.service-now.com） |
+| `username` | string | はい | ServiceNowユーザー名 |
+| `password` | string | はい | ServiceNowパスワード |
+| `tableName` | string | はい | テーブル名 |
+| `sysId` | string | はい | 削除するレコードのsys_id |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 削除が成功したかどうか |
+| `metadata` | json | 操作メタデータ |
+
+## 注意事項
+
+- カテゴリ: `tools`
+- タイプ: `servicenow`

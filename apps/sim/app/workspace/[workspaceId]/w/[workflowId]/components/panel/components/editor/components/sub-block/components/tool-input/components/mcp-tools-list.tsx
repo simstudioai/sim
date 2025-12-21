@@ -18,12 +18,18 @@ interface McpTool {
   inputSchema?: any
 }
 
+interface McpServer {
+  id: string
+  url?: string
+}
+
 interface StoredTool {
   type: 'mcp'
   title: string
   toolId: string
   params: {
     serverId: string
+    serverUrl?: string
     toolName: string
     serverName: string
   }
@@ -34,6 +40,7 @@ interface StoredTool {
 
 interface McpToolsListProps {
   mcpTools: McpTool[]
+  mcpServers?: McpServer[]
   searchQuery: string
   customFilter: (name: string, query: string) => number
   onToolSelect: (tool: StoredTool) => void
@@ -45,6 +52,7 @@ interface McpToolsListProps {
  */
 export function McpToolsList({
   mcpTools,
+  mcpServers = [],
   searchQuery,
   customFilter,
   onToolSelect,
@@ -59,44 +67,48 @@ export function McpToolsList({
   return (
     <>
       <PopoverSection>MCP Tools</PopoverSection>
-      {filteredTools.map((mcpTool) => (
-        <ToolCommand.Item
-          key={mcpTool.id}
-          value={mcpTool.name}
-          onSelect={() => {
-            if (disabled) return
+      {filteredTools.map((mcpTool) => {
+        const server = mcpServers.find((s) => s.id === mcpTool.serverId)
+        return (
+          <ToolCommand.Item
+            key={mcpTool.id}
+            value={mcpTool.name}
+            onSelect={() => {
+              if (disabled) return
 
-            const newTool: StoredTool = {
-              type: 'mcp',
-              title: mcpTool.name,
-              toolId: mcpTool.id,
-              params: {
-                serverId: mcpTool.serverId,
-                toolName: mcpTool.name,
-                serverName: mcpTool.serverName,
-              },
-              isExpanded: true,
-              usageControl: 'auto',
-              schema: {
-                ...mcpTool.inputSchema,
-                description: mcpTool.description,
-              },
-            }
+              const newTool: StoredTool = {
+                type: 'mcp',
+                title: mcpTool.name,
+                toolId: mcpTool.id,
+                params: {
+                  serverId: mcpTool.serverId,
+                  serverUrl: server?.url,
+                  toolName: mcpTool.name,
+                  serverName: mcpTool.serverName,
+                },
+                isExpanded: true,
+                usageControl: 'auto',
+                schema: {
+                  ...mcpTool.inputSchema,
+                  description: mcpTool.description,
+                },
+              }
 
-            onToolSelect(newTool)
-          }}
-        >
-          <div
-            className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded'
-            style={{ background: mcpTool.bgColor }}
+              onToolSelect(newTool)
+            }}
           >
-            <IconComponent icon={mcpTool.icon} className='h-[11px] w-[11px] text-white' />
-          </div>
-          <span className='truncate' title={`${mcpTool.name} (${mcpTool.serverName})`}>
-            {mcpTool.name}
-          </span>
-        </ToolCommand.Item>
-      ))}
+            <div
+              className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded'
+              style={{ background: mcpTool.bgColor }}
+            >
+              <IconComponent icon={mcpTool.icon} className='h-[11px] w-[11px] text-white' />
+            </div>
+            <span className='truncate' title={`${mcpTool.name} (${mcpTool.serverName})`}>
+              {mcpTool.name}
+            </span>
+          </ToolCommand.Item>
+        )
+      })}
     </>
   )
 }

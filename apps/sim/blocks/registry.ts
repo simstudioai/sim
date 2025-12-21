@@ -96,6 +96,7 @@ import { SearchBlock } from '@/blocks/blocks/search'
 import { SendGridBlock } from '@/blocks/blocks/sendgrid'
 import { SentryBlock } from '@/blocks/blocks/sentry'
 import { SerperBlock } from '@/blocks/blocks/serper'
+import { ServiceNowBlock } from '@/blocks/blocks/servicenow'
 import { SftpBlock } from '@/blocks/blocks/sftp'
 import { SharepointBlock } from '@/blocks/blocks/sharepoint'
 import { ShopifyBlock } from '@/blocks/blocks/shopify'
@@ -238,6 +239,7 @@ export const registry: Record<string, BlockConfig> = {
   search: SearchBlock,
   sendgrid: SendGridBlock,
   sentry: SentryBlock,
+  servicenow: ServiceNowBlock,
   serper: SerperBlock,
   sharepoint: SharepointBlock,
   shopify: ShopifyBlock,

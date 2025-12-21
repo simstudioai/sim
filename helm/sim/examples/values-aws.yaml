@@ -4,17 +4,17 @@
 # Global configuration
 global:
   imageRegistry: "ghcr.io"
-  storageClass: "gp3"
+  storageClass: "gp2"  # Use gp2 (default on EKS) or create gp3 StorageClass for better performance
 
 # Main application
 app:
   enabled: true
   replicaCount: 2
-  
-  # Node selector for application pods (customize based on your EKS node labels)
-  nodeSelector:
-    kubernetes.io/arch: amd64
-    node.kubernetes.io/instance-type: "t3.large"
+
+  # Node selector for application pods
+  # Uncomment and customize based on your EKS node labels:
+  # nodeSelector:
+  #   node.kubernetes.io/instance-type: "t3.large"
   
   resources:
     limits:
@@ -28,8 +28,8 @@ app:
   env:
     NEXT_PUBLIC_APP_URL: "https://simstudio.acme.com"
     BETTER_AUTH_URL: "https://simstudio.acme.com"
-    SOCKET_SERVER_URL: "https://simstudio-ws.acme.com"
-    NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"
+    # SOCKET_SERVER_URL is auto-detected (uses internal service http://sim-realtime:3002)
+    NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"  # Public WebSocket URL for browsers
     
     # Security settings (REQUIRED - replace with your own secure secrets)
     # Generate using: openssl rand -hex 32
@@ -44,19 +44,29 @@ app:
     
     NODE_ENV: "production"
     NEXT_TELEMETRY_DISABLED: "1"
-    
-    # AWS-specific environment variables
+
+    # AWS S3 Cloud Storage Configuration (RECOMMENDED for production)
+    # Create S3 buckets in your AWS account and configure IAM permissions
     AWS_REGION: "us-west-2"
+    AWS_ACCESS_KEY_ID: ""                               # AWS access key (or use IRSA for EKS)
+    AWS_SECRET_ACCESS_KEY: ""                           # AWS secret key (or use IRSA for EKS)
+    S3_BUCKET_NAME: "workspace-files"         # Workspace files
+    S3_KB_BUCKET_NAME: "knowledge-base"       # Knowledge base documents
+    S3_EXECUTION_FILES_BUCKET_NAME: "execution-files"  # Workflow execution outputs
+    S3_CHAT_BUCKET_NAME: "chat-files"         # Deployed chat assets
+    S3_COPILOT_BUCKET_NAME: "copilot-files"   # Copilot attachments
+    S3_PROFILE_PICTURES_BUCKET_NAME: "profile-pictures"  # User avatars
+    S3_OG_IMAGES_BUCKET_NAME: "og-images"                 # OpenGraph preview images
 
 # Realtime service
 realtime:
   enabled: true
   replicaCount: 2
-  
-  # Node selector for realtime pods (customize based on your EKS node labels)
-  nodeSelector:
-    kubernetes.io/arch: amd64
-    node.kubernetes.io/instance-type: "t3.medium"
+
+  # Node selector for realtime pods
+  # Uncomment and customize based on your EKS node labels:
+  # nodeSelector:
+  #   node.kubernetes.io/instance-type: "t3.medium"
   
   resources:
     limits:
@@ -89,10 +99,11 @@ migrations:
 # PostgreSQL database
 postgresql:
   enabled: true
-  
-  # Node selector for database pods (recommended: memory-optimized EC2 instances)
-  nodeSelector:
-    node.kubernetes.io/instance-type: "r5.large"
+
+  # Node selector for database pods
+  # Uncomment and customize (recommended: memory-optimized EC2 instances like r5.large):
+  # nodeSelector:
+  #   node.kubernetes.io/instance-type: "r5.large"
   
   # Database authentication (REQUIRED - set secure credentials)
   auth:
@@ -109,17 +120,17 @@ postgresql:
       memory: "2Gi"
       cpu: "1000m"
   
-  # Persistent storage using AWS EBS GP3 volumes
+  # Persistent storage using AWS EBS volumes
   persistence:
     enabled: true
-    storageClass: "gp3"
+    storageClass: "gp2"  # Use gp2 (default) or create gp3 StorageClass
     size: 50Gi
     accessModes:
       - ReadWriteOnce
   
-  # SSL/TLS configuration
+  # SSL/TLS configuration (requires cert-manager to be installed)
   tls:
-    enabled: true
+    enabled: false  # Set to true if cert-manager is installed
     certificatesSecret: postgres-tls-secret
   
   # PostgreSQL performance tuning for AWS infrastructure
@@ -130,14 +141,15 @@ postgresql:
     minWalSize: "160MB"
 
 # Ollama AI models with GPU acceleration (AWS EC2 GPU instances)
+# Set ollama.enabled: false if you don't need local AI models
 ollama:
-  enabled: true
+  enabled: false
   replicaCount: 1
-  
-  # GPU node targeting (recommended: g4dn.xlarge or p3.2xlarge instances)
-  nodeSelector:
-    node.kubernetes.io/instance-type: "g4dn.xlarge"
-    kubernetes.io/arch: amd64
+
+  # GPU node targeting - uncomment and customize for GPU instances
+  # Recommended: g4dn.xlarge or p3.2xlarge instances
+  # nodeSelector:
+  #   node.kubernetes.io/instance-type: "g4dn.xlarge"
   
   tolerations:
     - key: "nvidia.com/gpu"
@@ -162,7 +174,7 @@ ollama:
   # High-performance storage for AI models
   persistence:
     enabled: true
-    storageClass: "gp3"
+    storageClass: "gp2"  # Use gp2 (default) or create gp3 StorageClass
     size: 100Gi
     accessModes:
       - ReadWriteOnce

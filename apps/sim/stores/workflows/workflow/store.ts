@@ -9,18 +9,18 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import {
-  getUniqueBlockName,
-  mergeSubblockState,
-  normalizeBlockName,
-} from '@/stores/workflows/utils'
+import { getUniqueBlockName, mergeSubblockState, normalizeName } from '@/stores/workflows/utils'
 import type {
   Position,
   SubBlockState,
   WorkflowState,
   WorkflowStore,
 } from '@/stores/workflows/workflow/types'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
+import {
+  generateLoopBlocks,
+  generateParallelBlocks,
+  wouldCreateCycle,
+} from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('WorkflowStore')
 
@@ -428,6 +428,15 @@ export const useWorkflowStore = create<WorkflowStore>()(
           return
         }
 
+        // Prevent self-connections and cycles
+        if (wouldCreateCycle(get().edges, edge.source, edge.target)) {
+          logger.warn('Prevented edge that would create a cycle', {
+            source: edge.source,
+            target: edge.target,
+          })
+          return
+        }
+
         // Check for duplicate connections
         const isDuplicate = get().edges.some(
           (existingEdge) =>
@@ -663,7 +672,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
         if (!oldBlock) return { success: false, changedSubblocks: [] }
 
         // Check for normalized name collisions
-        const normalizedNewName = normalizeBlockName(name)
+        const normalizedNewName = normalizeName(name)
         const currentBlocks = get().blocks
 
         // Find any other block with the same normalized name
@@ -671,7 +680,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           return (
             blockId !== id && // Different block
             block.name && // Has a name
-            normalizeBlockName(block.name) === normalizedNewName // Same normalized name
+            normalizeName(block.name) === normalizedNewName // Same normalized name
           )
         })
 
@@ -850,7 +859,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
               ...block,
               data: {
                 ...block.data,
-                count: Math.max(1, Math.min(100, count)), // Clamp between 1-100
+                count: Math.max(1, Math.min(1000, count)), // Clamp between 1-1000
               },
             },
           }

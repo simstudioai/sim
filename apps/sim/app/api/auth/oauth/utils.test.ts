@@ -38,7 +38,6 @@ vi.mock('@/lib/logs/console/logger', () => ({
 }))
 
 import { db } from '@sim/db'
-import { createLogger } from '@/lib/logs/console/logger'
 import { refreshOAuthToken } from '@/lib/oauth/oauth'
 import {
   getCredential,
@@ -49,7 +48,6 @@ import {
 
 const mockDb = db as any
 const mockRefreshOAuthToken = refreshOAuthToken as any
-const mockLogger = (createLogger as any)()
 
 describe('OAuth Utils', () => {
   beforeEach(() => {
@@ -87,7 +85,6 @@ describe('OAuth Utils', () => {
       const userId = await getUserId('request-id')
 
       expect(userId).toBeUndefined()
-      expect(mockLogger.warn).toHaveBeenCalled()
     })
 
     it('should return undefined if workflow is not found', async () => {
@@ -96,7 +93,6 @@ describe('OAuth Utils', () => {
       const userId = await getUserId('request-id', 'nonexistent-workflow-id')
 
       expect(userId).toBeUndefined()
-      expect(mockLogger.warn).toHaveBeenCalled()
     })
   })
 
@@ -121,7 +117,6 @@ describe('OAuth Utils', () => {
       const credential = await getCredential('request-id', 'nonexistent-id', 'test-user-id')
 
       expect(credential).toBeUndefined()
-      expect(mockLogger.warn).toHaveBeenCalled()
     })
   })
 
@@ -139,7 +134,6 @@ describe('OAuth Utils', () => {
 
       expect(mockRefreshOAuthToken).not.toHaveBeenCalled()
       expect(result).toEqual({ accessToken: 'valid-token', refreshed: false })
-      expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('Access token is valid'))
     })
 
     it('should refresh token when expired', async () => {
@@ -163,9 +157,6 @@ describe('OAuth Utils', () => {
       expect(mockDb.update).toHaveBeenCalled()
       expect(mockDb.set).toHaveBeenCalled()
       expect(result).toEqual({ accessToken: 'new-token', refreshed: true })
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        expect.stringContaining('Successfully refreshed')
-      )
     })
 
     it('should handle refresh token error', async () => {
@@ -182,8 +173,6 @@ describe('OAuth Utils', () => {
       await expect(
         refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
       ).rejects.toThrow('Failed to refresh token')
-
-      expect(mockLogger.error).toHaveBeenCalled()
     })
 
     it('should not attempt refresh if no refresh token', async () => {
@@ -251,7 +240,6 @@ describe('OAuth Utils', () => {
       const token = await refreshAccessTokenIfNeeded('nonexistent-id', 'test-user-id', 'request-id')
 
       expect(token).toBeNull()
-      expect(mockLogger.warn).toHaveBeenCalled()
     })
 
     it('should return null if refresh fails', async () => {
@@ -270,7 +258,6 @@ describe('OAuth Utils', () => {
       const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
 
       expect(token).toBeNull()
-      expect(mockLogger.error).toHaveBeenCalled()
     })
   })
 })

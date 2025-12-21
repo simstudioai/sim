@@ -1288,7 +1288,6 @@ export function useCollaborativeWorkflow() {
         },
         workflowId: activeWorkflowId || '',
         userId: session?.user?.id || 'unknown',
-        immediate: true,
       })
     },
     [
@@ -1540,7 +1539,7 @@ export function useCollaborativeWorkflow() {
         const config = {
           id: nodeId,
           nodes: childNodes,
-          iterations: Math.max(1, Math.min(100, count)), // Clamp between 1-100 for loops
+          iterations: Math.max(1, Math.min(1000, count)), // Clamp between 1-1000 for loops
           loopType: currentLoopType,
           forEachItems: currentCollection,
         }

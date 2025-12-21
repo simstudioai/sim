@@ -109,10 +109,10 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `authMethod` | string | 否 | 认证方法：oauth 或 bot_token |
 | `botToken` | string | 否 | 自定义 Bot 的令牌 |
 | `channel` | string | 否 | 要读取消息的 Slack 频道（例如，#general） |
-| `userId` | string | 否 | DM 对话的用户 ID（例如，U1234567890） |
-| `limit` | number | 否 | 要检索的消息数量（默认：10，最大：100） |
-| `oldest` | string | 否 | 时间范围的开始（时间戳） |
-| `latest` | string | 否 | 时间范围的结束（时间戳） |
+| `userId` | string | 否 | DM 会话的用户 ID（例如，U1234567890） |
+| `limit` | number | 否 | 要检索的消息数量（默认：10，最大：15） |
+| `oldest` | string | 否 | 时间范围起始（时间戳） |
+| `latest` | string | 否 | 时间范围结束（时间戳） |
 
 #### 输出
 

@@ -75,16 +75,10 @@ export const notionCreateDatabaseTool: ToolConfig<NotionCreateDatabaseParams, No
         }
       }
 
-      // Format parent ID
-      const formattedParentId = params.parentId.replace(
-        /(.{8})(.{4})(.{4})(.{4})(.{12})/,
-        '$1-$2-$3-$4-$5'
-      )
-
       const body = {
         parent: {
           type: 'page_id',
-          page_id: formattedParentId,
+          page_id: params.parentId,
         },
         title: [
           {

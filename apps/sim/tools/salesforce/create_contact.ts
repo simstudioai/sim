@@ -1,37 +1,12 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type {
+  SalesforceCreateContactParams,
+  SalesforceCreateContactResponse,
+} from '@/tools/salesforce/types'
+import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { getInstanceUrl } from './utils'
 
 const logger = createLogger('SalesforceContacts')
-
-export interface SalesforceCreateContactParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  lastName: string
-  firstName?: string
-  email?: string
-  phone?: string
-  accountId?: string
-  title?: string
-  department?: string
-  mailingStreet?: string
-  mailingCity?: string
-  mailingState?: string
-  mailingPostalCode?: string
-  mailingCountry?: string
-  description?: string
-}
-
-export interface SalesforceCreateContactResponse {
-  success: boolean
-  output: {
-    id: string
-    success: boolean
-    created: boolean
-    metadata: { operation: 'create_contact' }
-  }
-}
 
 export const salesforceCreateContactTool: ToolConfig<
   SalesforceCreateContactParams,

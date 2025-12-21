@@ -34,6 +34,7 @@ import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { normalizeName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTool } from '@/tools/utils'
@@ -116,20 +117,6 @@ const BLOCK_COLORS = {
 const TAG_PREFIXES = {
   VARIABLE: 'variable.',
 } as const
-
-/**
- * Normalizes a block name by removing spaces and converting to lowercase
- */
-const normalizeBlockName = (blockName: string): string => {
-  return blockName.replace(/\s+/g, '').toLowerCase()
-}
-
-/**
- * Normalizes a variable name by removing spaces
- */
-const normalizeVariableName = (variableName: string): string => {
-  return variableName.replace(/\s+/g, '')
-}
 
 /**
  * Ensures the root tag is present in the tags array
@@ -521,7 +508,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         if (sourceBlock.type === 'loop' || sourceBlock.type === 'parallel') {
           const mockConfig = { outputs: { results: 'array' } }
           const blockName = sourceBlock.name || sourceBlock.type
-          const normalizedBlockName = normalizeBlockName(blockName)
+          const normalizedBlockName = normalizeName(blockName)
 
           const outputPaths = generateOutputPaths(mockConfig.outputs)
           const blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
@@ -542,7 +529,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
 
       const blockName = sourceBlock.name || sourceBlock.type
-      const normalizedBlockName = normalizeBlockName(blockName)
+      const normalizedBlockName = normalizeName(blockName)
 
       const mergedSubBlocks = getMergedSubBlocks(activeSourceBlockId)
       const responseFormatValue = mergedSubBlocks?.responseFormat?.value
@@ -735,12 +722,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     )
 
     const variableTags = validVariables.map(
-      (variable: Variable) => `${TAG_PREFIXES.VARIABLE}${normalizeVariableName(variable.name)}`
+      (variable: Variable) => `${TAG_PREFIXES.VARIABLE}${normalizeName(variable.name)}`
     )
 
     const variableInfoMap = validVariables.reduce(
       (acc, variable) => {
-        const tagName = `${TAG_PREFIXES.VARIABLE}${normalizeVariableName(variable.name)}`
+        const tagName = `${TAG_PREFIXES.VARIABLE}${normalizeName(variable.name)}`
         acc[tagName] = {
           type: variable.type,
           id: variable.id,
@@ -844,8 +831,13 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       if (!accessibleBlock) continue
 
       // Skip the current block - blocks cannot reference their own outputs
-      // Exception: approval blocks can reference their own outputs
-      if (accessibleBlockId === blockId && accessibleBlock.type !== 'approval') continue
+      // Exception: approval and human_in_the_loop blocks can reference their own outputs
+      if (
+        accessibleBlockId === blockId &&
+        accessibleBlock.type !== 'approval' &&
+        accessibleBlock.type !== 'human_in_the_loop'
+      )
+        continue
 
       const blockConfig = getBlock(accessibleBlock.type)
 
@@ -860,7 +852,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
           const mockConfig = { outputs: { results: 'array' } }
           const blockName = accessibleBlock.name || accessibleBlock.type
-          const normalizedBlockName = normalizeBlockName(blockName)
+          const normalizedBlockName = normalizeName(blockName)
 
           const outputPaths = generateOutputPaths(mockConfig.outputs)
           let blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
@@ -880,7 +872,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
 
       const blockName = accessibleBlock.name || accessibleBlock.type
-      const normalizedBlockName = normalizeBlockName(blockName)
+      const normalizedBlockName = normalizeName(blockName)
 
       const mergedSubBlocks = getMergedSubBlocks(accessibleBlockId)
       const responseFormatValue = mergedSubBlocks?.responseFormat?.value
@@ -972,6 +964,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
             blockTags = isSelfReference ? allTags.filter((tag) => tag.endsWith('.url')) : allTags
           }
+        } else if (accessibleBlock.type === 'human_in_the_loop') {
+          blockTags = [`${normalizedBlockName}.url`]
         } else {
           const operationValue =
             mergedSubBlocks?.operation?.value ?? getSubBlockValue(accessibleBlockId, 'operation')
@@ -1214,31 +1208,25 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
       let processedTag = tag
 
-      // Check if this is a file property and add [0] automatically
-      // Only include user-accessible fields (matches UserFile interface)
-      const fileProperties = ['id', 'name', 'url', 'size', 'type']
       const parts = tag.split('.')
-      if (parts.length >= 2 && fileProperties.includes(parts[parts.length - 1])) {
-        const fieldName = parts[parts.length - 2]
+      if (parts.length >= 3 && blockGroup) {
+        const arrayFieldName = parts[1] // e.g., "channels", "files", "users"
+        const block = useWorkflowStore.getState().blocks[blockGroup.blockId]
+        const blockConfig = block ? (getBlock(block.type) ?? null) : null
+        const mergedSubBlocks = getMergedSubBlocks(blockGroup.blockId)
 
-        if (blockGroup) {
-          const block = useWorkflowStore.getState().blocks[blockGroup.blockId]
-          const blockConfig = block ? (getBlock(block.type) ?? null) : null
-          const mergedSubBlocks = getMergedSubBlocks(blockGroup.blockId)
+        const fieldType = getOutputTypeForPath(
+          block,
+          blockConfig,
+          blockGroup.blockId,
+          arrayFieldName,
+          mergedSubBlocks
+        )
 
-          const fieldType = getOutputTypeForPath(
-            block,
-            blockConfig,
-            blockGroup.blockId,
-            fieldName,
-            mergedSubBlocks
-          )
-
-          if (fieldType === 'files') {
-            const blockAndField = parts.slice(0, -1).join('.')
-            const property = parts[parts.length - 1]
-            processedTag = `${blockAndField}[0].${property}`
-          }
+        if (fieldType === 'files' || fieldType === 'array') {
+          const blockName = parts[0]
+          const remainingPath = parts.slice(2).join('.')
+          processedTag = `${blockName}.${arrayFieldName}[0].${remainingPath}`
         }
       }
 

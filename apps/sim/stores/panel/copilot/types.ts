@@ -39,6 +39,7 @@ export interface CopilotMessage {
   >
   fileAttachments?: MessageFileAttachment[]
   contexts?: ChatContext[]
+  errorType?: 'usage_limit' | 'unauthorized' | 'forbidden' | 'rate_limit' | 'upgrade_required'
 }
 
 // Contexts attached to a user message
@@ -178,6 +179,7 @@ export interface CopilotActions {
     toolCallId?: string
   ) => void
   setToolCallState: (toolCall: any, newState: ClientToolCallState, options?: any) => void
+  updateToolCallParams: (toolCallId: string, params: Record<string, any>) => void
   sendDocsMessage: (query: string, options?: { stream?: boolean; topK?: number }) => Promise<void>
   saveChatMessages: (chatId: string) => Promise<void>
 

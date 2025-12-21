@@ -104,6 +104,8 @@ export function SlackChannelSelector({
         disabled={disabled || channels.length === 0}
         isLoading={isLoading}
         error={fetchError}
+        searchable
+        searchPlaceholder='Search channels...'
       />
       {selectedChannel && !fetchError && (
         <p className='text-[12px] text-[var(--text-muted)]'>

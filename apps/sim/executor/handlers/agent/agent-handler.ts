@@ -1,3 +1,6 @@
+import { db } from '@sim/db'
+import { mcpServers } from '@sim/db/schema'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { getAllBlocks } from '@/blocks'
@@ -35,19 +38,23 @@ export class AgentBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: AgentInputs
   ): Promise<BlockOutput | StreamingExecution> {
-    const responseFormat = this.parseResponseFormat(inputs.responseFormat)
-    const model = inputs.model || AGENT.DEFAULT_MODEL
+    // Filter out unavailable MCP tools early so they don't appear in logs/inputs
+    const filteredTools = await this.filterUnavailableMcpTools(ctx, inputs.tools || [])
+    const filteredInputs = { ...inputs, tools: filteredTools }
+
+    const responseFormat = this.parseResponseFormat(filteredInputs.responseFormat)
+    const model = filteredInputs.model || AGENT.DEFAULT_MODEL
     const providerId = getProviderFromModel(model)
-    const formattedTools = await this.formatTools(ctx, inputs.tools || [])
+    const formattedTools = await this.formatTools(ctx, filteredInputs.tools || [])
     const streamingConfig = this.getStreamingConfig(ctx, block)
-    const messages = await this.buildMessages(ctx, inputs, block.id)
+    const messages = await this.buildMessages(ctx, filteredInputs, block.id)
 
     const providerRequest = this.buildProviderRequest({
       ctx,
       providerId,
       model,
       messages,
-      inputs,
+      inputs: filteredInputs,
       formattedTools,
       responseFormat,
       streaming: streamingConfig.shouldUseStreaming ?? false,
@@ -58,10 +65,10 @@ export class AgentBlockHandler implements BlockHandler {
       providerRequest,
       block,
       responseFormat,
-      inputs
+      filteredInputs
     )
 
-    await this.persistResponseToMemory(ctx, inputs, result, block.id)
+    await this.persistResponseToMemory(ctx, filteredInputs, result, block.id)
 
     return result
   }
@@ -113,6 +120,53 @@ export class AgentBlockHandler implements BlockHandler {
       value: responseFormat,
     })
     return undefined
+  }
+
+  private async filterUnavailableMcpTools(
+    ctx: ExecutionContext,
+    tools: ToolInput[]
+  ): Promise<ToolInput[]> {
+    if (!Array.isArray(tools) || tools.length === 0) return tools
+
+    const mcpTools = tools.filter((t) => t.type === 'mcp')
+    if (mcpTools.length === 0) return tools
+
+    const serverIds = [...new Set(mcpTools.map((t) => t.params?.serverId).filter(Boolean))]
+    if (serverIds.length === 0) return tools
+
+    const availableServerIds = new Set<string>()
+    if (ctx.workspaceId && serverIds.length > 0) {
+      try {
+        const servers = await db
+          .select({ id: mcpServers.id, connectionStatus: mcpServers.connectionStatus })
+          .from(mcpServers)
+          .where(
+            and(
+              eq(mcpServers.workspaceId, ctx.workspaceId),
+              inArray(mcpServers.id, serverIds),
+              isNull(mcpServers.deletedAt)
+            )
+          )
+
+        for (const server of servers) {
+          if (server.connectionStatus === 'connected') {
+            availableServerIds.add(server.id)
+          }
+        }
+      } catch (error) {
+        logger.warn('Failed to check MCP server availability, including all tools:', error)
+        for (const serverId of serverIds) {
+          availableServerIds.add(serverId)
+        }
+      }
+    }
+
+    return tools.filter((tool) => {
+      if (tool.type !== 'mcp') return true
+      const serverId = tool.params?.serverId
+      if (!serverId) return false
+      return availableServerIds.has(serverId)
+    })
   }
 
   private async formatTools(ctx: ExecutionContext, inputTools: ToolInput[]): Promise<any[]> {
@@ -304,6 +358,7 @@ export class AgentBlockHandler implements BlockHandler {
 
   /**
    * Process MCP tools using cached schemas from build time.
+   * Note: Unavailable tools are already filtered by filterUnavailableMcpTools.
    */
   private async processMcpToolsBatched(
     ctx: ExecutionContext,
@@ -312,7 +367,6 @@ export class AgentBlockHandler implements BlockHandler {
     if (mcpTools.length === 0) return []
 
     const results: any[] = []
-
     const toolsWithSchema: ToolInput[] = []
     const toolsNeedingDiscovery: ToolInput[] = []
 
@@ -439,7 +493,7 @@ export class AgentBlockHandler implements BlockHandler {
           const discoveredTools = await this.discoverMcpToolsForServer(ctx, serverId)
           return { serverId, tools, discoveredTools, error: null as Error | null }
         } catch (error) {
-          logger.error(`Failed to discover tools from server ${serverId}:`, error)
+          logger.error(`Failed to discover tools from server ${serverId}:`)
           return { serverId, tools, discoveredTools: [] as any[], error: error as Error }
         }
       })
@@ -829,6 +883,8 @@ export class AgentBlockHandler implements BlockHandler {
       apiKey: inputs.apiKey,
       azureEndpoint: inputs.azureEndpoint,
       azureApiVersion: inputs.azureApiVersion,
+      vertexProject: inputs.vertexProject,
+      vertexLocation: inputs.vertexLocation,
       responseFormat,
       workflowId: ctx.workflowId,
       workspaceId: ctx.workspaceId,
@@ -921,6 +977,8 @@ export class AgentBlockHandler implements BlockHandler {
       apiKey: finalApiKey,
       azureEndpoint: providerRequest.azureEndpoint,
       azureApiVersion: providerRequest.azureApiVersion,
+      vertexProject: providerRequest.vertexProject,
+      vertexLocation: providerRequest.vertexLocation,
       responseFormat: providerRequest.responseFormat,
       workflowId: providerRequest.workflowId,
       workspaceId: providerRequest.workspaceId,

@@ -24,7 +24,6 @@ interface EnqueueWorkflowOperationArgs {
   target: string
   payload: any
   workflowId: string
-  immediate?: boolean
   operationId?: string
 }
 
@@ -37,7 +36,6 @@ export async function enqueueWorkflowOperation({
   target,
   payload,
   workflowId,
-  immediate = false,
   operationId,
 }: EnqueueWorkflowOperationArgs): Promise<string> {
   const userId = await resolveUserId()
@@ -52,7 +50,6 @@ export async function enqueueWorkflowOperation({
     },
     workflowId,
     userId,
-    immediate,
   })
 
   logger.debug('Queued workflow operation', {
@@ -60,7 +57,6 @@ export async function enqueueWorkflowOperation({
     operation,
     target,
     operationId: opId,
-    immediate,
   })
 
   return opId
@@ -69,7 +65,6 @@ export async function enqueueWorkflowOperation({
 interface EnqueueReplaceStateArgs {
   workflowId: string
   state: WorkflowState
-  immediate?: boolean
   operationId?: string
 }
 
@@ -79,7 +74,6 @@ interface EnqueueReplaceStateArgs {
 export async function enqueueReplaceWorkflowState({
   workflowId,
   state,
-  immediate,
   operationId,
 }: EnqueueReplaceStateArgs): Promise<string> {
   return enqueueWorkflowOperation({
@@ -87,7 +81,6 @@ export async function enqueueReplaceWorkflowState({
     operation: 'replace-state',
     target: 'workflow',
     payload: { state },
-    immediate,
     operationId,
   })
 }

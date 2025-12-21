@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
+import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type {
   ProviderConfig,
@@ -14,49 +15,12 @@ import {
   prepareToolsWithUsageControl,
   trackForcedToolUsage,
 } from '@/providers/utils'
+import { createReadableStreamFromVLLMStream } from '@/providers/vllm/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('VLLMProvider')
 const VLLM_VERSION = '1.0.0'
-
-/**
- * Helper function to convert a vLLM stream to a standard ReadableStream
- * and collect completion metrics
- */
-function createReadableStreamFromVLLMStream(
-  vllmStream: any,
-  onComplete?: (content: string, usage?: any) => void
-): ReadableStream {
-  let fullContent = ''
-  let usageData: any = null
-
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of vllmStream) {
-          if (chunk.usage) {
-            usageData = chunk.usage
-          }
-
-          const content = chunk.choices[0]?.delta?.content || ''
-          if (content) {
-            fullContent += content
-            controller.enqueue(new TextEncoder().encode(content))
-          }
-        }
-
-        if (onComplete) {
-          onComplete(fullContent, usageData)
-        }
-
-        controller.close()
-      } catch (error) {
-        controller.error(error)
-      }
-    },
-  })
-}
 
 export const vllmProvider: ProviderConfig = {
   id: 'vllm',
@@ -341,7 +305,6 @@ export const vllmProvider: ProviderConfig = {
       const toolResults = []
       const currentMessages = [...allMessages]
       let iterationCount = 0
-      const MAX_ITERATIONS = 10
 
       let modelTime = firstResponseTime
       let toolsTime = 0
@@ -360,14 +323,14 @@ export const vllmProvider: ProviderConfig = {
 
       checkForForcedToolUsage(currentResponse, originalToolChoice)
 
-      while (iterationCount < MAX_ITERATIONS) {
+      while (iterationCount < MAX_TOOL_ITERATIONS) {
         const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
         if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
           break
         }
 
         logger.info(
-          `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1}/${MAX_ITERATIONS})`
+          `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1}/${MAX_TOOL_ITERATIONS})`
         )
 
         const toolsStartTime = Date.now()

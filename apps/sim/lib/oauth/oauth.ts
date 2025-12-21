@@ -3,7 +3,6 @@ import {
   AirtableIcon,
   AsanaIcon,
   ConfluenceIcon,
-  // DiscordIcon,
   DropboxIcon,
   GithubIcon,
   GmailIcon,
@@ -32,7 +31,6 @@ import {
   ShopifyIcon,
   SlackIcon,
   SpotifyIcon,
-  // SupabaseIcon,
   TrelloIcon,
   WealthboxIcon,
   WebflowIcon,
@@ -49,12 +47,10 @@ export type OAuthProvider =
   | 'google'
   | 'github'
   | 'x'
-  // | 'supabase'
   | 'confluence'
   | 'airtable'
   | 'notion'
   | 'jira'
-  // | 'discord'
   | 'dropbox'
   | 'microsoft'
   | 'linear'
@@ -86,12 +82,10 @@ export type OAuthService =
   | 'google-groups'
   | 'github'
   | 'x'
-  // | 'supabase'
   | 'confluence'
   | 'airtable'
   | 'notion'
   | 'jira'
-  // | 'discord'
   | 'dropbox'
   | 'microsoft-excel'
   | 'microsoft-teams'
@@ -388,23 +382,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'x',
   },
-  // supabase: {
-  //   id: 'supabase',
-  //   name: 'Supabase',
-  //   icon: (props) => SupabaseIcon(props),
-  //   services: {
-  //     supabase: {
-  //       id: 'supabase',
-  //       name: 'Supabase',
-  //       description: 'Connect to your Supabase projects and manage data.',
-  //       providerId: 'supabase',
-  //       icon: (props) => SupabaseIcon(props),
-  //       baseProviderIcon: (props) => SupabaseIcon(props),
-  //       scopes: ['database.read', 'database.write', 'projects.read'],
-  //     },
-  //   },
-  //   defaultService: 'supabase',
-  // },
   confluence: {
     id: 'confluence',
     name: 'Confluence',
@@ -518,23 +495,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'airtable',
   },
-  // discord: {
-  //   id: 'discord',
-  //   name: 'Discord',
-  //   icon: (props) => DiscordIcon(props),
-  //   services: {
-  //     discord: {
-  //       id: 'discord',
-  //       name: 'Discord',
-  //       description: 'Read and send messages to Discord channels and interact with servers.',
-  //       providerId: 'discord',
-  //       icon: (props) => DiscordIcon(props),
-  //       baseProviderIcon: (props) => DiscordIcon(props),
-  //       scopes: ['identify', 'bot', 'messages.read', 'guilds', 'guilds.members.read'],
-  //     },
-  //   },
-  //   defaultService: 'discord',
-  // },
   notion: {
     id: 'notion',
     name: 'Notion',
@@ -547,7 +507,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'notion',
         icon: (props) => NotionIcon(props),
         baseProviderIcon: (props) => NotionIcon(props),
-        scopes: ['workspace.content', 'workspace.name', 'page.read', 'page.write'],
+        scopes: [],
       },
     },
     defaultService: 'notion',
@@ -1272,18 +1232,6 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         useBasicAuth: false,
       }
     }
-    // case 'discord': {
-    //   const { clientId, clientSecret } = getCredentials(
-    //     env.DISCORD_CLIENT_ID,
-    //     env.DISCORD_CLIENT_SECRET
-    //   )
-    //   return {
-    //     tokenEndpoint: 'https://discord.com/api/v10/oauth2/token',
-    //     clientId,
-    //     clientSecret,
-    //     useBasicAuth: true,
-    //   }
-    // }
     case 'microsoft': {
       const { clientId, clientSecret } = getCredentials(
         env.MICROSOFT_CLIENT_ID,
@@ -1572,16 +1520,12 @@ export async function refreshOAuthToken(
   refreshToken: string
 ): Promise<{ accessToken: string; expiresIn: number; refreshToken: string } | null> {
   try {
-    // Get the provider from the providerId (e.g., 'google-drive' -> 'google')
     const provider = providerId.split('-')[0]
 
-    // Get provider configuration
     const config = getProviderAuthConfig(provider)
 
-    // Build authentication request
     const { headers, bodyParams } = buildAuthRequest(config, refreshToken)
 
-    // Refresh the token
     const response = await fetch(config.tokenEndpoint, {
       method: 'POST',
       headers,
@@ -1592,7 +1536,6 @@ export async function refreshOAuthToken(
       const errorText = await response.text()
       let errorData = errorText
 
-      // Try to parse the error as JSON for better diagnostics
       try {
         errorData = JSON.parse(errorText)
       } catch (_e) {
@@ -1616,18 +1559,14 @@ export async function refreshOAuthToken(
 
     const data = await response.json()
 
-    // Extract token and expiration (different providers may use different field names)
     const accessToken = data.access_token
 
-    // Handle refresh token rotation for providers that support it
     let newRefreshToken = null
     if (config.supportsRefreshTokenRotation && data.refresh_token) {
       newRefreshToken = data.refresh_token
       logger.info(`Received new refresh token from ${provider}`)
     }
 
-    // Get expiration time - use provider's value or default to 1 hour (3600 seconds)
-    // Different providers use different names for this field
     const expiresIn = data.expires_in || data.expiresIn || 3600
 
     if (!accessToken) {

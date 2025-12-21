@@ -110,28 +110,20 @@ export const auth = betterAuth({
     account: {
       create: {
         before: async (account) => {
+          // Only one credential per (userId, providerId) is allowed
+          // If user reconnects (even with a different external account), replace the existing one
           const existing = await db.query.account.findFirst({
             where: and(
               eq(schema.account.userId, account.userId),
-              eq(schema.account.providerId, account.providerId),
-              eq(schema.account.accountId, account.accountId)
+              eq(schema.account.providerId, account.providerId)
             ),
           })
 
           if (existing) {
-            logger.warn(
-              '[databaseHooks.account.create.before] Duplicate account detected, updating existing',
-              {
-                existingId: existing.id,
-                userId: account.userId,
-                providerId: account.providerId,
-                accountId: account.accountId,
-              }
-            )
-
             await db
               .update(schema.account)
               .set({
+                accountId: account.accountId,
                 accessToken: account.accessToken,
                 refreshToken: account.refreshToken,
                 idToken: account.idToken,
@@ -220,7 +212,6 @@ export const auth = betterAuth({
         'github',
         'email-password',
         'confluence',
-        // 'supabase',
         'x',
         'notion',
         'microsoft',
@@ -733,17 +724,17 @@ export const auth = betterAuth({
           scopes: ['login', 'data'],
           responseType: 'code',
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/wealthbox`,
-          getUserInfo: async (tokens) => {
+          getUserInfo: async (_tokens) => {
             try {
               logger.info('Creating Wealthbox user profile from token data')
 
-              const uniqueId = `wealthbox-${Date.now()}`
+              const uniqueId = 'wealthbox-user'
               const now = new Date()
 
               return {
                 id: uniqueId,
                 name: 'Wealthbox User',
-                email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@wealthbox.user`,
+                email: `${uniqueId}@wealthbox.user`,
                 emailVerified: false,
                 createdAt: now,
                 updatedAt: now,
@@ -958,56 +949,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Supabase provider (unused)
-        // {
-        //   providerId: 'supabase',
-        //   clientId: env.SUPABASE_CLIENT_ID as string,
-        //   clientSecret: env.SUPABASE_CLIENT_SECRET as string,
-        //   authorizationUrl: 'https://api.supabase.com/v1/oauth/authorize',
-        //   tokenUrl: 'https://api.supabase.com/v1/oauth/token',
-        //   userInfoUrl: 'https://dummy-not-used.supabase.co',
-        //   scopes: ['database.read', 'database.write', 'projects.read'],
-        //   responseType: 'code',
-        //   pkce: true,
-        //   redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/supabase`,
-        //   getUserInfo: async (tokens) => {
-        //     try {
-        //       logger.info('Creating Supabase user profile from token data')
-
-        //       let userId = 'supabase-user'
-        //       if (tokens.idToken) {
-        //         try {
-        //           const decodedToken = JSON.parse(
-        //             Buffer.from(tokens.idToken.split('.')[1], 'base64').toString()
-        //           )
-        //           if (decodedToken.sub) {
-        //             userId = decodedToken.sub
-        //           }
-        //         } catch (e) {
-        //           logger.warn('Failed to decode Supabase ID token', {
-        //             error: e,
-        //           })
-        //         }
-        //       }
-
-        //       const uniqueId = `${userId}-${Date.now()}`
-        //       const now = new Date()
-
-        //       return {
-        //         id: uniqueId,
-        //         name: 'Supabase User',
-        //         email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@supabase.user`,
-        //         emailVerified: false,
-        //         createdAt: now,
-        //         updatedAt: now,
-        //       }
-        //     } catch (error) {
-        //       logger.error('Error creating Supabase user profile:', { error })
-        //       return null
-        //     }
-        //   },
-        // },
-
         // X provider
         {
           providerId: 'x',
@@ -1140,57 +1081,6 @@ export const auth = betterAuth({
             }
           },
         },
-
-        // Discord provider (unused)
-        // {
-        //   providerId: 'discord',
-        //   clientId: env.DISCORD_CLIENT_ID as string,
-        //   clientSecret: env.DISCORD_CLIENT_SECRET as string,
-        //   authorizationUrl: 'https://discord.com/api/oauth2/authorize',
-        //   tokenUrl: 'https://discord.com/api/oauth2/token',
-        //   userInfoUrl: 'https://discord.com/api/users/@me',
-        //   scopes: ['identify', 'bot', 'messages.read', 'guilds', 'guilds.members.read'],
-        //   responseType: 'code',
-        //   accessType: 'offline',
-        //   authentication: 'basic',
-        //   prompt: 'consent',
-        //   redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/discord`,
-        //   getUserInfo: async (tokens) => {
-        //     try {
-        //       const response = await fetch('https://discord.com/api/users/@me', {
-        //         headers: {
-        //           Authorization: `Bearer ${tokens.accessToken}`,
-        //         },
-        //       })
-
-        //       if (!response.ok) {
-        //         logger.error('Error fetching Discord user info:', {
-        //           status: response.status,
-        //           statusText: response.statusText,
-        //         })
-        //         return null
-        //       }
-
-        //       const profile = await response.json()
-        //       const now = new Date()
-
-        //       return {
-        //         id: profile.id,
-        //         name: profile.username || 'Discord User',
-        //         email: profile.email || `${profile.id}@discord.user`,
-        //         image: profile.avatar
-        //           ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png`
-        //           : undefined,
-        //         emailVerified: profile.verified || false,
-        //         createdAt: now,
-        //         updatedAt: now,
-        //       }
-        //     } catch (error) {
-        //       logger.error('Error in Discord getUserInfo:', { error })
-        //       return null
-        //     }
-        //   },
-        // },
 
         // Jira provider
         {
@@ -1331,7 +1221,6 @@ export const auth = betterAuth({
           authorizationUrl: 'https://api.notion.com/v1/oauth/authorize',
           tokenUrl: 'https://api.notion.com/v1/oauth/token',
           userInfoUrl: 'https://api.notion.com/v1/users/me',
-          scopes: ['workspace.content', 'workspace.name', 'page.read', 'page.write'],
           responseType: 'code',
           pkce: false,
           accessType: 'offline',
@@ -1655,33 +1544,42 @@ export const auth = betterAuth({
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/slack`,
           getUserInfo: async (tokens) => {
             try {
-              logger.info('Creating Slack bot profile from token data')
+              const response = await fetch('https://slack.com/api/auth.test', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
 
-              // Extract user identifier from tokens if possible
-              let userId = 'slack-bot'
-              if (tokens.idToken) {
-                try {
-                  const decodedToken = JSON.parse(
-                    Buffer.from(tokens.idToken.split('.')[1], 'base64').toString()
-                  )
-                  if (decodedToken.sub) {
-                    userId = decodedToken.sub
-                  }
-                } catch (e) {
-                  logger.warn('Failed to decode Slack ID token', { error: e })
-                }
+              if (!response.ok) {
+                logger.error('Slack auth.test failed', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
               }
 
-              const uniqueId = `${userId}-${Date.now()}`
-              const now = new Date()
+              const data = await response.json()
+
+              if (!data.ok) {
+                logger.error('Slack auth.test returned error', { error: data.error })
+                return null
+              }
+
+              const teamId = data.team_id || 'unknown'
+              const userId = data.user_id || data.bot_id || 'bot'
+              const teamName = data.team || 'Slack Workspace'
+
+              const uniqueId = `${teamId}-${userId}`
+
+              logger.info('Slack credential identifier', { teamId, userId, uniqueId, teamName })
 
               return {
                 id: uniqueId,
-                name: 'Slack Bot',
-                email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@slack.bot`,
+                name: teamName,
+                email: `${teamId}-${userId}@slack.bot`,
                 emailVerified: false,
-                createdAt: now,
-                updatedAt: now,
+                createdAt: new Date(),
+                updatedAt: new Date(),
               }
             } catch (error) {
               logger.error('Error creating Slack bot profile:', { error })
@@ -1722,7 +1620,7 @@ export const auth = betterAuth({
               const data = await response.json()
               const now = new Date()
 
-              const userId = data.user_id || `webflow-${Date.now()}`
+              const userId = data.user_id || 'user'
               const uniqueId = `webflow-${userId}`
 
               return {

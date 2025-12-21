@@ -16,7 +16,7 @@ import {
 import type { BlockHandler, ExecutionContext, PauseMetadata } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
 import type { SerializedBlock } from '@/serializer/types'
-import { normalizeBlockName } from '@/stores/workflows/utils'
+import { normalizeName } from '@/stores/workflows/utils'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('HumanInTheLoopBlockHandler')
@@ -591,7 +591,7 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
 
     if (pauseBlockName) {
       blockNameMappingWithPause[pauseBlockName] = pauseBlockId
-      blockNameMappingWithPause[normalizeBlockName(pauseBlockName)] = pauseBlockId
+      blockNameMappingWithPause[normalizeName(pauseBlockName)] = pauseBlockId
     }
 
     const notificationPromises = tools.map<Promise<NotificationToolResult>>(async (toolConfig) => {

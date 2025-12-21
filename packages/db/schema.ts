@@ -5,6 +5,7 @@ import {
   check,
   customType,
   decimal,
+  doublePrecision,
   index,
   integer,
   json,
@@ -108,6 +109,7 @@ export const verification = pgTable(
   },
   (table) => ({
     identifierIdx: index('verification_identifier_idx').on(table.identifier),
+    expiresAtIdx: index('verification_expires_at_idx').on(table.expiresAt),
   })
 )
 
@@ -197,6 +199,7 @@ export const workflowBlocks = pgTable(
   },
   (table) => ({
     workflowIdIdx: index('workflow_blocks_workflow_id_idx').on(table.workflowId),
+    typeIdx: index('workflow_blocks_type_idx').on(table.type),
   })
 )
 
@@ -289,6 +292,9 @@ export const workflowExecutionLogs = pgTable(
     workflowId: text('workflow_id')
       .notNull()
       .references(() => workflow.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
     executionId: text('execution_id').notNull(),
     stateSnapshotId: text('state_snapshot_id')
       .notNull()
@@ -324,9 +330,12 @@ export const workflowExecutionLogs = pgTable(
     executionIdUnique: uniqueIndex('workflow_execution_logs_execution_id_unique').on(
       table.executionId
     ),
-    // Composite index for the new join-based query pattern
     workflowStartedAtIdx: index('workflow_execution_logs_workflow_started_at_idx').on(
       table.workflowId,
+      table.startedAt
+    ),
+    workspaceStartedAtIdx: index('workflow_execution_logs_workspace_started_at_idx').on(
+      table.workspaceId,
       table.startedAt
     ),
   })
@@ -438,6 +447,9 @@ export const settings = pgTable('settings', {
 
   // Notification preferences
   errorNotificationsEnabled: boolean('error_notifications_enabled').notNull().default(true),
+
+  // Canvas preferences
+  snapToGridSize: integer('snap_to_grid_size').notNull().default(0), // 0 = off, 10-50 = grid size
 
   // Copilot preferences - maps model_id to enabled/disabled boolean
   copilotEnabledModels: jsonb('copilot_enabled_models').notNull().default('{}'),
@@ -618,6 +630,8 @@ export const apiKey = pgTable(
       'workspace_type_check',
       sql`(type = 'workspace' AND workspace_id IS NOT NULL) OR (type = 'personal' AND workspace_id IS NULL)`
     ),
+    workspaceTypeIdx: index('api_key_workspace_type_idx').on(table.workspaceId, table.type),
+    userTypeIdx: index('api_key_user_type_idx').on(table.userId, table.type),
   })
 )
 
@@ -1043,6 +1057,7 @@ export const document = pgTable(
     deletedAt: timestamp('deleted_at'), // Soft delete
 
     // Document tags for filtering (inherited by all chunks)
+    // Text tags (7 slots)
     tag1: text('tag1'),
     tag2: text('tag2'),
     tag3: text('tag3'),
@@ -1050,6 +1065,19 @@ export const document = pgTable(
     tag5: text('tag5'),
     tag6: text('tag6'),
     tag7: text('tag7'),
+    // Number tags (5 slots)
+    number1: doublePrecision('number1'),
+    number2: doublePrecision('number2'),
+    number3: doublePrecision('number3'),
+    number4: doublePrecision('number4'),
+    number5: doublePrecision('number5'),
+    // Date tags (2 slots)
+    date1: timestamp('date1'),
+    date2: timestamp('date2'),
+    // Boolean tags (3 slots)
+    boolean1: boolean('boolean1'),
+    boolean2: boolean('boolean2'),
+    boolean3: boolean('boolean3'),
 
     // Timestamps
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
@@ -1064,7 +1092,7 @@ export const document = pgTable(
       table.knowledgeBaseId,
       table.processingStatus
     ),
-    // Tag indexes for filtering
+    // Text tag indexes
     tag1Idx: index('doc_tag1_idx').on(table.tag1),
     tag2Idx: index('doc_tag2_idx').on(table.tag2),
     tag3Idx: index('doc_tag3_idx').on(table.tag3),
@@ -1072,6 +1100,19 @@ export const document = pgTable(
     tag5Idx: index('doc_tag5_idx').on(table.tag5),
     tag6Idx: index('doc_tag6_idx').on(table.tag6),
     tag7Idx: index('doc_tag7_idx').on(table.tag7),
+    // Number tag indexes (5 slots)
+    number1Idx: index('doc_number1_idx').on(table.number1),
+    number2Idx: index('doc_number2_idx').on(table.number2),
+    number3Idx: index('doc_number3_idx').on(table.number3),
+    number4Idx: index('doc_number4_idx').on(table.number4),
+    number5Idx: index('doc_number5_idx').on(table.number5),
+    // Date tag indexes (2 slots)
+    date1Idx: index('doc_date1_idx').on(table.date1),
+    date2Idx: index('doc_date2_idx').on(table.date2),
+    // Boolean tag indexes (3 slots)
+    boolean1Idx: index('doc_boolean1_idx').on(table.boolean1),
+    boolean2Idx: index('doc_boolean2_idx').on(table.boolean2),
+    boolean3Idx: index('doc_boolean3_idx').on(table.boolean3),
   })
 )
 
@@ -1133,6 +1174,7 @@ export const embedding = pgTable(
     endOffset: integer('end_offset').notNull(),
 
     // Tag columns inherited from document for efficient filtering
+    // Text tags (7 slots)
     tag1: text('tag1'),
     tag2: text('tag2'),
     tag3: text('tag3'),
@@ -1140,6 +1182,19 @@ export const embedding = pgTable(
     tag5: text('tag5'),
     tag6: text('tag6'),
     tag7: text('tag7'),
+    // Number tags (5 slots)
+    number1: doublePrecision('number1'),
+    number2: doublePrecision('number2'),
+    number3: doublePrecision('number3'),
+    number4: doublePrecision('number4'),
+    number5: doublePrecision('number5'),
+    // Date tags (2 slots)
+    date1: timestamp('date1'),
+    date2: timestamp('date2'),
+    // Boolean tags (3 slots)
+    boolean1: boolean('boolean1'),
+    boolean2: boolean('boolean2'),
+    boolean3: boolean('boolean3'),
 
     // Chunk state - enable/disable from knowledge base
     enabled: boolean('enabled').notNull().default(true),
@@ -1178,7 +1233,7 @@ export const embedding = pgTable(
         ef_construction: 64,
       }),
 
-    // Tag indexes for efficient filtering
+    // Text tag indexes
     tag1Idx: index('emb_tag1_idx').on(table.tag1),
     tag2Idx: index('emb_tag2_idx').on(table.tag2),
     tag3Idx: index('emb_tag3_idx').on(table.tag3),
@@ -1186,6 +1241,19 @@ export const embedding = pgTable(
     tag5Idx: index('emb_tag5_idx').on(table.tag5),
     tag6Idx: index('emb_tag6_idx').on(table.tag6),
     tag7Idx: index('emb_tag7_idx').on(table.tag7),
+    // Number tag indexes (5 slots)
+    number1Idx: index('emb_number1_idx').on(table.number1),
+    number2Idx: index('emb_number2_idx').on(table.number2),
+    number3Idx: index('emb_number3_idx').on(table.number3),
+    number4Idx: index('emb_number4_idx').on(table.number4),
+    number5Idx: index('emb_number5_idx').on(table.number5),
+    // Date tag indexes (2 slots)
+    date1Idx: index('emb_date1_idx').on(table.date1),
+    date2Idx: index('emb_date2_idx').on(table.date2),
+    // Boolean tag indexes (3 slots)
+    boolean1Idx: index('emb_boolean1_idx').on(table.boolean1),
+    boolean2Idx: index('emb_boolean2_idx').on(table.boolean2),
+    boolean3Idx: index('emb_boolean3_idx').on(table.boolean3),
 
     // Full-text search index
     contentFtsIdx: index('emb_content_fts_idx').using('gin', table.contentTsv),
@@ -1381,6 +1449,7 @@ export const templates = pgTable(
     tags: text('tags').array().notNull().default(sql`'{}'::text[]`), // Array of tags
     requiredCredentials: jsonb('required_credentials').notNull().default('[]'), // Array of credential requirements
     state: jsonb('state').notNull(), // Store the workflow state directly
+    ogImageUrl: text('og_image_url'), // Pre-generated OpenGraph image URL
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -1547,6 +1616,8 @@ export const mcpServers = pgTable(
     connectionStatus: text('connection_status').default('disconnected'),
     lastError: text('last_error'),
 
+    statusConfig: jsonb('status_config').default('{}'),
+
     toolCount: integer('tool_count').default(0),
     lastToolsRefresh: timestamp('last_tools_refresh'),
     totalRequests: integer('total_requests').default(0),
@@ -1594,5 +1665,53 @@ export const ssoProvider = pgTable(
     domainIdx: index('sso_provider_domain_idx').on(table.domain),
     userIdIdx: index('sso_provider_user_id_idx').on(table.userId),
     organizationIdIdx: index('sso_provider_organization_id_idx').on(table.organizationId),
+  })
+)
+
+// Usage logging for tracking individual billable operations
+export const usageLogCategoryEnum = pgEnum('usage_log_category', ['model', 'fixed'])
+export const usageLogSourceEnum = pgEnum('usage_log_source', ['workflow', 'wand', 'copilot'])
+
+export const usageLog = pgTable(
+  'usage_log',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+
+    // Charge category: 'model' (token-based) or 'fixed' (flat fee)
+    category: usageLogCategoryEnum('category').notNull(),
+
+    // What generated this charge: 'workflow', 'wand', 'copilot'
+    source: usageLogSourceEnum('source').notNull(),
+
+    // For model charges: model name (e.g., 'gpt-4o', 'claude-4.5-opus')
+    // For fixed charges: charge type (e.g., 'execution_fee', 'search_query')
+    description: text('description').notNull(),
+
+    // Category-specific metadata (e.g., tokens for 'model' category)
+    metadata: jsonb('metadata'),
+
+    // Cost in USD
+    cost: decimal('cost').notNull(),
+
+    // Optional context references
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'set null' }),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
+    executionId: text('execution_id'),
+
+    // Timestamp
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Index for querying user's usage history (most common query)
+    userCreatedAtIdx: index('usage_log_user_created_at_idx').on(table.userId, table.createdAt),
+    // Index for filtering by source
+    sourceIdx: index('usage_log_source_idx').on(table.source),
+    // Index for workspace-specific queries
+    workspaceIdIdx: index('usage_log_workspace_id_idx').on(table.workspaceId),
+    // Index for workflow-specific queries
+    workflowIdIdx: index('usage_log_workflow_id_idx').on(table.workflowId),
   })
 )

@@ -14,7 +14,12 @@ const SlackReadMessagesSchema = z
     accessToken: z.string().min(1, 'Access token is required'),
     channel: z.string().optional().nullable(),
     userId: z.string().optional().nullable(),
-    limit: z.number().optional().nullable(),
+    limit: z.coerce
+      .number()
+      .min(1, 'Limit must be at least 1')
+      .max(15, 'Limit cannot exceed 15')
+      .optional()
+      .nullable(),
     oldest: z.string().optional().nullable(),
     latest: z.string().optional().nullable(),
   })
@@ -62,8 +67,8 @@ export async function POST(request: NextRequest) {
 
     const url = new URL('https://slack.com/api/conversations.history')
     url.searchParams.append('channel', channel!)
-    const limit = validatedData.limit ? Number(validatedData.limit) : 10
-    url.searchParams.append('limit', String(Math.min(limit, 15)))
+    const limit = validatedData.limit ?? 10
+    url.searchParams.append('limit', String(limit))
 
     if (validatedData.oldest) {
       url.searchParams.append('oldest', validatedData.oldest)

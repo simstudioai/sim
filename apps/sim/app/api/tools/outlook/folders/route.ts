@@ -3,6 +3,7 @@ import { account } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -29,8 +30,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
+    const credentialIdValidation = validateAlphanumericId(credentialId, 'credentialId')
+    if (!credentialIdValidation.isValid) {
+      logger.warn('Invalid credentialId format', { error: credentialIdValidation.error })
+      return NextResponse.json({ error: credentialIdValidation.error }, { status: 400 })
+    }
+
     try {
-      // Ensure we have a session for permission checks
       const sessionUserId = session?.user?.id || ''
 
       if (!sessionUserId) {
@@ -38,7 +44,6 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
-      // Resolve the credential owner to support collaborator-owned credentials
       const creds = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
       if (!creds.length) {
         logger.warn('Credential not found', { credentialId })
@@ -79,7 +84,6 @@ export async function GET(request: Request) {
           endpoint: 'https://graph.microsoft.com/v1.0/me/mailFolders',
         })
 
-        // Check for auth errors specifically
         if (response.status === 401) {
           return NextResponse.json(
             {
@@ -96,7 +100,6 @@ export async function GET(request: Request) {
       const data = await response.json()
       const folders = data.value || []
 
-      // Transform folders to match the expected format
       const transformedFolders = folders.map((folder: OutlookFolder) => ({
         id: folder.id,
         name: folder.displayName,
@@ -111,7 +114,6 @@ export async function GET(request: Request) {
     } catch (innerError) {
       logger.error('Error during API requests:', innerError)
 
-      // Check if it's an authentication error
       const errorMessage = innerError instanceof Error ? innerError.message : String(innerError)
       if (
         errorMessage.includes('auth') ||

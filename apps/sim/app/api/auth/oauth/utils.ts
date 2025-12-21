@@ -18,6 +18,7 @@ interface AccountInsertData {
   updatedAt: Date
   refreshToken?: string
   idToken?: string
+  accessTokenExpiresAt?: Date
 }
 
 /**
@@ -103,6 +104,7 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       accessToken: account.accessToken,
       refreshToken: account.refreshToken,
       accessTokenExpiresAt: account.accessTokenExpiresAt,
+      idToken: account.idToken,
     })
     .from(account)
     .where(and(eq(account.userId, userId), eq(account.providerId, providerId)))

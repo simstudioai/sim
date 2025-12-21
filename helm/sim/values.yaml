@@ -52,8 +52,9 @@ app:
     # Application URLs
     NEXT_PUBLIC_APP_URL: "http://localhost:3000"
     BETTER_AUTH_URL: "http://localhost:3000"
-    SOCKET_SERVER_URL: "http://localhost:3002"
-    NEXT_PUBLIC_SOCKET_URL: "http://localhost:3002"
+    # SOCKET_SERVER_URL: Auto-detected when realtime.enabled=true (uses internal service)
+    # Only set this if using an external WebSocket service with realtime.enabled=false
+    NEXT_PUBLIC_SOCKET_URL: "http://localhost:3002"  # Public WebSocket URL for browsers
     
     # Node environment
     NODE_ENV: "production"
@@ -99,15 +100,8 @@ app:
     
     # Rate Limiting Configuration (per minute)
     RATE_LIMIT_WINDOW_MS: "60000"                         # Rate limit window duration (1 minute)
-    RATE_LIMIT_FREE_SYNC: "10"                            # Free tier sync API executions
-    RATE_LIMIT_PRO_SYNC: "25"                             # Pro tier sync API executions
-    RATE_LIMIT_TEAM_SYNC: "75"                            # Team tier sync API executions
-    RATE_LIMIT_ENTERPRISE_SYNC: "150"                     # Enterprise tier sync API executions
-    RATE_LIMIT_FREE_ASYNC: "50"                           # Free tier async API executions  
-    RATE_LIMIT_PRO_ASYNC: "200"                           # Pro tier async API executions
-    RATE_LIMIT_TEAM_ASYNC: "500"                          # Team tier async API executions
-    RATE_LIMIT_ENTERPRISE_ASYNC: "1000"                   # Enterprise tier async API executions
-    MANUAL_EXECUTION_LIMIT: "999999"                      # Manual execution bypass value
+    RATE_LIMIT_FREE_SYNC: "10"                            # Sync API executions per minute
+    RATE_LIMIT_FREE_ASYNC: "50"                           # Async API executions per minute
     
     # UI Branding & Whitelabeling Configuration
     NEXT_PUBLIC_BRAND_NAME: "Sim"                         # Custom brand name
@@ -122,8 +116,39 @@ app:
     # Access Control (leave empty if not restricting login)
     ALLOWED_LOGIN_EMAILS: ""                             # Comma-separated list of allowed email addresses for login
     ALLOWED_LOGIN_DOMAINS: ""                            # Comma-separated list of allowed email domains for login
-    
-  
+
+    # SSO Configuration (Enterprise Single Sign-On)
+    # Set to "true" AFTER running the SSO registration script
+    SSO_ENABLED: ""                                       # Enable SSO authentication ("true" to enable)
+    NEXT_PUBLIC_SSO_ENABLED: ""                           # Show SSO login button in UI ("true" to enable)
+
+    # AWS S3 Cloud Storage Configuration (optional - for file storage)
+    # If configured, files will be stored in S3 instead of local storage
+    AWS_REGION: ""                                        # AWS region (e.g., "us-east-1")
+    AWS_ACCESS_KEY_ID: ""                                 # AWS access key ID
+    AWS_SECRET_ACCESS_KEY: ""                             # AWS secret access key
+    S3_BUCKET_NAME: ""                                    # S3 bucket for workspace files
+    S3_KB_BUCKET_NAME: ""                                 # S3 bucket for knowledge base files
+    S3_EXECUTION_FILES_BUCKET_NAME: ""                    # S3 bucket for workflow execution files
+    S3_CHAT_BUCKET_NAME: ""                               # S3 bucket for deployed chat files
+    S3_COPILOT_BUCKET_NAME: ""                            # S3 bucket for copilot files
+    S3_PROFILE_PICTURES_BUCKET_NAME: ""                   # S3 bucket for user profile pictures
+    S3_OG_IMAGES_BUCKET_NAME: ""                          # S3 bucket for OpenGraph preview images
+
+    # Azure Blob Storage Configuration (optional - for file storage)
+    # If configured, files will be stored in Azure Blob instead of local storage
+    # Note: Azure Blob takes precedence over S3 if both are configured
+    AZURE_ACCOUNT_NAME: ""                                # Azure storage account name
+    AZURE_ACCOUNT_KEY: ""                                 # Azure storage account key
+    AZURE_CONNECTION_STRING: ""                           # Azure connection string (alternative to account name/key)
+    AZURE_STORAGE_CONTAINER_NAME: ""                      # Azure container for workspace files
+    AZURE_STORAGE_KB_CONTAINER_NAME: ""                   # Azure container for knowledge base files
+    AZURE_STORAGE_EXECUTION_FILES_CONTAINER_NAME: ""      # Azure container for workflow execution files
+    AZURE_STORAGE_CHAT_CONTAINER_NAME: ""                 # Azure container for deployed chat files
+    AZURE_STORAGE_COPILOT_CONTAINER_NAME: ""              # Azure container for copilot files
+    AZURE_STORAGE_PROFILE_PICTURES_CONTAINER_NAME: ""     # Azure container for user profile pictures
+    AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME: ""            # Azure container for OpenGraph preview images
+
   # Service configuration
   service:
     type: ClusterIP

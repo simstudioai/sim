@@ -1,10 +1,9 @@
 import { db } from '@sim/db'
-import { permissions, workflow as workflowTable, workspace } from '@sim/db/schema'
+import { permissions, userStats, workflow as workflowTable, workspace } from '@sim/db/schema'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import type { ExecutionResult } from '@/executor/types'
@@ -93,17 +92,44 @@ export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
       throw new Error(`Workflow ${workflowId} not found`)
     }
 
-    // Use the API to update stats
-    const response = await fetch(`${getBaseUrl()}/api/workflows/${workflowId}/stats?runs=${runs}`, {
-      method: 'POST',
-    })
+    await db
+      .update(workflowTable)
+      .set({
+        runCount: workflow.runCount + runs,
+        lastRunAt: new Date(),
+      })
+      .where(eq(workflowTable.id, workflowId))
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to update workflow stats')
+    try {
+      const existing = await db
+        .select()
+        .from(userStats)
+        .where(eq(userStats.userId, workflow.userId))
+        .limit(1)
+
+      if (existing.length === 0) {
+        logger.warn('User stats record not found - should be created during onboarding', {
+          userId: workflow.userId,
+          workflowId,
+        })
+      } else {
+        await db
+          .update(userStats)
+          .set({
+            lastActive: new Date(),
+          })
+          .where(eq(userStats.userId, workflow.userId))
+      }
+    } catch (error) {
+      logger.error(`Error updating userStats lastActive for userId ${workflow.userId}:`, error)
+      // Don't rethrow - we want to continue even if this fails
     }
 
-    return response.json()
+    return {
+      success: true,
+      runsAdded: runs,
+      newTotal: workflow.runCount + runs,
+    }
   } catch (error) {
     logger.error(`Error updating workflow stats for ${workflowId}`, error)
     throw error
@@ -121,7 +147,6 @@ function sanitizeToolsForComparison(tools: any[] | undefined): any[] {
   }
 
   return tools.map((tool) => {
-    // Remove UI-only field: isExpanded
     const { isExpanded, ...cleanTool } = tool
     return cleanTool
   })
@@ -138,7 +163,6 @@ function sanitizeInputFormatForComparison(inputFormat: any[] | undefined): any[]
   }
 
   return inputFormat.map((field) => {
-    // Remove test-only field: value (used only for manual testing)
     const { value, collapsed, ...cleanField } = field
     return cleanField
   })

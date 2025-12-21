@@ -1,31 +1,12 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type {
+  SalesforceRefreshDashboardParams,
+  SalesforceRefreshDashboardResponse,
+} from '@/tools/salesforce/types'
+import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-import { extractErrorMessage, getInstanceUrl } from './utils'
 
 const logger = createLogger('SalesforceDashboards')
-
-export interface SalesforceRefreshDashboardParams {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  dashboardId: string
-}
-
-export interface SalesforceRefreshDashboardResponse {
-  success: boolean
-  output: {
-    dashboard: any
-    dashboardId: string
-    components: any[]
-    status?: any
-    metadata: {
-      operation: 'refresh_dashboard'
-      dashboardName?: string
-      refreshDate?: string
-    }
-    success: boolean
-  }
-}
 
 /**
  * Refresh a dashboard to get latest data

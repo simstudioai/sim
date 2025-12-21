@@ -655,6 +655,7 @@ export function useWorkflowExecution() {
       setExecutor,
       setPendingBlocks,
       setActiveBlocks,
+      workflows,
     ]
   )
 

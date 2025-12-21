@@ -28,7 +28,7 @@ export interface ServiceInfo extends OAuthServiceConfig {
 function defineServices(): ServiceInfo[] {
   const servicesList: ServiceInfo[] = []
 
-  Object.values(OAUTH_PROVIDERS).forEach((provider) => {
+  Object.entries(OAUTH_PROVIDERS).forEach(([_providerKey, provider]) => {
     Object.values(provider.services).forEach((service) => {
       servicesList.push({
         ...service,

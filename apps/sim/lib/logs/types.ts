@@ -51,8 +51,11 @@ export interface ExecutionEnvironment {
   workspaceId: string
 }
 
+export const ALL_TRIGGER_TYPES = ['api', 'webhook', 'schedule', 'manual', 'chat'] as const
+export type TriggerType = (typeof ALL_TRIGGER_TYPES)[number]
+
 export interface ExecutionTrigger {
-  type: 'api' | 'webhook' | 'schedule' | 'manual' | 'chat' | string
+  type: TriggerType | string
   source: string
   data?: Record<string, unknown>
   timestamp: string
@@ -331,6 +334,7 @@ export interface SnapshotCreationResult {
 export interface ExecutionLoggerService {
   startWorkflowExecution(params: {
     workflowId: string
+    workspaceId: string
     executionId: string
     trigger: ExecutionTrigger
     environment: ExecutionEnvironment

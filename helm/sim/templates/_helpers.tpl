@@ -204,8 +204,14 @@ Validate required secrets and reject default placeholder values
 {{- if and .Values.postgresql.enabled (eq .Values.postgresql.auth.password "CHANGE-ME-SECURE-PASSWORD") }}
 {{- fail "postgresql.auth.password must not use the default placeholder value. Set a secure password for production" }}
 {{- end }}
+{{- if and .Values.postgresql.enabled (not (regexMatch "^[a-zA-Z0-9._-]+$" .Values.postgresql.auth.password)) }}
+{{- fail "postgresql.auth.password must only contain alphanumeric characters, hyphens, underscores, or periods to ensure DATABASE_URL compatibility. Generate with: openssl rand -base64 16 | tr -d '/+='" }}
+{{- end }}
 {{- if and .Values.externalDatabase.enabled (not .Values.externalDatabase.password) }}
 {{- fail "externalDatabase.password is required when using external database" }}
+{{- end }}
+{{- if and .Values.externalDatabase.enabled .Values.externalDatabase.password (not (regexMatch "^[a-zA-Z0-9._-]+$" .Values.externalDatabase.password)) }}
+{{- fail "externalDatabase.password must only contain alphanumeric characters, hyphens, underscores, or periods to ensure DATABASE_URL compatibility." }}
 {{- end }}
 {{- end }}
 

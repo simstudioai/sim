@@ -2,10 +2,10 @@
 
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
-import { Trash } from '@/components/emcn/icons/trash'
-import { Button } from '@/components/ui/button'
+import { Button, Combobox, type ComboboxOption, Label, Trash } from '@/components/emcn'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
+import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   checkTagTrigger,
@@ -20,14 +20,22 @@ import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 interface TagFilter {
   id: string
   tagName: string
+  tagSlot?: string
+  fieldType: FilterFieldType
+  operator: string
   tagValue: string
+  valueTo?: string // For 'between' operator
 }
 
 interface TagFilterRow {
   id: string
   cells: {
     tagName: string
+    tagSlot?: string
+    fieldType: FilterFieldType
+    operator: string
     value: string
+    valueTo?: string
   }
 }
 
@@ -47,21 +55,15 @@ export function KnowledgeTagFilters({
   previewValue,
 }: KnowledgeTagFiltersProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string | null>(blockId, subBlock.id)
-
-  // Hook for immediate tag/dropdown selections
   const emitTagSelection = useTagSelection(blockId, subBlock.id)
 
-  // Get the knowledge base ID from other sub-blocks
   const [knowledgeBaseIdValue] = useSubBlockValue(blockId, 'knowledgeBaseId')
   const knowledgeBaseId = knowledgeBaseIdValue || null
 
-  // Use KB tag definitions hook to get available tags
   const { tagDefinitions, isLoading } = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
 
-  // Get accessible prefixes for variable highlighting
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
-  // State for managing tag dropdown
   const [activeTagDropdown, setActiveTagDropdown] = useState<{
     rowIndex: number
     showTags: boolean
@@ -70,14 +72,15 @@ export function KnowledgeTagFilters({
     element?: HTMLElement | null
   } | null>(null)
 
-  // State for dropdown visibility - one for each row
-  const [dropdownStates, setDropdownStates] = useState<Record<number, boolean>>({})
-
-  // Parse the current value to extract filters
   const parseFilters = (filterValue: string | null): TagFilter[] => {
     if (!filterValue) return []
     try {
-      return JSON.parse(filterValue)
+      const parsed = JSON.parse(filterValue)
+      return parsed.map((f: TagFilter) => ({
+        ...f,
+        fieldType: f.fieldType || 'text',
+        operator: f.operator || 'eq',
+      }))
     } catch {
       return []
     }
@@ -86,20 +89,23 @@ export function KnowledgeTagFilters({
   const currentValue = isPreview ? previewValue : storeValue
   const filters = parseFilters(currentValue || null)
 
-  // Transform filters to table format for display
   const rows: TagFilterRow[] =
     filters.length > 0
       ? filters.map((filter) => ({
           id: filter.id,
           cells: {
             tagName: filter.tagName || '',
+            tagSlot: filter.tagSlot,
+            fieldType: filter.fieldType || 'text',
+            operator: filter.operator || 'eq',
             value: filter.tagValue || '',
+            valueTo: filter.valueTo,
           },
         }))
       : [
           {
             id: 'empty-row-0',
-            cells: { tagName: '', value: '' },
+            cells: { tagName: '', fieldType: 'text', operator: '', value: '' },
           },
         ]
 
@@ -109,27 +115,72 @@ export function KnowledgeTagFilters({
     setStoreValue(value)
   }
 
-  const handleCellChange = (rowIndex: number, column: string, value: string) => {
+  const rowsToFilters = (rowsToConvert: TagFilterRow[]): TagFilter[] => {
+    return rowsToConvert
+      .filter((row) => row.cells.tagName?.trim())
+      .map((row) => ({
+        id: row.id,
+        tagName: row.cells.tagName || '',
+        tagSlot: row.cells.tagSlot,
+        fieldType: row.cells.fieldType || 'text',
+        operator: row.cells.operator || 'eq',
+        tagValue: row.cells.value || '',
+        valueTo: row.cells.valueTo,
+      }))
+  }
+
+  const handleCellChange = (rowIndex: number, column: string, value: string | FilterFieldType) => {
     if (isPreview || disabled) return
+
+    const updatedRows = [...rows].map((row, idx) => {
+      if (idx === rowIndex) {
+        const newCells = { ...row.cells, [column]: value }
+
+        if (column === 'fieldType') {
+          const operators = getOperatorsForFieldType(value as FilterFieldType)
+          newCells.operator = operators[0]?.value || 'eq'
+          newCells.value = ''
+          newCells.valueTo = undefined
+        }
+
+        if (column === 'operator' && value !== 'between') {
+          newCells.valueTo = undefined
+        }
+
+        return { ...row, cells: newCells }
+      }
+      return row
+    })
+
+    updateFilters(rowsToFilters(updatedRows))
+  }
+
+  const handleTagNameSelection = (rowIndex: number, tagName: string) => {
+    if (isPreview || disabled) return
+
+    const tagDef = tagDefinitions.find((t) => t.displayName === tagName)
+    const fieldType = (tagDef?.fieldType || 'text') as FilterFieldType
+    const operators = getOperatorsForFieldType(fieldType)
 
     const updatedRows = [...rows].map((row, idx) => {
       if (idx === rowIndex) {
         return {
           ...row,
-          cells: { ...row.cells, [column]: value },
+          cells: {
+            ...row.cells,
+            tagName,
+            tagSlot: tagDef?.tagSlot,
+            fieldType,
+            operator: operators[0]?.value || 'eq',
+            value: '',
+            valueTo: undefined,
+          },
         }
       }
       return row
     })
 
-    // Convert back to TagFilter format - keep all rows, even empty ones
-    const updatedFilters = updatedRows.map((row) => ({
-      id: row.id,
-      tagName: row.cells.tagName || '',
-      tagValue: row.cells.value || '',
-    }))
-
-    updateFilters(updatedFilters)
+    updateFilters(rowsToFilters(updatedRows))
   }
 
   const handleTagDropdownSelection = (rowIndex: number, column: string, value: string) => {
@@ -145,36 +196,36 @@ export function KnowledgeTagFilters({
       return row
     })
 
-    // Convert back to TagFilter format - keep all rows, even empty ones
-    const updatedFilters = updatedRows.map((row) => ({
-      id: row.id,
-      tagName: row.cells.tagName || '',
-      tagValue: row.cells.value || '',
-    }))
-
-    const jsonValue = updatedFilters.length > 0 ? JSON.stringify(updatedFilters) : null
+    const jsonValue =
+      rowsToFilters(updatedRows).length > 0 ? JSON.stringify(rowsToFilters(updatedRows)) : null
     emitTagSelection(jsonValue)
   }
 
   const handleAddRow = () => {
     if (isPreview || disabled) return
 
-    const newRowId = `filter-${filters.length}-${Math.random().toString(36).substr(2, 9)}`
-    const newFilters = [...filters, { id: newRowId, tagName: '', tagValue: '' }]
-    updateFilters(newFilters)
+    const newRowId = `filter-${filters.length}-${Math.random().toString(36).slice(2, 11)}`
+    const newFilter: TagFilter = {
+      id: newRowId,
+      tagName: '',
+      fieldType: 'text',
+      operator: 'eq',
+      tagValue: '',
+    }
+    updateFilters([...filters, newFilter])
   }
 
   const handleDeleteRow = (rowIndex: number) => {
-    if (isPreview || disabled || rows.length <= 1) return
+    if (isPreview || disabled) return
+
+    if (rows.length <= 1) {
+      // Clear the single row instead of deleting
+      setStoreValue(null)
+      return
+    }
+
     const updatedRows = rows.filter((_, idx) => idx !== rowIndex)
-
-    const updatedFilters = updatedRows.map((row) => ({
-      id: row.id,
-      tagName: row.cells.tagName || '',
-      tagValue: row.cells.value || '',
-    }))
-
-    updateFilters(updatedFilters)
+    updateFilters(rowsToFilters(updatedRows))
   }
 
   if (isPreview) {
@@ -191,108 +242,88 @@ export function KnowledgeTagFilters({
   }
 
   const renderHeader = () => (
-    <thead>
-      <tr className='border-b'>
-        <th className='w-2/5 border-r px-4 py-2 text-center font-medium text-sm'>Tag Name</th>
-        <th className='px-4 py-2 text-center font-medium text-sm'>Value</th>
+    <thead className='bg-transparent'>
+      <tr className='border-[var(--border-strong)] border-b bg-transparent'>
+        <th className='w-[35%] min-w-0 border-[var(--border-strong)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
+          Tag
+        </th>
+        <th className='w-[35%] min-w-0 border-[var(--border-strong)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
+          Operator
+        </th>
+        <th className='w-[30%] min-w-0 bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
+          Value
+        </th>
       </tr>
     </thead>
   )
 
   const renderTagNameCell = (row: TagFilterRow, rowIndex: number) => {
     const cellValue = row.cells.tagName || ''
-    const showDropdown = dropdownStates[rowIndex] || false
 
-    const setShowDropdown = (show: boolean) => {
-      setDropdownStates((prev) => ({ ...prev, [rowIndex]: show }))
-    }
-
-    const handleDropdownClick = (e: React.MouseEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      if (!disabled && !isLoading) {
-        if (!showDropdown) {
-          setShowDropdown(true)
-        }
-      }
-    }
-
-    const handleFocus = () => {
-      if (!disabled && !isLoading) {
-        setShowDropdown(true)
-      }
-    }
-
-    const handleBlur = () => {
-      // Delay closing to allow dropdown selection
-      setTimeout(() => setShowDropdown(false), 150)
-    }
+    const tagOptions: ComboboxOption[] = tagDefinitions.map((tag) => ({
+      value: tag.displayName,
+      label: `${tag.displayName} (${FIELD_TYPE_LABELS[tag.fieldType] || 'Text'})`,
+    }))
 
     return (
-      <td className='relative border-r p-1'>
-        <div className='relative w-full'>
-          <Input
-            value={cellValue}
-            readOnly
-            disabled={disabled || isLoading}
-            autoComplete='off'
-            className='w-full cursor-pointer border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
-            onClick={handleDropdownClick}
-            onFocus={handleFocus}
-            onBlur={handleBlur}
-          />
-          <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
-            <div className='whitespace-pre'>
-              {formatDisplayText(cellValue || 'Select tag', {
-                accessiblePrefixes,
-                highlightAll: !accessiblePrefixes,
-              })}
-            </div>
-          </div>
-          {showDropdown && tagDefinitions.length > 0 && (
-            <div className='absolute top-full left-0 z-[100] mt-1 w-full'>
-              <div className='allow-scroll fade-in-0 zoom-in-95 animate-in rounded-md border bg-popover text-popover-foreground shadow-lg'>
-                <div
-                  className='allow-scroll max-h-48 overflow-y-auto p-1'
-                  style={{ scrollbarWidth: 'thin' }}
-                >
-                  {tagDefinitions.map((tag) => (
-                    <div
-                      key={tag.id}
-                      className='relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground'
-                      onMouseDown={(e) => {
-                        e.preventDefault()
-                        handleCellChange(rowIndex, 'tagName', tag.displayName)
-                        setShowDropdown(false)
-                      }}
-                    >
-                      <span className='flex-1 truncate'>{tag.displayName}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+      <td className='relative min-w-0 overflow-hidden border-[var(--border-strong)] border-r bg-transparent p-0'>
+        <Combobox
+          options={tagOptions}
+          value={cellValue}
+          onChange={(value) => handleTagNameSelection(rowIndex, value)}
+          disabled={disabled || isLoading}
+          placeholder='Select tag'
+          className='!border-0 !bg-transparent hover:!bg-transparent px-[10px] py-[8px] font-medium text-sm leading-[21px] focus-visible:ring-0 focus-visible:ring-offset-0 [&>span]:truncate'
+        />
+      </td>
+    )
+  }
+
+  const renderOperatorCell = (row: TagFilterRow, rowIndex: number) => {
+    const fieldType = row.cells.fieldType || 'text'
+    const operator = row.cells.operator || ''
+    const operators = getOperatorsForFieldType(fieldType)
+    const isOperatorDisabled = disabled || !row.cells.tagName
+
+    const operatorOptions: ComboboxOption[] = operators.map((op) => ({
+      value: op.value,
+      label: op.label,
+    }))
+
+    return (
+      <td className='relative min-w-0 overflow-hidden border-[var(--border-strong)] border-r bg-transparent p-0'>
+        <Combobox
+          options={operatorOptions}
+          value={operator}
+          onChange={(value) => handleCellChange(rowIndex, 'operator', value)}
+          disabled={isOperatorDisabled}
+          placeholder='Select operator'
+          className='!border-0 !bg-transparent hover:!bg-transparent px-[10px] py-[8px] font-medium text-sm leading-[21px] focus-visible:ring-0 focus-visible:ring-offset-0 [&>span]:truncate'
+        />
       </td>
     )
   }
 
   const renderValueCell = (row: TagFilterRow, rowIndex: number) => {
     const cellValue = row.cells.value || ''
+    const fieldType = row.cells.fieldType || 'text'
+    const operator = row.cells.operator || 'eq'
+    const isBetween = operator === 'between'
+    const valueTo = row.cells.valueTo || ''
+    const isDisabled = disabled || !row.cells.tagName
+    const placeholder = getPlaceholderForFieldType(fieldType)
 
-    return (
-      <td className='p-1'>
-        <div className='relative w-full'>
-          <Input
-            value={cellValue}
-            onChange={(e) => {
-              const newValue = e.target.value
-              const cursorPosition = e.target.selectionStart ?? 0
+    const renderInput = (value: string, column: 'value' | 'valueTo') => (
+      <div className='relative w-full'>
+        <Input
+          value={value}
+          onChange={(e) => {
+            const newValue = e.target.value
+            const cursorPosition = e.target.selectionStart ?? 0
 
-              handleCellChange(rowIndex, 'value', newValue)
+            handleCellChange(rowIndex, column, newValue)
 
-              // Check for tag trigger
+            if (column === 'value') {
               const tagTrigger = checkTagTrigger(newValue, cursorPosition)
 
               setActiveTagDropdown({
@@ -302,58 +333,78 @@ export function KnowledgeTagFilters({
                 activeSourceBlockId: null,
                 element: e.target,
               })
-            }}
-            onFocus={(e) => {
-              if (!disabled) {
-                setActiveTagDropdown({
-                  rowIndex,
-                  showTags: false,
-                  cursorPosition: 0,
-                  activeSourceBlockId: null,
-                  element: e.target,
-                })
-              }
-            }}
-            onBlur={() => {
+            }
+          }}
+          onFocus={(e) => {
+            if (!isDisabled && column === 'value') {
+              setActiveTagDropdown({
+                rowIndex,
+                showTags: false,
+                cursorPosition: 0,
+                activeSourceBlockId: null,
+                element: e.target,
+              })
+            }
+          }}
+          onBlur={() => {
+            if (column === 'value') {
               setTimeout(() => setActiveTagDropdown(null), 200)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setActiveTagDropdown(null)
-              }
-            }}
-            disabled={disabled}
-            autoComplete='off'
-            className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
-          />
-          <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
-            <div className='whitespace-pre'>
-              {formatDisplayText(cellValue, {
-                accessiblePrefixes,
-                highlightAll: !accessiblePrefixes,
-              })}
-            </div>
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setActiveTagDropdown(null)
+            }
+          }}
+          disabled={isDisabled}
+          autoComplete='off'
+          placeholder={placeholder}
+          className='w-full border-0 bg-transparent px-[10px] py-[8px] font-medium text-sm text-transparent leading-[21px] caret-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
+        />
+        <div className='scrollbar-hide pointer-events-none absolute top-0 right-[10px] bottom-0 left-[10px] overflow-x-auto overflow-y-hidden bg-transparent'>
+          <div className='whitespace-pre py-[8px] font-medium text-[var(--text-primary)] text-sm leading-[21px]'>
+            {formatDisplayText(value || '', {
+              accessiblePrefixes,
+              highlightAll: !accessiblePrefixes,
+            })}
           </div>
         </div>
+      </div>
+    )
+
+    if (isBetween) {
+      return (
+        <td className='relative min-w-0 overflow-hidden bg-transparent p-0'>
+          <div className='flex items-center gap-1 px-[10px]'>
+            {renderInput(cellValue, 'value')}
+            <span className='flex-shrink-0 text-muted-foreground text-xs'>to</span>
+            {renderInput(valueTo, 'valueTo')}
+          </div>
+        </td>
+      )
+    }
+
+    return (
+      <td className='relative min-w-0 overflow-hidden bg-transparent p-0'>
+        {renderInput(cellValue, 'value')}
       </td>
     )
   }
 
   const renderDeleteButton = (rowIndex: number) => {
-    const canDelete = !isPreview && !disabled
+    if (isPreview || disabled) return null
 
-    return canDelete ? (
+    return (
       <td className='w-0 p-0'>
         <Button
           variant='ghost'
-          size='icon'
-          className='-translate-y-1/2 absolute top-1/2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100'
+          className='-translate-y-1/2 absolute top-1/2 right-[8px] transition-opacity'
           onClick={() => handleDeleteRow(rowIndex)}
         >
-          <Trash className='h-4 w-4 text-muted-foreground' />
+          <Trash className='h-[14px] w-[14px]' />
         </Button>
       </td>
-    ) : null
+    )
   }
 
   if (isLoading) {
@@ -361,14 +412,18 @@ export function KnowledgeTagFilters({
   }
 
   return (
-    <div className='relative'>
-      <div className='overflow-visible rounded-md border'>
-        <table className='w-full'>
+    <div className='relative w-full'>
+      <div className='overflow-hidden rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-2)] dark:bg-[#1F1F1F]'>
+        <table className='w-full table-fixed bg-transparent'>
           {renderHeader()}
-          <tbody>
+          <tbody className='bg-transparent'>
             {rows.map((row, rowIndex) => (
-              <tr key={row.id} className='group relative border-t'>
+              <tr
+                key={row.id}
+                className='group relative border-[var(--border-strong)] border-t bg-transparent'
+              >
                 {renderTagNameCell(row, rowIndex)}
+                {renderOperatorCell(row, rowIndex)}
                 {renderValueCell(row, rowIndex)}
                 {renderDeleteButton(rowIndex)}
               </tr>
@@ -400,7 +455,7 @@ export function KnowledgeTagFilters({
       {/* Add Filter Button */}
       {!isPreview && !disabled && (
         <div className='mt-3 flex items-center justify-between'>
-          <Button variant='outline' size='sm' onClick={handleAddRow} className='h-7 px-2 text-xs'>
+          <Button onClick={handleAddRow} className='h-7 px-2 text-xs'>
             <Plus className='mr-1 h-2.5 w-2.5' />
             Add Filter
           </Button>

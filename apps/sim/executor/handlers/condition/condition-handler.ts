@@ -2,54 +2,68 @@ import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType, CONDITION, DEFAULTS, EDGE } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import { collectBlockData } from '@/executor/utils/block-data'
 import type { SerializedBlock } from '@/serializer/types'
+import { executeTool } from '@/tools'
 
 const logger = createLogger('ConditionBlockHandler')
 
+const CONDITION_TIMEOUT_MS = 5000
+
 /**
- * Evaluates a single condition expression with variable/block reference resolution
- * Returns true if condition is met, false otherwise
+ * Evaluates a single condition expression.
+ * Variable resolution is handled consistently with the function block via the function_execute tool.
+ * Returns true if condition is met, false otherwise.
  */
 export async function evaluateConditionExpression(
   ctx: ExecutionContext,
   conditionExpression: string,
-  block: SerializedBlock,
-  resolver: any,
   providedEvalContext?: Record<string, any>
 ): Promise<boolean> {
   const evalContext = providedEvalContext || {}
 
-  let resolvedConditionValue = conditionExpression
   try {
-    if (resolver) {
-      const resolvedVars = resolver.resolveVariableReferences(conditionExpression, block)
-      const resolvedRefs = resolver.resolveBlockReferences(resolvedVars, ctx, block)
-      resolvedConditionValue = resolver.resolveEnvVariables(resolvedRefs)
-    }
-  } catch (resolveError: any) {
-    logger.error(`Failed to resolve references in condition: ${resolveError.message}`, {
-      conditionExpression,
-      resolveError,
-    })
-    throw new Error(`Failed to resolve references in condition: ${resolveError.message}`)
-  }
+    const contextSetup = `const context = ${JSON.stringify(evalContext)};`
+    const code = `${contextSetup}\nreturn Boolean(${conditionExpression})`
 
-  try {
-    const conditionMet = new Function(
-      'context',
-      `with(context) { return ${resolvedConditionValue} }`
-    )(evalContext)
-    return Boolean(conditionMet)
+    const { blockData, blockNameMapping } = collectBlockData(ctx)
+
+    const result = await executeTool(
+      'function_execute',
+      {
+        code,
+        timeout: CONDITION_TIMEOUT_MS,
+        envVars: ctx.environmentVariables || {},
+        workflowVariables: ctx.workflowVariables || {},
+        blockData,
+        blockNameMapping,
+        _context: {
+          workflowId: ctx.workflowId,
+          workspaceId: ctx.workspaceId,
+        },
+      },
+      false,
+      false,
+      ctx
+    )
+
+    if (!result.success) {
+      logger.error(`Failed to evaluate condition: ${result.error}`, {
+        originalCondition: conditionExpression,
+        evalContext,
+        error: result.error,
+      })
+      throw new Error(`Evaluation error in condition: ${result.error}`)
+    }
+
+    return Boolean(result.output?.result)
   } catch (evalError: any) {
     logger.error(`Failed to evaluate condition: ${evalError.message}`, {
       originalCondition: conditionExpression,
-      resolvedCondition: resolvedConditionValue,
       evalContext,
       evalError,
     })
-    throw new Error(
-      `Evaluation error in condition: ${evalError.message}. (Resolved: ${resolvedConditionValue})`
-    )
+    throw new Error(`Evaluation error in condition: ${evalError.message}`)
   }
 }
 
@@ -57,11 +71,6 @@ export async function evaluateConditionExpression(
  * Handler for Condition blocks that evaluate expressions to determine execution paths.
  */
 export class ConditionBlockHandler implements BlockHandler {
-  constructor(
-    private pathTracker?: any,
-    private resolver?: any
-  ) {}
-
   canHandle(block: SerializedBlock): boolean {
     return block.metadata?.id === BlockType.CONDITION
   }
@@ -74,7 +83,7 @@ export class ConditionBlockHandler implements BlockHandler {
     const conditions = this.parseConditions(inputs.conditions)
 
     const sourceBlockId = ctx.workflow?.connections.find((conn) => conn.target === block.id)?.source
-    const evalContext = this.buildEvaluationContext(ctx, block.id, sourceBlockId)
+    const evalContext = this.buildEvaluationContext(ctx, sourceBlockId)
     const sourceOutput = sourceBlockId ? ctx.blockStates.get(sourceBlockId)?.output : null
 
     const outgoingConnections = ctx.workflow?.connections.filter((conn) => conn.source === block.id)
@@ -83,17 +92,14 @@ export class ConditionBlockHandler implements BlockHandler {
       conditions,
       outgoingConnections || [],
       evalContext,
-      ctx,
-      block
+      ctx
     )
 
-    // Handle case where no condition matched and no else exists - branch ends gracefully
     if (!selectedConnection || !selectedCondition) {
       return {
         ...((sourceOutput as any) || {}),
         conditionResult: false,
         selectedPath: null,
-        selectedConditionId: null,
         selectedOption: null,
       }
     }
@@ -115,7 +121,6 @@ export class ConditionBlockHandler implements BlockHandler {
         blockTitle: targetBlock.metadata?.name || DEFAULTS.BLOCK_TITLE,
       },
       selectedOption: selectedCondition.id,
-      selectedConditionId: selectedCondition.id,
     }
   }
 
@@ -131,7 +136,6 @@ export class ConditionBlockHandler implements BlockHandler {
 
   private buildEvaluationContext(
     ctx: ExecutionContext,
-    blockId: string,
     sourceBlockId?: string
   ): Record<string, any> {
     let evalContext: Record<string, any> = {}
@@ -153,8 +157,7 @@ export class ConditionBlockHandler implements BlockHandler {
     conditions: Array<{ id: string; title: string; value: string }>,
     outgoingConnections: Array<{ source: string; target: string; sourceHandle?: string }>,
     evalContext: Record<string, any>,
-    ctx: ExecutionContext,
-    block: SerializedBlock
+    ctx: ExecutionContext
   ): Promise<{
     selectedConnection: { target: string; sourceHandle?: string } | null
     selectedCondition: { id: string; title: string; value: string } | null
@@ -173,8 +176,6 @@ export class ConditionBlockHandler implements BlockHandler {
         const conditionMet = await evaluateConditionExpression(
           ctx,
           conditionValueString,
-          block,
-          this.resolver,
           evalContext
         )
 
@@ -184,13 +185,6 @@ export class ConditionBlockHandler implements BlockHandler {
             return { selectedConnection: connection, selectedCondition: condition }
           }
           // Condition is true but has no outgoing edge - branch ends gracefully
-          logger.info(
-            `Condition "${condition.title}" is true but has no outgoing edge - branch ending`,
-            {
-              blockId: block.id,
-              conditionId: condition.id,
-            }
-          )
           return { selectedConnection: null, selectedCondition: null }
         }
       } catch (error: any) {
@@ -201,20 +195,13 @@ export class ConditionBlockHandler implements BlockHandler {
 
     const elseCondition = conditions.find((c) => c.title === CONDITION.ELSE_TITLE)
     if (elseCondition) {
-      logger.warn(`No condition met, selecting 'else' path`, { blockId: block.id })
       const elseConnection = this.findConnectionForCondition(outgoingConnections, elseCondition.id)
       if (elseConnection) {
         return { selectedConnection: elseConnection, selectedCondition: elseCondition }
       }
-      // Else exists but has no connection - treat as no match, branch ends
-      logger.info(`No condition matched and else has no connection - branch ending`, {
-        blockId: block.id,
-      })
       return { selectedConnection: null, selectedCondition: null }
     }
 
-    // No condition matched and no else exists - branch ends gracefully
-    logger.info(`No condition matched and no else block - branch ending`, { blockId: block.id })
     return { selectedConnection: null, selectedCondition: null }
   }
 

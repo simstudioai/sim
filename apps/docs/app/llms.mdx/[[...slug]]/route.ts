@@ -6,7 +6,10 @@ import { source } from '@/lib/source'
 
 export const revalidate = false
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ slug?: string[] }> }) {
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ slug?: string[] }> }
+) {
   const { slug } = await params
 
   let lang: (typeof i18n.languages)[number] = i18n.defaultLanguage
