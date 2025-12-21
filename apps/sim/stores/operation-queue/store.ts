@@ -15,7 +15,6 @@ export interface QueuedOperation {
   retryCount: number
   status: 'pending' | 'processing' | 'confirmed' | 'failed'
   userId: string
-  immediate?: boolean // Flag for immediate processing (skips debouncing)
 }
 
 interface OperationQueueState {

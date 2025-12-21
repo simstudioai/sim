@@ -12,6 +12,7 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Slider,
   Switch,
 } from '@/components/emcn'
 import { Input, Skeleton } from '@/components/ui'
@@ -75,6 +76,9 @@ export function General({ onOpenChange }: GeneralProps) {
   const [resetPasswordError, setResetPasswordError] = useState<string | null>(null)
 
   const [uploadError, setUploadError] = useState<string | null>(null)
+
+  const [localSnapValue, setLocalSnapValue] = useState<number | null>(null)
+  const snapToGridValue = localSnapValue ?? settings?.snapToGridSize ?? 0
 
   useEffect(() => {
     if (profile?.name) {
@@ -232,6 +236,18 @@ export function General({ onOpenChange }: GeneralProps) {
     if (checked !== settings?.autoConnect && !updateSetting.isPending) {
       await updateSetting.mutateAsync({ key: 'autoConnect', value: checked })
     }
+  }
+
+  const handleSnapToGridChange = (value: number[]) => {
+    setLocalSnapValue(value[0])
+  }
+
+  const handleSnapToGridCommit = async (value: number[]) => {
+    const newValue = value[0]
+    if (newValue !== settings?.snapToGridSize && !updateSetting.isPending) {
+      await updateSetting.mutateAsync({ key: 'snapToGridSize', value: newValue })
+    }
+    setLocalSnapValue(null)
   }
 
   const handleTrainingControlsChange = async (checked: boolean) => {
@@ -393,7 +409,6 @@ export function General({ onOpenChange }: GeneralProps) {
             dropdownWidth={140}
             value={settings?.theme}
             onChange={handleThemeChange}
-            disabled={updateSetting.isPending}
             placeholder='Select theme'
             options={[
               { label: 'System', value: 'system' },
@@ -410,8 +425,26 @@ export function General({ onOpenChange }: GeneralProps) {
           id='auto-connect'
           checked={settings?.autoConnect ?? true}
           onCheckedChange={handleAutoConnectChange}
-          disabled={updateSetting.isPending}
         />
+      </div>
+
+      <div className='flex items-center justify-between'>
+        <Label htmlFor='snap-to-grid'>Snap to grid</Label>
+        <div className='flex items-center gap-[12px]'>
+          <span className='w-[32px] text-right text-[12px] text-[var(--text-tertiary)]'>
+            {snapToGridValue === 0 ? 'Off' : `${snapToGridValue}px`}
+          </span>
+          <Slider
+            id='snap-to-grid'
+            value={[snapToGridValue]}
+            onValueChange={handleSnapToGridChange}
+            onValueCommit={handleSnapToGridCommit}
+            min={0}
+            max={50}
+            step={1}
+            className='w-[100px]'
+          />
+        </div>
       </div>
 
       <div className='flex items-center justify-between'>
@@ -420,7 +453,6 @@ export function General({ onOpenChange }: GeneralProps) {
           id='error-notifications'
           checked={settings?.errorNotificationsEnabled ?? true}
           onCheckedChange={handleErrorNotificationsChange}
-          disabled={updateSetting.isPending}
         />
       </div>
 
@@ -430,7 +462,6 @@ export function General({ onOpenChange }: GeneralProps) {
           id='telemetry'
           checked={settings?.telemetryEnabled ?? true}
           onCheckedChange={handleTelemetryToggle}
-          disabled={updateSetting.isPending}
         />
       </div>
 
@@ -446,7 +477,6 @@ export function General({ onOpenChange }: GeneralProps) {
             id='training-controls'
             checked={settings?.showTrainingControls ?? false}
             onCheckedChange={handleTrainingControlsChange}
-            disabled={updateSetting.isPending}
           />
         </div>
       )}
@@ -458,7 +488,6 @@ export function General({ onOpenChange }: GeneralProps) {
             id='super-user-mode'
             checked={settings?.superUserModeEnabled ?? true}
             onCheckedChange={handleSuperUserModeToggle}
-            disabled={updateSetting.isPending}
           />
         </div>
       )}
@@ -532,6 +561,15 @@ function GeneralSkeleton() {
       <div className='flex items-center justify-between pt-[12px]'>
         <Skeleton className='h-4 w-36' />
         <Skeleton className='h-[17px] w-[30px] rounded-full' />
+      </div>
+
+      {/* Snap to grid row */}
+      <div className='flex items-center justify-between'>
+        <Skeleton className='h-4 w-24' />
+        <div className='flex items-center gap-[12px]'>
+          <Skeleton className='h-3 w-[32px]' />
+          <Skeleton className='h-[6px] w-[100px] rounded-[20px]' />
+        </div>
       </div>
 
       {/* Error notifications row */}

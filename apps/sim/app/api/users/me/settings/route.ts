@@ -26,9 +26,9 @@ const SettingsSchema = z.object({
   showTrainingControls: z.boolean().optional(),
   superUserModeEnabled: z.boolean().optional(),
   errorNotificationsEnabled: z.boolean().optional(),
+  snapToGridSize: z.number().min(0).max(50).optional(),
 })
 
-// Default settings values
 const defaultSettings = {
   theme: 'system',
   autoConnect: true,
@@ -38,6 +38,7 @@ const defaultSettings = {
   showTrainingControls: false,
   superUserModeEnabled: false,
   errorNotificationsEnabled: true,
+  snapToGridSize: 0,
 }
 
 export async function GET() {
@@ -46,7 +47,6 @@ export async function GET() {
   try {
     const session = await getSession()
 
-    // Return default settings for unauthenticated users instead of 401 error
     if (!session?.user?.id) {
       logger.info(`[${requestId}] Returning default settings for unauthenticated user`)
       return NextResponse.json({ data: defaultSettings }, { status: 200 })
@@ -72,13 +72,13 @@ export async function GET() {
           showTrainingControls: userSettings.showTrainingControls ?? false,
           superUserModeEnabled: userSettings.superUserModeEnabled ?? true,
           errorNotificationsEnabled: userSettings.errorNotificationsEnabled ?? true,
+          snapToGridSize: userSettings.snapToGridSize ?? 0,
         },
       },
       { status: 200 }
     )
   } catch (error: any) {
     logger.error(`[${requestId}] Settings fetch error`, error)
-    // Return default settings on error instead of error response
     return NextResponse.json({ data: defaultSettings }, { status: 200 })
   }
 }
@@ -89,7 +89,6 @@ export async function PATCH(request: Request) {
   try {
     const session = await getSession()
 
-    // Return success for unauthenticated users instead of error
     if (!session?.user?.id) {
       logger.info(
         `[${requestId}] Settings update attempted by unauthenticated user - acknowledged without saving`
@@ -103,7 +102,6 @@ export async function PATCH(request: Request) {
     try {
       const validatedData = SettingsSchema.parse(body)
 
-      // Store the settings
       await db
         .insert(settings)
         .values({
@@ -135,7 +133,6 @@ export async function PATCH(request: Request) {
     }
   } catch (error: any) {
     logger.error(`[${requestId}] Settings update error`, error)
-    // Return success on error instead of error response
     return NextResponse.json({ success: true }, { status: 200 })
   }
 }

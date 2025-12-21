@@ -448,6 +448,9 @@ export const settings = pgTable('settings', {
   // Notification preferences
   errorNotificationsEnabled: boolean('error_notifications_enabled').notNull().default(true),
 
+  // Canvas preferences
+  snapToGridSize: integer('snap_to_grid_size').notNull().default(0), // 0 = off, 10-50 = grid size
+
   // Copilot preferences - maps model_id to enabled/disabled boolean
   copilotEnabledModels: jsonb('copilot_enabled_models').notNull().default('{}'),
 

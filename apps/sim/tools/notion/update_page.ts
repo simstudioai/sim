@@ -35,9 +35,7 @@ export const notionUpdatePageTool: ToolConfig<NotionUpdatePageParams, NotionResp
 
   request: {
     url: (params: NotionUpdatePageParams) => {
-      // Format page ID with hyphens if needed
-      const formattedId = params.pageId.replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, '$1-$2-$3-$4-$5')
-      return `https://api.notion.com/v1/pages/${formattedId}`
+      return `https://api.notion.com/v1/pages/${params.pageId}`
     },
     method: 'PATCH',
     headers: (params: NotionUpdatePageParams) => {

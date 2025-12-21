@@ -37,7 +37,7 @@ import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-
 import type { GenerationType } from '@/blocks/types'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { useTagSelection } from '@/hooks/use-tag-selection'
-import { normalizeBlockName } from '@/stores/workflows/utils'
+import { normalizeName } from '@/stores/workflows/utils'
 
 const logger = createLogger('Code')
 
@@ -602,7 +602,7 @@ export function Code({
 
     const inner = reference.slice(1, -1)
     const [prefix] = inner.split('.')
-    const normalizedPrefix = normalizeBlockName(prefix)
+    const normalizedPrefix = normalizeName(prefix)
 
     if (SYSTEM_REFERENCE_PREFIXES.has(normalizedPrefix)) {
       return true

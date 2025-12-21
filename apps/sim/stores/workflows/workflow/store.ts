@@ -9,11 +9,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import {
-  getUniqueBlockName,
-  mergeSubblockState,
-  normalizeBlockName,
-} from '@/stores/workflows/utils'
+import { getUniqueBlockName, mergeSubblockState, normalizeName } from '@/stores/workflows/utils'
 import type {
   Position,
   SubBlockState,
@@ -676,7 +672,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
         if (!oldBlock) return { success: false, changedSubblocks: [] }
 
         // Check for normalized name collisions
-        const normalizedNewName = normalizeBlockName(name)
+        const normalizedNewName = normalizeName(name)
         const currentBlocks = get().blocks
 
         // Find any other block with the same normalized name
@@ -684,7 +680,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           return (
             blockId !== id && // Different block
             block.name && // Has a name
-            normalizeBlockName(block.name) === normalizedNewName // Same normalized name
+            normalizeName(block.name) === normalizedNewName // Same normalized name
           )
         })
 
