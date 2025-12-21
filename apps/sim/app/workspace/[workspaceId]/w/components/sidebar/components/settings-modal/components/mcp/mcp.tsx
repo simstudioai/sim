@@ -548,6 +548,7 @@ export function MCP({ initialServerId }: MCPProps) {
                 <div className='flex flex-col gap-[8px]'>
                   {tools.map((tool) => {
                     const issues = getStoredToolIssues(server.id, tool.name)
+                    const affectedWorkflows = issues.map((i) => i.workflowName)
                     return (
                       <div
                         key={tool.name}
@@ -558,15 +559,21 @@ export function MCP({ initialServerId }: MCPProps) {
                             {tool.name}
                           </p>
                           {issues.length > 0 && (
-                            <Badge
-                              variant='outline'
-                              style={{
-                                borderColor: 'var(--warning)',
-                                color: 'var(--warning)',
-                              }}
-                            >
-                              {getIssueBadgeLabel(issues[0].issue)}
-                            </Badge>
+                            <div className='group relative'>
+                              <Badge
+                                variant='outline'
+                                className='cursor-help'
+                                style={{
+                                  borderColor: 'var(--warning)',
+                                  color: 'var(--warning)',
+                                }}
+                              >
+                                {getIssueBadgeLabel(issues[0].issue)}
+                              </Badge>
+                              <div className='pointer-events-none absolute right-0 top-full z-50 mt-1 hidden whitespace-nowrap rounded bg-[var(--surface-1)] px-2 py-1 text-[12px] text-[var(--text-secondary)] shadow-lg group-hover:block'>
+                                Update in: {affectedWorkflows.join(', ')}
+                              </div>
+                            </div>
                           )}
                         </div>
                         {tool.description && (

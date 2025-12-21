@@ -28,7 +28,6 @@ import {
 import {
   CheckboxList,
   Code,
-  ComboBox,
   FileSelectorInput,
   FileUpload,
   LongInput,
@@ -438,35 +437,28 @@ function CheckboxListSyncWrapper({
 }
 
 function ComboboxSyncWrapper({
-  blockId,
-  paramId,
   value,
   onChange,
   uiComponent,
   disabled,
 }: {
-  blockId: string
-  paramId: string
   value: string
   onChange: (value: string) => void
   uiComponent: any
   disabled: boolean
 }) {
+  const options = (uiComponent.options || []).map((opt: any) =>
+    typeof opt === 'string' ? { label: opt, value: opt } : { label: opt.label, value: opt.id }
+  )
+
   return (
-    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
-      <ComboBox
-        blockId={blockId}
-        subBlockId={paramId}
-        options={uiComponent.options || []}
-        placeholder={uiComponent.placeholder}
-        config={{
-          id: paramId,
-          type: 'combobox' as const,
-          title: paramId,
-        }}
-        disabled={disabled}
-      />
-    </GenericSyncWrapper>
+    <Combobox
+      options={options}
+      value={value}
+      onChange={onChange}
+      placeholder={uiComponent.placeholder || 'Select option'}
+      disabled={disabled}
+    />
   )
 }
 
@@ -543,8 +535,6 @@ function ChannelSelectorSyncWrapper({
 }
 
 function WorkflowSelectorSyncWrapper({
-  blockId,
-  paramId,
   value,
   onChange,
   uiComponent,
@@ -552,8 +542,6 @@ function WorkflowSelectorSyncWrapper({
   workspaceId,
   currentWorkflowId,
 }: {
-  blockId: string
-  paramId: string
   value: string
   onChange: (value: string) => void
   uiComponent: any
@@ -569,26 +557,17 @@ function WorkflowSelectorSyncWrapper({
 
   const options = availableWorkflows.map((workflow) => ({
     label: workflow.name,
-    id: workflow.id,
+    value: workflow.id,
   }))
 
   return (
-    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
-      <ComboBox
-        blockId={blockId}
-        subBlockId={paramId}
-        options={options}
-        value={value}
-        placeholder={uiComponent.placeholder || 'Select workflow'}
-        disabled={disabled || isLoading}
-        config={{
-          id: paramId,
-          type: 'combobox',
-          options: options,
-          placeholder: uiComponent.placeholder || 'Select workflow',
-        }}
-      />
-    </GenericSyncWrapper>
+    <Combobox
+      options={options}
+      value={value}
+      onChange={onChange}
+      placeholder={uiComponent.placeholder || 'Select workflow'}
+      disabled={disabled || isLoading}
+    />
   )
 }
 
@@ -810,6 +789,16 @@ export function ToolInput({
   const openSettingsModal = useSettingsModalStore((state) => state.openModal)
   const mcpDataLoading = mcpLoading || mcpServersLoading
 
+  const value = isPreview ? previewValue : storeValue
+
+  const selectedTools: StoredTool[] =
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value[0] !== null &&
+    typeof value[0]?.type === 'string'
+      ? (value as StoredTool[])
+      : []
+
   /**
    * Returns issue info for an MCP tool using shared validation logic.
    */
@@ -857,6 +846,41 @@ export function ToolInput({
     [getMcpToolIssue]
   )
 
+  const handleUpdateMcpToolSchema = useCallback(
+    (toolIndex: number) => {
+      if (isPreview || disabled) return
+
+      const tool = selectedTools[toolIndex]
+      if (tool.type !== 'mcp' || !tool.params?.toolName || !tool.params?.serverId) return
+
+      const discoveredTool = mcpTools.find(
+        (t) => t.serverId === tool.params?.serverId && t.name === tool.params?.toolName
+      )
+
+      if (!discoveredTool?.inputSchema) {
+        logger.warn('No discovered schema found for MCP tool')
+        return
+      }
+
+      logger.info(`Updating schema for MCP tool: ${tool.params.toolName}`)
+
+      setStoreValue(
+        selectedTools.map((t, index) =>
+          index === toolIndex
+            ? {
+                ...t,
+                schema: {
+                  ...discoveredTool.inputSchema,
+                  description: discoveredTool.description,
+                },
+              }
+            : t
+        )
+      )
+    },
+    [isPreview, disabled, selectedTools, mcpTools, setStoreValue]
+  )
+
   // Filter out MCP tools from unavailable servers for the dropdown
   const availableMcpTools = useMemo(() => {
     return mcpTools.filter((mcpTool) => {
@@ -888,8 +912,6 @@ export function ToolInput({
       block.type !== 'mcp'
   )
 
-  const value = isPreview ? previewValue : storeValue
-
   const customFilter = useCallback((value: string, search: string) => {
     if (!search.trim()) return 1
 
@@ -904,11 +926,6 @@ export function ToolInput({
 
     return 0
   }, [])
-
-  const selectedTools: StoredTool[] =
-    Array.isArray(value) && value.length > 0 && typeof value[0] === 'object'
-      ? (value as unknown as StoredTool[])
-      : []
 
   const hasBackfilledRef = useRef(false)
   useEffect(() => {
@@ -1678,8 +1695,6 @@ export function ToolInput({
       case 'combobox':
         return (
           <ComboboxSyncWrapper
-            blockId={blockId}
-            paramId={param.id}
             value={value}
             onChange={onChange}
             uiComponent={uiComponent}
@@ -1738,8 +1753,6 @@ export function ToolInput({
       case 'workflow-selector':
         return (
           <WorkflowSelectorSyncWrapper
-            blockId={blockId}
-            paramId={param.id}
             value={value}
             onChange={onChange}
             uiComponent={uiComponent}
@@ -2116,13 +2129,19 @@ export function ToolInput({
                         const issue = getMcpToolIssue(tool)
                         if (!issue) return null
                         const { getIssueBadgeLabel } = require('@/lib/mcp/tool-validation')
+                        const isStale =
+                          issue.type === 'schema_changed' || issue.type === 'url_changed'
                         const serverId = tool.params?.serverId
                         return (
                           <div
                             onClick={(e: React.MouseEvent) => {
                               e.stopPropagation()
                               e.preventDefault()
-                              openSettingsModal({ section: 'mcp', mcpServerId: serverId })
+                              if (isStale) {
+                                handleUpdateMcpToolSchema(toolIndex)
+                              } else {
+                                openSettingsModal({ section: 'mcp', mcpServerId: serverId })
+                              }
                             }}
                           >
                             <Tooltip.Root>
@@ -2140,7 +2159,9 @@ export function ToolInput({
                               </Tooltip.Trigger>
                               <Tooltip.Content>
                                 <span className='text-sm'>
-                                  {issue.message} · Click to open settings
+                                  {isStale
+                                    ? 'Click to update schema'
+                                    : `${issue.message} · Click to open settings`}
                                 </span>
                               </Tooltip.Content>
                             </Tooltip.Root>
