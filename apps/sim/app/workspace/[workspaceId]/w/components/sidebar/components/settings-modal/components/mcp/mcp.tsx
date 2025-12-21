@@ -570,7 +570,7 @@ export function MCP({ initialServerId }: MCPProps) {
                               >
                                 {getIssueBadgeLabel(issues[0].issue)}
                               </Badge>
-                              <div className='pointer-events-none absolute right-0 top-full z-50 mt-1 hidden whitespace-nowrap rounded bg-[var(--surface-1)] px-2 py-1 text-[12px] text-[var(--text-secondary)] shadow-lg group-hover:block'>
+                              <div className='pointer-events-none absolute top-full right-0 z-50 mt-1 hidden whitespace-nowrap rounded bg-[var(--surface-1)] px-2 py-1 text-[12px] text-[var(--text-secondary)] shadow-lg group-hover:block'>
                                 Update in: {affectedWorkflows.join(', ')}
                               </div>
                             </div>
