@@ -20,6 +20,13 @@ export const countTool: ToolConfig<SupabaseCountParams, SupabaseCountResponse> =
       visibility: 'user-or-llm',
       description: 'The name of the Supabase table to count rows from',
     },
+    schema: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Database schema to count from (default: public). Use this to access tables in other schemas.',
+    },
     filter: {
       type: 'string',
       required: false,
@@ -54,11 +61,15 @@ export const countTool: ToolConfig<SupabaseCountParams, SupabaseCountResponse> =
     method: 'HEAD',
     headers: (params) => {
       const countType = params.countType || 'exact'
-      return {
+      const headers: Record<string, string> = {
         apikey: params.apiKey,
         Authorization: `Bearer ${params.apiKey}`,
         Prefer: `count=${countType}`,
       }
+      if (params.schema) {
+        headers['Accept-Profile'] = params.schema
+      }
+      return headers
     },
   },
 
