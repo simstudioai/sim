@@ -16,7 +16,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import { db } from '@sim/db'
 import { workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -209,15 +209,14 @@ async function handleToolsCall(
       })
     }
 
-    const tools = await db
+    const [tool] = await db
       .select({
         toolName: workflowMcpTool.toolName,
         workflowId: workflowMcpTool.workflowId,
       })
       .from(workflowMcpTool)
-      .where(eq(workflowMcpTool.serverId, serverId))
-
-    const tool = tools.find((t) => t.toolName === params.name)
+      .where(and(eq(workflowMcpTool.serverId, serverId), eq(workflowMcpTool.toolName, params.name)))
+      .limit(1)
     if (!tool) {
       return NextResponse.json(
         createError(id, ErrorCode.InvalidParams, `Tool not found: ${params.name}`),
@@ -252,6 +251,7 @@ async function handleToolsCall(
       method: 'POST',
       headers,
       body: JSON.stringify({ input: params.arguments || {}, triggerType: 'mcp' }),
+      signal: AbortSignal.timeout(300000), // 5 minute timeout
     })
 
     const executeResult = await response.json()

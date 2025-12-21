@@ -33,6 +33,8 @@ interface McpToolDeployProps {
   workflowDescription?: string | null
   isDeployed: boolean
   onAddedToServer?: () => void
+  onSubmittingChange?: (submitting: boolean) => void
+  onCanSaveChange?: (canSave: boolean) => void
 }
 
 /**
@@ -79,6 +81,8 @@ export function McpToolDeploy({
   workflowDescription,
   isDeployed,
   onAddedToServer,
+  onSubmittingChange,
+  onCanSaveChange,
 }: McpToolDeployProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -200,11 +204,47 @@ export function McpToolDeploy({
     }
   }, [servers, serverToolsMap])
 
-  /**
-   * Sync tool configuration changes to all deployed servers (debounced)
-   */
+  // Track saved values to detect changes (use state so updates trigger re-render)
+  const [savedValues, setSavedValues] = useState<{
+    toolName: string
+    toolDescription: string
+    parameterDescriptions: Record<string, string>
+  } | null>(null)
+
+  // Store saved values once loaded
   useEffect(() => {
-    if (!hasLoadedInitialData.current) return
+    if (hasLoadedInitialData.current && !savedValues) {
+      setSavedValues({
+        toolName,
+        toolDescription,
+        parameterDescriptions: { ...parameterDescriptions },
+      })
+    }
+  }, [toolName, toolDescription, parameterDescriptions, savedValues])
+
+  // Determine if there are unsaved changes
+  const hasDeployedTools = selectedServerIds.length > 0
+  const hasChanges = useMemo(() => {
+    if (!savedValues || !hasDeployedTools) return false
+    if (toolName !== savedValues.toolName) return true
+    if (toolDescription !== savedValues.toolDescription) return true
+    if (
+      JSON.stringify(parameterDescriptions) !== JSON.stringify(savedValues.parameterDescriptions)
+    ) {
+      return true
+    }
+    return false
+  }, [toolName, toolDescription, parameterDescriptions, hasDeployedTools, savedValues])
+
+  // Notify parent about save availability
+  useEffect(() => {
+    onCanSaveChange?.(hasChanges && hasDeployedTools && !!toolName.trim())
+  }, [hasChanges, hasDeployedTools, toolName, onCanSaveChange])
+
+  /**
+   * Save tool configuration to all deployed servers
+   */
+  const handleSave = useCallback(async () => {
     if (!toolName.trim()) return
 
     const toolsToUpdate: Array<{ serverId: string; toolId: string }> = []
@@ -217,32 +257,41 @@ export function McpToolDeploy({
 
     if (toolsToUpdate.length === 0) return
 
-    const timeoutId = setTimeout(async () => {
+    onSubmittingChange?.(true)
+    try {
       for (const { serverId, toolId } of toolsToUpdate) {
-        try {
-          await updateToolMutation.mutateAsync({
-            workspaceId,
-            serverId,
-            toolId,
-            toolName: toolName.trim(),
-            toolDescription: toolDescription.trim() || undefined,
-            parameterSchema,
-          })
-        } catch (error) {
-          logger.error(`Failed to sync tool ${toolId}:`, error)
-        }
+        await updateToolMutation.mutateAsync({
+          workspaceId,
+          serverId,
+          toolId,
+          toolName: toolName.trim(),
+          toolDescription: toolDescription.trim() || undefined,
+          parameterSchema,
+        })
       }
-    }, 500)
-
-    return () => clearTimeout(timeoutId)
+      // Update saved values after successful save (triggers re-render → hasChanges becomes false)
+      setSavedValues({
+        toolName,
+        toolDescription,
+        parameterDescriptions: { ...parameterDescriptions },
+      })
+      onCanSaveChange?.(false)
+      onSubmittingChange?.(false)
+    } catch (error) {
+      logger.error('Failed to save tool configuration:', error)
+      onSubmittingChange?.(false)
+    }
   }, [
     toolName,
     toolDescription,
+    parameterDescriptions,
     parameterSchema,
     servers,
     serverToolsMap,
     workspaceId,
     updateToolMutation,
+    onSubmittingChange,
+    onCanSaveChange,
   ])
 
   const serverOptions: ComboboxOption[] = useMemo(() => {
@@ -393,7 +442,17 @@ export function McpToolDeploy({
   }
 
   return (
-    <div className='-mx-1 space-y-4 overflow-y-auto px-1'>
+    <form
+      id='mcp-tool-deploy-form'
+      className='-mx-1 space-y-4 overflow-y-auto px-1'
+      onSubmit={(e) => {
+        e.preventDefault()
+        handleSave()
+      }}
+    >
+      {/* Hidden submit button for parent modal to trigger */}
+      <button type='submit' className='hidden' />
+
       {servers.map((server) => (
         <ServerToolsQuery
           key={server.id}
@@ -501,6 +560,6 @@ export function McpToolDeploy({
           {addToolMutation.error?.message || 'Failed to add tool'}
         </p>
       )}
-    </div>
+    </form>
   )
 }

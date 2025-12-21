@@ -88,6 +88,8 @@ export function DeployModal({
   const [showUndeployConfirm, setShowUndeployConfirm] = useState(false)
   const [templateFormValid, setTemplateFormValid] = useState(false)
   const [templateSubmitting, setTemplateSubmitting] = useState(false)
+  const [mcpToolSubmitting, setMcpToolSubmitting] = useState(false)
+  const [mcpToolCanSave, setMcpToolCanSave] = useState(false)
   const [hasExistingTemplate, setHasExistingTemplate] = useState(false)
   const [templateStatus, setTemplateStatus] = useState<{
     status: 'pending' | 'approved' | 'rejected' | null
@@ -531,6 +533,11 @@ export function DeployModal({
     form?.requestSubmit()
   }, [])
 
+  const handleMcpToolFormSubmit = useCallback(() => {
+    const form = document.getElementById('mcp-tool-deploy-form') as HTMLFormElement
+    form?.requestSubmit()
+  }, [])
+
   const handleTemplateDelete = useCallback(() => {
     const form = document.getElementById('template-deploy-form')
     const deleteTrigger = form?.querySelector('[data-template-delete-trigger]') as HTMLButtonElement
@@ -620,6 +627,8 @@ export function DeployModal({
                     workflowName={workflowMetadata?.name || 'Workflow'}
                     workflowDescription={workflowMetadata?.description}
                     isDeployed={isDeployed}
+                    onSubmittingChange={setMcpToolSubmitting}
+                    onCanSaveChange={setMcpToolCanSave}
                   />
                 )}
               </ModalTabsContent>
@@ -665,6 +674,18 @@ export function DeployModal({
                       : 'Launch Chat'}
                 </Button>
               </div>
+            </ModalFooter>
+          )}
+          {activeTab === 'mcp-tool' && isDeployed && (
+            <ModalFooter className='items-center'>
+              <Button
+                type='button'
+                variant='primary'
+                onClick={handleMcpToolFormSubmit}
+                disabled={mcpToolSubmitting || !mcpToolCanSave}
+              >
+                {mcpToolSubmitting ? 'Saving...' : 'Save Tool Schema'}
+              </Button>
             </ModalFooter>
           )}
           {activeTab === 'template' && (
