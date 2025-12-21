@@ -34,13 +34,7 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
 
   request: {
     url: (params: NotionReadDatabaseParams) => {
-      // Format database ID with hyphens if needed
-      const formattedId = params.databaseId.replace(
-        /(.{8})(.{4})(.{4})(.{4})(.{12})/,
-        '$1-$2-$3-$4-$5'
-      )
-
-      return `https://api.notion.com/v1/databases/${formattedId}`
+      return `https://api.notion.com/v1/databases/${params.databaseId}`
     },
     method: 'GET',
     headers: (params: NotionReadDatabaseParams) => {

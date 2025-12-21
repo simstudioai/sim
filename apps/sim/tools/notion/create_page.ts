@@ -54,21 +54,13 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
       }
     },
     body: (params: NotionCreatePageParams) => {
-      // Format parent ID with hyphens if needed
-      const formattedParentId = params.parentId.replace(
-        /(.{8})(.{4})(.{4})(.{4})(.{12})/,
-        '$1-$2-$3-$4-$5'
-      )
-
-      // Prepare the body for page parent
       const body: any = {
         parent: {
           type: 'page_id',
-          page_id: formattedParentId,
+          page_id: params.parentId,
         },
       }
 
-      // Add title if provided
       if (params.title) {
         body.properties = {
           title: {
@@ -87,7 +79,6 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
         body.properties = {}
       }
 
-      // Add content if provided
       if (params.content) {
         body.children = [
           {
@@ -115,7 +106,6 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
     const data = await response.json()
     let pageTitle = 'Untitled'
 
-    // Try to extract the title from properties
     if (data.properties?.title) {
       const titleProperty = data.properties.title
       if (

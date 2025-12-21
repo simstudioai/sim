@@ -48,11 +48,7 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
 
   request: {
     url: (params: NotionQueryDatabaseParams) => {
-      const formattedId = params.databaseId.replace(
-        /(.{8})(.{4})(.{4})(.{4})(.{12})/,
-        '$1-$2-$3-$4-$5'
-      )
-      return `https://api.notion.com/v1/databases/${formattedId}/query`
+      return `https://api.notion.com/v1/databases/${params.databaseId}/query`
     },
     method: 'POST',
     headers: (params: NotionQueryDatabaseParams) => {
