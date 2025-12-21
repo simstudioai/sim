@@ -67,6 +67,7 @@ export {
   SModalSidebarSectionTitle,
   SModalTrigger,
 } from './s-modal/s-modal'
+export { Slider, type SliderProps } from './slider/slider'
 export { Switch } from './switch/switch'
 export { Textarea } from './textarea/textarea'
 export { Tooltip } from './tooltip/tooltip'

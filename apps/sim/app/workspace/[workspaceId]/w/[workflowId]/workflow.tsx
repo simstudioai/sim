@@ -92,7 +92,6 @@ const edgeTypes: EdgeTypes = {
 
 /** ReactFlow configuration constants. */
 const defaultEdgeOptions = { type: 'custom' }
-const snapGrid: [number, number] = [20, 20]
 const reactFlowFitViewOptions = { padding: 0.6 } as const
 const reactFlowProOptions = { hideAttribution: true } as const
 
@@ -159,6 +158,14 @@ const WorkflowContent = React.memo(() => {
 
   // Training modal state
   const showTrainingModal = useCopilotTrainingStore((state) => state.showModal)
+
+  // Snap to grid settings
+  const snapToGridSize = useGeneralStore((state) => state.snapToGridSize)
+  const snapToGrid = snapToGridSize > 0
+  const snapGrid: [number, number] = useMemo(
+    () => [snapToGridSize, snapToGridSize],
+    [snapToGridSize]
+  )
 
   // Handle copilot stream cleanup on page unload and component unmount
   useStreamCleanup(copilotCleanup)
@@ -2311,7 +2318,7 @@ const WorkflowContent = React.memo(() => {
               onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
               onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
               onNodeDragStart={effectivePermissions.canEdit ? onNodeDragStart : undefined}
-              snapToGrid={false}
+              snapToGrid={snapToGrid}
               snapGrid={snapGrid}
               elevateEdgesOnSelect={true}
               onlyRenderVisibleElements={false}
