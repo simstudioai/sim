@@ -214,6 +214,7 @@ export function Code({
   const handleStreamStartRef = useRef<() => void>(() => {})
   const handleGeneratedContentRef = useRef<(generatedCode: string) => void>(() => {})
   const handleStreamChunkRef = useRef<(chunk: string) => void>(() => {})
+  const hasEditedSinceFocusRef = useRef(false)
 
   // Custom hooks
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
@@ -504,6 +505,7 @@ export function Code({
 
       setCode(newValue)
       setStoreValue(newValue)
+      hasEditedSinceFocusRef.current = true
       const newCursorPosition = dropPosition + 1
       setCursorPosition(newCursorPosition)
 
@@ -533,6 +535,7 @@ export function Code({
     if (!isPreview && !readOnly) {
       setCode(newValue)
       emitTagSelection(newValue)
+      hasEditedSinceFocusRef.current = true
     }
     setShowTags(false)
     setActiveSourceBlockId(null)
@@ -550,6 +553,7 @@ export function Code({
     if (!isPreview && !readOnly) {
       setCode(newValue)
       emitTagSelection(newValue)
+      hasEditedSinceFocusRef.current = true
     }
     setShowEnvVars(false)
 
@@ -741,6 +745,7 @@ export function Code({
             value={code}
             onValueChange={(newCode) => {
               if (!isAiStreaming && !isPreview && !disabled && !readOnly) {
+                hasEditedSinceFocusRef.current = true
                 setCode(newCode)
                 setStoreValue(newCode)
 
@@ -769,6 +774,12 @@ export function Code({
               if (isAiStreaming) {
                 e.preventDefault()
               }
+              if (e.key === 'z' && (e.metaKey || e.ctrlKey) && !hasEditedSinceFocusRef.current) {
+                e.preventDefault()
+              }
+            }}
+            onFocus={() => {
+              hasEditedSinceFocusRef.current = false
             }}
             highlight={createHighlightFunction(effectiveLanguage, shouldHighlightReference)}
             {...getCodeEditorProps({ isStreaming: isAiStreaming, isPreview, disabled })}
