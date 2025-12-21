@@ -77,17 +77,14 @@ export function General({ onOpenChange }: GeneralProps) {
 
   const [uploadError, setUploadError] = useState<string | null>(null)
 
-  const [snapToGridValue, setSnapToGridValue] = useState(settings?.snapToGridSize ?? 0)
+  const [localSnapValue, setLocalSnapValue] = useState<number | null>(null)
+  const snapToGridValue = localSnapValue ?? settings?.snapToGridSize ?? 0
 
   useEffect(() => {
     if (profile?.name) {
       setName(profile.name)
     }
   }, [profile?.name])
-
-  useEffect(() => {
-    setSnapToGridValue(settings?.snapToGridSize ?? 0)
-  }, [settings?.snapToGridSize])
 
   useEffect(() => {
     const fetchSuperUserStatus = async () => {
@@ -242,7 +239,7 @@ export function General({ onOpenChange }: GeneralProps) {
   }
 
   const handleSnapToGridChange = (value: number[]) => {
-    setSnapToGridValue(value[0])
+    setLocalSnapValue(value[0])
   }
 
   const handleSnapToGridCommit = async (value: number[]) => {
@@ -250,6 +247,7 @@ export function General({ onOpenChange }: GeneralProps) {
     if (newValue !== settings?.snapToGridSize && !updateSetting.isPending) {
       await updateSetting.mutateAsync({ key: 'snapToGridSize', value: newValue })
     }
+    setLocalSnapValue(null)
   }
 
   const handleTrainingControlsChange = async (checked: boolean) => {
