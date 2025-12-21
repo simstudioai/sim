@@ -243,13 +243,7 @@ export const useVariablesStore = create<VariablesStore>()(
                   },
                   workflowId: activeWorkflowId,
                   userId: 'system',
-                  immediate: true,
                 })
-              }
-
-              // Trigger processing of the queue
-              if (changedSubBlocks.length > 0) {
-                operationQueue.processNextOperation()
               }
             }
           }

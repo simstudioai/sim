@@ -1288,7 +1288,6 @@ export function useCollaborativeWorkflow() {
         },
         workflowId: activeWorkflowId || '',
         userId: session?.user?.id || 'unknown',
-        immediate: true,
       })
     },
     [
