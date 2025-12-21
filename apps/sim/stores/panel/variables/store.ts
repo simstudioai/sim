@@ -5,7 +5,7 @@ import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import type { Variable, VariablesStore } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { normalizeVariableName } from '@/stores/workflows/utils'
+import { normalizeName } from '@/stores/workflows/utils'
 
 const logger = createLogger('VariablesStore')
 
@@ -182,9 +182,29 @@ export const useVariablesStore = create<VariablesStore>()(
               const changedSubBlocks: Array<{ blockId: string; subBlockId: string; value: any }> =
                 []
 
-              const oldVarName = normalizeVariableName(oldVariableName)
-              const newVarName = normalizeVariableName(newName)
+              const oldVarName = normalizeName(oldVariableName)
+              const newVarName = normalizeName(newName)
               const regex = new RegExp(`<variable\\.${oldVarName}>`, 'gi')
+
+              const updateReferences = (value: any, pattern: RegExp, replacement: string): any => {
+                if (typeof value === 'string') {
+                  return pattern.test(value) ? value.replace(pattern, replacement) : value
+                }
+
+                if (Array.isArray(value)) {
+                  return value.map((item) => updateReferences(item, pattern, replacement))
+                }
+
+                if (value !== null && typeof value === 'object') {
+                  const result = { ...value }
+                  for (const key in result) {
+                    result[key] = updateReferences(result[key], pattern, replacement)
+                  }
+                  return result
+                }
+
+                return value
+              }
 
               Object.entries(workflowValues).forEach(([blockId, blockValues]) => {
                 Object.entries(blockValues as Record<string, any>).forEach(
@@ -197,26 +217,6 @@ export const useVariablesStore = create<VariablesStore>()(
                       }
                       updatedWorkflowValues[blockId][subBlockId] = updatedValue
                       changedSubBlocks.push({ blockId, subBlockId, value: updatedValue })
-                    }
-
-                    function updateReferences(value: any, regex: RegExp, replacement: string): any {
-                      if (typeof value === 'string') {
-                        return regex.test(value) ? value.replace(regex, replacement) : value
-                      }
-
-                      if (Array.isArray(value)) {
-                        return value.map((item) => updateReferences(item, regex, replacement))
-                      }
-
-                      if (value !== null && typeof value === 'object') {
-                        const result = { ...value }
-                        for (const key in result) {
-                          result[key] = updateReferences(result[key], regex, replacement)
-                        }
-                        return result
-                      }
-
-                      return value
                     }
                   }
                 )

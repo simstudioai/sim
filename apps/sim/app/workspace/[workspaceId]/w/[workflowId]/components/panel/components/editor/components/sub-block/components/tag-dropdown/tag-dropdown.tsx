@@ -34,7 +34,7 @@ import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { normalizeBlockName, normalizeVariableName } from '@/stores/workflows/utils'
+import { normalizeName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTool } from '@/tools/utils'
@@ -508,7 +508,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         if (sourceBlock.type === 'loop' || sourceBlock.type === 'parallel') {
           const mockConfig = { outputs: { results: 'array' } }
           const blockName = sourceBlock.name || sourceBlock.type
-          const normalizedBlockName = normalizeBlockName(blockName)
+          const normalizedBlockName = normalizeName(blockName)
 
           const outputPaths = generateOutputPaths(mockConfig.outputs)
           const blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
@@ -529,7 +529,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
 
       const blockName = sourceBlock.name || sourceBlock.type
-      const normalizedBlockName = normalizeBlockName(blockName)
+      const normalizedBlockName = normalizeName(blockName)
 
       const mergedSubBlocks = getMergedSubBlocks(activeSourceBlockId)
       const responseFormatValue = mergedSubBlocks?.responseFormat?.value
@@ -722,12 +722,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     )
 
     const variableTags = validVariables.map(
-      (variable: Variable) => `${TAG_PREFIXES.VARIABLE}${normalizeVariableName(variable.name)}`
+      (variable: Variable) => `${TAG_PREFIXES.VARIABLE}${normalizeName(variable.name)}`
     )
 
     const variableInfoMap = validVariables.reduce(
       (acc, variable) => {
-        const tagName = `${TAG_PREFIXES.VARIABLE}${normalizeVariableName(variable.name)}`
+        const tagName = `${TAG_PREFIXES.VARIABLE}${normalizeName(variable.name)}`
         acc[tagName] = {
           type: variable.type,
           id: variable.id,
@@ -852,7 +852,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
           const mockConfig = { outputs: { results: 'array' } }
           const blockName = accessibleBlock.name || accessibleBlock.type
-          const normalizedBlockName = normalizeBlockName(blockName)
+          const normalizedBlockName = normalizeName(blockName)
 
           const outputPaths = generateOutputPaths(mockConfig.outputs)
           let blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
@@ -872,7 +872,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
 
       const blockName = accessibleBlock.name || accessibleBlock.type
-      const normalizedBlockName = normalizeBlockName(blockName)
+      const normalizedBlockName = normalizeName(blockName)
 
       const mergedSubBlocks = getMergedSubBlocks(accessibleBlockId)
       const responseFormatValue = mergedSubBlocks?.responseFormat?.value

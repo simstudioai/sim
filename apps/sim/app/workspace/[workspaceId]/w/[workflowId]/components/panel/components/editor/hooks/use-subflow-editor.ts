@@ -9,7 +9,7 @@ import { checkTagTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/co
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { normalizeBlockName } from '@/stores/workflows/utils'
+import { normalizeName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -110,7 +110,7 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
 
       const inner = reference.slice(1, -1)
       const [prefix] = inner.split('.')
-      const normalizedPrefix = normalizeBlockName(prefix)
+      const normalizedPrefix = normalizeName(prefix)
 
       if (SYSTEM_REFERENCE_PREFIXES.has(normalizedPrefix)) {
         return true

@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import { SYSTEM_REFERENCE_PREFIXES } from '@/lib/workflows/sanitization/references'
-import { normalizeBlockName } from '@/stores/workflows/utils'
+import { normalizeName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
 
@@ -53,10 +53,10 @@ export function useAccessibleReferencePrefixes(blockId?: string | null): Set<str
 
     const prefixes = new Set<string>()
     accessibleIds.forEach((id) => {
-      prefixes.add(normalizeBlockName(id))
+      prefixes.add(normalizeName(id))
       const block = blocks[id]
       if (block?.name) {
-        prefixes.add(normalizeBlockName(block.name))
+        prefixes.add(normalizeName(block.name))
       }
     })
 

@@ -5,7 +5,7 @@ import {
   type Resolver,
 } from '@/executor/variables/resolvers/reference'
 import type { SerializedWorkflow } from '@/serializer/types'
-import { normalizeBlockName } from '@/stores/workflows/utils'
+import { normalizeName } from '@/stores/workflows/utils'
 
 export class BlockResolver implements Resolver {
   private blockByNormalizedName: Map<string, string>
@@ -15,7 +15,7 @@ export class BlockResolver implements Resolver {
     for (const block of workflow.blocks) {
       this.blockByNormalizedName.set(block.id, block.id)
       if (block.metadata?.name) {
-        const normalized = normalizeBlockName(block.metadata.name)
+        const normalized = normalizeName(block.metadata.name)
         this.blockByNormalizedName.set(normalized, block.id)
       }
     }
@@ -83,7 +83,7 @@ export class BlockResolver implements Resolver {
     if (this.blockByNormalizedName.has(name)) {
       return this.blockByNormalizedName.get(name)
     }
-    const normalized = normalizeBlockName(name)
+    const normalized = normalizeName(name)
     return this.blockByNormalizedName.get(normalized)
   }
 

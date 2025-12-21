@@ -12,24 +12,6 @@ export function normalizeName(name: string): string {
 }
 
 /**
- * Normalizes a block name for comparison.
- * @param name - The block name to normalize
- * @returns The normalized name
- */
-export const normalizeBlockName = normalizeName
-
-/**
- * Normalizes a variable name for comparison.
- * Must be used consistently when:
- * - Creating variable references (e.g., <variable.myvar>)
- * - Resolving variable references during execution
- * - Updating variable references when renaming
- * @param name - The variable name to normalize
- * @returns The normalized name
- */
-export const normalizeVariableName = normalizeName
-
-/**
  * Generates a unique block name by finding the highest number suffix among existing blocks
  * with the same base name and incrementing it
  * @param baseName - The base name for the block (e.g., "API 1", "Agent", "Loop 3")
@@ -39,7 +21,7 @@ export const normalizeVariableName = normalizeName
 export function getUniqueBlockName(baseName: string, existingBlocks: Record<string, any>): string {
   // Special case: Start blocks should always be named "Start" without numbers
   // This applies to both "Start" and "Starter" base names
-  const normalizedBaseName = normalizeBlockName(baseName)
+  const normalizedBaseName = normalizeName(baseName)
   if (normalizedBaseName === 'start' || normalizedBaseName === 'starter') {
     return 'Start'
   }
@@ -47,13 +29,13 @@ export function getUniqueBlockName(baseName: string, existingBlocks: Record<stri
   const baseNameMatch = baseName.match(/^(.*?)(\s+\d+)?$/)
   const namePrefix = baseNameMatch ? baseNameMatch[1].trim() : baseName
 
-  const normalizedBase = normalizeBlockName(namePrefix)
+  const normalizedBase = normalizeName(namePrefix)
 
   const existingNumbers = Object.values(existingBlocks)
     .filter((block) => {
       const blockNameMatch = block.name?.match(/^(.*?)(\s+\d+)?$/)
       const blockPrefix = blockNameMatch ? blockNameMatch[1].trim() : block.name
-      return blockPrefix && normalizeBlockName(blockPrefix) === normalizedBase
+      return blockPrefix && normalizeName(blockPrefix) === normalizedBase
     })
     .map((block) => {
       const match = block.name?.match(/(\d+)$/)
@@ -208,7 +190,24 @@ export async function mergeSubblockStateAsync(
         subBlockEntries.filter((entry): entry is readonly [string, SubBlockState] => entry !== null)
       ) as Record<string, SubBlockState>
 
-      // Return the full block state with updated subBlocks
+      // Add any values that exist in the store but aren't in the block structure
+      // This handles cases where block config has been updated but values still exist
+      // IMPORTANT: This includes runtime subblock IDs like webhookId, triggerPath, etc.
+      if (workflowId) {
+        const workflowValues = subBlockStore.workflowValues[workflowId]
+        const blockValues = workflowValues?.[id] || {}
+        Object.entries(blockValues).forEach(([subBlockId, value]) => {
+          if (!mergedSubBlocks[subBlockId] && value !== null && value !== undefined) {
+            mergedSubBlocks[subBlockId] = {
+              id: subBlockId,
+              type: 'short-input',
+              value: value,
+            }
+          }
+        })
+      }
+
+      // Return the full block state with updated subBlocks (including orphaned values)
       return [
         id,
         {
