@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { splitReferenceSegment } from '@/lib/workflows/sanitization/references'
 import { REFERENCE } from '@/executor/constants'
 import { createCombinedPattern } from '@/executor/utils/reference-validation'
-import { normalizeBlockName } from '@/stores/workflows/utils'
+import { normalizeName } from '@/stores/workflows/utils'
 
 export interface HighlightContext {
   accessiblePrefixes?: Set<string>
@@ -31,7 +31,7 @@ export function formatDisplayText(text: string, context?: HighlightContext): Rea
 
     const inner = reference.slice(1, -1)
     const [prefix] = inner.split('.')
-    const normalizedPrefix = normalizeBlockName(prefix)
+    const normalizedPrefix = normalizeName(prefix)
 
     if (SYSTEM_PREFIXES.has(normalizedPrefix)) {
       return true

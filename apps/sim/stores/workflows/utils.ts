@@ -2,11 +2,12 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { BlockState, SubBlockState } from '@/stores/workflows/workflow/types'
 
 /**
- * Normalizes a block name for comparison by converting to lowercase and removing spaces
- * @param name - The block name to normalize
+ * Normalizes a name for comparison by converting to lowercase and removing spaces.
+ * Used for both block names and variable names to ensure consistent matching.
+ * @param name - The name to normalize
  * @returns The normalized name
  */
-export function normalizeBlockName(name: string): string {
+export function normalizeName(name: string): string {
   return name.toLowerCase().replace(/\s+/g, '')
 }
 
@@ -20,7 +21,7 @@ export function normalizeBlockName(name: string): string {
 export function getUniqueBlockName(baseName: string, existingBlocks: Record<string, any>): string {
   // Special case: Start blocks should always be named "Start" without numbers
   // This applies to both "Start" and "Starter" base names
-  const normalizedBaseName = normalizeBlockName(baseName)
+  const normalizedBaseName = normalizeName(baseName)
   if (normalizedBaseName === 'start' || normalizedBaseName === 'starter') {
     return 'Start'
   }
@@ -28,13 +29,13 @@ export function getUniqueBlockName(baseName: string, existingBlocks: Record<stri
   const baseNameMatch = baseName.match(/^(.*?)(\s+\d+)?$/)
   const namePrefix = baseNameMatch ? baseNameMatch[1].trim() : baseName
 
-  const normalizedBase = normalizeBlockName(namePrefix)
+  const normalizedBase = normalizeName(namePrefix)
 
   const existingNumbers = Object.values(existingBlocks)
     .filter((block) => {
       const blockNameMatch = block.name?.match(/^(.*?)(\s+\d+)?$/)
       const blockPrefix = blockNameMatch ? blockNameMatch[1].trim() : block.name
-      return blockPrefix && normalizeBlockName(blockPrefix) === normalizedBase
+      return blockPrefix && normalizeName(blockPrefix) === normalizedBase
     })
     .map((block) => {
       const match = block.name?.match(/(\d+)$/)
@@ -65,45 +66,34 @@ export function mergeSubblockState(
   const blocksToProcess = blockId ? { [blockId]: blocks[blockId] } : blocks
   const subBlockStore = useSubBlockStore.getState()
 
-  // Get all the values stored in the subblock store for this workflow
   const workflowSubblockValues = workflowId ? subBlockStore.workflowValues[workflowId] || {} : {}
 
   return Object.entries(blocksToProcess).reduce(
     (acc, [id, block]) => {
-      // Skip if block is undefined
       if (!block) {
         return acc
       }
 
-      // Initialize subBlocks if not present
       const blockSubBlocks = block.subBlocks || {}
 
-      // Get stored values for this block
       const blockValues = workflowSubblockValues[id] || {}
 
-      // Create a deep copy of the block's subBlocks to maintain structure
       const mergedSubBlocks = Object.entries(blockSubBlocks).reduce(
         (subAcc, [subBlockId, subBlock]) => {
-          // Skip if subBlock is undefined
           if (!subBlock) {
             return subAcc
           }
 
-          // Get the stored value for this subblock
           let storedValue = null
 
-          // If workflowId is provided, use it to get the value
           if (workflowId) {
-            // Try to get the value from the subblock store for this specific workflow
             if (blockValues[subBlockId] !== undefined) {
               storedValue = blockValues[subBlockId]
             }
           } else {
-            // Fall back to the active workflow if no workflowId is provided
             storedValue = subBlockStore.getValue(id, subBlockId)
           }
 
-          // Create a new subblock object with the same structure but updated value
           subAcc[subBlockId] = {
             ...subBlock,
             value: storedValue !== undefined && storedValue !== null ? storedValue : subBlock.value,
@@ -200,7 +190,24 @@ export async function mergeSubblockStateAsync(
         subBlockEntries.filter((entry): entry is readonly [string, SubBlockState] => entry !== null)
       ) as Record<string, SubBlockState>
 
-      // Return the full block state with updated subBlocks
+      // Add any values that exist in the store but aren't in the block structure
+      // This handles cases where block config has been updated but values still exist
+      // IMPORTANT: This includes runtime subblock IDs like webhookId, triggerPath, etc.
+      if (workflowId) {
+        const workflowValues = subBlockStore.workflowValues[workflowId]
+        const blockValues = workflowValues?.[id] || {}
+        Object.entries(blockValues).forEach(([subBlockId, value]) => {
+          if (!mergedSubBlocks[subBlockId] && value !== null && value !== undefined) {
+            mergedSubBlocks[subBlockId] = {
+              id: subBlockId,
+              type: 'short-input',
+              value: value,
+            }
+          }
+        })
+      }
+
+      // Return the full block state with updated subBlocks (including orphaned values)
       return [
         id,
         {
