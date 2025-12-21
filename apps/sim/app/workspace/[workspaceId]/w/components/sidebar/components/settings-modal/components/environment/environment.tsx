@@ -52,6 +52,17 @@ interface UIEnvironmentVariable {
   id?: number
 }
 
+/**
+ * Validates an environment variable key.
+ * Returns an error message if invalid, undefined if valid.
+ */
+function validateEnvVarKey(key: string): string | undefined {
+  if (!key) return undefined
+  if (key.includes(' ')) return 'Spaces are not allowed'
+  if (!ENV_VAR_PATTERN.test(key)) return 'Only letters, numbers, and underscores allowed'
+  return undefined
+}
+
 interface EnvironmentVariablesProps {
   registerBeforeLeaveHandler?: (handler: (onProceed: () => void) => void) => void
 }
@@ -221,6 +232,10 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
   const hasConflicts = useMemo(() => {
     return envVars.some((envVar) => !!envVar.key && Object.hasOwn(workspaceVars, envVar.key))
   }, [envVars, workspaceVars])
+
+  const hasInvalidKeys = useMemo(() => {
+    return envVars.some((envVar) => !!envVar.key && validateEnvVarKey(envVar.key))
+  }, [envVars])
 
   useEffect(() => {
     hasChangesRef.current = hasChanges
@@ -551,6 +566,7 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
   const renderEnvVarRow = useCallback(
     (envVar: UIEnvironmentVariable, originalIndex: number) => {
       const isConflict = !!envVar.key && Object.hasOwn(workspaceVars, envVar.key)
+      const keyError = validateEnvVarKey(envVar.key)
       const maskedValueStyle =
         focusedValueIndex !== originalIndex && !isConflict
           ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)
@@ -571,7 +587,7 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
               spellCheck='false'
               readOnly
               onFocus={(e) => e.target.removeAttribute('readOnly')}
-              className={`h-9 ${isConflict ? conflictClassName : ''}`}
+              className={`h-9 ${isConflict ? conflictClassName : ''} ${keyError ? 'border-[var(--text-error)]' : ''}`}
             />
             <div />
             <EmcnInput
@@ -627,7 +643,12 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
               </Tooltip.Root>
             </div>
           </div>
-          {isConflict && (
+          {keyError && (
+            <div className='col-span-3 mt-[4px] text-[12px] text-[var(--text-error)] leading-tight'>
+              {keyError}
+            </div>
+          )}
+          {isConflict && !keyError && (
             <div className='col-span-3 mt-[4px] text-[12px] text-[var(--text-error)] leading-tight'>
               Workspace variable with the same name overrides this. Rename your personal key to use
               it.
@@ -707,14 +728,17 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
             <Tooltip.Trigger asChild>
               <Button
                 onClick={handleSave}
-                disabled={isLoading || !hasChanges || hasConflicts}
+                disabled={isLoading || !hasChanges || hasConflicts || hasInvalidKeys}
                 variant='primary'
-                className={`${PRIMARY_BUTTON_STYLES} ${hasConflicts ? 'cursor-not-allowed opacity-50' : ''}`}
+                className={`${PRIMARY_BUTTON_STYLES} ${hasConflicts || hasInvalidKeys ? 'cursor-not-allowed opacity-50' : ''}`}
               >
                 Save
               </Button>
             </Tooltip.Trigger>
             {hasConflicts && <Tooltip.Content>Resolve all conflicts before saving</Tooltip.Content>}
+            {hasInvalidKeys && !hasConflicts && (
+              <Tooltip.Content>Fix invalid variable names before saving</Tooltip.Content>
+            )}
           </Tooltip.Root>
         </div>
 
@@ -808,8 +832,8 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
           <ModalHeader>Unsaved Changes</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>
-              {hasConflicts
-                ? 'You have unsaved changes, but conflicts must be resolved before saving. You can discard your changes to close the modal.'
+              {hasConflicts || hasInvalidKeys
+                ? `You have unsaved changes, but ${hasConflicts ? 'conflicts must be resolved' : 'invalid variable names must be fixed'} before saving. You can discard your changes to close the modal.`
                 : 'You have unsaved changes. Do you want to save them before closing?'}
             </p>
           </ModalBody>
@@ -817,18 +841,22 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
             <Button variant='default' onClick={handleCancel}>
               Discard Changes
             </Button>
-            {hasConflicts ? (
+            {hasConflicts || hasInvalidKeys ? (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Button
                     disabled={true}
                     variant='primary'
-                    className='cursor-not-allowed opacity-50'
+                    className={`${PRIMARY_BUTTON_STYLES} cursor-not-allowed opacity-50`}
                   >
                     Save Changes
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content>Resolve all conflicts before saving</Tooltip.Content>
+                <Tooltip.Content>
+                  {hasConflicts
+                    ? 'Resolve all conflicts before saving'
+                    : 'Fix invalid variable names before saving'}
+                </Tooltip.Content>
               </Tooltip.Root>
             ) : (
               <Button onClick={handleSave} variant='primary' className={PRIMARY_BUTTON_STYLES}>

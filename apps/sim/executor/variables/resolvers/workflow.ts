@@ -6,6 +6,7 @@ import {
   type ResolutionContext,
   type Resolver,
 } from '@/executor/variables/resolvers/reference'
+import { normalizeVariableName } from '@/stores/workflows/utils'
 
 const logger = createLogger('WorkflowResolver')
 
@@ -32,12 +33,17 @@ export class WorkflowResolver implements Resolver {
     }
 
     const [_, variableName, ...pathParts] = parts
+    const normalizedRefName = normalizeVariableName(variableName)
 
     const workflowVars = context.executionContext.workflowVariables || this.workflowVariables
 
     for (const varObj of Object.values(workflowVars)) {
       const v = varObj as any
-      if (v && (v.name === variableName || v.id === variableName)) {
+      if (!v) continue
+
+      // Match by normalized name or exact ID
+      const normalizedVarName = v.name ? normalizeVariableName(v.name) : ''
+      if (normalizedVarName === normalizedRefName || v.id === variableName) {
         const normalizedType = (v.type === 'string' ? 'plain' : v.type) || 'plain'
         let value: any
         try {

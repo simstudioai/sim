@@ -34,6 +34,7 @@ import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { normalizeBlockName, normalizeVariableName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTool } from '@/tools/utils'
@@ -116,20 +117,6 @@ const BLOCK_COLORS = {
 const TAG_PREFIXES = {
   VARIABLE: 'variable.',
 } as const
-
-/**
- * Normalizes a block name by removing spaces and converting to lowercase
- */
-const normalizeBlockName = (blockName: string): string => {
-  return blockName.replace(/\s+/g, '').toLowerCase()
-}
-
-/**
- * Normalizes a variable name by removing spaces
- */
-const normalizeVariableName = (variableName: string): string => {
-  return variableName.replace(/\s+/g, '')
-}
 
 /**
  * Ensures the root tag is present in the tags array
