@@ -131,18 +131,18 @@ export function MemberInvitationCard({
   }
 
   return (
-    <div className='rounded-lg border border-[var(--border-muted)] bg-[var(--surface-3)] p-4'>
-      <div className='space-y-3'>
-        {/* Header */}
-        <div>
-          <h4 className='font-medium text-[13px]'>Invite Team Members</h4>
-          <p className='text-[var(--text-muted)] text-xs'>
-            Add new members to your team and optionally give them access to specific workspaces
-          </p>
-        </div>
+    <div className='overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
+      {/* Header */}
+      <div className='px-[14px] py-[10px]'>
+        <h4 className='font-medium text-[14px] text-[var(--text-primary)]'>Invite Team Members</h4>
+        <p className='text-[12px] text-[var(--text-muted)]'>
+          Add new members to your team and optionally give them access to specific workspaces
+        </p>
+      </div>
 
+      <div className='flex flex-col gap-[12px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[12px]'>
         {/* Main invitation input */}
-        <div className='flex items-start gap-2'>
+        <div className='flex items-start gap-[8px]'>
           <div className='flex-1'>
             {/* Hidden decoy fields to prevent browser autofill */}
             <input
@@ -177,7 +177,7 @@ export function MemberInvitationCard({
               aria-autocomplete='none'
             />
             {emailError && (
-              <p className='mt-1 text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+              <p className='mt-1 text-[11px] text-[var(--text-error)] leading-tight'>
                 {emailError}
               </p>
             )}
@@ -193,7 +193,7 @@ export function MemberInvitationCard({
           >
             <PopoverTrigger asChild>
               <Button
-                variant='ghost'
+                variant='active'
                 disabled={isInviting || !hasAvailableSeats}
                 className='min-w-[110px]'
               >
@@ -279,7 +279,7 @@ export function MemberInvitationCard({
             </PopoverContent>
           </Popover>
           <Button
-            variant='secondary'
+            variant='tertiary'
             onClick={handleInviteClick}
             disabled={!inviteEmail || isInviting || !hasAvailableSeats}
           >
@@ -289,7 +289,7 @@ export function MemberInvitationCard({
 
         {/* Invitation error - inline */}
         {invitationError && (
-          <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+          <p className='text-[11px] text-[var(--text-error)] leading-tight'>
             {invitationError instanceof Error && invitationError.message
               ? invitationError.message
               : String(invitationError)}
@@ -298,9 +298,9 @@ export function MemberInvitationCard({
 
         {/* Success message */}
         {inviteSuccess && (
-          <div className='flex items-start gap-2 rounded-md bg-green-500/10 p-2.5 text-green-600 dark:text-green-400'>
+          <div className='flex items-start gap-[8px] rounded-[6px] bg-green-500/10 px-[10px] py-[8px] text-green-600 dark:text-green-400'>
             <CheckCircle className='h-4 w-4 flex-shrink-0' />
-            <p className='text-xs'>
+            <p className='text-[12px]'>
               Invitation sent successfully
               {selectedCount > 0 &&
                 ` with access to ${selectedCount} workspace${selectedCount !== 1 ? 's' : ''}`}

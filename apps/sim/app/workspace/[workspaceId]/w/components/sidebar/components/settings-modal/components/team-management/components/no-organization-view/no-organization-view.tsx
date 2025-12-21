@@ -42,18 +42,20 @@ export function NoOrganizationView({
   if (hasTeamPlan || hasEnterprisePlan) {
     return (
       <div>
-        <div className='flex flex-col gap-6'>
+        <div className='flex flex-col gap-[20px]'>
           {/* Header - matching settings page style */}
           <div>
-            <h4 className='font-medium text-[13px]'>Create Your Team Workspace</h4>
-            <p className='mt-1 text-[var(--text-muted)] text-xs'>
+            <h4 className='font-medium text-[14px] text-[var(--text-primary)]'>
+              Create Your Team Workspace
+            </h4>
+            <p className='mt-[4px] text-[12px] text-[var(--text-muted)]'>
               You're subscribed to a {hasEnterprisePlan ? 'enterprise' : 'team'} plan. Create your
               workspace to start collaborating with your team.
             </p>
           </div>
 
           {/* Form fields - clean layout without card */}
-          <div className='space-y-4'>
+          <div className='flex flex-col gap-[16px]'>
             {/* Hidden decoy field to prevent browser autofill */}
             <input
               type='text'
@@ -64,7 +66,7 @@ export function NoOrganizationView({
               readOnly
             />
             <div>
-              <Label htmlFor='team-name-field' className='font-medium text-[13px]'>
+              <Label htmlFor='team-name-field' className='font-medium text-[12px]'>
                 Team Name
               </Label>
               <Input
@@ -72,7 +74,7 @@ export function NoOrganizationView({
                 value={orgName}
                 onChange={onOrgNameChange}
                 placeholder='My Team'
-                className='mt-1'
+                className='mt-[4px]'
                 name='team_name_field'
                 autoComplete='off'
                 autoCorrect='off'
@@ -83,11 +85,11 @@ export function NoOrganizationView({
             </div>
 
             <div>
-              <Label htmlFor='orgSlug' className='font-medium text-[13px]'>
+              <Label htmlFor='orgSlug' className='font-medium text-[12px]'>
                 Team URL
               </Label>
-              <div className='mt-1 flex items-center'>
-                <div className='rounded-l-[8px] border border-r-0 bg-[var(--surface-3)] px-3 py-2 text-[var(--text-muted)] text-sm'>
+              <div className='mt-[4px] flex items-center'>
+                <div className='rounded-l-[6px] border border-[var(--border-1)] border-r-0 bg-[var(--surface-4)] px-[12px] py-[6px] text-[12px] text-[var(--text-muted)]'>
                   sim.ai/team/
                 </div>
                 <Input
@@ -100,17 +102,15 @@ export function NoOrganizationView({
               </div>
             </div>
 
-            <div className='flex flex-col gap-2'>
+            <div className='flex flex-col gap-[8px]'>
               {error && (
-                <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
-                  {error}
-                </p>
+                <p className='text-[11px] text-[var(--text-error)] leading-tight'>{error}</p>
               )}
               <div className='flex justify-end'>
                 <Button
+                  variant='tertiary'
                   onClick={onCreateOrganization}
                   disabled={!orgName || !orgSlug || isCreatingOrg}
-                  className='h-[32px] px-[12px]'
                 >
                   {isCreatingOrg ? 'Creating...' : 'Create Team Workspace'}
                 </Button>
@@ -128,7 +128,7 @@ export function NoOrganizationView({
               </ModalDescription>
             </ModalHeader>
 
-            <div className='space-y-4'>
+            <div className='flex flex-col gap-[16px]'>
               {/* Hidden decoy field to prevent browser autofill */}
               <input
                 type='text'
@@ -139,7 +139,7 @@ export function NoOrganizationView({
                 readOnly
               />
               <div>
-                <Label htmlFor='org-name-field' className='font-medium text-[13px]'>
+                <Label htmlFor='org-name-field' className='font-medium text-[12px]'>
                   Organization Name
                 </Label>
                 <Input
@@ -148,7 +148,7 @@ export function NoOrganizationView({
                   value={orgName}
                   onChange={onOrgNameChange}
                   disabled={isCreatingOrg}
-                  className='mt-1'
+                  className='mt-[4px]'
                   name='org_name_field'
                   autoComplete='off'
                   autoCorrect='off'
@@ -159,7 +159,7 @@ export function NoOrganizationView({
               </div>
 
               <div>
-                <Label htmlFor='org-slug-field' className='font-medium text-[13px]'>
+                <Label htmlFor='org-slug-field' className='font-medium text-[12px]'>
                   Organization Slug
                 </Label>
                 <Input
@@ -168,7 +168,7 @@ export function NoOrganizationView({
                   value={orgSlug}
                   onChange={(e) => setOrgSlug(e.target.value)}
                   disabled={isCreatingOrg}
-                  className='mt-1'
+                  className='mt-[4px]'
                   name='org_slug_field'
                   autoComplete='off'
                   autoCorrect='off'
@@ -179,25 +179,20 @@ export function NoOrganizationView({
               </div>
             </div>
 
-            {error && (
-              <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
-                {error}
-              </p>
-            )}
+            {error && <p className='text-[11px] text-[var(--text-error)] leading-tight'>{error}</p>}
 
             <ModalFooter>
               <Button
-                variant='outline'
+                variant='active'
                 onClick={() => setCreateOrgDialogOpen(false)}
                 disabled={isCreatingOrg}
-                className='h-[32px] px-[12px]'
               >
                 Cancel
               </Button>
               <Button
+                variant='tertiary'
                 onClick={onCreateOrganization}
                 disabled={isCreatingOrg || !orgName.trim()}
-                className='h-[32px] px-[12px]'
               >
                 {isCreatingOrg ? 'Creating...' : 'Create Organization'}
               </Button>
@@ -209,22 +204,24 @@ export function NoOrganizationView({
   }
 
   return (
-    <div className='space-y-4 p-6'>
-      <div className='space-y-6'>
-        <h3 className='font-medium text-[13px]'>No Team Workspace</h3>
-        <p className='text-[var(--text-muted)] text-sm'>
+    <div className='flex flex-col gap-[20px]'>
+      <div className='flex flex-col gap-[8px]'>
+        <h3 className='font-medium text-[14px] text-[var(--text-primary)]'>No Team Workspace</h3>
+        <p className='text-[12px] text-[var(--text-secondary)]'>
           You don't have a team workspace yet. To collaborate with others, first upgrade to a team
           or enterprise plan.
         </p>
+      </div>
 
+      <div>
         <Button
+          variant='tertiary'
           onClick={() => {
             const event = new CustomEvent('open-settings', {
               detail: { tab: 'subscription' },
             })
             window.dispatchEvent(event)
           }}
-          className='h-[32px] px-[12px]'
         >
           Upgrade to Team Plan
         </Button>

@@ -66,8 +66,10 @@ export function TeamSeats({
         <ModalBody>
           <p className='text-[12px] text-[var(--text-muted)]'>{description}</p>
 
-          <div className='mt-4 flex flex-col gap-[4px]'>
-            <Label htmlFor='seats'>Number of seats</Label>
+          <div className='mt-[16px] flex flex-col gap-[4px]'>
+            <Label htmlFor='seats' className='text-[12px]'>
+              Number of seats
+            </Label>
             <Combobox
               options={seatOptions}
               value={selectedSeats > 0 ? selectedSeats.toString() : ''}
@@ -83,22 +85,22 @@ export function TeamSeats({
             />
           </div>
 
-          <p className='mt-3 text-[12px] text-[var(--text-muted)]'>
+          <p className='mt-[12px] text-[12px] text-[var(--text-muted)]'>
             Your team will have {selectedSeats} {selectedSeats === 1 ? 'seat' : 'seats'} with a
             total of ${totalMonthlyCost} inference credits per month.
           </p>
 
           {showCostBreakdown && currentSeats !== undefined && (
-            <div className='mt-4 rounded-[6px] bg-[var(--surface-5)] p-3'>
+            <div className='mt-[16px] rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-4)] px-[12px] py-[10px]'>
               <div className='flex justify-between text-[12px]'>
                 <span className='text-[var(--text-muted)]'>Current seats:</span>
                 <span className='text-[var(--text-primary)]'>{currentSeats}</span>
               </div>
-              <div className='mt-2 flex justify-between text-[12px]'>
+              <div className='mt-[8px] flex justify-between text-[12px]'>
                 <span className='text-[var(--text-muted)]'>New seats:</span>
                 <span className='text-[var(--text-primary)]'>{selectedSeats}</span>
               </div>
-              <div className='mt-3 flex justify-between border-[var(--border)] border-t pt-3 text-[12px]'>
+              <div className='mt-[12px] flex justify-between border-[var(--border-1)] border-t pt-[12px] text-[12px]'>
                 <span className='font-medium text-[var(--text-primary)]'>Monthly cost change:</span>
                 <span className='font-medium text-[var(--text-primary)]'>
                   {costChange > 0 ? '+' : ''}${costChange}
@@ -108,14 +110,14 @@ export function TeamSeats({
           )}
 
           {error && (
-            <p className='mt-3 text-[12px] text-[var(--text-error)]'>
+            <p className='mt-[12px] text-[12px] text-[var(--text-error)]'>
               {error instanceof Error && error.message ? error.message : String(error)}
             </p>
           )}
         </ModalBody>
 
         <ModalFooter>
-          <Button onClick={() => onOpenChange(false)} disabled={isLoading}>
+          <Button variant='active' onClick={() => onOpenChange(false)} disabled={isLoading}>
             Cancel
           </Button>
 

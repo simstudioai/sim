@@ -32,20 +32,20 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
 
   if (isLoadingOrgBilling) {
     return (
-      <div className='rounded-[8px] border bg-[var(--surface-3)] p-3 shadow-xs'>
-        <div className='space-y-2'>
+      <div className='overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
+        <div className='flex flex-col gap-[8px] px-[14px] py-[12px]'>
           <div className='flex items-center justify-between'>
-            <div className='flex items-center gap-2'>
-              <Skeleton className='h-5 w-16' />
-              <Skeleton className='h-4 w-20' />
+            <div className='flex items-center gap-[8px]'>
+              <Skeleton className='h-5 w-16 rounded-[4px]' />
+              <Skeleton className='h-4 w-20 rounded-[4px]' />
             </div>
-            <div className='flex items-center gap-1 text-xs'>
-              <Skeleton className='h-4 w-8' />
+            <div className='flex items-center gap-[4px] text-[12px]'>
+              <Skeleton className='h-4 w-8 rounded-[4px]' />
               <span className='text-[var(--text-muted)]'>/</span>
-              <Skeleton className='h-4 w-8' />
+              <Skeleton className='h-4 w-8 rounded-[4px]' />
             </div>
           </div>
-          <Skeleton className='h-2 w-full rounded' />
+          <Skeleton className='h-[6px] w-full rounded-full' />
         </div>
       </div>
     )
@@ -53,8 +53,8 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
 
   if (error) {
     return (
-      <div className='rounded-[8px] border bg-[var(--surface-3)] p-3 shadow-xs'>
-        <p className='text-center text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+      <div className='overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[14px] py-[12px]'>
+        <p className='text-center text-[11px] text-[var(--text-error)] leading-tight'>
           {error instanceof Error ? error.message : 'Failed to load billing data'}
         </p>
       </div>

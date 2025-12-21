@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Button } from '@/components/emcn'
+import { Badge, Button } from '@/components/emcn'
 import { UserAvatar } from '@/components/user-avatar/user-avatar'
 import type { Invitation, Member, Organization } from '@/lib/workspaces/organization'
 import { useCancelInvitation, useOrganizationMembers } from '@/hooks/queries/organization'
@@ -148,18 +148,18 @@ export function TeamMembers({
   }
 
   return (
-    <div className='flex flex-col gap-4'>
+    <div className='flex flex-col gap-[16px]'>
       {/* Header - simple like account page */}
       <div>
-        <h4 className='font-medium text-[13px]'>Team Members</h4>
+        <h4 className='font-medium text-[14px] text-[var(--text-primary)]'>Team Members</h4>
       </div>
 
       {/* Members list - clean like account page */}
-      <div className='space-y-4'>
+      <div className='flex flex-col gap-[16px]'>
         {teamItems.map((item) => (
           <div key={item.id} className='flex items-center justify-between'>
             {/* Left section: Avatar + Name/Role + Action buttons */}
-            <div className='flex flex-1 items-center gap-3'>
+            <div className='flex flex-1 items-center gap-[12px]'>
               {/* Avatar */}
               <UserAvatar
                 userId={item.userId || item.email}
@@ -170,26 +170,25 @@ export function TeamMembers({
 
               {/* Name and email */}
               <div className='min-w-0'>
-                <div className='flex items-center gap-2'>
-                  <span className='truncate font-medium text-sm'>{item.name}</span>
+                <div className='flex items-center gap-[8px]'>
+                  <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
+                    {item.name}
+                  </span>
                   {item.type === 'member' && (
-                    <span
-                      className={`inline-flex h-[1.125rem] items-center rounded-[6px] px-2 py-0 font-medium text-xs ${
-                        item.role === 'owner'
-                          ? 'gradient-text border-gradient-primary/20 bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary'
-                          : 'bg-[var(--surface-3)] text-[var(--text-muted)]'
-                      } `}
+                    <Badge
+                      variant={item.role === 'owner' ? 'blue-secondary' : 'gray-secondary'}
+                      size='sm'
                     >
                       {item.role.charAt(0).toUpperCase() + item.role.slice(1)}
-                    </span>
+                    </Badge>
                   )}
                   {item.type === 'invitation' && (
-                    <span className='inline-flex h-[1.125rem] items-center rounded-[6px] bg-[var(--surface-3)] px-2 py-0 font-medium text-[var(--text-muted)] text-xs'>
+                    <Badge variant='amber' size='sm'>
                       Pending
-                    </span>
+                    </Badge>
                   )}
                 </div>
-                <div className='truncate text-[var(--text-muted)] text-xs'>{item.email}</div>
+                <div className='truncate text-[12px] text-[var(--text-muted)]'>{item.email}</div>
               </div>
 
               {/* Action buttons */}
@@ -202,7 +201,7 @@ export function TeamMembers({
                       <Button
                         variant='ghost'
                         onClick={() => onRemoveMember(item.member)}
-                        className='h-8 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                        className='h-8'
                       >
                         Remove
                       </Button>
@@ -214,7 +213,7 @@ export function TeamMembers({
                       variant='ghost'
                       onClick={() => handleCancelInvitation(item.invitation.id)}
                       disabled={cancellingInvitations.has(item.invitation.id)}
-                      className='h-8 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                      className='h-8'
                     >
                       {cancellingInvitations.has(item.invitation.id) ? 'Cancelling...' : 'Cancel'}
                     </Button>
@@ -225,11 +224,11 @@ export function TeamMembers({
 
             {/* Right section: Usage column (right-aligned) */}
             {isAdminOrOwner && (
-              <div className='ml-4 flex flex-col items-end'>
-                <div className='text-[var(--text-muted)] text-xs'>Usage</div>
-                <div className='font-medium text-xs tabular-nums'>
+              <div className='ml-[16px] flex flex-col items-end'>
+                <div className='text-[12px] text-[var(--text-muted)]'>Usage</div>
+                <div className='font-medium text-[12px] text-[var(--text-primary)] tabular-nums'>
                   {isLoadingUsage && item.type === 'member' ? (
-                    <span className='inline-block h-3 w-12 animate-pulse rounded bg-[var(--surface-3)]' />
+                    <span className='inline-block h-3 w-12 animate-pulse rounded-[4px] bg-[var(--surface-4)]' />
                   ) : (
                     item.usage
                   )}
@@ -242,9 +241,9 @@ export function TeamMembers({
 
       {/* Leave Organization button */}
       {canLeaveOrganization && (
-        <div className='mt-4 border-[var(--border-muted)] border-t pt-4'>
+        <div className='mt-[4px] border-[var(--border-1)] border-t pt-[16px]'>
           <Button
-            variant='default'
+            variant='active'
             onClick={() => {
               if (!currentUserMember?.user?.id) {
                 logger.error('Cannot leave organization: missing user ID', { currentUserMember })

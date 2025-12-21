@@ -1,4 +1,5 @@
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
+import { Checkbox } from '@/components/ui/checkbox'
 
 interface RemoveMemberDialogProps {
   open: boolean
@@ -28,7 +29,7 @@ export function RemoveMemberDialog({
       <ModalContent className='w-[400px]'>
         <ModalHeader>{isSelfRemoval ? 'Leave Organization' : 'Remove Team Member'}</ModalHeader>
         <ModalBody>
-          <p className='text-[12px] text-[var(--text-tertiary)]'>
+          <p className='text-[12px] text-[var(--text-muted)]'>
             {isSelfRemoval
               ? 'Are you sure you want to leave this organization? You will lose access to all team resources.'
               : `Are you sure you want to remove ${memberName} from the team?`}{' '}
@@ -36,20 +37,18 @@ export function RemoveMemberDialog({
           </p>
 
           {!isSelfRemoval && (
-            <div className='mt-4'>
-              <div className='flex items-center space-x-2'>
-                <input
-                  type='checkbox'
+            <div className='mt-[16px]'>
+              <div className='flex items-center gap-[8px]'>
+                <Checkbox
                   id='reduce-seats'
-                  className='rounded-[4px]'
                   checked={shouldReduceSeats}
-                  onChange={(e) => onShouldReduceSeatsChange(e.target.checked)}
+                  onCheckedChange={(checked) => onShouldReduceSeatsChange(checked === true)}
                 />
-                <label htmlFor='reduce-seats' className='text-xs'>
+                <label htmlFor='reduce-seats' className='text-[12px] text-[var(--text-primary)]'>
                   Also reduce seat count in my subscription
                 </label>
               </div>
-              <p className='mt-1 text-[var(--text-muted)] text-xs'>
+              <p className='mt-[4px] text-[12px] text-[var(--text-muted)]'>
                 If selected, your team seat count will be reduced by 1, lowering your monthly
                 billing.
               </p>
@@ -57,8 +56,8 @@ export function RemoveMemberDialog({
           )}
 
           {error && (
-            <div className='mt-2'>
-              <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+            <div className='mt-[8px]'>
+              <p className='text-[11px] text-[var(--text-error)] leading-tight'>
                 {error instanceof Error && error.message ? error.message : String(error)}
               </p>
             </div>
