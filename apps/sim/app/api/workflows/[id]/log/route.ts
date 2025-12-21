@@ -70,7 +70,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const loggingSession = new LoggingSession(id, executionId, triggerType, requestId)
 
       const userId = accessValidation.workflow.userId
-      const workspaceId = accessValidation.workflow.workspaceId || ''
+      const workspaceId = accessValidation.workflow.workspaceId
+      if (!workspaceId) {
+        logger.error(`[${requestId}] Workflow ${id} has no workspaceId`)
+        return createErrorResponse('Workflow has no associated workspace', 500)
+      }
 
       await loggingSession.safeStart({
         userId,

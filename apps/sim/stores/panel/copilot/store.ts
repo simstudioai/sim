@@ -533,7 +533,11 @@ function createStreamingMessage(): CopilotMessage {
   }
 }
 
-function createErrorMessage(messageId: string, content: string): CopilotMessage {
+function createErrorMessage(
+  messageId: string,
+  content: string,
+  errorType?: 'usage_limit' | 'unauthorized' | 'forbidden' | 'rate_limit' | 'upgrade_required'
+): CopilotMessage {
   return {
     id: messageId,
     role: 'assistant',
@@ -546,6 +550,7 @@ function createErrorMessage(messageId: string, content: string): CopilotMessage 
         timestamp: Date.now(),
       },
     ],
+    errorType,
   }
 }
 
@@ -2066,23 +2071,35 @@ export const useCopilotStore = create<CopilotStore>()(
 
           // Check for specific status codes and provide custom messages
           let errorContent = result.error || 'Failed to send message'
+          let errorType:
+            | 'usage_limit'
+            | 'unauthorized'
+            | 'forbidden'
+            | 'rate_limit'
+            | 'upgrade_required'
+            | undefined
           if (result.status === 401) {
             errorContent =
               '_Unauthorized request. You need a valid API key to use the copilot. You can get one by going to [sim.ai](https://sim.ai) settings and generating one there._'
+            errorType = 'unauthorized'
           } else if (result.status === 402) {
             errorContent =
-              '_Usage limit exceeded. To continue using this service, upgrade your plan or top up on credits._'
+              '_Usage limit exceeded. To continue using this service, upgrade your plan or increase your usage limit to:_'
+            errorType = 'usage_limit'
           } else if (result.status === 403) {
             errorContent =
               '_Provider config not allowed for non-enterprise users. Please remove the provider config and try again_'
+            errorType = 'forbidden'
           } else if (result.status === 426) {
             errorContent =
               '_Please upgrade to the latest version of the Sim platform to continue using the copilot._'
+            errorType = 'upgrade_required'
           } else if (result.status === 429) {
             errorContent = '_Provider rate limit exceeded. Please try again later._'
+            errorType = 'rate_limit'
           }
 
-          const errorMessage = createErrorMessage(streamingMessage.id, errorContent)
+          const errorMessage = createErrorMessage(streamingMessage.id, errorContent, errorType)
           set((state) => ({
             messages: state.messages.map((m) => (m.id === streamingMessage.id ? errorMessage : m)),
             error: errorContent,

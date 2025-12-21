@@ -4,6 +4,7 @@ import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import OpenAI, { AzureOpenAI } from 'openai'
 import { getSession } from '@/lib/auth'
+import { logModelUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-flags'
@@ -88,7 +89,7 @@ async function updateUserStatsForWand(
 
   try {
     const [workflowRecord] = await db
-      .select({ userId: workflow.userId })
+      .select({ userId: workflow.userId, workspaceId: workflow.workspaceId })
       .from(workflow)
       .where(eq(workflow.id, workflowId))
       .limit(1)
@@ -101,6 +102,7 @@ async function updateUserStatsForWand(
     }
 
     const userId = workflowRecord.userId
+    const workspaceId = workflowRecord.workspaceId
     const totalTokens = usage.total_tokens || 0
     const promptTokens = usage.prompt_tokens || 0
     const completionTokens = usage.completion_tokens || 0
@@ -135,6 +137,17 @@ async function updateUserStatsForWand(
       userId,
       tokensUsed: totalTokens,
       costAdded: costToStore,
+    })
+
+    await logModelUsage({
+      userId,
+      source: 'wand',
+      model: modelName,
+      inputTokens: promptTokens,
+      outputTokens: completionTokens,
+      cost: costToStore,
+      workspaceId: workspaceId ?? undefined,
+      workflowId,
     })
 
     await checkAndBillOverageThreshold(userId)

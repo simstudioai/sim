@@ -516,6 +516,15 @@ async function logPreprocessingError(params: {
     loggingSession,
   } = params
 
+  if (!workspaceId) {
+    logger.warn(`[${requestId}] Cannot log preprocessing error: no workspaceId available`, {
+      workflowId,
+      executionId,
+      errorMessage,
+    })
+    return
+  }
+
   try {
     const session =
       loggingSession || new LoggingSession(workflowId, executionId, triggerType as any, requestId)

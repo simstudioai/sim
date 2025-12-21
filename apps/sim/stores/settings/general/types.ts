@@ -6,6 +6,7 @@ export interface General {
   telemetryEnabled: boolean
   isBillingUsageNotificationsEnabled: boolean
   isErrorNotificationsEnabled: boolean
+  snapToGridSize: number
 }
 
 export interface GeneralStore extends General {
@@ -21,4 +22,5 @@ export type UserSettings = {
   telemetryEnabled: boolean
   isBillingUsageNotificationsEnabled: boolean
   errorNotificationsEnabled: boolean
+  snapToGridSize: number
 }

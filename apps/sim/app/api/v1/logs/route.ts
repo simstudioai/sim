@@ -105,7 +105,6 @@ export async function GET(request: NextRequest) {
     const conditions = buildLogFilters(filters)
     const orderBy = getOrderBy(params.order)
 
-    // Build and execute query
     const baseQuery = db
       .select({
         id: workflowExecutionLogs.id,
@@ -124,13 +123,7 @@ export async function GET(request: NextRequest) {
         workflowDescription: workflow.description,
       })
       .from(workflowExecutionLogs)
-      .innerJoin(
-        workflow,
-        and(
-          eq(workflowExecutionLogs.workflowId, workflow.id),
-          eq(workflow.workspaceId, params.workspaceId)
-        )
-      )
+      .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
       .innerJoin(
         permissions,
         and(
@@ -197,11 +190,8 @@ export async function GET(request: NextRequest) {
       return result
     })
 
-    // Get user's workflow execution limits and usage
     const limits = await getUserLimits(userId)
 
-    // Create response with limits information
-    // The rateLimit object from checkRateLimit is for THIS API endpoint's rate limits
     const response = createApiResponse(
       {
         data: formattedLogs,

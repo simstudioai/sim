@@ -292,6 +292,9 @@ export const workflowExecutionLogs = pgTable(
     workflowId: text('workflow_id')
       .notNull()
       .references(() => workflow.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
     executionId: text('execution_id').notNull(),
     stateSnapshotId: text('state_snapshot_id')
       .notNull()
@@ -327,9 +330,12 @@ export const workflowExecutionLogs = pgTable(
     executionIdUnique: uniqueIndex('workflow_execution_logs_execution_id_unique').on(
       table.executionId
     ),
-    // Composite index for the new join-based query pattern
     workflowStartedAtIdx: index('workflow_execution_logs_workflow_started_at_idx').on(
       table.workflowId,
+      table.startedAt
+    ),
+    workspaceStartedAtIdx: index('workflow_execution_logs_workspace_started_at_idx').on(
+      table.workspaceId,
       table.startedAt
     ),
   })
@@ -441,6 +447,9 @@ export const settings = pgTable('settings', {
 
   // Notification preferences
   errorNotificationsEnabled: boolean('error_notifications_enabled').notNull().default(true),
+
+  // Canvas preferences
+  snapToGridSize: integer('snap_to_grid_size').notNull().default(0), // 0 = off, 10-50 = grid size
 
   // Copilot preferences - maps model_id to enabled/disabled boolean
   copilotEnabledModels: jsonb('copilot_enabled_models').notNull().default('{}'),
@@ -1656,5 +1665,53 @@ export const ssoProvider = pgTable(
     domainIdx: index('sso_provider_domain_idx').on(table.domain),
     userIdIdx: index('sso_provider_user_id_idx').on(table.userId),
     organizationIdIdx: index('sso_provider_organization_id_idx').on(table.organizationId),
+  })
+)
+
+// Usage logging for tracking individual billable operations
+export const usageLogCategoryEnum = pgEnum('usage_log_category', ['model', 'fixed'])
+export const usageLogSourceEnum = pgEnum('usage_log_source', ['workflow', 'wand', 'copilot'])
+
+export const usageLog = pgTable(
+  'usage_log',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+
+    // Charge category: 'model' (token-based) or 'fixed' (flat fee)
+    category: usageLogCategoryEnum('category').notNull(),
+
+    // What generated this charge: 'workflow', 'wand', 'copilot'
+    source: usageLogSourceEnum('source').notNull(),
+
+    // For model charges: model name (e.g., 'gpt-4o', 'claude-4.5-opus')
+    // For fixed charges: charge type (e.g., 'execution_fee', 'search_query')
+    description: text('description').notNull(),
+
+    // Category-specific metadata (e.g., tokens for 'model' category)
+    metadata: jsonb('metadata'),
+
+    // Cost in USD
+    cost: decimal('cost').notNull(),
+
+    // Optional context references
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'set null' }),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
+    executionId: text('execution_id'),
+
+    // Timestamp
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Index for querying user's usage history (most common query)
+    userCreatedAtIdx: index('usage_log_user_created_at_idx').on(table.userId, table.createdAt),
+    // Index for filtering by source
+    sourceIdx: index('usage_log_source_idx').on(table.source),
+    // Index for workspace-specific queries
+    workspaceIdIdx: index('usage_log_workspace_id_idx').on(table.workspaceId),
+    // Index for workflow-specific queries
+    workflowIdIdx: index('usage_log_workflow_id_idx').on(table.workflowId),
   })
 )
