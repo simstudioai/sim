@@ -499,7 +499,6 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           await enqueueReplaceWorkflowState({
             workflowId: activeWorkflowId,
             state: baselineWorkflow,
-            immediate: true,
           })
 
           // Persist to database

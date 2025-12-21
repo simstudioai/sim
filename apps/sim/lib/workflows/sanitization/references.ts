@@ -1,4 +1,4 @@
-import { normalizeBlockName } from '@/stores/workflows/utils'
+import { normalizeName } from '@/stores/workflows/utils'
 
 export const SYSTEM_REFERENCE_PREFIXES = new Set(['start', 'loop', 'parallel', 'variable'])
 
@@ -111,7 +111,7 @@ export function extractReferencePrefixes(value: string): Array<{ raw: string; pr
       continue
     }
 
-    const normalized = normalizeBlockName(rawPrefix)
+    const normalized = normalizeName(rawPrefix)
     references.push({ raw: referenceSegment, prefix: normalized })
   }
 
