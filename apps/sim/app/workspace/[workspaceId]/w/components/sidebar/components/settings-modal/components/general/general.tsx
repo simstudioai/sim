@@ -411,7 +411,6 @@ export function General({ onOpenChange }: GeneralProps) {
             dropdownWidth={140}
             value={settings?.theme}
             onChange={handleThemeChange}
-            disabled={updateSetting.isPending}
             placeholder='Select theme'
             options={[
               { label: 'System', value: 'system' },
