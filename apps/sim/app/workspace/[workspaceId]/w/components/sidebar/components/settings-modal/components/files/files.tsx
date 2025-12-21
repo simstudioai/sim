@@ -462,47 +462,69 @@ export function Files() {
       </div>
 
       {/* Storage Info - Fixed at bottom */}
-      {!permissionsLoading && isBillingEnabled && storageInfo && (
-        <div className='mt-auto flex flex-col gap-[8px] pt-[10px]'>
-          <div className='flex items-center justify-between'>
-            <div className='flex items-center gap-[6px]'>
-              <span
-                className={cn(
-                  'font-medium text-[12px]',
-                  planName === 'free' ? 'text-[var(--text-primary)]' : GRADIENT_TEXT_STYLES
-                )}
-              >
-                {displayPlanName}
-              </span>
-              <div className='h-[14px] w-[1.5px] bg-[var(--divider)]' />
-              <div className='flex items-center gap-[4px]'>
-                <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
-                  {formatStorageSize(storageInfo.usedBytes)}
-                </span>
-                <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>/</span>
-                <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
-                  {formatStorageSize(storageInfo.limitBytes)}
-                </span>
+      {isBillingEnabled &&
+        (permissionsLoading ? (
+          <div className='mt-auto flex flex-col gap-[8px] pt-[10px]'>
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-[6px]'>
+                <Skeleton className='h-[14px] w-[32px] rounded-[2px]' />
+                <div className='h-[14px] w-[1.5px] bg-[var(--divider)]' />
+                <div className='flex items-center gap-[4px]'>
+                  <Skeleton className='h-[12px] w-[40px] rounded-[2px]' />
+                  <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>/</span>
+                  <Skeleton className='h-[12px] w-[32px] rounded-[2px]' />
+                </div>
               </div>
             </div>
+            <div className='flex items-center gap-[3px]'>
+              {Array.from({ length: 12 }).map((_, i) => (
+                <Skeleton key={i} className='h-[6px] flex-1 rounded-[2px]' />
+              ))}
+            </div>
           </div>
-          <div className='flex items-center gap-[3px]'>
-            {Array.from({ length: 12 }).map((_, i) => {
-              const filledCount = Math.ceil((Math.min(storageInfo.percentUsed, 100) / 100) * 16)
-              const isFilled = i < filledCount
-              return (
-                <div
-                  key={i}
-                  className={cn(
-                    'h-[6px] flex-1 rounded-[2px]',
-                    isFilled ? 'bg-[var(--brand-secondary)]' : 'bg-[var(--surface-5)]'
-                  )}
-                />
-              )
-            })}
-          </div>
-        </div>
-      )}
+        ) : (
+          storageInfo && (
+            <div className='mt-auto flex flex-col gap-[8px] pt-[10px]'>
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-[6px]'>
+                  <span
+                    className={cn(
+                      'font-medium text-[12px]',
+                      planName === 'free' ? 'text-[var(--text-primary)]' : GRADIENT_TEXT_STYLES
+                    )}
+                  >
+                    {displayPlanName}
+                  </span>
+                  <div className='h-[14px] w-[1.5px] bg-[var(--divider)]' />
+                  <div className='flex items-center gap-[4px]'>
+                    <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
+                      {formatStorageSize(storageInfo.usedBytes)}
+                    </span>
+                    <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>/</span>
+                    <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
+                      {formatStorageSize(storageInfo.limitBytes)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className='flex items-center gap-[3px]'>
+                {Array.from({ length: 12 }).map((_, i) => {
+                  const filledCount = Math.ceil((Math.min(storageInfo.percentUsed, 100) / 100) * 16)
+                  const isFilled = i < filledCount
+                  return (
+                    <div
+                      key={i}
+                      className={cn(
+                        'h-[6px] flex-1 rounded-[2px]',
+                        isFilled ? 'bg-[var(--brand-secondary)]' : 'bg-[var(--surface-5)]'
+                      )}
+                    />
+                  )
+                })}
+              </div>
+            </div>
+          )
+        ))}
     </div>
   )
 }

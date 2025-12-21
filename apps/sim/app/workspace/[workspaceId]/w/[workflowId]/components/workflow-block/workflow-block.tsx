@@ -974,12 +974,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Badge
-                      variant='outline'
+                      variant={!childIsDeployed ? 'red' : 'amber'}
                       className='cursor-pointer'
-                      style={{
-                        borderColor: !childIsDeployed ? 'var(--text-error)' : 'var(--warning)',
-                        color: !childIsDeployed ? 'var(--text-error)' : 'var(--warning)',
-                      }}
+                      dot
                       onClick={(e) => {
                         e.stopPropagation()
                         if (childWorkflowId && !isDeploying) {
@@ -997,18 +994,15 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                   </Tooltip.Content>
                 </Tooltip.Root>
               )}
-            {!isEnabled && <Badge>disabled</Badge>}
+            {!isEnabled && <Badge variant='gray-secondary'>disabled</Badge>}
 
             {type === 'schedule' && shouldShowScheduleBadge && scheduleInfo?.isDisabled && (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Badge
-                    variant='outline'
+                    variant='amber'
                     className='cursor-pointer'
-                    style={{
-                      borderColor: 'var(--warning)',
-                      color: 'var(--warning)',
-                    }}
+                    dot
                     onClick={(e) => {
                       e.stopPropagation()
                       if (scheduleInfo?.id) {
@@ -1028,14 +1022,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
             {showWebhookIndicator && (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Badge
-                    variant='outline'
-                    className='bg-[var(--brand-tertiary)] text-[var(--brand-tertiary)]'
-                  >
-                    <div className='relative flex items-center justify-center'>
-                      <div className='197, 94, 0.2)] absolute h-3 w-3 rounded-full bg-[rgba(34,' />
-                      <div className='relative h-2 w-2 rounded-full bg-[var(--brand-tertiary)]' />
-                    </div>
+                  <Badge variant='orange' dot>
                     Webhook
                   </Badge>
                 </Tooltip.Trigger>
@@ -1058,9 +1045,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Badge
-                    variant='outline'
+                    variant='amber'
                     className='cursor-pointer'
-                    style={{ borderColor: 'var(--warning)', color: 'var(--warning)' }}
+                    dot
                     onClick={(e) => {
                       e.stopPropagation()
                       reactivateWebhook(webhookId)
