@@ -1,3 +1,5 @@
+'use client'
+
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Skeleton } from '@/components/ui'
@@ -9,6 +11,7 @@ import {
   getUsedSeats,
   getUserRole,
   isAdminOrOwner,
+  type Member,
 } from '@/lib/workspaces/organization'
 import {
   MemberInvitationCard,
@@ -171,7 +174,7 @@ export function TeamManagement() {
   }, [])
 
   const handleRemoveMember = useCallback(
-    async (member: any) => {
+    async (member: Member) => {
       if (!session?.user || !activeOrganization?.id) return
 
       if (!member.user?.id) {

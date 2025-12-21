@@ -5,12 +5,12 @@ import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { Badge } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
-import { USAGE_PILL_COLORS } from '@/lib/billing/client/usage-visualization'
 import {
-  getBillingStatus,
-  getSubscriptionStatus,
-  getUsage,
-} from '@/lib/billing/client/utils'
+  getFilledPillColor,
+  USAGE_PILL_COLORS,
+  USAGE_THRESHOLDS,
+} from '@/lib/billing/client/usage-visualization'
+import { getBillingStatus, getSubscriptionStatus, getUsage } from '@/lib/billing/client/utils'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
 import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
@@ -29,24 +29,6 @@ const PILL_CONFIG = {
 } as const
 
 const PILL_STEP_PER_TICK = (PILL_CONFIG.PILLS_PER_SECOND * PILL_CONFIG.ANIMATION_TICK_MS) / 1000
-
-/**
- * Usage percentage thresholds for visual states.
- */
-const USAGE_THRESHOLDS = {
-  WARNING: 75,
-  CRITICAL: 90,
-} as const
-
-/**
- * Pill colors by state.
- */
-const PILL_COLORS = {
-  NORMAL: USAGE_PILL_COLORS.FILLED,
-  WARNING: 'var(--warning)',
-  CRITICAL: USAGE_PILL_COLORS.AT_LIMIT,
-  UNFILLED: USAGE_PILL_COLORS.UNFILLED,
-} as const
 
 /**
  * Display width costs in "digit equivalents" for responsive layout.
@@ -181,15 +163,6 @@ function shouldShowPlanText(
   return totalCost <= capacity
 }
 
-/**
- * Determines pill color based on usage state.
- */
-function getPillColor(isCritical: boolean, isWarning: boolean): string {
-  if (isCritical) return PILL_COLORS.CRITICAL
-  if (isWarning) return PILL_COLORS.WARNING
-  return PILL_COLORS.NORMAL
-}
-
 interface UsageIndicatorProps {
   onClick?: () => void
 }
@@ -270,7 +243,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   }, [sidebarWidth])
 
   const filledPillsCount = Math.ceil((progressPercentage / 100) * pillCount)
-  const filledColor = getPillColor(isCritical, isWarning)
+  const filledColor = getFilledPillColor(isCritical, isWarning)
 
   const [isHovered, setIsHovered] = useState(false)
   const [wavePosition, setWavePosition] = useState<number | null>(null)
@@ -411,7 +384,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
       <div className='flex items-center gap-[4px]'>
         {Array.from({ length: pillCount }).map((_, i) => {
           const isFilled = i < filledPillsCount
-          const baseColor = isFilled ? filledColor : PILL_COLORS.UNFILLED
+          const baseColor = isFilled ? filledColor : USAGE_PILL_COLORS.UNFILLED
 
           let backgroundColor = baseColor
           let backgroundImage: string | undefined
@@ -422,16 +395,16 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
             const pillOffsetFromStart = i - startAnimationIndex
 
             if (pillOffsetFromStart >= 0 && pillOffsetFromStart < headIndex) {
-              backgroundColor = isFilled ? baseColor : PILL_COLORS.UNFILLED
+              backgroundColor = isFilled ? baseColor : USAGE_PILL_COLORS.UNFILLED
               backgroundImage = `linear-gradient(to right, ${filledColor} 0%, ${filledColor} 100%)`
             } else if (pillOffsetFromStart === headIndex) {
               const fillPercent = Math.max(0, Math.min(1, progress)) * 100
-              backgroundColor = isFilled ? baseColor : PILL_COLORS.UNFILLED
+              backgroundColor = isFilled ? baseColor : USAGE_PILL_COLORS.UNFILLED
               backgroundImage = `linear-gradient(to right, ${filledColor} 0%, ${filledColor} ${fillPercent}%, ${
-                isFilled ? baseColor : PILL_COLORS.UNFILLED
-              } ${fillPercent}%, ${isFilled ? baseColor : PILL_COLORS.UNFILLED} 100%)`
+                isFilled ? baseColor : USAGE_PILL_COLORS.UNFILLED
+              } ${fillPercent}%, ${isFilled ? baseColor : USAGE_PILL_COLORS.UNFILLED} 100%)`
             } else if (pillOffsetFromStart > headIndex) {
-              backgroundColor = isFilled ? baseColor : PILL_COLORS.UNFILLED
+              backgroundColor = isFilled ? baseColor : USAGE_PILL_COLORS.UNFILLED
             }
           }
 

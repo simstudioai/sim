@@ -25,6 +25,9 @@ interface CreditBalanceProps {
   onPurchaseComplete?: () => void
 }
 
+/**
+ * Displays credit balance with optional purchase modal.
+ */
 export function CreditBalance({
   balance,
   canPurchase,
@@ -105,7 +108,7 @@ export function CreditBalance({
     <div className='flex items-center justify-between'>
       <div className='flex items-center gap-[8px]'>
         <Label>Credit Balance</Label>
-        <span className='text-[13px] text-[var(--text-secondary)]'>
+        <span className='text-[12px] text-[var(--text-secondary)]'>
           {isLoading ? '...' : `$${balance.toFixed(2)}`}
         </span>
       </div>
@@ -113,7 +116,7 @@ export function CreditBalance({
       {canPurchase && (
         <Modal open={isOpen} onOpenChange={handleOpenChange}>
           <ModalTrigger asChild>
-            <Button variant='outline' className='h-8 rounded-[8px] text-[13px]'>
+            <Button variant='default' className='h-[32px] rounded-[6px] text-[12px]'>
               Add Credits
             </Button>
           </ModalTrigger>
@@ -121,19 +124,19 @@ export function CreditBalance({
             <ModalHeader>Add Credits</ModalHeader>
             <ModalBody>
               {success ? (
-                <p className='text-center text-[13px] text-[var(--text-primary)]'>
+                <p className='text-center text-[12px] text-[var(--text-primary)]'>
                   Credits added successfully!
                 </p>
               ) : (
                 <>
-                  <p className='text-[12px] text-[var(--text-secondary)]'>
+                  <p className='text-[12px] text-[var(--text-tertiary)]'>
                     Credits are used before overage charges. Min $10, max $1,000.
                   </p>
 
-                  <div className='mt-4 flex flex-col gap-[4px]'>
+                  <div className='mt-[16px] flex flex-col gap-[4px]'>
                     <Label htmlFor='credit-amount'>Amount (USD)</Label>
                     <div className='relative'>
-                      <span className='-translate-y-1/2 absolute top-1/2 left-3 text-[13px] text-[var(--text-secondary)]'>
+                      <span className='-translate-y-1/2 absolute top-1/2 left-[12px] text-[12px] text-[var(--text-muted)]'>
                         $
                       </span>
                       <Input
@@ -143,15 +146,15 @@ export function CreditBalance({
                         value={amount}
                         onChange={(e) => handleAmountChange(e.target.value)}
                         placeholder='50'
-                        className='pl-7'
+                        className='pl-[28px]'
                         disabled={isPurchasing}
                       />
                     </div>
                     {error && <span className='text-[12px] text-[var(--text-error)]'>{error}</span>}
                   </div>
 
-                  <div className='mt-4 rounded-[6px] bg-[var(--surface-4)] p-3'>
-                    <p className='text-[12px] text-[var(--text-tertiary)]'>
+                  <div className='mt-[16px] rounded-[6px] bg-[var(--surface-4)] p-[12px]'>
+                    <p className='text-[12px] text-[var(--text-muted)]'>
                       Credits are non-refundable and don't expire. They'll be applied automatically
                       to your {entityType === 'organization' ? 'team' : ''} usage.
                     </p>
@@ -162,7 +165,9 @@ export function CreditBalance({
             {!success && (
               <ModalFooter>
                 <ModalClose asChild>
-                  <Button disabled={isPurchasing}>Cancel</Button>
+                  <Button variant='default' disabled={isPurchasing}>
+                    Cancel
+                  </Button>
                 </ModalClose>
                 <Button
                   variant='tertiary'

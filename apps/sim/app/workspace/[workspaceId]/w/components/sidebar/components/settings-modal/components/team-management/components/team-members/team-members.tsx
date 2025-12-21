@@ -1,3 +1,5 @@
+'use client'
+
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Button } from '@/components/emcn'
@@ -43,6 +45,9 @@ export function TeamMembers({
   isAdminOrOwner,
   onRemoveMember,
 }: TeamMembersProps) {
+  // Track which invitations are being cancelled for individual loading states
+  const [cancellingInvitations, setCancellingInvitations] = useState<Set<string>>(new Set())
+
   // Fetch member usage data using React Query
   const { data: memberUsageResponse, isLoading: isLoadingUsage } = useOrganizationMembers(
     organization?.id || ''
@@ -53,11 +58,13 @@ export function TeamMembers({
   // Build usage data map from response
   const memberUsageData: Record<string, number> = {}
   if (memberUsageResponse?.data) {
-    memberUsageResponse.data.forEach((member: any) => {
-      if (member.currentPeriodCost !== null && member.currentPeriodCost !== undefined) {
-        memberUsageData[member.userId] = Number.parseFloat(member.currentPeriodCost.toString())
+    memberUsageResponse.data.forEach(
+      (member: { userId: string; currentPeriodCost?: number | null }) => {
+        if (member.currentPeriodCost !== null && member.currentPeriodCost !== undefined) {
+          memberUsageData[member.userId] = Number.parseFloat(member.currentPeriodCost.toString())
+        }
       }
-    })
+    )
   }
 
   // Combine members and pending invitations into a single list
@@ -119,9 +126,6 @@ export function TeamMembers({
   const currentUserMember = organization.members?.find((m) => m.user?.email === currentUserEmail)
   const canLeaveOrganization =
     currentUserMember && currentUserMember.role !== 'owner' && currentUserMember.user?.id
-
-  // Track which invitations are being cancelled for individual loading states
-  const [cancellingInvitations, setCancellingInvitations] = useState<Set<string>>(new Set())
 
   const handleCancelInvitation = async (invitationId: string) => {
     if (!organization?.id) return

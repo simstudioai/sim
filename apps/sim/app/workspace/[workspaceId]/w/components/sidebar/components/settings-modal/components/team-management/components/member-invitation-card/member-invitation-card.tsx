@@ -1,3 +1,5 @@
+'use client'
+
 import React, { useMemo, useState } from 'react'
 import { CheckCircle, ChevronDown } from 'lucide-react'
 import {
@@ -11,6 +13,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import type { AdminWorkspace } from '@/hooks/queries/workspace'
 
 type PermissionType = 'read' | 'write' | 'admin'
 
@@ -61,7 +64,7 @@ interface MemberInvitationCardProps {
   showWorkspaceInvite: boolean
   setShowWorkspaceInvite: (show: boolean) => void
   selectedWorkspaces: Array<{ workspaceId: string; permission: string }>
-  userWorkspaces: any[]
+  userWorkspaces: AdminWorkspace[]
   onInviteMember: () => Promise<void>
   onLoadUserWorkspaces: () => Promise<void>
   onWorkspaceToggle: (workspaceId: string, permission: string) => void

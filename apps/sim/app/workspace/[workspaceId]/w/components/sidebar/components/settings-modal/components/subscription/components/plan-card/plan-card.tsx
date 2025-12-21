@@ -1,12 +1,12 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import type { ComponentType, ReactNode, SVGProps } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 
 export interface PlanFeature {
-  icon: LucideIcon
+  icon: LucideIcon | ComponentType<SVGProps<SVGSVGElement>>
   text: string
 }
 
@@ -18,14 +18,15 @@ export interface PlanCardProps {
   buttonText: string
   onButtonClick: () => void
   isError?: boolean
-  variant?: 'default' | 'compact'
-  layout?: 'vertical' | 'horizontal'
   className?: string
+  /** Renders the card in horizontal layout with features in a row */
+  horizontal?: boolean
+  /** Places the button inline to the right of features instead of below */
+  inlineButton?: boolean
 }
 
 /**
- * PlanCard component for displaying subscription plan information
- * Supports both vertical and horizontal layouts with flexible pricing display
+ * Displays subscription plan information with features and action button.
  */
 export function PlanCard({
   name,
@@ -35,19 +36,19 @@ export function PlanCard({
   buttonText,
   onButtonClick,
   isError = false,
-  variant = 'default',
-  layout = 'vertical',
   className,
+  horizontal = false,
+  inlineButton = false,
 }: PlanCardProps) {
-  const isHorizontal = layout === 'horizontal'
-
   const renderPrice = () => {
     if (typeof price === 'string') {
       return (
         <>
-          <span className='font-semibold text-[20px]'>{price}</span>
+          <span className='font-medium text-[14px] text-[var(--text-primary)]'>{price}</span>
           {priceSubtext && (
-            <span className='ml-1 text-[12px] text-[var(--text-muted)]'>{priceSubtext}</span>
+            <span className='ml-[4px] text-[12px] text-[var(--text-secondary)]'>
+              {priceSubtext}
+            </span>
           )}
         </>
       )
@@ -55,63 +56,83 @@ export function PlanCard({
     return price
   }
 
-  const renderFeatures = () => {
-    if (isHorizontal) {
-      return (
-        <div className='mt-3 flex flex-wrap items-center gap-3'>
-          {features.map((feature, index) => (
-            <div key={`${feature.text}-${index}`} className='flex items-center gap-2 text-[12px]'>
-              <feature.icon className='h-3 w-3 flex-shrink-0 text-[var(--text-secondary)]' />
-              <span className='text-[var(--text-secondary)]'>{feature.text}</span>
-              {index < features.length - 1 && (
-                <div className='ml-3 h-4 w-px bg-[var(--border)]' aria-hidden='true' />
-              )}
-            </div>
-          ))}
-        </div>
-      )
-    }
-
+  if (horizontal) {
     return (
-      <ul className='mb-4 flex-1 space-y-2'>
-        {features.map((feature, index) => (
-          <li key={`${feature.text}-${index}`} className='flex items-start gap-2 text-[12px]'>
-            <feature.icon
-              className='mt-0.5 h-3 w-3 flex-shrink-0 text-[var(--text-secondary)]'
-              aria-hidden='true'
-            />
-            <span className='text-[var(--text-secondary)]'>{feature.text}</span>
-          </li>
-        ))}
-      </ul>
+      <article
+        className={cn(
+          'flex flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]',
+          className
+        )}
+      >
+        <div className='flex items-center justify-between gap-[8px] px-[14px] py-[10px]'>
+          <div className='flex items-baseline gap-[8px]'>
+            <span className='font-medium text-[14px] text-[var(--text-primary)]'>{name}</span>
+            <div className='flex items-baseline'>{renderPrice()}</div>
+          </div>
+          <Button
+            onClick={onButtonClick}
+            variant={isError ? 'outline' : 'tertiary'}
+            aria-label={`${buttonText} ${name} plan`}
+          >
+            {isError ? 'Error' : buttonText}
+          </Button>
+        </div>
+        <ul className='flex flex-wrap items-center gap-x-[16px] gap-y-[8px] rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[16px]'>
+          {features.map((feature, index) => {
+            const Icon = feature.icon
+            return (
+              <li key={`${feature.text}-${index}`} className='flex items-center gap-[8px]'>
+                <Icon className='h-[12px] w-[12px] flex-shrink-0 text-[var(--text-primary)]' />
+                <span className='text-[12px] text-[var(--text-primary)]'>{feature.text}</span>
+              </li>
+            )
+          })}
+        </ul>
+      </article>
     )
   }
 
   return (
     <article
       className={cn(
-        'relative flex rounded-[8px] border p-4 transition-colors hover:border-[var(--border-hover)]',
-        isHorizontal ? 'flex-row items-center justify-between gap-6' : 'flex-col',
+        'flex flex-1 flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]',
         className
       )}
     >
-      <header className={isHorizontal ? 'flex-1' : 'mb-4'}>
-        <h3 className='mb-2 font-semibold text-[14px]'>{name}</h3>
+      <div className='flex items-center justify-between gap-[8px] px-[14px] py-[10px]'>
+        <span className='font-medium text-[14px] text-[var(--text-primary)]'>{name}</span>
         <div className='flex items-baseline'>{renderPrice()}</div>
-        {isHorizontal && renderFeatures()}
-      </header>
-
-      {!isHorizontal && renderFeatures()}
-
-      <div className={isHorizontal ? 'flex-shrink-0' : undefined}>
+      </div>
+      <div
+        className={cn(
+          'flex rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px]',
+          inlineButton
+            ? 'items-center justify-between gap-[16px] py-[12px]'
+            : 'flex-1 flex-col gap-[16px] py-[16px]'
+        )}
+      >
+        <ul
+          className={cn(
+            'flex gap-[14px]',
+            inlineButton
+              ? 'flex-row flex-wrap items-center gap-x-[16px] gap-y-[8px]'
+              : 'flex-1 flex-col'
+          )}
+        >
+          {features.map((feature, index) => {
+            const Icon = feature.icon
+            return (
+              <li key={`${feature.text}-${index}`} className='flex items-center gap-[8px]'>
+                <Icon className='h-[12px] w-[12px] flex-shrink-0 text-[var(--text-primary)]' />
+                <span className='text-[12px] text-[var(--text-primary)]'>{feature.text}</span>
+              </li>
+            )
+          })}
+        </ul>
         <Button
           onClick={onButtonClick}
-          className={cn(
-            'h-9 rounded-[8px] text-[13px]',
-            isHorizontal ? 'min-w-[100px] px-6' : 'w-full',
-            isError && 'border-[var(--text-error)] text-[var(--text-error)]'
-          )}
-          variant='outline'
+          className={cn(!inlineButton && 'w-full')}
+          variant={isError ? 'outline' : 'tertiary'}
           aria-label={`${buttonText} ${name} plan`}
         >
           {isError ? 'Error' : buttonText}

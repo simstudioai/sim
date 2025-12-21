@@ -1,13 +1,15 @@
+'use client'
+
 import { useRef } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useActiveOrganization } from '@/lib/auth/auth-client'
 import { getSubscriptionStatus } from '@/lib/billing/client/utils'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { UsageHeader } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/shared/usage-header'
+import { UsageHeader } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/usage-header/usage-header'
 import {
   UsageLimit,
   type UsageLimitRef,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components'
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/usage-limit'
 import { useOrganizationBilling } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 

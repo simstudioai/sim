@@ -74,7 +74,7 @@ const SModalContent = React.forwardRef<
         className={cn(
           ANIMATION_CLASSES,
           CONTENT_ANIMATION_CLASSES,
-          'fixed top-[50%] left-[50%] z-[500] flex h-[min(80vh,820px)] max-h-[900px] min-h-[400px] w-[min(70vw,1000px)] min-w-[520px] max-w-[1100px] translate-x-[-50%] translate-y-[-50%] flex-row rounded-[8px] border bg-[var(--surface-0)] shadow-sm duration-200',
+          'fixed top-[50%] left-[50%] z-[500] flex h-[min(calc(100vh-8rem),900px)] min-h-[400px] w-[min(calc(100vw-8rem),1080px)] min-w-[520px] translate-x-[-50%] translate-y-[-50%] flex-row rounded-[8px] border bg-[var(--surface-0)] shadow-sm duration-200',
           className
         )}
         style={style}
