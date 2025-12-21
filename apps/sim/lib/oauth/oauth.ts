@@ -3,7 +3,6 @@ import {
   AirtableIcon,
   AsanaIcon,
   ConfluenceIcon,
-  // DiscordIcon,
   DropboxIcon,
   GithubIcon,
   GmailIcon,
@@ -32,7 +31,6 @@ import {
   ShopifyIcon,
   SlackIcon,
   SpotifyIcon,
-  // SupabaseIcon,
   TrelloIcon,
   WealthboxIcon,
   WebflowIcon,
@@ -49,12 +47,10 @@ export type OAuthProvider =
   | 'google'
   | 'github'
   | 'x'
-  // | 'supabase'
   | 'confluence'
   | 'airtable'
   | 'notion'
   | 'jira'
-  // | 'discord'
   | 'dropbox'
   | 'microsoft'
   | 'linear'
@@ -86,12 +82,10 @@ export type OAuthService =
   | 'google-groups'
   | 'github'
   | 'x'
-  // | 'supabase'
   | 'confluence'
   | 'airtable'
   | 'notion'
   | 'jira'
-  // | 'discord'
   | 'dropbox'
   | 'microsoft-excel'
   | 'microsoft-teams'
@@ -388,23 +382,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'x',
   },
-  // supabase: {
-  //   id: 'supabase',
-  //   name: 'Supabase',
-  //   icon: (props) => SupabaseIcon(props),
-  //   services: {
-  //     supabase: {
-  //       id: 'supabase',
-  //       name: 'Supabase',
-  //       description: 'Connect to your Supabase projects and manage data.',
-  //       providerId: 'supabase',
-  //       icon: (props) => SupabaseIcon(props),
-  //       baseProviderIcon: (props) => SupabaseIcon(props),
-  //       scopes: ['database.read', 'database.write', 'projects.read'],
-  //     },
-  //   },
-  //   defaultService: 'supabase',
-  // },
   confluence: {
     id: 'confluence',
     name: 'Confluence',
@@ -518,23 +495,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'airtable',
   },
-  // discord: {
-  //   id: 'discord',
-  //   name: 'Discord',
-  //   icon: (props) => DiscordIcon(props),
-  //   services: {
-  //     discord: {
-  //       id: 'discord',
-  //       name: 'Discord',
-  //       description: 'Read and send messages to Discord channels and interact with servers.',
-  //       providerId: 'discord',
-  //       icon: (props) => DiscordIcon(props),
-  //       baseProviderIcon: (props) => DiscordIcon(props),
-  //       scopes: ['identify', 'bot', 'messages.read', 'guilds', 'guilds.members.read'],
-  //     },
-  //   },
-  //   defaultService: 'discord',
-  // },
   notion: {
     id: 'notion',
     name: 'Notion',
@@ -547,7 +507,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'notion',
         icon: (props) => NotionIcon(props),
         baseProviderIcon: (props) => NotionIcon(props),
-        scopes: ['workspace.content', 'workspace.name', 'page.read', 'page.write'],
+        scopes: [],
       },
     },
     defaultService: 'notion',
@@ -1272,18 +1232,6 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         useBasicAuth: false,
       }
     }
-    // case 'discord': {
-    //   const { clientId, clientSecret } = getCredentials(
-    //     env.DISCORD_CLIENT_ID,
-    //     env.DISCORD_CLIENT_SECRET
-    //   )
-    //   return {
-    //     tokenEndpoint: 'https://discord.com/api/v10/oauth2/token',
-    //     clientId,
-    //     clientSecret,
-    //     useBasicAuth: true,
-    //   }
-    // }
     case 'microsoft': {
       const { clientId, clientSecret } = getCredentials(
         env.MICROSOFT_CLIENT_ID,
