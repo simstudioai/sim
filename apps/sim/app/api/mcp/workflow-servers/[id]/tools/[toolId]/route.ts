@@ -5,6 +5,7 @@ import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
+import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 
 const logger = createLogger('WorkflowMcpToolAPI')
 
@@ -99,7 +100,7 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
       }
 
       if (body.toolName !== undefined) {
-        updateData.toolName = body.toolName.trim()
+        updateData.toolName = sanitizeToolName(body.toolName)
       }
       if (body.toolDescription !== undefined) {
         updateData.toolDescription = body.toolDescription?.trim() || null

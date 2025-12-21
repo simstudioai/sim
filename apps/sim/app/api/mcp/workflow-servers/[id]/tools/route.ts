@@ -184,8 +184,7 @@ export const POST = withMcpAuth<RouteParams>('write')(
         )
       }
 
-      // Generate tool name and description
-      const toolName = body.toolName?.trim() || sanitizeToolName(workflowRecord.name)
+      const toolName = sanitizeToolName(body.toolName?.trim() || workflowRecord.name)
       const toolDescription =
         body.toolDescription?.trim() ||
         workflowRecord.description ||

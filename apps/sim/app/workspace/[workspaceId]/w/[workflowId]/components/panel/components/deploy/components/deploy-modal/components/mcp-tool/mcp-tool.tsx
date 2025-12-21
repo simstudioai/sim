@@ -1,24 +1,19 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Check, Server } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Server } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import {
-  Badge,
-  Input,
-  Label,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverTrigger,
-  Textarea,
-} from '@/components/emcn'
+import { Badge, Combobox, type ComboboxOption, Input, Label, Textarea } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateToolInputSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
+import { isValidStartBlockType } from '@/lib/workflows/triggers/trigger-utils'
+import type { InputFormatField } from '@/lib/workflows/types'
 import {
   useAddWorkflowMcpTool,
   useDeleteWorkflowMcpTool,
+  useUpdateWorkflowMcpTool,
   useWorkflowMcpServers,
   useWorkflowMcpTools,
   type WorkflowMcpServer,
@@ -29,6 +24,9 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('McpToolDeploy')
 
+/** InputFormatField with guaranteed name (after normalization) */
+type NormalizedField = InputFormatField & { name: string }
+
 interface McpToolDeployProps {
   workflowId: string
   workflowName: string
@@ -38,79 +36,10 @@ interface McpToolDeployProps {
 }
 
 /**
- * Extract input format from workflow blocks using SubBlockStore
- * The actual input format values are stored in useSubBlockStore, not directly in the block structure
- */
-function extractInputFormat(
-  blocks: Record<string, unknown>
-): Array<{ name: string; type: string }> {
-  // Find the starter block
-  for (const [blockId, block] of Object.entries(blocks)) {
-    if (!block || typeof block !== 'object') continue
-
-    const blockObj = block as Record<string, unknown>
-    const blockType = blockObj.type
-
-    // Check for all possible start/trigger block types
-    if (
-      blockType === 'starter' ||
-      blockType === 'start' ||
-      blockType === 'start_trigger' || // This is the unified start block type
-      blockType === 'api' ||
-      blockType === 'api_trigger' ||
-      blockType === 'input_trigger'
-    ) {
-      // Get the inputFormat value from the SubBlockStore (where the actual values are stored)
-      const inputFormatValue = useSubBlockStore.getState().getValue(blockId, 'inputFormat')
-
-      if (Array.isArray(inputFormatValue) && inputFormatValue.length > 0) {
-        return inputFormatValue
-          .filter(
-            (field: unknown): field is { name: string; type: string } =>
-              field !== null &&
-              typeof field === 'object' &&
-              'name' in field &&
-              typeof (field as { name: unknown }).name === 'string' &&
-              (field as { name: string }).name.trim() !== ''
-          )
-          .map((field) => ({
-            name: field.name.trim(),
-            type: field.type || 'string',
-          }))
-      }
-
-      // Fallback: try to get from block's subBlocks structure (for backwards compatibility)
-      const subBlocks = blockObj.subBlocks as Record<string, unknown> | undefined
-      if (subBlocks?.inputFormat) {
-        const inputFormatSubBlock = subBlocks.inputFormat as Record<string, unknown>
-        const value = inputFormatSubBlock.value
-        if (Array.isArray(value) && value.length > 0) {
-          return value
-            .filter(
-              (field: unknown): field is { name: string; type: string } =>
-                field !== null &&
-                typeof field === 'object' &&
-                'name' in field &&
-                typeof (field as { name: unknown }).name === 'string' &&
-                (field as { name: string }).name.trim() !== ''
-            )
-            .map((field) => ({
-              name: field.name.trim(),
-              type: field.type || 'string',
-            }))
-        }
-      }
-    }
-  }
-
-  return []
-}
-
-/**
  * Generate JSON Schema from input format with optional descriptions
  */
 function generateParameterSchema(
-  inputFormat: Array<{ name: string; type: string }>,
+  inputFormat: NormalizedField[],
   descriptions: Record<string, string>
 ): Record<string, unknown> {
   const fieldsWithDescriptions = inputFormat.map((field) => ({
@@ -161,6 +90,7 @@ export function McpToolDeploy({
   } = useWorkflowMcpServers(workspaceId)
   const addToolMutation = useAddWorkflowMcpTool()
   const deleteToolMutation = useDeleteWorkflowMcpTool()
+  const updateToolMutation = useUpdateWorkflowMcpTool()
 
   const blocks = useWorkflowStore((state) => state.blocks)
 
@@ -168,14 +98,7 @@ export function McpToolDeploy({
     for (const [blockId, block] of Object.entries(blocks)) {
       if (!block || typeof block !== 'object') continue
       const blockType = (block as { type?: string }).type
-      if (
-        blockType === 'starter' ||
-        blockType === 'start' ||
-        blockType === 'start_trigger' ||
-        blockType === 'api' ||
-        blockType === 'api_trigger' ||
-        blockType === 'input_trigger'
-      ) {
+      if (blockType && isValidStartBlockType(blockType)) {
         return blockId
       }
     }
@@ -186,65 +109,26 @@ export function McpToolDeploy({
     workflowId ? (state.workflowValues[workflowId] ?? {}) : {}
   )
 
-  const inputFormat = useMemo(() => {
-    if (starterBlockId && subBlockValues[starterBlockId]) {
-      const inputFormatValue = subBlockValues[starterBlockId].inputFormat
+  const inputFormat = useMemo((): NormalizedField[] => {
+    if (!starterBlockId) return []
 
-      if (Array.isArray(inputFormatValue) && inputFormatValue.length > 0) {
-        const filtered = inputFormatValue
-          .filter(
-            (field: unknown): field is { name: string; type: string } =>
-              field !== null &&
-              typeof field === 'object' &&
-              'name' in field &&
-              typeof (field as { name: unknown }).name === 'string' &&
-              (field as { name: string }).name.trim() !== ''
-          )
-          .map((field) => ({
-            name: field.name.trim(),
-            type: field.type || 'string',
-          }))
-        if (filtered.length > 0) {
-          return filtered
-        }
-      }
-    }
+    // Try SubBlockStore first (runtime state)
+    const storeValue = subBlockValues[starterBlockId]?.inputFormat
+    const normalized = normalizeInputFormatValue(storeValue) as NormalizedField[]
+    if (normalized.length > 0) return normalized
 
-    if (starterBlockId && blocks[starterBlockId]) {
-      const startBlock = blocks[starterBlockId]
-      const subBlocksValue = startBlock?.subBlocks?.inputFormat?.value as unknown
-
-      if (Array.isArray(subBlocksValue) && subBlocksValue.length > 0) {
-        const validFields: Array<{ name: string; type: string }> = []
-        for (const field of subBlocksValue) {
-          if (
-            field !== null &&
-            typeof field === 'object' &&
-            'name' in field &&
-            typeof field.name === 'string' &&
-            field.name.trim() !== ''
-          ) {
-            validFields.push({
-              name: field.name.trim(),
-              type: typeof field.type === 'string' ? field.type : 'string',
-            })
-          }
-        }
-        if (validFields.length > 0) {
-          return validFields
-        }
-      }
-    }
-
-    return extractInputFormat(blocks)
+    // Fallback to block definition
+    const startBlock = blocks[starterBlockId]
+    const blockValue = startBlock?.subBlocks?.inputFormat?.value
+    return normalizeInputFormatValue(blockValue) as NormalizedField[]
   }, [starterBlockId, subBlockValues, blocks])
 
   const [toolName, setToolName] = useState(() => sanitizeToolName(workflowName))
   const [toolDescription, setToolDescription] = useState(
     () => workflowDescription || `Execute ${workflowName} workflow`
   )
-  const [showServerSelector, setShowServerSelector] = useState(false)
   const [parameterDescriptions, setParameterDescriptions] = useState<Record<string, string>>({})
+  const [pendingServerChanges, setPendingServerChanges] = useState<Set<string>>(new Set())
 
   const parameterSchema = useMemo(
     () => generateParameterSchema(inputFormat, parameterDescriptions),
@@ -272,17 +156,18 @@ export function McpToolDeploy({
   )
 
   const selectedServerIds = useMemo(() => {
-    const ids = new Set<string>()
+    const ids: string[] = []
     for (const server of servers) {
       const toolInfo = serverToolsMap[server.id]
       if (toolInfo?.tool) {
-        ids.add(server.id)
+        ids.push(server.id)
       }
     }
     return ids
   }, [servers, serverToolsMap])
 
-  // Load existing tool name, description, and parameter descriptions from the first deployed tool
+  const hasLoadedInitialData = useRef(false)
+
   useEffect(() => {
     for (const server of servers) {
       const toolInfo = serverToolsMap[server.id]
@@ -290,7 +175,6 @@ export function McpToolDeploy({
         setToolName(toolInfo.tool.toolName)
         setToolDescription(toolInfo.tool.toolDescription || '')
 
-        // Load parameter descriptions
         const schema = toolInfo.tool.parameterSchema as Record<string, unknown> | undefined
         const properties = schema?.properties as
           | Record<string, { description?: string }>
@@ -310,40 +194,81 @@ export function McpToolDeploy({
             setParameterDescriptions(descriptions)
           }
         }
+        hasLoadedInitialData.current = true
         break
       }
     }
   }, [servers, serverToolsMap])
 
-  const handleServerToggle = useCallback(
-    async (server: WorkflowMcpServer) => {
-      const toolInfo = serverToolsMap[server.id]
-      const isSelected = !!toolInfo?.tool
+  /**
+   * Sync tool configuration changes to all deployed servers (debounced)
+   */
+  useEffect(() => {
+    if (!hasLoadedInitialData.current) return
+    if (!toolName.trim()) return
 
-      if (isSelected && toolInfo?.tool) {
-        // Remove from server
+    const toolsToUpdate: Array<{ serverId: string; toolId: string }> = []
+    for (const server of servers) {
+      const toolInfo = serverToolsMap[server.id]
+      if (toolInfo?.tool) {
+        toolsToUpdate.push({ serverId: server.id, toolId: toolInfo.tool.id })
+      }
+    }
+
+    if (toolsToUpdate.length === 0) return
+
+    const timeoutId = setTimeout(async () => {
+      for (const { serverId, toolId } of toolsToUpdate) {
         try {
-          await deleteToolMutation.mutateAsync({
+          await updateToolMutation.mutateAsync({
             workspaceId,
-            serverId: server.id,
-            toolId: toolInfo.tool.id,
+            serverId,
+            toolId,
+            toolName: toolName.trim(),
+            toolDescription: toolDescription.trim() || undefined,
+            parameterSchema,
           })
-          setServerToolsMap((prev) => {
-            const next = { ...prev }
-            delete next[server.id]
-            return next
-          })
-          refetchServers()
         } catch (error) {
-          logger.error('Failed to remove tool:', error)
+          logger.error(`Failed to sync tool ${toolId}:`, error)
         }
-      } else {
-        // Add to server
-        if (!toolName.trim()) return
+      }
+    }, 500)
+
+    return () => clearTimeout(timeoutId)
+  }, [
+    toolName,
+    toolDescription,
+    parameterSchema,
+    servers,
+    serverToolsMap,
+    workspaceId,
+    updateToolMutation,
+  ])
+
+  const serverOptions: ComboboxOption[] = useMemo(() => {
+    return servers.map((server) => ({
+      label: server.name,
+      value: server.id,
+      icon: Server,
+    }))
+  }, [servers])
+
+  const handleServerSelectionChange = useCallback(
+    async (newSelectedIds: string[]) => {
+      if (!toolName.trim()) return
+
+      const currentIds = new Set(selectedServerIds)
+      const newIds = new Set(newSelectedIds)
+
+      const toAdd = newSelectedIds.filter((id) => !currentIds.has(id))
+      const toRemove = selectedServerIds.filter((id) => !newIds.has(id))
+
+      for (const serverId of toAdd) {
+        setPendingServerChanges((prev) => new Set(prev).add(serverId))
         try {
           await addToolMutation.mutateAsync({
             workspaceId,
-            serverId: server.id,
+            serverId,
             workflowId,
             toolName: toolName.trim(),
             toolDescription: toolDescription.trim() || undefined,
@@ -351,13 +276,48 @@ export function McpToolDeploy({
           })
           refetchServers()
           onAddedToServer?.()
-          logger.info(`Added workflow ${workflowId} as tool to server ${server.id}`)
+          logger.info(`Added workflow ${workflowId} as tool to server ${serverId}`)
         } catch (error) {
           logger.error('Failed to add tool:', error)
+        } finally {
+          setPendingServerChanges((prev) => {
+            const next = new Set(prev)
+            next.delete(serverId)
+            return next
+          })
+        }
+      }
+
+      for (const serverId of toRemove) {
+        const toolInfo = serverToolsMap[serverId]
+        if (toolInfo?.tool) {
+          setPendingServerChanges((prev) => new Set(prev).add(serverId))
+          try {
+            await deleteToolMutation.mutateAsync({
+              workspaceId,
+              serverId,
+              toolId: toolInfo.tool.id,
+            })
+            setServerToolsMap((prev) => {
+              const next = { ...prev }
+              delete next[serverId]
+              return next
+            })
+            refetchServers()
+          } catch (error) {
+            logger.error('Failed to remove tool:', error)
+          } finally {
+            setPendingServerChanges((prev) => {
+              const next = new Set(prev)
+              next.delete(serverId)
+              return next
+            })
+          }
         }
       }
     },
     [
+      selectedServerIds,
       serverToolsMap,
       toolName,
       toolDescription,
@@ -371,16 +331,17 @@ export function McpToolDeploy({
     ]
   )
 
-  const selectedServersText = useMemo(() => {
-    const count = selectedServerIds.size
-    if (count === 0) return 'Select servers'
+  const selectedServersLabel = useMemo(() => {
+    const count = selectedServerIds.length
+    if (count === 0) return 'Select servers...'
     if (count === 1) {
-      const serverId = Array.from(selectedServerIds)[0]
-      const server = servers.find((s) => s.id === serverId)
+      const server = servers.find((s) => s.id === selectedServerIds[0])
       return server?.name || '1 server'
     }
-    return `${count} servers`
+    return `${count} servers selected`
   }, [selectedServerIds, servers])
+
+  const isPending = pendingServerChanges.size > 0
 
   if (!isDeployed) {
     return (
@@ -410,7 +371,7 @@ export function McpToolDeploy({
           </div>
           <div>
             <Skeleton className='mb-[6.5px] h-[16px] w-[50px]' />
-            <Skeleton className='h-[24px] w-[100px] rounded-[6px]' />
+            <Skeleton className='h-[34px] w-full rounded-[4px]' />
           </div>
         </div>
       </div>
@@ -433,7 +394,6 @@ export function McpToolDeploy({
 
   return (
     <div className='-mx-1 space-y-4 overflow-y-auto px-1'>
-      {/* Query tools for each server */}
       {servers.map((server) => (
         <ServerToolsQuery
           key={server.id}
@@ -445,7 +405,6 @@ export function McpToolDeploy({
       ))}
 
       <div className='space-y-[12px]'>
-        {/* Tool Name */}
         <div>
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
             Tool name
@@ -460,20 +419,18 @@ export function McpToolDeploy({
           </p>
         </div>
 
-        {/* Description */}
         <div>
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
             Description
           </Label>
           <Textarea
             placeholder='Describe what this tool does...'
-            className='min-h-[160px] resize-none'
+            className='min-h-[100px] resize-none'
             value={toolDescription}
             onChange={(e) => setToolDescription(e.target.value)}
           />
         </div>
 
-        {/* Parameters */}
         {inputFormat.length > 0 && (
           <div>
             <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
@@ -501,7 +458,7 @@ export function McpToolDeploy({
                         [field.name]: e.target.value,
                       }))
                     }
-                    placeholder='Add description for MCP clients...'
+                    placeholder='Description'
                     className='mt-[6px] h-[28px] text-[12px]'
                   />
                 </div>
@@ -510,37 +467,32 @@ export function McpToolDeploy({
           </div>
         )}
 
-        {/* Servers - multi-select like OutputSelect */}
         <div>
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
             Servers
           </Label>
-          <Popover open={showServerSelector} onOpenChange={setShowServerSelector}>
-            <PopoverTrigger asChild>
-              <div>
-                <Badge variant='outline' className='cursor-pointer whitespace-nowrap rounded-[6px]'>
-                  <span className='text-[12px]'>{selectedServersText}</span>
-                </Badge>
-              </div>
-            </PopoverTrigger>
-            <PopoverContent side='bottom' align='start' sideOffset={4} border>
-              {servers.map((server) => {
-                const isSelected = selectedServerIds.has(server.id)
-                const isPending = addToolMutation.isPending || deleteToolMutation.isPending
-                return (
-                  <PopoverItem
-                    key={server.id}
-                    active={isSelected}
-                    onClick={() => !isPending && toolName.trim() && handleServerToggle(server)}
-                  >
-                    <Server className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
-                    <span className='flex-1'>{server.name}</span>
-                    {isSelected && <Check className='h-3 w-3' />}
-                  </PopoverItem>
-                )
-              })}
-            </PopoverContent>
-          </Popover>
+          <Combobox
+            options={serverOptions}
+            multiSelect
+            multiSelectValues={selectedServerIds}
+            onMultiSelectChange={handleServerSelectionChange}
+            placeholder='Select servers...'
+            searchable
+            searchPlaceholder='Search servers...'
+            disabled={!toolName.trim() || isPending}
+            isLoading={isPending}
+            overlayContent={
+              <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
+                <Server className='h-[12px] w-[12px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                <span className='truncate'>{selectedServersLabel}</span>
+              </span>
+            }
+          />
+          {!toolName.trim() && (
+            <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
+              Enter a tool name to select servers
+            </p>
+          )}
         </div>
       </div>
 

@@ -551,9 +551,9 @@ export function DeployModal({
             <ModalTabsList activeValue={activeTab}>
               <ModalTabsTrigger value='general'>General</ModalTabsTrigger>
               <ModalTabsTrigger value='api'>API</ModalTabsTrigger>
+              <ModalTabsTrigger value='mcp-tool'>MCP Tool</ModalTabsTrigger>
               <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
               <ModalTabsTrigger value='template'>Template</ModalTabsTrigger>
-              <ModalTabsTrigger value='mcp-tool'>MCP Tool</ModalTabsTrigger>
             </ModalTabsList>
 
             <ModalBody className='min-h-0 flex-1'>

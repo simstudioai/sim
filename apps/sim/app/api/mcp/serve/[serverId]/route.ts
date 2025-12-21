@@ -170,13 +170,18 @@ async function handleToolsList(id: RequestId, serverId: string): Promise<NextRes
 
     const result: ListToolsResult = {
       tools: tools.map((tool) => {
-        const schema = tool.parameterSchema as { properties?: Record<string, unknown> } | null
+        const schema = tool.parameterSchema as {
+          type?: string
+          properties?: Record<string, unknown>
+          required?: string[]
+        } | null
         return {
           name: tool.toolName,
           description: tool.toolDescription || `Execute workflow: ${tool.toolName}`,
           inputSchema: {
             type: 'object' as const,
             properties: schema?.properties || {},
+            ...(schema?.required && schema.required.length > 0 && { required: schema.required }),
           },
         }
       }),
