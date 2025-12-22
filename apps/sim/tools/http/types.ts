@@ -8,6 +8,7 @@ export interface RequestParams {
   params?: TableRow[]
   pathParams?: Record<string, string>
   formData?: Record<string, string | Blob>
+  timeout?: number
 }
 
 export interface RequestResponse extends ToolResponse {

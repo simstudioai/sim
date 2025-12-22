@@ -650,14 +650,41 @@ async function handleInternalRequest(
     // Check request body size before sending to detect potential size limit issues
     validateRequestBodySize(requestParams.body, requestId, toolId)
 
-    // Prepare request options
-    const requestOptions = {
+    // Determine timeout: use params.timeout if provided, otherwise default to 120000ms (2 min)
+    // Max timeout is 600000ms (10 minutes) to prevent indefinite waits
+    const DEFAULT_TIMEOUT_MS = 120000
+    const MAX_TIMEOUT_MS = 600000
+    let timeoutMs = DEFAULT_TIMEOUT_MS
+    if (typeof params.timeout === 'number' && params.timeout > 0) {
+      timeoutMs = Math.min(params.timeout, MAX_TIMEOUT_MS)
+    } else if (typeof params.timeout === 'string') {
+      const parsed = Number.parseInt(params.timeout, 10)
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        timeoutMs = Math.min(parsed, MAX_TIMEOUT_MS)
+      }
+    }
+
+    // Prepare request options with timeout signal
+    const requestOptions: RequestInit = {
       method: requestParams.method,
       headers: headers,
       body: requestParams.body,
+      signal: AbortSignal.timeout(timeoutMs),
     }
 
-    const response = await fetch(fullUrl, requestOptions)
+    let response: Response
+    try {
+      response = await fetch(fullUrl, requestOptions)
+    } catch (fetchError) {
+      // Handle timeout error specifically
+      if (fetchError instanceof Error && fetchError.name === 'TimeoutError') {
+        logger.error(`[${requestId}] Request timed out for ${toolId} after ${timeoutMs}ms`)
+        throw new Error(
+          `Request timed out after ${timeoutMs}ms. Consider increasing the timeout value.`
+        )
+      }
+      throw fetchError
+    }
 
     // For non-OK responses, attempt JSON first; if parsing fails, fall back to text
     if (!response.ok) {
