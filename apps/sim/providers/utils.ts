@@ -1,6 +1,8 @@
+import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
+import type { CompletionUsage } from 'openai/resources/completions'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger, type Logger } from '@/lib/logs/console/logger'
 import { anthropicProvider } from '@/providers/anthropic'
 import { azureOpenAIProvider } from '@/providers/azure-openai'
 import { cerebrasProvider } from '@/providers/cerebras'
@@ -688,7 +690,6 @@ export function prepareToolsWithUsageControl(
     | { type: 'any'; any: { model: string; name: string } }
     | undefined
   toolConfig?: {
-    // Add toolConfig for Google's format
     functionCallingConfig: {
       mode: 'AUTO' | 'ANY' | 'NONE'
       allowedFunctionNames?: string[]
@@ -1060,4 +1061,103 @@ export function prepareToolExecution(
   }
 
   return { toolParams, executionParams }
+}
+
+/**
+ * Creates a ReadableStream from an OpenAI-compatible streaming response.
+ * This is a shared utility used by all OpenAI-compatible providers:
+ * OpenAI, Groq, DeepSeek, xAI, OpenRouter, Mistral, Ollama, vLLM, Azure OpenAI, Cerebras
+ *
+ * @param stream - The async iterable stream from the provider
+ * @param providerName - Name of the provider for logging purposes
+ * @param onComplete - Optional callback called when stream completes with full content and usage
+ * @returns A ReadableStream that can be used for streaming responses
+ */
+export function createOpenAICompatibleStream(
+  stream: AsyncIterable<ChatCompletionChunk>,
+  providerName: string,
+  onComplete?: (content: string, usage: CompletionUsage) => void
+): ReadableStream<Uint8Array> {
+  const streamLogger = createLogger(`${providerName}Utils`)
+  let fullContent = ''
+  let promptTokens = 0
+  let completionTokens = 0
+  let totalTokens = 0
+
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const chunk of stream) {
+          if (chunk.usage) {
+            promptTokens = chunk.usage.prompt_tokens ?? 0
+            completionTokens = chunk.usage.completion_tokens ?? 0
+            totalTokens = chunk.usage.total_tokens ?? 0
+          }
+
+          const content = chunk.choices?.[0]?.delta?.content || ''
+          if (content) {
+            fullContent += content
+            controller.enqueue(new TextEncoder().encode(content))
+          }
+        }
+
+        if (onComplete) {
+          if (promptTokens === 0 && completionTokens === 0) {
+            streamLogger.warn(`${providerName} stream completed without usage data`)
+          }
+          onComplete(fullContent, {
+            prompt_tokens: promptTokens,
+            completion_tokens: completionTokens,
+            total_tokens: totalTokens || promptTokens + completionTokens,
+          })
+        }
+
+        controller.close()
+      } catch (error) {
+        controller.error(error)
+      }
+    },
+  })
+}
+
+/**
+ * Checks if a forced tool was used in an OpenAI-compatible response and updates tracking.
+ * This is a shared utility used by OpenAI-compatible providers:
+ * OpenAI, Groq, DeepSeek, xAI, OpenRouter, Mistral, Ollama, vLLM, Azure OpenAI, Cerebras
+ *
+ * @param response - The API response containing tool calls
+ * @param toolChoice - The tool choice configuration (string or object)
+ * @param providerName - Name of the provider for logging purposes
+ * @param forcedTools - Array of forced tool names
+ * @param usedForcedTools - Array of already used forced tools
+ * @param customLogger - Optional custom logger instance
+ * @returns Object with hasUsedForcedTool flag and updated usedForcedTools array
+ */
+export function checkForForcedToolUsageOpenAI(
+  response: any,
+  toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any },
+  providerName: string,
+  forcedTools: string[],
+  usedForcedTools: string[],
+  customLogger?: Logger
+): { hasUsedForcedTool: boolean; usedForcedTools: string[] } {
+  const checkLogger = customLogger || createLogger(`${providerName}Utils`)
+  let hasUsedForcedTool = false
+  let updatedUsedForcedTools = [...usedForcedTools]
+
+  if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
+    const toolCallsResponse = response.choices[0].message.tool_calls
+    const result = trackForcedToolUsage(
+      toolCallsResponse,
+      toolChoice,
+      checkLogger,
+      providerName.toLowerCase().replace(/\s+/g, '-'),
+      forcedTools,
+      updatedUsedForcedTools
+    )
+    hasUsedForcedTool = result.hasUsedForcedTool
+    updatedUsedForcedTools = result.usedForcedTools
+  }
+
+  return { hasUsedForcedTool, usedForcedTools: updatedUsedForcedTools }
 }

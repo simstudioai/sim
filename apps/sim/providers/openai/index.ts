@@ -292,6 +292,11 @@ export const openaiProvider: ProviderConfig = {
       checkForForcedToolUsage(currentResponse, originalToolChoice)
 
       while (iterationCount < MAX_TOOL_ITERATIONS) {
+        // Extract text content FIRST, before checking for tool calls
+        if (currentResponse.choices[0]?.message?.content) {
+          content = currentResponse.choices[0].message.content
+        }
+
         // Check for tool calls
         const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
         if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
@@ -299,90 +304,119 @@ export const openaiProvider: ProviderConfig = {
         }
 
         logger.info(
-          `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1}/${MAX_TOOL_ITERATIONS})`
+          `Processing ${toolCallsInResponse.length} tool calls in parallel (iteration ${iterationCount + 1}/${MAX_TOOL_ITERATIONS})`
         )
 
         // Track time for tool calls in this batch
         const toolsStartTime = Date.now()
 
-        // Process each tool call
-        for (const toolCall of toolCallsInResponse) {
+        // Execute all tool calls in parallel using Promise.allSettled for resilience
+        const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
+          const toolCallStartTime = Date.now()
+          const toolName = toolCall.function.name
+
           try {
-            const toolName = toolCall.function.name
             const toolArgs = JSON.parse(toolCall.function.arguments)
-
-            // Get the tool from the tools registry
             const tool = request.tools?.find((t) => t.id === toolName)
-            if (!tool) continue
 
-            // Execute the tool
-            const toolCallStartTime = Date.now()
+            if (!tool) {
+              return null // Skip unknown tools
+            }
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
             const result = await executeTool(toolName, executionParams, true)
             const toolCallEndTime = Date.now()
-            const toolCallDuration = toolCallEndTime - toolCallStartTime
 
-            // Add to time segments for both success and failure
-            timeSegments.push({
-              type: 'tool',
-              name: toolName,
+            return {
+              toolCall,
+              toolName,
+              toolParams,
+              result,
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,
-              duration: toolCallDuration,
-            })
-
-            // Prepare result content for the LLM
-            let resultContent: any
-            if (result.success) {
-              toolResults.push(result.output)
-              resultContent = result.output
-            } else {
-              // Include error information so LLM can respond appropriately
-              resultContent = {
-                error: true,
-                message: result.error || 'Tool execution failed',
-                tool: toolName,
-              }
+              duration: toolCallEndTime - toolCallStartTime,
             }
-
-            toolCalls.push({
-              name: toolName,
-              arguments: toolParams,
-              startTime: new Date(toolCallStartTime).toISOString(),
-              endTime: new Date(toolCallEndTime).toISOString(),
-              duration: toolCallDuration,
-              result: resultContent,
-              success: result.success,
-            })
-
-            // Add the tool call and result to messages (both success and failure)
-            currentMessages.push({
-              role: 'assistant',
-              content: null,
-              tool_calls: [
-                {
-                  id: toolCall.id,
-                  type: 'function',
-                  function: {
-                    name: toolName,
-                    arguments: toolCall.function.arguments,
-                  },
-                },
-              ],
-            })
-
-            currentMessages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: JSON.stringify(resultContent),
-            })
           } catch (error) {
-            logger.error('Error processing tool call:', {
-              error,
-              toolName: toolCall?.function?.name,
-            })
+            const toolCallEndTime = Date.now()
+            logger.error('Error processing tool call:', { error, toolName })
+
+            return {
+              toolCall,
+              toolName,
+              toolParams: {},
+              result: {
+                success: false,
+                output: undefined,
+                error: error instanceof Error ? error.message : 'Tool execution failed',
+              },
+              startTime: toolCallStartTime,
+              endTime: toolCallEndTime,
+              duration: toolCallEndTime - toolCallStartTime,
+            }
           }
+        })
+
+        const executionResults = await Promise.allSettled(toolExecutionPromises)
+
+        // Add ONE assistant message with ALL tool calls BEFORE processing results
+        currentMessages.push({
+          role: 'assistant',
+          content: null,
+          tool_calls: toolCallsInResponse.map((tc) => ({
+            id: tc.id,
+            type: 'function',
+            function: {
+              name: tc.function.name,
+              arguments: tc.function.arguments,
+            },
+          })),
+        })
+
+        // Process results in order to maintain consistency
+        for (const settledResult of executionResults) {
+          if (settledResult.status === 'rejected' || !settledResult.value) continue
+
+          const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
+            settledResult.value
+
+          // Add to time segments
+          timeSegments.push({
+            type: 'tool',
+            name: toolName,
+            startTime: startTime,
+            endTime: endTime,
+            duration: duration,
+          })
+
+          // Prepare result content for the LLM
+          let resultContent: any
+          if (result.success) {
+            toolResults.push(result.output)
+            resultContent = result.output
+          } else {
+            resultContent = {
+              error: true,
+              message: result.error || 'Tool execution failed',
+              tool: toolName,
+            }
+          }
+
+          toolCalls.push({
+            name: toolName,
+            arguments: toolParams,
+            startTime: new Date(startTime).toISOString(),
+            endTime: new Date(endTime).toISOString(),
+            duration: duration,
+            result: resultContent,
+            success: result.success,
+          })
+
+          // Add tool result message
+          currentMessages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(resultContent),
+          })
         }
 
         // Calculate tool call time for this iteration
@@ -437,11 +471,6 @@ export const openaiProvider: ProviderConfig = {
 
         // Add to model time
         modelTime += thisModelTime
-
-        // Update content if we have a text response
-        if (currentResponse.choices[0]?.message?.content) {
-          content = currentResponse.choices[0].message.content
-        }
 
         // Update token counts and cost
         if (currentResponse.usage) {

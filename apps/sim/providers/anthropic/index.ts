@@ -413,6 +413,16 @@ ${fieldDescriptions}
 
         try {
           while (iterationCount < MAX_TOOL_ITERATIONS) {
+            // Extract text content FIRST, before checking for tool calls
+            const textContent = currentResponse.content
+              .filter((item) => item.type === 'text')
+              .map((item) => item.text)
+              .join('\n')
+
+            if (textContent) {
+              content = textContent
+            }
+
             // Check for tool calls
             const toolUses = currentResponse.content.filter((item) => item.type === 'tool_use')
             if (!toolUses || toolUses.length === 0) {
@@ -422,91 +432,129 @@ ${fieldDescriptions}
             // Track time for tool calls in this batch
             const toolsStartTime = Date.now()
 
-            // Process each tool call
-            for (const toolUse of toolUses) {
+            // Execute all tool calls in parallel using Promise.allSettled for resilience
+            const toolExecutionPromises = toolUses.map(async (toolUse) => {
+              const toolCallStartTime = Date.now()
+              const toolName = toolUse.name
+              const toolArgs = toolUse.input as Record<string, any>
+
               try {
-                const toolName = toolUse.name
-                const toolArgs = toolUse.input as Record<string, any>
-
-                // Get the tool from the tools registry
                 const tool = request.tools?.find((t: any) => t.id === toolName)
-                if (!tool) continue
-
-                // Execute the tool
-                const toolCallStartTime = Date.now()
+                if (!tool) return null
 
                 const { toolParams, executionParams } = prepareToolExecution(
                   tool,
                   toolArgs,
                   request
                 )
-
-                // Use general tool system for requests
                 const result = await executeTool(toolName, executionParams, true)
                 const toolCallEndTime = Date.now()
-                const toolCallDuration = toolCallEndTime - toolCallStartTime
 
-                // Add to time segments for both success and failure
-                timeSegments.push({
-                  type: 'tool',
-                  name: toolName,
+                return {
+                  toolUse,
+                  toolName,
+                  toolArgs,
+                  toolParams,
+                  result,
                   startTime: toolCallStartTime,
                   endTime: toolCallEndTime,
-                  duration: toolCallDuration,
-                })
-
-                // Prepare result content for the LLM
-                let resultContent: any
-                if (result.success) {
-                  toolResults.push(result.output)
-                  resultContent = result.output
-                } else {
-                  // Include error information so LLM can respond appropriately
-                  resultContent = {
-                    error: true,
-                    message: result.error || 'Tool execution failed',
-                    tool: toolName,
-                  }
+                  duration: toolCallEndTime - toolCallStartTime,
                 }
-
-                toolCalls.push({
-                  name: toolName,
-                  arguments: toolParams,
-                  startTime: new Date(toolCallStartTime).toISOString(),
-                  endTime: new Date(toolCallEndTime).toISOString(),
-                  duration: toolCallDuration,
-                  result: resultContent,
-                  success: result.success,
-                })
-
-                // Add the tool call and result to messages (both success and failure)
-                const toolUseId = generateToolUseId(toolName)
-
-                currentMessages.push({
-                  role: 'assistant',
-                  content: [
-                    {
-                      type: 'tool_use',
-                      id: toolUseId,
-                      name: toolName,
-                      input: toolArgs,
-                    } as any,
-                  ],
-                })
-
-                currentMessages.push({
-                  role: 'user',
-                  content: [
-                    {
-                      type: 'tool_result',
-                      tool_use_id: toolUseId,
-                      content: JSON.stringify(resultContent),
-                    } as any,
-                  ],
-                })
               } catch (error) {
-                logger.error('Error processing tool call:', { error })
+                const toolCallEndTime = Date.now()
+                logger.error('Error processing tool call:', { error, toolName })
+
+                return {
+                  toolUse,
+                  toolName,
+                  toolArgs,
+                  toolParams: {},
+                  result: {
+                    success: false,
+                    output: undefined,
+                    error: error instanceof Error ? error.message : 'Tool execution failed',
+                  },
+                  startTime: toolCallStartTime,
+                  endTime: toolCallEndTime,
+                  duration: toolCallEndTime - toolCallStartTime,
+                }
               }
+            })
+
+            const executionResults = await Promise.allSettled(toolExecutionPromises)
+
+            // Process results in order to maintain consistency
+            for (const settledResult of executionResults) {
+              if (settledResult.status === 'rejected' || !settledResult.value) continue
+
+              const {
+                toolUse,
+                toolName,
+                toolArgs,
+                toolParams,
+                result,
+                startTime,
+                endTime,
+                duration,
+              } = settledResult.value
+
+              // Add to time segments
+              timeSegments.push({
+                type: 'tool',
+                name: toolName,
+                startTime: startTime,
+                endTime: endTime,
+                duration: duration,
+              })
+
+              // Prepare result content for the LLM
+              let resultContent: any
+              if (result.success) {
+                toolResults.push(result.output)
+                resultContent = result.output
+              } else {
+                resultContent = {
+                  error: true,
+                  message: result.error || 'Tool execution failed',
+                  tool: toolName,
+                }
+              }
+
+              toolCalls.push({
+                name: toolName,
+                arguments: toolParams,
+                startTime: new Date(startTime).toISOString(),
+                endTime: new Date(endTime).toISOString(),
+                duration: duration,
+                result: resultContent,
+                success: result.success,
+              })
+
+              // Add the tool call and result to messages
+              const toolUseId = generateToolUseId(toolName)
+
+              currentMessages.push({
+                role: 'assistant',
+                content: [
+                  {
+                    type: 'tool_use',
+                    id: toolUseId,
+                    name: toolName,
+                    input: toolArgs,
+                  } as any,
+                ],
+              })
+
+              currentMessages.push({
+                role: 'user',
+                content: [
+                  {
+                    type: 'tool_result',
+                    tool_use_id: toolUseId,
+                    content: JSON.stringify(resultContent),
+                  } as any,
+                ],
+              })
             }
 
             // Calculate tool call time for this iteration
@@ -580,16 +628,6 @@ ${fieldDescriptions}
 
             // Add to model time
             modelTime += thisModelTime
-
-            // Update content if we have a text response
-            const textContent = currentResponse.content
-              .filter((item) => item.type === 'text')
-              .map((item) => item.text)
-              .join('\n')
-
-            if (textContent) {
-              content = textContent
-            }
 
             // Update token counts
             if (currentResponse.usage) {
@@ -759,6 +797,17 @@ ${fieldDescriptions}
 
       try {
         while (iterationCount < MAX_TOOL_ITERATIONS) {
+          // Extract text content FIRST, before checking for tool calls
+          // This ensures we capture the final response even when breaking out of the loop
+          const textContent = currentResponse.content
+            .filter((item) => item.type === 'text')
+            .map((item) => item.text)
+            .join('\n')
+
+          if (textContent) {
+            content = textContent
+          }
+
           // Check for tool calls
           const toolUses = currentResponse.content.filter((item) => item.type === 'tool_use')
           if (!toolUses || toolUses.length === 0) {
@@ -768,87 +817,115 @@ ${fieldDescriptions}
           // Track time for tool calls in this batch
           const toolsStartTime = Date.now()
 
-          // Process each tool call
-          for (const toolUse of toolUses) {
+          // Execute all tool calls in parallel using Promise.allSettled for resilience
+          const toolExecutionPromises = toolUses.map(async (toolUse) => {
+            const toolCallStartTime = Date.now()
+            const toolName = toolUse.name
+            const toolArgs = toolUse.input as Record<string, any>
+
             try {
-              const toolName = toolUse.name
-              const toolArgs = toolUse.input as Record<string, any>
-
-              // Get the tool from the tools registry
               const tool = request.tools?.find((t) => t.id === toolName)
-              if (!tool) continue
-
-              // Execute the tool
-              const toolCallStartTime = Date.now()
+              if (!tool) return null
 
               const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-
-              // Use general tool system for requests
               const result = await executeTool(toolName, executionParams, true)
               const toolCallEndTime = Date.now()
-              const toolCallDuration = toolCallEndTime - toolCallStartTime
 
-              // Add to time segments for both success and failure
-              timeSegments.push({
-                type: 'tool',
-                name: toolName,
+              return {
+                toolName,
+                toolArgs,
+                toolParams,
+                result,
                 startTime: toolCallStartTime,
                 endTime: toolCallEndTime,
-                duration: toolCallDuration,
-              })
-
-              // Prepare result content for the LLM
-              let resultContent: any
-              if (result.success) {
-                toolResults.push(result.output)
-                resultContent = result.output
-              } else {
-                // Include error information so LLM can respond appropriately
-                resultContent = {
-                  error: true,
-                  message: result.error || 'Tool execution failed',
-                  tool: toolName,
-                }
+                duration: toolCallEndTime - toolCallStartTime,
               }
-
-              toolCalls.push({
-                name: toolName,
-                arguments: toolParams,
-                startTime: new Date(toolCallStartTime).toISOString(),
-                endTime: new Date(toolCallEndTime).toISOString(),
-                duration: toolCallDuration,
-                result: resultContent,
-                success: result.success,
-              })
-
-              // Add the tool call and result to messages (both success and failure)
-              const toolUseId = generateToolUseId(toolName)
-
-              currentMessages.push({
-                role: 'assistant',
-                content: [
-                  {
-                    type: 'tool_use',
-                    id: toolUseId,
-                    name: toolName,
-                    input: toolArgs,
-                  } as any,
-                ],
-              })
-
-              currentMessages.push({
-                role: 'user',
-                content: [
-                  {
-                    type: 'tool_result',
-                    tool_use_id: toolUseId,
-                    content: JSON.stringify(resultContent),
-                  } as any,
-                ],
-              })
             } catch (error) {
-              logger.error('Error processing tool call:', { error })
+              const toolCallEndTime = Date.now()
+              logger.error('Error processing tool call:', { error, toolName })
+
+              return {
+                toolName,
+                toolArgs,
+                toolParams: {},
+                result: {
+                  success: false,
+                  output: undefined,
+                  error: error instanceof Error ? error.message : 'Tool execution failed',
+                },
+                startTime: toolCallStartTime,
+                endTime: toolCallEndTime,
+                duration: toolCallEndTime - toolCallStartTime,
+              }
             }
+          })
+
+          const executionResults = await Promise.allSettled(toolExecutionPromises)
+
+          // Process results in order to maintain consistency
+          for (const settledResult of executionResults) {
+            if (settledResult.status === 'rejected' || !settledResult.value) continue
+
+            const { toolName, toolArgs, toolParams, result, startTime, endTime, duration } =
+              settledResult.value
+
+            // Add to time segments
+            timeSegments.push({
+              type: 'tool',
+              name: toolName,
+              startTime: startTime,
+              endTime: endTime,
+              duration: duration,
+            })
+
+            // Prepare result content for the LLM
+            let resultContent: any
+            if (result.success) {
+              toolResults.push(result.output)
+              resultContent = result.output
+            } else {
+              resultContent = {
+                error: true,
+                message: result.error || 'Tool execution failed',
+                tool: toolName,
+              }
+            }
+
+            toolCalls.push({
+              name: toolName,
+              arguments: toolParams,
+              startTime: new Date(startTime).toISOString(),
+              endTime: new Date(endTime).toISOString(),
+              duration: duration,
+              result: resultContent,
+              success: result.success,
+            })
+
+            // Add the tool call and result to messages
+            const toolUseId = generateToolUseId(toolName)
+
+            currentMessages.push({
+              role: 'assistant',
+              content: [
+                {
+                  type: 'tool_use',
+                  id: toolUseId,
+                  name: toolName,
+                  input: toolArgs,
+                } as any,
+              ],
+            })
+
+            currentMessages.push({
+              role: 'user',
+              content: [
+                {
+                  type: 'tool_result',
+                  tool_use_id: toolUseId,
+                  content: JSON.stringify(resultContent),
+                } as any,
+              ],
+            })
           }
 
           // Calculate tool call time for this iteration
@@ -922,16 +999,6 @@ ${fieldDescriptions}
 
           // Add to model time
           modelTime += thisModelTime
-
-          // Update content if we have a text response
-          const textContent = currentResponse.content
-            .filter((item) => item.type === 'text')
-            .map((item) => item.text)
-            .join('\n')
-
-          if (textContent) {
-            content = textContent
-          }
 
           // Update token counts and cost
           if (currentResponse.usage) {

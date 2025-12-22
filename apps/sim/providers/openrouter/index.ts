@@ -231,81 +231,124 @@ export const openRouterProvider: ProviderConfig = {
       usedForcedTools = forcedToolResult.usedForcedTools
 
       while (iterationCount < MAX_TOOL_ITERATIONS) {
+        // Extract text content FIRST, before checking for tool calls
+        if (currentResponse.choices[0]?.message?.content) {
+          content = currentResponse.choices[0].message.content
+        }
+
         const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
         if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
           break
         }
 
         const toolsStartTime = Date.now()
-        for (const toolCall of toolCallsInResponse) {
+
+        // Execute all tool calls in parallel using Promise.allSettled for resilience
+        const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
+          const toolCallStartTime = Date.now()
+          const toolName = toolCall.function.name
+
           try {
-            const toolName = toolCall.function.name
             const toolArgs = JSON.parse(toolCall.function.arguments)
             const tool = request.tools?.find((t) => t.id === toolName)
-            if (!tool) continue
 
-            const toolCallStartTime = Date.now()
+            if (!tool) return null
+
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
             const result = await executeTool(toolName, executionParams, true)
             const toolCallEndTime = Date.now()
-            const toolCallDuration = toolCallEndTime - toolCallStartTime
 
-            timeSegments.push({
-              type: 'tool',
-              name: toolName,
+            return {
+              toolCall,
+              toolName,
+              toolParams,
+              result,
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,
-              duration: toolCallDuration,
-            })
-
-            let resultContent: any
-            if (result.success) {
-              toolResults.push(result.output)
-              resultContent = result.output
-            } else {
-              resultContent = {
-                error: true,
-                message: result.error || 'Tool execution failed',
-                tool: toolName,
-              }
+              duration: toolCallEndTime - toolCallStartTime,
             }
-
-            toolCalls.push({
-              name: toolName,
-              arguments: toolParams,
-              startTime: new Date(toolCallStartTime).toISOString(),
-              endTime: new Date(toolCallEndTime).toISOString(),
-              duration: toolCallDuration,
-              result: resultContent,
-              success: result.success,
-            })
-
-            currentMessages.push({
-              role: 'assistant',
-              content: null,
-              tool_calls: [
-                {
-                  id: toolCall.id,
-                  type: 'function',
-                  function: {
-                    name: toolName,
-                    arguments: toolCall.function.arguments,
-                  },
-                },
-              ],
-            })
-
-            currentMessages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: JSON.stringify(resultContent),
-            })
           } catch (error) {
+            const toolCallEndTime = Date.now()
             logger.error('Error processing tool call (OpenRouter):', {
               error: error instanceof Error ? error.message : String(error),
-              toolName: toolCall?.function?.name,
+              toolName,
             })
+
+            return {
+              toolCall,
+              toolName,
+              toolParams: {},
+              result: {
+                success: false,
+                output: undefined,
+                error: error instanceof Error ? error.message : 'Tool execution failed',
+              },
+              startTime: toolCallStartTime,
+              endTime: toolCallEndTime,
+              duration: toolCallEndTime - toolCallStartTime,
+            }
           }
+        })
+
+        const executionResults = await Promise.allSettled(toolExecutionPromises)
+
+        // Add ONE assistant message with ALL tool calls BEFORE processing results
+        currentMessages.push({
+          role: 'assistant',
+          content: null,
+          tool_calls: toolCallsInResponse.map((tc) => ({
+            id: tc.id,
+            type: 'function',
+            function: {
+              name: tc.function.name,
+              arguments: tc.function.arguments,
+            },
+          })),
+        })
+
+        // Process results in order to maintain consistency
+        for (const settledResult of executionResults) {
+          if (settledResult.status === 'rejected' || !settledResult.value) continue
+
+          const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
+            settledResult.value
+
+          timeSegments.push({
+            type: 'tool',
+            name: toolName,
+            startTime: startTime,
+            endTime: endTime,
+            duration: duration,
+          })
+
+          let resultContent: any
+          if (result.success) {
+            toolResults.push(result.output)
+            resultContent = result.output
+          } else {
+            resultContent = {
+              error: true,
+              message: result.error || 'Tool execution failed',
+              tool: toolName,
+            }
+          }
+
+          toolCalls.push({
+            name: toolName,
+            arguments: toolParams,
+            startTime: new Date(startTime).toISOString(),
+            endTime: new Date(endTime).toISOString(),
+            duration: duration,
+            result: resultContent,
+            success: result.success,
+          })
+
+          // Add tool result message
+          currentMessages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(resultContent),
+          })
         }
 
         const thisToolsTime = Date.now() - toolsStartTime
