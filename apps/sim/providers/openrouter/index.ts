@@ -7,6 +7,7 @@ import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromOpenAIStream,
+  supportsNativeStructuredOutputs,
 } from '@/providers/openrouter/utils'
 import type {
   ProviderConfig,
@@ -16,12 +17,46 @@ import type {
 } from '@/providers/types'
 import {
   calculateCost,
+  generateSchemaInstructions,
   prepareToolExecution,
   prepareToolsWithUsageControl,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('OpenRouterProvider')
+
+/**
+ * Applies structured output configuration to a payload based on model capabilities.
+ * Uses json_schema with require_parameters for supported models, falls back to json_object with prompt instructions.
+ */
+async function applyResponseFormat(
+  targetPayload: any,
+  messages: any[],
+  responseFormat: any,
+  model: string
+): Promise<any[]> {
+  const useNative = await supportsNativeStructuredOutputs(model)
+
+  if (useNative) {
+    logger.info('Using native structured outputs for OpenRouter model', { model })
+    targetPayload.response_format = {
+      type: 'json_schema',
+      json_schema: {
+        name: responseFormat.name || 'response_schema',
+        schema: responseFormat.schema || responseFormat,
+        strict: responseFormat.strict !== false,
+      },
+    }
+    targetPayload.provider = { ...targetPayload.provider, require_parameters: true }
+    return messages
+  }
+
+  logger.info('Using json_object mode with prompt instructions for OpenRouter model', { model })
+  const schema = responseFormat.schema || responseFormat
+  const schemaInstructions = generateSchemaInstructions(schema, responseFormat.name)
+  targetPayload.response_format = { type: 'json_object' }
+  return [...messages, { role: 'user', content: schemaInstructions }]
+}
 
 export const openRouterProvider: ProviderConfig = {
   id: 'openrouter',
@@ -88,17 +123,6 @@ export const openRouterProvider: ProviderConfig = {
     if (request.temperature !== undefined) payload.temperature = request.temperature
     if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
 
-    if (request.responseFormat) {
-      payload.response_format = {
-        type: 'json_schema',
-        json_schema: {
-          name: request.responseFormat.name || 'response_schema',
-          schema: request.responseFormat.schema || request.responseFormat,
-          strict: request.responseFormat.strict !== false,
-        },
-      }
-    }
-
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
     let hasActiveTools = false
     if (tools?.length) {
@@ -115,6 +139,15 @@ export const openRouterProvider: ProviderConfig = {
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
     try {
+      if (request.responseFormat && !hasActiveTools) {
+        payload.messages = await applyResponseFormat(
+          payload,
+          payload.messages,
+          request.responseFormat,
+          requestedModel
+        )
+      }
+
       if (request.stream && (!tools || tools.length === 0 || !hasActiveTools)) {
         const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
@@ -397,13 +430,29 @@ export const openRouterProvider: ProviderConfig = {
       if (request.stream) {
         const accumulatedCost = calculateCost(requestedModel, tokens.prompt, tokens.completion)
 
-        const streamingParams: ChatCompletionCreateParamsStreaming = {
-          ...payload,
-          messages: currentMessages,
-          tool_choice: 'auto',
+        const streamingParams: ChatCompletionCreateParamsStreaming & { provider?: any } = {
+          model: payload.model,
+          messages: [...currentMessages],
           stream: true,
           stream_options: { include_usage: true },
         }
+
+        if (payload.temperature !== undefined) {
+          streamingParams.temperature = payload.temperature
+        }
+        if (payload.max_tokens !== undefined) {
+          streamingParams.max_tokens = payload.max_tokens
+        }
+
+        if (request.responseFormat) {
+          ;(streamingParams as any).messages = await applyResponseFormat(
+            streamingParams as any,
+            streamingParams.messages,
+            request.responseFormat,
+            requestedModel
+          )
+        }
+
         const streamResponse = await client.chat.completions.create(streamingParams)
 
         const streamingResult = {
@@ -467,6 +516,49 @@ export const openRouterProvider: ProviderConfig = {
         return streamingResult as StreamingExecution
       }
 
+      if (request.responseFormat && hasActiveTools && toolCalls.length > 0) {
+        const finalPayload: any = {
+          model: payload.model,
+          messages: [...currentMessages],
+        }
+        if (payload.temperature !== undefined) {
+          finalPayload.temperature = payload.temperature
+        }
+        if (payload.max_tokens !== undefined) {
+          finalPayload.max_tokens = payload.max_tokens
+        }
+
+        finalPayload.messages = await applyResponseFormat(
+          finalPayload,
+          finalPayload.messages,
+          request.responseFormat,
+          requestedModel
+        )
+
+        const finalStartTime = Date.now()
+        const finalResponse = await client.chat.completions.create(finalPayload)
+        const finalEndTime = Date.now()
+        const finalDuration = finalEndTime - finalStartTime
+
+        timeSegments.push({
+          type: 'model',
+          name: 'Final structured response',
+          startTime: finalStartTime,
+          endTime: finalEndTime,
+          duration: finalDuration,
+        })
+        modelTime += finalDuration
+
+        if (finalResponse.choices[0]?.message?.content) {
+          content = finalResponse.choices[0].message.content
+        }
+        if (finalResponse.usage) {
+          tokens.prompt += finalResponse.usage.prompt_tokens || 0
+          tokens.completion += finalResponse.usage.completion_tokens || 0
+          tokens.total += finalResponse.usage.total_tokens || 0
+        }
+      }
+
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
@@ -492,10 +584,21 @@ export const openRouterProvider: ProviderConfig = {
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
-      logger.error('Error in OpenRouter request:', {
+
+      const errorDetails: Record<string, any> = {
         error: error instanceof Error ? error.message : String(error),
         duration: totalDuration,
-      })
+      }
+      if (error && typeof error === 'object') {
+        const err = error as any
+        if (err.status) errorDetails.status = err.status
+        if (err.code) errorDetails.code = err.code
+        if (err.type) errorDetails.type = err.type
+        if (err.error?.message) errorDetails.providerMessage = err.error.message
+        if (err.error?.metadata) errorDetails.metadata = err.error.metadata
+      }
+
+      logger.error('Error in OpenRouter request:', errorDetails)
       const enhancedError = new Error(error instanceof Error ? error.message : String(error))
       // @ts-ignore
       enhancedError.timing = {

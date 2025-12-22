@@ -276,6 +276,22 @@ export function getProviderIcon(model: string): React.ComponentType<{ className?
   return PROVIDER_DEFINITIONS[providerId]?.icon || null
 }
 
+/**
+ * Generates prompt instructions for structured JSON output from a JSON schema.
+ * Used as a fallback when native structured outputs are not supported.
+ */
+export function generateSchemaInstructions(schema: any, schemaName?: string): string {
+  const name = schemaName || 'response'
+  return `IMPORTANT: You must respond with a valid JSON object that conforms to the following schema.
+Do not include any text before or after the JSON object. Only output the JSON.
+
+Schema name: ${name}
+JSON Schema:
+${JSON.stringify(schema, null, 2)}
+
+Your response must be valid JSON that exactly matches this schema structure.`
+}
+
 export function generateStructuredOutputInstructions(responseFormat: any): string {
   if (!responseFormat) return ''
 

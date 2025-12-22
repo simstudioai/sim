@@ -185,13 +185,13 @@ export const anthropicProvider: ProviderConfig = {
       const schema = request.responseFormat.schema || request.responseFormat
 
       if (useNativeStructuredOutputs) {
+        const schemaWithConstraints = {
+          ...schema,
+          additionalProperties: false,
+        }
         payload.output_format = {
           type: 'json_schema',
-          json_schema: {
-            name: request.responseFormat.name || 'response_schema',
-            schema: schema,
-            strict: true,
-          },
+          schema: schemaWithConstraints,
         }
         logger.info(`Using native structured outputs for model: ${modelId}`)
       } else {

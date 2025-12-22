@@ -81,7 +81,11 @@ export const cerebrasProvider: ProviderConfig = {
       if (request.responseFormat) {
         payload.response_format = {
           type: 'json_schema',
-          schema: request.responseFormat.schema || request.responseFormat,
+          json_schema: {
+            name: request.responseFormat.name || 'response_schema',
+            schema: request.responseFormat.schema || request.responseFormat,
+            strict: request.responseFormat.strict !== false,
+          },
         }
       }
 
