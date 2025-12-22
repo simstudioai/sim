@@ -23,13 +23,7 @@ import {
   VllmIcon,
   xAIIcon,
 } from '@/components/icons'
-
-export interface ModelPricing {
-  input: number // Per 1M tokens
-  cachedInput?: number // Per 1M tokens (if supported)
-  output: number // Per 1M tokens
-  updatedAt: string
-}
+import type { ModelPricing } from '@/providers/types'
 
 export interface ModelCapabilities {
   temperature?: {

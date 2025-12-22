@@ -19,10 +19,10 @@ export type ProviderId =
  * Model pricing information per million tokens
  */
 export interface ModelPricing {
-  input: number
-  cachedInput?: number
-  output: number
-  updatedAt: string
+  input: number // Per 1M tokens
+  cachedInput?: number // Per 1M tokens (if supported)
+  output: number // Per 1M tokens
+  updatedAt: string // Last updated date
 }
 
 export type ModelPricingMap = Record<string, ModelPricing>
