@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { memory, workflowBlocks } from '@sim/db/schema'
+import { memory } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -9,43 +9,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getWorkflowAccessContext } from '@/lib/workflows/utils'
 
 const logger = createLogger('MemoryByIdAPI')
-
-/**
- * Parse memory key into conversationId and blockId
- * Key format: conversationId:blockId
- */
-function parseMemoryKey(key: string): { conversationId: string; blockId: string } | null {
-  const parts = key.split(':')
-  if (parts.length !== 2) {
-    return null
-  }
-  return {
-    conversationId: parts[0],
-    blockId: parts[1],
-  }
-}
-
-/**
- * Lookup block name from block ID
- */
-async function getBlockName(blockId: string, workflowId: string): Promise<string | undefined> {
-  try {
-    const result = await db
-      .select({ name: workflowBlocks.name })
-      .from(workflowBlocks)
-      .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
-      .limit(1)
-
-    if (result.length === 0) {
-      return undefined
-    }
-
-    return result[0].name
-  } catch (error) {
-    logger.error('Error looking up block name', { error, blockId, workflowId })
-    return undefined
-  }
-}
 
 const memoryQuerySchema = z.object({
   workflowId: z.string().uuid('Invalid workflow ID format'),
@@ -130,7 +93,7 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 /**
- * GET handler for retrieving a specific memory by ID
+ * GET handler for retrieving a specific memory by ID (conversationId)
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId()
@@ -188,26 +151,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const mem = memories[0]
-    const parsed = parseMemoryKey(mem.key)
 
-    let enrichedMemory
-    if (!parsed) {
-      enrichedMemory = {
-        conversationId: mem.key,
-        blockId: 'unknown',
-        blockName: 'unknown',
-        data: mem.data,
-      }
-    } else {
-      const { conversationId, blockId } = parsed
-      const blockName = (await getBlockName(blockId, validatedWorkflowId)) || 'unknown'
-
-      enrichedMemory = {
-        conversationId,
-        blockId,
-        blockName,
-        data: mem.data,
-      }
+    const enrichedMemory = {
+      conversationId: mem.key,
+      data: mem.data,
     }
 
     logger.info(
@@ -424,26 +371,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       .limit(1)
 
     const mem = updatedMemories[0]
-    const parsed = parseMemoryKey(mem.key)
 
-    let enrichedMemory
-    if (!parsed) {
-      enrichedMemory = {
-        conversationId: mem.key,
-        blockId: 'unknown',
-        blockName: 'unknown',
-        data: mem.data,
-      }
-    } else {
-      const { conversationId, blockId } = parsed
-      const blockName = (await getBlockName(blockId, validatedWorkflowId)) || 'unknown'
-
-      enrichedMemory = {
-        conversationId,
-        blockId,
-        blockName,
-        data: mem.data,
-      }
+    const enrichedMemory = {
+      conversationId: mem.key,
+      data: mem.data,
     }
 
     logger.info(

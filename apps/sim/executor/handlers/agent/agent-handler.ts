@@ -47,7 +47,7 @@ export class AgentBlockHandler implements BlockHandler {
     const providerId = getProviderFromModel(model)
     const formattedTools = await this.formatTools(ctx, filteredInputs.tools || [])
     const streamingConfig = this.getStreamingConfig(ctx, block)
-    const messages = await this.buildMessages(ctx, filteredInputs, block.id)
+    const messages = await this.buildMessages(ctx, filteredInputs)
 
     const providerRequest = this.buildProviderRequest({
       ctx,
@@ -68,7 +68,7 @@ export class AgentBlockHandler implements BlockHandler {
       filteredInputs
     )
 
-    await this.persistResponseToMemory(ctx, filteredInputs, result, block.id)
+    await this.persistResponseToMemory(ctx, filteredInputs, result)
 
     return result
   }
@@ -686,14 +686,13 @@ export class AgentBlockHandler implements BlockHandler {
 
   private async buildMessages(
     ctx: ExecutionContext,
-    inputs: AgentInputs,
-    blockId: string
+    inputs: AgentInputs
   ): Promise<Message[] | undefined> {
     const messages: Message[] = []
 
     // 1. Fetch memory history if configured (industry standard: chronological order)
     if (inputs.memoryType && inputs.memoryType !== 'none') {
-      const memoryMessages = await memoryService.fetchMemoryMessages(ctx, inputs, blockId)
+      const memoryMessages = await memoryService.fetchMemoryMessages(ctx, inputs)
       messages.push(...memoryMessages)
     }
 
@@ -753,7 +752,7 @@ export class AgentBlockHandler implements BlockHandler {
         lastUserMessage &&
         (inputs.userPrompt || (inputs.messages && inputs.messages.length > 0))
       ) {
-        await memoryService.persistUserMessage(ctx, inputs, lastUserMessage, blockId)
+        await memoryService.persistUserMessage(ctx, inputs, lastUserMessage)
       }
     }
 
@@ -1045,15 +1044,14 @@ export class AgentBlockHandler implements BlockHandler {
       try {
         const executionData = JSON.parse(executionDataHeader)
 
-        // If execution data contains full content, persist to memory
         if (ctx && inputs && executionData.output?.content) {
           const assistantMessage: Message = {
             role: 'assistant',
             content: executionData.output.content,
           }
-          // Fire and forget - don't await
+
           memoryService
-            .persistMemoryMessage(ctx, inputs, assistantMessage, block.id)
+            .persistMemoryMessage(ctx, inputs, assistantMessage)
             .catch((error) =>
               logger.error('Failed to persist streaming response to memory:', error)
             )
@@ -1161,8 +1159,7 @@ export class AgentBlockHandler implements BlockHandler {
   private async persistResponseToMemory(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    result: BlockOutput | StreamingExecution,
-    blockId: string
+    result: BlockOutput | StreamingExecution
   ): Promise<void> {
     // Only persist if memoryType is configured
     if (!inputs.memoryType || inputs.memoryType === 'none') {
@@ -1188,7 +1185,7 @@ export class AgentBlockHandler implements BlockHandler {
         content,
       }
 
-      await memoryService.persistMemoryMessage(ctx, inputs, assistantMessage, blockId)
+      await memoryService.persistMemoryMessage(ctx, inputs, assistantMessage)
 
       logger.debug('Persisted assistant response to memory', {
         workflowId: ctx.workflowId,

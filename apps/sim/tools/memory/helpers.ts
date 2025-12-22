@@ -1,45 +1,25 @@
 /**
- * Parse memory key into conversationId and blockId
- * Supports two formats:
- * - New format: conversationId:blockId (splits on LAST colon to handle IDs with colons)
- * - Legacy format: id (without colon, treated as conversationId with blockId='default')
- * @param key The memory key to parse
- * @returns Object with conversationId and blockId, or null if invalid
+ * Parse memory key to extract conversationId
+ * Memory is now thread-scoped, so the key is just the conversationId
+ * @param key The memory key (conversationId)
+ * @returns Object with conversationId, or null if invalid
  */
-export function parseMemoryKey(key: string): { conversationId: string; blockId: string } | null {
+export function parseMemoryKey(key: string): { conversationId: string } | null {
   if (!key) {
     return null
   }
 
-  const lastColonIndex = key.lastIndexOf(':')
-
-  // Legacy format: no colon found
-  if (lastColonIndex === -1) {
-    return {
-      conversationId: key,
-      blockId: 'default',
-    }
-  }
-
-  // Invalid: colon at start or end
-  if (lastColonIndex === 0 || lastColonIndex === key.length - 1) {
-    return null
-  }
-
-  // New format: split on last colon to handle IDs with colons
-  // This allows conversationIds like "user:123" to work correctly
   return {
-    conversationId: key.substring(0, lastColonIndex),
-    blockId: key.substring(lastColonIndex + 1),
+    conversationId: key,
   }
 }
 
 /**
- * Build memory key from conversationId and blockId
+ * Build memory key from conversationId
+ * Memory is thread-scoped, so key is just the conversationId
  * @param conversationId The conversation ID
- * @param blockId The block ID
- * @returns The memory key in format conversationId:blockId
+ * @returns The memory key (same as conversationId)
  */
-export function buildMemoryKey(conversationId: string, blockId: string): string {
-  return `${conversationId}:${blockId}`
+export function buildMemoryKey(conversationId: string): string {
+  return conversationId
 }

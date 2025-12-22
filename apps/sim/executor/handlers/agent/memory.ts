@@ -16,11 +16,7 @@ export class Memory {
   /**
    * Fetch messages from memory based on memoryType configuration
    */
-  async fetchMemoryMessages(
-    ctx: ExecutionContext,
-    inputs: AgentInputs,
-    blockId: string
-  ): Promise<Message[]> {
+  async fetchMemoryMessages(ctx: ExecutionContext, inputs: AgentInputs): Promise<Message[]> {
     if (!inputs.memoryType || inputs.memoryType === 'none') {
       return []
     }
@@ -33,7 +29,7 @@ export class Memory {
     try {
       this.validateInputs(inputs.conversationId)
 
-      const memoryKey = this.buildMemoryKey(ctx, inputs, blockId)
+      const memoryKey = this.buildMemoryKey(inputs)
       let messages = await this.fetchFromMemoryAPI(ctx.workflowId, memoryKey)
 
       switch (inputs.memoryType) {
@@ -70,8 +66,7 @@ export class Memory {
   async persistMemoryMessage(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    assistantMessage: Message,
-    blockId: string
+    assistantMessage: Message
   ): Promise<void> {
     if (!inputs.memoryType || inputs.memoryType === 'none') {
       return
@@ -85,7 +80,7 @@ export class Memory {
     try {
       this.validateInputs(inputs.conversationId, assistantMessage.content)
 
-      const memoryKey = this.buildMemoryKey(ctx, inputs, blockId)
+      const memoryKey = this.buildMemoryKey(inputs)
 
       if (inputs.memoryType === 'sliding_window') {
         // Default to 10 messages if not specified (matches agent block default)
@@ -129,8 +124,7 @@ export class Memory {
   async persistUserMessage(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    userMessage: Message,
-    blockId: string
+    userMessage: Message
   ): Promise<void> {
     if (!inputs.memoryType || inputs.memoryType === 'none') {
       return
@@ -142,7 +136,7 @@ export class Memory {
     }
 
     try {
-      const memoryKey = this.buildMemoryKey(ctx, inputs, blockId)
+      const memoryKey = this.buildMemoryKey(inputs)
 
       if (inputs.slidingWindowSize && inputs.memoryType === 'sliding_window') {
         const existingMessages = await this.fetchFromMemoryAPI(ctx.workflowId, memoryKey)
@@ -167,10 +161,10 @@ export class Memory {
   }
 
   /**
-   * Build memory key based on conversationId and blockId
-   * BlockId provides block-level memory isolation
+   * Build memory key based on conversationId
+   * Memory is thread-scoped, not block-scoped
    */
-  private buildMemoryKey(_ctx: ExecutionContext, inputs: AgentInputs, blockId: string): string {
+  private buildMemoryKey(inputs: AgentInputs): string {
     const { conversationId } = inputs
 
     if (!conversationId || conversationId.trim() === '') {
@@ -180,7 +174,7 @@ export class Memory {
       )
     }
 
-    return `${conversationId}:${blockId}`
+    return conversationId
   }
 
   /**

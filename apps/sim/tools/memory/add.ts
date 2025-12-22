@@ -13,7 +13,7 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
       type: 'string',
       required: false,
       description:
-        'Conversation identifier (e.g., user-123, session-abc). If a memory with this conversationId already exists for this block, the new message will be appended to it.',
+        'Conversation identifier (e.g., user-123, session-abc). If a memory with this conversationId already exists, the new message will be appended to it.',
     },
     id: {
       type: 'string',
@@ -31,12 +31,6 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
       required: true,
       description: 'Content for agent memory',
     },
-    blockId: {
-      type: 'string',
-      required: false,
-      description:
-        'Optional block ID. If not provided, uses the current block ID from execution context, or defaults to "default".',
-    },
   },
 
   request: {
@@ -47,7 +41,6 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
     }),
     body: (params) => {
       const workflowId = params._context?.workflowId
-      const contextBlockId = params._context?.blockId
 
       if (!workflowId) {
         return {
@@ -65,9 +58,6 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
 
       // Use 'id' as fallback for 'conversationId' for backwards compatibility
       const conversationId = params.conversationId || params.id
-
-      // Default blockId to 'default' if not provided in params or context
-      const blockId = params.blockId || contextBlockId || 'default'
 
       if (!conversationId || conversationId.trim() === '') {
         return {
@@ -97,7 +87,7 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
         }
       }
 
-      const key = buildMemoryKey(conversationId, blockId)
+      const key = buildMemoryKey(conversationId)
 
       const body: Record<string, any> = {
         key,

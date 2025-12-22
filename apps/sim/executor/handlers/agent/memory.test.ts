@@ -189,40 +189,36 @@ describe('Memory', () => {
   })
 
   describe('buildMemoryKey', () => {
-    it('should build correct key with conversationId:blockId format', () => {
+    it('should return conversationId directly as key (thread-scoped)', () => {
       const inputs: AgentInputs = {
         memoryType: 'conversation',
         conversationId: 'emir',
       }
 
-      const key = (memoryService as any).buildMemoryKey(mockContext, inputs, 'test-block-id')
-      expect(key).toBe('emir:test-block-id')
+      const key = (memoryService as any).buildMemoryKey(inputs)
+      expect(key).toBe('emir')
     })
 
     it('should use same key format regardless of memory type', () => {
       const conversationId = 'user-123'
-      const blockId = 'block-abc'
 
-      const conversationKey = (memoryService as any).buildMemoryKey(
-        mockContext,
-        { memoryType: 'conversation', conversationId },
-        blockId
-      )
-      const slidingWindowKey = (memoryService as any).buildMemoryKey(
-        mockContext,
-        { memoryType: 'sliding_window', conversationId },
-        blockId
-      )
-      const slidingTokensKey = (memoryService as any).buildMemoryKey(
-        mockContext,
-        { memoryType: 'sliding_window_tokens', conversationId },
-        blockId
-      )
+      const conversationKey = (memoryService as any).buildMemoryKey({
+        memoryType: 'conversation',
+        conversationId,
+      })
+      const slidingWindowKey = (memoryService as any).buildMemoryKey({
+        memoryType: 'sliding_window',
+        conversationId,
+      })
+      const slidingTokensKey = (memoryService as any).buildMemoryKey({
+        memoryType: 'sliding_window_tokens',
+        conversationId,
+      })
 
       // All should produce the same key - memory type only affects processing
-      expect(conversationKey).toBe('user-123:block-abc')
-      expect(slidingWindowKey).toBe('user-123:block-abc')
-      expect(slidingTokensKey).toBe('user-123:block-abc')
+      expect(conversationKey).toBe('user-123')
+      expect(slidingWindowKey).toBe('user-123')
+      expect(slidingTokensKey).toBe('user-123')
     })
 
     it('should throw error for missing conversationId', () => {
@@ -232,7 +228,7 @@ describe('Memory', () => {
       }
 
       expect(() => {
-        ;(memoryService as any).buildMemoryKey(mockContext, inputs, 'test-block-id')
+        ;(memoryService as any).buildMemoryKey(inputs)
       }).toThrow('Conversation ID is required for all memory types')
     })
 
@@ -243,7 +239,7 @@ describe('Memory', () => {
       }
 
       expect(() => {
-        ;(memoryService as any).buildMemoryKey(mockContext, inputs, 'test-block-id')
+        ;(memoryService as any).buildMemoryKey(inputs)
       }).toThrow('Conversation ID is required for all memory types')
     })
   })
