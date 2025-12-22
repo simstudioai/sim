@@ -9,6 +9,8 @@ export const ToolIds = z.enum([
   'get_workflow_console',
   'get_blocks_and_tools',
   'get_blocks_metadata',
+  'get_block_options',
+  'get_block_config',
   'get_trigger_examples',
   'get_examples_rag',
   'get_operations_examples',
@@ -118,6 +120,20 @@ export const ToolArgSchemas = {
 
   get_blocks_metadata: z.object({
     blockIds: StringArray.min(1),
+  }),
+
+  get_block_options: z.object({
+    blockId: z.string().describe('The block type ID (e.g., "google_sheets", "slack", "gmail")'),
+  }),
+
+  get_block_config: z.object({
+    blockType: z.string().describe('The block type ID (e.g., "google_sheets", "slack", "gmail")'),
+    operation: z
+      .string()
+      .optional()
+      .describe(
+        'Optional operation ID (e.g., "read", "write"). If not provided, returns full block schema.'
+      ),
   }),
 
   get_trigger_blocks: z.object({}),
@@ -296,6 +312,8 @@ export const ToolSSESchemas = {
   get_workflow_console: toolCallSSEFor('get_workflow_console', ToolArgSchemas.get_workflow_console),
   get_blocks_and_tools: toolCallSSEFor('get_blocks_and_tools', ToolArgSchemas.get_blocks_and_tools),
   get_blocks_metadata: toolCallSSEFor('get_blocks_metadata', ToolArgSchemas.get_blocks_metadata),
+  get_block_options: toolCallSSEFor('get_block_options', ToolArgSchemas.get_block_options),
+  get_block_config: toolCallSSEFor('get_block_config', ToolArgSchemas.get_block_config),
   get_trigger_blocks: toolCallSSEFor('get_trigger_blocks', ToolArgSchemas.get_trigger_blocks),
 
   get_trigger_examples: toolCallSSEFor('get_trigger_examples', ToolArgSchemas.get_trigger_examples),
@@ -434,6 +452,24 @@ export const ToolResultSchemas = {
   get_workflow_console: z.object({ entries: z.array(ExecutionEntry) }),
   get_blocks_and_tools: z.object({ blocks: z.array(z.any()), tools: z.array(z.any()) }),
   get_blocks_metadata: z.object({ metadata: z.record(z.any()) }),
+  get_block_options: z.object({
+    blockId: z.string(),
+    blockName: z.string(),
+    operations: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        description: z.string().optional(),
+      })
+    ),
+  }),
+  get_block_config: z.object({
+    blockType: z.string(),
+    blockName: z.string(),
+    operation: z.string().optional(),
+    inputs: z.record(z.any()),
+    outputs: z.record(z.any()),
+  }),
   get_trigger_blocks: z.object({ triggerBlockIds: z.array(z.string()) }),
   get_block_best_practices: z.object({ bestPractices: z.array(z.any()) }),
   get_edit_workflow_examples: z.object({
