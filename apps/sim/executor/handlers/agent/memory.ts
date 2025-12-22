@@ -660,8 +660,7 @@ export class Memory {
   wrapStreamForPersistence(
     stream: ReadableStream<Uint8Array>,
     ctx: ExecutionContext,
-    inputs: AgentInputs,
-    executionOutput?: { content?: string }
+    inputs: AgentInputs
   ): ReadableStream<Uint8Array> {
     let accumulatedContent = ''
     const decoder = new TextDecoder()
@@ -673,15 +672,13 @@ export class Memory {
       },
 
       flush: () => {
-        const finalContent = executionOutput?.content || accumulatedContent
-
-        if (finalContent?.trim()) {
-          this.persistMemoryMessage(ctx, inputs, { role: 'assistant', content: finalContent })
+        if (accumulatedContent.trim()) {
+          this.persistMemoryMessage(ctx, inputs, { role: 'assistant', content: accumulatedContent })
             .then(() => {
               logger.debug('Persisted streaming response to memory', {
                 workflowId: ctx.workflowId,
                 conversationId: inputs.conversationId,
-                contentLength: finalContent.length,
+                contentLength: accumulatedContent.length,
               })
             })
             .catch((error) => {

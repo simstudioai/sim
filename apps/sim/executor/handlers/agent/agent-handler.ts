@@ -1161,12 +1161,7 @@ export class AgentBlockHandler implements BlockHandler {
     streamingExec: StreamingExecution
   ): StreamingExecution {
     return {
-      stream: memoryService.wrapStreamForPersistence(
-        streamingExec.stream,
-        ctx,
-        inputs,
-        streamingExec.execution?.output
-      ),
+      stream: memoryService.wrapStreamForPersistence(streamingExec.stream, ctx, inputs),
       execution: streamingExec.execution,
     }
   }
