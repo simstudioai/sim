@@ -561,6 +561,9 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
                 .filter((item) => item !== '')
             }
 
+            // Use teamUuid as customFieldValue if provided
+            const customFieldValue = params.teamUuid || params.customFieldValue || undefined
+
             const writeParams = {
               projectId: effectiveProjectId,
               summary: params.summary || '',
@@ -574,7 +577,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
               reporter: params.reporter || undefined,
               environment: params.environment || undefined,
               customFieldId: params.customFieldId || undefined,
-              customFieldValue: params.customFieldValue || undefined,
+              customFieldValue: customFieldValue,
             }
             return {
               ...baseParams,
@@ -849,6 +852,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     environment: { type: 'string', description: 'Environment information' },
     customFieldId: { type: 'string', description: 'Custom field ID (e.g., customfield_10001)' },
     customFieldValue: { type: 'string', description: 'Value for the custom field' },
+    teamUuid: { type: 'string', description: 'Team UUID for the Atlassian Team custom field' },
     // Delete operation inputs
     deleteSubtasks: { type: 'string', description: 'Whether to delete subtasks (true/false)' },
     // Assign/Watcher operation inputs
