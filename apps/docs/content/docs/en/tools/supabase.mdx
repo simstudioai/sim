@@ -52,6 +52,7 @@ Query data from a Supabase table
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to query |
+| `schema` | string | No | Database schema to query from \(default: public\). Use this to access tables in other schemas. |
 | `filter` | string | No | PostgREST filter \(e.g., "id=eq.123"\) |
 | `orderBy` | string | No | Column to order by \(add DESC for descending\) |
 | `limit` | number | No | Maximum number of rows to return |
@@ -74,6 +75,7 @@ Insert data into a Supabase table
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to insert data into |
+| `schema` | string | No | Database schema to insert into \(default: public\). Use this to access tables in other schemas. |
 | `data` | array | Yes | The data to insert \(array of objects or a single object\) |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
 
@@ -94,6 +96,7 @@ Get a single row from a Supabase table based on filter criteria
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to query |
+| `schema` | string | No | Database schema to query from \(default: public\). Use this to access tables in other schemas. |
 | `filter` | string | Yes | PostgREST filter to find the specific row \(e.g., "id=eq.123"\) |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
 
@@ -114,6 +117,7 @@ Update rows in a Supabase table based on filter criteria
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to update |
+| `schema` | string | No | Database schema to update in \(default: public\). Use this to access tables in other schemas. |
 | `filter` | string | Yes | PostgREST filter to identify rows to update \(e.g., "id=eq.123"\) |
 | `data` | object | Yes | Data to update in the matching rows |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
@@ -135,6 +139,7 @@ Delete rows from a Supabase table based on filter criteria
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to delete from |
+| `schema` | string | No | Database schema to delete from \(default: public\). Use this to access tables in other schemas. |
 | `filter` | string | Yes | PostgREST filter to identify rows to delete \(e.g., "id=eq.123"\) |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
 
@@ -155,6 +160,7 @@ Insert or update data in a Supabase table (upsert operation)
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to upsert data into |
+| `schema` | string | No | Database schema to upsert into \(default: public\). Use this to access tables in other schemas. |
 | `data` | array | Yes | The data to upsert \(insert or update\) - array of objects or a single object |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
 
@@ -175,6 +181,7 @@ Count rows in a Supabase table
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to count rows from |
+| `schema` | string | No | Database schema to count from \(default: public\). Use this to access tables in other schemas. |
 | `filter` | string | No | PostgREST filter \(e.g., "status=eq.active"\) |
 | `countType` | string | No | Count type: exact, planned, or estimated \(default: exact\) |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
@@ -196,6 +203,7 @@ Perform full-text search on a Supabase table
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to search |
+| `schema` | string | No | Database schema to search in \(default: public\). Use this to access tables in other schemas. |
 | `column` | string | Yes | The column to search in |
 | `query` | string | Yes | The search query |
 | `searchType` | string | No | Search type: plain, phrase, or websearch \(default: websearch\) |

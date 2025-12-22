@@ -8,6 +8,7 @@ export interface IntercomListCompaniesParams {
   accessToken: string
   per_page?: number
   page?: number
+  starting_after?: string
 }
 
 export interface IntercomListCompaniesResponse {
@@ -43,14 +44,20 @@ export const intercomListCompaniesTool: ToolConfig<
     per_page: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of results per page',
     },
     page: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Page number',
+    },
+    starting_after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor for pagination (preferred over page-based pagination)',
     },
   },
 
@@ -61,6 +68,7 @@ export const intercomListCompaniesTool: ToolConfig<
 
       if (params.per_page) queryParams.append('per_page', params.per_page.toString())
       if (params.page) queryParams.append('page', params.page.toString())
+      if (params.starting_after) queryParams.append('starting_after', params.starting_after)
 
       const queryString = queryParams.toString()
       return queryString ? `${url}?${queryString}` : url

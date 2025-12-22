@@ -7,6 +7,8 @@ const logger = createLogger('IntercomUpdateContact')
 export interface IntercomUpdateContactParams {
   accessToken: string
   contactId: string
+  role?: 'user' | 'lead'
+  external_id?: string
   email?: string
   phone?: string
   name?: string
@@ -16,6 +18,7 @@ export interface IntercomUpdateContactParams {
   owner_id?: string
   unsubscribed_from_emails?: boolean
   custom_attributes?: string
+  company_id?: string
 }
 
 export interface IntercomUpdateContactResponse {
@@ -49,62 +52,80 @@ export const intercomUpdateContactTool: ToolConfig<
     contactId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Contact ID to update',
+    },
+    role: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: "The role of the contact. Accepts 'user' or 'lead'.",
+    },
+    external_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'A unique identifier for the contact provided by the client',
     },
     email: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: "The contact's email address",
     },
     phone: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: "The contact's phone number",
     },
     name: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: "The contact's name",
     },
     avatar: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'An avatar image URL for the contact',
     },
     signed_up_at: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The time the user signed up as a Unix timestamp',
     },
     last_seen_at: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The time the user was last seen as a Unix timestamp',
     },
     owner_id: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The id of an admin that has been assigned account ownership of the contact',
     },
     unsubscribed_from_emails: {
       type: 'boolean',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Whether the contact is unsubscribed from emails',
     },
     custom_attributes: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Custom attributes as JSON object (e.g., {"attribute_name": "value"})',
+    },
+    company_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Company ID to associate the contact with',
     },
   },
 
@@ -119,6 +140,8 @@ export const intercomUpdateContactTool: ToolConfig<
     body: (params) => {
       const contact: any = {}
 
+      if (params.role) contact.role = params.role
+      if (params.external_id) contact.external_id = params.external_id
       if (params.email) contact.email = params.email
       if (params.phone) contact.phone = params.phone
       if (params.name) contact.name = params.name
@@ -136,6 +159,8 @@ export const intercomUpdateContactTool: ToolConfig<
           logger.warn('Failed to parse custom attributes', { error })
         }
       }
+
+      if (params.company_id) contact.company_id = params.company_id
 
       return contact
     },
