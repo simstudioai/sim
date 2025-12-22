@@ -1,22 +1,49 @@
-/**
- * Helper to wrap Groq streaming into a browser-friendly ReadableStream
- * of raw assistant text chunks.
- *
- * @param groqStream - The Groq streaming response
- * @returns A ReadableStream that emits text chunks
- */
-export function createReadableStreamFromGroqStream(groqStream: any): ReadableStream {
+import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
+import type { CompletionUsage } from 'openai/resources/completions'
+import { createLogger } from '@/lib/logs/console/logger'
+
+const logger = createLogger('GroqUtils')
+
+export function createReadableStreamFromGroqStream(
+  groqStream: AsyncIterable<ChatCompletionChunk>,
+  onComplete?: (content: string, usage: CompletionUsage) => void
+): ReadableStream<Uint8Array> {
+  let fullContent = ''
+  let promptTokens = 0
+  let completionTokens = 0
+  let totalTokens = 0
+
   return new ReadableStream({
     async start(controller) {
       try {
         for await (const chunk of groqStream) {
-          if (chunk.choices[0]?.delta?.content) {
-            controller.enqueue(new TextEncoder().encode(chunk.choices[0].delta.content))
+          if (chunk.usage) {
+            promptTokens = chunk.usage.prompt_tokens ?? 0
+            completionTokens = chunk.usage.completion_tokens ?? 0
+            totalTokens = chunk.usage.total_tokens ?? 0
+          }
+
+          const content = chunk.choices[0]?.delta?.content || ''
+          if (content) {
+            fullContent += content
+            controller.enqueue(new TextEncoder().encode(content))
           }
         }
+
+        if (onComplete) {
+          if (promptTokens === 0 && completionTokens === 0) {
+            logger.warn('Groq stream completed without usage data')
+          }
+          onComplete(fullContent, {
+            prompt_tokens: promptTokens,
+            completion_tokens: completionTokens,
+            total_tokens: totalTokens || promptTokens + completionTokens,
+          })
+        }
+
         controller.close()
-      } catch (err) {
-        controller.error(err)
+      } catch (error) {
+        controller.error(error)
       }
     },
   })

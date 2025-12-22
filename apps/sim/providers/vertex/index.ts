@@ -16,6 +16,7 @@ import type {
   TimeSegment,
 } from '@/providers/types'
 import {
+  calculateCost,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   trackForcedToolUsage,
@@ -238,14 +239,21 @@ export const vertexProvider: ProviderConfig = {
               }
             }
 
-            if (usage) {
-              streamingResult.execution.output.tokens = {
-                prompt: usage.promptTokenCount || 0,
-                completion: usage.candidatesTokenCount || 0,
-                total:
-                  usage.totalTokenCount ||
-                  (usage.promptTokenCount || 0) + (usage.candidatesTokenCount || 0),
-              }
+            const promptTokens = usage?.promptTokenCount || 0
+            const completionTokens = usage?.candidatesTokenCount || 0
+            const totalTokens = usage?.totalTokenCount || promptTokens + completionTokens
+
+            streamingResult.execution.output.tokens = {
+              prompt: promptTokens,
+              completion: completionTokens,
+              total: totalTokens,
+            }
+
+            const costResult = calculateCost(request.model, promptTokens, completionTokens)
+            streamingResult.execution.output.cost = {
+              input: costResult.input,
+              output: costResult.output,
+              total: costResult.total,
             }
           }
         )
@@ -654,21 +662,40 @@ export const vertexProvider: ProviderConfig = {
                           streamEndTime - providerStartTime
                       }
 
-                      if (usage) {
-                        const existingTokens = streamingExecution.execution.output.tokens || {
-                          prompt: 0,
-                          completion: 0,
-                          total: 0,
-                        }
-                        streamingExecution.execution.output.tokens = {
-                          prompt: (existingTokens.prompt || 0) + (usage.promptTokenCount || 0),
-                          completion:
-                            (existingTokens.completion || 0) + (usage.candidatesTokenCount || 0),
-                          total:
-                            (existingTokens.total || 0) +
-                            (usage.totalTokenCount ||
-                              (usage.promptTokenCount || 0) + (usage.candidatesTokenCount || 0)),
-                        }
+                      const promptTokens = usage?.promptTokenCount || 0
+                      const completionTokens = usage?.candidatesTokenCount || 0
+                      const totalTokens = usage?.totalTokenCount || promptTokens + completionTokens
+
+                      const existingTokens = streamingExecution.execution.output.tokens || {
+                        prompt: 0,
+                        completion: 0,
+                        total: 0,
+                      }
+
+                      const existingPrompt = existingTokens.prompt || 0
+                      const existingCompletion = existingTokens.completion || 0
+                      const existingTotal = existingTokens.total || 0
+
+                      streamingExecution.execution.output.tokens = {
+                        prompt: existingPrompt + promptTokens,
+                        completion: existingCompletion + completionTokens,
+                        total: existingTotal + totalTokens,
+                      }
+
+                      const accumulatedCost = calculateCost(
+                        request.model,
+                        existingPrompt,
+                        existingCompletion
+                      )
+                      const streamCost = calculateCost(
+                        request.model,
+                        promptTokens,
+                        completionTokens
+                      )
+                      streamingExecution.execution.output.cost = {
+                        input: accumulatedCost.input + streamCost.input,
+                        output: accumulatedCost.output + streamCost.output,
+                        total: accumulatedCost.total + streamCost.total,
                       }
                     }
                   )

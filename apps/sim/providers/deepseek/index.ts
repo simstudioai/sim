@@ -11,6 +11,7 @@ import type {
   TimeSegment,
 } from '@/providers/types'
 import {
+  calculateCost,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   trackForcedToolUsage,
@@ -118,7 +119,6 @@ export const deepseekProvider: ProviderConfig = {
         }
       }
 
-      // EARLY STREAMING: if streaming requested and no tools to execute, stream directly
       if (request.stream && (!tools || tools.length === 0)) {
         logger.info('Using streaming response for DeepSeek request (no tools)')
 
@@ -127,22 +127,35 @@ export const deepseekProvider: ProviderConfig = {
           stream: true,
         })
 
-        // Start collecting token usage
-        const tokenUsage = {
-          prompt: 0,
-          completion: 0,
-          total: 0,
-        }
-
-        // Create a StreamingExecution response with a readable stream
         const streamingResult = {
-          stream: createReadableStreamFromDeepseekStream(streamResponse),
+          stream: createReadableStreamFromDeepseekStream(
+            streamResponse as any,
+            (content, usage) => {
+              streamingResult.execution.output.content = content
+              streamingResult.execution.output.tokens = {
+                prompt: usage.prompt_tokens,
+                completion: usage.completion_tokens,
+                total: usage.total_tokens,
+              }
+
+              const costResult = calculateCost(
+                request.model,
+                usage.prompt_tokens,
+                usage.completion_tokens
+              )
+              streamingResult.execution.output.cost = {
+                input: costResult.input,
+                output: costResult.output,
+                total: costResult.total,
+              }
+            }
+          ),
           execution: {
             success: true,
             output: {
-              content: '', // Will be filled by streaming content in chat component
+              content: '',
               model: request.model || 'deepseek-chat',
-              tokens: tokenUsage,
+              tokens: { prompt: 0, completion: 0, total: 0 },
               toolCalls: undefined,
               providerTiming: {
                 startTime: providerStartTimeISO,
@@ -158,14 +171,9 @@ export const deepseekProvider: ProviderConfig = {
                   },
                 ],
               },
-              // Estimate token cost
-              cost: {
-                total: 0.0,
-                input: 0.0,
-                output: 0.0,
-              },
+              cost: { input: 0, output: 0, total: 0 },
             },
-            logs: [], // No block logs for direct streaming
+            logs: [],
             metadata: {
               startTime: providerStartTimeISO,
               endTime: new Date().toISOString(),
@@ -175,7 +183,6 @@ export const deepseekProvider: ProviderConfig = {
           },
         }
 
-        // Return the streaming execution object
         return streamingResult as StreamingExecution
       }
 
@@ -450,13 +457,35 @@ export const deepseekProvider: ProviderConfig = {
 
         const streamResponse = await deepseek.chat.completions.create(streamingPayload)
 
-        // Create a StreamingExecution response with all collected data
+        const accumulatedCost = calculateCost(request.model, tokens.prompt, tokens.completion)
+
         const streamingResult = {
-          stream: createReadableStreamFromDeepseekStream(streamResponse),
+          stream: createReadableStreamFromDeepseekStream(
+            streamResponse as any,
+            (content, usage) => {
+              streamingResult.execution.output.content = content
+              streamingResult.execution.output.tokens = {
+                prompt: tokens.prompt + usage.prompt_tokens,
+                completion: tokens.completion + usage.completion_tokens,
+                total: tokens.total + usage.total_tokens,
+              }
+
+              const streamCost = calculateCost(
+                request.model,
+                usage.prompt_tokens,
+                usage.completion_tokens
+              )
+              streamingResult.execution.output.cost = {
+                input: accumulatedCost.input + streamCost.input,
+                output: accumulatedCost.output + streamCost.output,
+                total: accumulatedCost.total + streamCost.total,
+              }
+            }
+          ),
           execution: {
             success: true,
             output: {
-              content: '', // Will be filled by the callback
+              content: '',
               model: request.model || 'deepseek-chat',
               tokens: {
                 prompt: tokens.prompt,
@@ -481,12 +510,12 @@ export const deepseekProvider: ProviderConfig = {
                 timeSegments: timeSegments,
               },
               cost: {
-                total: (tokens.total || 0) * 0.0001,
-                input: (tokens.prompt || 0) * 0.0001,
-                output: (tokens.completion || 0) * 0.0001,
+                input: accumulatedCost.input,
+                output: accumulatedCost.output,
+                total: accumulatedCost.total,
               },
             },
-            logs: [], // No block logs at provider level
+            logs: [],
             metadata: {
               startTime: providerStartTimeISO,
               endTime: new Date().toISOString(),
@@ -496,7 +525,6 @@ export const deepseekProvider: ProviderConfig = {
           },
         }
 
-        // Return the streaming execution object
         return streamingResult as StreamingExecution
       }
 
