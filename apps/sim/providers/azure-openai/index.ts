@@ -48,8 +48,6 @@ export const azureOpenAIProvider: ProviderConfig = {
       stream: !!request.stream,
     })
 
-    // Extract Azure-specific configuration from request or environment
-    // Priority: request parameters > environment variables
     const azureEndpoint = request.azureEndpoint || env.AZURE_OPENAI_ENDPOINT
     const azureApiVersion =
       request.azureApiVersion || env.AZURE_OPENAI_API_VERSION || '2024-07-01-preview'
@@ -60,17 +58,14 @@ export const azureOpenAIProvider: ProviderConfig = {
       )
     }
 
-    // API key is now handled server-side before this function is called
     const azureOpenAI = new AzureOpenAI({
       apiKey: request.apiKey,
       apiVersion: azureApiVersion,
       endpoint: azureEndpoint,
     })
 
-    // Start with an empty array for all messages
     const allMessages = []
 
-    // Add system prompt if present
     if (request.systemPrompt) {
       allMessages.push({
         role: 'system',
@@ -78,7 +73,6 @@ export const azureOpenAIProvider: ProviderConfig = {
       })
     }
 
-    // Add context if present
     if (request.context) {
       allMessages.push({
         role: 'user',
@@ -86,12 +80,10 @@ export const azureOpenAIProvider: ProviderConfig = {
       })
     }
 
-    // Add remaining messages
     if (request.messages) {
       allMessages.push(...request.messages)
     }
 
-    // Transform tools to Azure OpenAI format if provided
     const tools = request.tools?.length
       ? request.tools.map((tool) => ({
           type: 'function',
@@ -103,24 +95,19 @@ export const azureOpenAIProvider: ProviderConfig = {
         }))
       : undefined
 
-    // Build the request payload - use deployment name instead of model name
     const deploymentName = (request.model || 'azure/gpt-4o').replace('azure/', '')
     const payload: any = {
-      model: deploymentName, // Azure OpenAI uses deployment name
+      model: deploymentName,
       messages: allMessages,
     }
 
-    // Add optional parameters
     if (request.temperature !== undefined) payload.temperature = request.temperature
     if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
 
-    // Add GPT-5 specific parameters
     if (request.reasoningEffort !== undefined) payload.reasoning_effort = request.reasoningEffort
     if (request.verbosity !== undefined) payload.verbosity = request.verbosity
 
-    // Add response format for structured output if specified
     if (request.responseFormat) {
-      // Use Azure OpenAI's JSON schema format
       payload.response_format = {
         type: 'json_schema',
         json_schema: {
@@ -133,7 +120,6 @@ export const azureOpenAIProvider: ProviderConfig = {
       logger.info('Added JSON schema response format to Azure OpenAI request')
     }
 
-    // Handle tools and tool usage control
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
 
     if (tools?.length) {
@@ -161,12 +147,10 @@ export const azureOpenAIProvider: ProviderConfig = {
       }
     }
 
-    // Start execution timer for the entire provider execution
     const providerStartTime = Date.now()
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
     try {
-      // Check if we can stream directly (no tools required)
       if (request.stream && (!tools || tools.length === 0)) {
         logger.info('Using streaming response for Azure OpenAI request')
 
@@ -245,17 +229,11 @@ export const azureOpenAIProvider: ProviderConfig = {
           },
         } as StreamingExecution
 
-        // Return the streaming execution object with explicit casting
         return streamingResult as StreamingExecution
       }
 
-      // Make the initial API request
       const initialCallTime = Date.now()
-
-      // Track the original tool_choice for forced tool tracking
       const originalToolChoice = payload.tool_choice
-
-      // Track forced tools and their usage
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
 
@@ -272,15 +250,10 @@ export const azureOpenAIProvider: ProviderConfig = {
       const toolResults = []
       const currentMessages = [...allMessages]
       let iterationCount = 0
-
-      // Track time spent in model vs tools
       let modelTime = firstResponseTime
       let toolsTime = 0
-
-      // Track if a forced tool has been used
       let hasUsedForcedTool = false
 
-      // Track each model and tool call segment with timestamps
       const timeSegments: TimeSegment[] = [
         {
           type: 'model',
@@ -291,7 +264,6 @@ export const azureOpenAIProvider: ProviderConfig = {
         },
       ]
 
-      // Check if a forced tool was used in the first response
       const firstCheckResult = checkForForcedToolUsage(
         currentResponse,
         originalToolChoice,
@@ -303,12 +275,10 @@ export const azureOpenAIProvider: ProviderConfig = {
       usedForcedTools = firstCheckResult.usedForcedTools
 
       while (iterationCount < MAX_TOOL_ITERATIONS) {
-        // Extract text content FIRST, before checking for tool calls
         if (currentResponse.choices[0]?.message?.content) {
           content = currentResponse.choices[0].message.content
         }
 
-        // Check for tool calls
         const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
         if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
           break
@@ -318,10 +288,8 @@ export const azureOpenAIProvider: ProviderConfig = {
           `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1}/${MAX_TOOL_ITERATIONS})`
         )
 
-        // Track time for tool calls in this batch
         const toolsStartTime = Date.now()
 
-        // Execute all tool calls in parallel using Promise.allSettled for resilience
         const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
           const toolCallStartTime = Date.now()
           const toolName = toolCall.function.name
@@ -367,7 +335,6 @@ export const azureOpenAIProvider: ProviderConfig = {
 
         const executionResults = await Promise.allSettled(toolExecutionPromises)
 
-        // Add ONE assistant message with ALL tool calls BEFORE processing results
         currentMessages.push({
           role: 'assistant',
           content: null,
@@ -381,14 +348,12 @@ export const azureOpenAIProvider: ProviderConfig = {
           })),
         })
 
-        // Process results in order to maintain consistency
         for (const settledResult of executionResults) {
           if (settledResult.status === 'rejected' || !settledResult.value) continue
 
           const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
             settledResult.value
 
-          // Add to time segments
           timeSegments.push({
             type: 'tool',
             name: toolName,
@@ -397,7 +362,6 @@ export const azureOpenAIProvider: ProviderConfig = {
             duration: duration,
           })
 
-          // Prepare result content for the LLM
           let resultContent: any
           if (result.success) {
             toolResults.push(result.output)
@@ -420,7 +384,6 @@ export const azureOpenAIProvider: ProviderConfig = {
             success: result.success,
           })
 
-          // Add tool result message
           currentMessages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
@@ -428,42 +391,32 @@ export const azureOpenAIProvider: ProviderConfig = {
           })
         }
 
-        // Calculate tool call time for this iteration
         const thisToolsTime = Date.now() - toolsStartTime
         toolsTime += thisToolsTime
 
-        // Make the next request with updated messages
         const nextPayload = {
           ...payload,
           messages: currentMessages,
         }
 
-        // Update tool_choice based on which forced tools have been used
         if (typeof originalToolChoice === 'object' && hasUsedForcedTool && forcedTools.length > 0) {
-          // If we have remaining forced tools, get the next one to force
           const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
 
           if (remainingTools.length > 0) {
-            // Force the next tool
             nextPayload.tool_choice = {
               type: 'function',
               function: { name: remainingTools[0] },
             }
             logger.info(`Forcing next tool: ${remainingTools[0]}`)
           } else {
-            // All forced tools have been used, switch to auto
             nextPayload.tool_choice = 'auto'
             logger.info('All forced tools have been used, switching to auto tool_choice')
           }
         }
 
-        // Time the next model call
         const nextModelStartTime = Date.now()
-
-        // Make the next request
         currentResponse = await azureOpenAI.chat.completions.create(nextPayload)
 
-        // Check if any forced tools were used in this response
         const nextCheckResult = checkForForcedToolUsage(
           currentResponse,
           nextPayload.tool_choice,
@@ -477,7 +430,6 @@ export const azureOpenAIProvider: ProviderConfig = {
         const nextModelEndTime = Date.now()
         const thisModelTime = nextModelEndTime - nextModelStartTime
 
-        // Add to time segments
         timeSegments.push({
           type: 'model',
           name: `Model response (iteration ${iterationCount + 1})`,
@@ -486,15 +438,12 @@ export const azureOpenAIProvider: ProviderConfig = {
           duration: thisModelTime,
         })
 
-        // Add to model time
         modelTime += thisModelTime
 
-        // Update content if we have a text response
         if (currentResponse.choices[0]?.message?.content) {
           content = currentResponse.choices[0].message.content
         }
 
-        // Update token counts and cost
         if (currentResponse.usage) {
           tokens.prompt += currentResponse.usage.prompt_tokens || 0
           tokens.completion += currentResponse.usage.completion_tokens || 0
@@ -583,7 +532,6 @@ export const azureOpenAIProvider: ProviderConfig = {
         return streamingResult as StreamingExecution
       }
 
-      // Calculate overall timing
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
@@ -604,10 +552,8 @@ export const azureOpenAIProvider: ProviderConfig = {
           iterations: iterationCount + 1,
           timeSegments: timeSegments,
         },
-        // We're not calculating cost here as it will be handled in logger.ts
       }
     } catch (error) {
-      // Include timing information even for errors
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
@@ -617,9 +563,8 @@ export const azureOpenAIProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      // Create a new error with timing information
       const enhancedError = new Error(error instanceof Error ? error.message : String(error))
-      // @ts-ignore - Adding timing property to the error
+      // @ts-ignore
       enhancedError.timing = {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,

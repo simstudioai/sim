@@ -22,6 +22,5 @@ export function createReadableStreamFromCerebrasStream(
   cerebrasStream: AsyncIterable<CerebrasChunk>,
   onComplete?: (content: string, usage: CompletionUsage) => void
 ): ReadableStream<Uint8Array> {
-  // Cast to the expected type - Cerebras chunks are compatible with ChatCompletionChunk
   return createOpenAICompatibleStream(cerebrasStream as any, 'Cerebras', onComplete)
 }

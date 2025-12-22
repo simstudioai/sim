@@ -35,13 +35,10 @@ export const groqProvider: ProviderConfig = {
       throw new Error('API key is required for Groq')
     }
 
-    // Create Groq client
     const groq = new Groq({ apiKey: request.apiKey })
 
-    // Start with an empty array for all messages
     const allMessages = []
 
-    // Add system prompt if present
     if (request.systemPrompt) {
       allMessages.push({
         role: 'system',
@@ -49,7 +46,6 @@ export const groqProvider: ProviderConfig = {
       })
     }
 
-    // Add context if present
     if (request.context) {
       allMessages.push({
         role: 'user',
@@ -57,12 +53,10 @@ export const groqProvider: ProviderConfig = {
       })
     }
 
-    // Add remaining messages
     if (request.messages) {
       allMessages.push(...request.messages)
     }
 
-    // Transform tools to function format if provided
     const tools = request.tools?.length
       ? request.tools.map((tool) => ({
           type: 'function',
@@ -74,7 +68,6 @@ export const groqProvider: ProviderConfig = {
         }))
       : undefined
 
-    // Build the request payload
     const payload: any = {
       model: (request.model || 'groq/meta-llama/llama-4-scout-17b-16e-instruct').replace(
         'groq/',
@@ -83,11 +76,9 @@ export const groqProvider: ProviderConfig = {
       messages: allMessages,
     }
 
-    // Add optional parameters
     if (request.temperature !== undefined) payload.temperature = request.temperature
     if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
 
-    // Add response format for structured output if specified
     if (request.responseFormat) {
       payload.response_format = {
         type: 'json_schema',
@@ -95,8 +86,6 @@ export const groqProvider: ProviderConfig = {
       }
     }
 
-    // Handle tools and tool usage control
-    // Groq supports full OpenAI-compatible tool_choice including forcing specific tools
     let originalToolChoice: any
     let forcedTools: string[] = []
     let hasFilteredTools = false
@@ -188,12 +177,10 @@ export const groqProvider: ProviderConfig = {
       return streamingResult as StreamingExecution
     }
 
-    // Start execution timer for the entire provider execution
     const providerStartTime = Date.now()
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
     try {
-      // Make the initial API request
       const initialCallTime = Date.now()
 
       let currentResponse = await groq.chat.completions.create(payload)
@@ -209,12 +196,9 @@ export const groqProvider: ProviderConfig = {
       const toolResults = []
       const currentMessages = [...allMessages]
       let iterationCount = 0
-
-      // Track time spent in model vs tools
       let modelTime = firstResponseTime
       let toolsTime = 0
 
-      // Track each model and tool call segment with timestamps
       const timeSegments: TimeSegment[] = [
         {
           type: 'model',
@@ -227,21 +211,17 @@ export const groqProvider: ProviderConfig = {
 
       try {
         while (iterationCount < MAX_TOOL_ITERATIONS) {
-          // Extract text content FIRST, before checking for tool calls
           if (currentResponse.choices[0]?.message?.content) {
             content = currentResponse.choices[0].message.content
           }
 
-          // Check for tool calls
           const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
           if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
             break
           }
 
-          // Track time for tool calls in this batch
           const toolsStartTime = Date.now()
 
-          // Execute all tool calls in parallel using Promise.allSettled for resilience
           const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
             const toolCallStartTime = Date.now()
             const toolName = toolCall.function.name
@@ -287,7 +267,6 @@ export const groqProvider: ProviderConfig = {
 
           const executionResults = await Promise.allSettled(toolExecutionPromises)
 
-          // Add ONE assistant message with ALL tool calls BEFORE processing results
           currentMessages.push({
             role: 'assistant',
             content: null,
@@ -301,14 +280,12 @@ export const groqProvider: ProviderConfig = {
             })),
           })
 
-          // Process results in order to maintain consistency
           for (const settledResult of executionResults) {
             if (settledResult.status === 'rejected' || !settledResult.value) continue
 
             const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
               settledResult.value
 
-            // Add to time segments
             timeSegments.push({
               type: 'tool',
               name: toolName,
@@ -317,7 +294,6 @@ export const groqProvider: ProviderConfig = {
               duration: duration,
             })
 
-            // Prepare result content for the LLM
             let resultContent: any
             if (result.success) {
               toolResults.push(result.output)
@@ -340,7 +316,6 @@ export const groqProvider: ProviderConfig = {
               success: result.success,
             })
 
-            // Add tool result message
             currentMessages.push({
               role: 'tool',
               tool_call_id: toolCall.id,
@@ -348,11 +323,9 @@ export const groqProvider: ProviderConfig = {
             })
           }
 
-          // Calculate tool call time for this iteration
           const thisToolsTime = Date.now() - toolsStartTime
           toolsTime += thisToolsTime
 
-          // Check if we used any forced tools and update tool_choice for the next iteration
           let usedForcedTools: string[] = []
           if (typeof originalToolChoice === 'object' && forcedTools.length > 0) {
             const toolTracking = trackForcedToolUsage(
@@ -366,31 +339,24 @@ export const groqProvider: ProviderConfig = {
             usedForcedTools = toolTracking.usedForcedTools
             const nextToolChoice = toolTracking.nextToolChoice
 
-            // Update tool_choice for next iteration if we're still forcing tools
             if (nextToolChoice && typeof nextToolChoice === 'object') {
               payload.tool_choice = nextToolChoice
             } else if (nextToolChoice === 'auto' || !nextToolChoice) {
-              // All forced tools have been used, switch to auto
               payload.tool_choice = 'auto'
             }
           }
 
-          // Make the next request with updated messages
           const nextPayload = {
             ...payload,
             messages: currentMessages,
           }
 
-          // Time the next model call
           const nextModelStartTime = Date.now()
-
-          // Make the next request
           currentResponse = await groq.chat.completions.create(nextPayload)
 
           const nextModelEndTime = Date.now()
           const thisModelTime = nextModelEndTime - nextModelStartTime
 
-          // Add to time segments
           timeSegments.push({
             type: 'model',
             name: `Model response (iteration ${iterationCount + 1})`,
@@ -399,15 +365,12 @@ export const groqProvider: ProviderConfig = {
             duration: thisModelTime,
           })
 
-          // Add to model time
           modelTime += thisModelTime
 
-          // Update content if we have a text response
           if (currentResponse.choices[0]?.message?.content) {
             content = currentResponse.choices[0].message.content
           }
 
-          // Update token counts
           if (currentResponse.usage) {
             tokens.prompt += currentResponse.usage.prompt_tokens || 0
             tokens.completion += currentResponse.usage.completion_tokens || 0
@@ -420,16 +383,13 @@ export const groqProvider: ProviderConfig = {
         logger.error('Error in Groq request:', { error })
       }
 
-      // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
       if (request.stream) {
         logger.info('Using streaming for final Groq response after tool processing')
 
-        // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
-        // This prevents the API from trying to force tool usage again in the final streaming response
         const streamingPayload = {
           ...payload,
           messages: currentMessages,
-          tool_choice: 'auto', // Always use 'auto' for the streaming response after tool calls
+          tool_choice: 'auto',
           stream: true,
         }
 
@@ -500,11 +460,9 @@ export const groqProvider: ProviderConfig = {
           },
         }
 
-        // Return the streaming execution object
         return streamingResult as StreamingExecution
       }
 
-      // Calculate overall timing
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
@@ -527,7 +485,6 @@ export const groqProvider: ProviderConfig = {
         },
       }
     } catch (error) {
-      // Include timing information even for errors
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
@@ -537,9 +494,8 @@ export const groqProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      // Create a new error with timing information
       const enhancedError = new Error(error instanceof Error ? error.message : String(error))
-      // @ts-ignore - Adding timing property to the error
+      // @ts-ignore
       enhancedError.timing = {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,

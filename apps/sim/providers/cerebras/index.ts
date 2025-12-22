@@ -36,7 +36,6 @@ export const cerebrasProvider: ProviderConfig = {
       throw new Error('API key is required for Cerebras')
     }
 
-    // Start execution timer for the entire provider execution
     const providerStartTime = Date.now()
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
@@ -45,31 +44,23 @@ export const cerebrasProvider: ProviderConfig = {
         apiKey: request.apiKey,
       })
 
-      // Start with an empty array for all messages
       const allMessages = []
-
-      // Add system prompt if present
       if (request.systemPrompt) {
         allMessages.push({
           role: 'system',
           content: request.systemPrompt,
         })
       }
-
-      // Add context if present
       if (request.context) {
         allMessages.push({
           role: 'user',
           content: request.context,
         })
       }
-
-      // Add remaining messages
       if (request.messages) {
         allMessages.push(...request.messages)
       }
 
-      // Transform tools to Cerebras format if provided
       const tools = request.tools?.length
         ? request.tools.map((tool) => ({
             type: 'function',
@@ -81,17 +72,12 @@ export const cerebrasProvider: ProviderConfig = {
           }))
         : undefined
 
-      // Build the request payload
       const payload: any = {
         model: (request.model || 'cerebras/llama-3.3-70b').replace('cerebras/', ''),
         messages: allMessages,
       }
-
-      // Add optional parameters
       if (request.temperature !== undefined) payload.temperature = request.temperature
       if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
-
-      // Add response format for structured output if specified
       if (request.responseFormat) {
         payload.response_format = {
           type: 'json_schema',
@@ -99,8 +85,6 @@ export const cerebrasProvider: ProviderConfig = {
         }
       }
 
-      // Handle tools and tool usage control
-      // Cerebras supports full OpenAI-compatible tool_choice including forcing specific tools
       let originalToolChoice: any
       let forcedTools: string[] = []
       let hasFilteredTools = false
@@ -188,8 +172,6 @@ export const cerebrasProvider: ProviderConfig = {
 
         return streamingResult as StreamingExecution
       }
-
-      // Make the initial API request
       const initialCallTime = Date.now()
 
       let currentResponse = (await client.chat.completions.create(payload)) as CerebrasResponse
@@ -206,11 +188,8 @@ export const cerebrasProvider: ProviderConfig = {
       const currentMessages = [...allMessages]
       let iterationCount = 0
 
-      // Track time spent in model vs tools
       let modelTime = firstResponseTime
       let toolsTime = 0
-
-      // Track each model and tool call segment with timestamps
       const timeSegments: TimeSegment[] = [
         {
           type: 'model',
@@ -221,17 +200,12 @@ export const cerebrasProvider: ProviderConfig = {
         },
       ]
 
-      // Keep track of processed tool calls to avoid duplicates
       const processedToolCallIds = new Set()
-      // Keep track of tool call signatures to detect repeats
       const toolCallSignatures = new Set()
-
       try {
         while (iterationCount < MAX_TOOL_ITERATIONS) {
-          // Check for tool calls
           const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
 
-          // Break if no tool calls
           if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
             if (currentResponse.choices[0]?.message?.content) {
               content = currentResponse.choices[0].message.content
@@ -239,41 +213,29 @@ export const cerebrasProvider: ProviderConfig = {
             break
           }
 
-          // Track time for tool calls in this batch
           const toolsStartTime = Date.now()
-
-          // Filter tool calls to remove duplicates and repeated ones (pre-filter before parallel execution)
           let hasRepeatedToolCalls = false
           const filteredToolCalls = toolCallsInResponse.filter((toolCall) => {
-            // Skip if we've already processed this tool call
             if (processedToolCallIds.has(toolCall.id)) {
               return false
             }
-
-            // Create a signature for this tool call to detect repeats
             const toolCallSignature = `${toolCall.function.name}-${toolCall.function.arguments}`
             if (toolCallSignatures.has(toolCallSignature)) {
               hasRepeatedToolCalls = true
               return false
             }
-
-            // Mark as processed and add signature
             processedToolCallIds.add(toolCall.id)
             toolCallSignatures.add(toolCallSignature)
             return true
           })
 
           const processedAnyToolCall = filteredToolCalls.length > 0
-
-          // Execute all filtered tool calls in parallel using Promise.allSettled for resilience
           const toolExecutionPromises = filteredToolCalls.map(async (toolCall) => {
             const toolCallStartTime = Date.now()
             const toolName = toolCall.function.name
 
             try {
               const toolArgs = JSON.parse(toolCall.function.arguments)
-
-              // Get the tool from the tools registry
               const tool = request.tools?.find((t) => t.id === toolName)
               if (!tool) return null
 
@@ -314,9 +276,6 @@ export const cerebrasProvider: ProviderConfig = {
           })
 
           const executionResults = await Promise.allSettled(toolExecutionPromises)
-
-          // Add ONE assistant message with ALL tool calls BEFORE processing results
-          // Use filteredToolCalls since that's what was actually executed
           currentMessages.push({
             role: 'assistant',
             content: null,
@@ -330,14 +289,11 @@ export const cerebrasProvider: ProviderConfig = {
             })),
           })
 
-          // Process results in order to maintain consistency
           for (const settledResult of executionResults) {
             if (settledResult.status === 'rejected' || !settledResult.value) continue
 
             const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
               settledResult.value
-
-            // Add to time segments for both success and failure
             timeSegments.push({
               type: 'tool',
               name: toolName,
@@ -345,14 +301,11 @@ export const cerebrasProvider: ProviderConfig = {
               endTime: endTime,
               duration: duration,
             })
-
-            // Prepare result content for the LLM
             let resultContent: any
             if (result.success) {
               toolResults.push(result.output)
               resultContent = result.output
             } else {
-              // Include error information so LLM can respond appropriately
               resultContent = {
                 error: true,
                 message: result.error || 'Tool execution failed',
@@ -369,8 +322,6 @@ export const cerebrasProvider: ProviderConfig = {
               result: resultContent,
               success: result.success,
             })
-
-            // Add tool result message
             currentMessages.push({
               role: 'tool',
               tool_call_id: toolCall.id,
@@ -378,11 +329,8 @@ export const cerebrasProvider: ProviderConfig = {
             })
           }
 
-          // Calculate tool call time for this iteration
           const thisToolsTime = Date.now() - toolsStartTime
           toolsTime += thisToolsTime
-
-          // Check if we used any forced tools and update tool_choice for the next iteration
           let usedForcedTools: string[] = []
           if (typeof originalToolChoice === 'object' && forcedTools.length > 0) {
             const toolTracking = trackForcedToolUsage(
@@ -395,28 +343,20 @@ export const cerebrasProvider: ProviderConfig = {
             )
             usedForcedTools = toolTracking.usedForcedTools
             const nextToolChoice = toolTracking.nextToolChoice
-
-            // Update tool_choice for next iteration if we're still forcing tools
             if (nextToolChoice && typeof nextToolChoice === 'object') {
               payload.tool_choice = nextToolChoice
             } else if (nextToolChoice === 'auto' || !nextToolChoice) {
-              // All forced tools have been used, switch to auto
               payload.tool_choice = 'auto'
             }
           }
 
-          // After processing tool calls, get a final response
           if (processedAnyToolCall || hasRepeatedToolCalls) {
-            // Time the next model call
             const nextModelStartTime = Date.now()
 
-            // Make the final request
             const finalPayload = {
               ...payload,
               messages: currentMessages,
             }
-
-            // Use tool_choice: 'none' for the final response to avoid an infinite loop
             finalPayload.tool_choice = 'none'
 
             const finalResponse = (await client.chat.completions.create(
@@ -426,7 +366,6 @@ export const cerebrasProvider: ProviderConfig = {
             const nextModelEndTime = Date.now()
             const thisModelTime = nextModelEndTime - nextModelStartTime
 
-            // Add to time segments
             timeSegments.push({
               type: 'model',
               name: 'Final response',
@@ -435,14 +374,11 @@ export const cerebrasProvider: ProviderConfig = {
               duration: thisModelTime,
             })
 
-            // Add to model time
             modelTime += thisModelTime
 
             if (finalResponse.choices[0]?.message?.content) {
               content = finalResponse.choices[0].message.content
             }
-
-            // Update final token counts
             if (finalResponse.usage) {
               tokens.prompt += finalResponse.usage.prompt_tokens || 0
               tokens.completion += finalResponse.usage.completion_tokens || 0
@@ -452,18 +388,13 @@ export const cerebrasProvider: ProviderConfig = {
             break
           }
 
-          // Only continue if we haven't processed any tool calls and haven't seen repeats
           if (!processedAnyToolCall && !hasRepeatedToolCalls) {
-            // Make the next request with updated messages
             const nextPayload = {
               ...payload,
               messages: currentMessages,
             }
 
-            // Time the next model call
             const nextModelStartTime = Date.now()
-
-            // Make the next request
             currentResponse = (await client.chat.completions.create(
               nextPayload
             )) as CerebrasResponse
@@ -471,7 +402,6 @@ export const cerebrasProvider: ProviderConfig = {
             const nextModelEndTime = Date.now()
             const thisModelTime = nextModelEndTime - nextModelStartTime
 
-            // Add to time segments
             timeSegments.push({
               type: 'model',
               name: `Model response (iteration ${iterationCount + 1})`,
@@ -480,10 +410,7 @@ export const cerebrasProvider: ProviderConfig = {
               duration: thisModelTime,
             })
 
-            // Add to model time
             modelTime += thisModelTime
-
-            // Update token counts
             if (currentResponse.usage) {
               tokens.prompt += currentResponse.usage.prompt_tokens || 0
               tokens.completion += currentResponse.usage.completion_tokens || 0
@@ -497,21 +424,17 @@ export const cerebrasProvider: ProviderConfig = {
         logger.error('Error in Cerebras tool processing:', { error })
       }
 
-      // Calculate overall timing
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      // POST-TOOL-STREAMING: stream after tool calls if requested
       if (request.stream) {
         logger.info('Using streaming for final Cerebras response after tool processing')
 
-        // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
-        // This prevents the API from trying to force tool usage again in the final streaming response
         const streamingPayload = {
           ...payload,
           messages: currentMessages,
-          tool_choice: 'auto', // Always use 'auto' for the streaming response after tool calls
+          tool_choice: 'auto',
           stream: true,
         }
 
@@ -603,7 +526,6 @@ export const cerebrasProvider: ProviderConfig = {
         },
       }
     } catch (error) {
-      // Include timing information even for errors
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
@@ -613,9 +535,8 @@ export const cerebrasProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      // Create a new error with timing information
       const enhancedError = new Error(error instanceof Error ? error.message : String(error))
-      // @ts-ignore - Adding timing property to the error
+      // @ts-ignore - Adding timing property to error for debugging
       enhancedError.timing = {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,

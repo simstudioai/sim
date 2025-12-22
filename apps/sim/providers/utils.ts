@@ -42,9 +42,6 @@ import { useProvidersStore } from '@/stores/providers/store'
 
 const logger = createLogger('ProviderUtils')
 
-/**
- * Provider configurations - built from the comprehensive definitions
- */
 export const providers: Record<
   ProviderId,
   ProviderConfig & {
@@ -215,7 +212,6 @@ export function getProviderFromModel(model: string): ProviderId {
 }
 
 export function getProvider(id: string): ProviderConfig | undefined {
-  // Handle both formats: 'openai' and 'openai/chat'
   const providerId = id.split('/')[0] as ProviderId
   return providers[providerId]
 }
@@ -275,9 +271,6 @@ export function filterBlacklistedModels(models: string[]): string[] {
   return models.filter((model) => !isModelBlacklisted(model))
 }
 
-/**
- * Get provider icon for a given model
- */
 export function getProviderIcon(model: string): React.ComponentType<{ className?: string }> | null {
   const providerId = getProviderFromModel(model)
   return PROVIDER_DEFINITIONS[providerId]?.icon || null
@@ -481,7 +474,6 @@ export async function transformBlockTool(
 
   const llmSchema = await createLLMToolSchema(toolConfig, userProvidedParams)
 
-  // Create unique tool ID by appending resource ID for multi-instance tools
   let uniqueToolId = toolConfig.id
   if (toolId === 'workflow_executor' && userProvidedParams.workflowId) {
     uniqueToolId = `${toolConfig.id}_${userProvidedParams.workflowId}`
@@ -556,9 +548,6 @@ export function calculateCost(
   }
 }
 
-/**
- * Get pricing information for a specific model (including embedding models)
- */
 export function getModelPricing(modelId: string): any {
   const embeddingPricing = getEmbeddingModelPricing(modelId)
   if (embeddingPricing) {
@@ -617,29 +606,25 @@ export function shouldBillModelUsage(model: string): boolean {
  * For use server-side only
  */
 export function getApiKey(provider: string, model: string, userProvidedKey?: string): string {
-  // If user provided a key, use it as a fallback
   const hasUserKey = !!userProvidedKey
 
-  // Ollama and vLLM models don't require API keys
   const isOllamaModel =
     provider === 'ollama' || useProvidersStore.getState().providers.ollama.models.includes(model)
   if (isOllamaModel) {
-    return 'empty' // Ollama uses 'empty' as a placeholder API key
+    return 'empty'
   }
 
   const isVllmModel =
     provider === 'vllm' || useProvidersStore.getState().providers.vllm.models.includes(model)
   if (isVllmModel) {
-    return userProvidedKey || 'empty' // vLLM uses 'empty' as a placeholder if no key provided
+    return userProvidedKey || 'empty'
   }
 
-  // Use server key rotation for all OpenAI models, Anthropic's Claude models, and Google's Gemini models on the hosted platform
   const isOpenAIModel = provider === 'openai'
   const isClaudeModel = provider === 'anthropic'
   const isGeminiModel = provider === 'google'
 
   if (isHosted && (isOpenAIModel || isClaudeModel || isGeminiModel)) {
-    // Only use server key if model is explicitly in our hosted list
     const hostedModels = getHostedModels()
     const isModelHosted = hostedModels.some((m) => m.toLowerCase() === model.toLowerCase())
 
@@ -658,7 +643,6 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
     }
   }
 
-  // For all other cases, require user-provided key
   if (!hasUserKey) {
     throw new Error(`API key is required for ${provider} ${model}`)
   }
@@ -696,9 +680,8 @@ export function prepareToolsWithUsageControl(
     }
   }
   hasFilteredTools: boolean
-  forcedTools: string[] // Return all forced tool IDs
+  forcedTools: string[]
 } {
-  // If no tools, return early
   if (!tools || tools.length === 0) {
     return {
       tools: undefined,
@@ -708,14 +691,12 @@ export function prepareToolsWithUsageControl(
     }
   }
 
-  // Filter out tools marked with usageControl='none'
   const filteredTools = tools.filter((tool) => {
     const toolId = tool.function?.name || tool.name
     const toolConfig = providerTools?.find((t) => t.id === toolId)
     return toolConfig?.usageControl !== 'none'
   })
 
-  // Check if any tools were filtered out
   const hasFilteredTools = filteredTools.length < tools.length
   if (hasFilteredTools) {
     logger.info(
@@ -723,7 +704,6 @@ export function prepareToolsWithUsageControl(
     )
   }
 
-  // If all tools were filtered out, return empty
   if (filteredTools.length === 0) {
     logger.info('All tools were filtered out due to usageControl="none"')
     return {
@@ -734,11 +714,9 @@ export function prepareToolsWithUsageControl(
     }
   }
 
-  // Get all tools that should be forced
   const forcedTools = providerTools?.filter((tool) => tool.usageControl === 'force') || []
   const forcedToolIds = forcedTools.map((tool) => tool.id)
 
-  // Determine tool_choice setting
   let toolChoice:
     | 'auto'
     | 'none'
@@ -746,7 +724,6 @@ export function prepareToolsWithUsageControl(
     | { type: 'tool'; name: string }
     | { type: 'any'; any: { model: string; name: string } } = 'auto'
 
-  // For Google, we'll use a separate toolConfig object
   let toolConfig:
     | {
         functionCallingConfig: {
@@ -757,30 +734,22 @@ export function prepareToolsWithUsageControl(
     | undefined
 
   if (forcedTools.length > 0) {
-    // Force the first tool that has usageControl='force'
     const forcedTool = forcedTools[0]
 
-    // Adjust format based on provider
     if (provider === 'anthropic') {
       toolChoice = {
         type: 'tool',
         name: forcedTool.id,
       }
     } else if (provider === 'google') {
-      // Google Gemini format uses a separate toolConfig object
       toolConfig = {
         functionCallingConfig: {
           mode: 'ANY',
-          allowedFunctionNames:
-            forcedTools.length === 1
-              ? [forcedTool.id] // If only one tool, specify just that one
-              : forcedToolIds, // If multiple tools, include all of them
+          allowedFunctionNames: forcedTools.length === 1 ? [forcedTool.id] : forcedToolIds,
         },
       }
-      // Keep toolChoice as 'auto' since we use toolConfig instead
       toolChoice = 'auto'
     } else {
-      // Default OpenAI format
       toolChoice = {
         type: 'function',
         function: { name: forcedTool.id },
@@ -795,7 +764,6 @@ export function prepareToolsWithUsageControl(
       )
     }
   } else {
-    // Default to auto if no forced tools
     toolChoice = 'auto'
     if (provider === 'google') {
       toolConfig = { functionCallingConfig: { mode: 'AUTO' } }
@@ -846,7 +814,6 @@ export function trackForcedToolUsage(
     }
   }
 } {
-  // Default to keeping the original tool_choice
   let hasUsedForcedTool = false
   let nextToolChoice = originalToolChoice
   let nextToolConfig:
@@ -860,13 +827,10 @@ export function trackForcedToolUsage(
 
   const updatedUsedForcedTools = [...usedForcedTools]
 
-  // Special handling for Google format
   const isGoogleFormat = provider === 'google'
 
-  // Get the name of the current forced tool(s)
   let forcedToolNames: string[] = []
   if (isGoogleFormat && originalToolChoice?.functionCallingConfig?.allowedFunctionNames) {
-    // For Google format
     forcedToolNames = originalToolChoice.functionCallingConfig.allowedFunctionNames
   } else if (
     typeof originalToolChoice === 'object' &&
@@ -874,7 +838,6 @@ export function trackForcedToolUsage(
       (originalToolChoice?.type === 'tool' && originalToolChoice?.name) ||
       (originalToolChoice?.type === 'any' && originalToolChoice?.any?.name))
   ) {
-    // For other providers
     forcedToolNames = [
       originalToolChoice?.function?.name ||
         originalToolChoice?.name ||
@@ -882,27 +845,20 @@ export function trackForcedToolUsage(
     ].filter(Boolean)
   }
 
-  // If we're forcing specific tools and we have tool calls in the response
   if (forcedToolNames.length > 0 && toolCallsResponse && toolCallsResponse.length > 0) {
-    // Check if any of the tool calls used the forced tools
     const toolNames = toolCallsResponse.map((tc) => tc.function?.name || tc.name || tc.id)
 
-    // Find any forced tools that were used
     const usedTools = forcedToolNames.filter((toolName) => toolNames.includes(toolName))
 
     if (usedTools.length > 0) {
-      // At least one forced tool was used
       hasUsedForcedTool = true
       updatedUsedForcedTools.push(...usedTools)
 
-      // Find the next tools to force that haven't been used yet
       const remainingTools = forcedTools.filter((tool) => !updatedUsedForcedTools.includes(tool))
 
       if (remainingTools.length > 0) {
-        // There are still forced tools to use
         const nextToolToForce = remainingTools[0]
 
-        // Format based on provider
         if (provider === 'anthropic') {
           nextToolChoice = {
             type: 'tool',
@@ -913,13 +869,10 @@ export function trackForcedToolUsage(
             functionCallingConfig: {
               mode: 'ANY',
               allowedFunctionNames:
-                remainingTools.length === 1
-                  ? [nextToolToForce] // If only one tool left, specify just that one
-                  : remainingTools, // If multiple tools, include all remaining
+                remainingTools.length === 1 ? [nextToolToForce] : remainingTools,
             },
           }
         } else {
-          // Default OpenAI format
           nextToolChoice = {
             type: 'function',
             function: { name: nextToolToForce },
@@ -930,9 +883,7 @@ export function trackForcedToolUsage(
           `Forced tool(s) ${usedTools.join(', ')} used, switching to next forced tool(s): ${remainingTools.join(', ')}`
         )
       } else {
-        // All forced tools have been used, switch to auto mode
         if (provider === 'anthropic') {
-          // Anthropic: return null to signal the parameter should be deleted/omitted
           nextToolChoice = null
         } else if (provider === 'google') {
           nextToolConfig = { functionCallingConfig: { mode: 'AUTO' } }
@@ -964,9 +915,6 @@ export const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 export const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 export const PROVIDERS_WITH_TOOL_USAGE_CONTROL = getProvidersWithToolUsageControl()
 
-/**
- * Check if a model supports temperature parameter
- */
 export function supportsTemperature(model: string): boolean {
   return supportsTemperatureFromDefinitions(model)
 }
@@ -979,9 +927,6 @@ export function getMaxTemperature(model: string): number | undefined {
   return getMaxTempFromDefinitions(model)
 }
 
-/**
- * Check if a provider supports tool usage control
- */
 export function supportsToolUsageControl(provider: string): boolean {
   return supportsToolUsageControlFromDefinitions(provider)
 }
@@ -1022,8 +967,6 @@ export function prepareToolExecution(
   toolParams: Record<string, any>
   executionParams: Record<string, any>
 } {
-  // Filter out empty/null/undefined values from user params
-  // so that cleared fields don't override LLM-generated values
   const filteredUserParams: Record<string, any> = {}
   if (tool.params) {
     for (const [key, value] of Object.entries(tool.params)) {
@@ -1033,13 +976,11 @@ export function prepareToolExecution(
     }
   }
 
-  // User-provided params take precedence over LLM-generated params
   const toolParams = {
     ...llmArgs,
     ...filteredUserParams,
   }
 
-  // Add system parameters for execution
   const executionParams = {
     ...toolParams,
     ...(request.workflowId
@@ -1056,7 +997,6 @@ export function prepareToolExecution(
     ...(request.workflowVariables ? { workflowVariables: request.workflowVariables } : {}),
     ...(request.blockData ? { blockData: request.blockData } : {}),
     ...(request.blockNameMapping ? { blockNameMapping: request.blockNameMapping } : {}),
-    // Pass tool schema for MCP tools to skip discovery
     ...(tool.parameters ? { _toolSchema: tool.parameters } : {}),
   }
 

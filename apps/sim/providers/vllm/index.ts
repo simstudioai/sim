@@ -328,7 +328,6 @@ export const vllmProvider: ProviderConfig = {
       checkForForcedToolUsage(currentResponse, originalToolChoice)
 
       while (iterationCount < MAX_TOOL_ITERATIONS) {
-        // Extract text content FIRST, before checking for tool calls
         if (currentResponse.choices[0]?.message?.content) {
           content = currentResponse.choices[0].message.content
           if (request.responseFormat) {
@@ -347,7 +346,6 @@ export const vllmProvider: ProviderConfig = {
 
         const toolsStartTime = Date.now()
 
-        // Execute all tool calls in parallel using Promise.allSettled for resilience
         const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
           const toolCallStartTime = Date.now()
           const toolName = toolCall.function.name
@@ -393,7 +391,6 @@ export const vllmProvider: ProviderConfig = {
 
         const executionResults = await Promise.allSettled(toolExecutionPromises)
 
-        // Add ONE assistant message with ALL tool calls BEFORE processing results
         currentMessages.push({
           role: 'assistant',
           content: null,
@@ -407,7 +404,6 @@ export const vllmProvider: ProviderConfig = {
           })),
         })
 
-        // Process results in order to maintain consistency
         for (const settledResult of executionResults) {
           if (settledResult.status === 'rejected' || !settledResult.value) continue
 
@@ -444,7 +440,6 @@ export const vllmProvider: ProviderConfig = {
             success: result.success,
           })
 
-          // Add tool result message
           currentMessages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
@@ -641,7 +636,7 @@ export const vllmProvider: ProviderConfig = {
       })
 
       const enhancedError = new Error(errorMessage)
-      // @ts-ignore - Adding timing and vLLM error properties
+      // @ts-ignore
       enhancedError.timing = {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,

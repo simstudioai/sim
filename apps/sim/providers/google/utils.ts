@@ -33,9 +33,7 @@ export function extractTextContent(candidate: Candidate | undefined): string {
       try {
         JSON.parse(text)
         return text
-      } catch (_e) {
-        /* Not valid JSON, continue with normal extraction */
-      }
+      } catch (_e) {}
     }
   }
 

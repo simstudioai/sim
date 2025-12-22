@@ -102,8 +102,6 @@ export const mistralProvider: ProviderConfig = {
           strict: request.responseFormat.strict !== false,
         },
       }
-
-      logger.info('Added JSON schema response format to request')
     }
 
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
@@ -276,7 +274,6 @@ export const mistralProvider: ProviderConfig = {
       checkForForcedToolUsage(currentResponse, originalToolChoice)
 
       while (iterationCount < MAX_TOOL_ITERATIONS) {
-        // Extract text content FIRST, before checking for tool calls
         if (currentResponse.choices[0]?.message?.content) {
           content = currentResponse.choices[0].message.content
         }
@@ -291,8 +288,6 @@ export const mistralProvider: ProviderConfig = {
         )
 
         const toolsStartTime = Date.now()
-
-        // Execute all tool calls in parallel using Promise.allSettled for resilience
         const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
           const toolCallStartTime = Date.now()
           const toolName = toolCall.function.name
@@ -337,8 +332,6 @@ export const mistralProvider: ProviderConfig = {
         })
 
         const executionResults = await Promise.allSettled(toolExecutionPromises)
-
-        // Add ONE assistant message with ALL tool calls BEFORE processing results
         currentMessages.push({
           role: 'assistant',
           content: null,
@@ -352,7 +345,6 @@ export const mistralProvider: ProviderConfig = {
           })),
         })
 
-        // Process results in order to maintain consistency
         for (const settledResult of executionResults) {
           if (settledResult.status === 'rejected' || !settledResult.value) continue
 
@@ -388,8 +380,6 @@ export const mistralProvider: ProviderConfig = {
             result: resultContent,
             success: result.success,
           })
-
-          // Add tool result message
           currentMessages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
@@ -563,7 +553,7 @@ export const mistralProvider: ProviderConfig = {
       })
 
       const enhancedError = new Error(error instanceof Error ? error.message : String(error))
-      // @ts-ignore - Adding timing property to the error
+      // @ts-ignore - Adding timing property to error for debugging
       enhancedError.timing = {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,

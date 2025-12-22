@@ -743,8 +743,6 @@ export const googleProvider: ProviderConfig = {
                   }
                   logger.info('No function call detected, proceeding with streaming response')
 
-                  // Apply structured output for the final response if responseFormat is specified
-                  // This works regardless of whether tools were forced or auto
                   if (request.responseFormat) {
                     streamingPayload.tools = undefined
                     streamingPayload.toolConfig = undefined
@@ -951,7 +949,6 @@ export const googleProvider: ProviderConfig = {
                 const nextFunctionCall = extractFunctionCall(nextCandidate)
 
                 if (!nextFunctionCall) {
-                  // If responseFormat is specified, make one final request with structured output
                   if (request.responseFormat) {
                     const finalPayload = {
                       ...payload,
@@ -1088,7 +1085,7 @@ export const googleProvider: ProviderConfig = {
       })
 
       const enhancedError = new Error(error instanceof Error ? error.message : String(error))
-      // @ts-ignore - Adding timing property to the error
+      // @ts-ignore
       enhancedError.timing = {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,

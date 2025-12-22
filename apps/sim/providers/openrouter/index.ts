@@ -231,7 +231,6 @@ export const openRouterProvider: ProviderConfig = {
       usedForcedTools = forcedToolResult.usedForcedTools
 
       while (iterationCount < MAX_TOOL_ITERATIONS) {
-        // Extract text content FIRST, before checking for tool calls
         if (currentResponse.choices[0]?.message?.content) {
           content = currentResponse.choices[0].message.content
         }
@@ -243,7 +242,6 @@ export const openRouterProvider: ProviderConfig = {
 
         const toolsStartTime = Date.now()
 
-        // Execute all tool calls in parallel using Promise.allSettled for resilience
         const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
           const toolCallStartTime = Date.now()
           const toolName = toolCall.function.name
@@ -292,7 +290,6 @@ export const openRouterProvider: ProviderConfig = {
 
         const executionResults = await Promise.allSettled(toolExecutionPromises)
 
-        // Add ONE assistant message with ALL tool calls BEFORE processing results
         currentMessages.push({
           role: 'assistant',
           content: null,
@@ -306,7 +303,6 @@ export const openRouterProvider: ProviderConfig = {
           })),
         })
 
-        // Process results in order to maintain consistency
         for (const settledResult of executionResults) {
           if (settledResult.status === 'rejected' || !settledResult.value) continue
 
@@ -343,7 +339,6 @@ export const openRouterProvider: ProviderConfig = {
             success: result.success,
           })
 
-          // Add tool result message
           currentMessages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
@@ -354,7 +349,7 @@ export const openRouterProvider: ProviderConfig = {
         const thisToolsTime = Date.now() - toolsStartTime
         toolsTime += thisToolsTime
 
-        const nextPayload: any = {
+        const nextPayload = {
           ...payload,
           messages: currentMessages,
         }
