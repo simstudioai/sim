@@ -38,16 +38,18 @@ Crear un nuevo contacto en Intercom con email, external_id o rol
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
+| `role` | string | No | El rol del contacto. Acepta 'user' o 'lead'. Por defecto es 'lead' si no se especifica. |
 | `email` | string | No | La dirección de correo electrónico del contacto |
 | `external_id` | string | No | Un identificador único para el contacto proporcionado por el cliente |
 | `phone` | string | No | El número de teléfono del contacto |
 | `name` | string | No | El nombre del contacto |
 | `avatar` | string | No | Una URL de imagen de avatar para el contacto |
-| `signed_up_at` | number | No | El momento en que el usuario se registró como marca de tiempo Unix |
-| `last_seen_at` | number | No | El momento en que el usuario fue visto por última vez como marca de tiempo Unix |
-| `owner_id` | string | No | El id de un administrador que ha sido asignado como propietario de la cuenta del contacto |
+| `signed_up_at` | number | No | La hora en que el usuario se registró como marca de tiempo Unix |
+| `last_seen_at` | number | No | La hora en que el usuario fue visto por última vez como marca de tiempo Unix |
+| `owner_id` | string | No | El id de un administrador al que se le ha asignado la propiedad de la cuenta del contacto |
 | `unsubscribed_from_emails` | boolean | No | Si el contacto está dado de baja de los correos electrónicos |
-| `custom_attributes` | string | No | Atributos personalizados como objeto JSON \(p. ej., \{"nombre_atributo": "valor"\}\) |
+| `custom_attributes` | string | No | Atributos personalizados como objeto JSON \(ej., \{"attribute_name": "value"\}\) |
+| `company_id` | string | No | ID de empresa para asociar el contacto durante la creación |
 
 #### Salida
 
@@ -82,15 +84,18 @@ Actualizar un contacto existente en Intercom
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `contactId` | string | Sí | ID del contacto a actualizar |
-| `email` | string | No | Dirección de correo electrónico del contacto |
-| `phone` | string | No | Número de teléfono del contacto |
-| `name` | string | No | Nombre del contacto |
-| `avatar` | string | No | URL de imagen de avatar para el contacto |
-| `signed_up_at` | number | No | El momento en que el usuario se registró como marca de tiempo Unix |
-| `last_seen_at` | number | No | El momento en que el usuario fue visto por última vez como marca de tiempo Unix |
-| `owner_id` | string | No | El id de un administrador que ha sido asignado como propietario de la cuenta del contacto |
+| `role` | string | No | El rol del contacto. Acepta 'user' o 'lead'. |
+| `external_id` | string | No | Un identificador único para el contacto proporcionado por el cliente |
+| `email` | string | No | La dirección de correo electrónico del contacto |
+| `phone` | string | No | El número de teléfono del contacto |
+| `name` | string | No | El nombre del contacto |
+| `avatar` | string | No | Una URL de imagen de avatar para el contacto |
+| `signed_up_at` | number | No | La hora en que el usuario se registró como marca de tiempo Unix |
+| `last_seen_at` | number | No | La hora en que el usuario fue visto por última vez como marca de tiempo Unix |
+| `owner_id` | string | No | El id de un administrador al que se le ha asignado la propiedad de la cuenta del contacto |
 | `unsubscribed_from_emails` | boolean | No | Si el contacto está dado de baja de los correos electrónicos |
-| `custom_attributes` | string | No | Atributos personalizados como objeto JSON (p. ej., \{"nombre_atributo": "valor"\}) |
+| `custom_attributes` | string | No | Atributos personalizados como objeto JSON \(ej., \{"attribute_name": "value"\}\) |
+| `company_id` | string | No | ID de empresa para asociar el contacto |
 
 #### Salida
 
@@ -125,9 +130,11 @@ Buscar contactos en Intercom usando una consulta
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Sí | Consulta de búsqueda \(p. ej., \{"field":"email","operator":"=","value":"user@example.com"\}\) |
+| `query` | string | Sí | Consulta de búsqueda \(ej., \{"field":"email","operator":"=","value":"user@example.com"\}\) |
 | `per_page` | number | No | Número de resultados por página \(máx: 150\) |
 | `starting_after` | string | No | Cursor para paginación |
+| `sort_field` | string | No | Campo por el cual ordenar \(ej., "name", "created_at", "last_seen_at"\) |
+| `sort_order` | string | No | Orden de clasificación: "ascending" o "descending" |
 
 #### Salida
 
@@ -166,9 +173,10 @@ Crear o actualizar una empresa en Intercom
 | `website` | string | No | El sitio web de la empresa |
 | `plan` | string | No | El nombre del plan de la empresa |
 | `size` | number | No | El número de empleados en la empresa |
-| `industry` | string | No | El sector en el que opera la empresa |
-| `monthly_spend` | number | No | Cuántos ingresos genera la empresa para tu negocio. Nota: Este campo trunca los decimales a números enteros \(por ejemplo, 155.98 se convierte en 155\) |
+| `industry` | string | No | La industria en la que opera la empresa |
+| `monthly_spend` | number | No | Cuántos ingresos genera la empresa para tu negocio. Nota: Este campo trunca decimales a números enteros \(ej., 155.98 se convierte en 155\) |
 | `custom_attributes` | string | No | Atributos personalizados como objeto JSON |
+| `remote_created_at` | number | No | La fecha en que creaste la empresa como marca de tiempo Unix |
 
 #### Salida
 
@@ -204,6 +212,7 @@ Lista todas las empresas de Intercom con soporte de paginación. Nota: Este endp
 | --------- | ---- | -------- | ----------- |
 | `per_page` | number | No | Número de resultados por página |
 | `page` | number | No | Número de página |
+| `starting_after` | string | No | Cursor para paginación \(preferido sobre paginación basada en páginas\) |
 
 #### Salida
 
@@ -221,7 +230,8 @@ Recuperar una sola conversación por ID desde Intercom
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `conversationId` | string | Sí | ID de la conversación a recuperar |
-| `display_as` | string | No | Establecer como "plaintext" para recuperar mensajes en texto plano |
+| `display_as` | string | No | Establecer en "plaintext" para recuperar mensajes en texto plano |
+| `include_translations` | boolean | No | Cuando es true, las partes de la conversación se traducirán al idioma detectado de la conversación |
 
 #### Salida
 
@@ -240,6 +250,8 @@ Listar todas las conversaciones de Intercom con soporte de paginación
 | --------- | ---- | -------- | ----------- |
 | `per_page` | number | No | Número de resultados por página \(máx: 150\) |
 | `starting_after` | string | No | Cursor para paginación |
+| `sort` | string | No | Campo por el que ordenar \(p. ej., "waiting_since", "updated_at", "created_at"\) |
+| `order` | string | No | Orden de clasificación: "asc" \(ascendente\) o "desc" \(descendente\) |
 
 #### Salida
 
@@ -258,9 +270,10 @@ Responder a una conversación como administrador en Intercom
 | --------- | ---- | -------- | ----------- |
 | `conversationId` | string | Sí | ID de la conversación a la que responder |
 | `message_type` | string | Sí | Tipo de mensaje: "comment" o "note" |
-| `body` | string | Sí | El texto del cuerpo de la respuesta |
-| `admin_id` | string | No | El ID del administrador que escribe la respuesta. Si no se proporciona, se utilizará un administrador predeterminado \(Operator/Fin\). |
-| `attachment_urls` | string | No | Lista separada por comas de URLs de imágenes \(máximo 10\) |
+| `body` | string | Sí | El cuerpo de texto de la respuesta |
+| `admin_id` | string | No | El ID del administrador que escribe la respuesta. Si no se proporciona, se usará un administrador predeterminado \(Operator/Fin\). |
+| `attachment_urls` | string | No | Lista de URLs de imágenes separadas por comas \(máx 10\) |
+| `created_at` | number | No | Marca de tiempo Unix de cuándo se creó la respuesta. Si no se proporciona, se usa la hora actual. |
 
 #### Salida
 
@@ -278,8 +291,10 @@ Buscar conversaciones en Intercom usando una consulta
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Sí | Consulta de búsqueda como objeto JSON |
-| `per_page` | number | No | Número de resultados por página (máx: 150) |
+| `per_page` | number | No | Número de resultados por página \(máx: 150\) |
 | `starting_after` | string | No | Cursor para paginación |
+| `sort_field` | string | No | Campo por el que ordenar \(p. ej., "created_at", "updated_at"\) |
+| `sort_order` | string | No | Orden de clasificación: "ascending" o "descending" |
 
 #### Salida
 
@@ -297,8 +312,12 @@ Crear un nuevo ticket en Intercom
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `ticket_type_id` | string | Sí | El ID del tipo de ticket |
-| `contacts` | string | Sí | Array JSON de identificadores de contacto (p. ej., \{"id": "contact_id"\}) |
+| `contacts` | string | Sí | Array JSON de identificadores de contacto \(p. ej., \[\{"id": "contact_id"\}\]\) |
 | `ticket_attributes` | string | Sí | Objeto JSON con atributos del ticket incluyendo _default_title_ y _default_description_ |
+| `company_id` | string | No | ID de la empresa para asociar el ticket |
+| `created_at` | number | No | Marca de tiempo Unix de cuándo se creó el ticket. Si no se proporciona, se utiliza la hora actual. |
+| `conversation_to_link_id` | string | No | ID de una conversación existente para vincular a este ticket |
+| `disable_notifications` | boolean | No | Cuando es true, suprime las notificaciones cuando se crea el ticket |
 
 #### Salida
 
@@ -332,13 +351,15 @@ Crear y enviar un nuevo mensaje iniciado por el administrador en Intercom
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `message_type` | string | Sí | Tipo de mensaje: "inapp" o "email" |
+| `message_type` | string | Sí | Tipo de mensaje: "inapp" para mensajes dentro de la aplicación o "email" para mensajes de correo electrónico |
+| `template` | string | Sí | Estilo de plantilla del mensaje: "plain" para texto sin formato o "personal" para estilo personalizado |
 | `subject` | string | No | El asunto del mensaje \(para tipo email\) |
 | `body` | string | Sí | El cuerpo del mensaje |
 | `from_type` | string | Sí | Tipo de remitente: "admin" |
 | `from_id` | string | Sí | El ID del administrador que envía el mensaje |
 | `to_type` | string | Sí | Tipo de destinatario: "contact" |
 | `to_id` | string | Sí | El ID del contacto que recibe el mensaje |
+| `created_at` | number | No | Marca de tiempo Unix de cuándo se creó el mensaje. Si no se proporciona, se utiliza la hora actual. |
 
 #### Salida
 

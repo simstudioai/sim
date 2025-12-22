@@ -38,16 +38,19 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `email` | string | 否 | 联系人的电子邮件地址 |
-| `external_id` | string | 否 | 客户提供的联系人的唯一标识符 |
-| `phone` | string | 否 | 联系人的电话号码 |
-| `name` | string | 否 | 联系人的姓名 |
-| `avatar` | string | 否 | 联系人的头像图片 URL |
+| `role` | string | 否 | 联系人角色。可选 'user' 或 'lead'。如未指定，默认为 'lead'。 |
+| `email` | string | 否 | 联系人邮箱地址 |
+| `external_id` | string | 否 | 客户端为联系人提供的唯一标识符 |
+| `phone` | string | 否 | 联系人电话号码 |
+| `name` | string | 否 | 联系人姓名 |
+| `avatar` | string | 否 | 联系人头像图片 URL |
 | `signed_up_at` | number | 否 | 用户注册时间（Unix 时间戳） |
-| `last_seen_at` | number | 否 | 用户上次访问时间（Unix 时间戳） |
-| `owner_id` | string | 否 | 被分配为联系人账户所有者的管理员 ID |
-| `unsubscribed_from_emails` | boolean | 否 | 联系人是否取消订阅电子邮件 |
-| `custom_attributes` | string | 否 | 自定义属性，格式为 JSON 对象 \(例如，\{"attribute_name": "value"\}\) |
+| `last_seen_at` | number | 否 | 用户最后一次在线时间（Unix 时间戳） |
+| `owner_id` | string | 否 | 被分配为该联系人账户所有者的管理员 ID |
+| `unsubscribed_from_emails` | boolean | 否 | 联系人是否已退订邮件 |
+| `custom_attributes` | string | 否 | 自定义属性，格式为 JSON 对象（如：{"attribute_name": "value"}） |
+| `company_id` | string | 否 | 创建联系人时关联的公司 ID |
+
 
 #### 输出
 
@@ -82,15 +85,19 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `contactId` | string | 是 | 要更新的联系人 ID |
-| `email` | string | 否 | 联系人的电子邮件地址 |
-| `phone` | string | 否 | 联系人的电话号码 |
-| `name` | string | 否 | 联系人的姓名 |
-| `avatar` | string | 否 | 联系人的头像图片 URL |
+| `role` | string | 否 | 联系人角色。可选 'user' 或 'lead'。 |
+| `external_id` | string | 否 | 客户端为联系人提供的唯一标识符 |
+| `email` | string | 否 | 联系人邮箱地址 |
+| `phone` | string | 否 | 联系人电话号码 |
+| `name` | string | 否 | 联系人姓名 |
+| `avatar` | string | 否 | 联系人头像图片 URL |
 | `signed_up_at` | number | 否 | 用户注册时间（Unix 时间戳） |
-| `last_seen_at` | number | 否 | 用户上次访问时间（Unix 时间戳） |
-| `owner_id` | string | 否 | 分配了账户所有权的管理员 ID |
-| `unsubscribed_from_emails` | boolean | 否 | 联系人是否取消订阅电子邮件 |
-| `custom_attributes` | string | 否 | 自定义属性，格式为 JSON 对象 \(例如：\{"attribute_name": "value"\}\) |
+| `last_seen_at` | number | 否 | 用户最后一次在线时间（Unix 时间戳） |
+| `owner_id` | string | 否 | 被分配为该联系人账户所有者的管理员 ID |
+| `unsubscribed_from_emails` | boolean | 否 | 联系人是否已退订邮件 |
+| `custom_attributes` | string | 否 | 自定义属性，格式为 JSON 对象（如：{"attribute_name": "value"}） |
+| `company_id` | string | 否 | 关联的公司 ID |
+
 
 #### 输出
 
@@ -123,11 +130,13 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 #### 输入
 
-| 参数 | 类型 | 必需 | 描述 |
+| 参数 | 类型 | 必填 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | 是 | 搜索查询 \(例如, \{"field":"email","operator":"=","value":"user@example.com"\}\) |
-| `per_page` | number | 否 | 每页结果数量 \(最大值: 150\) |
-| `starting_after` | string | 否 | 分页游标 |
+| `query` | string | 是 | 搜索查询（例如：{"field":"email", "operator":"=", "value":"user@example.com"}） |
+| `per_page` | number | 否 | 每页结果数量（最大值：150） |
+| `starting_after` | string | 否 | 用于分页的游标 |
+| `sort_field` | string | 否 | 排序字段（例如："name"，"created_at"，"last_seen_at"） |
+| `sort_order` | string | 否 | 排序方式：“ascending” 或 “descending” |
 
 #### 输出
 
@@ -159,16 +168,17 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 #### 输入
 
-| 参数 | 类型 | 必需 | 描述 |
+| 参数 | 类型 | 必填 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `company_id` | string | 是 | 您的公司唯一标识符 |
-| `name` | string | 否 | 公司的名称 |
+| `company_id` | string | 是 | 您为公司设置的唯一标识符 |
+| `name` | string | 否 | 公司名称 |
 | `website` | string | 否 | 公司网站 |
-| `plan` | string | 否 | 公司计划名称 |
+| `plan` | string | 否 | 公司套餐名称 |
 | `size` | number | 否 | 公司员工数量 |
 | `industry` | string | 否 | 公司所属行业 |
-| `monthly_spend` | number | 否 | 公司为您的业务创造的收入。注意：此字段会将浮点数截断为整数（例如，155.98 会变为 155） |
-| `custom_attributes` | string | 否 | 作为 JSON 对象的自定义属性 |
+| `monthly_spend` | number | 否 | 公司为您的业务带来的收入。注意：此字段会将浮点数截断为整数（例如：155.98 变为 155） |
+| `custom_attributes` | string | 否 | 自定义属性，格式为 JSON 对象 |
+| `remote_created_at` | number | 否 | 您创建公司时的 Unix 时间戳 |
 
 #### 输出
 
@@ -200,10 +210,11 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 #### 输入
 
-| 参数 | 类型 | 必需 | 描述 |
+| 参数 | 类型 | 必填 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `per_page` | 数字 | 否 | 每页结果数量 |
-| `page` | 数字 | 否 | 页码 |
+| `per_page` | number | 否 | 每页结果数量 |
+| `page` | number | 否 | 页码 |
+| `starting_after` | string | 否 | 分页游标（优先于基于页码的分页） |
 
 #### 输出
 
@@ -220,8 +231,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | 字符串 | 是 | 要检索的会话 ID |
-| `display_as` | 字符串 | 否 | 设置为 "plaintext" 以检索纯文本消息 |
+| `conversationId` | string | 是 | 要检索的会话 ID |
+| `display_as` | string | 否 | 设为 "plaintext" 可检索纯文本消息 |
+| `include_translations` | boolean | 否 | 若为 true，会话内容将被翻译为检测到的会话语言 |
 
 #### 输出
 
@@ -238,8 +250,10 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `per_page` | 数字 | 否 | 每页结果数量 \(最大值: 150\) |
-| `starting_after` | 字符串 | 否 | 分页游标 |
+| `per_page` | number | 否 | 每页结果数量（最大值：150） |
+| `starting_after` | string | 否 | 分页游标 |
+| `sort` | string | 否 | 排序字段（例如："waiting_since"、"updated_at"、"created_at"） |
+| `order` | string | 否 | 排序方式："asc"（升序）或 "desc"（降序） |
 
 #### 输出
 
@@ -258,9 +272,10 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | -------- | ----------- |
 | `conversationId` | string | 是 | 要回复的会话 ID |
 | `message_type` | string | 是 | 消息类型："comment" 或 "note" |
-| `body` | string | 是 | 回复的正文文本 |
-| `admin_id` | string | 否 | 撰写回复的管理员 ID。如果未提供，将使用默认管理员（Operator/Fin）。 |
-| `attachment_urls` | string | 否 | 逗号分隔的图片 URL 列表（最多 10 个） |
+| `body` | string | 是 | 回复正文 |
+| `admin_id` | string | 否 | 回复管理员的 ID。如果未提供，将使用默认管理员（Operator/Fin）。 |
+| `attachment_urls` | string | 否 | 以逗号分隔的图片 URL 列表（最多 10 个） |
+| `created_at` | number | 否 | 回复创建时的 Unix 时间戳。如果未提供，则使用当前时间。 |
 
 #### 输出
 
@@ -275,11 +290,13 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 #### 输入
 
-| 参数 | 类型 | 必填 | 描述 |
+| 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | 是 | 作为 JSON 对象的搜索查询 |
 | `per_page` | number | 否 | 每页结果数量（最大值：150） |
-| `starting_after` | string | 否 | 用于分页的游标 |
+| `starting_after` | string | 否 | 分页游标 |
+| `sort_field` | string | 否 | 排序字段（例如："created_at"，"updated_at"） |
+| `sort_order` | string | 否 | 排序顺序：“ascending” 或 “descending” |
 
 #### 输出
 
@@ -294,11 +311,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 #### 输入
 
-| 参数 | 类型 | 必填 | 描述 |
+| 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `ticket_type_id` | string | 是 | 工单类型的 ID |
-| `contacts` | string | 是 | 联系人标识符的 JSON 数组（例如，\[\{"id": "contact_id"\}\]） |
-| `ticket_attributes` | string | 是 | 包含工单属性的 JSON 对象，包括 _default_title_ 和 _default_description_ |
+| `contacts` | string | 是 | 联系人标识符的 JSON 数组（例如：\[{"id": "contact_id"}\]） |
+| `ticket_attributes` | string | 是 | 包含 _default_title_ 和 _default_description_ 的工单属性 JSON 对象 |
+| `company_id` | string | 否 | 要关联工单的公司 ID |
+| `created_at` | number | 否 | 工单创建时的 Unix 时间戳。如果未提供，则使用当前时间。 |
+| `conversation_to_link_id` | string | 否 | 要关联到此工单的现有会话 ID |
+| `disable_notifications` | boolean | 否 | 若为 true，创建工单时将不发送通知 |
 
 #### 输出
 
@@ -332,13 +353,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `message_type` | string | 是 | 消息类型："inapp" 或 "email" |
-| `subject` | string | 否 | 消息主题（针对 email 类型） |
+| `message_type` | string | 是 | 消息类型：“inapp” 表示应用内消息，“email” 表示电子邮件消息 |
+| `template` | string | 是 | 消息模板样式：“plain” 表示纯文本，“personal” 表示个性化样式 |
+| `subject` | string | 否 | 消息主题（仅适用于 email 类型） |
 | `body` | string | 是 | 消息正文 |
-| `from_type` | string | 是 | 发送者类型："admin" |
+| `from_type` | string | 是 | 发送方类型：“admin” |
 | `from_id` | string | 是 | 发送消息的管理员 ID |
-| `to_type` | string | 是 | 接收者类型："contact" |
+| `to_type` | string | 是 | 接收方类型：“contact” |
 | `to_id` | string | 是 | 接收消息的联系人的 ID |
+| `created_at` | number | 否 | 消息创建时的 Unix 时间戳。如果未提供，则使用当前时间。 |
 
 #### 输出
 
