@@ -48,7 +48,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `last_seen_at` | number | 否 | 用户最后一次在线时间（Unix 时间戳） |
 | `owner_id` | string | 否 | 被分配为该联系人账户所有者的管理员 ID |
 | `unsubscribed_from_emails` | boolean | 否 | 联系人是否已退订邮件 |
-| `custom_attributes` | string | 否 | 自定义属性，格式为 JSON 对象（如：{"attribute_name": "value"}） |
+| `custom_attributes` | string | 否 | 自定义属性，格式为 JSON 对象（如：\{"attribute_name": "value"\}） |
 | `company_id` | string | 否 | 创建联系人时关联的公司 ID |
 
 
@@ -95,7 +95,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `last_seen_at` | number | 否 | 用户最后一次在线时间（Unix 时间戳） |
 | `owner_id` | string | 否 | 被分配为该联系人账户所有者的管理员 ID |
 | `unsubscribed_from_emails` | boolean | 否 | 联系人是否已退订邮件 |
-| `custom_attributes` | string | 否 | 自定义属性，格式为 JSON 对象（如：{"attribute_name": "value"}） |
+| `custom_attributes` | string | 否 | 自定义属性，格式为 JSON 对象（如：\{"attribute_name": "value"\}） |
 | `company_id` | string | 否 | 关联的公司 ID |
 
 
@@ -132,7 +132,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必填 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | 是 | 搜索查询（例如：{"field":"email", "operator":"=", "value":"user@example.com"}） |
+| `query` | string | 是 | 搜索查询（例如：\{"field":"email", "operator":"=", "value":"user@example.com"\}） |
 | `per_page` | number | 否 | 每页结果数量（最大值：150） |
 | `starting_after` | string | 否 | 用于分页的游标 |
 | `sort_field` | string | 否 | 排序字段（例如："name"，"created_at"，"last_seen_at"） |
@@ -314,7 +314,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `ticket_type_id` | string | 是 | 工单类型的 ID |
-| `contacts` | string | 是 | 联系人标识符的 JSON 数组（例如：\[{"id": "contact_id"}\]） |
+| `contacts` | string | 是 | 联系人标识符的 JSON 数组（例如：\[\{"id": "contact_id"\}\]） |
 | `ticket_attributes` | string | 是 | 包含 _default_title_ 和 _default_description_ 的工单属性 JSON 对象 |
 | `company_id` | string | 否 | 要关联工单的公司 ID |
 | `created_at` | number | 否 | 工单创建时的 Unix 时间戳。如果未提供，则使用当前时间。 |
