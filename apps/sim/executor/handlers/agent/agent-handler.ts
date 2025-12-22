@@ -710,8 +710,8 @@ export class AgentBlockHandler implements BlockHandler {
     const conversationMessages = inputMessages.filter((m) => m.role !== 'system')
 
     // 2. Handle native memory: seed on first run, then fetch and append new user input
-    if (memoryEnabled && ctx.workflowId) {
-      const hasExisting = await memoryService.hasMemory(ctx.workflowId, inputs.conversationId!)
+    if (memoryEnabled && ctx.workspaceId) {
+      const hasExisting = await memoryService.hasMemory(ctx.workspaceId, inputs.conversationId!)
 
       if (!hasExisting && conversationMessages.length > 0) {
         await memoryService.seedMemory(ctx, inputs, conversationMessages)

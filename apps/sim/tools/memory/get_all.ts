@@ -11,23 +11,23 @@ export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
 
   request: {
     url: (params): any => {
-      const workflowId = params._context?.workflowId
+      const workspaceId = params._context?.workspaceId
 
-      if (!workflowId) {
+      if (!workspaceId) {
         return {
           _errorResponse: {
             status: 400,
             data: {
               success: false,
               error: {
-                message: 'workflowId is required and must be provided in execution context',
+                message: 'workspaceId is required and must be provided in execution context',
               },
             },
           },
         }
       }
 
-      return `/api/memory?workflowId=${encodeURIComponent(workflowId)}`
+      return `/api/memory?workspaceId=${encodeURIComponent(workspaceId)}`
     },
     method: 'GET',
     headers: () => ({

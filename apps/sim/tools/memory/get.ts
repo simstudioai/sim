@@ -25,23 +25,22 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
 
   request: {
     url: (params): any => {
-      const workflowId = params._context?.workflowId
+      const workspaceId = params._context?.workspaceId
 
-      if (!workflowId) {
+      if (!workspaceId) {
         return {
           _errorResponse: {
             status: 400,
             data: {
               success: false,
               error: {
-                message: 'workflowId is required and must be provided in execution context',
+                message: 'workspaceId is required and must be provided in execution context',
               },
             },
           },
         }
       }
 
-      // Use 'id' as fallback for 'conversationId' for backwards compatibility
       const conversationId = params.conversationId || params.id
 
       if (!conversationId) {
@@ -61,7 +60,7 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
       const query = buildMemoryKey(conversationId)
 
       const url = new URL('/api/memory', 'http://dummy')
-      url.searchParams.set('workflowId', workflowId)
+      url.searchParams.set('workspaceId', workspaceId)
       url.searchParams.set('query', query)
       url.searchParams.set('limit', '1000')
 

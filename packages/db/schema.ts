@@ -962,24 +962,21 @@ export const memory = pgTable(
   'memory',
   {
     id: text('id').primaryKey(),
-    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'cascade' }),
-    key: text('key').notNull(), // Conversation ID provided by user (thread-scoped memory key)
-    data: jsonb('data').notNull(), // Stores agent messages as array of {role, content} objects
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    data: jsonb('data').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     deletedAt: timestamp('deleted_at'),
   },
   (table) => {
     return {
-      // Add index on key for faster lookups
       keyIdx: index('memory_key_idx').on(table.key),
-
-      // Add index on workflowId for faster filtering
-      workflowIdx: index('memory_workflow_idx').on(table.workflowId),
-
-      // Compound unique index to ensure keys are unique per workflow
-      uniqueKeyPerWorkflowIdx: uniqueIndex('memory_workflow_key_idx').on(
-        table.workflowId,
+      workspaceIdx: index('memory_workspace_idx').on(table.workspaceId),
+      uniqueKeyPerWorkspaceIdx: uniqueIndex('memory_workspace_key_idx').on(
+        table.workspaceId,
         table.key
       ),
     }

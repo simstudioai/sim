@@ -40,23 +40,22 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const workflowId = params._context?.workflowId
+      const workspaceId = params._context?.workspaceId
 
-      if (!workflowId) {
+      if (!workspaceId) {
         return {
           _errorResponse: {
             status: 400,
             data: {
               success: false,
               error: {
-                message: 'workflowId is required and must be provided in execution context',
+                message: 'workspaceId is required and must be provided in execution context',
               },
             },
           },
         }
       }
 
-      // Use 'id' as fallback for 'conversationId' for backwards compatibility
       const conversationId = params.conversationId || params.id
 
       if (!conversationId || conversationId.trim() === '') {
@@ -91,7 +90,7 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
 
       const body: Record<string, any> = {
         key,
-        workflowId,
+        workspaceId,
         data: {
           role: params.role,
           content: params.content,

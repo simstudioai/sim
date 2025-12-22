@@ -12,11 +12,11 @@ import { PROVIDER_DEFINITIONS } from '@/providers/models'
 const logger = createLogger('Memory')
 
 export class Memory {
-  async hasMemory(workflowId: string, conversationId: string): Promise<boolean> {
+  async hasMemory(workspaceId: string, conversationId: string): Promise<boolean> {
     const result = await db
       .select({ id: memory.id })
       .from(memory)
-      .where(and(eq(memory.workflowId, workflowId), eq(memory.key, conversationId)))
+      .where(and(eq(memory.workspaceId, workspaceId), eq(memory.key, conversationId)))
       .limit(1)
 
     return result.length > 0
@@ -27,13 +27,10 @@ export class Memory {
       return []
     }
 
-    if (!ctx.workflowId) {
-      throw new Error('workflowId is required to fetch memory')
-    }
-
+    const workspaceId = this.requireWorkspaceId(ctx)
     this.validateConversationId(inputs.conversationId)
 
-    const messages = await this.fetchMemory(ctx.workflowId, inputs.conversationId!)
+    const messages = await this.fetchMemory(workspaceId, inputs.conversationId!)
 
     switch (inputs.memoryType) {
       case 'conversation':
@@ -69,10 +66,7 @@ export class Memory {
       return
     }
 
-    if (!ctx.workflowId) {
-      throw new Error('workflowId is required to append to memory')
-    }
-
+    const workspaceId = this.requireWorkspaceId(ctx)
     this.validateConversationId(inputs.conversationId)
     this.validateContent(message.content)
 
@@ -83,23 +77,23 @@ export class Memory {
         inputs.slidingWindowSize,
         MEMORY.DEFAULT_SLIDING_WINDOW_SIZE
       )
-      const existing = await this.fetchMemory(ctx.workflowId, key)
+      const existing = await this.fetchMemory(workspaceId, key)
       const updated = this.applyWindow([...existing, message], limit)
-      await this.persistMemory(ctx.workflowId, key, updated)
+      await this.persistMemory(workspaceId, key, updated)
     } else if (inputs.memoryType === 'sliding_window_tokens') {
       const maxTokens = this.parsePositiveInt(
         inputs.slidingWindowTokens,
         MEMORY.DEFAULT_SLIDING_WINDOW_TOKENS
       )
-      const existing = await this.fetchMemory(ctx.workflowId, key)
+      const existing = await this.fetchMemory(workspaceId, key)
       const updated = this.applyTokenWindow([...existing, message], maxTokens, inputs.model)
-      await this.persistMemory(ctx.workflowId, key, updated)
+      await this.persistMemory(workspaceId, key, updated)
     } else {
-      await this.appendMessage(ctx.workflowId, key, message)
+      await this.appendMessage(workspaceId, key, message)
     }
 
     logger.debug('Appended message to memory', {
-      workflowId: ctx.workflowId,
+      workspaceId,
       key,
       role: message.role,
     })
@@ -110,9 +104,7 @@ export class Memory {
       return
     }
 
-    if (!ctx.workflowId) {
-      throw new Error('workflowId is required to seed memory')
-    }
+    const workspaceId = this.requireWorkspaceId(ctx)
 
     const conversationMessages = messages.filter((m) => m.role !== 'system')
     if (conversationMessages.length === 0) {
@@ -138,10 +130,10 @@ export class Memory {
       messagesToStore = this.applyTokenWindow(conversationMessages, maxTokens, inputs.model)
     }
 
-    await this.persistMemory(ctx.workflowId, key, messagesToStore)
+    await this.persistMemory(workspaceId, key, messagesToStore)
 
     logger.debug('Seeded memory', {
-      workflowId: ctx.workflowId,
+      workspaceId,
       key,
       count: messagesToStore.length,
     })
@@ -173,6 +165,13 @@ export class Memory {
     })
 
     return stream.pipeThrough(transformStream)
+  }
+
+  private requireWorkspaceId(ctx: ExecutionContext): string {
+    if (!ctx.workspaceId) {
+      throw new Error('workspaceId is required for memory operations')
+    }
+    return ctx.workspaceId
   }
 
   private applyWindow(messages: Message[], limit: number): Message[] {
@@ -222,11 +221,11 @@ export class Memory {
     return messages
   }
 
-  private async fetchMemory(workflowId: string, key: string): Promise<Message[]> {
+  private async fetchMemory(workspaceId: string, key: string): Promise<Message[]> {
     const result = await db
       .select({ data: memory.data })
       .from(memory)
-      .where(and(eq(memory.workflowId, workflowId), eq(memory.key, key)))
+      .where(and(eq(memory.workspaceId, workspaceId), eq(memory.key, key)))
       .limit(1)
 
     if (result.length === 0) return []
@@ -239,21 +238,25 @@ export class Memory {
     )
   }
 
-  private async persistMemory(workflowId: string, key: string, messages: Message[]): Promise<void> {
+  private async persistMemory(
+    workspaceId: string,
+    key: string,
+    messages: Message[]
+  ): Promise<void> {
     const now = new Date()
 
     await db
       .insert(memory)
       .values({
         id: randomUUID(),
-        workflowId,
+        workspaceId,
         key,
         data: messages,
         createdAt: now,
         updatedAt: now,
       })
       .onConflictDoUpdate({
-        target: [memory.workflowId, memory.key],
+        target: [memory.workspaceId, memory.key],
         set: {
           data: messages,
           updatedAt: now,
@@ -261,21 +264,21 @@ export class Memory {
       })
   }
 
-  private async appendMessage(workflowId: string, key: string, message: Message): Promise<void> {
+  private async appendMessage(workspaceId: string, key: string, message: Message): Promise<void> {
     const now = new Date()
 
     await db
       .insert(memory)
       .values({
         id: randomUUID(),
-        workflowId,
+        workspaceId,
         key,
         data: [message],
         createdAt: now,
         updatedAt: now,
       })
       .onConflictDoUpdate({
-        target: [memory.workflowId, memory.key],
+        target: [memory.workspaceId, memory.key],
         set: {
           data: sql`${memory.data} || ${JSON.stringify([message])}::jsonb`,
           updatedAt: now,
