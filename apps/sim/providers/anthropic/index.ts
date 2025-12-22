@@ -19,6 +19,113 @@ import { executeTool } from '@/tools'
 
 const logger = createLogger('AnthropicProvider')
 
+// Models that support native structured outputs (November 2025+)
+// See: https://platform.claude.com/docs/en/build-with-claude/structured-outputs
+const STRUCTURED_OUTPUT_MODELS = [
+  'claude-haiku-4-5',
+  'claude-sonnet-4-5',
+  'claude-opus-4-5',
+  'claude-opus-4-1',
+]
+
+/**
+ * Check if a model supports native structured outputs
+ */
+function supportsNativeStructuredOutput(model: string): boolean {
+  return STRUCTURED_OUTPUT_MODELS.some(
+    (supportedModel) =>
+      model.toLowerCase().includes(supportedModel.toLowerCase()) ||
+      model.toLowerCase().startsWith(supportedModel.toLowerCase())
+  )
+}
+
+/**
+ * Ensure schema has additionalProperties: false (required for structured outputs)
+ */
+function ensureAdditionalPropertiesFalse(schema: any): any {
+  if (!schema || typeof schema !== 'object') return schema
+
+  const result = { ...schema }
+
+  if (result.type === 'object' && result.additionalProperties === undefined) {
+    result.additionalProperties = false
+  }
+
+  // Recursively process nested objects
+  if (result.properties) {
+    result.properties = { ...result.properties }
+    for (const key of Object.keys(result.properties)) {
+      result.properties[key] = ensureAdditionalPropertiesFalse(result.properties[key])
+    }
+  }
+
+  // Process array items
+  if (result.items) {
+    result.items = ensureAdditionalPropertiesFalse(result.items)
+  }
+
+  return result
+}
+
+/**
+ * Create a message using either standard or beta API based on structured output requirements
+ */
+async function createMessage(
+  anthropic: Anthropic,
+  payload: any,
+  useNativeStructuredOutput: boolean,
+  structuredOutputSchema: any,
+  logger: any
+): Promise<Anthropic.Message> {
+  if (useNativeStructuredOutput && structuredOutputSchema) {
+    // Use beta API with native structured outputs
+    // See: https://platform.claude.com/docs/en/build-with-claude/structured-outputs
+    logger.info('Making request with native structured outputs via beta API')
+    return await (anthropic.beta.messages as any).create({
+      ...payload,
+      betas: ['structured-outputs-2025-11-13'],
+      output_format: {
+        type: 'json_schema',
+        schema: structuredOutputSchema,
+      },
+    })
+  } else {
+    // Use standard API
+    return await anthropic.messages.create(payload)
+  }
+}
+
+/**
+ * Create a streaming message using either standard or beta API
+ */
+async function createStreamingMessage(
+  anthropic: Anthropic,
+  payload: any,
+  useNativeStructuredOutput: boolean,
+  structuredOutputSchema: any,
+  logger: any
+): Promise<any> {
+  if (useNativeStructuredOutput && structuredOutputSchema) {
+    // Use beta API with native structured outputs for streaming
+    logger.info('Making streaming request with native structured outputs via beta API')
+    return await (anthropic.beta.messages as any).create({
+      ...payload,
+      stream: true,
+      betas: ['structured-outputs-2025-11-13'],
+      output_format: {
+        type: 'json_schema',
+        schema: structuredOutputSchema,
+      },
+    })
+  } else {
+    // Use standard streaming API
+    return await anthropic.messages.create({
+      ...payload,
+      stream: true,
+    })
+  }
+}
+
 export const anthropicProvider: ProviderConfig = {
   id: 'anthropic',
   name: 'Anthropic',
@@ -154,61 +261,76 @@ export const anthropicProvider: ProviderConfig = {
       }
     }
 
-    // If response format is specified, add strict formatting instructions
+    // Track if we should use native structured outputs (November 2025+ feature)
+    let useNativeStructuredOutput = false
+    let structuredOutputSchema: any = null
+
+    // If response format is specified, determine whether to use native structured outputs or prompt-based
     if (request.responseFormat) {
       // Get the schema from the response format
       const schema = request.responseFormat.schema || request.responseFormat
+      const modelName = request.model || 'claude-3-7-sonnet-20250219'
 
-      // Build a system prompt for structured output based on the JSON schema
-      let schemaInstructions = ''
+      // Check if model supports native structured outputs
+      if (supportsNativeStructuredOutput(modelName)) {
+        // Use native structured outputs via beta API
+        useNativeStructuredOutput = true
+        structuredOutputSchema = ensureAdditionalPropertiesFalse(schema)
+        logger.info(`Using native structured outputs for model: ${modelName}`)
+      } else {
+        // Fall back to prompt-based structured output for older models
+        logger.info(`Model ${modelName} does not support native structured outputs, using prompt-based approach`)
 
-      if (schema?.properties) {
-        // Create a template of the expected JSON structure
-        const jsonTemplate = Object.entries(schema.properties).reduce(
-          (acc: Record<string, any>, [key, prop]: [string, any]) => {
-            let exampleValue
-            const propType = prop.type || 'string'
+        // Build a system prompt for structured output based on the JSON schema
+        let schemaInstructions = ''
 
-            // Generate appropriate example values based on type
-            switch (propType) {
-              case 'string':
-                exampleValue = '"value"'
-                break
-              case 'number':
-                exampleValue = '0'
-                break
-              case 'boolean':
-                exampleValue = 'true'
-                break
-              case 'array':
-                exampleValue = '[]'
-                break
-              case 'object':
-                exampleValue = '{}'
-                break
-              default:
-                exampleValue = '"value"'
-            }
+        if (schema?.properties) {
+          // Create a template of the expected JSON structure
+          const jsonTemplate = Object.entries(schema.properties).reduce(
+            (acc: Record<string, any>, [key, prop]: [string, any]) => {
+              let exampleValue
+              const propType = prop.type || 'string'
 
-            acc[key] = exampleValue
-            return acc
-          },
-          {}
-        )
+              // Generate appropriate example values based on type
+              switch (propType) {
+                case 'string':
+                  exampleValue = '"value"'
+                  break
+                case 'number':
+                  exampleValue = '0'
+                  break
+                case 'boolean':
+                  exampleValue = 'true'
+                  break
+                case 'array':
+                  exampleValue = '[]'
+                  break
+                case 'object':
+                  exampleValue = '{}'
+                  break
+                default:
+                  exampleValue = '"value"'
+              }
 
-        // Generate field descriptions
-        const fieldDescriptions = Object.entries(schema.properties)
-          .map(([key, prop]: [string, any]) => {
-            const type = prop.type || 'string'
-            const description = prop.description ? `: ${prop.description}` : ''
-            return `${key} (${type})${description}`
-          })
-          .join('\n')
+              acc[key] = exampleValue
+              return acc
+            },
+            {}
+          )
 
-        // Format the JSON template as a string
-        const jsonTemplateStr = JSON.stringify(jsonTemplate, null, 2)
+          // Generate field descriptions
+          const fieldDescriptions = Object.entries(schema.properties)
+            .map(([key, prop]: [string, any]) => {
+              const type = prop.type || 'string'
+              const description = prop.description ? `: ${prop.description}` : ''
+              return `${key} (${type})${description}`
+            })
+            .join('\n')
 
-        schemaInstructions = `
+          // Format the JSON template as a string
+          const jsonTemplateStr = JSON.stringify(jsonTemplate, null, 2)
+
+          schemaInstructions = `
 IMPORTANT RESPONSE FORMAT INSTRUCTIONS:
 1. Your response must be EXACTLY in this format, with no additional fields:
 ${jsonTemplateStr}
@@ -220,9 +342,10 @@ ${fieldDescriptions}
 3. DO NOT wrap the response in an array
 4. DO NOT add any fields not specified in the schema
 5. Your response MUST be valid JSON and include all the specified fields with their correct types`
-      }
+        }
 
-      systemPrompt = `${systemPrompt}${schemaInstructions}`
+        systemPrompt = `${systemPrompt}${schemaInstructions}`
+      }
     }
 
     // Build the request payload
@@ -255,11 +378,14 @@ ${fieldDescriptions}
       const providerStartTime = Date.now()
       const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
-      // Create a streaming request
-      const streamResponse: any = await anthropic.messages.create({
-        ...payload,
-        stream: true,
-      })
+      // Create a streaming request (with native structured outputs if supported)
+      const streamResponse: any = await createStreamingMessage(
+        anthropic,
+        payload,
+        useNativeStructuredOutput,
+        structuredOutputSchema,
+        logger
+      )
 
       // Start collecting token usage
       const tokenUsage = {
@@ -332,7 +458,13 @@ ${fieldDescriptions}
         const forcedTools = preparedTools?.forcedTools || []
         let usedForcedTools: string[] = []
 
-        let currentResponse = await anthropic.messages.create(payload)
+        let currentResponse = await createMessage(
+          anthropic,
+          payload,
+          useNativeStructuredOutput,
+          structuredOutputSchema,
+          logger
+        )
         const firstResponseTime = Date.now() - initialCallTime
 
         let content = ''
@@ -528,8 +660,14 @@ ${fieldDescriptions}
             // Time the next model call
             const nextModelStartTime = Date.now()
 
-            // Make the next request
-            currentResponse = await anthropic.messages.create(nextPayload)
+            // Make the next request (with native structured outputs if supported)
+            currentResponse = await createMessage(
+              anthropic,
+              nextPayload,
+              useNativeStructuredOutput,
+              structuredOutputSchema,
+              logger
+            )
 
             // Check if any forced tools were used in this response
             const nextCheckResult = checkForForcedToolUsage(
@@ -668,7 +806,13 @@ ${fieldDescriptions}
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
 
-      let currentResponse = await anthropic.messages.create(payload)
+      let currentResponse = await createMessage(
+        anthropic,
+        payload,
+        useNativeStructuredOutput,
+        structuredOutputSchema,
+        logger
+      )
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = ''
@@ -859,8 +1003,14 @@ ${fieldDescriptions}
           // Time the next model call
           const nextModelStartTime = Date.now()
 
-          // Make the next request
-          currentResponse = await anthropic.messages.create(nextPayload)
+          // Make the next request (with native structured outputs if supported)
+          currentResponse = await createMessage(
+            anthropic,
+            nextPayload,
+            useNativeStructuredOutput,
+            structuredOutputSchema,
+            logger
+          )
 
           // Check if any forced tools were used in this response
           const nextCheckResult = checkForForcedToolUsage(
@@ -941,13 +1091,19 @@ ${fieldDescriptions}
           ...payload,
           messages: currentMessages,
           // For Anthropic, omit tool_choice entirely rather than setting it to 'none'
-          stream: true,
         }
 
         // Remove the tool_choice parameter as Anthropic doesn't accept 'none' as a string value
         streamingPayload.tool_choice = undefined
 
-        const streamResponse: any = await anthropic.messages.create(streamingPayload)
+        // Use streaming helper (with native structured outputs if supported)
+        const streamResponse: any = await createStreamingMessage(
+          anthropic,
+          streamingPayload,
+          useNativeStructuredOutput,
+          structuredOutputSchema,
+          logger
+        )
 
         // Create a StreamingExecution response with all collected data
         const streamingResult = {
