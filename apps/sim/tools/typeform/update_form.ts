@@ -44,54 +44,54 @@ export const updateFormTool: ToolConfig<TypeformUpdateFormParams, TypeformUpdate
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    // Check if response has content
+    const text = await response.text()
 
+    // Handle empty responses
+    if (!text || text.trim() === '') {
+      if (response.ok) {
+        // Success with no content (e.g., 204 No Content)
+        return {
+          success: true,
+          output: {
+            message: 'Form updated successfully',
+          },
+        }
+      }
+      throw new Error(`Request failed with status ${response.status}: ${response.statusText}`)
+    }
+
+    // Try to parse as JSON
+    let data: any
+    try {
+      data = JSON.parse(text)
+    } catch {
+      // If response is not OK and not JSON, throw with the raw text
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}: ${text.slice(0, 200)}`)
+      }
+      throw new Error(`Invalid JSON response: ${text.slice(0, 200)}`)
+    }
+
+    // Handle error responses from Typeform API
+    if (!response.ok) {
+      const errorMessage = data.description || data.message || data.error || JSON.stringify(data)
+      throw new Error(`Typeform API error (${response.status}): ${errorMessage}`)
+    }
+
+    // Return simple success message (Typeform PATCH returns minimal/no content on success)
     return {
       success: true,
-      output: data,
+      output: {
+        message: 'Form updated successfully',
+      },
     }
   },
 
   outputs: {
-    id: {
+    message: {
       type: 'string',
-      description: 'Updated form unique identifier',
-    },
-    title: {
-      type: 'string',
-      description: 'Form title',
-    },
-    type: {
-      type: 'string',
-      description: 'Form type',
-    },
-    settings: {
-      type: 'object',
-      description: 'Form settings',
-    },
-    theme: {
-      type: 'object',
-      description: 'Theme reference',
-    },
-    workspace: {
-      type: 'object',
-      description: 'Workspace reference',
-    },
-    fields: {
-      type: 'array',
-      description: 'Array of form fields',
-    },
-    welcome_screens: {
-      type: 'array',
-      description: 'Array of welcome screens',
-    },
-    thankyou_screens: {
-      type: 'array',
-      description: 'Array of thank you screens',
-    },
-    _links: {
-      type: 'object',
-      description: 'Related resource links',
+      description: 'Success confirmation message',
     },
   },
 }

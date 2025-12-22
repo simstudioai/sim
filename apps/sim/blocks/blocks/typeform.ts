@@ -199,10 +199,76 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
     {
       id: 'operations',
       title: 'JSON Patch Operations',
-      type: 'long-input',
-      placeholder: 'JSON array of patch operations (RFC 6902)',
+      type: 'code',
+      language: 'json',
+      placeholder: '[{"op": "replace", "path": "/title", "value": "New Title"}]',
       condition: { field: 'operation', value: 'typeform_update_form' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert at creating JSON Patch operations (RFC 6902) for Typeform forms.
+Generate ONLY the JSON array of patch operations based on the user's request.
+The output MUST be a valid JSON array, starting with [ and ending with ].
+
+Current operations: {context}
+
+### JSON PATCH OPERATIONS
+Each operation is an object with:
+- "op": The operation type ("add", "remove", "replace", "move", "copy", "test")
+- "path": JSON pointer to the target location (e.g., "/title", "/fields/0", "/settings/language")
+- "value": The new value (required for "add", "replace", "copy", "test")
+- "from": Source path (required for "move" and "copy")
+
+### COMMON TYPEFORM PATHS
+- /title - Form title
+- /settings/language - Form language (e.g., "en", "es", "fr")
+- /settings/is_public - Whether form is public (true/false)
+- /settings/show_progress_bar - Show progress bar (true/false)
+- /fields - Array of form fields
+- /fields/- - Add to end of fields array
+- /fields/0 - First field
+- /welcome_screens - Array of welcome screens
+- /thankyou_screens - Array of thank you screens
+- /theme/href - Theme URL reference
+
+### FIELD OBJECT STRUCTURE
+{
+  "type": "short_text" | "long_text" | "email" | "number" | "multiple_choice" | "yes_no" | "rating" | "date" | "dropdown" | "file_upload",
+  "title": "Question text",
+  "ref": "unique_reference_id",
+  "properties": { ... },
+  "validations": { "required": true/false }
+}
+
+### EXAMPLES
+
+**Change form title:**
+[{"op": "replace", "path": "/title", "value": "My Updated Form"}]
+
+**Add a new text field:**
+[{"op": "add", "path": "/fields/-", "value": {"type": "short_text", "title": "What is your name?", "ref": "name_field", "validations": {"required": true}}}]
+
+**Add multiple choice field:**
+[{"op": "add", "path": "/fields/-", "value": {"type": "multiple_choice", "title": "Select your favorite color", "ref": "color_field", "properties": {"choices": [{"label": "Red"}, {"label": "Blue"}, {"label": "Green"}]}}}]
+
+**Remove first field:**
+[{"op": "remove", "path": "/fields/0"}]
+
+**Update form settings:**
+[{"op": "replace", "path": "/settings/language", "value": "es"}, {"op": "replace", "path": "/settings/is_public", "value": false}]
+
+**Multiple operations:**
+[
+  {"op": "replace", "path": "/title", "value": "Customer Feedback Form"},
+  {"op": "add", "path": "/fields/-", "value": {"type": "rating", "title": "Rate your experience", "ref": "rating_field", "properties": {"steps": 5}}},
+  {"op": "replace", "path": "/settings/show_progress_bar", "value": true}
+]
+
+Do not include any explanations, markdown formatting, or other text outside the JSON array.`,
+        placeholder: 'Describe how you want to update the form...',
+        generationType: 'json-object',
+      },
     },
     ...getTrigger('typeform_webhook').subBlocks,
   ],
@@ -322,6 +388,9 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
     fields: { type: 'json', description: 'Form fields array' },
     welcome_screens: { type: 'json', description: 'Welcome screens array' },
     thankyou_screens: { type: 'json', description: 'Thank you screens array' },
+    created_at: { type: 'string', description: 'Form creation timestamp' },
+    last_updated_at: { type: 'string', description: 'Form last update timestamp' },
+    published_at: { type: 'string', description: 'Form publication timestamp' },
     _links: { type: 'json', description: 'Related resource links' },
     // Delete form outputs
     deleted: { type: 'boolean', description: 'Whether the form was deleted' },
