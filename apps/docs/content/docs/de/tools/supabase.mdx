@@ -47,12 +47,13 @@ Daten aus einer Supabase-Tabelle abfragen
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z. B. jdrkgepadsdopsntdlom\) |
 | `table` | string | Ja | Der Name der abzufragenden Supabase-Tabelle |
-| `filter` | string | Nein | PostgREST-Filter \(z.B. "id=eq.123"\) |
-| `orderBy` | string | Nein | Spalte zum Sortieren \(fügen Sie DESC für absteigend hinzu\) |
+| `schema` | string | Nein | Datenbankschema für die Abfrage \(Standard: public\). Verwenden Sie dies, um auf Tabellen in anderen Schemas zuzugreifen. |
+| `filter` | string | Nein | PostgREST-Filter \(z. B. "id=eq.123"\) |
+| `orderBy` | string | Nein | Spalte zum Sortieren \(fügen Sie DESC für absteigende Sortierung hinzu\) |
 | `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Zeilen |
-| `apiKey` | string | Ja | Ihr Supabase Service-Rolle-Secret-Schlüssel |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
 
 #### Ausgabe
 
@@ -69,8 +70,9 @@ Daten in eine Supabase-Tabelle einfügen
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z. B. jdrkgepadsdopsntdlom\) |
 | `table` | string | Ja | Der Name der Supabase-Tabelle, in die Daten eingefügt werden sollen |
+| `schema` | string | Nein | Datenbankschema für das Einfügen \(Standard: public\). Verwenden Sie dies, um auf Tabellen in anderen Schemas zuzugreifen. |
 | `data` | array | Ja | Die einzufügenden Daten \(Array von Objekten oder ein einzelnes Objekt\) |
 | `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
 
@@ -89,10 +91,11 @@ Eine einzelne Zeile aus einer Supabase-Tabelle basierend auf Filterkriterien abr
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Ja | Ihre Supabase-Projekt-ID (z.B. jdrkgepadsdopsntdlom) |
-| `table` | string | Ja | Der Name der Supabase-Tabelle für die Abfrage |
-| `filter` | string | Ja | PostgREST-Filter zum Finden der spezifischen Zeile (z.B. "id=eq.123") |
-| `apiKey` | string | Ja | Ihr Supabase Service-Role-Secret-Key |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z. B. jdrkgepadsdopsntdlom\) |
+| `table` | string | Ja | Der Name der abzufragenden Supabase-Tabelle |
+| `schema` | string | Nein | Datenbankschema für die Abfrage \(Standard: public\). Verwenden Sie dies, um auf Tabellen in anderen Schemas zuzugreifen. |
+| `filter` | string | Ja | PostgREST-Filter zum Auffinden der spezifischen Zeile \(z. B. "id=eq.123"\) |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
 
 #### Ausgabe
 
@@ -109,9 +112,10 @@ Zeilen in einer Supabase-Tabelle basierend auf Filterkriterien aktualisieren
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Ja | Ihre Supabase-Projekt-ID (z.B. jdrkgepadsdopsntdlom) |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
 | `table` | string | Ja | Der Name der zu aktualisierenden Supabase-Tabelle |
-| `filter` | string | Ja | PostgREST-Filter zur Identifizierung der zu aktualisierenden Zeilen (z.B. "id=eq.123") |
+| `schema` | string | Nein | Datenbankschema für die Aktualisierung \(Standard: public\). Verwenden Sie dies, um auf Tabellen in anderen Schemas zuzugreifen. |
+| `filter` | string | Ja | PostgREST-Filter zur Identifizierung der zu aktualisierenden Zeilen \(z.B. "id=eq.123"\) |
 | `data` | object | Ja | Daten, die in den übereinstimmenden Zeilen aktualisiert werden sollen |
 | `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
 
@@ -130,9 +134,10 @@ Zeilen aus einer Supabase-Tabelle basierend auf Filterkriterien löschen
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Ja | Ihre Supabase-Projekt-ID (z.B. jdrkgepadsdopsntdlom) |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
 | `table` | string | Ja | Der Name der Supabase-Tabelle, aus der gelöscht werden soll |
-| `filter` | string | Ja | PostgREST-Filter zur Identifizierung der zu löschenden Zeilen (z.B. "id=eq.123") |
+| `schema` | string | Nein | Datenbankschema für die Löschung \(Standard: public\). Verwenden Sie dies, um auf Tabellen in anderen Schemas zuzugreifen. |
+| `filter` | string | Ja | PostgREST-Filter zur Identifizierung der zu löschenden Zeilen \(z.B. "id=eq.123"\) |
 | `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
 
 #### Ausgabe
@@ -151,8 +156,9 @@ Daten in eine Supabase-Tabelle einfügen oder aktualisieren (Upsert-Operation)
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
-| `table` | string | Ja | Der Name der Supabase-Tabelle, in die Daten upsertet werden sollen |
-| `data` | array | Ja | Die zu upsertenden Daten \(einfügen oder aktualisieren\) - Array von Objekten oder ein einzelnes Objekt |
+| `table` | string | Ja | Der Name der Supabase-Tabelle, in die Daten eingefügt oder aktualisiert werden sollen |
+| `schema` | string | Nein | Datenbankschema für Upsert \(Standard: public\). Verwenden Sie dies, um auf Tabellen in anderen Schemas zuzugreifen. |
+| `data` | array | Ja | Die Daten für Upsert \(Einfügen oder Aktualisieren\) - Array von Objekten oder ein einzelnes Objekt |
 | `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
 
 #### Ausgabe
@@ -171,7 +177,8 @@ Zeilen in einer Supabase-Tabelle zählen
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
-| `table` | string | Ja | Der Name der Supabase-Tabelle, deren Zeilen gezählt werden sollen |
+| `table` | string | Ja | Der Name der Supabase-Tabelle, aus der Zeilen gezählt werden sollen |
+| `schema` | string | Nein | Datenbankschema zum Zählen \(Standard: public\). Verwenden Sie dies, um auf Tabellen in anderen Schemas zuzugreifen. |
 | `filter` | string | Nein | PostgREST-Filter \(z.B. "status=eq.active"\) |
 | `countType` | string | Nein | Zähltyp: exact, planned oder estimated \(Standard: exact\) |
 | `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
@@ -192,7 +199,8 @@ Volltextsuche in einer Supabase-Tabelle durchführen
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
-| `table` | string | Ja | Der Name der Supabase-Tabelle für die Suche |
+| `table` | string | Ja | Der Name der zu durchsuchenden Supabase-Tabelle |
+| `schema` | string | Nein | Datenbankschema zum Durchsuchen \(Standard: public\). Verwenden Sie dies, um auf Tabellen in anderen Schemas zuzugreifen. |
 | `column` | string | Ja | Die Spalte, in der gesucht werden soll |
 | `query` | string | Ja | Die Suchanfrage |
 | `searchType` | string | Nein | Suchtyp: plain, phrase oder websearch \(Standard: websearch\) |

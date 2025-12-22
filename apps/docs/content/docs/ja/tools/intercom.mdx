@@ -38,16 +38,18 @@ Intercomをワークフローに統合します。連絡先の作成、取得、
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
+| `role` | string | いいえ | 連絡先の役割。「user」または「lead」を指定可能。未指定の場合は「lead」がデフォルト |
 | `email` | string | いいえ | 連絡先のメールアドレス |
 | `external_id` | string | いいえ | クライアントが提供する連絡先の一意の識別子 |
 | `phone` | string | いいえ | 連絡先の電話番号 |
 | `name` | string | いいえ | 連絡先の名前 |
 | `avatar` | string | いいえ | 連絡先のアバター画像URL |
-| `signed_up_at` | number | いいえ | ユーザーが登録した時間（Unixタイムスタンプ） |
-| `last_seen_at` | number | いいえ | ユーザーが最後に確認された時間（Unixタイムスタンプ） |
+| `signed_up_at` | number | いいえ | ユーザーが登録した時刻(Unixタイムスタンプ) |
+| `last_seen_at` | number | いいえ | ユーザーが最後に確認された時刻(Unixタイムスタンプ) |
 | `owner_id` | string | いいえ | 連絡先のアカウント所有権が割り当てられた管理者のID |
-| `unsubscribed_from_emails` | boolean | いいえ | 連絡先がメールの配信を解除しているかどうか |
-| `custom_attributes` | string | いいえ | JSONオブジェクトとしてのカスタム属性（例：\{"attribute_name": "value"\}） |
+| `unsubscribed_from_emails` | boolean | いいえ | 連絡先がメールの配信停止をしているかどうか |
+| `custom_attributes` | string | いいえ | カスタム属性(JSONオブジェクト形式、例：\{"attribute_name": "value"\}) |
+| `company_id` | string | いいえ | 作成時に連絡先を関連付ける会社ID |
 
 #### 出力
 
@@ -82,15 +84,18 @@ Intercomの既存の連絡先を更新する
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `contactId` | string | はい | 更新する連絡先ID |
+| `role` | string | いいえ | 連絡先の役割。「user」または「lead」を指定可能 |
+| `external_id` | string | いいえ | クライアントが提供する連絡先の一意の識別子 |
 | `email` | string | いいえ | 連絡先のメールアドレス |
 | `phone` | string | いいえ | 連絡先の電話番号 |
 | `name` | string | いいえ | 連絡先の名前 |
 | `avatar` | string | いいえ | 連絡先のアバター画像URL |
-| `signed_up_at` | number | いいえ | ユーザーが登録した時間（Unixタイムスタンプ） |
-| `last_seen_at` | number | いいえ | ユーザーが最後に確認された時間（Unixタイムスタンプ） |
+| `signed_up_at` | number | いいえ | ユーザーが登録した時刻(Unixタイムスタンプ) |
+| `last_seen_at` | number | いいえ | ユーザーが最後に確認された時刻(Unixタイムスタンプ) |
 | `owner_id` | string | いいえ | 連絡先のアカウント所有権が割り当てられた管理者のID |
-| `unsubscribed_from_emails` | boolean | いいえ | 連絡先がメールの配信を解除しているかどうか |
-| `custom_attributes` | string | いいえ | JSONオブジェクトとしてのカスタム属性（例：\{"attribute_name": "value"\}） |
+| `unsubscribed_from_emails` | boolean | いいえ | 連絡先がメールの配信停止をしているかどうか |
+| `custom_attributes` | string | いいえ | カスタム属性(JSONオブジェクト形式、例：\{"attribute_name": "value"\}) |
+| `company_id` | string | いいえ | 連絡先を関連付ける会社ID |
 
 #### 出力
 
@@ -128,6 +133,8 @@ Intercomの既存の連絡先を更新する
 | `query` | string | はい | 検索クエリ（例：\{"field":"email","operator":"=","value":"user@example.com"\}） |
 | `per_page` | number | いいえ | ページあたりの結果数（最大：150） |
 | `starting_after` | string | いいえ | ページネーション用カーソル |
+| `sort_field` | string | いいえ | ソート対象のフィールド（例："name"、"created_at"、"last_seen_at"） |
+| `sort_order` | string | いいえ | ソート順："ascending"（昇順）または"descending"（降順） |
 
 #### 出力
 
@@ -166,9 +173,10 @@ Intercomで企業を作成または更新する
 | `website` | string | いいえ | 企業のウェブサイト |
 | `plan` | string | いいえ | 企業のプラン名 |
 | `size` | number | いいえ | 企業の従業員数 |
-| `industry` | string | いいえ | 企業が事業を展開している業界 |
-| `monthly_spend` | number | いいえ | 企業があなたのビジネスにもたらす収益額。注：このフィールドは小数点以下を切り捨てて整数にします（例：155.98は155になります） |
+| `industry` | string | いいえ | 企業が事業を展開する業界 |
+| `monthly_spend` | number | いいえ | 企業があなたのビジネスに生み出す収益額。注：このフィールドは小数点以下を切り捨てて整数にします（例：155.98は155になります） |
 | `custom_attributes` | string | いいえ | JSONオブジェクトとしてのカスタム属性 |
+| `remote_created_at` | number | いいえ | あなたが企業を作成した時刻（Unixタイムスタンプ） |
 
 #### 出力
 
@@ -204,6 +212,7 @@ IDによってIntercomから単一の企業を取得する
 | --------- | ---- | -------- | ----------- |
 | `per_page` | number | いいえ | ページあたりの結果数 |
 | `page` | number | いいえ | ページ番号 |
+| `starting_after` | string | いいえ | ページネーション用カーソル（ページベースのページネーションより推奨） |
 
 #### 出力
 
@@ -221,7 +230,8 @@ IDによりIntercomから単一の会話を取得
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `conversationId` | string | はい | 取得する会話ID |
-| `display_as` | string | いいえ | プレーンテキストでメッセージを取得するには「plaintext」に設定 |
+| `display_as` | string | いいえ | プレーンテキストでメッセージを取得する場合は「plaintext」に設定 |
+| `include_translations` | boolean | いいえ | trueの場合、会話パーツは会話の検出言語に翻訳されます |
 
 #### 出力
 
@@ -240,6 +250,8 @@ IDによりIntercomから単一の会話を取得
 | --------- | ---- | -------- | ----------- |
 | `per_page` | number | いいえ | ページあたりの結果数（最大：150） |
 | `starting_after` | string | いいえ | ページネーション用カーソル |
+| `sort` | string | いいえ | ソートするフィールド（例：「waiting_since」、「updated_at」、「created_at」） |
+| `order` | string | いいえ | ソート順：「asc」（昇順）または「desc」（降順） |
 
 #### 出力
 
@@ -258,9 +270,10 @@ IDによりIntercomから単一の会話を取得
 | --------- | ---- | -------- | ----------- |
 | `conversationId` | string | はい | 返信する会話ID |
 | `message_type` | string | はい | メッセージタイプ：「comment」または「note」 |
-| `body` | string | はい | 返信の本文テキスト |
-| `admin_id` | string | いいえ | 返信を作成する管理者のID。提供されない場合、デフォルトの管理者（オペレーター/Fin）が使用されます。 |
-| `attachment_urls` | string | いいえ | 画像URLのカンマ区切りリスト（最大10件） |
+| `body` | string | はい | 返信のテキスト本文 |
+| `admin_id` | string | いいえ | 返信を作成する管理者のID。指定しない場合、デフォルトの管理者（Operator/Fin）が使用されます。 |
+| `attachment_urls` | string | いいえ | カンマ区切りの画像URL一覧（最大10個） |
+| `created_at` | number | いいえ | 返信が作成されたときのUnixタイムスタンプ。指定しない場合、現在時刻が使用されます。 |
 
 #### 出力
 
@@ -279,7 +292,9 @@ IDによりIntercomから単一の会話を取得
 | --------- | ---- | -------- | ----------- |
 | `query` | string | はい | JSONオブジェクトとしての検索クエリ |
 | `per_page` | number | いいえ | ページあたりの結果数（最大：150） |
-| `starting_after` | string | いいえ | ページネーション用のカーソル |
+| `starting_after` | string | いいえ | ページネーション用カーソル |
+| `sort_field` | string | いいえ | ソートするフィールド（例:「created_at」、「updated_at」） |
+| `sort_order` | string | いいえ | ソート順:「ascending」または「descending」 |
 
 #### 出力
 
@@ -299,6 +314,10 @@ Intercomで新しいチケットを作成する
 | `ticket_type_id` | string | はい | チケットタイプのID |
 | `contacts` | string | はい | 連絡先識別子のJSON配列（例：\[\{"id": "contact_id"\}\]） |
 | `ticket_attributes` | string | はい | _default_title_と_default_description_を含むチケット属性のJSONオブジェクト |
+| `company_id` | string | いいえ | チケットに関連付ける会社ID |
+| `created_at` | number | いいえ | チケットが作成された時間（Unixタイムスタンプ）。提供されない場合、現在時刻が使用されます。 |
+| `conversation_to_link_id` | string | いいえ | このチケットにリンクする既存の会話のID |
+| `disable_notifications` | boolean | いいえ | trueの場合、チケット作成時の通知を抑制します |
 
 #### 出力
 
@@ -332,13 +351,15 @@ Intercomで管理者が開始した新しいメッセージを作成して送信
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `message_type` | string | はい | メッセージタイプ：「inapp」または「email」 |
+| `message_type` | string | はい | メッセージタイプ:アプリ内メッセージの場合は「inapp」、メールメッセージの場合は「email」 |
+| `template` | string | はい | メッセージテンプレートスタイル:プレーンテキストの場合は「plain」、パーソナライズスタイルの場合は「personal」 |
 | `subject` | string | いいえ | メッセージの件名（emailタイプの場合） |
 | `body` | string | はい | メッセージの本文 |
-| `from_type` | string | はい | 送信者タイプ：「admin」 |
+| `from_type` | string | はい | 送信者タイプ:「admin」 |
 | `from_id` | string | はい | メッセージを送信する管理者のID |
-| `to_type` | string | はい | 受信者タイプ：「contact」 |
+| `to_type` | string | はい | 受信者タイプ:「contact」 |
 | `to_id` | string | はい | メッセージを受信する連絡先のID |
+| `created_at` | number | いいえ | メッセージが作成された時間（Unixタイムスタンプ）。提供されない場合、現在時刻が使用されます。 |
 
 #### 出力
 
