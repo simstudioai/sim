@@ -253,10 +253,10 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       condition: { field: 'operation', value: 'write' },
     },
     {
-      id: 'teamUuid',
-      title: 'Team UUID',
+      id: 'customFieldValue',
+      title: 'Custom Field Value',
       type: 'short-input',
-      placeholder: 'e.g., b3aa307a-76ea-462d-b6f1-a6e89ce9858a',
+      placeholder: 'Value for the custom field',
       dependsOn: ['projectId'],
       condition: { field: 'operation', value: 'write' },
     },
@@ -561,7 +561,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
                 .filter((item) => item !== '')
             }
 
-            const customFieldValue = params.teamUuid || params.customFieldValue || undefined
+            const customFieldValue = params.customFieldValue || undefined
 
             const writeParams = {
               projectId: effectiveProjectId,
@@ -851,7 +851,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     environment: { type: 'string', description: 'Environment information' },
     customFieldId: { type: 'string', description: 'Custom field ID (e.g., customfield_10001)' },
     customFieldValue: { type: 'string', description: 'Value for the custom field' },
-    teamUuid: { type: 'string', description: 'Team UUID for the Atlassian Team custom field' },
     // Delete operation inputs
     deleteSubtasks: { type: 'string', description: 'Whether to delete subtasks (true/false)' },
     // Assign/Watcher operation inputs
