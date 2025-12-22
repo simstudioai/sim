@@ -68,7 +68,20 @@ export class AgentBlockHandler implements BlockHandler {
       filteredInputs
     )
 
-    await this.persistResponseToMemory(ctx, filteredInputs, result)
+    if (this.isStreamingExecution(result)) {
+      if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
+        return this.wrapStreamForMemoryPersistence(
+          ctx,
+          filteredInputs,
+          result as StreamingExecution
+        )
+      }
+      return result
+    }
+
+    if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
+      await this.persistResponseToMemory(ctx, filteredInputs, result as BlockOutput)
+    }
 
     return result
   }
@@ -1035,28 +1048,14 @@ export class AgentBlockHandler implements BlockHandler {
   private async handleStreamingResponse(
     response: Response,
     block: SerializedBlock,
-    ctx?: ExecutionContext,
-    inputs?: AgentInputs
+    _ctx?: ExecutionContext,
+    _inputs?: AgentInputs
   ): Promise<StreamingExecution> {
     const executionDataHeader = response.headers.get('X-Execution-Data')
 
     if (executionDataHeader) {
       try {
         const executionData = JSON.parse(executionDataHeader)
-
-        if (ctx && inputs && executionData.output?.content) {
-          const assistantMessage: Message = {
-            role: 'assistant',
-            content: executionData.output.content,
-          }
-
-          memoryService
-            .persistMemoryMessage(ctx, inputs, assistantMessage)
-            .catch((error) =>
-              logger.error('Failed to persist streaming response to memory:', error)
-            )
-        }
-
         return {
           stream: response.body!,
           execution: {
@@ -1156,45 +1155,40 @@ export class AgentBlockHandler implements BlockHandler {
     }
   }
 
+  private wrapStreamForMemoryPersistence(
+    ctx: ExecutionContext,
+    inputs: AgentInputs,
+    streamingExec: StreamingExecution
+  ): StreamingExecution {
+    return {
+      stream: memoryService.wrapStreamForPersistence(
+        streamingExec.stream,
+        ctx,
+        inputs,
+        streamingExec.execution?.output
+      ),
+      execution: streamingExec.execution,
+    }
+  }
+
   private async persistResponseToMemory(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    result: BlockOutput | StreamingExecution
+    result: BlockOutput
   ): Promise<void> {
-    // Only persist if memoryType is configured
-    if (!inputs.memoryType || inputs.memoryType === 'none') {
+    const content = (result as any)?.content
+    if (!content || typeof content !== 'string') {
       return
     }
 
     try {
-      // Don't persist streaming responses here - they're handled separately
-      if (this.isStreamingExecution(result)) {
-        return
-      }
-
-      // Extract content from regular response
-      const blockOutput = result as any
-      const content = blockOutput?.content
-
-      if (!content || typeof content !== 'string') {
-        return
-      }
-
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content,
-      }
-
-      await memoryService.persistMemoryMessage(ctx, inputs, assistantMessage)
-
+      await memoryService.persistMemoryMessage(ctx, inputs, { role: 'assistant', content })
       logger.debug('Persisted assistant response to memory', {
         workflowId: ctx.workflowId,
-        memoryType: inputs.memoryType,
         conversationId: inputs.conversationId,
       })
     } catch (error) {
       logger.error('Failed to persist response to memory:', error)
-      // Don't throw - memory persistence failure shouldn't break workflow execution
     }
   }
 

@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -13,7 +14,11 @@ import type {
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
-import { prepareToolExecution, prepareToolsWithUsageControl } from '@/providers/utils'
+import {
+  calculateCost,
+  prepareToolExecution,
+  prepareToolsWithUsageControl,
+} from '@/providers/utils'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('OpenRouterProvider')
@@ -111,25 +116,33 @@ export const openRouterProvider: ProviderConfig = {
 
     try {
       if (request.stream && (!tools || tools.length === 0 || !hasActiveTools)) {
-        const streamResponse = await client.chat.completions.create({
+        const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           stream: true,
           stream_options: { include_usage: true },
-        })
-
-        const tokenUsage = { prompt: 0, completion: 0, total: 0 }
+        }
+        const streamResponse = await client.chat.completions.create(streamingParams)
 
         const streamingResult = {
           stream: createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
-            if (usage) {
-              const newTokens = {
-                prompt: usage.prompt_tokens || tokenUsage.prompt,
-                completion: usage.completion_tokens || tokenUsage.completion,
-                total: usage.total_tokens || tokenUsage.total,
-              }
-              streamingResult.execution.output.tokens = newTokens
-            }
             streamingResult.execution.output.content = content
+            streamingResult.execution.output.tokens = {
+              prompt: usage.prompt_tokens,
+              completion: usage.completion_tokens,
+              total: usage.total_tokens,
+            }
+
+            const costResult = calculateCost(
+              requestedModel,
+              usage.prompt_tokens,
+              usage.completion_tokens
+            )
+            streamingResult.execution.output.cost = {
+              input: costResult.input,
+              output: costResult.output,
+              total: costResult.total,
+            }
+
             const end = Date.now()
             const endISO = new Date(end).toISOString()
             if (streamingResult.execution.output.providerTiming) {
@@ -147,7 +160,7 @@ export const openRouterProvider: ProviderConfig = {
             output: {
               content: '',
               model: requestedModel,
-              tokens: tokenUsage,
+              tokens: { prompt: 0, completion: 0, total: 0 },
               toolCalls: undefined,
               providerTiming: {
                 startTime: providerStartTimeISO,
@@ -163,6 +176,7 @@ export const openRouterProvider: ProviderConfig = {
                   },
                 ],
               },
+              cost: { input: 0, output: 0, total: 0 },
             },
             logs: [],
             metadata: {
@@ -343,26 +357,36 @@ export const openRouterProvider: ProviderConfig = {
       }
 
       if (request.stream) {
-        const streamingPayload = {
+        const accumulatedCost = calculateCost(requestedModel, tokens.prompt, tokens.completion)
+
+        const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           messages: currentMessages,
           tool_choice: 'auto',
           stream: true,
           stream_options: { include_usage: true },
         }
+        const streamResponse = await client.chat.completions.create(streamingParams)
 
-        const streamResponse = await client.chat.completions.create(streamingPayload)
         const streamingResult = {
           stream: createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
-            if (usage) {
-              const newTokens = {
-                prompt: usage.prompt_tokens || tokens.prompt,
-                completion: usage.completion_tokens || tokens.completion,
-                total: usage.total_tokens || tokens.total,
-              }
-              streamingResult.execution.output.tokens = newTokens
-            }
             streamingResult.execution.output.content = content
+            streamingResult.execution.output.tokens = {
+              prompt: tokens.prompt + usage.prompt_tokens,
+              completion: tokens.completion + usage.completion_tokens,
+              total: tokens.total + usage.total_tokens,
+            }
+
+            const streamCost = calculateCost(
+              requestedModel,
+              usage.prompt_tokens,
+              usage.completion_tokens
+            )
+            streamingResult.execution.output.cost = {
+              input: accumulatedCost.input + streamCost.input,
+              output: accumulatedCost.output + streamCost.output,
+              total: accumulatedCost.total + streamCost.total,
+            }
           }),
           execution: {
             success: true,
@@ -386,6 +410,11 @@ export const openRouterProvider: ProviderConfig = {
                 firstResponseTime: firstResponseTime,
                 iterations: iterationCount + 1,
                 timeSegments: timeSegments,
+              },
+              cost: {
+                input: accumulatedCost.input,
+                output: accumulatedCost.output,
+                total: accumulatedCost.total,
               },
             },
             logs: [],

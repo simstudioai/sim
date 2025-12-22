@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -11,6 +12,7 @@ import type {
   TimeSegment,
 } from '@/providers/types'
 import {
+  calculateCost,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   trackForcedToolUsage,
@@ -19,9 +21,6 @@ import { executeTool } from '@/tools'
 
 const logger = createLogger('OpenAIProvider')
 
-/**
- * OpenAI provider configuration
- */
 export const openaiProvider: ProviderConfig = {
   id: 'openai',
   name: 'OpenAI',
@@ -148,30 +147,33 @@ export const openaiProvider: ProviderConfig = {
       if (request.stream && (!tools || tools.length === 0)) {
         logger.info('Using streaming response for OpenAI request')
 
-        // Create a streaming request with token usage tracking
-        const streamResponse = await openai.chat.completions.create({
+        const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           stream: true,
           stream_options: { include_usage: true },
-        })
-
-        // Start collecting token usage from the stream
-        const tokenUsage = {
-          prompt: 0,
-          completion: 0,
-          total: 0,
         }
+        const streamResponse = await openai.chat.completions.create(streamingParams)
 
-        let _streamContent = ''
-
-        // Create a StreamingExecution response with a callback to update content and tokens
         const streamingResult = {
           stream: createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
-            // Update the execution data with the final content and token usage
-            _streamContent = content
             streamingResult.execution.output.content = content
+            streamingResult.execution.output.tokens = {
+              prompt: usage.prompt_tokens,
+              completion: usage.completion_tokens,
+              total: usage.total_tokens,
+            }
 
-            // Update the timing information with the actual completion time
+            const costResult = calculateCost(
+              request.model,
+              usage.prompt_tokens,
+              usage.completion_tokens
+            )
+            streamingResult.execution.output.cost = {
+              input: costResult.input,
+              output: costResult.output,
+              total: costResult.total,
+            }
+
             const streamEndTime = Date.now()
             const streamEndTimeISO = new Date(streamEndTime).toISOString()
 
@@ -180,7 +182,6 @@ export const openaiProvider: ProviderConfig = {
               streamingResult.execution.output.providerTiming.duration =
                 streamEndTime - providerStartTime
 
-              // Update the time segment as well
               if (streamingResult.execution.output.providerTiming.timeSegments?.[0]) {
                 streamingResult.execution.output.providerTiming.timeSegments[0].endTime =
                   streamEndTime
@@ -188,25 +189,13 @@ export const openaiProvider: ProviderConfig = {
                   streamEndTime - providerStartTime
               }
             }
-
-            // Update token usage if available from the stream
-            if (usage) {
-              const newTokens = {
-                prompt: usage.prompt_tokens || tokenUsage.prompt,
-                completion: usage.completion_tokens || tokenUsage.completion,
-                total: usage.total_tokens || tokenUsage.total,
-              }
-
-              streamingResult.execution.output.tokens = newTokens
-            }
-            // We don't need to estimate tokens here as logger.ts will handle that
           }),
           execution: {
             success: true,
             output: {
-              content: '', // Will be filled by the stream completion callback
+              content: '',
               model: request.model,
-              tokens: tokenUsage,
+              tokens: { prompt: 0, completion: 0, total: 0 },
               toolCalls: undefined,
               providerTiming: {
                 startTime: providerStartTimeISO,
@@ -222,9 +211,9 @@ export const openaiProvider: ProviderConfig = {
                   },
                 ],
               },
-              // Cost will be calculated in logger
+              cost: { input: 0, output: 0, total: 0 },
             },
-            logs: [], // No block logs for direct streaming
+            logs: [],
             metadata: {
               startTime: providerStartTimeISO,
               endTime: new Date().toISOString(),
@@ -271,7 +260,6 @@ export const openaiProvider: ProviderConfig = {
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
-      // Collect token information but don't calculate costs - that will be done in logger.ts
       const tokens = {
         prompt: currentResponse.usage?.prompt_tokens || 0,
         completion: currentResponse.usage?.completion_tokens || 0,
@@ -455,7 +443,7 @@ export const openaiProvider: ProviderConfig = {
           content = currentResponse.choices[0].message.content
         }
 
-        // Update token counts
+        // Update token counts and cost
         if (currentResponse.usage) {
           tokens.prompt += currentResponse.usage.prompt_tokens || 0
           tokens.completion += currentResponse.usage.completion_tokens || 0
@@ -465,46 +453,44 @@ export const openaiProvider: ProviderConfig = {
         iterationCount++
       }
 
-      // After all tool processing complete, if streaming was requested, use streaming for the final response
       if (request.stream) {
         logger.info('Using streaming for final response after tool processing')
 
-        // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
-        // This prevents OpenAI API from trying to force tool usage again in the final streaming response
-        const streamingPayload = {
+        const accumulatedCost = calculateCost(request.model, tokens.prompt, tokens.completion)
+
+        const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           messages: currentMessages,
-          tool_choice: 'auto', // Always use 'auto' for the streaming response after tool calls
+          tool_choice: 'auto',
           stream: true,
           stream_options: { include_usage: true },
         }
-
-        const streamResponse = await openai.chat.completions.create(streamingPayload)
-
-        // Create the StreamingExecution object with all collected data
-        let _streamContent = ''
+        const streamResponse = await openai.chat.completions.create(streamingParams)
 
         const streamingResult = {
           stream: createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
-            // Update the execution data with the final content and token usage
-            _streamContent = content
             streamingResult.execution.output.content = content
+            streamingResult.execution.output.tokens = {
+              prompt: tokens.prompt + usage.prompt_tokens,
+              completion: tokens.completion + usage.completion_tokens,
+              total: tokens.total + usage.total_tokens,
+            }
 
-            // Update token usage if available from the stream
-            if (usage) {
-              const newTokens = {
-                prompt: usage.prompt_tokens || tokens.prompt,
-                completion: usage.completion_tokens || tokens.completion,
-                total: usage.total_tokens || tokens.total,
-              }
-
-              streamingResult.execution.output.tokens = newTokens
+            const streamCost = calculateCost(
+              request.model,
+              usage.prompt_tokens,
+              usage.completion_tokens
+            )
+            streamingResult.execution.output.cost = {
+              input: accumulatedCost.input + streamCost.input,
+              output: accumulatedCost.output + streamCost.output,
+              total: accumulatedCost.total + streamCost.total,
             }
           }),
           execution: {
             success: true,
             output: {
-              content: '', // Will be filled by the callback
+              content: '',
               model: request.model,
               tokens: {
                 prompt: tokens.prompt,
@@ -528,9 +514,13 @@ export const openaiProvider: ProviderConfig = {
                 iterations: iterationCount + 1,
                 timeSegments: timeSegments,
               },
-              // Cost will be calculated in logger
+              cost: {
+                input: accumulatedCost.input,
+                output: accumulatedCost.output,
+                total: accumulatedCost.total,
+              },
             },
-            logs: [], // No block logs at provider level
+            logs: [],
             metadata: {
               startTime: providerStartTimeISO,
               endTime: new Date().toISOString(),
@@ -539,7 +529,6 @@ export const openaiProvider: ProviderConfig = {
           },
         } as StreamingExecution
 
-        // Return the streaming execution object with explicit casting
         return streamingResult as StreamingExecution
       }
 

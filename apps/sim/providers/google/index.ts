@@ -15,6 +15,7 @@ import type {
   TimeSegment,
 } from '@/providers/types'
 import {
+  calculateCost,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   trackForcedToolUsage,
@@ -23,15 +24,15 @@ import { executeTool } from '@/tools'
 
 const logger = createLogger('GoogleProvider')
 
-/**
- * Creates a ReadableStream from Google's Gemini stream response
- */
+interface GeminiStreamUsage {
+  promptTokenCount: number
+  candidatesTokenCount: number
+  totalTokenCount: number
+}
+
 function createReadableStreamFromGeminiStream(
   response: Response,
-  onComplete?: (
-    content: string,
-    usage?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number }
-  ) => void
+  onComplete?: (content: string, usage: GeminiStreamUsage) => void
 ): ReadableStream<Uint8Array> {
   const reader = response.body?.getReader()
   if (!reader) {
@@ -43,11 +44,32 @@ function createReadableStreamFromGeminiStream(
       try {
         let buffer = ''
         let fullContent = ''
-        let usageData: {
-          promptTokenCount?: number
-          candidatesTokenCount?: number
-          totalTokenCount?: number
-        } | null = null
+        let promptTokenCount = 0
+        let candidatesTokenCount = 0
+        let totalTokenCount = 0
+
+        const updateUsage = (metadata: any) => {
+          if (metadata) {
+            promptTokenCount = metadata.promptTokenCount ?? promptTokenCount
+            candidatesTokenCount = metadata.candidatesTokenCount ?? candidatesTokenCount
+            totalTokenCount = metadata.totalTokenCount ?? totalTokenCount
+          }
+        }
+
+        const buildUsage = (): GeminiStreamUsage => ({
+          promptTokenCount,
+          candidatesTokenCount,
+          totalTokenCount,
+        })
+
+        const complete = () => {
+          if (onComplete) {
+            if (promptTokenCount === 0 && candidatesTokenCount === 0) {
+              logger.warn('Gemini stream completed without usage metadata')
+            }
+            onComplete(fullContent, buildUsage())
+          }
+        }
 
         while (true) {
           const { done, value } = await reader.read()
@@ -55,20 +77,15 @@ function createReadableStreamFromGeminiStream(
             if (buffer.trim()) {
               try {
                 const data = JSON.parse(buffer.trim())
-                if (data.usageMetadata) {
-                  usageData = data.usageMetadata
-                }
+                updateUsage(data.usageMetadata)
                 const candidate = data.candidates?.[0]
                 if (candidate?.content?.parts) {
                   const functionCall = extractFunctionCall(candidate)
                   if (functionCall) {
-                    logger.debug(
-                      'Function call detected in final buffer, ending stream to execute tool',
-                      {
-                        functionName: functionCall.name,
-                      }
-                    )
-                    if (onComplete) onComplete(fullContent, usageData || undefined)
+                    logger.debug('Function call detected in final buffer', {
+                      functionName: functionCall.name,
+                    })
+                    complete()
                     controller.close()
                     return
                   }
@@ -84,20 +101,15 @@ function createReadableStreamFromGeminiStream(
                     const dataArray = JSON.parse(buffer.trim())
                     if (Array.isArray(dataArray)) {
                       for (const item of dataArray) {
-                        if (item.usageMetadata) {
-                          usageData = item.usageMetadata
-                        }
+                        updateUsage(item.usageMetadata)
                         const candidate = item.candidates?.[0]
                         if (candidate?.content?.parts) {
                           const functionCall = extractFunctionCall(candidate)
                           if (functionCall) {
-                            logger.debug(
-                              'Function call detected in array item, ending stream to execute tool',
-                              {
-                                functionName: functionCall.name,
-                              }
-                            )
-                            if (onComplete) onComplete(fullContent, usageData || undefined)
+                            logger.debug('Function call detected in array item', {
+                              functionName: functionCall.name,
+                            })
+                            complete()
                             controller.close()
                             return
                           }
@@ -109,13 +121,11 @@ function createReadableStreamFromGeminiStream(
                         }
                       }
                     }
-                  } catch (arrayError) {
-                    // Buffer is not valid JSON array
-                  }
+                  } catch (_) {}
                 }
               }
             }
-            if (onComplete) onComplete(fullContent, usageData || undefined)
+            complete()
             controller.close()
             break
           }
@@ -162,25 +172,17 @@ function createReadableStreamFromGeminiStream(
 
               try {
                 const data = JSON.parse(jsonStr)
-
-                if (data.usageMetadata) {
-                  usageData = data.usageMetadata
-                }
-
+                updateUsage(data.usageMetadata)
                 const candidate = data.candidates?.[0]
 
                 if (candidate?.finishReason === 'UNEXPECTED_TOOL_CALL') {
-                  logger.warn('Gemini returned UNEXPECTED_TOOL_CALL in streaming mode', {
-                    finishReason: candidate.finishReason,
-                    hasContent: !!candidate?.content,
-                    hasParts: !!candidate?.content?.parts,
-                  })
+                  logger.warn('Gemini returned UNEXPECTED_TOOL_CALL in streaming mode')
                   const textContent = extractTextContent(candidate)
                   if (textContent) {
                     fullContent += textContent
                     controller.enqueue(new TextEncoder().encode(textContent))
                   }
-                  if (onComplete) onComplete(fullContent, usageData || undefined)
+                  complete()
                   controller.close()
                   return
                 }
@@ -188,13 +190,10 @@ function createReadableStreamFromGeminiStream(
                 if (candidate?.content?.parts) {
                   const functionCall = extractFunctionCall(candidate)
                   if (functionCall) {
-                    logger.debug(
-                      'Function call detected in stream, ending stream to execute tool',
-                      {
-                        functionName: functionCall.name,
-                      }
-                    )
-                    if (onComplete) onComplete(fullContent, usageData || undefined)
+                    logger.debug('Function call detected in stream', {
+                      functionName: functionCall.name,
+                    })
+                    complete()
                     controller.close()
                     return
                   }
@@ -214,7 +213,6 @@ function createReadableStreamFromGeminiStream(
               buffer = buffer.substring(closeBrace + 1)
               searchIndex = 0
             } else {
-              // No complete JSON object found, wait for more data
               break
             }
           }
@@ -395,6 +393,7 @@ export const googleProvider: ProviderConfig = {
                   },
                 ],
               },
+              cost: { input: 0, output: 0, total: 0 },
             },
             logs: [],
             metadata: {
@@ -410,6 +409,22 @@ export const googleProvider: ProviderConfig = {
           response,
           (content, usage) => {
             streamingResult.execution.output.content = content
+            streamingResult.execution.output.tokens = {
+              prompt: usage.promptTokenCount,
+              completion: usage.candidatesTokenCount,
+              total: usage.totalTokenCount || usage.promptTokenCount + usage.candidatesTokenCount,
+            }
+
+            const costResult = calculateCost(
+              request.model,
+              usage.promptTokenCount,
+              usage.candidatesTokenCount
+            )
+            streamingResult.execution.output.cost = {
+              input: costResult.input,
+              output: costResult.output,
+              total: costResult.total,
+            }
 
             const streamEndTime = Date.now()
             const streamEndTimeISO = new Date(streamEndTime).toISOString()
@@ -424,16 +439,6 @@ export const googleProvider: ProviderConfig = {
                   streamEndTime
                 streamingResult.execution.output.providerTiming.timeSegments[0].duration =
                   streamEndTime - providerStartTime
-              }
-            }
-
-            if (usage) {
-              streamingResult.execution.output.tokens = {
-                prompt: usage.promptTokenCount || 0,
-                completion: usage.candidatesTokenCount || 0,
-                total:
-                  usage.totalTokenCount ||
-                  (usage.promptTokenCount || 0) + (usage.candidatesTokenCount || 0),
               }
             }
           }
@@ -461,6 +466,11 @@ export const googleProvider: ProviderConfig = {
       let tokens = {
         prompt: 0,
         completion: 0,
+        total: 0,
+      }
+      const cost = {
+        input: 0,
+        output: 0,
         total: 0,
       }
       const toolCalls = []
@@ -705,6 +715,15 @@ export const googleProvider: ProviderConfig = {
                       tokens.total +=
                         (checkResult.usageMetadata.promptTokenCount || 0) +
                         (checkResult.usageMetadata.candidatesTokenCount || 0)
+
+                      const iterationCost = calculateCost(
+                        request.model,
+                        checkResult.usageMetadata.promptTokenCount || 0,
+                        checkResult.usageMetadata.candidatesTokenCount || 0
+                      )
+                      cost.input += iterationCost.input
+                      cost.output += iterationCost.output
+                      cost.total += iterationCost.total
                     }
 
                     const nextModelEndTime = Date.now()
@@ -806,6 +825,7 @@ export const googleProvider: ProviderConfig = {
                           iterations: iterationCount + 1,
                           timeSegments,
                         },
+                        cost,
                       },
                       logs: [],
                       metadata: {
@@ -822,6 +842,28 @@ export const googleProvider: ProviderConfig = {
                     (content, usage) => {
                       streamingExecution.execution.output.content = content
 
+                      const existingTokens = streamingExecution.execution.output.tokens
+                      streamingExecution.execution.output.tokens = {
+                        prompt: (existingTokens?.prompt ?? 0) + usage.promptTokenCount,
+                        completion: (existingTokens?.completion ?? 0) + usage.candidatesTokenCount,
+                        total:
+                          (existingTokens?.total ?? 0) +
+                          (usage.totalTokenCount ||
+                            usage.promptTokenCount + usage.candidatesTokenCount),
+                      }
+
+                      const streamCost = calculateCost(
+                        request.model,
+                        usage.promptTokenCount,
+                        usage.candidatesTokenCount
+                      )
+                      const existingCost = streamingExecution.execution.output.cost as any
+                      streamingExecution.execution.output.cost = {
+                        input: (existingCost?.input ?? 0) + streamCost.input,
+                        output: (existingCost?.output ?? 0) + streamCost.output,
+                        total: (existingCost?.total ?? 0) + streamCost.total,
+                      }
+
                       const streamEndTime = Date.now()
                       const streamEndTimeISO = new Date(streamEndTime).toISOString()
 
@@ -830,23 +872,6 @@ export const googleProvider: ProviderConfig = {
                           streamEndTimeISO
                         streamingExecution.execution.output.providerTiming.duration =
                           streamEndTime - providerStartTime
-                      }
-
-                      if (usage) {
-                        const existingTokens = streamingExecution.execution.output.tokens || {
-                          prompt: 0,
-                          completion: 0,
-                          total: 0,
-                        }
-                        streamingExecution.execution.output.tokens = {
-                          prompt: (existingTokens.prompt || 0) + (usage.promptTokenCount || 0),
-                          completion:
-                            (existingTokens.completion || 0) + (usage.candidatesTokenCount || 0),
-                          total:
-                            (existingTokens.total || 0) +
-                            (usage.totalTokenCount ||
-                              (usage.promptTokenCount || 0) + (usage.candidatesTokenCount || 0)),
-                        }
                       }
                     }
                   )
@@ -969,6 +994,15 @@ export const googleProvider: ProviderConfig = {
                         tokens.total +=
                           (finalResult.usageMetadata.promptTokenCount || 0) +
                           (finalResult.usageMetadata.candidatesTokenCount || 0)
+
+                        const iterationCost = calculateCost(
+                          request.model,
+                          finalResult.usageMetadata.promptTokenCount || 0,
+                          finalResult.usageMetadata.candidatesTokenCount || 0
+                        )
+                        cost.input += iterationCost.input
+                        cost.output += iterationCost.output
+                        cost.total += iterationCost.total
                       }
                     } else {
                       logger.warn(

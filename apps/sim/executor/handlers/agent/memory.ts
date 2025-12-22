@@ -652,6 +652,47 @@ export class Memory {
       }
     }
   }
+
+  /**
+   * Wraps a streaming response to persist the assistant message when complete.
+   * Works model-agnostically by accumulating raw text chunks.
+   */
+  wrapStreamForPersistence(
+    stream: ReadableStream<Uint8Array>,
+    ctx: ExecutionContext,
+    inputs: AgentInputs,
+    executionOutput?: { content?: string }
+  ): ReadableStream<Uint8Array> {
+    let accumulatedContent = ''
+    const decoder = new TextDecoder()
+
+    const transformStream = new TransformStream<Uint8Array, Uint8Array>({
+      transform: (chunk, controller) => {
+        controller.enqueue(chunk)
+        accumulatedContent += decoder.decode(chunk, { stream: true })
+      },
+
+      flush: () => {
+        const finalContent = executionOutput?.content || accumulatedContent
+
+        if (finalContent?.trim()) {
+          this.persistMemoryMessage(ctx, inputs, { role: 'assistant', content: finalContent })
+            .then(() => {
+              logger.debug('Persisted streaming response to memory', {
+                workflowId: ctx.workflowId,
+                conversationId: inputs.conversationId,
+                contentLength: finalContent.length,
+              })
+            })
+            .catch((error) => {
+              logger.error('Failed to persist streaming response to memory:', error)
+            })
+        }
+      },
+    })
+
+    return stream.pipeThrough(transformStream)
+  }
 }
 
 export const memoryService = new Memory()

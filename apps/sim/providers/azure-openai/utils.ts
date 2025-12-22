@@ -1,23 +1,28 @@
-import type { Logger } from '@/lib/logs/console/logger'
+import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
+import type { CompletionUsage } from 'openai/resources/completions'
+import type { Stream } from 'openai/streaming'
+import { createLogger, type Logger } from '@/lib/logs/console/logger'
 import { trackForcedToolUsage } from '@/providers/utils'
 
-/**
- * Helper function to convert an Azure OpenAI stream to a standard ReadableStream
- * and collect completion metrics
- */
+const logger = createLogger('AzureOpenAIUtils')
+
 export function createReadableStreamFromAzureOpenAIStream(
-  azureOpenAIStream: any,
-  onComplete?: (content: string, usage?: any) => void
+  azureOpenAIStream: Stream<ChatCompletionChunk>,
+  onComplete?: (content: string, usage: CompletionUsage) => void
 ): ReadableStream {
   let fullContent = ''
-  let usageData: any = null
+  let promptTokens = 0
+  let completionTokens = 0
+  let totalTokens = 0
 
   return new ReadableStream({
     async start(controller) {
       try {
         for await (const chunk of azureOpenAIStream) {
           if (chunk.usage) {
-            usageData = chunk.usage
+            promptTokens = chunk.usage.prompt_tokens ?? 0
+            completionTokens = chunk.usage.completion_tokens ?? 0
+            totalTokens = chunk.usage.total_tokens ?? 0
           }
 
           const content = chunk.choices[0]?.delta?.content || ''
@@ -28,7 +33,14 @@ export function createReadableStreamFromAzureOpenAIStream(
         }
 
         if (onComplete) {
-          onComplete(fullContent, usageData)
+          if (promptTokens === 0 && completionTokens === 0) {
+            logger.warn('Azure OpenAI stream completed without usage data')
+          }
+          onComplete(fullContent, {
+            prompt_tokens: promptTokens,
+            completion_tokens: completionTokens,
+            total_tokens: totalTokens || promptTokens + completionTokens,
+          })
         }
 
         controller.close()

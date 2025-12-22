@@ -1,3 +1,4 @@
+import type { Candidate } from '@google/genai'
 import type { ProviderRequest } from '@/providers/types'
 
 /**
@@ -23,7 +24,7 @@ export function cleanSchemaForGemini(schema: any): any {
 /**
  * Extracts text content from a Gemini response candidate, handling structured output
  */
-export function extractTextContent(candidate: any): string {
+export function extractTextContent(candidate: Candidate | undefined): string {
   if (!candidate?.content?.parts) return ''
 
   if (candidate.content.parts?.length === 1 && candidate.content.parts[0].text) {
@@ -47,32 +48,18 @@ export function extractTextContent(candidate: any): string {
 /**
  * Extracts a function call from a Gemini response candidate
  */
-export function extractFunctionCall(candidate: any): { name: string; args: any } | null {
+export function extractFunctionCall(
+  candidate: Candidate | undefined
+): { name: string; args: any } | null {
   if (!candidate?.content?.parts) return null
 
   for (const part of candidate.content.parts) {
     if (part.functionCall) {
-      const args = part.functionCall.args || {}
-      if (
-        typeof part.functionCall.args === 'string' &&
-        part.functionCall.args.trim().startsWith('{')
-      ) {
-        try {
-          return { name: part.functionCall.name, args: JSON.parse(part.functionCall.args) }
-        } catch (_e) {
-          return { name: part.functionCall.name, args: part.functionCall.args }
-        }
+      return {
+        name: part.functionCall.name ?? '',
+        args: part.functionCall.args ?? {},
       }
-      return { name: part.functionCall.name, args }
     }
-  }
-
-  if (candidate.content.function_call) {
-    const args =
-      typeof candidate.content.function_call.arguments === 'string'
-        ? JSON.parse(candidate.content.function_call.arguments || '{}')
-        : candidate.content.function_call.arguments || {}
-    return { name: candidate.content.function_call.name, args }
   }
 
   return null

@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
@@ -11,7 +12,7 @@ import type {
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
-import { prepareToolExecution } from '@/providers/utils'
+import { calculateCost, prepareToolExecution } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 import { executeTool } from '@/tools'
 
@@ -181,34 +182,40 @@ export const ollamaProvider: ProviderConfig = {
       if (request.stream && (!tools || tools.length === 0)) {
         logger.info('Using streaming response for Ollama request')
 
-        // Create a streaming request with token usage tracking
-        const streamResponse = await ollama.chat.completions.create({
+        const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           stream: true,
           stream_options: { include_usage: true },
-        })
-
-        // Start collecting token usage from the stream
-        const tokenUsage = {
-          prompt: 0,
-          completion: 0,
-          total: 0,
         }
+        const streamResponse = await ollama.chat.completions.create(streamingParams)
 
-        // Create a StreamingExecution response with a callback to update content and tokens
         const streamingResult = {
           stream: createReadableStreamFromOllamaStream(streamResponse, (content, usage) => {
-            // Update the execution data with the final content and token usage
             streamingResult.execution.output.content = content
 
-            // Clean up the response content
             if (content) {
               streamingResult.execution.output.content = content
                 .replace(/```json\n?|\n?```/g, '')
                 .trim()
             }
 
-            // Update the timing information with the actual completion time
+            streamingResult.execution.output.tokens = {
+              prompt: usage.prompt_tokens,
+              completion: usage.completion_tokens,
+              total: usage.total_tokens,
+            }
+
+            const costResult = calculateCost(
+              request.model,
+              usage.prompt_tokens,
+              usage.completion_tokens
+            )
+            streamingResult.execution.output.cost = {
+              input: costResult.input,
+              output: costResult.output,
+              total: costResult.total,
+            }
+
             const streamEndTime = Date.now()
             const streamEndTimeISO = new Date(streamEndTime).toISOString()
 
@@ -217,7 +224,6 @@ export const ollamaProvider: ProviderConfig = {
               streamingResult.execution.output.providerTiming.duration =
                 streamEndTime - providerStartTime
 
-              // Update the time segment as well
               if (streamingResult.execution.output.providerTiming.timeSegments?.[0]) {
                 streamingResult.execution.output.providerTiming.timeSegments[0].endTime =
                   streamEndTime
@@ -225,24 +231,13 @@ export const ollamaProvider: ProviderConfig = {
                   streamEndTime - providerStartTime
               }
             }
-
-            // Update token usage if available from the stream
-            if (usage) {
-              const newTokens = {
-                prompt: usage.prompt_tokens || tokenUsage.prompt,
-                completion: usage.completion_tokens || tokenUsage.completion,
-                total: usage.total_tokens || tokenUsage.total,
-              }
-
-              streamingResult.execution.output.tokens = newTokens
-            }
           }),
           execution: {
             success: true,
             output: {
-              content: '', // Will be filled by the stream completion callback
+              content: '',
               model: request.model,
-              tokens: tokenUsage,
+              tokens: { prompt: 0, completion: 0, total: 0 },
               toolCalls: undefined,
               providerTiming: {
                 startTime: providerStartTimeISO,
@@ -258,8 +253,9 @@ export const ollamaProvider: ProviderConfig = {
                   },
                 ],
               },
+              cost: { input: 0, output: 0, total: 0 },
             },
-            logs: [], // No block logs for direct streaming
+            logs: [],
             metadata: {
               startTime: providerStartTimeISO,
               endTime: new Date().toISOString(),
@@ -286,7 +282,6 @@ export const ollamaProvider: ProviderConfig = {
         content = content.trim()
       }
 
-      // Collect token information
       const tokens = {
         prompt: currentResponse.usage?.prompt_tokens || 0,
         completion: currentResponse.usage?.completion_tokens || 0,
@@ -445,7 +440,6 @@ export const ollamaProvider: ProviderConfig = {
           content = content.trim()
         }
 
-        // Update token counts
         if (currentResponse.usage) {
           tokens.prompt += currentResponse.usage.prompt_tokens || 0
           tokens.completion += currentResponse.usage.completion_tokens || 0
@@ -455,48 +449,51 @@ export const ollamaProvider: ProviderConfig = {
         iterationCount++
       }
 
-      // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
       if (request.stream) {
         logger.info('Using streaming for final response after tool processing')
 
-        const streamingPayload = {
+        const accumulatedCost = calculateCost(request.model, tokens.prompt, tokens.completion)
+
+        const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           messages: currentMessages,
-          tool_choice: 'auto', // Always use 'auto' for the streaming response after tool calls
+          tool_choice: 'auto',
           stream: true,
           stream_options: { include_usage: true },
         }
+        const streamResponse = await ollama.chat.completions.create(streamingParams)
 
-        const streamResponse = await ollama.chat.completions.create(streamingPayload)
-
-        // Create the StreamingExecution object with all collected data
         const streamingResult = {
           stream: createReadableStreamFromOllamaStream(streamResponse, (content, usage) => {
-            // Update the execution data with the final content and token usage
             streamingResult.execution.output.content = content
 
-            // Clean up the response content
             if (content) {
               streamingResult.execution.output.content = content
                 .replace(/```json\n?|\n?```/g, '')
                 .trim()
             }
 
-            // Update token usage if available from the stream
-            if (usage) {
-              const newTokens = {
-                prompt: usage.prompt_tokens || tokens.prompt,
-                completion: usage.completion_tokens || tokens.completion,
-                total: usage.total_tokens || tokens.total,
-              }
+            streamingResult.execution.output.tokens = {
+              prompt: tokens.prompt + usage.prompt_tokens,
+              completion: tokens.completion + usage.completion_tokens,
+              total: tokens.total + usage.total_tokens,
+            }
 
-              streamingResult.execution.output.tokens = newTokens
+            const streamCost = calculateCost(
+              request.model,
+              usage.prompt_tokens,
+              usage.completion_tokens
+            )
+            streamingResult.execution.output.cost = {
+              input: accumulatedCost.input + streamCost.input,
+              output: accumulatedCost.output + streamCost.output,
+              total: accumulatedCost.total + streamCost.total,
             }
           }),
           execution: {
             success: true,
             output: {
-              content: '', // Will be filled by the callback
+              content: '',
               model: request.model,
               tokens: {
                 prompt: tokens.prompt,
@@ -520,8 +517,13 @@ export const ollamaProvider: ProviderConfig = {
                 iterations: iterationCount + 1,
                 timeSegments: timeSegments,
               },
+              cost: {
+                input: accumulatedCost.input,
+                output: accumulatedCost.output,
+                total: accumulatedCost.total,
+              },
             },
-            logs: [], // No block logs at provider level
+            logs: [],
             metadata: {
               startTime: providerStartTimeISO,
               endTime: new Date().toISOString(),
@@ -530,7 +532,6 @@ export const ollamaProvider: ProviderConfig = {
           },
         } as StreamingExecution
 
-        // Return the streaming execution object
         return streamingResult as StreamingExecution
       }
 

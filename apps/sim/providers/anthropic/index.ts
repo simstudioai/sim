@@ -14,7 +14,11 @@ import type {
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
-import { prepareToolExecution, prepareToolsWithUsageControl } from '@/providers/utils'
+import {
+  calculateCost,
+  prepareToolExecution,
+  prepareToolsWithUsageControl,
+} from '@/providers/utils'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('AnthropicProvider')
@@ -255,28 +259,49 @@ ${fieldDescriptions}
       const providerStartTime = Date.now()
       const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
-      // Create a streaming request
       const streamResponse: any = await anthropic.messages.create({
         ...payload,
         stream: true,
       })
 
-      // Start collecting token usage
-      const tokenUsage = {
-        prompt: 0,
-        completion: 0,
-        total: 0,
-      }
-
-      // Create a StreamingExecution response with a readable stream
       const streamingResult = {
-        stream: createReadableStreamFromAnthropicStream(streamResponse),
+        stream: createReadableStreamFromAnthropicStream(streamResponse, (content, usage) => {
+          streamingResult.execution.output.content = content
+          streamingResult.execution.output.tokens = {
+            prompt: usage.input_tokens,
+            completion: usage.output_tokens,
+            total: usage.input_tokens + usage.output_tokens,
+          }
+
+          const costResult = calculateCost(request.model, usage.input_tokens, usage.output_tokens)
+          streamingResult.execution.output.cost = {
+            input: costResult.input,
+            output: costResult.output,
+            total: costResult.total,
+          }
+
+          const streamEndTime = Date.now()
+          const streamEndTimeISO = new Date(streamEndTime).toISOString()
+
+          if (streamingResult.execution.output.providerTiming) {
+            streamingResult.execution.output.providerTiming.endTime = streamEndTimeISO
+            streamingResult.execution.output.providerTiming.duration =
+              streamEndTime - providerStartTime
+
+            if (streamingResult.execution.output.providerTiming.timeSegments?.[0]) {
+              streamingResult.execution.output.providerTiming.timeSegments[0].endTime =
+                streamEndTime
+              streamingResult.execution.output.providerTiming.timeSegments[0].duration =
+                streamEndTime - providerStartTime
+            }
+          }
+        }),
         execution: {
           success: true,
           output: {
-            content: '', // Will be filled by streaming content in chat component
+            content: '',
             model: request.model,
-            tokens: tokenUsage,
+            tokens: { prompt: 0, completion: 0, total: 0 },
             toolCalls: undefined,
             providerTiming: {
               startTime: providerStartTimeISO,
@@ -292,14 +317,13 @@ ${fieldDescriptions}
                 },
               ],
             },
-            // Estimate token cost based on typical Claude pricing
             cost: {
               total: 0.0,
               input: 0.0,
               output: 0.0,
             },
           },
-          logs: [], // No block logs for direct streaming
+          logs: [],
           metadata: {
             startTime: providerStartTimeISO,
             endTime: new Date().toISOString(),
@@ -309,7 +333,6 @@ ${fieldDescriptions}
         },
       }
 
-      // Return the streaming execution object
       return streamingResult as StreamingExecution
     }
 
@@ -688,6 +711,17 @@ ${fieldDescriptions}
           (currentResponse.usage?.input_tokens || 0) + (currentResponse.usage?.output_tokens || 0),
       }
 
+      const initialCost = calculateCost(
+        request.model,
+        currentResponse.usage?.input_tokens || 0,
+        currentResponse.usage?.output_tokens || 0
+      )
+      const cost = {
+        input: initialCost.input,
+        output: initialCost.output,
+        total: initialCost.total,
+      }
+
       const toolCalls = []
       const toolResults = []
       const currentMessages = [...messages]
@@ -899,12 +933,21 @@ ${fieldDescriptions}
             content = textContent
           }
 
-          // Update token counts
+          // Update token counts and cost
           if (currentResponse.usage) {
             tokens.prompt += currentResponse.usage.input_tokens || 0
             tokens.completion += currentResponse.usage.output_tokens || 0
             tokens.total +=
               (currentResponse.usage.input_tokens || 0) + (currentResponse.usage.output_tokens || 0)
+
+            const iterationCost = calculateCost(
+              request.model,
+              currentResponse.usage.input_tokens || 0,
+              currentResponse.usage.output_tokens || 0
+            )
+            cost.input += iterationCost.input
+            cost.output += iterationCost.output
+            cost.total += iterationCost.total
           }
 
           iterationCount++
@@ -931,31 +974,47 @@ ${fieldDescriptions}
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      // After all tool processing complete, if streaming was requested, use streaming for the final response
       if (request.stream) {
         logger.info('Using streaming for final Anthropic response after tool processing')
 
-        // When streaming after tool calls with forced tools, make sure tool_choice is removed
-        // This prevents the API from trying to force tool usage again in the final streaming response
         const streamingPayload = {
           ...payload,
           messages: currentMessages,
-          // For Anthropic, omit tool_choice entirely rather than setting it to 'none'
           stream: true,
+          tool_choice: undefined,
         }
-
-        // Remove the tool_choice parameter as Anthropic doesn't accept 'none' as a string value
-        streamingPayload.tool_choice = undefined
 
         const streamResponse: any = await anthropic.messages.create(streamingPayload)
 
-        // Create a StreamingExecution response with all collected data
         const streamingResult = {
-          stream: createReadableStreamFromAnthropicStream(streamResponse),
+          stream: createReadableStreamFromAnthropicStream(streamResponse, (content, usage) => {
+            streamingResult.execution.output.content = content
+            streamingResult.execution.output.tokens = {
+              prompt: tokens.prompt + usage.input_tokens,
+              completion: tokens.completion + usage.output_tokens,
+              total: tokens.total + usage.input_tokens + usage.output_tokens,
+            }
+
+            const streamCost = calculateCost(request.model, usage.input_tokens, usage.output_tokens)
+            streamingResult.execution.output.cost = {
+              input: cost.input + streamCost.input,
+              output: cost.output + streamCost.output,
+              total: cost.total + streamCost.total,
+            }
+
+            const streamEndTime = Date.now()
+            const streamEndTimeISO = new Date(streamEndTime).toISOString()
+
+            if (streamingResult.execution.output.providerTiming) {
+              streamingResult.execution.output.providerTiming.endTime = streamEndTimeISO
+              streamingResult.execution.output.providerTiming.duration =
+                streamEndTime - providerStartTime
+            }
+          }),
           execution: {
             success: true,
             output: {
-              content: '', // Will be filled by the callback
+              content: '',
               model: request.model || 'claude-3-7-sonnet-20250219',
               tokens: {
                 prompt: tokens.prompt,
@@ -980,12 +1039,12 @@ ${fieldDescriptions}
                 timeSegments: timeSegments,
               },
               cost: {
-                total: (tokens.total || 0) * 0.0001, // Estimate cost based on tokens
-                input: (tokens.prompt || 0) * 0.0001,
-                output: (tokens.completion || 0) * 0.0001,
+                input: cost.input,
+                output: cost.output,
+                total: cost.total,
               },
             },
-            logs: [], // No block logs at provider level
+            logs: [],
             metadata: {
               startTime: providerStartTimeISO,
               endTime: new Date().toISOString(),
