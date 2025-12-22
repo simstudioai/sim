@@ -1327,6 +1327,9 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: true,
+        additionalHeaders: {
+          'User-Agent': 'sim-studio/1.0 (https://github.com/simstudioai/sim)',
+        },
       }
     }
     case 'wealthbox': {
