@@ -58,7 +58,7 @@ Retrieve memory by conversation ID.
 
 ### `memory_get_all`
 
-Retrieve all memories for the current workflow.
+Retrieve all memories for the current workspace.
 
 #### Output
 
@@ -98,6 +98,6 @@ When using memory with an Agent block, you can configure how conversation histor
 
 ## Notes
 
-- Memory is scoped per workflow—different workflows have separate memory stores
-- The `conversationId` is your responsibility to manage (e.g., use session IDs, user IDs, or UUIDs)
+- Memory is scoped per workspace—workflows in the same workspace share the memory store
+- Use unique `conversationId` values to keep conversations separate (e.g., session IDs, user IDs, or UUIDs)
 - System messages belong in the Agent block configuration, not in memory
