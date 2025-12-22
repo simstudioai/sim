@@ -89,9 +89,7 @@ export function createReadableStreamFromVertexStream(
                         }
                       }
                     }
-                  } catch (arrayError) {
-                    // Buffer is not valid JSON array
-                  }
+                  } catch (arrayError) {}
                 }
               }
             }

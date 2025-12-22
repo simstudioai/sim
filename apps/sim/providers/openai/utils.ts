@@ -1,37 +1,15 @@
+import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
+import type { CompletionUsage } from 'openai/resources/completions'
+import type { Stream } from 'openai/streaming'
+import { createOpenAICompatibleStream } from '@/providers/utils'
+
 /**
- * Helper function to convert an OpenAI stream to a standard ReadableStream
- * and collect completion metrics
+ * Creates a ReadableStream from an OpenAI streaming response.
+ * Uses the shared OpenAI-compatible streaming utility.
  */
 export function createReadableStreamFromOpenAIStream(
-  openaiStream: any,
-  onComplete?: (content: string, usage?: any) => void
-): ReadableStream {
-  let fullContent = ''
-  let usageData: any = null
-
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of openaiStream) {
-          if (chunk.usage) {
-            usageData = chunk.usage
-          }
-
-          const content = chunk.choices[0]?.delta?.content || ''
-          if (content) {
-            fullContent += content
-            controller.enqueue(new TextEncoder().encode(content))
-          }
-        }
-
-        if (onComplete) {
-          onComplete(fullContent, usageData)
-        }
-
-        controller.close()
-      } catch (error) {
-        controller.error(error)
-      }
-    },
-  })
+  openaiStream: Stream<ChatCompletionChunk>,
+  onComplete?: (content: string, usage: CompletionUsage) => void
+): ReadableStream<Uint8Array> {
+  return createOpenAICompatibleStream(openaiStream, 'OpenAI', onComplete)
 }

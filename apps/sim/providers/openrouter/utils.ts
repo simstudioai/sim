@@ -1,55 +1,107 @@
+import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
+import type { CompletionUsage } from 'openai/resources/completions'
 import { createLogger } from '@/lib/logs/console/logger'
-import { trackForcedToolUsage } from '@/providers/utils'
+import { checkForForcedToolUsageOpenAI, createOpenAICompatibleStream } from '@/providers/utils'
 
-const logger = createLogger('OpenRouterProvider')
+const logger = createLogger('OpenRouterUtils')
+
+interface OpenRouterModelData {
+  id: string
+  supported_parameters?: string[]
+}
+
+interface ModelCapabilities {
+  supportsStructuredOutputs: boolean
+  supportsTools: boolean
+}
+
+let modelCapabilitiesCache: Map<string, ModelCapabilities> | null = null
+let cacheTimestamp = 0
+const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 
 /**
- * Creates a ReadableStream from an OpenAI-compatible stream response
- * @param openaiStream - The OpenAI stream to convert
- * @param onComplete - Optional callback when streaming is complete with content and usage data
- * @returns ReadableStream that emits text chunks
+ * Fetches and caches OpenRouter model capabilities from their API.
  */
-export function createReadableStreamFromOpenAIStream(
-  openaiStream: any,
-  onComplete?: (content: string, usage?: any) => void
-): ReadableStream {
-  let fullContent = ''
-  let usageData: any = null
+async function fetchModelCapabilities(): Promise<Map<string, ModelCapabilities>> {
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/models', {
+      headers: { 'Content-Type': 'application/json' },
+    })
 
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of openaiStream) {
-          if (chunk.usage) {
-            usageData = chunk.usage
-          }
+    if (!response.ok) {
+      logger.warn('Failed to fetch OpenRouter model capabilities', {
+        status: response.status,
+      })
+      return new Map()
+    }
 
-          const content = chunk.choices[0]?.delta?.content || ''
-          if (content) {
-            fullContent += content
-            controller.enqueue(new TextEncoder().encode(content))
-          }
-        }
+    const data = await response.json()
+    const capabilities = new Map<string, ModelCapabilities>()
 
-        if (onComplete) {
-          onComplete(fullContent, usageData)
-        }
+    for (const model of (data.data ?? []) as OpenRouterModelData[]) {
+      const supportedParams = model.supported_parameters ?? []
+      capabilities.set(model.id, {
+        supportsStructuredOutputs: supportedParams.includes('structured_outputs'),
+        supportsTools: supportedParams.includes('tools'),
+      })
+    }
 
-        controller.close()
-      } catch (error) {
-        controller.error(error)
-      }
-    },
-  })
+    logger.info('Cached OpenRouter model capabilities', {
+      modelCount: capabilities.size,
+      withStructuredOutputs: Array.from(capabilities.values()).filter(
+        (c) => c.supportsStructuredOutputs
+      ).length,
+    })
+
+    return capabilities
+  } catch (error) {
+    logger.error('Error fetching OpenRouter model capabilities', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return new Map()
+  }
 }
 
 /**
- * Checks if a forced tool was used in the response and updates tracking
- * @param response - The API response containing tool calls
- * @param toolChoice - The tool choice configuration (string or object)
- * @param forcedTools - Array of forced tool names
- * @param usedForcedTools - Array of already used forced tools
- * @returns Object with hasUsedForcedTool flag and updated usedForcedTools array
+ * Gets capabilities for a specific OpenRouter model.
+ * Fetches from API if cache is stale or empty.
+ */
+export async function getOpenRouterModelCapabilities(
+  modelId: string
+): Promise<ModelCapabilities | null> {
+  const now = Date.now()
+
+  if (!modelCapabilitiesCache || now - cacheTimestamp > CACHE_TTL_MS) {
+    modelCapabilitiesCache = await fetchModelCapabilities()
+    cacheTimestamp = now
+  }
+
+  const normalizedId = modelId.replace(/^openrouter\//, '')
+  return modelCapabilitiesCache.get(normalizedId) ?? null
+}
+
+/**
+ * Checks if a model supports native structured outputs (json_schema).
+ */
+export async function supportsNativeStructuredOutputs(modelId: string): Promise<boolean> {
+  const capabilities = await getOpenRouterModelCapabilities(modelId)
+  return capabilities?.supportsStructuredOutputs ?? false
+}
+
+/**
+ * Creates a ReadableStream from an OpenRouter streaming response.
+ * Uses the shared OpenAI-compatible streaming utility.
+ */
+export function createReadableStreamFromOpenAIStream(
+  openaiStream: AsyncIterable<ChatCompletionChunk>,
+  onComplete?: (content: string, usage: CompletionUsage) => void
+): ReadableStream<Uint8Array> {
+  return createOpenAICompatibleStream(openaiStream, 'OpenRouter', onComplete)
+}
+
+/**
+ * Checks if a forced tool was used in an OpenRouter response.
+ * Uses the shared OpenAI-compatible forced tool usage helper.
  */
 export function checkForForcedToolUsage(
   response: any,
@@ -57,22 +109,11 @@ export function checkForForcedToolUsage(
   forcedTools: string[],
   usedForcedTools: string[]
 ): { hasUsedForcedTool: boolean; usedForcedTools: string[] } {
-  let hasUsedForcedTool = false
-  let updatedUsedForcedTools = usedForcedTools
-
-  if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
-    const toolCallsResponse = response.choices[0].message.tool_calls
-    const result = trackForcedToolUsage(
-      toolCallsResponse,
-      toolChoice,
-      logger,
-      'openrouter',
-      forcedTools,
-      updatedUsedForcedTools
-    )
-    hasUsedForcedTool = result.hasUsedForcedTool
-    updatedUsedForcedTools = result.usedForcedTools
-  }
-
-  return { hasUsedForcedTool, usedForcedTools: updatedUsedForcedTools }
+  return checkForForcedToolUsageOpenAI(
+    response,
+    toolChoice,
+    'OpenRouter',
+    forcedTools,
+    usedForcedTools
+  )
 }

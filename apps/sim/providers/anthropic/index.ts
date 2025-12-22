@@ -7,17 +7,41 @@ import {
   createReadableStreamFromAnthropicStream,
   generateToolUseId,
 } from '@/providers/anthropic/utils'
-import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import {
+  getProviderDefaultModel,
+  getProviderModels,
+  supportsNativeStructuredOutputs,
+} from '@/providers/models'
 import type {
   ProviderConfig,
   ProviderRequest,
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
-import { prepareToolExecution, prepareToolsWithUsageControl } from '@/providers/utils'
+import {
+  calculateCost,
+  prepareToolExecution,
+  prepareToolsWithUsageControl,
+} from '@/providers/utils'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('AnthropicProvider')
+
+/**
+ * Generates prompt-based schema instructions for older models that don't support native structured outputs.
+ * This is a fallback approach that adds schema requirements to the system prompt.
+ */
+function generateSchemaInstructions(schema: any, schemaName?: string): string {
+  const name = schemaName || 'response'
+  return `IMPORTANT: You must respond with a valid JSON object that conforms to the following schema.
+Do not include any text before or after the JSON object. Only output the JSON.
+
+Schema name: ${name}
+JSON Schema:
+${JSON.stringify(schema, null, 2)}
+
+Your response must be valid JSON that exactly matches this schema structure.`
+}
 
 export const anthropicProvider: ProviderConfig = {
   id: 'anthropic',
@@ -34,15 +58,21 @@ export const anthropicProvider: ProviderConfig = {
       throw new Error('API key is required for Anthropic')
     }
 
-    const anthropic = new Anthropic({ apiKey: request.apiKey })
+    const modelId = request.model || 'claude-3-7-sonnet-20250219'
+    const useNativeStructuredOutputs = !!(
+      request.responseFormat && supportsNativeStructuredOutputs(modelId)
+    )
 
-    // Transform messages to Anthropic format
+    const anthropic = new Anthropic({
+      apiKey: request.apiKey,
+      defaultHeaders: useNativeStructuredOutputs
+        ? { 'anthropic-beta': 'structured-outputs-2025-11-13' }
+        : undefined,
+    })
+
     const messages: any[] = []
-
-    // Add system prompt if present
     let systemPrompt = request.systemPrompt || ''
 
-    // Add context if present
     if (request.context) {
       messages.push({
         role: 'user',
@@ -50,7 +80,6 @@ export const anthropicProvider: ProviderConfig = {
       })
     }
 
-    // Add remaining messages
     if (request.messages) {
       request.messages.forEach((msg) => {
         if (msg.role === 'function') {
@@ -86,17 +115,14 @@ export const anthropicProvider: ProviderConfig = {
       })
     }
 
-    // Ensure there's at least one message
     if (messages.length === 0) {
       messages.push({
         role: 'user',
         content: [{ type: 'text', text: systemPrompt || 'Hello' }],
       })
-      // Clear system prompt since we've used it as a user message
       systemPrompt = ''
     }
 
-    // Transform tools to Anthropic format if provided
     let anthropicTools = request.tools?.length
       ? request.tools.map((tool) => ({
           name: tool.id,
@@ -109,10 +135,7 @@ export const anthropicProvider: ProviderConfig = {
         }))
       : undefined
 
-    // Set tool_choice based on usage control settings
     let toolChoice: 'none' | 'auto' | { type: 'tool'; name: string } = 'auto'
-
-    // Handle tools and tool usage control
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
 
     if (anthropicTools?.length) {
@@ -128,13 +151,11 @@ export const anthropicProvider: ProviderConfig = {
         if (filteredTools?.length) {
           anthropicTools = filteredTools
 
-          // No longer need conversion since provider-specific formatting is in prepareToolsWithUsageControl
           if (typeof tc === 'object' && tc !== null) {
             if (tc.type === 'tool') {
               toolChoice = tc
               logger.info(`Using Anthropic tool_choice format: force tool "${tc.name}"`)
             } else {
-              // Default to auto if we got a non-Anthropic object format
               toolChoice = 'auto'
               logger.warn('Received non-Anthropic tool_choice format, defaulting to auto')
             }
@@ -142,90 +163,16 @@ export const anthropicProvider: ProviderConfig = {
             toolChoice = tc
             logger.info(`Using tool_choice mode: ${tc}`)
           } else {
-            // Default to auto if we got something unexpected
             toolChoice = 'auto'
             logger.warn('Unexpected tool_choice format, defaulting to auto')
           }
         }
       } catch (error) {
         logger.error('Error in prepareToolsWithUsageControl:', { error })
-        // Continue with default settings
         toolChoice = 'auto'
       }
     }
 
-    // If response format is specified, add strict formatting instructions
-    if (request.responseFormat) {
-      // Get the schema from the response format
-      const schema = request.responseFormat.schema || request.responseFormat
-
-      // Build a system prompt for structured output based on the JSON schema
-      let schemaInstructions = ''
-
-      if (schema?.properties) {
-        // Create a template of the expected JSON structure
-        const jsonTemplate = Object.entries(schema.properties).reduce(
-          (acc: Record<string, any>, [key, prop]: [string, any]) => {
-            let exampleValue
-            const propType = prop.type || 'string'
-
-            // Generate appropriate example values based on type
-            switch (propType) {
-              case 'string':
-                exampleValue = '"value"'
-                break
-              case 'number':
-                exampleValue = '0'
-                break
-              case 'boolean':
-                exampleValue = 'true'
-                break
-              case 'array':
-                exampleValue = '[]'
-                break
-              case 'object':
-                exampleValue = '{}'
-                break
-              default:
-                exampleValue = '"value"'
-            }
-
-            acc[key] = exampleValue
-            return acc
-          },
-          {}
-        )
-
-        // Generate field descriptions
-        const fieldDescriptions = Object.entries(schema.properties)
-          .map(([key, prop]: [string, any]) => {
-            const type = prop.type || 'string'
-            const description = prop.description ? `: ${prop.description}` : ''
-            return `${key} (${type})${description}`
-          })
-          .join('\n')
-
-        // Format the JSON template as a string
-        const jsonTemplateStr = JSON.stringify(jsonTemplate, null, 2)
-
-        schemaInstructions = `
-IMPORTANT RESPONSE FORMAT INSTRUCTIONS:
-1. Your response must be EXACTLY in this format, with no additional fields:
-${jsonTemplateStr}
-
-Field descriptions:
-${fieldDescriptions}
-
-2. DO NOT include any explanatory text before or after the JSON
-3. DO NOT wrap the response in an array
-4. DO NOT add any fields not specified in the schema
-5. Your response MUST be valid JSON and include all the specified fields with their correct types`
-      }
-
-      systemPrompt = `${systemPrompt}${schemaInstructions}`
-    }
-
-    // Build the request payload
     const payload: any = {
       model: request.model || 'claude-3-7-sonnet-20250219',
       messages,
@@ -234,49 +181,86 @@ ${fieldDescriptions}
       temperature: Number.parseFloat(String(request.temperature ?? 0.7)),
     }
 
-    // Use the tools in the payload
+    if (request.responseFormat) {
+      const schema = request.responseFormat.schema || request.responseFormat
+
+      if (useNativeStructuredOutputs) {
+        const schemaWithConstraints = {
+          ...schema,
+          additionalProperties: false,
+        }
+        payload.output_format = {
+          type: 'json_schema',
+          schema: schemaWithConstraints,
+        }
+        logger.info(`Using native structured outputs for model: ${modelId}`)
+      } else {
+        const schemaInstructions = generateSchemaInstructions(schema, request.responseFormat.name)
+        payload.system = payload.system
+          ? `${payload.system}\n\n${schemaInstructions}`
+          : schemaInstructions
+        logger.info(`Using prompt-based structured outputs for model: ${modelId}`)
+      }
+    }
+
     if (anthropicTools?.length) {
       payload.tools = anthropicTools
-      // Only set tool_choice if it's not 'auto'
       if (toolChoice !== 'auto') {
         payload.tool_choice = toolChoice
       }
     }
 
-    // Check if we should stream tool calls (default: false for chat, true for copilot)
     const shouldStreamToolCalls = request.streamToolCalls ?? false
 
-    // EARLY STREAMING: if caller requested streaming and there are no tools to execute,
-    // we can directly stream the completion.
     if (request.stream && (!anthropicTools || anthropicTools.length === 0)) {
       logger.info('Using streaming response for Anthropic request (no tools)')
 
-      // Start execution timer for the entire provider execution
       const providerStartTime = Date.now()
       const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
-      // Create a streaming request
       const streamResponse: any = await anthropic.messages.create({
         ...payload,
         stream: true,
       })
 
-      // Start collecting token usage
-      const tokenUsage = {
-        prompt: 0,
-        completion: 0,
-        total: 0,
-      }
-
-      // Create a StreamingExecution response with a readable stream
       const streamingResult = {
-        stream: createReadableStreamFromAnthropicStream(streamResponse),
+        stream: createReadableStreamFromAnthropicStream(streamResponse, (content, usage) => {
+          streamingResult.execution.output.content = content
+          streamingResult.execution.output.tokens = {
+            prompt: usage.input_tokens,
+            completion: usage.output_tokens,
+            total: usage.input_tokens + usage.output_tokens,
+          }
+
+          const costResult = calculateCost(request.model, usage.input_tokens, usage.output_tokens)
+          streamingResult.execution.output.cost = {
+            input: costResult.input,
+            output: costResult.output,
+            total: costResult.total,
+          }
+
+          const streamEndTime = Date.now()
+          const streamEndTimeISO = new Date(streamEndTime).toISOString()
+
+          if (streamingResult.execution.output.providerTiming) {
+            streamingResult.execution.output.providerTiming.endTime = streamEndTimeISO
+            streamingResult.execution.output.providerTiming.duration =
+              streamEndTime - providerStartTime
+
+            if (streamingResult.execution.output.providerTiming.timeSegments?.[0]) {
+              streamingResult.execution.output.providerTiming.timeSegments[0].endTime =
+                streamEndTime
+              streamingResult.execution.output.providerTiming.timeSegments[0].duration =
+                streamEndTime - providerStartTime
+            }
+          }
+        }),
         execution: {
           success: true,
           output: {
-            content: '', // Will be filled by streaming content in chat component
+            content: '',
             model: request.model,
-            tokens: tokenUsage,
+            tokens: { prompt: 0, completion: 0, total: 0 },
             toolCalls: undefined,
             providerTiming: {
               startTime: providerStartTimeISO,
@@ -292,14 +276,13 @@ ${fieldDescriptions}
                 },
               ],
             },
-            // Estimate token cost based on typical Claude pricing
             cost: {
               total: 0.0,
               input: 0.0,
               output: 0.0,
             },
           },
-          logs: [], // No block logs for direct streaming
+          logs: [],
           metadata: {
             startTime: providerStartTimeISO,
             endTime: new Date().toISOString(),
@@ -309,26 +292,18 @@ ${fieldDescriptions}
         },
       }
 
-      // Return the streaming execution object
       return streamingResult as StreamingExecution
     }
 
-    // NON-STREAMING WITH FINAL RESPONSE: Execute all tools silently and return only final response
     if (request.stream && !shouldStreamToolCalls) {
       logger.info('Using non-streaming mode for Anthropic request (tool calls executed silently)')
 
-      // Start execution timer for the entire provider execution
       const providerStartTime = Date.now()
       const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
       try {
-        // Make the initial API request
         const initialCallTime = Date.now()
-
-        // Track the original tool_choice for forced tool tracking
         const originalToolChoice = payload.tool_choice
-
-        // Track forced tools and their usage
         const forcedTools = preparedTools?.forcedTools || []
         let usedForcedTools: string[] = []
 
@@ -337,7 +312,6 @@ ${fieldDescriptions}
 
         let content = ''
 
-        // Extract text content from the message
         if (Array.isArray(currentResponse.content)) {
           content = currentResponse.content
             .filter((item) => item.type === 'text')
@@ -357,15 +331,10 @@ ${fieldDescriptions}
         const toolResults = []
         const currentMessages = [...messages]
         let iterationCount = 0
-
-        // Track if a forced tool has been used
         let hasUsedForcedTool = false
-
-        // Track time spent in model vs tools
         let modelTime = firstResponseTime
         let toolsTime = 0
 
-        // Track each model and tool call segment with timestamps
         const timeSegments: TimeSegment[] = [
           {
             type: 'model',
@@ -376,7 +345,6 @@ ${fieldDescriptions}
           },
         ]
 
-        // Check if a forced tool was used in the first response
         const firstCheckResult = checkForForcedToolUsage(
           currentResponse,
           originalToolChoice,
@@ -390,148 +358,170 @@ ${fieldDescriptions}
 
         try {
           while (iterationCount < MAX_TOOL_ITERATIONS) {
-            // Check for tool calls
+            const textContent = currentResponse.content
+              .filter((item) => item.type === 'text')
+              .map((item) => item.text)
+              .join('\n')
+
+            if (textContent) {
+              content = textContent
+            }
+
             const toolUses = currentResponse.content.filter((item) => item.type === 'tool_use')
             if (!toolUses || toolUses.length === 0) {
               break
             }
 
-            // Track time for tool calls in this batch
             const toolsStartTime = Date.now()
 
-            // Process each tool call
-            for (const toolUse of toolUses) {
+            const toolExecutionPromises = toolUses.map(async (toolUse) => {
+              const toolCallStartTime = Date.now()
+              const toolName = toolUse.name
+              const toolArgs = toolUse.input as Record<string, any>
+
               try {
-                const toolName = toolUse.name
-                const toolArgs = toolUse.input as Record<string, any>
-
-                // Get the tool from the tools registry
                 const tool = request.tools?.find((t: any) => t.id === toolName)
-                if (!tool) continue
-
-                // Execute the tool
-                const toolCallStartTime = Date.now()
+                if (!tool) return null
 
                 const { toolParams, executionParams } = prepareToolExecution(
                   tool,
                   toolArgs,
                   request
                 )
-
-                // Use general tool system for requests
                 const result = await executeTool(toolName, executionParams, true)
                 const toolCallEndTime = Date.now()
-                const toolCallDuration = toolCallEndTime - toolCallStartTime
 
-                // Add to time segments for both success and failure
-                timeSegments.push({
-                  type: 'tool',
-                  name: toolName,
+                return {
+                  toolUse,
+                  toolName,
+                  toolArgs,
+                  toolParams,
+                  result,
                   startTime: toolCallStartTime,
                   endTime: toolCallEndTime,
-                  duration: toolCallDuration,
-                })
-
-                // Prepare result content for the LLM
-                let resultContent: any
-                if (result.success) {
-                  toolResults.push(result.output)
-                  resultContent = result.output
-                } else {
-                  // Include error information so LLM can respond appropriately
-                  resultContent = {
-                    error: true,
-                    message: result.error || 'Tool execution failed',
-                    tool: toolName,
-                  }
+                  duration: toolCallEndTime - toolCallStartTime,
                 }
-
-                toolCalls.push({
-                  name: toolName,
-                  arguments: toolParams,
-                  startTime: new Date(toolCallStartTime).toISOString(),
-                  endTime: new Date(toolCallEndTime).toISOString(),
-                  duration: toolCallDuration,
-                  result: resultContent,
-                  success: result.success,
-                })
-
-                // Add the tool call and result to messages (both success and failure)
-                const toolUseId = generateToolUseId(toolName)
-
-                currentMessages.push({
-                  role: 'assistant',
-                  content: [
-                    {
-                      type: 'tool_use',
-                      id: toolUseId,
-                      name: toolName,
-                      input: toolArgs,
-                    } as any,
-                  ],
-                })
-
-                currentMessages.push({
-                  role: 'user',
-                  content: [
-                    {
-                      type: 'tool_result',
-                      tool_use_id: toolUseId,
-                      content: JSON.stringify(resultContent),
-                    } as any,
-                  ],
-                })
               } catch (error) {
-                logger.error('Error processing tool call:', { error })
+                const toolCallEndTime = Date.now()
+                logger.error('Error processing tool call:', { error, toolName })
+
+                return {
+                  toolUse,
+                  toolName,
+                  toolArgs,
+                  toolParams: {},
+                  result: {
+                    success: false,
+                    output: undefined,
+                    error: error instanceof Error ? error.message : 'Tool execution failed',
+                  },
+                  startTime: toolCallStartTime,
+                  endTime: toolCallEndTime,
+                  duration: toolCallEndTime - toolCallStartTime,
+                }
               }
+            })
+
+            const executionResults = await Promise.allSettled(toolExecutionPromises)
+
+            for (const settledResult of executionResults) {
+              if (settledResult.status === 'rejected' || !settledResult.value) continue
+
+              const { toolName, toolArgs, toolParams, result, startTime, endTime, duration } =
+                settledResult.value
+
+              timeSegments.push({
+                type: 'tool',
+                name: toolName,
+                startTime: startTime,
+                endTime: endTime,
+                duration: duration,
+              })
+
+              let resultContent: any
+              if (result.success) {
+                toolResults.push(result.output)
+                resultContent = result.output
+              } else {
+                resultContent = {
+                  error: true,
+                  message: result.error || 'Tool execution failed',
+                  tool: toolName,
+                }
+              }
+
+              toolCalls.push({
+                name: toolName,
+                arguments: toolParams,
+                startTime: new Date(startTime).toISOString(),
+                endTime: new Date(endTime).toISOString(),
+                duration: duration,
+                result: resultContent,
+                success: result.success,
+              })
+
+              const toolUseId = generateToolUseId(toolName)
+
+              currentMessages.push({
+                role: 'assistant',
+                content: [
+                  {
+                    type: 'tool_use',
+                    id: toolUseId,
+                    name: toolName,
+                    input: toolArgs,
+                  } as any,
+                ],
+              })
+
+              currentMessages.push({
+                role: 'user',
+                content: [
+                  {
+                    type: 'tool_result',
+                    tool_use_id: toolUseId,
+                    content: JSON.stringify(resultContent),
+                  } as any,
+                ],
+              })
             }
 
-            // Calculate tool call time for this iteration
             const thisToolsTime = Date.now() - toolsStartTime
             toolsTime += thisToolsTime
 
-            // Make the next request with updated messages
             const nextPayload = {
               ...payload,
               messages: currentMessages,
             }
 
-            // Update tool_choice based on which forced tools have been used
             if (
               typeof originalToolChoice === 'object' &&
               hasUsedForcedTool &&
               forcedTools.length > 0
             ) {
-              // If we have remaining forced tools, get the next one to force
               const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
 
               if (remainingTools.length > 0) {
-                // Force the next tool - use Anthropic format
                 nextPayload.tool_choice = {
                   type: 'tool',
                   name: remainingTools[0],
                 }
                 logger.info(`Forcing next tool: ${remainingTools[0]}`)
               } else {
-                // All forced tools have been used, switch to auto by removing tool_choice
                 nextPayload.tool_choice = undefined
                 logger.info('All forced tools have been used, removing tool_choice parameter')
               }
             } else if (hasUsedForcedTool && typeof originalToolChoice === 'object') {
-              // Handle the case of a single forced tool that was used
               nextPayload.tool_choice = undefined
               logger.info(
                 'Removing tool_choice parameter for subsequent requests after forced tool was used'
               )
             }
 
-            // Time the next model call
             const nextModelStartTime = Date.now()
 
-            // Make the next request
             currentResponse = await anthropic.messages.create(nextPayload)
 
-            // Check if any forced tools were used in this response
             const nextCheckResult = checkForForcedToolUsage(
               currentResponse,
               nextPayload.tool_choice,
@@ -546,7 +536,6 @@ ${fieldDescriptions}
             const nextModelEndTime = Date.now()
             const thisModelTime = nextModelEndTime - nextModelStartTime
 
-            // Add to time segments
             timeSegments.push({
               type: 'model',
               name: `Model response (iteration ${iterationCount + 1})`,
@@ -555,20 +544,8 @@ ${fieldDescriptions}
               duration: thisModelTime,
             })
 
-            // Add to model time
             modelTime += thisModelTime
 
-            // Update content if we have a text response
-            const textContent = currentResponse.content
-              .filter((item) => item.type === 'text')
-              .map((item) => item.text)
-              .join('\n')
-
-            if (textContent) {
-              content = textContent
-            }
-
-            // Update token counts
             if (currentResponse.usage) {
               tokens.prompt += currentResponse.usage.input_tokens || 0
               tokens.completion += currentResponse.usage.output_tokens || 0
@@ -584,24 +561,10 @@ ${fieldDescriptions}
           throw error
         }
 
-        // If the content looks like it contains JSON, extract just the JSON part
-        if (content.includes('{') && content.includes('}')) {
-          try {
-            const jsonMatch = content.match(/\{[\s\S]*\}/m)
-            if (jsonMatch) {
-              content = jsonMatch[0]
-            }
-          } catch (e) {
-            logger.error('Error extracting JSON from response:', { error: e })
-          }
-        }
-
-        // Calculate overall timing
         const providerEndTime = Date.now()
         const providerEndTimeISO = new Date(providerEndTime).toISOString()
         const totalDuration = providerEndTime - providerStartTime
 
-        // If no tool calls were made, return a direct response
         return {
           content,
           model: request.model || 'claude-3-7-sonnet-20250219',
@@ -630,7 +593,6 @@ ${fieldDescriptions}
           },
         }
       } catch (error) {
-        // Include timing information even for errors
         const providerEndTime = Date.now()
         const providerEndTimeISO = new Date(providerEndTime).toISOString()
         const totalDuration = providerEndTime - providerStartTime
@@ -640,9 +602,8 @@ ${fieldDescriptions}
           duration: totalDuration,
         })
 
-        // Create a new error with timing information
         const enhancedError = new Error(error instanceof Error ? error.message : String(error))
-        // @ts-ignore - Adding timing property to the error
+        // @ts-ignore
         enhancedError.timing = {
           startTime: providerStartTimeISO,
           endTime: providerEndTimeISO,
@@ -653,18 +614,12 @@ ${fieldDescriptions}
       }
     }
 
-    // Start execution timer for the entire provider execution
     const providerStartTime = Date.now()
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
     try {
-      // Make the initial API request
       const initialCallTime = Date.now()
-
-      // Track the original tool_choice for forced tool tracking
       const originalToolChoice = payload.tool_choice
-
-      // Track forced tools and their usage
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
 
@@ -673,7 +628,6 @@ ${fieldDescriptions}
 
       let content = ''
 
-      // Extract text content from the message
       if (Array.isArray(currentResponse.content)) {
         content = currentResponse.content
           .filter((item) => item.type === 'text')
@@ -688,19 +642,25 @@ ${fieldDescriptions}
           (currentResponse.usage?.input_tokens || 0) + (currentResponse.usage?.output_tokens || 0),
       }
 
+      const initialCost = calculateCost(
+        request.model,
+        currentResponse.usage?.input_tokens || 0,
+        currentResponse.usage?.output_tokens || 0
+      )
+      const cost = {
+        input: initialCost.input,
+        output: initialCost.output,
+        total: initialCost.total,
+      }
+
       const toolCalls = []
       const toolResults = []
       const currentMessages = [...messages]
       let iterationCount = 0
-
-      // Track if a forced tool has been used
       let hasUsedForcedTool = false
-
-      // Track time spent in model vs tools
       let modelTime = firstResponseTime
       let toolsTime = 0
 
-      // Track each model and tool call segment with timestamps
       const timeSegments: TimeSegment[] = [
         {
           type: 'model',
@@ -711,7 +671,6 @@ ${fieldDescriptions}
         },
       ]
 
-      // Check if a forced tool was used in the first response
       const firstCheckResult = checkForForcedToolUsage(
         currentResponse,
         originalToolChoice,
@@ -725,144 +684,164 @@ ${fieldDescriptions}
 
       try {
         while (iterationCount < MAX_TOOL_ITERATIONS) {
-          // Check for tool calls
+          const textContent = currentResponse.content
+            .filter((item) => item.type === 'text')
+            .map((item) => item.text)
+            .join('\n')
+
+          if (textContent) {
+            content = textContent
+          }
+
           const toolUses = currentResponse.content.filter((item) => item.type === 'tool_use')
           if (!toolUses || toolUses.length === 0) {
             break
           }
 
-          // Track time for tool calls in this batch
           const toolsStartTime = Date.now()
 
-          // Process each tool call
-          for (const toolUse of toolUses) {
+          const toolExecutionPromises = toolUses.map(async (toolUse) => {
+            const toolCallStartTime = Date.now()
+            const toolName = toolUse.name
+            const toolArgs = toolUse.input as Record<string, any>
+
             try {
-              const toolName = toolUse.name
-              const toolArgs = toolUse.input as Record<string, any>
-
-              // Get the tool from the tools registry
               const tool = request.tools?.find((t) => t.id === toolName)
-              if (!tool) continue
-
-              // Execute the tool
-              const toolCallStartTime = Date.now()
+              if (!tool) return null
 
               const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-
-              // Use general tool system for requests
               const result = await executeTool(toolName, executionParams, true)
               const toolCallEndTime = Date.now()
-              const toolCallDuration = toolCallEndTime - toolCallStartTime
 
-              // Add to time segments for both success and failure
-              timeSegments.push({
-                type: 'tool',
-                name: toolName,
+              return {
+                toolName,
+                toolArgs,
+                toolParams,
+                result,
                 startTime: toolCallStartTime,
                 endTime: toolCallEndTime,
-                duration: toolCallDuration,
-              })
-
-              // Prepare result content for the LLM
-              let resultContent: any
-              if (result.success) {
-                toolResults.push(result.output)
-                resultContent = result.output
-              } else {
-                // Include error information so LLM can respond appropriately
-                resultContent = {
-                  error: true,
-                  message: result.error || 'Tool execution failed',
-                  tool: toolName,
-                }
+                duration: toolCallEndTime - toolCallStartTime,
               }
-
-              toolCalls.push({
-                name: toolName,
-                arguments: toolParams,
-                startTime: new Date(toolCallStartTime).toISOString(),
-                endTime: new Date(toolCallEndTime).toISOString(),
-                duration: toolCallDuration,
-                result: resultContent,
-                success: result.success,
-              })
-
-              // Add the tool call and result to messages (both success and failure)
-              const toolUseId = generateToolUseId(toolName)
-
-              currentMessages.push({
-                role: 'assistant',
-                content: [
-                  {
-                    type: 'tool_use',
-                    id: toolUseId,
-                    name: toolName,
-                    input: toolArgs,
-                  } as any,
-                ],
-              })
-
-              currentMessages.push({
-                role: 'user',
-                content: [
-                  {
-                    type: 'tool_result',
-                    tool_use_id: toolUseId,
-                    content: JSON.stringify(resultContent),
-                  } as any,
-                ],
-              })
             } catch (error) {
-              logger.error('Error processing tool call:', { error })
+              const toolCallEndTime = Date.now()
+              logger.error('Error processing tool call:', { error, toolName })
+
+              return {
+                toolName,
+                toolArgs,
+                toolParams: {},
+                result: {
+                  success: false,
+                  output: undefined,
+                  error: error instanceof Error ? error.message : 'Tool execution failed',
+                },
+                startTime: toolCallStartTime,
+                endTime: toolCallEndTime,
+                duration: toolCallEndTime - toolCallStartTime,
+              }
             }
+          })
+
+          const executionResults = await Promise.allSettled(toolExecutionPromises)
+
+          for (const settledResult of executionResults) {
+            if (settledResult.status === 'rejected' || !settledResult.value) continue
+
+            const { toolName, toolArgs, toolParams, result, startTime, endTime, duration } =
+              settledResult.value
+
+            timeSegments.push({
+              type: 'tool',
+              name: toolName,
+              startTime: startTime,
+              endTime: endTime,
+              duration: duration,
+            })
+
+            let resultContent: any
+            if (result.success) {
+              toolResults.push(result.output)
+              resultContent = result.output
+            } else {
+              resultContent = {
+                error: true,
+                message: result.error || 'Tool execution failed',
+                tool: toolName,
+              }
+            }
+
+            toolCalls.push({
+              name: toolName,
+              arguments: toolParams,
+              startTime: new Date(startTime).toISOString(),
+              endTime: new Date(endTime).toISOString(),
+              duration: duration,
+              result: resultContent,
+              success: result.success,
+            })
+
+            const toolUseId = generateToolUseId(toolName)
+
+            currentMessages.push({
+              role: 'assistant',
+              content: [
+                {
+                  type: 'tool_use',
+                  id: toolUseId,
+                  name: toolName,
+                  input: toolArgs,
+                } as any,
+              ],
+            })
+
+            currentMessages.push({
+              role: 'user',
+              content: [
+                {
+                  type: 'tool_result',
+                  tool_use_id: toolUseId,
+                  content: JSON.stringify(resultContent),
+                } as any,
+              ],
+            })
           }
 
-          // Calculate tool call time for this iteration
           const thisToolsTime = Date.now() - toolsStartTime
           toolsTime += thisToolsTime
 
-          // Make the next request with updated messages
           const nextPayload = {
             ...payload,
             messages: currentMessages,
           }
 
-          // Update tool_choice based on which forced tools have been used
           if (
             typeof originalToolChoice === 'object' &&
             hasUsedForcedTool &&
             forcedTools.length > 0
           ) {
-            // If we have remaining forced tools, get the next one to force
             const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
 
             if (remainingTools.length > 0) {
-              // Force the next tool - use Anthropic format
               nextPayload.tool_choice = {
                 type: 'tool',
                 name: remainingTools[0],
               }
               logger.info(`Forcing next tool: ${remainingTools[0]}`)
             } else {
-              // All forced tools have been used, switch to auto by removing tool_choice
               nextPayload.tool_choice = undefined
               logger.info('All forced tools have been used, removing tool_choice parameter')
             }
           } else if (hasUsedForcedTool && typeof originalToolChoice === 'object') {
-            // Handle the case of a single forced tool that was used
             nextPayload.tool_choice = undefined
             logger.info(
               'Removing tool_choice parameter for subsequent requests after forced tool was used'
             )
           }
 
-          // Time the next model call
           const nextModelStartTime = Date.now()
 
-          // Make the next request
           currentResponse = await anthropic.messages.create(nextPayload)
 
-          // Check if any forced tools were used in this response
           const nextCheckResult = checkForForcedToolUsage(
             currentResponse,
             nextPayload.tool_choice,
@@ -877,7 +856,6 @@ ${fieldDescriptions}
           const nextModelEndTime = Date.now()
           const thisModelTime = nextModelEndTime - nextModelStartTime
 
-          // Add to time segments
           timeSegments.push({
             type: 'model',
             name: `Model response (iteration ${iterationCount + 1})`,
@@ -886,25 +864,22 @@ ${fieldDescriptions}
             duration: thisModelTime,
           })
 
-          // Add to model time
           modelTime += thisModelTime
 
-          // Update content if we have a text response
-          const textContent = currentResponse.content
-            .filter((item) => item.type === 'text')
-            .map((item) => item.text)
-            .join('\n')
-
-          if (textContent) {
-            content = textContent
-          }
-
-          // Update token counts
           if (currentResponse.usage) {
             tokens.prompt += currentResponse.usage.input_tokens || 0
             tokens.completion += currentResponse.usage.output_tokens || 0
             tokens.total +=
               (currentResponse.usage.input_tokens || 0) + (currentResponse.usage.output_tokens || 0)
+
+            const iterationCost = calculateCost(
+              request.model,
+              currentResponse.usage.input_tokens || 0,
+              currentResponse.usage.output_tokens || 0
+            )
+            cost.input += iterationCost.input
+            cost.output += iterationCost.output
+            cost.total += iterationCost.total
           }
 
           iterationCount++
@@ -914,48 +889,51 @@ ${fieldDescriptions}
         throw error
       }
 
-      // If the content looks like it contains JSON, extract just the JSON part
-      if (content.includes('{') && content.includes('}')) {
-        try {
-          const jsonMatch = content.match(/\{[\s\S]*\}/m)
-          if (jsonMatch) {
-            content = jsonMatch[0]
-          }
-        } catch (e) {
-          logger.error('Error extracting JSON from response:', { error: e })
-        }
-      }
-
-      // Calculate overall timing
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      // After all tool processing complete, if streaming was requested, use streaming for the final response
       if (request.stream) {
         logger.info('Using streaming for final Anthropic response after tool processing')
 
-        // When streaming after tool calls with forced tools, make sure tool_choice is removed
-        // This prevents the API from trying to force tool usage again in the final streaming response
         const streamingPayload = {
           ...payload,
           messages: currentMessages,
-          // For Anthropic, omit tool_choice entirely rather than setting it to 'none'
           stream: true,
+          tool_choice: undefined,
         }
-
-        // Remove the tool_choice parameter as Anthropic doesn't accept 'none' as a string value
-        streamingPayload.tool_choice = undefined
 
         const streamResponse: any = await anthropic.messages.create(streamingPayload)
 
-        // Create a StreamingExecution response with all collected data
         const streamingResult = {
-          stream: createReadableStreamFromAnthropicStream(streamResponse),
+          stream: createReadableStreamFromAnthropicStream(streamResponse, (content, usage) => {
+            streamingResult.execution.output.content = content
+            streamingResult.execution.output.tokens = {
+              prompt: tokens.prompt + usage.input_tokens,
+              completion: tokens.completion + usage.output_tokens,
+              total: tokens.total + usage.input_tokens + usage.output_tokens,
+            }
+
+            const streamCost = calculateCost(request.model, usage.input_tokens, usage.output_tokens)
+            streamingResult.execution.output.cost = {
+              input: cost.input + streamCost.input,
+              output: cost.output + streamCost.output,
+              total: cost.total + streamCost.total,
+            }
+
+            const streamEndTime = Date.now()
+            const streamEndTimeISO = new Date(streamEndTime).toISOString()
+
+            if (streamingResult.execution.output.providerTiming) {
+              streamingResult.execution.output.providerTiming.endTime = streamEndTimeISO
+              streamingResult.execution.output.providerTiming.duration =
+                streamEndTime - providerStartTime
+            }
+          }),
           execution: {
             success: true,
             output: {
-              content: '', // Will be filled by the callback
+              content: '',
               model: request.model || 'claude-3-7-sonnet-20250219',
               tokens: {
                 prompt: tokens.prompt,
@@ -980,12 +958,12 @@ ${fieldDescriptions}
                 timeSegments: timeSegments,
               },
               cost: {
-                total: (tokens.total || 0) * 0.0001, // Estimate cost based on tokens
-                input: (tokens.prompt || 0) * 0.0001,
-                output: (tokens.completion || 0) * 0.0001,
+                input: cost.input,
+                output: cost.output,
+                total: cost.total,
               },
             },
-            logs: [], // No block logs at provider level
+            logs: [],
             metadata: {
               startTime: providerStartTimeISO,
               endTime: new Date().toISOString(),
@@ -1026,7 +1004,6 @@ ${fieldDescriptions}
         },
       }
     } catch (error) {
-      // Include timing information even for errors
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
@@ -1036,9 +1013,8 @@ ${fieldDescriptions}
         duration: totalDuration,
       })
 
-      // Create a new error with timing information
       const enhancedError = new Error(error instanceof Error ? error.message : String(error))
-      // @ts-ignore - Adding timing property to the error
+      // @ts-ignore
       enhancedError.timing = {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,

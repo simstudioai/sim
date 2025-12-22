@@ -41,6 +41,7 @@ export interface ToolInput {
 export interface Message {
   role: 'system' | 'user' | 'assistant'
   content: string
+  executionId?: string
   function_call?: any
   tool_calls?: any[]
 }

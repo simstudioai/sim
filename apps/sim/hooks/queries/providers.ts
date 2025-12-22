@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { ProviderName } from '@/stores/providers/types'
+import type { OpenRouterModelInfo, ProviderName } from '@/stores/providers/types'
 
 const logger = createLogger('ProviderModelsQuery')
 
@@ -11,7 +11,12 @@ const providerEndpoints: Record<ProviderName, string> = {
   openrouter: '/api/providers/openrouter/models',
 }
 
-async function fetchProviderModels(provider: ProviderName): Promise<string[]> {
+interface ProviderModelsResponse {
+  models: string[]
+  modelInfo?: Record<string, OpenRouterModelInfo>
+}
+
+async function fetchProviderModels(provider: ProviderName): Promise<ProviderModelsResponse> {
   const response = await fetch(providerEndpoints[provider])
 
   if (!response.ok) {
@@ -24,8 +29,12 @@ async function fetchProviderModels(provider: ProviderName): Promise<string[]> {
 
   const data = await response.json()
   const models: string[] = Array.isArray(data.models) ? data.models : []
+  const uniqueModels = provider === 'openrouter' ? Array.from(new Set(models)) : models
 
-  return provider === 'openrouter' ? Array.from(new Set(models)) : models
+  return {
+    models: uniqueModels,
+    modelInfo: data.modelInfo,
+  }
 }
 
 export function useProviderModels(provider: ProviderName) {
