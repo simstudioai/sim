@@ -13,6 +13,7 @@ export function createReadableStreamFromOpenAIStream(
   let promptTokens = 0
   let completionTokens = 0
   let totalTokens = 0
+  let chunkCount = 0
 
   return new ReadableStream({
     async start(controller) {
@@ -26,6 +27,7 @@ export function createReadableStreamFromOpenAIStream(
 
           const content = chunk.choices[0]?.delta?.content || ''
           if (content) {
+            chunkCount++
             fullContent += content
             controller.enqueue(new TextEncoder().encode(content))
           }

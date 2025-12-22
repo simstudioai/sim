@@ -104,6 +104,10 @@ export async function createStreamingResponse(
         const onBlockCompleteCallback = async (blockId: string, output: any) => {
           if (!streamConfig.selectedOutputs?.length) return
 
+          if (streamedContent.has(blockId)) {
+            return
+          }
+
           const { extractBlockIdFromOutputId, extractPathFromOutputId, traverseObjectPath } =
             await import('@/lib/core/utils/response-format')
 

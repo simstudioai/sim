@@ -1,6 +1,6 @@
 ---
 title: Memory
-description: Add memory store
+description: Store and retrieve conversation history
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,100 +10,94 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#F64F9E"
 />
 
-## Usage Instructions
+## Overview
 
-Integrate Memory into the workflow. Can add, get a memory, get all memories, and delete memories.
+The Memory block stores conversation history for agents. Each memory is identified by a `conversationId` that you provide. Multiple agents can share the same memory by using the same `conversationId`.
 
-
+Memory stores only user and assistant messages. System messages are not stored—they are configured in the Agent block and prefixed at runtime.
 
 ## Tools
 
 ### `memory_add`
 
-Add a new memory to the database or append to existing memory with the same ID.
+Add a message to memory. Creates a new memory if the `conversationId` doesn't exist, or appends to existing memory.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | string | No | Conversation identifier \(e.g., user-123, session-abc\). If a memory with this conversationId already exists for this block, the new message will be appended to it. |
-| `id` | string | No | Legacy parameter for conversation identifier. Use conversationId instead. Provided for backwards compatibility. |
-| `role` | string | Yes | Role for agent memory \(user, assistant, or system\) |
-| `content` | string | Yes | Content for agent memory |
-| `blockId` | string | No | Optional block ID. If not provided, uses the current block ID from execution context, or defaults to "default". |
+| `conversationId` | string | Yes | Unique identifier for the conversation (e.g., `user-123`, `session-abc`) |
+| `role` | string | Yes | Message role: `user` or `assistant` |
+| `content` | string | Yes | Message content |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the memory was added successfully |
-| `memories` | array | Array of memory objects including the new or updated memory |
-| `error` | string | Error message if operation failed |
+| `success` | boolean | Whether the operation succeeded |
+| `memories` | array | Updated memory array |
+| `error` | string | Error message if failed |
 
 ### `memory_get`
 
-Retrieve memory by conversationId, blockId, blockName, or a combination. Returns all matching memories.
+Retrieve memory by conversation ID.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | string | No | Conversation identifier \(e.g., user-123, session-abc\). If provided alone, returns all memories for this conversation across all blocks. |
-| `id` | string | No | Legacy parameter for conversation identifier. Use conversationId instead. Provided for backwards compatibility. |
-| `blockId` | string | No | Block identifier. If provided alone, returns all memories for this block across all conversations. If provided with conversationId, returns memories for that specific conversation in this block. |
-| `blockName` | string | No | Block name. Alternative to blockId. If provided alone, returns all memories for blocks with this name. If provided with conversationId, returns memories for that conversation in blocks with this name. |
+| `conversationId` | string | Yes | Conversation identifier |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the memory was retrieved successfully |
-| `memories` | array | Array of memory objects with conversationId, blockId, blockName, and data fields |
-| `message` | string | Success or error message |
-| `error` | string | Error message if operation failed |
+| `success` | boolean | Whether the operation succeeded |
+| `memories` | array | Array of messages with `role` and `content` |
+| `error` | string | Error message if failed |
 
 ### `memory_get_all`
 
-Retrieve all memories from the database
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
+Retrieve all memories for the current workflow.
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether all memories were retrieved successfully |
-| `memories` | array | Array of all memory objects with key, conversationId, blockId, blockName, and data fields |
-| `message` | string | Success or error message |
-| `error` | string | Error message if operation failed |
+| `success` | boolean | Whether the operation succeeded |
+| `memories` | array | All memory objects with `conversationId` and `data` fields |
+| `error` | string | Error message if failed |
 
 ### `memory_delete`
 
-Delete memories by conversationId, blockId, blockName, or a combination. Supports bulk deletion.
+Delete memory by conversation ID.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | string | No | Conversation identifier \(e.g., user-123, session-abc\). If provided alone, deletes all memories for this conversation across all blocks. |
-| `id` | string | No | Legacy parameter for conversation identifier. Use conversationId instead. Provided for backwards compatibility. |
-| `blockId` | string | No | Block identifier. If provided alone, deletes all memories for this block across all conversations. If provided with conversationId, deletes memories for that specific conversation in this block. |
-| `blockName` | string | No | Block name. Alternative to blockId. If provided alone, deletes all memories for blocks with this name. If provided with conversationId, deletes memories for that conversation in blocks with this name. |
+| `conversationId` | string | Yes | Conversation identifier to delete |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the memory was deleted successfully |
-| `message` | string | Success or error message |
-| `error` | string | Error message if operation failed |
+| `success` | boolean | Whether the operation succeeded |
+| `message` | string | Confirmation message |
+| `error` | string | Error message if failed |
 
+## Agent Memory Types
 
+When using memory with an Agent block, you can configure how conversation history is managed:
+
+| Type | Description |
+| ---- | ----------- |
+| **Full Conversation** | Stores all messages, limited by model's context window (uses 90% to leave room for response) |
+| **Sliding Window (Messages)** | Keeps the last N messages (default: 10) |
+| **Sliding Window (Tokens)** | Keeps messages that fit within a token limit (default: 4000) |
 
 ## Notes
 
-- Category: `blocks`
-- Type: `memory`
+- Memory is scoped per workflow—different workflows have separate memory stores
+- The `conversationId` is your responsibility to manage (e.g., use session IDs, user IDs, or UUIDs)
+- System messages belong in the Agent block configuration, not in memory

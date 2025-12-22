@@ -1,662 +1,152 @@
+import { randomUUID } from 'node:crypto'
+import { db } from '@sim/db'
+import { memory } from '@sim/db/schema'
+import { and, eq, sql } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getAccurateTokenCount } from '@/lib/tokenization/estimators'
+import { MEMORY } from '@/executor/constants'
 import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext } from '@/executor/types'
-import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
-import { stringifyJSON } from '@/executor/utils/json'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 
 const logger = createLogger('Memory')
 
-/**
- * Class for managing agent conversation memory
- * Handles fetching and persisting messages to the memory table
- */
 export class Memory {
-  /**
-   * Fetch messages from memory based on memoryType configuration
-   */
+  async hasMemory(workflowId: string, conversationId: string): Promise<boolean> {
+    const result = await db
+      .select({ id: memory.id })
+      .from(memory)
+      .where(and(eq(memory.workflowId, workflowId), eq(memory.key, conversationId)))
+      .limit(1)
+
+    return result.length > 0
+  }
+
   async fetchMemoryMessages(ctx: ExecutionContext, inputs: AgentInputs): Promise<Message[]> {
     if (!inputs.memoryType || inputs.memoryType === 'none') {
       return []
     }
 
     if (!ctx.workflowId) {
-      logger.warn('Cannot fetch memory without workflowId')
-      return []
+      throw new Error('workflowId is required to fetch memory')
     }
 
-    try {
-      this.validateInputs(inputs.conversationId)
+    this.validateConversationId(inputs.conversationId)
 
-      const memoryKey = this.buildMemoryKey(inputs)
-      let messages = await this.fetchFromMemoryAPI(ctx.workflowId, memoryKey)
+    const messages = await this.fetchMemory(ctx.workflowId, inputs.conversationId!)
 
-      switch (inputs.memoryType) {
-        case 'conversation':
-          messages = this.applyContextWindowLimit(messages, inputs.model)
-          break
+    switch (inputs.memoryType) {
+      case 'conversation':
+        return this.applyContextWindowLimit(messages, inputs.model)
 
-        case 'sliding_window': {
-          // Default to 10 messages if not specified (matches agent block default)
-          const windowSize = inputs.slidingWindowSize || '10'
-          messages = this.applySlidingWindow(messages, windowSize)
-          break
-        }
-
-        case 'sliding_window_tokens': {
-          // Default to 4000 tokens if not specified (matches agent block default)
-          const maxTokens = inputs.slidingWindowTokens || '4000'
-          messages = this.applySlidingWindowByTokens(messages, maxTokens, inputs.model)
-          break
-        }
-      }
-
-      return messages
-    } catch (error) {
-      logger.error('Failed to fetch memory messages:', error)
-      return []
-    }
-  }
-
-  /**
-   * Persist assistant response to memory
-   * Uses atomic append operations to prevent race conditions
-   */
-  async persistMemoryMessage(
-    ctx: ExecutionContext,
-    inputs: AgentInputs,
-    assistantMessage: Message
-  ): Promise<void> {
-    if (!inputs.memoryType || inputs.memoryType === 'none') {
-      return
-    }
-
-    if (!ctx.workflowId) {
-      logger.warn('Cannot persist memory without workflowId')
-      return
-    }
-
-    try {
-      this.validateInputs(inputs.conversationId, assistantMessage.content)
-
-      const memoryKey = this.buildMemoryKey(inputs)
-
-      if (inputs.memoryType === 'sliding_window') {
-        // Default to 10 messages if not specified (matches agent block default)
-        const windowSize = inputs.slidingWindowSize || '10'
-
-        const existingMessages = await this.fetchFromMemoryAPI(ctx.workflowId, memoryKey)
-        const updatedMessages = [...existingMessages, assistantMessage]
-        const messagesToPersist = this.applySlidingWindow(updatedMessages, windowSize)
-
-        await this.persistToMemoryAPI(ctx.workflowId, memoryKey, messagesToPersist)
-      } else if (inputs.memoryType === 'sliding_window_tokens') {
-        // Default to 4000 tokens if not specified (matches agent block default)
-        const maxTokens = inputs.slidingWindowTokens || '4000'
-
-        const existingMessages = await this.fetchFromMemoryAPI(ctx.workflowId, memoryKey)
-        const updatedMessages = [...existingMessages, assistantMessage]
-        const messagesToPersist = this.applySlidingWindowByTokens(
-          updatedMessages,
-          maxTokens,
-          inputs.model
+      case 'sliding_window': {
+        const limit = this.parsePositiveInt(
+          inputs.slidingWindowSize,
+          MEMORY.DEFAULT_SLIDING_WINDOW_SIZE
         )
-
-        await this.persistToMemoryAPI(ctx.workflowId, memoryKey, messagesToPersist)
-      } else {
-        // Conversation mode: use atomic append for better concurrency
-        await this.atomicAppendToMemory(ctx.workflowId, memoryKey, assistantMessage)
+        return this.applyWindow(messages, limit)
       }
 
-      logger.debug('Successfully persisted memory message', {
-        workflowId: ctx.workflowId,
-        key: memoryKey,
-      })
-    } catch (error) {
-      logger.error('Failed to persist memory message:', error)
-    }
-  }
-
-  /**
-   * Persist user message to memory before agent execution
-   */
-  async persistUserMessage(
-    ctx: ExecutionContext,
-    inputs: AgentInputs,
-    userMessage: Message
-  ): Promise<void> {
-    if (!inputs.memoryType || inputs.memoryType === 'none') {
-      return
-    }
-
-    if (!ctx.workflowId) {
-      logger.warn('Cannot persist user message without workflowId')
-      return
-    }
-
-    try {
-      const memoryKey = this.buildMemoryKey(inputs)
-
-      if (inputs.slidingWindowSize && inputs.memoryType === 'sliding_window') {
-        const existingMessages = await this.fetchFromMemoryAPI(ctx.workflowId, memoryKey)
-        const updatedMessages = [...existingMessages, userMessage]
-        const messagesToPersist = this.applySlidingWindow(updatedMessages, inputs.slidingWindowSize)
-        await this.persistToMemoryAPI(ctx.workflowId, memoryKey, messagesToPersist)
-      } else if (inputs.slidingWindowTokens && inputs.memoryType === 'sliding_window_tokens') {
-        const existingMessages = await this.fetchFromMemoryAPI(ctx.workflowId, memoryKey)
-        const updatedMessages = [...existingMessages, userMessage]
-        const messagesToPersist = this.applySlidingWindowByTokens(
-          updatedMessages,
+      case 'sliding_window_tokens': {
+        const maxTokens = this.parsePositiveInt(
           inputs.slidingWindowTokens,
-          inputs.model
+          MEMORY.DEFAULT_SLIDING_WINDOW_TOKENS
         )
-        await this.persistToMemoryAPI(ctx.workflowId, memoryKey, messagesToPersist)
-      } else {
-        await this.atomicAppendToMemory(ctx.workflowId, memoryKey, userMessage)
+        return this.applyTokenWindow(messages, maxTokens, inputs.model)
       }
-    } catch (error) {
-      logger.error('Failed to persist user message:', error)
+
+      default:
+        return messages
     }
   }
 
-  /**
-   * Build memory key based on conversationId
-   * Memory is thread-scoped, not block-scoped
-   */
-  private buildMemoryKey(inputs: AgentInputs): string {
-    const { conversationId } = inputs
+  async appendToMemory(
+    ctx: ExecutionContext,
+    inputs: AgentInputs,
+    message: Message
+  ): Promise<void> {
+    if (!inputs.memoryType || inputs.memoryType === 'none') {
+      return
+    }
 
-    if (!conversationId || conversationId.trim() === '') {
-      throw new Error(
-        'Conversation ID is required for all memory types. ' +
-          'Please provide a unique identifier (e.g., user-123, session-abc, customer-456).'
+    if (!ctx.workflowId) {
+      throw new Error('workflowId is required to append to memory')
+    }
+
+    this.validateConversationId(inputs.conversationId)
+    this.validateContent(message.content)
+
+    const key = inputs.conversationId!
+
+    if (inputs.memoryType === 'sliding_window') {
+      const limit = this.parsePositiveInt(
+        inputs.slidingWindowSize,
+        MEMORY.DEFAULT_SLIDING_WINDOW_SIZE
       )
+      const existing = await this.fetchMemory(ctx.workflowId, key)
+      const updated = this.applyWindow([...existing, message], limit)
+      await this.persistMemory(ctx.workflowId, key, updated)
+    } else if (inputs.memoryType === 'sliding_window_tokens') {
+      const maxTokens = this.parsePositiveInt(
+        inputs.slidingWindowTokens,
+        MEMORY.DEFAULT_SLIDING_WINDOW_TOKENS
+      )
+      const existing = await this.fetchMemory(ctx.workflowId, key)
+      const updated = this.applyTokenWindow([...existing, message], maxTokens, inputs.model)
+      await this.persistMemory(ctx.workflowId, key, updated)
+    } else {
+      await this.appendMessage(ctx.workflowId, key, message)
     }
 
-    return conversationId
-  }
-
-  /**
-   * Apply sliding window to limit number of conversation messages
-   *
-   * System message handling:
-   * - System messages are excluded from the sliding window count
-   * - Only the first system message is preserved and placed at the start
-   * - This ensures system prompts remain available while limiting conversation history
-   */
-  private applySlidingWindow(messages: Message[], windowSize: string): Message[] {
-    const limit = Number.parseInt(windowSize, 10)
-
-    if (Number.isNaN(limit) || limit <= 0) {
-      logger.warn('Invalid sliding window size, returning all messages', { windowSize })
-      return messages
-    }
-
-    const systemMessages = messages.filter((msg) => msg.role === 'system')
-    const conversationMessages = messages.filter((msg) => msg.role !== 'system')
-
-    const recentMessages = conversationMessages.slice(-limit)
-
-    const firstSystemMessage = systemMessages.length > 0 ? [systemMessages[0]] : []
-
-    return [...firstSystemMessage, ...recentMessages]
-  }
-
-  /**
-   * Apply token-based sliding window to limit conversation by token count
-   *
-   * System message handling:
-   * - For consistency with message-based sliding window, the first system message is preserved
-   * - System messages are excluded from the token count
-   * - This ensures system prompts are always available while limiting conversation history
-   */
-  private applySlidingWindowByTokens(
-    messages: Message[],
-    maxTokens: string,
-    model?: string
-  ): Message[] {
-    const tokenLimit = Number.parseInt(maxTokens, 10)
-
-    if (Number.isNaN(tokenLimit) || tokenLimit <= 0) {
-      logger.warn('Invalid token limit, returning all messages', { maxTokens })
-      return messages
-    }
-
-    // Separate system messages from conversation messages for consistent handling
-    const systemMessages = messages.filter((msg) => msg.role === 'system')
-    const conversationMessages = messages.filter((msg) => msg.role !== 'system')
-
-    const result: Message[] = []
-    let currentTokenCount = 0
-
-    // Add conversation messages from most recent backwards
-    for (let i = conversationMessages.length - 1; i >= 0; i--) {
-      const message = conversationMessages[i]
-      const messageTokens = getAccurateTokenCount(message.content, model)
-
-      if (currentTokenCount + messageTokens <= tokenLimit) {
-        result.unshift(message)
-        currentTokenCount += messageTokens
-      } else if (result.length === 0) {
-        logger.warn('Single message exceeds token limit, including anyway', {
-          messageTokens,
-          tokenLimit,
-          messageRole: message.role,
-        })
-        result.unshift(message)
-        currentTokenCount += messageTokens
-        break
-      } else {
-        // Token limit reached, stop processing
-        break
-      }
-    }
-
-    logger.debug('Applied token-based sliding window', {
-      totalMessages: messages.length,
-      conversationMessages: conversationMessages.length,
-      includedMessages: result.length,
-      totalTokens: currentTokenCount,
-      tokenLimit,
+    logger.debug('Appended message to memory', {
+      workflowId: ctx.workflowId,
+      key,
+      role: message.role,
     })
-
-    // Preserve first system message and prepend to results (consistent with message-based window)
-    const firstSystemMessage = systemMessages.length > 0 ? [systemMessages[0]] : []
-    return [...firstSystemMessage, ...result]
   }
 
-  /**
-   * Apply context window limit based on model's maximum context window
-   * Auto-trims oldest conversation messages when approaching the model's context limit
-   * Uses 90% of context window (10% buffer for response)
-   * Only applies if model has contextWindow defined and contextInformationAvailable !== false
-   */
-  private applyContextWindowLimit(messages: Message[], model?: string): Message[] {
-    if (!model) {
-      return messages
+  async seedMemory(ctx: ExecutionContext, inputs: AgentInputs, messages: Message[]): Promise<void> {
+    if (!inputs.memoryType || inputs.memoryType === 'none') {
+      return
     }
 
-    let contextWindow: number | undefined
-
-    for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
-      if (provider.contextInformationAvailable === false) {
-        continue
-      }
-
-      const matchesPattern = provider.modelPatterns?.some((pattern) => pattern.test(model))
-      const matchesModel = provider.models.some((m) => m.id === model)
-
-      if (matchesPattern || matchesModel) {
-        const modelDef = provider.models.find((m) => m.id === model)
-        if (modelDef?.contextWindow) {
-          contextWindow = modelDef.contextWindow
-          break
-        }
-      }
+    if (!ctx.workflowId) {
+      throw new Error('workflowId is required to seed memory')
     }
 
-    if (!contextWindow) {
-      logger.debug('No context window information available for model, skipping auto-trim', {
-        model,
-      })
-      return messages
+    const conversationMessages = messages.filter((m) => m.role !== 'system')
+    if (conversationMessages.length === 0) {
+      return
     }
 
-    const maxTokens = Math.floor(contextWindow * 0.9)
+    this.validateConversationId(inputs.conversationId)
 
-    logger.debug('Applying context window limit', {
-      model,
-      contextWindow,
-      maxTokens,
-      totalMessages: messages.length,
+    const key = inputs.conversationId!
+
+    let messagesToStore = conversationMessages
+    if (inputs.memoryType === 'sliding_window') {
+      const limit = this.parsePositiveInt(
+        inputs.slidingWindowSize,
+        MEMORY.DEFAULT_SLIDING_WINDOW_SIZE
+      )
+      messagesToStore = this.applyWindow(conversationMessages, limit)
+    } else if (inputs.memoryType === 'sliding_window_tokens') {
+      const maxTokens = this.parsePositiveInt(
+        inputs.slidingWindowTokens,
+        MEMORY.DEFAULT_SLIDING_WINDOW_TOKENS
+      )
+      messagesToStore = this.applyTokenWindow(conversationMessages, maxTokens, inputs.model)
+    }
+
+    await this.persistMemory(ctx.workflowId, key, messagesToStore)
+
+    logger.debug('Seeded memory', {
+      workflowId: ctx.workflowId,
+      key,
+      count: messagesToStore.length,
     })
-
-    const systemMessages = messages.filter((msg) => msg.role === 'system')
-    const conversationMessages = messages.filter((msg) => msg.role !== 'system')
-
-    // Count tokens used by system messages first
-    let systemTokenCount = 0
-    for (const msg of systemMessages) {
-      systemTokenCount += getAccurateTokenCount(msg.content, model)
-    }
-
-    // Calculate remaining tokens available for conversation messages
-    const remainingTokens = Math.max(0, maxTokens - systemTokenCount)
-
-    if (systemTokenCount >= maxTokens) {
-      logger.warn('System messages exceed context window limit, including anyway', {
-        systemTokenCount,
-        maxTokens,
-        systemMessageCount: systemMessages.length,
-      })
-      return systemMessages
-    }
-
-    const result: Message[] = []
-    let currentTokenCount = 0
-
-    for (let i = conversationMessages.length - 1; i >= 0; i--) {
-      const message = conversationMessages[i]
-      const messageTokens = getAccurateTokenCount(message.content, model)
-
-      if (currentTokenCount + messageTokens <= remainingTokens) {
-        result.unshift(message)
-        currentTokenCount += messageTokens
-      } else if (result.length === 0) {
-        logger.warn('Single message exceeds remaining context window, including anyway', {
-          messageTokens,
-          remainingTokens,
-          systemTokenCount,
-          messageRole: message.role,
-        })
-        result.unshift(message)
-        currentTokenCount += messageTokens
-        break
-      } else {
-        logger.info('Auto-trimmed conversation history to fit context window', {
-          originalMessages: conversationMessages.length,
-          trimmedMessages: result.length,
-          conversationTokens: currentTokenCount,
-          systemTokens: systemTokenCount,
-          totalTokens: currentTokenCount + systemTokenCount,
-          maxTokens,
-        })
-        break
-      }
-    }
-
-    return [...systemMessages, ...result]
   }
 
-  /**
-   * Fetch messages from memory API
-   */
-  private async fetchFromMemoryAPI(workflowId: string, key: string): Promise<Message[]> {
-    try {
-      const isBrowser = typeof window !== 'undefined'
-
-      if (!isBrowser) {
-        return await this.fetchFromMemoryDirect(workflowId, key)
-      }
-
-      const headers = await buildAuthHeaders()
-      const url = buildAPIUrl(`/api/memory/${encodeURIComponent(key)}`, { workflowId })
-
-      const response = await fetch(url.toString(), {
-        method: 'GET',
-        headers,
-      })
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          return []
-        }
-        throw new Error(`Failed to fetch memory: ${response.status} ${response.statusText}`)
-      }
-
-      const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to fetch memory')
-      }
-
-      const memoryData = result.data?.data || result.data
-      if (Array.isArray(memoryData)) {
-        return memoryData.filter(
-          (msg) => msg && typeof msg === 'object' && 'role' in msg && 'content' in msg
-        )
-      }
-
-      return []
-    } catch (error) {
-      logger.error('Error fetching from memory API:', error)
-      return []
-    }
-  }
-
-  /**
-   * Direct database access
-   */
-  private async fetchFromMemoryDirect(workflowId: string, key: string): Promise<Message[]> {
-    try {
-      const { db } = await import('@sim/db')
-      const { memory } = await import('@sim/db/schema')
-      const { and, eq } = await import('drizzle-orm')
-
-      const result = await db
-        .select({
-          data: memory.data,
-        })
-        .from(memory)
-        .where(and(eq(memory.workflowId, workflowId), eq(memory.key, key)))
-        .limit(1)
-
-      if (result.length === 0) {
-        return []
-      }
-
-      const memoryData = result[0].data as any
-      if (Array.isArray(memoryData)) {
-        return memoryData.filter(
-          (msg) => msg && typeof msg === 'object' && 'role' in msg && 'content' in msg
-        )
-      }
-
-      return []
-    } catch (error) {
-      logger.error('Error fetching from memory database:', error)
-      return []
-    }
-  }
-
-  /**
-   * Persist messages to memory API
-   */
-  private async persistToMemoryAPI(
-    workflowId: string,
-    key: string,
-    messages: Message[]
-  ): Promise<void> {
-    try {
-      const isBrowser = typeof window !== 'undefined'
-
-      if (!isBrowser) {
-        await this.persistToMemoryDirect(workflowId, key, messages)
-        return
-      }
-
-      const headers = await buildAuthHeaders()
-      const url = buildAPIUrl('/api/memory')
-
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: {
-          ...headers,
-          'Content-Type': 'application/json',
-        },
-        body: stringifyJSON({
-          workflowId,
-          key,
-          data: messages,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to persist memory: ${response.status} ${response.statusText}`)
-      }
-
-      const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to persist memory')
-      }
-    } catch (error) {
-      logger.error('Error persisting to memory API:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Atomically append a message to memory
-   */
-  private async atomicAppendToMemory(
-    workflowId: string,
-    key: string,
-    message: Message
-  ): Promise<void> {
-    try {
-      const isBrowser = typeof window !== 'undefined'
-
-      if (!isBrowser) {
-        await this.atomicAppendToMemoryDirect(workflowId, key, message)
-      } else {
-        const headers = await buildAuthHeaders()
-        const url = buildAPIUrl('/api/memory')
-
-        const response = await fetch(url.toString(), {
-          method: 'POST',
-          headers: {
-            ...headers,
-            'Content-Type': 'application/json',
-          },
-          body: stringifyJSON({
-            workflowId,
-            key,
-            data: message,
-          }),
-        })
-
-        if (!response.ok) {
-          throw new Error(`Failed to append memory: ${response.status} ${response.statusText}`)
-        }
-
-        const result = await response.json()
-
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to append memory')
-        }
-      }
-    } catch (error) {
-      logger.error('Error appending to memory:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Direct database atomic append for server-side
-   * Uses PostgreSQL JSONB concatenation operator for atomic operations
-   */
-  private async atomicAppendToMemoryDirect(
-    workflowId: string,
-    key: string,
-    message: Message
-  ): Promise<void> {
-    try {
-      const { db } = await import('@sim/db')
-      const { memory } = await import('@sim/db/schema')
-      const { sql } = await import('drizzle-orm')
-      const { randomUUID } = await import('node:crypto')
-
-      const now = new Date()
-      const id = randomUUID()
-
-      await db
-        .insert(memory)
-        .values({
-          id,
-          workflowId,
-          key,
-          data: [message],
-          createdAt: now,
-          updatedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: [memory.workflowId, memory.key],
-          set: {
-            data: sql`${memory.data} || ${JSON.stringify([message])}::jsonb`,
-            updatedAt: now,
-          },
-        })
-
-      logger.debug('Atomically appended message to memory', {
-        workflowId,
-        key,
-      })
-    } catch (error) {
-      logger.error('Error in atomic append to memory database:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Direct database access for server-side persistence
-   * Uses UPSERT to handle race conditions atomically
-   */
-  private async persistToMemoryDirect(
-    workflowId: string,
-    key: string,
-    messages: Message[]
-  ): Promise<void> {
-    try {
-      const { db } = await import('@sim/db')
-      const { memory } = await import('@sim/db/schema')
-      const { randomUUID } = await import('node:crypto')
-
-      const now = new Date()
-      const id = randomUUID()
-
-      await db
-        .insert(memory)
-        .values({
-          id,
-          workflowId,
-          key,
-          data: messages,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: [memory.workflowId, memory.key],
-          set: {
-            data: messages,
-            updatedAt: now,
-          },
-        })
-    } catch (error) {
-      logger.error('Error persisting to memory database:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Validate inputs to prevent malicious data or performance issues
-   */
-  private validateInputs(conversationId?: string, content?: string): void {
-    if (conversationId) {
-      if (conversationId.length > 255) {
-        throw new Error('Conversation ID too long (max 255 characters)')
-      }
-
-      if (!/^[a-zA-Z0-9_\-:.@]+$/.test(conversationId)) {
-        logger.warn('Conversation ID contains special characters', { conversationId })
-      }
-    }
-
-    if (content) {
-      const contentSize = Buffer.byteLength(content, 'utf8')
-      const MAX_CONTENT_SIZE = 100 * 1024 // 100KB
-
-      if (contentSize > MAX_CONTENT_SIZE) {
-        throw new Error(`Message content too large (${contentSize} bytes, max ${MAX_CONTENT_SIZE})`)
-      }
-    }
-  }
-
-  /**
-   * Wraps a streaming response to persist the assistant message when complete.
-   * Works model-agnostically by accumulating raw text chunks.
-   */
   wrapStreamForPersistence(
     stream: ReadableStream<Uint8Array>,
     ctx: ExecutionContext,
@@ -668,27 +158,156 @@ export class Memory {
     const transformStream = new TransformStream<Uint8Array, Uint8Array>({
       transform: (chunk, controller) => {
         controller.enqueue(chunk)
-        accumulatedContent += decoder.decode(chunk, { stream: true })
+        const decoded = decoder.decode(chunk, { stream: true })
+        accumulatedContent += decoded
       },
 
       flush: () => {
         if (accumulatedContent.trim()) {
-          this.persistMemoryMessage(ctx, inputs, { role: 'assistant', content: accumulatedContent })
-            .then(() => {
-              logger.debug('Persisted streaming response to memory', {
-                workflowId: ctx.workflowId,
-                conversationId: inputs.conversationId,
-                contentLength: accumulatedContent.length,
-              })
-            })
-            .catch((error) => {
-              logger.error('Failed to persist streaming response to memory:', error)
-            })
+          this.appendToMemory(ctx, inputs, {
+            role: 'assistant',
+            content: accumulatedContent,
+          }).catch((error) => logger.error('Failed to persist streaming response:', error))
         }
       },
     })
 
     return stream.pipeThrough(transformStream)
+  }
+
+  private applyWindow(messages: Message[], limit: number): Message[] {
+    return messages.slice(-limit)
+  }
+
+  private applyTokenWindow(messages: Message[], maxTokens: number, model?: string): Message[] {
+    const result: Message[] = []
+    let tokenCount = 0
+
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i]
+      const msgTokens = getAccurateTokenCount(msg.content, model)
+
+      if (tokenCount + msgTokens <= maxTokens) {
+        result.unshift(msg)
+        tokenCount += msgTokens
+      } else if (result.length === 0) {
+        result.unshift(msg)
+        break
+      } else {
+        break
+      }
+    }
+
+    return result
+  }
+
+  private applyContextWindowLimit(messages: Message[], model?: string): Message[] {
+    if (!model) return messages
+
+    for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+      if (provider.contextInformationAvailable === false) continue
+
+      const matchesPattern = provider.modelPatterns?.some((p) => p.test(model))
+      const matchesModel = provider.models.some((m) => m.id === model)
+
+      if (matchesPattern || matchesModel) {
+        const modelDef = provider.models.find((m) => m.id === model)
+        if (modelDef?.contextWindow) {
+          const maxTokens = Math.floor(modelDef.contextWindow * MEMORY.CONTEXT_WINDOW_UTILIZATION)
+          return this.applyTokenWindow(messages, maxTokens, model)
+        }
+      }
+    }
+
+    return messages
+  }
+
+  private async fetchMemory(workflowId: string, key: string): Promise<Message[]> {
+    const result = await db
+      .select({ data: memory.data })
+      .from(memory)
+      .where(and(eq(memory.workflowId, workflowId), eq(memory.key, key)))
+      .limit(1)
+
+    if (result.length === 0) return []
+
+    const data = result[0].data
+    if (!Array.isArray(data)) return []
+
+    return data.filter(
+      (msg): msg is Message => msg && typeof msg === 'object' && 'role' in msg && 'content' in msg
+    )
+  }
+
+  private async persistMemory(workflowId: string, key: string, messages: Message[]): Promise<void> {
+    const now = new Date()
+
+    await db
+      .insert(memory)
+      .values({
+        id: randomUUID(),
+        workflowId,
+        key,
+        data: messages,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [memory.workflowId, memory.key],
+        set: {
+          data: messages,
+          updatedAt: now,
+        },
+      })
+  }
+
+  private async appendMessage(workflowId: string, key: string, message: Message): Promise<void> {
+    const now = new Date()
+
+    await db
+      .insert(memory)
+      .values({
+        id: randomUUID(),
+        workflowId,
+        key,
+        data: [message],
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [memory.workflowId, memory.key],
+        set: {
+          data: sql`${memory.data} || ${JSON.stringify([message])}::jsonb`,
+          updatedAt: now,
+        },
+      })
+  }
+
+  private parsePositiveInt(value: string | undefined, defaultValue: number): number {
+    if (!value) return defaultValue
+    const parsed = Number.parseInt(value, 10)
+    if (Number.isNaN(parsed) || parsed <= 0) return defaultValue
+    return parsed
+  }
+
+  private validateConversationId(conversationId?: string): void {
+    if (!conversationId || conversationId.trim() === '') {
+      throw new Error('Conversation ID is required')
+    }
+    if (conversationId.length > MEMORY.MAX_CONVERSATION_ID_LENGTH) {
+      throw new Error(
+        `Conversation ID too long (max ${MEMORY.MAX_CONVERSATION_ID_LENGTH} characters)`
+      )
+    }
+  }
+
+  private validateContent(content: string): void {
+    const size = Buffer.byteLength(content, 'utf8')
+    if (size > MEMORY.MAX_MESSAGE_CONTENT_BYTES) {
+      throw new Error(
+        `Message content too large (${size} bytes, max ${MEMORY.MAX_MESSAGE_CONTENT_BYTES})`
+      )
+    }
   }
 }
 

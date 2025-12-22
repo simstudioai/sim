@@ -320,8 +320,8 @@ export function useChatStreaming() {
                     const trimmedOutput = output.trim()
                     if (!trimmedOutput) return false
 
-                    // Skip outputs that exactly match the streamed content to avoid duplication
-                    if (trimmedStreamingContent && trimmedOutput === trimmedStreamingContent) {
+                    // Skip outputs that are already in the streamed content to avoid duplication
+                    if (trimmedStreamingContent?.includes(trimmedOutput)) {
                       return false
                     }
 
