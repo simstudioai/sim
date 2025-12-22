@@ -711,28 +711,29 @@ export class AgentBlockHandler implements BlockHandler {
 
     // 2. Handle native memory: seed on first run, then fetch and append new user input
     if (memoryEnabled && ctx.workspaceId) {
-      const hasExisting = await memoryService.hasMemory(ctx.workspaceId, inputs.conversationId!)
+      const memoryMessages = await memoryService.fetchMemoryMessages(ctx, inputs)
+      const hasExisting = memoryMessages.length > 0
 
       if (!hasExisting && conversationMessages.length > 0) {
-        await memoryService.seedMemory(ctx, inputs, conversationMessages)
-      }
+        const taggedMessages = conversationMessages.map((m) =>
+          m.role === 'user' ? { ...m, executionId: ctx.executionId } : m
+        )
+        await memoryService.seedMemory(ctx, inputs, taggedMessages)
+        messages.push(...taggedMessages)
+      } else {
+        messages.push(...memoryMessages)
 
-      const memoryMessages = await memoryService.fetchMemoryMessages(ctx, inputs)
-
-      messages.push(...memoryMessages)
-
-      // When memory exists, append the new user message from conversationMessages
-      // (the User field in the agent config, e.g. <start.input>)
-      if (hasExisting && conversationMessages.length > 0) {
-        const latestUserFromInput = conversationMessages.filter((m) => m.role === 'user').pop()
-        if (latestUserFromInput) {
-          const lastUserInMemory = memoryMessages.filter((m) => m.role === 'user').pop()
-          const isNewUserMessage =
-            !lastUserInMemory || lastUserInMemory.content !== latestUserFromInput.content
-
-          if (isNewUserMessage) {
-            messages.push(latestUserFromInput)
-            await memoryService.appendToMemory(ctx, inputs, latestUserFromInput)
+        if (hasExisting && conversationMessages.length > 0) {
+          const latestUserFromInput = conversationMessages.filter((m) => m.role === 'user').pop()
+          if (latestUserFromInput) {
+            const userMessageInThisRun = memoryMessages.some(
+              (m) => m.role === 'user' && m.executionId === ctx.executionId
+            )
+            if (!userMessageInThisRun) {
+              const taggedMessage = { ...latestUserFromInput, executionId: ctx.executionId }
+              messages.push(taggedMessage)
+              await memoryService.appendToMemory(ctx, inputs, taggedMessage)
+            }
           }
         }
       }

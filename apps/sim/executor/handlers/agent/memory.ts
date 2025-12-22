@@ -12,16 +12,6 @@ import { PROVIDER_DEFINITIONS } from '@/providers/models'
 const logger = createLogger('Memory')
 
 export class Memory {
-  async hasMemory(workspaceId: string, conversationId: string): Promise<boolean> {
-    const result = await db
-      .select({ id: memory.id })
-      .from(memory)
-      .where(and(eq(memory.workspaceId, workspaceId), eq(memory.key, conversationId)))
-      .limit(1)
-
-    return result.length > 0
-  }
-
   async fetchMemoryMessages(ctx: ExecutionContext, inputs: AgentInputs): Promise<Message[]> {
     if (!inputs.memoryType || inputs.memoryType === 'none') {
       return []
