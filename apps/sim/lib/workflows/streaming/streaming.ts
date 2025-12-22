@@ -203,6 +203,10 @@ export async function createStreamingResponse(
 
           for (const outputId of streamConfig.selectedOutputs) {
             const blockId = extractBlockIdFromOutputId(outputId)
+            if (streamedContent.has(blockId)) {
+              continue
+            }
+
             const path = extractPathFromOutputId(outputId, blockId)
 
             if (result.logs) {

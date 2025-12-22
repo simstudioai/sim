@@ -314,22 +314,9 @@ export function useChatStreaming() {
                 let finalContent = accumulatedText
 
                 if (formattedOutputs.length > 0) {
-                  const trimmedStreamingContent = accumulatedText.trim()
-
-                  const uniqueOutputs = formattedOutputs.filter((output) => {
-                    const trimmedOutput = output.trim()
-                    if (!trimmedOutput) return false
-
-                    // Skip outputs that are already in the streamed content to avoid duplication
-                    if (trimmedStreamingContent?.includes(trimmedOutput)) {
-                      return false
-                    }
-
-                    return true
-                  })
-
-                  if (uniqueOutputs.length > 0) {
-                    const combinedOutputs = uniqueOutputs.join('\n\n')
+                  const nonEmptyOutputs = formattedOutputs.filter((output) => output.trim())
+                  if (nonEmptyOutputs.length > 0) {
+                    const combinedOutputs = nonEmptyOutputs.join('\n\n')
                     finalContent = finalContent
                       ? `${finalContent.trim()}\n\n${combinedOutputs}`
                       : combinedOutputs
