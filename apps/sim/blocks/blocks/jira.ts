@@ -561,7 +561,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
                 .filter((item) => item !== '')
             }
 
-            // Use teamUuid as customFieldValue if provided
             const customFieldValue = params.teamUuid || params.customFieldValue || undefined
 
             const writeParams = {
