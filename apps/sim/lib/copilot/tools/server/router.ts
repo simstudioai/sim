@@ -1,4 +1,6 @@
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
+import { getBlockConfigServerTool } from '@/lib/copilot/tools/server/blocks/get-block-config'
+import { getBlockOptionsServerTool } from '@/lib/copilot/tools/server/blocks/get-block-options'
 import { getBlocksAndToolsServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-and-tools'
 import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
 import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'
@@ -15,6 +17,10 @@ import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit
 import { getWorkflowConsoleServerTool } from '@/lib/copilot/tools/server/workflow/get-workflow-console'
 import {
   ExecuteResponseSuccessSchema,
+  GetBlockConfigInput,
+  GetBlockConfigResult,
+  GetBlockOptionsInput,
+  GetBlockOptionsResult,
   GetBlocksAndToolsInput,
   GetBlocksAndToolsResult,
   GetBlocksMetadataInput,
@@ -35,6 +41,8 @@ const logger = createLogger('ServerToolRouter')
 // Register tools
 serverToolRegistry[getBlocksAndToolsServerTool.name] = getBlocksAndToolsServerTool
 serverToolRegistry[getBlocksMetadataServerTool.name] = getBlocksMetadataServerTool
+serverToolRegistry[getBlockOptionsServerTool.name] = getBlockOptionsServerTool
+serverToolRegistry[getBlockConfigServerTool.name] = getBlockConfigServerTool
 serverToolRegistry[getTriggerBlocksServerTool.name] = getTriggerBlocksServerTool
 serverToolRegistry[editWorkflowServerTool.name] = editWorkflowServerTool
 serverToolRegistry[getWorkflowConsoleServerTool.name] = getWorkflowConsoleServerTool
@@ -72,6 +80,12 @@ export async function routeExecution(
   if (toolName === 'get_blocks_metadata') {
     args = GetBlocksMetadataInput.parse(args)
   }
+  if (toolName === 'get_block_options') {
+    args = GetBlockOptionsInput.parse(args)
+  }
+  if (toolName === 'get_block_config') {
+    args = GetBlockConfigInput.parse(args)
+  }
   if (toolName === 'get_trigger_blocks') {
     args = GetTriggerBlocksInput.parse(args)
   }
@@ -86,6 +100,12 @@ export async function routeExecution(
   }
   if (toolName === 'get_blocks_metadata') {
     return GetBlocksMetadataResult.parse(result)
+  }
+  if (toolName === 'get_block_options') {
+    return GetBlockOptionsResult.parse(result)
+  }
+  if (toolName === 'get_block_config') {
+    return GetBlockConfigResult.parse(result)
   }
   if (toolName === 'get_trigger_blocks') {
     return GetTriggerBlocksResult.parse(result)

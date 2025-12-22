@@ -8,6 +8,8 @@ import type {
   ClientToolDisplay,
 } from '@/lib/copilot/tools/client/base-tool'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
+import { GetBlockConfigClientTool } from '@/lib/copilot/tools/client/blocks/get-block-config'
+import { GetBlockOptionsClientTool } from '@/lib/copilot/tools/client/blocks/get-block-options'
 import { GetBlocksAndToolsClientTool } from '@/lib/copilot/tools/client/blocks/get-blocks-and-tools'
 import { GetBlocksMetadataClientTool } from '@/lib/copilot/tools/client/blocks/get-blocks-metadata'
 import { GetTriggerBlocksClientTool } from '@/lib/copilot/tools/client/blocks/get-trigger-blocks'
@@ -76,6 +78,8 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   get_workflow_console: (id) => new GetWorkflowConsoleClientTool(id),
   get_blocks_and_tools: (id) => new GetBlocksAndToolsClientTool(id),
   get_blocks_metadata: (id) => new GetBlocksMetadataClientTool(id),
+  get_block_options: (id) => new GetBlockOptionsClientTool(id),
+  get_block_config: (id) => new GetBlockConfigClientTool(id),
   get_trigger_blocks: (id) => new GetTriggerBlocksClientTool(id),
   search_online: (id) => new SearchOnlineClientTool(id),
   search_documentation: (id) => new SearchDocumentationClientTool(id),
@@ -114,6 +118,8 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   get_workflow_console: (GetWorkflowConsoleClientTool as any)?.metadata,
   get_blocks_and_tools: (GetBlocksAndToolsClientTool as any)?.metadata,
   get_blocks_metadata: (GetBlocksMetadataClientTool as any)?.metadata,
+  get_block_options: (GetBlockOptionsClientTool as any)?.metadata,
+  get_block_config: (GetBlockConfigClientTool as any)?.metadata,
   get_trigger_blocks: (GetTriggerBlocksClientTool as any)?.metadata,
   search_online: (SearchOnlineClientTool as any)?.metadata,
   search_documentation: (SearchDocumentationClientTool as any)?.metadata,

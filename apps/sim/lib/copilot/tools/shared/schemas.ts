@@ -35,6 +35,39 @@ export const GetTriggerBlocksResult = z.object({
 })
 export type GetTriggerBlocksResultType = z.infer<typeof GetTriggerBlocksResult>
 
+// get_block_options
+export const GetBlockOptionsInput = z.object({
+  blockId: z.string(),
+})
+export const GetBlockOptionsResult = z.object({
+  blockId: z.string(),
+  blockName: z.string(),
+  operations: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      description: z.string().optional(),
+    })
+  ),
+})
+export type GetBlockOptionsInputType = z.infer<typeof GetBlockOptionsInput>
+export type GetBlockOptionsResultType = z.infer<typeof GetBlockOptionsResult>
+
+// get_block_config
+export const GetBlockConfigInput = z.object({
+  blockType: z.string(),
+  operation: z.string().optional(),
+})
+export const GetBlockConfigResult = z.object({
+  blockType: z.string(),
+  blockName: z.string(),
+  operation: z.string().optional(),
+  inputs: z.record(z.any()),
+  outputs: z.record(z.any()),
+})
+export type GetBlockConfigInputType = z.infer<typeof GetBlockConfigInput>
+export type GetBlockConfigResultType = z.infer<typeof GetBlockConfigResult>
+
 // knowledge_base - shared schema used by client tool, server tool, and registry
 export const KnowledgeBaseArgsSchema = z.object({
   operation: z.enum(['create', 'list', 'get', 'query']),
