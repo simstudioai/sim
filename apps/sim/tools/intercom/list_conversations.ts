@@ -8,6 +8,8 @@ export interface IntercomListConversationsParams {
   accessToken: string
   per_page?: number
   starting_after?: string
+  sort?: string
+  order?: 'asc' | 'desc'
 }
 
 export interface IntercomListConversationsResponse {
@@ -42,14 +44,26 @@ export const intercomListConversationsTool: ToolConfig<
     per_page: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of results per page (max: 150)',
     },
     starting_after: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Cursor for pagination',
+    },
+    sort: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Field to sort by (e.g., "waiting_since", "updated_at", "created_at")',
+    },
+    order: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Sort order: "asc" (ascending) or "desc" (descending)',
     },
   },
 
@@ -60,6 +74,8 @@ export const intercomListConversationsTool: ToolConfig<
 
       if (params.per_page) queryParams.append('per_page', params.per_page.toString())
       if (params.starting_after) queryParams.append('starting_after', params.starting_after)
+      if (params.sort) queryParams.append('sort', params.sort)
+      if (params.order) queryParams.append('order', params.order)
 
       const queryString = queryParams.toString()
       return queryString ? `${url}?${queryString}` : url

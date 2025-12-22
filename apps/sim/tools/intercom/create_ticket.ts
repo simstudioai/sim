@@ -9,6 +9,10 @@ export interface IntercomCreateTicketParams {
   ticket_type_id: string
   contacts: string
   ticket_attributes: string
+  company_id?: string
+  created_at?: number
+  conversation_to_link_id?: string
+  disable_notifications?: boolean
 }
 
 export interface IntercomCreateTicketResponse {
@@ -42,21 +46,46 @@ export const intercomCreateTicketTool: ToolConfig<
     ticket_type_id: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The ID of the ticket type',
     },
     contacts: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'JSON array of contact identifiers (e.g., [{"id": "contact_id"}])',
     },
     ticket_attributes: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
         'JSON object with ticket attributes including _default_title_ and _default_description_',
+    },
+    company_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Company ID to associate the ticket with',
+    },
+    created_at: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Unix timestamp for when the ticket was created. If not provided, current time is used.',
+    },
+    conversation_to_link_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'ID of an existing conversation to link to this ticket',
+    },
+    disable_notifications: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'When true, suppresses notifications when the ticket is created',
     },
   },
 
@@ -86,6 +115,13 @@ export const intercomCreateTicketTool: ToolConfig<
         logger.error('Failed to parse ticket attributes', { error })
         throw new Error('ticket_attributes must be a valid JSON object')
       }
+
+      if (params.company_id) ticket.company_id = params.company_id
+      if (params.created_at) ticket.created_at = params.created_at
+      if (params.conversation_to_link_id)
+        ticket.conversation_to_link_id = params.conversation_to_link_id
+      if (params.disable_notifications !== undefined)
+        ticket.disable_notifications = params.disable_notifications
 
       return ticket
     },

@@ -11,6 +11,7 @@ export interface IntercomReplyConversationParams {
   body: string
   admin_id?: string
   attachment_urls?: string
+  created_at?: number
 }
 
 export interface IntercomReplyConversationResponse {
@@ -44,33 +45,40 @@ export const intercomReplyConversationTool: ToolConfig<
     conversationId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Conversation ID to reply to',
     },
     message_type: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Message type: "comment" or "note"',
     },
     body: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The text body of the reply',
     },
     admin_id: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
         'The ID of the admin authoring the reply. If not provided, a default admin (Operator/Fin) will be used.',
     },
     attachment_urls: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Comma-separated list of image URLs (max 10)',
+    },
+    created_at: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Unix timestamp for when the reply was created. If not provided, current time is used.',
     },
   },
 
@@ -97,6 +105,8 @@ export const intercomReplyConversationTool: ToolConfig<
           .map((url) => url.trim())
           .slice(0, 10)
       }
+
+      if (params.created_at) reply.created_at = params.created_at
 
       return reply
     },

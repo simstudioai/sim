@@ -39,7 +39,7 @@ export const intercomGetCompanyTool: ToolConfig<
     companyId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Company ID to retrieve',
     },
   },

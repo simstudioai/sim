@@ -14,6 +14,7 @@ export interface IntercomCreateCompanyParams {
   industry?: string
   monthly_spend?: number
   custom_attributes?: string
+  remote_created_at?: number
 }
 
 export interface IntercomCreateCompanyResponse {
@@ -47,51 +48,57 @@ export const intercomCreateCompanyTool: ToolConfig<
     company_id: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Your unique identifier for the company',
     },
     name: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The name of the company',
     },
     website: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The company website',
     },
     plan: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The company plan name',
     },
     size: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The number of employees in the company',
     },
     industry: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The industry the company operates in',
     },
     monthly_spend: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
         'How much revenue the company generates for your business. Note: This field truncates floats to whole integers (e.g., 155.98 becomes 155)',
     },
     custom_attributes: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Custom attributes as JSON object',
+    },
+    remote_created_at: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'The time the company was created by you as a Unix timestamp',
     },
   },
 
@@ -123,6 +130,8 @@ export const intercomCreateCompanyTool: ToolConfig<
           logger.warn('Failed to parse custom attributes', { error })
         }
       }
+
+      if (params.remote_created_at) company.remote_created_at = params.remote_created_at
 
       return company
     },
