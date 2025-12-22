@@ -1,17 +1,23 @@
+import {
+  extractBlockIdFromOutputId,
+  extractPathFromOutputId,
+  traverseObjectPath,
+} from '@/lib/core/utils/response-format'
 import { encodeSSE } from '@/lib/core/utils/sse'
 import { createLogger } from '@/lib/logs/console/logger'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { processStreamingBlockLogs } from '@/lib/tokenization'
+import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import type { ExecutionResult } from '@/executor/types'
 
 const logger = createLogger('WorkflowStreaming')
+
+const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype']
 
 export interface StreamingConfig {
   selectedOutputs?: string[]
   isSecureMode?: boolean
   workflowTriggerType?: 'api' | 'chat'
-  onStream?: (streamingExec: {
-    stream: ReadableStream
-    execution?: { blockId?: string }
-  }) => Promise<void>
 }
 
 export interface StreamingResponseOptions {
@@ -26,113 +32,219 @@ export interface StreamingResponseOptions {
   input: any
   executingUserId: string
   streamConfig: StreamingConfig
-  createFilteredResult: (result: ExecutionResult) => any
   executionId?: string
+}
+
+interface StreamingState {
+  streamedContent: Map<string, string>
+  processedOutputs: Set<string>
+  streamCompletionTimes: Map<string, number>
+}
+
+function extractOutputValue(output: any, path: string): any {
+  let value = traverseObjectPath(output, path)
+  if (value === undefined && output?.response) {
+    value = traverseObjectPath(output.response, path)
+  }
+  return value
+}
+
+function isDangerousKey(key: string): boolean {
+  return DANGEROUS_KEYS.includes(key)
+}
+
+function buildMinimalResult(
+  result: ExecutionResult,
+  selectedOutputs: string[] | undefined,
+  streamedContent: Map<string, string>,
+  requestId: string
+): { success: boolean; error?: string; output: Record<string, any> } {
+  const minimalResult = {
+    success: result.success,
+    error: result.error,
+    output: {} as Record<string, any>,
+  }
+
+  if (!selectedOutputs?.length) {
+    minimalResult.output = result.output || {}
+    return minimalResult
+  }
+
+  if (!result.output || !result.logs) {
+    return minimalResult
+  }
+
+  for (const outputId of selectedOutputs) {
+    const blockId = extractBlockIdFromOutputId(outputId)
+
+    if (streamedContent.has(blockId)) {
+      continue
+    }
+
+    if (isDangerousKey(blockId)) {
+      logger.warn(`[${requestId}] Blocked dangerous blockId: ${blockId}`)
+      continue
+    }
+
+    const path = extractPathFromOutputId(outputId, blockId)
+    if (isDangerousKey(path)) {
+      logger.warn(`[${requestId}] Blocked dangerous path: ${path}`)
+      continue
+    }
+
+    const blockLog = result.logs.find((log: any) => log.blockId === blockId)
+    if (!blockLog?.output) {
+      continue
+    }
+
+    const value = extractOutputValue(blockLog.output, path)
+    if (value === undefined) {
+      continue
+    }
+
+    if (!minimalResult.output[blockId]) {
+      minimalResult.output[blockId] = Object.create(null)
+    }
+    minimalResult.output[blockId][path] = value
+  }
+
+  return minimalResult
+}
+
+function updateLogsWithStreamedContent(logs: any[], state: StreamingState): any[] {
+  return logs.map((log: any) => {
+    if (!state.streamedContent.has(log.blockId)) {
+      return log
+    }
+
+    const content = state.streamedContent.get(log.blockId)
+    const updatedLog = { ...log }
+
+    if (state.streamCompletionTimes.has(log.blockId)) {
+      const completionTime = state.streamCompletionTimes.get(log.blockId)!
+      const startTime = new Date(log.startedAt).getTime()
+      updatedLog.endedAt = new Date(completionTime).toISOString()
+      updatedLog.durationMs = completionTime - startTime
+    }
+
+    if (log.output && content) {
+      updatedLog.output = { ...log.output, content }
+    }
+
+    return updatedLog
+  })
+}
+
+async function completeLoggingSession(result: ExecutionResult): Promise<void> {
+  if (!result._streamingMetadata?.loggingSession) {
+    return
+  }
+
+  const { traceSpans, totalDuration } = buildTraceSpans(result)
+
+  await result._streamingMetadata.loggingSession.safeComplete({
+    endedAt: new Date().toISOString(),
+    totalDurationMs: totalDuration || 0,
+    finalOutput: result.output || {},
+    traceSpans: (traceSpans || []) as any,
+    workflowInput: result._streamingMetadata.processedInput,
+  })
+
+  result._streamingMetadata = undefined
 }
 
 export async function createStreamingResponse(
   options: StreamingResponseOptions
 ): Promise<ReadableStream> {
-  const {
-    requestId,
-    workflow,
-    input,
-    executingUserId,
-    streamConfig,
-    createFilteredResult,
-    executionId,
-  } = options
-
-  const { executeWorkflow, createFilteredResult: defaultFilteredResult } = await import(
-    '@/app/api/workflows/[id]/execute/route'
-  )
-  const filterResultFn = createFilteredResult || defaultFilteredResult
+  const { requestId, workflow, input, executingUserId, streamConfig, executionId } = options
 
   return new ReadableStream({
     async start(controller) {
-      try {
-        const streamedContent = new Map<string, string>()
-        const processedOutputs = new Set<string>()
-        const streamCompletionTimes = new Map<string, number>()
+      const state: StreamingState = {
+        streamedContent: new Map(),
+        processedOutputs: new Set(),
+        streamCompletionTimes: new Map(),
+      }
 
-        const sendChunk = (blockId: string, content: string) => {
-          const separator = processedOutputs.size > 0 ? '\n\n' : ''
-          controller.enqueue(encodeSSE({ blockId, chunk: separator + content }))
-          processedOutputs.add(blockId)
+      const sendChunk = (blockId: string, content: string) => {
+        const separator = state.processedOutputs.size > 0 ? '\n\n' : ''
+        controller.enqueue(encodeSSE({ blockId, chunk: separator + content }))
+        state.processedOutputs.add(blockId)
+      }
+
+      const onStreamCallback = async (streamingExec: {
+        stream: ReadableStream
+        execution?: { blockId?: string }
+      }) => {
+        const blockId = streamingExec.execution?.blockId
+        if (!blockId) {
+          logger.warn(`[${requestId}] Streaming execution missing blockId`)
+          return
         }
 
-        const onStreamCallback = async (streamingExec: {
-          stream: ReadableStream
-          execution?: { blockId?: string }
-        }) => {
-          const blockId = streamingExec.execution?.blockId || 'unknown'
-          const reader = streamingExec.stream.getReader()
-          const decoder = new TextDecoder()
-          let isFirstChunk = true
+        const reader = streamingExec.stream.getReader()
+        const decoder = new TextDecoder()
+        let isFirstChunk = true
 
-          try {
-            while (true) {
-              const { done, value } = await reader.read()
-              if (done) {
-                // Record when this stream completed
-                streamCompletionTimes.set(blockId, Date.now())
-                break
-              }
-
-              const textChunk = decoder.decode(value, { stream: true })
-              streamedContent.set(blockId, (streamedContent.get(blockId) || '') + textChunk)
-
-              if (isFirstChunk) {
-                sendChunk(blockId, textChunk)
-                isFirstChunk = false
-              } else {
-                controller.enqueue(encodeSSE({ blockId, chunk: textChunk }))
-              }
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) {
+              state.streamCompletionTimes.set(blockId, Date.now())
+              break
             }
-          } catch (streamError) {
-            logger.error(`[${requestId}] Error reading agent stream:`, streamError)
-            controller.enqueue(
-              encodeSSE({
-                event: 'stream_error',
-                blockId,
-                error: streamError instanceof Error ? streamError.message : 'Stream reading error',
-              })
+
+            const textChunk = decoder.decode(value, { stream: true })
+            state.streamedContent.set(
+              blockId,
+              (state.streamedContent.get(blockId) || '') + textChunk
             )
+
+            if (isFirstChunk) {
+              sendChunk(blockId, textChunk)
+              isFirstChunk = false
+            } else {
+              controller.enqueue(encodeSSE({ blockId, chunk: textChunk }))
+            }
           }
-        }
-
-        const onBlockCompleteCallback = async (blockId: string, output: any) => {
-          if (!streamConfig.selectedOutputs?.length) return
-
-          if (streamedContent.has(blockId)) {
-            return
-          }
-
-          const { extractBlockIdFromOutputId, extractPathFromOutputId, traverseObjectPath } =
-            await import('@/lib/core/utils/response-format')
-
-          const matchingOutputs = streamConfig.selectedOutputs.filter(
-            (outputId) => extractBlockIdFromOutputId(outputId) === blockId
+        } catch (error) {
+          logger.error(`[${requestId}] Error reading stream for block ${blockId}:`, error)
+          controller.enqueue(
+            encodeSSE({
+              event: 'stream_error',
+              blockId,
+              error: error instanceof Error ? error.message : 'Stream reading error',
+            })
           )
+        }
+      }
 
-          if (!matchingOutputs.length) return
-
-          for (const outputId of matchingOutputs) {
-            const path = extractPathFromOutputId(outputId, blockId)
-
-            let outputValue = traverseObjectPath(output, path)
-            if (outputValue === undefined && output.response) {
-              outputValue = traverseObjectPath(output.response, path)
-            }
-
-            if (outputValue !== undefined) {
-              const formattedOutput =
-                typeof outputValue === 'string' ? outputValue : JSON.stringify(outputValue, null, 2)
-              sendChunk(blockId, formattedOutput)
-            }
-          }
+      const onBlockCompleteCallback = async (blockId: string, output: any) => {
+        if (!streamConfig.selectedOutputs?.length) {
+          return
         }
 
+        if (state.streamedContent.has(blockId)) {
+          return
+        }
+
+        const matchingOutputs = streamConfig.selectedOutputs.filter(
+          (outputId) => extractBlockIdFromOutputId(outputId) === blockId
+        )
+
+        for (const outputId of matchingOutputs) {
+          const path = extractPathFromOutputId(outputId, blockId)
+          const outputValue = extractOutputValue(output, path)
+
+          if (outputValue !== undefined) {
+            const formattedOutput =
+              typeof outputValue === 'string' ? outputValue : JSON.stringify(outputValue, null, 2)
+            sendChunk(blockId, formattedOutput)
+          }
+        }
+      }
+
+      try {
         const result = await executeWorkflow(
           workflow,
           requestId,
@@ -145,101 +257,24 @@ export async function createStreamingResponse(
             workflowTriggerType: streamConfig.workflowTriggerType,
             onStream: onStreamCallback,
             onBlockComplete: onBlockCompleteCallback,
-            skipLoggingComplete: true, // We'll complete logging after tokenization
+            skipLoggingComplete: true,
           },
           executionId
         )
 
-        if (result.logs && streamedContent.size > 0) {
-          result.logs = result.logs.map((log: any) => {
-            if (streamedContent.has(log.blockId)) {
-              const content = streamedContent.get(log.blockId)
-
-              // Update timing to reflect actual stream completion
-              if (streamCompletionTimes.has(log.blockId)) {
-                const completionTime = streamCompletionTimes.get(log.blockId)!
-                const startTime = new Date(log.startedAt).getTime()
-                log.endedAt = new Date(completionTime).toISOString()
-                log.durationMs = completionTime - startTime
-              }
-
-              if (log.output && content) {
-                return { ...log, output: { ...log.output, content } }
-              }
-            }
-            return log
-          })
-
-          const { processStreamingBlockLogs } = await import('@/lib/tokenization')
-          processStreamingBlockLogs(result.logs, streamedContent)
+        if (result.logs && state.streamedContent.size > 0) {
+          result.logs = updateLogsWithStreamedContent(result.logs, state)
+          processStreamingBlockLogs(result.logs, state.streamedContent)
         }
 
-        // Complete the logging session with updated trace spans that include cost data
-        if (result._streamingMetadata?.loggingSession) {
-          const { buildTraceSpans } = await import('@/lib/logs/execution/trace-spans/trace-spans')
-          const { traceSpans, totalDuration } = buildTraceSpans(result)
+        await completeLoggingSession(result)
 
-          await result._streamingMetadata.loggingSession.safeComplete({
-            endedAt: new Date().toISOString(),
-            totalDurationMs: totalDuration || 0,
-            finalOutput: result.output || {},
-            traceSpans: (traceSpans || []) as any,
-            workflowInput: result._streamingMetadata.processedInput,
-          })
-
-          result._streamingMetadata = undefined
-        }
-
-        // Create a minimal result with only selected outputs
-        const minimalResult = {
-          success: result.success,
-          error: result.error,
-          output: {} as any,
-        }
-
-        if (streamConfig.selectedOutputs?.length && result.output) {
-          const { extractBlockIdFromOutputId, extractPathFromOutputId, traverseObjectPath } =
-            await import('@/lib/core/utils/response-format')
-
-          for (const outputId of streamConfig.selectedOutputs) {
-            const blockId = extractBlockIdFromOutputId(outputId)
-            if (streamedContent.has(blockId)) {
-              continue
-            }
-
-            const path = extractPathFromOutputId(outputId, blockId)
-
-            if (result.logs) {
-              const blockLog = result.logs.find((log: any) => log.blockId === blockId)
-              if (blockLog?.output) {
-                let value = traverseObjectPath(blockLog.output, path)
-                if (value === undefined && blockLog.output.response) {
-                  value = traverseObjectPath(blockLog.output.response, path)
-                }
-                if (value !== undefined) {
-                  const dangerousKeys = ['__proto__', 'constructor', 'prototype']
-                  if (dangerousKeys.includes(blockId) || dangerousKeys.includes(path)) {
-                    logger.warn(
-                      `[${requestId}] Blocked potentially dangerous property assignment`,
-                      {
-                        blockId,
-                        path,
-                      }
-                    )
-                    continue
-                  }
-
-                  if (!minimalResult.output[blockId]) {
-                    minimalResult.output[blockId] = Object.create(null)
-                  }
-                  minimalResult.output[blockId][path] = value
-                }
-              }
-            }
-          }
-        } else if (!streamConfig.selectedOutputs?.length) {
-          minimalResult.output = result.output
-        }
+        const minimalResult = buildMinimalResult(
+          result,
+          streamConfig.selectedOutputs,
+          state.streamedContent,
+          requestId
+        )
 
         controller.enqueue(encodeSSE({ event: 'final', data: minimalResult }))
         controller.enqueue(encodeSSE('[DONE]'))
