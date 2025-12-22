@@ -20,6 +20,13 @@ export const deleteTool: ToolConfig<SupabaseDeleteParams, SupabaseDeleteResponse
       visibility: 'user-or-llm',
       description: 'The name of the Supabase table to delete from',
     },
+    schema: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Database schema to delete from (default: public). Use this to access tables in other schemas.',
+    },
     filter: {
       type: 'string',
       required: true,
@@ -51,11 +58,17 @@ export const deleteTool: ToolConfig<SupabaseDeleteParams, SupabaseDeleteResponse
       return url
     },
     method: 'DELETE',
-    headers: (params) => ({
-      apikey: params.apiKey,
-      Authorization: `Bearer ${params.apiKey}`,
-      Prefer: 'return=representation',
-    }),
+    headers: (params) => {
+      const headers: Record<string, string> = {
+        apikey: params.apiKey,
+        Authorization: `Bearer ${params.apiKey}`,
+        Prefer: 'return=representation',
+      }
+      if (params.schema) {
+        headers['Content-Profile'] = params.schema
+      }
+      return headers
+    },
   },
 
   transformResponse: async (response: Response) => {

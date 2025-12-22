@@ -70,6 +70,16 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       },
     },
     {
+      id: 'schema',
+      title: 'Schema',
+      type: 'short-input',
+      placeholder: 'public (default)',
+      condition: {
+        field: 'operation',
+        value: ['query', 'get_row', 'insert', 'update', 'delete', 'upsert', 'count', 'text_search'],
+      },
+    },
+    {
       id: 'apiKey',
       title: 'Service Role Secret',
       type: 'short-input',
@@ -1026,6 +1036,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     operation: { type: 'string', description: 'Operation to perform' },
     projectId: { type: 'string', description: 'Supabase project identifier' },
     table: { type: 'string', description: 'Database table name' },
+    schema: { type: 'string', description: 'Database schema (default: public)' },
     apiKey: { type: 'string', description: 'Service role secret key' },
     // Data for insert/update operations
     data: { type: 'json', description: 'Row data' },

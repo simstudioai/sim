@@ -20,6 +20,13 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
       visibility: 'user-or-llm',
       description: 'The name of the Supabase table to query',
     },
+    schema: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Database schema to query from (default: public). Use this to access tables in other schemas.',
+    },
     filter: {
       type: 'string',
       required: true,
@@ -50,10 +57,16 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
       return url
     },
     method: 'GET',
-    headers: (params) => ({
-      apikey: params.apiKey,
-      Authorization: `Bearer ${params.apiKey}`,
-    }),
+    headers: (params) => {
+      const headers: Record<string, string> = {
+        apikey: params.apiKey,
+        Authorization: `Bearer ${params.apiKey}`,
+      }
+      if (params.schema) {
+        headers['Accept-Profile'] = params.schema
+      }
+      return headers
+    },
   },
 
   transformResponse: async (response: Response) => {

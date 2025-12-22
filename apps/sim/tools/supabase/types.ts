@@ -4,6 +4,7 @@ export interface SupabaseQueryParams {
   apiKey: string
   projectId: string
   table: string
+  schema?: string
   filter?: string
   orderBy?: string
   limit?: number
@@ -13,6 +14,7 @@ export interface SupabaseInsertParams {
   apiKey: string
   projectId: string
   table: string
+  schema?: string
   data: any
 }
 
@@ -20,6 +22,7 @@ export interface SupabaseGetRowParams {
   apiKey: string
   projectId: string
   table: string
+  schema?: string
   filter: string
 }
 
@@ -27,6 +30,7 @@ export interface SupabaseUpdateParams {
   apiKey: string
   projectId: string
   table: string
+  schema?: string
   filter: string
   data: any
 }
@@ -35,6 +39,7 @@ export interface SupabaseDeleteParams {
   apiKey: string
   projectId: string
   table: string
+  schema?: string
   filter: string
 }
 
@@ -42,6 +47,7 @@ export interface SupabaseUpsertParams {
   apiKey: string
   projectId: string
   table: string
+  schema?: string
   data: any
 }
 
@@ -93,6 +99,7 @@ export interface SupabaseTextSearchParams {
   apiKey: string
   projectId: string
   table: string
+  schema?: string
   column: string
   query: string
   searchType?: string
@@ -107,6 +114,7 @@ export interface SupabaseCountParams {
   apiKey: string
   projectId: string
   table: string
+  schema?: string
   filter?: string
   countType?: string
 }

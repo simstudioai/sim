@@ -253,10 +253,10 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       condition: { field: 'operation', value: 'write' },
     },
     {
-      id: 'teamUuid',
-      title: 'Team UUID',
+      id: 'customFieldValue',
+      title: 'Custom Field Value',
       type: 'short-input',
-      placeholder: 'e.g., b3aa307a-76ea-462d-b6f1-a6e89ce9858a',
+      placeholder: 'Value for the custom field',
       dependsOn: ['projectId'],
       condition: { field: 'operation', value: 'write' },
     },
@@ -561,6 +561,8 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
                 .filter((item) => item !== '')
             }
 
+            const customFieldValue = params.customFieldValue || undefined
+
             const writeParams = {
               projectId: effectiveProjectId,
               summary: params.summary || '',
@@ -574,7 +576,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
               reporter: params.reporter || undefined,
               environment: params.environment || undefined,
               customFieldId: params.customFieldId || undefined,
-              customFieldValue: params.customFieldValue || undefined,
+              customFieldValue: customFieldValue,
             }
             return {
               ...baseParams,
