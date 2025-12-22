@@ -141,7 +141,7 @@ export class LoopOrchestrator {
     }
 
     if (iterationResults.length > 0) {
-      scope.allIterationOutputs.push(iterationResults)
+      this.addIterationOutputsWithMemoryLimit(scope, iterationResults, loopId)
     }
 
     scope.currentIterationOutputs.clear()
@@ -460,6 +460,73 @@ export class LoopOrchestrator {
         error: error.message,
       })
       return []
+    }
+  }
+
+  /**
+   * Adds iteration outputs to the loop scope with memory management.
+   * Prevents unbounded memory growth by:
+   * 1. Limiting the number of stored iterations (MAX_STORED_ITERATION_OUTPUTS)
+   * 2. Checking estimated memory size (MAX_ITERATION_OUTPUTS_SIZE_BYTES)
+   *
+   * When limits are exceeded, older iterations are discarded to make room for newer ones.
+   * This ensures long-running loops don't cause memory exhaustion while still providing
+   * access to recent iteration results.
+   */
+  private addIterationOutputsWithMemoryLimit(
+    scope: LoopScope,
+    iterationResults: NormalizedBlockOutput[],
+    loopId: string
+  ): void {
+    scope.allIterationOutputs.push(iterationResults)
+
+    // Check iteration count limit
+    if (scope.allIterationOutputs.length > DEFAULTS.MAX_STORED_ITERATION_OUTPUTS) {
+      const discardCount = scope.allIterationOutputs.length - DEFAULTS.MAX_STORED_ITERATION_OUTPUTS
+      scope.allIterationOutputs = scope.allIterationOutputs.slice(discardCount)
+      logger.warn('Loop iteration outputs exceeded count limit, discarding older iterations', {
+        loopId,
+        iteration: scope.iteration,
+        discardedCount: discardCount,
+        retainedCount: scope.allIterationOutputs.length,
+        maxAllowed: DEFAULTS.MAX_STORED_ITERATION_OUTPUTS,
+      })
+    }
+
+    // Periodically check memory size limit (every 10 iterations to avoid frequent serialization)
+    if (scope.allIterationOutputs.length % 10 === 0) {
+      const estimatedSize = this.estimateObjectSize(scope.allIterationOutputs)
+      if (estimatedSize > DEFAULTS.MAX_ITERATION_OUTPUTS_SIZE_BYTES) {
+        // Discard oldest half of iterations when memory limit exceeded
+        const halfLength = Math.floor(scope.allIterationOutputs.length / 2)
+        const discardCount = Math.max(halfLength, 1)
+        scope.allIterationOutputs = scope.allIterationOutputs.slice(discardCount)
+        logger.warn('Loop iteration outputs exceeded memory limit, discarding older iterations', {
+          loopId,
+          iteration: scope.iteration,
+          estimatedSizeBytes: estimatedSize,
+          maxSizeBytes: DEFAULTS.MAX_ITERATION_OUTPUTS_SIZE_BYTES,
+          discardedCount: discardCount,
+          retainedCount: scope.allIterationOutputs.length,
+        })
+      }
+    }
+  }
+
+  /**
+   * Estimates the memory size of an object in bytes.
+   * This is an approximation based on JSON serialization size.
+   * Actual memory usage may vary due to object overhead and references.
+   */
+  private estimateObjectSize(obj: unknown): number {
+    try {
+      // Use JSON.stringify length as a rough estimate
+      // Multiply by 2 for UTF-16 encoding overhead in JS strings
+      return JSON.stringify(obj).length * 2
+    } catch {
+      // If serialization fails (circular refs, etc.), return a value that exceeds
+      // the limit to trigger cleanup as a safety measure
+      return DEFAULTS.MAX_ITERATION_OUTPUTS_SIZE_BYTES + 1
     }
   }
 }
