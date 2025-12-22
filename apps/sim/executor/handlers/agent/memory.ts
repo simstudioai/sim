@@ -62,25 +62,7 @@ export class Memory {
 
     const key = inputs.conversationId!
 
-    if (inputs.memoryType === 'sliding_window') {
-      const limit = this.parsePositiveInt(
-        inputs.slidingWindowSize,
-        MEMORY.DEFAULT_SLIDING_WINDOW_SIZE
-      )
-      const existing = await this.fetchMemory(workspaceId, key)
-      const updated = this.applyWindow([...existing, message], limit)
-      await this.persistMemory(workspaceId, key, updated)
-    } else if (inputs.memoryType === 'sliding_window_tokens') {
-      const maxTokens = this.parsePositiveInt(
-        inputs.slidingWindowTokens,
-        MEMORY.DEFAULT_SLIDING_WINDOW_TOKENS
-      )
-      const existing = await this.fetchMemory(workspaceId, key)
-      const updated = this.applyTokenWindow([...existing, message], maxTokens, inputs.model)
-      await this.persistMemory(workspaceId, key, updated)
-    } else {
-      await this.appendMessage(workspaceId, key, message)
-    }
+    await this.appendMessage(workspaceId, key, message)
 
     logger.debug('Appended message to memory', {
       workspaceId,
@@ -120,7 +102,7 @@ export class Memory {
       messagesToStore = this.applyTokenWindow(conversationMessages, maxTokens, inputs.model)
     }
 
-    await this.persistMemory(workspaceId, key, messagesToStore)
+    await this.seedMemoryRecord(workspaceId, key, messagesToStore)
 
     logger.debug('Seeded memory', {
       workspaceId,
@@ -228,7 +210,7 @@ export class Memory {
     )
   }
 
-  private async persistMemory(
+  private async seedMemoryRecord(
     workspaceId: string,
     key: string,
     messages: Message[]
@@ -245,13 +227,7 @@ export class Memory {
         createdAt: now,
         updatedAt: now,
       })
-      .onConflictDoUpdate({
-        target: [memory.workspaceId, memory.key],
-        set: {
-          data: messages,
-          updatedAt: now,
-        },
-      })
+      .onConflictDoNothing()
   }
 
   private async appendMessage(workspaceId: string, key: string, message: Message): Promise<void> {
