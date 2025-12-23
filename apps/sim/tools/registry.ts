@@ -358,6 +358,16 @@ import {
   grafanaUpdateAnnotationTool,
   grafanaUpdateDashboardTool,
 } from '@/tools/grafana'
+import {
+  grainCreateHookTool,
+  grainDeleteHookTool,
+  grainGetRecordingTool,
+  grainGetTranscriptTool,
+  grainListHooksTool,
+  grainListMeetingTypesTool,
+  grainListRecordingsTool,
+  grainListTeamsTool,
+} from '@/tools/grain'
 import { guardrailsValidateTool } from '@/tools/guardrails'
 import { httpRequestTool } from '@/tools/http'
 import {
@@ -1741,6 +1751,14 @@ export const tools: Record<string, ToolConfig> = {
   gitlab_create_pipeline: gitlabCreatePipelineTool,
   gitlab_retry_pipeline: gitlabRetryPipelineTool,
   gitlab_cancel_pipeline: gitlabCancelPipelineTool,
+  grain_list_recordings: grainListRecordingsTool,
+  grain_get_recording: grainGetRecordingTool,
+  grain_get_transcript: grainGetTranscriptTool,
+  grain_list_teams: grainListTeamsTool,
+  grain_list_meeting_types: grainListMeetingTypesTool,
+  grain_create_hook: grainCreateHookTool,
+  grain_list_hooks: grainListHooksTool,
+  grain_delete_hook: grainDeleteHookTool,
   elasticsearch_search: elasticsearchSearchTool,
   elasticsearch_index_document: elasticsearchIndexDocumentTool,
   elasticsearch_get_document: elasticsearchGetDocumentTool,

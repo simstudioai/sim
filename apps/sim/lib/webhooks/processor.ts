@@ -394,6 +394,33 @@ export async function verifyProviderAuth(
     }
   }
 
+  if (foundWebhook.provider === 'circleback') {
+    const secret = providerConfig.webhookSecret as string | undefined
+
+    if (secret) {
+      const signature = request.headers.get('x-signature')
+
+      if (!signature) {
+        logger.warn(`[${requestId}] Circleback webhook missing signature header`)
+        return new NextResponse('Unauthorized - Missing Circleback signature', { status: 401 })
+      }
+
+      const { validateCirclebackSignature } = await import('@/lib/webhooks/utils.server')
+
+      const isValidSignature = validateCirclebackSignature(secret, signature, rawBody)
+
+      if (!isValidSignature) {
+        logger.warn(`[${requestId}] Circleback signature verification failed`, {
+          signatureLength: signature.length,
+          secretLength: secret.length,
+        })
+        return new NextResponse('Unauthorized - Invalid Circleback signature', { status: 401 })
+      }
+
+      logger.debug(`[${requestId}] Circleback signature verified successfully`)
+    }
+  }
+
   if (foundWebhook.provider === 'jira') {
     const secret = providerConfig.secret as string | undefined
 

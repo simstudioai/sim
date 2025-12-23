@@ -1432,6 +1432,63 @@ export async function formatWebhookInput(
     }
   }
 
+  if (foundWebhook.provider === 'circleback') {
+    // Circleback webhook payload - meeting notes, action items, transcript
+    return {
+      // Top-level fields from Circleback payload
+      id: body.id,
+      name: body.name,
+      createdAt: body.createdAt,
+      duration: body.duration,
+      url: body.url,
+      recordingUrl: body.recordingUrl,
+      tags: body.tags || [],
+      icalUid: body.icalUid,
+      attendees: body.attendees || [],
+      notes: body.notes || '',
+      actionItems: body.actionItems || [],
+      transcript: body.transcript || [],
+      insights: body.insights || {},
+
+      // Full meeting object for convenience
+      meeting: body,
+
+      webhook: {
+        data: {
+          provider: 'circleback',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
+  if (foundWebhook.provider === 'grain') {
+    // Grain webhook payload structure: { type, user_id, data: {...} }
+    return {
+      // Top-level fields from Grain payload
+      type: body.type,
+      user_id: body.user_id,
+      data: body.data || {},
+
+      webhook: {
+        data: {
+          provider: 'grain',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
   // Generic format for other providers
   return {
     webhook: {
@@ -1575,6 +1632,55 @@ export function validateLinearSignature(secret: string, signature: string, body:
     return result === 0
   } catch (error) {
     logger.error('Error validating Linear signature:', error)
+    return false
+  }
+}
+
+/**
+ * Validates a Circleback webhook request signature using HMAC SHA-256
+ * @param secret - Circleback signing secret (plain text)
+ * @param signature - x-signature header value (hex-encoded HMAC SHA-256 signature)
+ * @param body - Raw request body string
+ * @returns Whether the signature is valid
+ */
+export function validateCirclebackSignature(
+  secret: string,
+  signature: string,
+  body: string
+): boolean {
+  try {
+    if (!secret || !signature || !body) {
+      logger.warn('Circleback signature validation missing required fields', {
+        hasSecret: !!secret,
+        hasSignature: !!signature,
+        hasBody: !!body,
+      })
+      return false
+    }
+
+    const crypto = require('crypto')
+    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+
+    logger.debug('Circleback signature comparison', {
+      computedSignature: `${computedHash.substring(0, 10)}...`,
+      providedSignature: `${signature.substring(0, 10)}...`,
+      computedLength: computedHash.length,
+      providedLength: signature.length,
+      match: computedHash === signature,
+    })
+
+    if (computedHash.length !== signature.length) {
+      return false
+    }
+
+    let result = 0
+    for (let i = 0; i < computedHash.length; i++) {
+      result |= computedHash.charCodeAt(i) ^ signature.charCodeAt(i)
+    }
+
+    return result === 0
+  } catch (error) {
+    logger.error('Error validating Circleback signature:', error)
     return false
   }
 }
