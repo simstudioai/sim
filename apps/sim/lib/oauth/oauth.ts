@@ -12,7 +12,6 @@ import {
   GoogleGroupsIcon,
   GoogleIcon,
   GoogleSheetsIcon,
-  GrainIcon,
   HubspotIcon,
   JiraIcon,
   LinearIcon,
@@ -263,21 +262,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'github',
-  },
-  grain: {
-    name: 'Grain',
-    icon: (props) => GrainIcon(props),
-    services: {
-      grain: {
-        name: 'Grain',
-        description: 'Access meeting recordings, transcripts, and AI summaries.',
-        providerId: 'grain',
-        icon: (props) => GrainIcon(props),
-        baseProviderIcon: (props) => GrainIcon(props),
-        scopes: [],
-      },
-    },
-    defaultService: 'grain',
   },
   x: {
     name: 'X',
@@ -811,19 +795,6 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: false,
         additionalHeaders: { Accept: 'application/json' },
-      }
-    }
-    case 'grain': {
-      const { clientId, clientSecret } = getCredentials(
-        env.GRAIN_CLIENT_ID,
-        env.GRAIN_CLIENT_SECRET
-      )
-      return {
-        tokenEndpoint: 'https://api.grain.com/_/public-api/oauth2/token',
-        clientId,
-        clientSecret,
-        useBasicAuth: false,
-        supportsRefreshTokenRotation: true,
       }
     }
     case 'x': {

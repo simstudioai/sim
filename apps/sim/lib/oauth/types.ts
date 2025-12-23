@@ -80,7 +80,6 @@ export type OAuthService =
   | 'shopify'
   | 'zoom'
   | 'wordpress'
-  | 'grain'
   | 'spotify'
 
 export interface OAuthProviderConfig {
