@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import type { Edge } from 'reactflow'
 import { useSession } from '@/lib/auth/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
+import { NEW_BLOCK_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
@@ -1326,8 +1327,8 @@ export function useCollaborativeWorkflow() {
       // Generate new ID and calculate position
       const newId = crypto.randomUUID()
       const offsetPosition = {
-        x: sourceBlock.position.x + 250,
-        y: sourceBlock.position.y + 20,
+        x: sourceBlock.position.x + NEW_BLOCK_OFFSET.X,
+        y: sourceBlock.position.y + NEW_BLOCK_OFFSET.Y,
       }
 
       const newName = getUniqueBlockName(sourceBlock.name, workflowStore.blocks)
