@@ -5,6 +5,7 @@ import {
   calculateCostSummary,
   createEnvironmentObject,
   createTriggerObject,
+  loadDeployedWorkflowStateForLogging,
   loadWorkflowStateForExecution,
 } from '@/lib/logs/execution/logging-factory'
 import type {
@@ -78,7 +79,11 @@ export class LoggingSession {
         workspaceId,
         variables
       )
-      this.workflowState = await loadWorkflowStateForExecution(this.workflowId)
+      // Use deployed state if deploymentVersionId is provided (non-manual execution)
+      // Otherwise fall back to loading from normalized tables (manual/draft execution)
+      this.workflowState = deploymentVersionId
+        ? await loadDeployedWorkflowStateForLogging(this.workflowId)
+        : await loadWorkflowStateForExecution(this.workflowId)
 
       // Only create a new log entry if not resuming
       if (!skipLogCreation) {
@@ -295,7 +300,7 @@ export class LoggingSession {
           workspaceId,
           variables
         )
-        // Minimal workflow state when normalized data is unavailable
+        // Minimal workflow state when normalized/deployed data is unavailable
         this.workflowState = {
           blocks: {},
           edges: [],

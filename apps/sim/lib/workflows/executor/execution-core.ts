@@ -179,8 +179,8 @@ export async function executeWorkflowCore(
       userId,
       workspaceId: providedWorkspaceId,
       variables,
-      skipLogCreation, // Skip if resuming an existing execution
-      deploymentVersionId, // Only set for deployed executions
+      skipLogCreation,
+      deploymentVersionId,
     })
 
     // Process block states with env var substitution using pre-decrypted values
