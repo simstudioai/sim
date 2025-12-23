@@ -310,6 +310,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       type: 'short-input',
       placeholder: 'your-gcp-project-id',
       connectionDroppable: false,
+      required: true,
       condition: {
         field: 'model',
         value: providers.vertex.models,
@@ -321,6 +322,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       type: 'short-input',
       placeholder: 'us-central1',
       connectionDroppable: false,
+      required: true,
       condition: {
         field: 'model',
         value: providers.vertex.models,
