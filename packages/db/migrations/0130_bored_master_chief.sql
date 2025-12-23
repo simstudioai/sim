@@ -21,12 +21,27 @@ DROP INDEX IF EXISTS "memory_workflow_idx";
 --> statement-breakpoint
 DROP INDEX IF EXISTS "memory_workflow_key_idx";
 
--- Step 6: Add new foreign key and indexes
+-- Step 6: Deduplicate memory entries before creating unique index
+-- Keep only the most recently updated entry for each (workspace_id, key) pair
+DELETE FROM memory m1
+USING memory m2
+WHERE m1.workspace_id = m2.workspace_id
+  AND m1.key = m2.key
+  AND m1.updated_at < m2.updated_at;
+
+-- Handle ties by keeping the one with the smaller id
+DELETE FROM memory m1
+USING memory m2
+WHERE m1.workspace_id = m2.workspace_id
+  AND m1.key = m2.key
+  AND m1.id > m2.id;
+
+-- Step 7: Add new foreign key and indexes
 ALTER TABLE "memory" ADD CONSTRAINT "memory_workspace_id_workspace_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspace"("id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 CREATE INDEX "memory_workspace_idx" ON "memory" USING btree ("workspace_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "memory_workspace_key_idx" ON "memory" USING btree ("workspace_id","key");
 
--- Step 7: Drop old column
+-- Step 8: Drop old column
 ALTER TABLE "memory" DROP COLUMN IF EXISTS "workflow_id";
