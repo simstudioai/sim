@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { client } from '@/lib/auth/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
-import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth/oauth'
+import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth'
 
 const logger = createLogger('OAuthConnectionsQuery')
 
@@ -14,9 +14,11 @@ export const oauthConnectionsKeys = {
 }
 
 /**
- * Service info type
+ * Service info type - extends OAuthServiceConfig with connection status and the service key
  */
 export interface ServiceInfo extends OAuthServiceConfig {
+  /** The service key from OAUTH_PROVIDERS (e.g., 'gmail', 'google-drive') */
+  id: string
   isConnected: boolean
   lastConnected?: string
   accounts?: { id: string; name: string }[]
@@ -29,9 +31,10 @@ function defineServices(): ServiceInfo[] {
   const servicesList: ServiceInfo[] = []
 
   Object.entries(OAUTH_PROVIDERS).forEach(([_providerKey, provider]) => {
-    Object.values(provider.services).forEach((service) => {
+    Object.entries(provider.services).forEach(([serviceKey, service]) => {
       servicesList.push({
         ...service,
+        id: serviceKey,
         isConnected: false,
         scopes: service.scopes || [],
       })
