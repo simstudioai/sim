@@ -5,7 +5,7 @@
 /**
  * Fallback free credits (in dollars) when env var is not set
  */
-export const DEFAULT_FREE_CREDITS = 10
+export const DEFAULT_FREE_CREDITS = 20
 
 /**
  * Default per-user minimum limits (in dollars) for paid plans when env vars are absent
