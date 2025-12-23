@@ -747,6 +747,8 @@ async function handleInternalRequest(
           url: fullUrl,
           json: () => response.json(),
           text: () => response.text(),
+          arrayBuffer: () => response.arrayBuffer(),
+          blob: () => response.blob(),
         } as Response
 
         const data = await tool.transformResponse(mockResponse, params)
