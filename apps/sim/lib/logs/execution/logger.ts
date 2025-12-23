@@ -308,8 +308,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
           traceSpans: redactedTraceSpans,
           finalOutput: redactedFinalOutput,
           tokenBreakdown: {
-            prompt: mergedCost.tokens.prompt,
-            completion: mergedCost.tokens.completion,
+            input: mergedCost.tokens.prompt,
+            output: mergedCost.tokens.completion,
             total: mergedCost.tokens.total,
           },
           models: mergedCost.models,

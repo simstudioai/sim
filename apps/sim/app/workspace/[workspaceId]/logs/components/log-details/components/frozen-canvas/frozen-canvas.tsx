@@ -347,11 +347,11 @@ function PinnedLogs({
             </h4>
             <div className='space-y-[4px] rounded-[4px] border border-[var(--border)] bg-[var(--surface-3)] p-[12px] text-[13px]'>
               <div className='flex justify-between text-[var(--text-primary)]'>
-                <span>Prompt:</span>
+                <span>Input:</span>
                 <span>{formatted.tokens.prompt}</span>
               </div>
               <div className='flex justify-between text-[var(--text-primary)]'>
-                <span>Completion:</span>
+                <span>Output:</span>
                 <span>{formatted.tokens.completion}</span>
               </div>
               <div className='flex justify-between border-[var(--border)] border-t pt-[4px] font-medium text-[var(--text-primary)]'>

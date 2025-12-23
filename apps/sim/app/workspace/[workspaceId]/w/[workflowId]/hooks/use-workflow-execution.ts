@@ -1,5 +1,4 @@
 import { useCallback, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -14,6 +13,7 @@ import {
   StartBlockPath,
   TriggerUtils,
 } from '@/lib/workflows/triggers/triggers'
+import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { coerceValue } from '@/executor/utils/start-block'
@@ -90,7 +90,6 @@ function extractExecutionResult(error: unknown): ExecutionResult | null {
 export function useWorkflowExecution() {
   const currentWorkflow = useCurrentWorkflow()
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
-  const queryClient = useQueryClient()
   const { toggleConsole, addConsole } = useTerminalConsoleStore()
   const { getAllVariables } = useEnvironmentStore()
   const { getVariablesByWorkflowId, variables } = useVariablesStore()
@@ -563,9 +562,11 @@ export function useWorkflowExecution() {
                   logger.info(`Processed ${processedCount} blocks for streaming tokenization`)
                 }
 
-                // Invalidate subscription query to update usage
-                queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
-                queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() })
+                // Invalidate subscription queries to update usage
+                setTimeout(() => {
+                  const queryClient = getQueryClient()
+                  queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+                }, 1000)
 
                 const { encodeSSE } = await import('@/lib/core/utils/sse')
                 controller.enqueue(encodeSSE({ event: 'final', data: result }))
@@ -630,9 +631,11 @@ export function useWorkflowExecution() {
             ;(result.metadata as any).source = 'chat'
           }
 
-          // Invalidate subscription query to update usage
-          queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
-          queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() })
+          // Invalidate subscription queries to update usage
+          setTimeout(() => {
+            const queryClient = getQueryClient()
+            queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+          }, 1000)
         }
         return result
       } catch (error: any) {
