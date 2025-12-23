@@ -25,8 +25,6 @@ export interface ReadUrlParams {
 export interface ReadUrlResponse extends ToolResponse {
   output: {
     content: string
-    links?: string[]
-    images?: string[]
   }
 }
 
