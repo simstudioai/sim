@@ -35,81 +35,87 @@ Sobald Ihre Dokumente verarbeitet sind, können Sie die einzelnen Chunks anzeige
 <Image src="/static/knowledgebase/knowledgebase.png" alt="Dokumentchunk-Ansicht mit verarbeiteten Inhalten" width={800} height={500} />
 
 ### Chunk-Konfiguration
-- **Standardgröße der Chunks**: 1.024 Zeichen
-- **Konfigurierbarer Bereich**: 100-4.000 Zeichen pro Chunk
-- **Intelligente Überlappung**: Standardmäßig 200 Zeichen zur Kontexterhaltung
-- **Hierarchische Aufteilung**: Respektiert Dokumentstruktur (Abschnitte, Absätze, Sätze)
 
-### Bearbeitungsfunktionen
+Beim Erstellen einer Wissensdatenbank können Sie konfigurieren, wie Dokumente in Chunks aufgeteilt werden:
+
+| Einstellung | Einheit | Standard | Bereich | Beschreibung |
+|---------|------|---------|-------|-------------|
+| **Maximale Chunk-Größe** | Tokens | 1.024 | 100-4.000 | Maximale Größe jedes Chunks (1 Token ≈ 4 Zeichen) |
+| **Minimale Chunk-Größe** | Zeichen | 1 | 1-2.000 | Minimale Chunk-Größe, um winzige Fragmente zu vermeiden |
+| **Überlappung** | Zeichen | 200 | 0-500 | Kontextüberlappung zwischen aufeinanderfolgenden Chunks |
+
+- **Hierarchische Aufteilung**: Berücksichtigt die Dokumentstruktur (Abschnitte, Absätze, Sätze)
+
+### Bearbeitungsmöglichkeiten
 - **Chunk-Inhalt bearbeiten**: Textinhalt einzelner Chunks ändern
-- **Chunk-Grenzen anpassen**: Chunks bei Bedarf zusammenführen oder teilen
+- **Chunk-Grenzen anpassen**: Chunks nach Bedarf zusammenführen oder aufteilen
 - **Metadaten hinzufügen**: Chunks mit zusätzlichem Kontext anreichern
-- **Massenoperationen**: Effiziente Verwaltung mehrerer Chunks
+- **Massenoperationen**: Mehrere Chunks effizient verwalten
 
 ## Erweiterte PDF-Verarbeitung
 
 Für PDF-Dokumente bietet Sim erweiterte Verarbeitungsfunktionen:
 
 ### OCR-Unterstützung
-Bei Konfiguration mit Azure oder [Mistral OCR](https://docs.mistral.ai/ocr/):
+Wenn mit Azure oder [Mistral OCR](https://docs.mistral.ai/ocr/) konfiguriert:
 - **Verarbeitung gescannter Dokumente**: Text aus bildbasierten PDFs extrahieren
-- **Umgang mit gemischten Inhalten**: Verarbeitung von PDFs mit Text und Bildern
+- **Verarbeitung gemischter Inhalte**: PDFs mit Text und Bildern verarbeiten
 - **Hohe Genauigkeit**: Fortschrittliche KI-Modelle gewährleisten präzise Textextraktion
 
-## Verwendung des Wissensblocks in Workflows
+## Verwendung des Knowledge-Blocks in Workflows
 
-Sobald Ihre Dokumente verarbeitet sind, können Sie sie in Ihren KI-Workflows über den Wissensblock nutzen. Dies ermöglicht Retrieval-Augmented Generation (RAG), wodurch Ihre KI-Agenten auf Ihre Dokumentinhalte zugreifen und darüber nachdenken können, um genauere, kontextbezogene Antworten zu liefern.
+Sobald Ihre Dokumente verarbeitet sind, können Sie sie in Ihren KI-Workflows über den Knowledge-Block verwenden. Dies ermöglicht Retrieval-Augmented Generation (RAG), wodurch Ihre KI-Agenten auf Ihre Dokumentinhalte zugreifen und darüber nachdenken können, um genauere, kontextbezogene Antworten zu liefern.
 
-<Image src="/static/knowledgebase/knowledgebase-2.png" alt="Verwendung des Wissensblocks in Workflows" width={800} height={500} />
+<Image src="/static/knowledgebase/knowledgebase-2.png" alt="Verwendung des Knowledge-Blocks in Workflows" width={800} height={500} />
 
-### Funktionen des Wissensblocks
-- **Semantische Suche**: Relevante Inhalte mit natürlichsprachlichen Abfragen finden
-- **Kontextintegration**: Automatisches Einbinden relevanter Chunks in Agenten-Prompts
-- **Dynamischer Abruf**: Suche erfolgt in Echtzeit während der Workflow-Ausführung
-- **Relevanzbewertung**: Ergebnisse nach semantischer Ähnlichkeit geordnet
+### Knowledge-Block-Funktionen
+- **Semantische Suche**: Relevante Inhalte mithilfe natürlichsprachlicher Abfragen finden
+- **Kontextintegration**: Relevante Chunks automatisch in Agenten-Prompts einbinden
+- **Dynamisches Abrufen**: Suche erfolgt in Echtzeit während der Workflow-Ausführung
+- **Relevanz-Bewertung**: Ergebnisse nach semantischer Ähnlichkeit sortiert
 
 ### Integrationsoptionen
-- **System-Prompts**: Kontext für Ihre KI-Agenten bereitstellen
-- **Dynamischer Kontext**: Suche und Einbindung relevanter Informationen während Gesprächen
-- **Dokumentübergreifende Suche**: Abfrage über Ihre gesamte Wissensdatenbank
-- **Gefilterte Suche**: Kombination mit Tags für präzisen Inhaltsabruf
+- **System-Prompts**: Stellen Sie Ihren KI-Agenten Kontext bereit
+- **Dynamischer Kontext**: Suchen und fügen Sie relevante Informationen während Konversationen hinzu
+- **Multi-Dokument-Suche**: Durchsuchen Sie Ihre gesamte Wissensdatenbank
+- **Gefilterte Suche**: Kombinieren Sie mit Tags für präzises Abrufen von Inhalten
 
-## Vektorsuchtechnologie
+## Vektor-Suchtechnologie
 
 Sim verwendet Vektorsuche, die von [pgvector](https://github.com/pgvector/pgvector) unterstützt wird, um die Bedeutung und den Kontext Ihrer Inhalte zu verstehen:
 
 ### Semantisches Verständnis
 - **Kontextuelle Suche**: Findet relevante Inhalte, auch wenn exakte Schlüsselwörter nicht übereinstimmen
-- **Konzeptbasierte Abfrage**: Versteht Beziehungen zwischen Ideen
+- **Konzeptbasiertes Abrufen**: Versteht Beziehungen zwischen Ideen
 - **Mehrsprachige Unterstützung**: Funktioniert über verschiedene Sprachen hinweg
 - **Synonymerkennung**: Findet verwandte Begriffe und Konzepte
 
 ### Suchfunktionen
-- **Natürlichsprachige Abfragen**: Stellen Sie Fragen in natürlicher Sprache
+- **Natürlichsprachige Abfragen**: Stellen Sie Fragen in einfachem Deutsch
 - **Ähnlichkeitssuche**: Finden Sie konzeptionell ähnliche Inhalte
-- **Hybridsuche**: Kombiniert Vektor- und traditionelle Schlüsselwortsuche
-- **Konfigurierbare Ergebnisse**: Steuern Sie die Anzahl und den Relevanz-Schwellenwert der Ergebnisse
+- **Hybride Suche**: Kombiniert Vektor- und traditionelle Schlüsselwortsuche
+- **Konfigurierbare Ergebnisse**: Steuern Sie die Anzahl und Relevanzschwelle der Ergebnisse
 
 ## Dokumentenverwaltung
 
 ### Organisationsfunktionen
-- **Massenupload**: Laden Sie mehrere Dateien gleichzeitig über die asynchrone API hoch
-- **Verarbeitungsstatus**: Echtzeit-Updates zum Dokumentenverarbeitungsprozess
-- **Suchen und Filtern**: Finden Sie Dokumente schnell in großen Sammlungen
+- **Massen-Upload**: Laden Sie mehrere Dateien gleichzeitig über die asynchrone API hoch
+- **Verarbeitungsstatus**: Echtzeit-Updates zur Dokumentenverarbeitung
+- **Suchen und filtern**: Finden Sie Dokumente schnell in großen Sammlungen
 - **Metadaten-Tracking**: Automatische Erfassung von Dateiinformationen und Verarbeitungsdetails
 
 ### Sicherheit und Datenschutz
 - **Sichere Speicherung**: Dokumente werden mit Sicherheit auf Unternehmensniveau gespeichert
 - **Zugriffskontrolle**: Workspace-basierte Berechtigungen
-- **Verarbeitungsisolierung**: Jeder Workspace hat eine isolierte Dokumentenverarbeitung
+- **Verarbeitungsisolierung**: Jeder Workspace hat isolierte Dokumentenverarbeitung
 - **Datenaufbewahrung**: Konfigurieren Sie Richtlinien zur Dokumentenaufbewahrung
 
 ## Erste Schritte
 
 1. **Navigieren Sie zu Ihrer Wissensdatenbank**: Zugriff über Ihre Workspace-Seitenleiste
-2. **Dokumente hochladen**: Drag & Drop oder wählen Sie Dateien zum Hochladen aus
-3. **Verarbeitung überwachen**: Beobachten Sie, wie Dokumente verarbeitet und in Chunks aufgeteilt werden
-4. **Chunks erkunden**: Sehen und bearbeiten Sie die verarbeiteten Inhalte
-5. **Zu Workflows hinzufügen**: Verwenden Sie den Wissensblock, um ihn in Ihre KI-Agenten zu integrieren
+2. **Dokumente hochladen**: Ziehen und ablegen oder Dateien zum Hochladen auswählen
+3. **Verarbeitung überwachen**: Beobachten Sie, wie Dokumente verarbeitet und in Abschnitte unterteilt werden
+4. **Abschnitte erkunden**: Zeigen Sie die verarbeiteten Inhalte an und bearbeiten Sie sie
+5. **Zu Workflows hinzufügen**: Verwenden Sie den Knowledge-Block, um mit Ihren KI-Agenten zu integrieren
 
-Die Wissensdatenbank verwandelt Ihre statischen Dokumente in eine intelligente, durchsuchbare Ressource, die Ihre KI-Workflows für fundiertere und kontextbezogenere Antworten nutzen können.
+Die Wissensdatenbank verwandelt Ihre statischen Dokumente in eine intelligente, durchsuchbare Ressource, die Ihre KI-Workflows für fundiertere und kontextbezogene Antworten nutzen können.

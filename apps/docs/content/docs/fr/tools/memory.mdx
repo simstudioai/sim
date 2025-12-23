@@ -1,6 +1,6 @@
 ---
 title: Mémoire
-description: Stocker et récupérer l'historique des conversations
+description: Ajouter un magasin de mémoire
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,94 +10,91 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#F64F9E"
 />
 
-## Vue d'ensemble
+## Instructions d'utilisation
 
-Le bloc Memory stocke l'historique des conversations pour les agents. Chaque mémoire est identifiée par un `conversationId` que vous fournissez. Plusieurs agents peuvent partager la même mémoire en utilisant le même `conversationId`.
-
-Memory stocke uniquement les messages utilisateur et assistant. Les messages système ne sont pas stockés — ils sont configurés dans le bloc Agent et préfixés à l'exécution.
+Intégrer la mémoire dans le flux de travail. Permet d'ajouter, d'obtenir une mémoire, d'obtenir toutes les mémoires et de supprimer des mémoires.
 
 ## Outils
 
 ### `memory_add`
 
-Ajouter un message à la mémoire. Crée une nouvelle mémoire si le `conversationId` n'existe pas, ou ajoute à la mémoire existante.
+Ajouter une nouvelle mémoire à la base de données ou ajouter à une mémoire existante avec le même ID.
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `conversationId` | chaîne | Oui | Identifiant unique pour la conversation (par ex., `user-123`, `session-abc`) |
-| `role` | chaîne | Oui | Rôle du message : `user` ou `assistant` |
-| `content` | chaîne | Oui | Contenu du message |
+| `conversationId` | chaîne | Non | Identifiant de conversation \(par ex., user-123, session-abc\). Si une mémoire avec cet identifiant existe déjà, le nouveau message y sera ajouté. |
+| `id` | chaîne | Non | Paramètre hérité pour l'identifiant de conversation. Utilisez conversationId à la place. Fourni pour la rétrocompatibilité. |
+| `role` | chaîne | Oui | Rôle pour la mémoire de l'agent \(user, assistant ou system\) |
+| `content` | chaîne | Oui | Contenu pour la mémoire de l'agent |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | booléen | Indique si l'opération a réussi |
-| `memories` | tableau | Tableau de mémoire mis à jour |
-| `error` | chaîne | Message d'erreur en cas d'échec |
+| `success` | booléen | Indique si la mémoire a été ajoutée avec succès |
+| `memories` | tableau | Tableau d'objets mémoire incluant la mémoire nouvelle ou mise à jour |
+| `error` | chaîne | Message d'erreur en cas d'échec de l'opération |
 
 ### `memory_get`
 
-Récupérer la mémoire par identifiant de conversation.
+Récupérer la mémoire par conversationId. Renvoie les mémoires correspondantes.
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `conversationId` | chaîne | Oui | Identifiant de conversation |
+| `conversationId` | chaîne | Non | Identifiant de conversation \(par ex., user-123, session-abc\). Renvoie les mémoires pour cette conversation. |
+| `id` | chaîne | Non | Paramètre hérité pour l'identifiant de conversation. Utilisez conversationId à la place. Fourni pour la rétrocompatibilité. |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | booléen | Indique si l'opération a réussi |
-| `memories` | tableau | Tableau de messages avec `role` et `content` |
+| `success` | booléen | Indique si la mémoire a été récupérée avec succès |
+| `memories` | tableau | Tableau d'objets mémoire avec les champs conversationId et data |
+| `message` | chaîne | Message de succès ou d'erreur |
 | `error` | chaîne | Message d'erreur en cas d'échec |
 
 ### `memory_get_all`
 
-Récupérer toutes les mémoires pour l'espace de travail actuel.
-
-#### Sortie
-
-| Paramètre | Type | Description |
-| --------- | ---- | ----------- |
-| `success` | boolean | Indique si l'opération a réussi |
-| `memories` | array | Tous les objets de mémoire avec les champs `conversationId` et `data` |
-| `error` | string | Message d'erreur si l'opération a échoué |
-
-### `memory_delete`
-
-Supprimer la mémoire par ID de conversation.
+Récupérer toutes les mémoires de la base de données
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `conversationId` | string | Oui | Identifiant de conversation à supprimer |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Indique si l'opération a réussi |
-| `message` | string | Message de confirmation |
-| `error` | string | Message d'erreur si l'opération a échoué |
+| `success` | booléen | Indique si toutes les mémoires ont été récupérées avec succès |
+| `memories` | tableau | Tableau de tous les objets mémoire avec les champs key, conversationId et data |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `error` | chaîne | Message d'erreur en cas d'échec |
 
-## Types de mémoire d'agent
+### `memory_delete`
 
-Lors de l'utilisation de la mémoire avec un bloc Agent, vous pouvez configurer la manière dont l'historique de conversation est géré :
+Supprimer les mémoires par conversationId.
 
-| Type | Description |
-| ---- | ----------- |
-| **Conversation complète** | Stocke tous les messages, limité par la fenêtre de contexte du modèle (utilise 90 % pour laisser de la place pour la réponse) |
-| **Fenêtre glissante (messages)** | Conserve les N derniers messages (par défaut : 10) |
-| **Fenêtre glissante (tokens)** | Conserve les messages qui tiennent dans une limite de tokens (par défaut : 4000) |
+#### Entrée
 
-## Remarques
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `conversationId` | chaîne | Non | Identifiant de conversation (par ex., user-123, session-abc). Supprime toutes les mémoires pour cette conversation. |
+| `id` | chaîne | Non | Paramètre hérité pour l'identifiant de conversation. Utilisez conversationId à la place. Fourni pour la rétrocompatibilité. |
 
-- La mémoire est limitée par espace de travail — les workflows dans le même espace de travail partagent le stockage de mémoire
-- Utilisez des valeurs `conversationId` uniques pour garder les conversations séparées (par ex., ID de session, ID d'utilisateur ou UUID)
-- Les messages système appartiennent à la configuration du bloc Agent, pas à la mémoire
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si la mémoire a été supprimée avec succès |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `error` | chaîne | Message d'erreur en cas d'échec |
+
+## Notes
+
+- Catégorie : `blocks`
+- Type : `memory`
