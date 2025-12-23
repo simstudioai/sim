@@ -227,8 +227,8 @@ export const anthropicProvider: ProviderConfig = {
         stream: createReadableStreamFromAnthropicStream(streamResponse, (content, usage) => {
           streamingResult.execution.output.content = content
           streamingResult.execution.output.tokens = {
-            prompt: usage.input_tokens,
-            completion: usage.output_tokens,
+            input: usage.input_tokens,
+            output: usage.output_tokens,
             total: usage.input_tokens + usage.output_tokens,
           }
 
@@ -260,7 +260,7 @@ export const anthropicProvider: ProviderConfig = {
           output: {
             content: '',
             model: request.model,
-            tokens: { prompt: 0, completion: 0, total: 0 },
+            tokens: { input: 0, output: 0, total: 0 },
             toolCalls: undefined,
             providerTiming: {
               startTime: providerStartTimeISO,
@@ -320,8 +320,8 @@ export const anthropicProvider: ProviderConfig = {
         }
 
         const tokens = {
-          prompt: currentResponse.usage?.input_tokens || 0,
-          completion: currentResponse.usage?.output_tokens || 0,
+          input: currentResponse.usage?.input_tokens || 0,
+          output: currentResponse.usage?.output_tokens || 0,
           total:
             (currentResponse.usage?.input_tokens || 0) +
             (currentResponse.usage?.output_tokens || 0),
@@ -547,8 +547,8 @@ export const anthropicProvider: ProviderConfig = {
             modelTime += thisModelTime
 
             if (currentResponse.usage) {
-              tokens.prompt += currentResponse.usage.input_tokens || 0
-              tokens.completion += currentResponse.usage.output_tokens || 0
+              tokens.input += currentResponse.usage.input_tokens || 0
+              tokens.output += currentResponse.usage.output_tokens || 0
               tokens.total +=
                 (currentResponse.usage.input_tokens || 0) +
                 (currentResponse.usage.output_tokens || 0)
@@ -561,7 +561,7 @@ export const anthropicProvider: ProviderConfig = {
           throw error
         }
 
-        const accumulatedCost = calculateCost(request.model, tokens.prompt, tokens.completion)
+        const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
 
         const streamingPayload = {
           ...payload,
@@ -578,8 +578,8 @@ export const anthropicProvider: ProviderConfig = {
             (streamContent, usage) => {
               streamingResult.execution.output.content = streamContent
               streamingResult.execution.output.tokens = {
-                prompt: tokens.prompt + usage.input_tokens,
-                completion: tokens.completion + usage.output_tokens,
+                input: tokens.input + usage.input_tokens,
+                output: tokens.output + usage.output_tokens,
                 total: tokens.total + usage.input_tokens + usage.output_tokens,
               }
 
@@ -610,8 +610,8 @@ export const anthropicProvider: ProviderConfig = {
               content: '',
               model: request.model,
               tokens: {
-                prompt: tokens.prompt,
-                completion: tokens.completion,
+                input: tokens.input,
+                output: tokens.output,
                 total: tokens.total,
               },
               toolCalls:
@@ -692,8 +692,8 @@ export const anthropicProvider: ProviderConfig = {
       }
 
       const tokens = {
-        prompt: currentResponse.usage?.input_tokens || 0,
-        completion: currentResponse.usage?.output_tokens || 0,
+        input: currentResponse.usage?.input_tokens || 0,
+        output: currentResponse.usage?.output_tokens || 0,
         total:
           (currentResponse.usage?.input_tokens || 0) + (currentResponse.usage?.output_tokens || 0),
       }
@@ -923,8 +923,8 @@ export const anthropicProvider: ProviderConfig = {
           modelTime += thisModelTime
 
           if (currentResponse.usage) {
-            tokens.prompt += currentResponse.usage.input_tokens || 0
-            tokens.completion += currentResponse.usage.output_tokens || 0
+            tokens.input += currentResponse.usage.input_tokens || 0
+            tokens.output += currentResponse.usage.output_tokens || 0
             tokens.total +=
               (currentResponse.usage.input_tokens || 0) + (currentResponse.usage.output_tokens || 0)
 
@@ -965,8 +965,8 @@ export const anthropicProvider: ProviderConfig = {
           stream: createReadableStreamFromAnthropicStream(streamResponse, (content, usage) => {
             streamingResult.execution.output.content = content
             streamingResult.execution.output.tokens = {
-              prompt: tokens.prompt + usage.input_tokens,
-              completion: tokens.completion + usage.output_tokens,
+              input: tokens.input + usage.input_tokens,
+              output: tokens.output + usage.output_tokens,
               total: tokens.total + usage.input_tokens + usage.output_tokens,
             }
 
@@ -992,8 +992,8 @@ export const anthropicProvider: ProviderConfig = {
               content: '',
               model: request.model,
               tokens: {
-                prompt: tokens.prompt,
-                completion: tokens.completion,
+                input: tokens.input,
+                output: tokens.output,
                 total: tokens.total,
               },
               toolCalls:

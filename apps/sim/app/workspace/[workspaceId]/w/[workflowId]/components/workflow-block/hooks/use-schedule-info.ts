@@ -143,22 +143,10 @@ export function useScheduleInfo(
       setIsLoading(false)
     }
 
-    const handleScheduleUpdate = (event: CustomEvent) => {
-      if (event.detail?.workflowId === workflowId && event.detail?.blockId === blockId) {
-        logger.debug('Schedule update event received, refetching schedule info')
-        if (blockType === 'schedule') {
-          fetchScheduleInfo(workflowId)
-        }
-      }
-    }
-
-    window.addEventListener('schedule-updated', handleScheduleUpdate as EventListener)
-
     return () => {
       setIsLoading(false)
-      window.removeEventListener('schedule-updated', handleScheduleUpdate as EventListener)
     }
-  }, [blockType, workflowId, blockId, fetchScheduleInfo])
+  }, [blockType, workflowId, fetchScheduleInfo])
 
   return {
     scheduleInfo,

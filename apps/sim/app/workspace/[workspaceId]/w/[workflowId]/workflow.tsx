@@ -2236,27 +2236,6 @@ const WorkflowContent = React.memo(() => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedEdgeInfo, removeEdge, getNodes, removeBlock, effectivePermissions.canEdit])
 
-  /** Handles sub-block value updates from custom events. */
-  useEffect(() => {
-    const handleSubBlockValueUpdate = (event: CustomEvent) => {
-      const { blockId, subBlockId, value } = event.detail
-      if (blockId && subBlockId) {
-        // Use collaborative function to go through queue system
-        // This ensures 5-second timeout and error detection work
-        collaborativeSetSubblockValue(blockId, subBlockId, value)
-      }
-    }
-
-    window.addEventListener('update-subblock-value', handleSubBlockValueUpdate as EventListener)
-
-    return () => {
-      window.removeEventListener(
-        'update-subblock-value',
-        handleSubBlockValueUpdate as EventListener
-      )
-    }
-  }, [collaborativeSetSubblockValue])
-
   return (
     <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--bg)]'>
       <div className='relative h-full w-full flex-1 bg-[var(--bg)]'>

@@ -259,15 +259,16 @@ export async function GET(request: NextRequest) {
                   input: 0,
                   output: 0,
                   total: 0,
-                  tokens: { prompt: 0, completion: 0, total: 0 },
+                  tokens: { input: 0, output: 0, total: 0 },
                 })
               }
               const modelCost = models.get(block.cost.model)
               modelCost.input += Number(block.cost.input) || 0
               modelCost.output += Number(block.cost.output) || 0
               modelCost.total += Number(block.cost.total) || 0
-              modelCost.tokens.prompt += block.cost.tokens?.prompt || 0
-              modelCost.tokens.completion += block.cost.tokens?.completion || 0
+              modelCost.tokens.input += block.cost.tokens?.input || block.cost.tokens?.prompt || 0
+              modelCost.tokens.output +=
+                block.cost.tokens?.output || block.cost.tokens?.completion || 0
               modelCost.tokens.total += block.cost.tokens?.total || 0
             }
           }

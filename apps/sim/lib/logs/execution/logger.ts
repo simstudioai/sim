@@ -195,7 +195,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           input: number
           output: number
           total: number
-          tokens: { prompt: number; completion: number; total: number }
+          tokens: { input: number; output: number; total: number }
         }
       >
     }
@@ -269,8 +269,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
           input: (existingCost.input || 0) + costSummary.totalInputCost,
           output: (existingCost.output || 0) + costSummary.totalOutputCost,
           tokens: {
-            prompt: (existingCost.tokens?.prompt || 0) + costSummary.totalPromptTokens,
-            completion: (existingCost.tokens?.completion || 0) + costSummary.totalCompletionTokens,
+            input:
+              (existingCost.tokens?.input || existingCost.tokens?.prompt || 0) +
+              costSummary.totalPromptTokens,
+            output:
+              (existingCost.tokens?.output || existingCost.tokens?.completion || 0) +
+              costSummary.totalCompletionTokens,
             total: (existingCost.tokens?.total || 0) + costSummary.totalTokens,
           },
           models: this.mergeCostModels(existingCost.models || {}, costSummary.models),
@@ -280,8 +284,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
           input: costSummary.totalInputCost,
           output: costSummary.totalOutputCost,
           tokens: {
-            prompt: costSummary.totalPromptTokens,
-            completion: costSummary.totalCompletionTokens,
+            input: costSummary.totalPromptTokens,
+            output: costSummary.totalCompletionTokens,
             total: costSummary.totalTokens,
           },
           models: costSummary.models,
@@ -307,9 +311,9 @@ export class ExecutionLogger implements IExecutionLoggerService {
         executionData: {
           traceSpans: redactedTraceSpans,
           finalOutput: redactedFinalOutput,
-          tokenBreakdown: {
-            input: mergedCost.tokens.prompt,
-            output: mergedCost.tokens.completion,
+          tokens: {
+            input: mergedCost.tokens.input,
+            output: mergedCost.tokens.output,
             total: mergedCost.tokens.total,
           },
           models: mergedCost.models,
@@ -508,7 +512,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           input: number
           output: number
           total: number
-          tokens: { prompt: number; completion: number; total: number }
+          tokens: { input: number; output: number; total: number }
         }
       >
     },

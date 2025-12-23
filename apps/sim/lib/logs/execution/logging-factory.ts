@@ -62,7 +62,7 @@ export function calculateCostSummary(traceSpans: any[]): {
       input: number
       output: number
       total: number
-      tokens: { prompt: number; completion: number; total: number }
+      tokens: { input: number; output: number; total: number }
     }
   >
 } {
@@ -110,7 +110,7 @@ export function calculateCostSummary(traceSpans: any[]): {
       input: number
       output: number
       total: number
-      tokens: { prompt: number; completion: number; total: number }
+      tokens: { input: number; output: number; total: number }
     }
   > = {}
 
@@ -129,14 +129,14 @@ export function calculateCostSummary(traceSpans: any[]): {
           input: 0,
           output: 0,
           total: 0,
-          tokens: { prompt: 0, completion: 0, total: 0 },
+          tokens: { input: 0, output: 0, total: 0 },
         }
       }
       models[model].input += span.cost.input || 0
       models[model].output += span.cost.output || 0
       models[model].total += span.cost.total || 0
-      models[model].tokens.prompt += span.tokens?.input ?? span.tokens?.prompt ?? 0
-      models[model].tokens.completion += span.tokens?.output ?? span.tokens?.completion ?? 0
+      models[model].tokens.input += span.tokens?.input ?? span.tokens?.prompt ?? 0
+      models[model].tokens.output += span.tokens?.output ?? span.tokens?.completion ?? 0
       models[model].tokens.total += span.tokens?.total || 0
     }
   }

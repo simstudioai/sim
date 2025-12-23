@@ -117,7 +117,7 @@ export function ToolCredentialSelector({
     onChange('')
   }, [invalidSelection, onChange])
 
-  useCredentialRefreshTriggers(refetchCredentials, effectiveProviderId, provider)
+  useCredentialRefreshTriggers(refetchCredentials)
 
   const handleOpenChange = useCallback(
     (isOpen: boolean) => {
@@ -238,11 +238,7 @@ export function ToolCredentialSelector({
   )
 }
 
-function useCredentialRefreshTriggers(
-  refetchCredentials: () => Promise<unknown>,
-  effectiveProviderId?: string,
-  provider?: OAuthProvider
-) {
+function useCredentialRefreshTriggers(refetchCredentials: () => Promise<unknown>) {
   useEffect(() => {
     const refresh = () => {
       void refetchCredentials()
@@ -260,26 +256,12 @@ function useCredentialRefreshTriggers(
       }
     }
 
-    const handleCredentialDisconnected = (event: Event) => {
-      const customEvent = event as CustomEvent<{ providerId?: string }>
-      const providerId = customEvent.detail?.providerId
-
-      if (
-        providerId &&
-        (providerId === effectiveProviderId || (provider && providerId.startsWith(provider)))
-      ) {
-        refresh()
-      }
-    }
-
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('pageshow', handlePageShow)
-    window.addEventListener('credential-disconnected', handleCredentialDisconnected)
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('pageshow', handlePageShow)
-      window.removeEventListener('credential-disconnected', handleCredentialDisconnected)
     }
-  }, [refetchCredentials, effectiveProviderId, provider])
+  }, [refetchCredentials])
 }

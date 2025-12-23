@@ -69,8 +69,8 @@ export interface NormalizedBlockOutput {
   content?: string
   model?: string
   tokens?: {
-    prompt?: number
-    completion?: number
+    input?: number
+    output?: number
     total?: number
   }
   toolCalls?: {

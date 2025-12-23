@@ -154,7 +154,7 @@ export interface LogWorkflowUsageBatchParams {
     string,
     {
       total: number
-      tokens: { prompt: number; completion: number }
+      tokens: { input: number; output: number }
     }
   >
 }
@@ -205,8 +205,8 @@ export async function logWorkflowUsageBatch(params: LogWorkflowUsageBatchParams)
           source: 'workflow',
           description: modelName,
           metadata: {
-            inputTokens: modelData.tokens.prompt,
-            outputTokens: modelData.tokens.completion,
+            inputTokens: modelData.tokens.input,
+            outputTokens: modelData.tokens.output,
           },
           cost: modelData.total.toString(),
           workspaceId: params.workspaceId ?? null,

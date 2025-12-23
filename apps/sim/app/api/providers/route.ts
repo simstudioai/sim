@@ -165,8 +165,8 @@ export async function POST(request: NextRequest) {
               : '',
             model: executionData.output?.model,
             tokens: executionData.output?.tokens || {
-              prompt: 0,
-              completion: 0,
+              input: 0,
+              output: 0,
               total: 0,
             },
             // Sanitize any potential Unicode characters in tool calls
