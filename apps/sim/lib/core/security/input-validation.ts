@@ -1,6 +1,5 @@
 import dns from 'dns/promises'
 import { createLogger } from '@/lib/logs/console/logger'
-import { PATTERNS } from '@/executor/constants'
 
 const logger = createLogger('InputValidation')
 
@@ -170,43 +169,6 @@ export function validatePathSegment(
   }
 
   return { isValid: true, sanitized: value }
-}
-
-/**
- * Validates a UUID (v4 format)
- *
- * @param value - The UUID to validate
- * @param paramName - Name of the parameter for error messages
- * @returns ValidationResult
- *
- * @example
- * ```typescript
- * const result = validateUUID(workflowId, 'workflowId')
- * if (!result.isValid) {
- *   return NextResponse.json({ error: result.error }, { status: 400 })
- * }
- * ```
- */
-export function validateUUID(
-  value: string | null | undefined,
-  paramName = 'UUID'
-): ValidationResult {
-  if (value === null || value === undefined || value === '') {
-    return {
-      isValid: false,
-      error: `${paramName} is required`,
-    }
-  }
-
-  if (!PATTERNS.UUID_V4.test(value)) {
-    logger.warn('Invalid UUID format', { paramName, value: value.substring(0, 50) })
-    return {
-      isValid: false,
-      error: `${paramName} must be a valid UUID`,
-    }
-  }
-
-  return { isValid: true, sanitized: value.toLowerCase() }
 }
 
 /**
