@@ -1,6 +1,7 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { getStartDateFromTimeRange } from '@/lib/logs/filters'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
-import type { LogsResponse, WorkflowLog } from '@/stores/logs/filters/types'
+import type { LogsResponse, TimeRange, WorkflowLog } from '@/stores/logs/filters/types'
 
 export const logKeys = {
   all: ['logs'] as const,
@@ -14,46 +15,13 @@ export const logKeys = {
 }
 
 interface LogFilters {
-  timeRange: string
+  timeRange: TimeRange
   level: string
   workflowIds: string[]
   folderIds: string[]
   triggers: string[]
   searchQuery: string
   limit: number
-}
-
-/**
- * Calculates start date from a time range string.
- * Returns null for 'All time' to indicate no date filtering.
- */
-function getStartDateFromTimeRange(timeRange: string): Date | null {
-  if (timeRange === 'All time') return null
-
-  const now = new Date()
-
-  switch (timeRange) {
-    case 'Past 30 minutes':
-      return new Date(now.getTime() - 30 * 60 * 1000)
-    case 'Past hour':
-      return new Date(now.getTime() - 60 * 60 * 1000)
-    case 'Past 6 hours':
-      return new Date(now.getTime() - 6 * 60 * 60 * 1000)
-    case 'Past 12 hours':
-      return new Date(now.getTime() - 12 * 60 * 60 * 1000)
-    case 'Past 24 hours':
-      return new Date(now.getTime() - 24 * 60 * 60 * 1000)
-    case 'Past 3 days':
-      return new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000)
-    case 'Past 7 days':
-      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-    case 'Past 14 days':
-      return new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
-    case 'Past 30 days':
-      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-    default:
-      return new Date(0)
-  }
 }
 
 /**
