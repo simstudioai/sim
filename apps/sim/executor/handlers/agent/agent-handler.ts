@@ -1317,15 +1317,15 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   private createResponseMetadata(result: {
-    tokens?: { prompt?: number; completion?: number; total?: number }
+    tokens?: { input?: number; output?: number; total?: number }
     toolCalls?: Array<any>
     timing?: any
     cost?: any
   }) {
     return {
       tokens: result.tokens || {
-        prompt: DEFAULTS.TOKENS.PROMPT,
-        completion: DEFAULTS.TOKENS.COMPLETION,
+        input: DEFAULTS.TOKENS.PROMPT,
+        output: DEFAULTS.TOKENS.COMPLETION,
         total: DEFAULTS.TOKENS.TOTAL,
       },
       toolCalls: {

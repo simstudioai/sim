@@ -31,7 +31,7 @@ vi.mock('@/providers/utils', () => ({
         create: vi.fn().mockResolvedValue({
           content: 'Mocked response content',
           model: 'mock-model',
-          tokens: { prompt: 10, completion: 20, total: 30 },
+          tokens: { input: 10, output: 20, total: 30 },
           toolCalls: [],
           cost: 0.001,
           timing: { total: 100 },
@@ -53,7 +53,7 @@ vi.mock('@/providers', () => ({
   executeProviderRequest: vi.fn().mockResolvedValue({
     content: 'Mocked response content',
     model: 'mock-model',
-    tokens: { prompt: 10, completion: 20, total: 30 },
+    tokens: { input: 10, output: 20, total: 30 },
     toolCalls: [],
     cost: 0.001,
     timing: { total: 100 },
@@ -134,7 +134,7 @@ describe('AgentBlockHandler', () => {
           Promise.resolve({
             content: 'Mocked response content',
             model: 'mock-model',
-            tokens: { prompt: 10, completion: 20, total: 30 },
+            tokens: { input: 10, output: 20, total: 30 },
             toolCalls: [],
             cost: 0.001,
             timing: { total: 100 },
@@ -211,7 +211,7 @@ describe('AgentBlockHandler', () => {
       const expectedOutput = {
         content: 'Mocked response content',
         model: 'mock-model',
-        tokens: { prompt: 10, completion: 20, total: 30 },
+        tokens: { input: 10, output: 20, total: 30 },
         toolCalls: { list: [], count: 0 },
         providerTiming: { total: 100 },
         cost: 0.001,
@@ -253,7 +253,7 @@ describe('AgentBlockHandler', () => {
             Promise.resolve({
               content: 'Using tools to respond',
               model: 'mock-model',
-              tokens: { prompt: 10, completion: 20, total: 30 },
+              tokens: { input: 10, output: 20, total: 30 },
               toolCalls: [
                 {
                   name: 'auto_tool',
@@ -591,7 +591,7 @@ describe('AgentBlockHandler', () => {
       const expectedOutput = {
         content: 'Mocked response content',
         model: 'mock-model',
-        tokens: { prompt: 10, completion: 20, total: 30 },
+        tokens: { input: 10, output: 20, total: 30 },
         toolCalls: { list: [], count: 0 }, // Assuming no tool calls in this mock response
         providerTiming: { total: 100 },
         cost: 0.001,
@@ -672,7 +672,7 @@ describe('AgentBlockHandler', () => {
             Promise.resolve({
               content: '{"result": "Success", "score": 0.95}',
               model: 'mock-model',
-              tokens: { prompt: 10, completion: 20, total: 30 },
+              tokens: { input: 10, output: 20, total: 30 },
               timing: { total: 100 },
               toolCalls: [],
               cost: undefined,
@@ -693,7 +693,7 @@ describe('AgentBlockHandler', () => {
       expect(result).toEqual({
         result: 'Success',
         score: 0.95,
-        tokens: { prompt: 10, completion: 20, total: 30 },
+        tokens: { input: 10, output: 20, total: 30 },
         toolCalls: { list: [], count: 0 },
         providerTiming: { total: 100 },
         cost: undefined,
@@ -715,7 +715,7 @@ describe('AgentBlockHandler', () => {
             Promise.resolve({
               content: 'Regular text response',
               model: 'mock-model',
-              tokens: { prompt: 10, completion: 20, total: 30 },
+              tokens: { input: 10, output: 20, total: 30 },
               timing: { total: 100 },
             }),
         })
@@ -733,7 +733,7 @@ describe('AgentBlockHandler', () => {
       expect(result).toEqual({
         content: 'Regular text response',
         model: 'mock-model',
-        tokens: { prompt: 10, completion: 20, total: 30 },
+        tokens: { input: 10, output: 20, total: 30 },
         toolCalls: { list: [], count: 0 },
         providerTiming: { total: 100 },
         cost: undefined,
@@ -755,7 +755,7 @@ describe('AgentBlockHandler', () => {
             Promise.resolve({
               content: 'Regular text response',
               model: 'mock-model',
-              tokens: { prompt: 10, completion: 20, total: 30 },
+              tokens: { input: 10, output: 20, total: 30 },
               timing: { total: 100 },
               toolCalls: [],
               cost: undefined,
@@ -776,7 +776,7 @@ describe('AgentBlockHandler', () => {
       expect(result).toEqual({
         content: 'Regular text response',
         model: 'mock-model',
-        tokens: { prompt: 10, completion: 20, total: 30 },
+        tokens: { input: 10, output: 20, total: 30 },
         toolCalls: { list: [], count: 0 },
         providerTiming: { total: 100 },
         cost: undefined,
@@ -798,7 +798,7 @@ describe('AgentBlockHandler', () => {
             Promise.resolve({
               content: 'Regular text response',
               model: 'mock-model',
-              tokens: { prompt: 10, completion: 20, total: 30 },
+              tokens: { input: 10, output: 20, total: 30 },
               timing: { total: 100 },
               toolCalls: [],
               cost: undefined,
@@ -819,7 +819,7 @@ describe('AgentBlockHandler', () => {
       expect(result).toEqual({
         content: 'Regular text response',
         model: 'mock-model',
-        tokens: { prompt: 10, completion: 20, total: 30 },
+        tokens: { input: 10, output: 20, total: 30 },
         toolCalls: { list: [], count: 0 },
         providerTiming: { total: 100 },
         cost: undefined,
@@ -907,7 +907,7 @@ describe('AgentBlockHandler', () => {
         output: {
           content: '',
           model: 'mock-model',
-          tokens: { prompt: 10, completion: 20, total: 30 },
+          tokens: { input: 10, output: 20, total: 30 },
         },
         logs: [
           {
@@ -988,7 +988,7 @@ describe('AgentBlockHandler', () => {
                 output: {
                   content: 'Test streaming content',
                   model: 'gpt-4o',
-                  tokens: { prompt: 10, completion: 5, total: 15 },
+                  tokens: { input: 10, output: 5, total: 15 },
                 },
                 logs: [],
                 metadata: {
@@ -1414,7 +1414,7 @@ describe('AgentBlockHandler', () => {
             Promise.resolve({
               content: 'I will use MCP tools to help you.',
               model: 'gpt-4o',
-              tokens: { prompt: 15, completion: 25, total: 40 },
+              tokens: { input: 15, output: 25, total: 40 },
               toolCalls: [
                 {
                   name: 'mcp-server1-list_files',
@@ -1525,7 +1525,7 @@ describe('AgentBlockHandler', () => {
             Promise.resolve({
               content: 'Let me try to use this tool.',
               model: 'gpt-4o',
-              tokens: { prompt: 10, completion: 15, total: 25 },
+              tokens: { input: 10, output: 15, total: 25 },
               toolCalls: [
                 {
                   name: 'mcp-server1-failing_tool',
@@ -1630,7 +1630,7 @@ describe('AgentBlockHandler', () => {
             Promise.resolve({
               content: 'Used MCP tools successfully',
               model: 'gpt-4o',
-              tokens: { prompt: 20, completion: 30, total: 50 },
+              tokens: { input: 20, output: 30, total: 50 },
               toolCalls: [],
               timing: { total: 200 },
             }),
@@ -1679,7 +1679,7 @@ describe('AgentBlockHandler', () => {
             Promise.resolve({
               content: 'Using MCP tool',
               model: 'gpt-4o',
-              tokens: { prompt: 10, completion: 10, total: 20 },
+              tokens: { input: 10, output: 10, total: 20 },
               toolCalls: [{ name: 'mcp-test-tool', arguments: {} }],
               timing: { total: 50 },
             }),
@@ -1734,7 +1734,7 @@ describe('AgentBlockHandler', () => {
               Promise.resolve({
                 content: 'Used MCP tool successfully',
                 model: 'gpt-4o',
-                tokens: { prompt: 10, completion: 10, total: 20 },
+                tokens: { input: 10, output: 10, total: 20 },
                 toolCalls: [],
                 timing: { total: 50 },
               }),
@@ -1811,7 +1811,7 @@ describe('AgentBlockHandler', () => {
               Promise.resolve({
                 content: 'Tool executed',
                 model: 'gpt-4o',
-                tokens: { prompt: 10, completion: 10, total: 20 },
+                tokens: { input: 10, output: 10, total: 20 },
                 toolCalls: [
                   {
                     name: 'search_files',
@@ -1901,7 +1901,7 @@ describe('AgentBlockHandler', () => {
               Promise.resolve({
                 content: 'Used tools',
                 model: 'gpt-4o',
-                tokens: { prompt: 10, completion: 10, total: 20 },
+                tokens: { input: 10, output: 10, total: 20 },
                 toolCalls: [],
                 timing: { total: 50 },
               }),
@@ -2008,7 +2008,7 @@ describe('AgentBlockHandler', () => {
               Promise.resolve({
                 content: 'Used legacy tool',
                 model: 'gpt-4o',
-                tokens: { prompt: 10, completion: 10, total: 20 },
+                tokens: { input: 10, output: 10, total: 20 },
                 toolCalls: [],
                 timing: { total: 50 },
               }),

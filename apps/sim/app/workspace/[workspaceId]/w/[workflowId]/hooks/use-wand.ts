@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { GenerationType } from '@/blocks/types'
+import { subscriptionKeys } from '@/hooks/queries/subscription'
 
 const logger = createLogger('useWand')
 
@@ -17,12 +19,10 @@ function buildContextInfo(currentValue?: string, generationType?: string): strin
 
   let contextInfo = `Current content (${contentLength} characters, ${lineCount} lines):\n${currentValue}`
 
-  // Add type-specific context analysis
   if (generationType) {
     switch (generationType) {
       case 'javascript-function-body':
       case 'typescript-function-body': {
-        // Analyze code structure
         const hasFunction = /function\s+\w+/.test(currentValue)
         const hasArrowFunction = /=>\s*{/.test(currentValue)
         const hasReturn = /return\s+/.test(currentValue)
@@ -32,7 +32,6 @@ function buildContextInfo(currentValue?: string, generationType?: string): strin
 
       case 'json-schema':
       case 'json-object':
-        // Analyze JSON structure
         try {
           const parsed = JSON.parse(currentValue)
           const keys = Object.keys(parsed)
@@ -77,13 +76,13 @@ export function useWand({
   onStreamStart,
   onGenerationComplete,
 }: UseWandProps) {
+  const queryClient = useQueryClient()
   const [isLoading, setIsLoading] = useState(false)
   const [isPromptVisible, setIsPromptVisible] = useState(false)
   const [promptInputValue, setPromptInputValue] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
 
-  // Conversation history state
   const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([])
 
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -143,25 +142,20 @@ export function useWand({
 
       abortControllerRef.current = new AbortController()
 
-      // Signal the start of streaming to clear previous content
       if (onStreamStart) {
         onStreamStart()
       }
 
       try {
-        // Build context-aware message
         const contextInfo = buildContextInfo(currentValue, wandConfig?.generationType)
 
-        // Build the system prompt with context information
         let systemPrompt = wandConfig?.prompt || ''
         if (systemPrompt.includes('{context}')) {
           systemPrompt = systemPrompt.replace('{context}', contextInfo)
         }
 
-        // User message is just the user's specific request
         const userMessage = prompt
 
-        // Keep track of the current prompt for history
         const currentPrompt = prompt
 
         const response = await fetch('/api/wand', {
@@ -172,9 +166,9 @@ export function useWand({
           },
           body: JSON.stringify({
             prompt: userMessage,
-            systemPrompt: systemPrompt, // Send the processed system prompt with context
+            systemPrompt: systemPrompt,
             stream: true,
-            history: wandConfig?.maintainHistory ? conversationHistory : [], // Include history if enabled
+            history: wandConfig?.maintainHistory ? conversationHistory : [],
           }),
           signal: abortControllerRef.current.signal,
           cache: 'no-store',
@@ -256,6 +250,10 @@ export function useWand({
           prompt,
           contentLength: accumulatedContent.length,
         })
+
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+        }, 1000)
       } catch (error: any) {
         if (error.name === 'AbortError') {
           logger.debug('Wand generation cancelled')
@@ -276,6 +274,7 @@ export function useWand({
       onStreamChunk,
       onStreamStart,
       onGenerationComplete,
+      queryClient,
     ]
   )
 

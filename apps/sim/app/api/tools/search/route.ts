@@ -87,8 +87,8 @@ export async function POST(request: NextRequest) {
       output: 0,
       total: SEARCH_TOOL_COST,
       tokens: {
-        prompt: 0,
-        completion: 0,
+        input: 0,
+        output: 0,
         total: 0,
       },
       model: 'search-exa',

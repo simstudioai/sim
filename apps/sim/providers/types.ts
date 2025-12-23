@@ -28,8 +28,8 @@ export interface ModelPricing {
 export type ModelPricingMap = Record<string, ModelPricing>
 
 export interface TokenInfo {
-  prompt?: number
-  completion?: number
+  input?: number
+  output?: number
   total?: number
 }
 
@@ -74,8 +74,8 @@ export interface ProviderResponse {
   content: string
   model: string
   tokens?: {
-    prompt?: number
-    completion?: number
+    input?: number
+    output?: number
     total?: number
   }
   toolCalls?: FunctionCallResponse[]

@@ -344,8 +344,8 @@ export const LogDetails = memo(function LogDetails({
                             Tokens:
                           </span>
                           <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-                            {log.cost?.tokens?.prompt || 0} in / {log.cost?.tokens?.completion || 0}{' '}
-                            out
+                            {log.cost?.tokens?.input || log.cost?.tokens?.prompt || 0} in /{' '}
+                            {log.cost?.tokens?.output || log.cost?.tokens?.completion || 0} out
                           </span>
                         </div>
                       </div>

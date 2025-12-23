@@ -88,9 +88,9 @@ function extractExecutionResult(error: unknown): ExecutionResult | null {
 }
 
 export function useWorkflowExecution() {
+  const queryClient = useQueryClient()
   const currentWorkflow = useCurrentWorkflow()
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
-  const queryClient = useQueryClient()
   const { toggleConsole, addConsole } = useTerminalConsoleStore()
   const { getAllVariables } = useEnvironmentStore()
   const { getVariablesByWorkflowId, variables } = useVariablesStore()
@@ -563,9 +563,10 @@ export function useWorkflowExecution() {
                   logger.info(`Processed ${processedCount} blocks for streaming tokenization`)
                 }
 
-                // Invalidate subscription query to update usage
-                queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
-                queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() })
+                // Invalidate subscription queries to update usage
+                setTimeout(() => {
+                  queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+                }, 1000)
 
                 const { encodeSSE } = await import('@/lib/core/utils/sse')
                 controller.enqueue(encodeSSE({ event: 'final', data: result }))
@@ -630,9 +631,10 @@ export function useWorkflowExecution() {
             ;(result.metadata as any).source = 'chat'
           }
 
-          // Invalidate subscription query to update usage
-          queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
-          queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() })
+          // Invalidate subscription queries to update usage
+          setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+          }, 1000)
         }
         return result
       } catch (error: any) {
@@ -654,6 +656,7 @@ export function useWorkflowExecution() {
       setPendingBlocks,
       setActiveBlocks,
       workflows,
+      queryClient,
     ]
   )
 

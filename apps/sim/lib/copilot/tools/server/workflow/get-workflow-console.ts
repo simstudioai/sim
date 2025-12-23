@@ -27,7 +27,7 @@ interface BlockExecution {
     input: number
     output: number
     model?: string
-    tokens?: { total: number; prompt: number; completion: number }
+    tokens?: { total: number; input: number; output: number }
   }
 }
 

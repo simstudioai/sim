@@ -160,8 +160,8 @@ export const openRouterProvider: ProviderConfig = {
           stream: createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
             streamingResult.execution.output.content = content
             streamingResult.execution.output.tokens = {
-              prompt: usage.prompt_tokens,
-              completion: usage.completion_tokens,
+              input: usage.prompt_tokens,
+              output: usage.completion_tokens,
               total: usage.total_tokens,
             }
 
@@ -193,7 +193,7 @@ export const openRouterProvider: ProviderConfig = {
             output: {
               content: '',
               model: requestedModel,
-              tokens: { prompt: 0, completion: 0, total: 0 },
+              tokens: { input: 0, output: 0, total: 0 },
               toolCalls: undefined,
               providerTiming: {
                 startTime: providerStartTimeISO,
@@ -233,8 +233,8 @@ export const openRouterProvider: ProviderConfig = {
 
       let content = currentResponse.choices[0]?.message?.content || ''
       const tokens = {
-        prompt: currentResponse.usage?.prompt_tokens || 0,
-        completion: currentResponse.usage?.completion_tokens || 0,
+        input: currentResponse.usage?.prompt_tokens || 0,
+        output: currentResponse.usage?.completion_tokens || 0,
         total: currentResponse.usage?.total_tokens || 0,
       }
       const toolCalls = [] as any[]
@@ -420,15 +420,15 @@ export const openRouterProvider: ProviderConfig = {
           content = currentResponse.choices[0].message.content
         }
         if (currentResponse.usage) {
-          tokens.prompt += currentResponse.usage.prompt_tokens || 0
-          tokens.completion += currentResponse.usage.completion_tokens || 0
+          tokens.input += currentResponse.usage.prompt_tokens || 0
+          tokens.output += currentResponse.usage.completion_tokens || 0
           tokens.total += currentResponse.usage.total_tokens || 0
         }
         iterationCount++
       }
 
       if (request.stream) {
-        const accumulatedCost = calculateCost(requestedModel, tokens.prompt, tokens.completion)
+        const accumulatedCost = calculateCost(requestedModel, tokens.input, tokens.output)
 
         const streamingParams: ChatCompletionCreateParamsStreaming & { provider?: any } = {
           model: payload.model,
@@ -459,8 +459,8 @@ export const openRouterProvider: ProviderConfig = {
           stream: createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
             streamingResult.execution.output.content = content
             streamingResult.execution.output.tokens = {
-              prompt: tokens.prompt + usage.prompt_tokens,
-              completion: tokens.completion + usage.completion_tokens,
+              input: tokens.input + usage.prompt_tokens,
+              output: tokens.output + usage.completion_tokens,
               total: tokens.total + usage.total_tokens,
             }
 
@@ -480,7 +480,7 @@ export const openRouterProvider: ProviderConfig = {
             output: {
               content: '',
               model: requestedModel,
-              tokens: { prompt: tokens.prompt, completion: tokens.completion, total: tokens.total },
+              tokens: { input: tokens.input, output: tokens.output, total: tokens.total },
               toolCalls:
                 toolCalls.length > 0
                   ? {
@@ -553,8 +553,8 @@ export const openRouterProvider: ProviderConfig = {
           content = finalResponse.choices[0].message.content
         }
         if (finalResponse.usage) {
-          tokens.prompt += finalResponse.usage.prompt_tokens || 0
-          tokens.completion += finalResponse.usage.completion_tokens || 0
+          tokens.input += finalResponse.usage.prompt_tokens || 0
+          tokens.output += finalResponse.usage.completion_tokens || 0
           tokens.total += finalResponse.usage.total_tokens || 0
         }
       }
