@@ -8,7 +8,7 @@ const logger = createLogger('StructuredDataChunker')
  * These are used when user doesn't provide preferences
  */
 const DEFAULT_CONFIG = {
-  // Target chunk size in tokens (aligned with Chonkie)
+  // Target chunk size in tokens
   TARGET_CHUNK_SIZE: 1024,
   MIN_CHUNK_SIZE: 100,
   MAX_CHUNK_SIZE: 4000,
@@ -25,7 +25,7 @@ const DEFAULT_CONFIG = {
 
 /**
  * Smart chunker for structured data (CSV, XLSX) that preserves semantic meaning
- * Aligned with Chonkie TableChunker patterns - accepts user chunk size preferences
+ * Preserves headers in each chunk for better semantic context
  */
 export class StructuredDataChunker {
   /**

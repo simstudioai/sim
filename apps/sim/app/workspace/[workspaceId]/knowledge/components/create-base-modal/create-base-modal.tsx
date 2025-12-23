@@ -54,11 +54,11 @@ const FormSchema = z
       .number()
       .min(100, 'Max chunk size must be at least 100 tokens')
       .max(4000, 'Max chunk size must be less than 4000 tokens'),
-    /** Overlap between chunks in tokens (aligned with Chonkie) */
+    /** Overlap between chunks in tokens */
     overlapSize: z
       .number()
       .min(0, 'Overlap must be non-negative')
-      .max(1000, 'Overlap must be less than 1000 tokens'),
+      .max(500, 'Overlap must be less than 500 tokens'),
   })
   .refine(
     (data) => {

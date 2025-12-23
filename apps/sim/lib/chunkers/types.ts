@@ -1,7 +1,7 @@
 /**
- * Options for configuring text chunkers (aligned with Chonkie standards)
+ * Options for configuring text chunkers
  *
- * Units (all token-based like Chonkie):
+ * Units:
  * - chunkSize: Maximum chunk size in TOKENS (1 token ≈ 4 characters)
  * - chunkOverlap: Overlap between chunks in TOKENS
  * - minCharactersPerChunk: Minimum chunk size in CHARACTERS (filters tiny fragments)

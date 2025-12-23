@@ -9,14 +9,14 @@ const logger = createLogger('KnowledgeStore')
  * Units:
  * - maxSize: Maximum chunk size in TOKENS (1 token ≈ 4 characters)
  * - minSize: Minimum chunk size in CHARACTERS (floor to avoid tiny fragments)
- * - overlap: Overlap between chunks in CHARACTERS
+ * - overlap: Overlap between chunks in TOKENS (1 token ≈ 4 characters)
  */
 export interface ChunkingConfig {
   /** Maximum chunk size in tokens (default: 1024, range: 100-4000) */
   maxSize: number
-  /** Minimum chunk size in characters (default: 1, range: 1-2000) */
+  /** Minimum chunk size in characters (default: 100, range: 1-2000) */
   minSize: number
-  /** Overlap between chunks in characters (default: 200, range: 0-500) */
+  /** Overlap between chunks in tokens (default: 200, range: 0-500) */
   overlap: number
   chunkSize?: number // Legacy support
   minCharactersPerChunk?: number // Legacy support

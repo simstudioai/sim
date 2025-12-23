@@ -4,7 +4,7 @@ import type { Chunk, ChunkerOptions } from '@/lib/chunkers/types'
  * Lightweight text chunker optimized for RAG applications
  * Uses hierarchical splitting with simple character-based token estimation
  *
- * Aligned with Chonkie standards:
+ * Parameters:
  * - chunkSize: Maximum chunk size in TOKENS (default: 1024)
  * - chunkOverlap: Overlap between chunks in TOKENS (default: 0)
  * - minCharactersPerChunk: Minimum characters to keep a chunk (default: 100)
@@ -38,7 +38,9 @@ export class TextChunker {
 
   constructor(options: ChunkerOptions = {}) {
     this.chunkSize = options.chunkSize ?? 1024
-    this.chunkOverlap = options.chunkOverlap ?? 0
+    // Clamp overlap to prevent exceeding chunk size (max 50% of chunk size)
+    const maxOverlap = Math.floor(this.chunkSize * 0.5)
+    this.chunkOverlap = Math.min(options.chunkOverlap ?? 0, maxOverlap)
     this.minCharactersPerChunk = options.minCharactersPerChunk ?? 100
   }
 

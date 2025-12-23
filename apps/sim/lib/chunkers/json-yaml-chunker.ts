@@ -17,11 +17,11 @@ function getTokenCount(text: string): number {
 }
 
 /**
- * Configuration for JSON/YAML chunking (aligned with Chonkie standards)
+ * Configuration for JSON/YAML chunking
  * Reduced limits to ensure we stay well under OpenAI's 8,191 token limit per embedding request
  */
 const JSON_YAML_CHUNKING_CONFIG = {
-  TARGET_CHUNK_SIZE: 1024, // Target tokens per chunk (aligned with Chonkie)
+  TARGET_CHUNK_SIZE: 1024, // Target tokens per chunk
   MIN_CHARACTERS_PER_CHUNK: 100, // Minimum characters per chunk to filter tiny fragments
   MAX_CHUNK_SIZE: 1500, // Maximum tokens per chunk
   MAX_DEPTH_FOR_SPLITTING: 5, // Maximum depth to traverse for splitting
@@ -100,7 +100,7 @@ export class JsonYamlChunker {
     const content = JSON.stringify(data, null, 2)
     const tokenCount = getTokenCount(content)
 
-    // Filter tiny fragments using character count (Chonkie standard)
+    // Filter tiny fragments using character count
     if (content.length >= this.minCharactersPerChunk) {
       chunks.push({
         text: content,
@@ -320,7 +320,7 @@ export class JsonYamlChunker {
       }
     }
 
-    // Filter tiny fragments using character count (Chonkie standard)
+    // Filter tiny fragments using character count
     if (currentChunk && currentChunk.length >= this.minCharactersPerChunk) {
       chunks.push({
         text: currentChunk,

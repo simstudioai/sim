@@ -13,7 +13,7 @@ const logger = createLogger('KnowledgeBaseAPI')
  * Chunking config units:
  * - maxSize: tokens (1 token ≈ 4 characters)
  * - minSize: characters
- * - overlap: characters
+ * - overlap: tokens (1 token ≈ 4 characters)
  */
 const CreateKnowledgeBaseSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -27,8 +27,8 @@ const CreateKnowledgeBaseSchema = z.object({
       maxSize: z.number().min(100).max(4000).default(1024),
       /** Minimum chunk size in characters */
       minSize: z.number().min(1).max(2000).default(100),
-      /** Overlap between chunks in tokens */
-      overlap: z.number().min(0).max(1000).default(200),
+      /** Overlap between chunks in tokens (1 token ≈ 4 characters) */
+      overlap: z.number().min(0).max(500).default(200),
     })
     .default({
       maxSize: 1024,
