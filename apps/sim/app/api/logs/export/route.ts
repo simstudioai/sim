@@ -1,27 +1,14 @@
 import { db } from '@sim/db'
 import { permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
-import { and, desc, eq, gte, inArray, lte, type SQL, sql } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
 
 const logger = createLogger('LogsExportAPI')
 
 export const revalidate = 0
-
-const ExportParamsSchema = z.object({
-  level: z.string().optional(),
-  workflowIds: z.string().optional(),
-  folderIds: z.string().optional(),
-  triggers: z.string().optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  search: z.string().optional(),
-  workflowName: z.string().optional(),
-  folderName: z.string().optional(),
-  workspaceId: z.string(),
-})
 
 function escapeCsv(value: any): string {
   if (value === null || value === undefined) return ''
@@ -41,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     const userId = session.user.id
     const { searchParams } = new URL(request.url)
-    const params = ExportParamsSchema.parse(Object.fromEntries(searchParams.entries()))
+    const params = LogFilterParamsSchema.parse(Object.fromEntries(searchParams.entries()))
 
     const selectColumns = {
       id: workflowExecutionLogs.id,
@@ -57,53 +44,11 @@ export async function GET(request: NextRequest) {
       workflowName: workflow.name,
     }
 
-    let conditions: SQL | undefined = eq(workflowExecutionLogs.workspaceId, params.workspaceId)
-
-    if (params.level && params.level !== 'all') {
-      const levels = params.level.split(',').filter(Boolean)
-      if (levels.length === 1) {
-        conditions = and(conditions, eq(workflowExecutionLogs.level, levels[0]))
-      } else if (levels.length > 1) {
-        conditions = and(conditions, inArray(workflowExecutionLogs.level, levels))
-      }
-    }
-
-    if (params.workflowIds) {
-      const workflowIds = params.workflowIds.split(',').filter(Boolean)
-      if (workflowIds.length > 0) conditions = and(conditions, inArray(workflow.id, workflowIds))
-    }
-
-    if (params.folderIds) {
-      const folderIds = params.folderIds.split(',').filter(Boolean)
-      if (folderIds.length > 0) conditions = and(conditions, inArray(workflow.folderId, folderIds))
-    }
-
-    if (params.triggers) {
-      const triggers = params.triggers.split(',').filter(Boolean)
-      if (triggers.length > 0 && !triggers.includes('all')) {
-        conditions = and(conditions, inArray(workflowExecutionLogs.trigger, triggers))
-      }
-    }
-
-    if (params.startDate) {
-      conditions = and(conditions, gte(workflowExecutionLogs.startedAt, new Date(params.startDate)))
-    }
-    if (params.endDate) {
-      conditions = and(conditions, lte(workflowExecutionLogs.startedAt, new Date(params.endDate)))
-    }
-
-    if (params.search) {
-      const term = `%${params.search}%`
-      conditions = and(conditions, sql`${workflowExecutionLogs.executionId} ILIKE ${term}`)
-    }
-    if (params.workflowName) {
-      const nameTerm = `%${params.workflowName}%`
-      conditions = and(conditions, sql`${workflow.name} ILIKE ${nameTerm}`)
-    }
-    if (params.folderName) {
-      const folderTerm = `%${params.folderName}%`
-      conditions = and(conditions, sql`${workflow.name} ILIKE ${folderTerm}`)
-    }
+    const workspaceCondition = eq(workflowExecutionLogs.workspaceId, params.workspaceId)
+    const filterConditions = buildFilterConditions(params)
+    const conditions = filterConditions
+      ? and(workspaceCondition, filterConditions)
+      : workspaceCondition
 
     const header = [
       'startedAt',

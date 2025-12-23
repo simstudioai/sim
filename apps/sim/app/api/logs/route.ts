@@ -6,51 +6,22 @@ import {
   workflowDeploymentVersion,
   workflowExecutionLogs,
 } from '@sim/db/schema'
-import {
-  and,
-  desc,
-  eq,
-  gt,
-  gte,
-  inArray,
-  isNotNull,
-  isNull,
-  lt,
-  lte,
-  ne,
-  or,
-  type SQL,
-  sql,
-} from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
+import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
 
 const logger = createLogger('LogsAPI')
 
 export const revalidate = 0
 
-const QueryParamsSchema = z.object({
+const QueryParamsSchema = LogFilterParamsSchema.extend({
   details: z.enum(['basic', 'full']).optional().default('basic'),
   limit: z.coerce.number().optional().default(100),
   offset: z.coerce.number().optional().default(0),
-  level: z.string().optional(),
-  workflowIds: z.string().optional(),
-  folderIds: z.string().optional(),
-  triggers: z.string().optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  search: z.string().optional(),
-  workflowName: z.string().optional(),
-  folderName: z.string().optional(),
-  executionId: z.string().optional(),
-  costOperator: z.enum(['=', '>', '<', '>=', '<=', '!=']).optional(),
-  costValue: z.coerce.number().optional(),
-  durationOperator: z.enum(['=', '>', '<', '>=', '<=', '!=']).optional(),
-  durationValue: z.coerce.number().optional(),
-  workspaceId: z.string(),
 })
 
 export async function GET(request: NextRequest) {
@@ -197,102 +168,11 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      if (params.workflowIds) {
-        const workflowIds = params.workflowIds.split(',').filter(Boolean)
-        if (workflowIds.length > 0) {
-          conditions = and(conditions, inArray(workflow.id, workflowIds))
-        }
-      }
-
-      if (params.folderIds) {
-        const folderIds = params.folderIds.split(',').filter(Boolean)
-        if (folderIds.length > 0) {
-          conditions = and(conditions, inArray(workflow.folderId, folderIds))
-        }
-      }
-
-      if (params.triggers) {
-        const triggers = params.triggers.split(',').filter(Boolean)
-        if (triggers.length > 0 && !triggers.includes('all')) {
-          conditions = and(conditions, inArray(workflowExecutionLogs.trigger, triggers))
-        }
-      }
-
-      if (params.startDate) {
-        conditions = and(
-          conditions,
-          gte(workflowExecutionLogs.startedAt, new Date(params.startDate))
-        )
-      }
-      if (params.endDate) {
-        conditions = and(conditions, lte(workflowExecutionLogs.startedAt, new Date(params.endDate)))
-      }
-
-      if (params.search) {
-        const searchTerm = `%${params.search}%`
-        conditions = and(conditions, sql`${workflowExecutionLogs.executionId} ILIKE ${searchTerm}`)
-      }
-
-      if (params.workflowName) {
-        const nameTerm = `%${params.workflowName}%`
-        conditions = and(conditions, sql`${workflow.name} ILIKE ${nameTerm}`)
-      }
-
-      if (params.folderName) {
-        const folderTerm = `%${params.folderName}%`
-        conditions = and(conditions, sql`${workflow.name} ILIKE ${folderTerm}`)
-      }
-
-      if (params.executionId) {
-        conditions = and(conditions, eq(workflowExecutionLogs.executionId, params.executionId))
-      }
-
-      if (params.costOperator && params.costValue !== undefined) {
-        const costField = sql`(${workflowExecutionLogs.cost}->>'total')::numeric`
-        switch (params.costOperator) {
-          case '=':
-            conditions = and(conditions, sql`${costField} = ${params.costValue}`)
-            break
-          case '>':
-            conditions = and(conditions, sql`${costField} > ${params.costValue}`)
-            break
-          case '<':
-            conditions = and(conditions, sql`${costField} < ${params.costValue}`)
-            break
-          case '>=':
-            conditions = and(conditions, sql`${costField} >= ${params.costValue}`)
-            break
-          case '<=':
-            conditions = and(conditions, sql`${costField} <= ${params.costValue}`)
-            break
-          case '!=':
-            conditions = and(conditions, sql`${costField} != ${params.costValue}`)
-            break
-        }
-      }
-
-      if (params.durationOperator && params.durationValue !== undefined) {
-        const durationField = workflowExecutionLogs.totalDurationMs
-        switch (params.durationOperator) {
-          case '=':
-            conditions = and(conditions, eq(durationField, params.durationValue))
-            break
-          case '>':
-            conditions = and(conditions, gt(durationField, params.durationValue))
-            break
-          case '<':
-            conditions = and(conditions, lt(durationField, params.durationValue))
-            break
-          case '>=':
-            conditions = and(conditions, gte(durationField, params.durationValue))
-            break
-          case '<=':
-            conditions = and(conditions, lte(durationField, params.durationValue))
-            break
-          case '!=':
-            conditions = and(conditions, ne(durationField, params.durationValue))
-            break
-        }
+      // Apply common filters (workflowIds, folderIds, triggers, dates, search, cost, duration)
+      // Level filtering is handled above with advanced running/pending state logic
+      const commonFilters = buildFilterConditions(params, { useSimpleLevelFilter: false })
+      if (commonFilters) {
+        conditions = and(conditions, commonFilters)
       }
 
       const logs = await baseQuery
