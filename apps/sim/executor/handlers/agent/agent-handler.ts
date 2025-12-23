@@ -1001,7 +1001,6 @@ export class AgentBlockHandler implements BlockHandler {
   ) {
     let finalApiKey: string
 
-    // For Vertex AI, resolve OAuth credential to access token
     if (providerId === 'vertex' && providerRequest.vertexCredential) {
       finalApiKey = await this.resolveVertexCredential(
         providerRequest.vertexCredential,

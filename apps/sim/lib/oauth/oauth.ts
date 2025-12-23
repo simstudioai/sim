@@ -1107,12 +1107,24 @@ function buildAuthRequest(
  * @param refreshToken The refresh token to use
  * @returns Object containing the new access token and expiration time in seconds, or null if refresh failed
  */
+function getBaseProviderForService(providerId: string): string {
+  for (const [baseProvider, config] of Object.entries(OAUTH_PROVIDERS)) {
+    for (const service of Object.values(config.services)) {
+      if (service.providerId === providerId) {
+        return baseProvider
+      }
+    }
+  }
+
+  throw new Error(`Unknown OAuth provider: ${providerId}`)
+}
+
 export async function refreshOAuthToken(
   providerId: string,
   refreshToken: string
 ): Promise<{ accessToken: string; expiresIn: number; refreshToken: string } | null> {
   try {
-    const provider = providerId.split('-')[0]
+    const provider = getBaseProviderForService(providerId)
 
     const config = getProviderAuthConfig(provider)
 

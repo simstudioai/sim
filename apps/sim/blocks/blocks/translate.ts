@@ -8,6 +8,10 @@ const getCurrentOllamaModels = () => {
   return useProvidersStore.getState().providers.ollama.models
 }
 
+const getCurrentVLLMModels = () => {
+  return useProvidersStore.getState().providers.vllm.models
+}
+
 const getTranslationPrompt = (targetLanguage: string) =>
   `Translate the following text into ${targetLanguage || 'English'}. Output ONLY the translated text with no additional commentary, explanations, or notes.`
 
@@ -56,6 +60,19 @@ export const TranslateBlock: BlockConfig = {
       },
     },
     {
+      id: 'vertexCredential',
+      title: 'Google Cloud Account',
+      type: 'oauth-input',
+      serviceId: 'vertex-ai',
+      requiredScopes: ['https://www.googleapis.com/auth/cloud-platform'],
+      placeholder: 'Select Google Cloud account',
+      required: true,
+      condition: {
+        field: 'model',
+        value: providers.vertex.models,
+      },
+    },
+    {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
@@ -63,17 +80,21 @@ export const TranslateBlock: BlockConfig = {
       password: true,
       connectionDroppable: false,
       required: true,
-      // Hide API key for hosted models and Ollama models
+      // Hide API key for hosted models, Ollama models, vLLM models, and Vertex models (uses OAuth)
       condition: isHosted
         ? {
             field: 'model',
-            value: getHostedModels(),
+            value: [...getHostedModels(), ...providers.vertex.models],
             not: true, // Show for all models EXCEPT those listed
           }
         : () => ({
             field: 'model',
-            value: getCurrentOllamaModels(),
-            not: true, // Show for all models EXCEPT Ollama models
+            value: [
+              ...getCurrentOllamaModels(),
+              ...getCurrentVLLMModels(),
+              ...providers.vertex.models,
+            ],
+            not: true, // Show for all models EXCEPT Ollama, vLLM, and Vertex models
           }),
     },
     {
@@ -105,6 +126,7 @@ export const TranslateBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'your-gcp-project-id',
       connectionDroppable: false,
+      required: true,
       condition: {
         field: 'model',
         value: providers.vertex.models,
@@ -116,6 +138,7 @@ export const TranslateBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'us-central1',
       connectionDroppable: false,
+      required: true,
       condition: {
         field: 'model',
         value: providers.vertex.models,
@@ -144,6 +167,7 @@ export const TranslateBlock: BlockConfig = {
         azureApiVersion: params.azureApiVersion,
         vertexProject: params.vertexProject,
         vertexLocation: params.vertexLocation,
+        vertexCredential: params.vertexCredential,
       }),
     },
   },
@@ -155,6 +179,10 @@ export const TranslateBlock: BlockConfig = {
     azureApiVersion: { type: 'string', description: 'Azure API version' },
     vertexProject: { type: 'string', description: 'Google Cloud project ID for Vertex AI' },
     vertexLocation: { type: 'string', description: 'Google Cloud location for Vertex AI' },
+    vertexCredential: {
+      type: 'string',
+      description: 'Google Cloud OAuth credential ID for Vertex AI',
+    },
     systemPrompt: { type: 'string', description: 'Translation instructions' },
   },
   outputs: {

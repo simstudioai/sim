@@ -15,6 +15,7 @@ interface LLMChatParams {
   azureApiVersion?: string
   vertexProject?: string
   vertexLocation?: string
+  vertexCredential?: string
 }
 
 interface LLMChatResponse extends ToolResponse {
@@ -91,6 +92,12 @@ export const llmChatTool: ToolConfig<LLMChatParams, LLMChatResponse> = {
       visibility: 'hidden',
       description: 'Google Cloud location for Vertex AI (defaults to us-central1)',
     },
+    vertexCredential: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Google Cloud OAuth credential ID for Vertex AI',
+    },
   },
 
   request: {
@@ -114,6 +121,7 @@ export const llmChatTool: ToolConfig<LLMChatParams, LLMChatResponse> = {
         azureApiVersion: params.azureApiVersion,
         vertexProject: params.vertexProject,
         vertexLocation: params.vertexLocation,
+        vertexCredential: params.vertexCredential,
       }
     },
   },
