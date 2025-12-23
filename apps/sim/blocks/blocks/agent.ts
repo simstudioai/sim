@@ -110,7 +110,19 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
         })
       },
     },
-
+    {
+      id: 'vertexCredential',
+      title: 'Google Cloud Account',
+      type: 'oauth-input',
+      serviceId: 'vertex-ai',
+      requiredScopes: ['https://www.googleapis.com/auth/cloud-platform'],
+      placeholder: 'Select Google Cloud account',
+      required: true,
+      condition: {
+        field: 'model',
+        value: providers.vertex.models,
+      },
+    },
     {
       id: 'reasoningEffort',
       title: 'Reasoning Effort',
@@ -309,19 +321,6 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       type: 'short-input',
       placeholder: 'us-central1',
       connectionDroppable: false,
-      condition: {
-        field: 'model',
-        value: providers.vertex.models,
-      },
-    },
-    {
-      id: 'vertexCredential',
-      title: 'Google Cloud Account',
-      type: 'oauth-input',
-      serviceId: 'vertex-ai',
-      requiredScopes: ['https://www.googleapis.com/auth/cloud-platform'],
-      placeholder: 'Select Google Cloud account',
-      required: true,
       condition: {
         field: 'model',
         value: providers.vertex.models,
