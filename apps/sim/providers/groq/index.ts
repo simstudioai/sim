@@ -393,7 +393,7 @@ export const groqProvider: ProviderConfig = {
         const streamingPayload = {
           ...payload,
           messages: currentMessages,
-          tool_choice: 'auto',
+          tool_choice: originalToolChoice || 'auto',
           stream: true,
         }
 

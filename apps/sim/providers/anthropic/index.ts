@@ -561,37 +561,93 @@ export const anthropicProvider: ProviderConfig = {
           throw error
         }
 
-        const providerEndTime = Date.now()
-        const providerEndTimeISO = new Date(providerEndTime).toISOString()
-        const totalDuration = providerEndTime - providerStartTime
+        const accumulatedCost = calculateCost(request.model, tokens.prompt, tokens.completion)
 
-        return {
-          content,
-          model: request.model || 'claude-3-7-sonnet-20250219',
-          tokens,
-          toolCalls:
-            toolCalls.length > 0
-              ? toolCalls.map((tc) => ({
-                  name: tc.name,
-                  arguments: tc.arguments as Record<string, any>,
-                  startTime: tc.startTime,
-                  endTime: tc.endTime,
-                  duration: tc.duration,
-                  result: tc.result,
-                }))
-              : undefined,
-          toolResults: toolResults.length > 0 ? toolResults : undefined,
-          timing: {
-            startTime: providerStartTimeISO,
-            endTime: providerEndTimeISO,
-            duration: totalDuration,
-            modelTime: modelTime,
-            toolsTime: toolsTime,
-            firstResponseTime: firstResponseTime,
-            iterations: iterationCount + 1,
-            timeSegments: timeSegments,
+        const streamingPayload = {
+          ...payload,
+          messages: currentMessages,
+          stream: true,
+          tool_choice: undefined,
+        }
+
+        const streamResponse: any = await anthropic.messages.create(streamingPayload)
+
+        const streamingResult = {
+          stream: createReadableStreamFromAnthropicStream(
+            streamResponse,
+            (streamContent, usage) => {
+              streamingResult.execution.output.content = streamContent
+              streamingResult.execution.output.tokens = {
+                prompt: tokens.prompt + usage.input_tokens,
+                completion: tokens.completion + usage.output_tokens,
+                total: tokens.total + usage.input_tokens + usage.output_tokens,
+              }
+
+              const streamCost = calculateCost(
+                request.model,
+                usage.input_tokens,
+                usage.output_tokens
+              )
+              streamingResult.execution.output.cost = {
+                input: accumulatedCost.input + streamCost.input,
+                output: accumulatedCost.output + streamCost.output,
+                total: accumulatedCost.total + streamCost.total,
+              }
+
+              const streamEndTime = Date.now()
+              const streamEndTimeISO = new Date(streamEndTime).toISOString()
+
+              if (streamingResult.execution.output.providerTiming) {
+                streamingResult.execution.output.providerTiming.endTime = streamEndTimeISO
+                streamingResult.execution.output.providerTiming.duration =
+                  streamEndTime - providerStartTime
+              }
+            }
+          ),
+          execution: {
+            success: true,
+            output: {
+              content: '',
+              model: request.model || 'claude-3-7-sonnet-20250219',
+              tokens: {
+                prompt: tokens.prompt,
+                completion: tokens.completion,
+                total: tokens.total,
+              },
+              toolCalls:
+                toolCalls.length > 0
+                  ? {
+                      list: toolCalls,
+                      count: toolCalls.length,
+                    }
+                  : undefined,
+              providerTiming: {
+                startTime: providerStartTimeISO,
+                endTime: new Date().toISOString(),
+                duration: Date.now() - providerStartTime,
+                modelTime: modelTime,
+                toolsTime: toolsTime,
+                firstResponseTime: firstResponseTime,
+                iterations: iterationCount + 1,
+                timeSegments: timeSegments,
+              },
+              cost: {
+                input: accumulatedCost.input,
+                output: accumulatedCost.output,
+                total: accumulatedCost.total,
+              },
+            },
+            logs: [],
+            metadata: {
+              startTime: providerStartTimeISO,
+              endTime: new Date().toISOString(),
+              duration: Date.now() - providerStartTime,
+            },
+            isStreaming: true,
           },
         }
+
+        return streamingResult as StreamingExecution
       } catch (error) {
         const providerEndTime = Date.now()
         const providerEndTimeISO = new Date(providerEndTime).toISOString()
