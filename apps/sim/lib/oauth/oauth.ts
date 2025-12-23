@@ -127,7 +127,6 @@ export interface OAuthServiceConfig {
   icon: (props: { className?: string }) => ReactNode
   baseProviderIcon: (props: { className?: string }) => ReactNode
   scopes: string[]
-  scopeHints?: string[]
 }
 
 export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
@@ -148,7 +147,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/gmail.modify',
           'https://www.googleapis.com/auth/gmail.labels',
         ],
-        scopeHints: ['gmail', 'mail'],
       },
       'google-drive': {
         id: 'google-drive',
@@ -161,7 +159,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/drive.file',
           'https://www.googleapis.com/auth/drive',
         ],
-        scopeHints: ['drive'],
       },
       'google-docs': {
         id: 'google-docs',
@@ -174,7 +171,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/drive.file',
           'https://www.googleapis.com/auth/drive',
         ],
-        scopeHints: ['docs'],
       },
       'google-sheets': {
         id: 'google-sheets',
@@ -187,7 +183,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/drive.file',
           'https://www.googleapis.com/auth/drive',
         ],
-        scopeHints: ['sheets'],
       },
       'google-forms': {
         id: 'google-forms',
@@ -201,7 +196,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/forms.responses.readonly',
         ],
-        scopeHints: ['forms'],
       },
       'google-calendar': {
         id: 'google-calendar',
@@ -211,7 +205,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: (props) => GoogleCalendarIcon(props),
         baseProviderIcon: (props) => GoogleIcon(props),
         scopes: ['https://www.googleapis.com/auth/calendar'],
-        scopeHints: ['calendar'],
       },
       'google-vault': {
         id: 'google-vault',
@@ -224,7 +217,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/ediscovery',
           'https://www.googleapis.com/auth/devstorage.read_only',
         ],
-        scopeHints: ['ediscovery', 'devstorage'],
       },
       'google-groups': {
         id: 'google-groups',
@@ -237,7 +229,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/admin.directory.group',
           'https://www.googleapis.com/auth/admin.directory.group.member',
         ],
-        scopeHints: ['admin.directory.group'],
       },
       'vertex-ai': {
         id: 'vertex-ai',
@@ -247,7 +238,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: (props) => VertexIcon(props),
         baseProviderIcon: (props) => VertexIcon(props),
         scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-        scopeHints: ['cloud-platform', 'vertex', 'aiplatform'],
       },
     },
     defaultService: 'gmail',
@@ -954,29 +944,6 @@ export function getServiceByProviderAndId(
   return (
     providerConfig.services[serviceId] || providerConfig.services[providerConfig.defaultService]
   )
-}
-
-export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]): string {
-  const { baseProvider, featureType } = parseProvider(provider)
-  const providerConfig = OAUTH_PROVIDERS[baseProvider] || OAUTH_PROVIDERS[provider]
-  if (!providerConfig) {
-    return provider
-  }
-
-  if (featureType !== 'default' && providerConfig.services[featureType]) {
-    return featureType
-  }
-
-  const normalizedScopes = (scopes || []).map((s) => s.toLowerCase())
-  for (const service of Object.values(providerConfig.services)) {
-    const hints = (service.scopeHints || []).map((h) => h.toLowerCase())
-    if (hints.length === 0) continue
-    if (normalizedScopes.some((scope) => hints.some((hint) => scope.includes(hint)))) {
-      return service.id
-    }
-  }
-
-  return providerConfig.defaultService
 }
 
 export function getProviderIdFromServiceId(serviceId: string): string {

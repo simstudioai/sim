@@ -7,7 +7,6 @@ import { client } from '@/lib/auth/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   getProviderIdFromServiceId,
-  getServiceIdFromScopes,
   OAUTH_PROVIDERS,
   type OAuthProvider,
   parseProvider,
@@ -21,7 +20,7 @@ export interface OAuthRequiredModalProps {
   provider: OAuthProvider
   toolName: string
   requiredScopes?: string[]
-  serviceId?: string
+  serviceId: string
   newScopes?: string[]
 }
 
@@ -301,7 +300,6 @@ export function OAuthRequiredModal({
   serviceId,
   newScopes = [],
 }: OAuthRequiredModalProps) {
-  const effectiveServiceId = serviceId || getServiceIdFromScopes(provider, requiredScopes)
   const { baseProvider } = parseProvider(provider)
   const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
 
@@ -310,7 +308,7 @@ export function OAuthRequiredModal({
 
   if (baseProviderConfig) {
     for (const service of Object.values(baseProviderConfig.services)) {
-      if (service.id === effectiveServiceId || service.providerId === provider) {
+      if (service.id === serviceId || service.providerId === provider) {
         providerName = service.name
         ProviderIcon = service.icon
         break
@@ -343,7 +341,7 @@ export function OAuthRequiredModal({
 
   const handleConnectDirectly = async () => {
     try {
-      const providerId = getProviderIdFromServiceId(effectiveServiceId)
+      const providerId = getProviderIdFromServiceId(serviceId)
 
       onClose()
 
