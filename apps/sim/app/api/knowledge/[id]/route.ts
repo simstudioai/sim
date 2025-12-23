@@ -18,7 +18,7 @@ const logger = createLogger('KnowledgeBaseByIdAPI')
  * Chunking config units:
  * - maxSize: tokens (1 token ≈ 4 characters)
  * - minSize: characters
- * - overlap: characters
+ * - overlap: tokens (1 token ≈ 4 characters)
  */
 const UpdateKnowledgeBaseSchema = z.object({
   name: z.string().min(1, 'Name is required').optional(),
