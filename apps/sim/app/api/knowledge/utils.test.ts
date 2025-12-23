@@ -183,7 +183,12 @@ describe('Knowledge Utils', () => {
 
   describe('processDocumentAsync', () => {
     it.concurrent('should insert embeddings before updating document counters', async () => {
-      kbRows.push({ id: 'kb1', userId: 'user1', workspaceId: null })
+      kbRows.push({
+        id: 'kb1',
+        userId: 'user1',
+        workspaceId: null,
+        chunkingConfig: { maxSize: 1024, minSize: 1, overlap: 200 },
+      })
       docRows.push({ id: 'doc1', knowledgeBaseId: 'kb1' })
 
       await processDocumentAsync(

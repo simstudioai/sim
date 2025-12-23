@@ -44,23 +44,33 @@ const FormSchema = z
       .max(100, 'Name must be less than 100 characters')
       .refine((value) => value.trim().length > 0, 'Name cannot be empty'),
     description: z.string().max(500, 'Description must be less than 500 characters').optional(),
+    /** Minimum chunk size in characters */
     minChunkSize: z
       .number()
-      .min(1, 'Min chunk size must be at least 1')
-      .max(2000, 'Min chunk size must be less than 2000'),
+      .min(1, 'Min chunk size must be at least 1 character')
+      .max(2000, 'Min chunk size must be less than 2000 characters'),
+    /** Maximum chunk size in tokens (1 token ≈ 4 characters) */
     maxChunkSize: z
       .number()
-      .min(100, 'Max chunk size must be at least 100')
-      .max(4000, 'Max chunk size must be less than 4000'),
+      .min(100, 'Max chunk size must be at least 100 tokens')
+      .max(4000, 'Max chunk size must be less than 4000 tokens'),
+    /** Overlap between chunks in tokens */
     overlapSize: z
       .number()
-      .min(0, 'Overlap size must be non-negative')
-      .max(500, 'Overlap size must be less than 500'),
+      .min(0, 'Overlap must be non-negative')
+      .max(500, 'Overlap must be less than 500 tokens'),
   })
-  .refine((data) => data.minChunkSize < data.maxChunkSize, {
-    message: 'Min chunk size must be less than max chunk size',
-    path: ['minChunkSize'],
-  })
+  .refine(
+    (data) => {
+      // Convert maxChunkSize from tokens to characters for comparison (1 token ≈ 4 chars)
+      const maxChunkSizeInChars = data.maxChunkSize * 4
+      return data.minChunkSize < maxChunkSizeInChars
+    },
+    {
+      message: 'Min chunk size (characters) must be less than max chunk size (tokens × 4)',
+      path: ['minChunkSize'],
+    }
+  )
 
 type FormValues = z.infer<typeof FormSchema>
 
@@ -123,7 +133,7 @@ export function CreateBaseModal({
     defaultValues: {
       name: '',
       description: '',
-      minChunkSize: 1,
+      minChunkSize: 100,
       maxChunkSize: 1024,
       overlapSize: 200,
     },
@@ -143,7 +153,7 @@ export function CreateBaseModal({
       reset({
         name: '',
         description: '',
-        minChunkSize: 1,
+        minChunkSize: 100,
         maxChunkSize: 1024,
         overlapSize: 200,
       })
@@ -381,10 +391,10 @@ export function CreateBaseModal({
                 <div className='space-y-[12px] rounded-[6px] bg-[var(--surface-6)] px-[12px] py-[14px]'>
                   <div className='grid grid-cols-2 gap-[12px]'>
                     <div className='flex flex-col gap-[8px]'>
-                      <Label htmlFor='minChunkSize'>Min Chunk Size</Label>
+                      <Label htmlFor='minChunkSize'>Min Chunk Size (characters)</Label>
                       <Input
                         id='minChunkSize'
-                        placeholder='1'
+                        placeholder='100'
                         {...register('minChunkSize', { valueAsNumber: true })}
                         className={cn(errors.minChunkSize && 'border-[var(--text-error)]')}
                         autoComplete='off'
@@ -394,7 +404,7 @@ export function CreateBaseModal({
                     </div>
 
                     <div className='flex flex-col gap-[8px]'>
-                      <Label htmlFor='maxChunkSize'>Max Chunk Size</Label>
+                      <Label htmlFor='maxChunkSize'>Max Chunk Size (tokens)</Label>
                       <Input
                         id='maxChunkSize'
                         placeholder='1024'
@@ -408,7 +418,7 @@ export function CreateBaseModal({
                   </div>
 
                   <div className='flex flex-col gap-[8px]'>
-                    <Label htmlFor='overlapSize'>Overlap Size</Label>
+                    <Label htmlFor='overlapSize'>Overlap (tokens)</Label>
                     <Input
                       id='overlapSize'
                       placeholder='200'
@@ -419,6 +429,9 @@ export function CreateBaseModal({
                       name='overlap-size'
                     />
                   </div>
+                  <p className='text-[11px] text-[var(--text-muted)]'>
+                    1 token ≈ 4 characters. Max chunk size and overlap are in tokens.
+                  </p>
                 </div>
 
                 <div className='flex flex-col gap-[8px]'>
