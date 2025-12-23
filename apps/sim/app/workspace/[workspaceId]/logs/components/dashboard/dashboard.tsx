@@ -537,7 +537,7 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
     }
   }, [])
 
-  if (isLoading && Object.keys(allWorkflows).length === 0) {
+  if (isLoading) {
     return <DashboardSkeleton />
   }
 
