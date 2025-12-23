@@ -20,6 +20,13 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
       visibility: 'user-or-llm',
       description: 'The name of the Supabase table to insert data into',
     },
+    schema: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Database schema to insert into (default: public). Use this to access tables in other schemas.',
+    },
     data: {
       type: 'array',
       required: true,
@@ -37,12 +44,18 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
   request: {
     url: (params) => `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`,
     method: 'POST',
-    headers: (params) => ({
-      apikey: params.apiKey,
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=representation',
-    }),
+    headers: (params) => {
+      const headers: Record<string, string> = {
+        apikey: params.apiKey,
+        Authorization: `Bearer ${params.apiKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation',
+      }
+      if (params.schema) {
+        headers['Content-Profile'] = params.schema
+      }
+      return headers
+    },
     body: (params) => {
       // Prepare the data - if it's an object but not an array, wrap it in an array
       const dataToSend =
