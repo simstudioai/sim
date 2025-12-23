@@ -30,17 +30,10 @@ const DEFAULT_SEGMENTS = 72
 const MIN_SEGMENT_PX = 10
 const MIN_SEGMENT_MS = 60000
 
-/**
- * Predetermined heights for skeleton bars to avoid hydration mismatch.
- * Using static values instead of Math.random() ensures server/client consistency.
- */
 const SKELETON_BAR_HEIGHTS = [
   45, 72, 38, 85, 52, 68, 30, 90, 55, 42, 78, 35, 88, 48, 65, 28, 82, 58, 40, 75, 32, 95, 50, 70,
 ]
 
-/**
- * Skeleton loader for a single graph card
- */
 function GraphCardSkeleton({ title }: { title: string }) {
   return (
     <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-elevated)]'>
@@ -69,9 +62,6 @@ function GraphCardSkeleton({ title }: { title: string }) {
   )
 }
 
-/**
- * Skeleton loader for a workflow row in the workflows list
- */
 function WorkflowRowSkeleton() {
   return (
     <div className='flex h-[44px] items-center gap-[16px] px-[24px]'>
@@ -89,9 +79,6 @@ function WorkflowRowSkeleton() {
   )
 }
 
-/**
- * Skeleton loader for the workflows list table
- */
 function WorkflowsListSkeleton({ rowCount = 5 }: { rowCount?: number }) {
   return (
     <div className='flex h-full flex-col overflow-hidden rounded-[6px] bg-[var(--surface-1)]'>
@@ -115,9 +102,6 @@ function WorkflowsListSkeleton({ rowCount = 5 }: { rowCount?: number }) {
   )
 }
 
-/**
- * Complete skeleton loader for the entire dashboard
- */
 function DashboardSkeleton() {
   return (
     <div className='mt-[24px] flex min-h-0 flex-1 flex-col pb-[24px]'>
@@ -141,11 +125,6 @@ interface DashboardProps {
   error?: Error | null
 }
 
-/**
- * Dashboard component that visualizes workflow execution metrics.
- * Derives all metrics from the logs data passed as a prop, ensuring
- * consistency with the logs list view.
- */
 export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
   const [segmentCount, setSegmentCount] = useState<number>(DEFAULT_SEGMENTS)
   const [selectedSegments, setSelectedSegments] = useState<Record<string, number[]>>({})
@@ -154,19 +133,10 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
 
   const { workflowIds, searchQuery, toggleWorkflowId, timeRange } = useFilterStore()
 
-  // Get all workflows from the registry
   const allWorkflows = useWorkflowRegistry((state) => state.workflows)
 
-  /**
-   * Derive expanded workflow from filter store.
-   * When exactly one workflow is selected in filters, treat it as "expanded".
-   */
   const expandedWorkflowId = workflowIds.length === 1 ? workflowIds[0] : null
 
-  /**
-   * Map of workflowId to most recent execution timestamp from logs.
-   * Derived from the logs prop.
-   */
   const lastExecutionByWorkflow = useMemo(() => {
     const map = new Map<string, number>()
     for (const log of logs) {
@@ -181,10 +151,6 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
     return map
   }, [logs])
 
-  /**
-   * Compute time bounds from logs for segment calculation.
-   * Uses actual log timestamps to determine the time range.
-   */
   const timeBounds = useMemo(() => {
     if (logs.length === 0) {
       const now = new Date()
@@ -200,27 +166,19 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
       if (ts > maxTime) maxTime = ts
     }
 
-    // Ensure end is at least now for running executions
     const end = new Date(Math.max(maxTime, Date.now()))
     const start = new Date(minTime)
 
     return { start, end }
   }, [logs])
 
-  /**
-   * Build workflow executions with time segments from logs.
-   * Includes ALL workflows from the registry, not just those with logs.
-   * Workflows without logs will have empty segments.
-   */
   const { executions, aggregateSegments, segmentMs } = useMemo(() => {
     const allWorkflowsList = Object.values(allWorkflows)
 
-    // If no workflows exist in the workspace, return empty
     if (allWorkflowsList.length === 0) {
       return { executions: [], aggregateSegments: [], segmentMs: 0 }
     }
 
-    // Determine time bounds - use logs if available, otherwise use a default 24h window
     const { start, end } =
       logs.length > 0
         ? timeBounds
@@ -232,7 +190,6 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
       Math.floor(totalMs / Math.max(1, segmentCount))
     )
 
-    // Group logs by workflow
     const logsByWorkflow = new Map<string, WorkflowLog[]>()
     for (const log of logs) {
       const wfId = log.workflowId
@@ -242,7 +199,6 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
       logsByWorkflow.get(wfId)!.push(log)
     }
 
-    // Build segments for ALL workflows (from registry), not just those with logs
     const workflowExecutions: WorkflowExecution[] = []
 
     for (const workflow of allWorkflowsList) {
@@ -282,7 +238,6 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
         }
       }
 
-      // Calculate success rates and avg durations
       let totalExecs = 0
       let totalSuccess = 0
 
@@ -312,7 +267,6 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
       })
     }
 
-    // Sort by error rate (highest errors first), then by name for consistency
     workflowExecutions.sort((a, b) => {
       const errA = a.overallSuccessRate < 100 ? 1 - a.overallSuccessRate / 100 : 0
       const errB = b.overallSuccessRate < 100 ? 1 - b.overallSuccessRate / 100 : 0
@@ -320,7 +274,6 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
       return a.workflowName.localeCompare(b.workflowName)
     })
 
-    // Build aggregate segments (only from logs data)
     const aggSegments: {
       timestamp: string
       totalExecutions: number
@@ -361,20 +314,13 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
     }
   }, [logs, timeBounds, segmentCount, allWorkflows])
 
-  /**
-   * Filters and sorts workflow executions.
-   * Only applies workflowIds filter to hide non-selected workflows.
-   * Results are sorted by most recent execution time (newest first).
-   */
   const filteredExecutions = useMemo(() => {
     let filtered = executions
 
-    // Only filter by workflowIds if specific workflows are selected
     if (workflowIds.length > 0) {
       filtered = filtered.filter((wf) => workflowIds.includes(wf.workflowId))
     }
 
-    // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim()
       filtered = filtered.filter((wf) => wf.workflowName.toLowerCase().includes(query))
@@ -384,7 +330,6 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
       const timeA = lastExecutionByWorkflow.get(a.workflowId) ?? 0
       const timeB = lastExecutionByWorkflow.get(b.workflowId) ?? 0
 
-      // Workflows with executions come first
       if (!timeA && !timeB) return a.workflowName.localeCompare(b.workflowName)
       if (!timeA) return 1
       if (!timeB) return -1
@@ -393,10 +338,6 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
     })
   }, [executions, lastExecutionByWorkflow, workflowIds, searchQuery])
 
-  /**
-   * Computes aggregated metrics for charts based on selected segments and filters.
-   * Applies workflow filter, segment selection, and recalculates aggregates accordingly.
-   */
   const globalDetails = useMemo(() => {
     if (!aggregateSegments.length) return null
 
@@ -473,14 +414,12 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
       value: s.avgDurationMs ?? 0,
     }))
 
-    // Compute totals from the segments used in charts (respects segment selection)
     const totalRuns = segmentsToUse.reduce((sum, s) => sum + s.totalExecutions, 0)
     const totalErrors = segmentsToUse.reduce(
       (sum, s) => sum + (s.totalExecutions - s.successfulExecutions),
       0
     )
 
-    // Compute weighted average latency
     let weightedLatencySum = 0
     let latencyCount = 0
     for (const s of segmentsToUse) {
@@ -501,7 +440,6 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
     }
   }, [aggregateSegments, selectedSegments, filteredExecutions, expandedWorkflowId])
 
-  /** Toggles workflow filter using the filter store for URL-synced filtering */
   const handleToggleWorkflow = useCallback(
     (workflowId: string) => {
       toggleWorkflowId(workflowId)
@@ -570,13 +508,11 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
     [lastAnchorIndices]
   )
 
-  // Clear selected segments when logs change (filters changed)
   useEffect(() => {
     setSelectedSegments({})
     setLastAnchorIndices({})
   }, [logs, timeRange, workflowIds, searchQuery])
 
-  // Handle responsive segment count based on container width
   useEffect(() => {
     if (!barsAreaRef.current) return
     const el = barsAreaRef.current
@@ -601,7 +537,6 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
     }
   }, [])
 
-  // Show skeleton while loading (only on initial load with no workflows)
   if (isLoading && Object.keys(allWorkflows).length === 0) {
     return <DashboardSkeleton />
   }
@@ -618,7 +553,6 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
     )
   }
 
-  // Show empty state only when no workflows exist in the workspace
   if (Object.keys(allWorkflows).length === 0) {
     return (
       <div className='mt-[24px] flex flex-1 items-center justify-center'>

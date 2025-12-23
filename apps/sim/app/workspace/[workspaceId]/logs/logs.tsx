@@ -53,13 +53,11 @@ export default function Logs() {
   const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
 
-  // Sync search query from URL on mount (client-side only)
   useEffect(() => {
     const urlSearch = new URLSearchParams(window.location.search).get('search') || ''
     if (urlSearch && urlSearch !== searchQuery) {
       setSearchQuery(urlSearch)
     }
-    // Only run on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -88,7 +86,6 @@ export default function Logs() {
     refetchInterval: isLive ? 5000 : false,
   })
 
-  // Dashboard logs query - fetches all logs (non-paginated) for accurate metrics
   const dashboardFilters = useMemo(
     () => ({
       timeRange,
@@ -127,10 +124,8 @@ export default function Logs() {
     }
   }, [debouncedSearchQuery, setStoreSearchQuery])
 
-  // Track previous log state for efficient change detection
   const prevSelectedLogRef = useRef<WorkflowLog | null>(null)
 
-  // Sync selected log with refreshed data from logs list
   useEffect(() => {
     if (!selectedLog?.id || logs.length === 0) return
 
@@ -139,32 +134,27 @@ export default function Logs() {
 
     const prevLog = prevSelectedLogRef.current
 
-    // Check if status-related fields have changed (e.g., running -> done)
     const hasStatusChange =
       prevLog?.id === updatedLog.id &&
       (updatedLog.duration !== prevLog.duration ||
         updatedLog.level !== prevLog.level ||
         updatedLog.hasPendingPause !== prevLog.hasPendingPause)
 
-    // Only update if the log data actually changed
     if (updatedLog !== selectedLog) {
       setSelectedLog(updatedLog)
       prevSelectedLogRef.current = updatedLog
     }
 
-    // Update index in case position changed
     const newIndex = logs.findIndex((l) => l.id === selectedLog.id)
     if (newIndex !== selectedLogIndex) {
       setSelectedLogIndex(newIndex)
     }
 
-    // Refetch log details if status changed to keep details panel in sync
     if (hasStatusChange) {
       logDetailQuery.refetch()
     }
   }, [logs, selectedLog?.id, selectedLogIndex, logDetailQuery])
 
-  // Refetch log details during live mode
   useEffect(() => {
     if (!isLive || !selectedLog?.id) return
 
@@ -378,7 +368,7 @@ export default function Logs() {
           >
             <Dashboard
               logs={dashboardLogsQuery.data ?? []}
-              isLoading={dashboardLogsQuery.isLoading && !dashboardLogsQuery.data}
+              isLoading={!dashboardLogsQuery.data}
               error={dashboardLogsQuery.error}
             />
           </div>

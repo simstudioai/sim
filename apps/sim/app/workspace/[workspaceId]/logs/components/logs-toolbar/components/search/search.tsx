@@ -87,6 +87,7 @@ export function AutocompleteSearch({
     suggestions,
     sections,
     highlightedIndex,
+    highlightedBadgeIndex,
     inputRef,
     dropdownRef,
     handleInputChange,
@@ -175,7 +176,11 @@ export function AutocompleteSearch({
                   variant='outline'
                   role='button'
                   tabIndex={0}
-                  className='h-6 shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2 text-[11px]'
+                  className={cn(
+                    'h-6 shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2 text-[11px]',
+                    highlightedBadgeIndex === index &&
+                      'ring-1 ring-[var(--border-focus)] ring-offset-1 ring-offset-[var(--surface-5)]'
+                  )}
                   onClick={() => removeBadge(index)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
