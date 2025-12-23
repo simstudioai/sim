@@ -133,7 +133,7 @@ export const TodoList = memo(function TodoList({
                     'mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-all',
                     todo.completed
                       ? 'border-[var(--brand-400)] bg-[var(--brand-400)]'
-                      : 'border-[#707070]'
+                      : 'border-[var(--text-muted)]'
                   )}
                 >
                   {todo.completed ? <Check className='h-3 w-3 text-white' strokeWidth={3} /> : null}
@@ -143,7 +143,9 @@ export const TodoList = memo(function TodoList({
               <span
                 className={cn(
                   'flex-1 font-base text-[12px] leading-relaxed',
-                  todo.completed ? 'text-[var(--text-muted)] line-through' : 'text-[var(--white)]'
+                  todo.completed
+                    ? 'text-[var(--text-muted)] line-through'
+                    : 'text-[var(--text-primary)]'
                 )}
               >
                 {todo.content}

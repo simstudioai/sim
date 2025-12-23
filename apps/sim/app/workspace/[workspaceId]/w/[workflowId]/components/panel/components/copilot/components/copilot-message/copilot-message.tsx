@@ -108,6 +108,8 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     const {
       showRestoreConfirmation,
       showCheckpointDiscardModal,
+      isReverting,
+      isProcessingDiscard,
       pendingEditRef,
       setShowCheckpointDiscardModal,
       handleRevertToCheckpoint,
@@ -265,30 +267,35 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
               {/* Inline Checkpoint Discard Confirmation - shown below input in edit mode */}
               {showCheckpointDiscardModal && (
-                <div className='mt-[8px] rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] p-[10px] dark:bg-[var(--surface-5)]'>
-                  <p className='mb-[8px] text-[var(--text-primary)] text-sm'>
+                <div className='mt-[8px] rounded-[4px] border border-[var(--border)] bg-[var(--surface-4)] p-[10px]'>
+                  <p className='mb-[8px] text-[12px] text-[var(--text-primary)]'>
                     Continue from a previous message?
                   </p>
-                  <div className='flex gap-[6px]'>
+                  <div className='flex gap-[8px]'>
                     <Button
                       onClick={handleCancelCheckpointDiscard}
-                      variant='default'
-                      className='flex flex-1 items-center justify-center gap-[6px] px-[8px] py-[4px] text-xs'
+                      variant='active'
+                      size='sm'
+                      className='flex-1'
+                      disabled={isProcessingDiscard}
                     >
-                      <span>Cancel</span>
-                      <span className='text-[10px] text-[var(--text-muted)]'>(Esc)</span>
+                      Cancel
                     </Button>
                     <Button
                       onClick={handleContinueAndRevert}
-                      variant='outline'
-                      className='flex-1 px-[8px] py-[4px] text-xs'
+                      variant='destructive'
+                      size='sm'
+                      className='flex-1'
+                      disabled={isProcessingDiscard}
                     >
-                      Revert
+                      {isProcessingDiscard ? 'Reverting...' : 'Revert'}
                     </Button>
                     <Button
                       onClick={handleContinueWithoutRevert}
-                      variant='outline'
-                      className='flex-1 px-[8px] py-[4px] text-xs'
+                      variant='tertiary'
+                      size='sm'
+                      className='flex-1'
+                      disabled={isProcessingDiscard}
                     >
                       Continue
                     </Button>
@@ -316,7 +323,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
               >
                 <div
                   ref={messageContentRef}
-                  className={`relative whitespace-pre-wrap break-words px-[2px] py-1 font-medium font-sans text-[#0D0D0D] text-sm leading-[1.25rem] dark:text-gray-100 ${isSendingMessage && isLastUserMessage && isHoveringMessage ? 'pr-7' : ''} ${!isExpanded && needsExpansion ? 'max-h-[60px] overflow-hidden' : 'overflow-visible'}`}
+                  className={`relative whitespace-pre-wrap break-words px-[2px] py-1 font-medium font-sans text-[var(--text-primary)] text-sm leading-[1.25rem] ${isSendingMessage && isLastUserMessage && isHoveringMessage ? 'pr-7' : ''} ${!isExpanded && needsExpansion ? 'max-h-[60px] overflow-hidden' : 'overflow-visible'}`}
                 >
                   {(() => {
                     const text = message.content || ''
@@ -369,7 +376,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                         e.stopPropagation()
                         abortMessage()
                       }}
-                      className='h-[20px] w-[20px] rounded-full bg-[#C0C0C0] p-0 transition-colors hover:bg-[#D0D0D0] dark:bg-[#C0C0C0] dark:hover:bg-[#D0D0D0]'
+                      className='h-[20px] w-[20px] rounded-full bg-[var(--c-C0C0C0)] p-0 transition-colors hover:bg-[var(--c-D0D0D0)]'
                       title='Stop generation'
                     >
                       <svg
@@ -406,29 +413,30 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
           {/* Inline Restore Checkpoint Confirmation */}
           {showRestoreConfirmation && (
-            <div className='mt-[8px] rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] p-[10px] dark:bg-[var(--surface-5)]'>
-              <p className='mb-[8px] text-[var(--text-primary)] text-sm'>
+            <div className='mt-[8px] rounded-[4px] border border-[var(--border)] bg-[var(--surface-4)] p-[10px]'>
+              <p className='mb-[8px] text-[12px] text-[var(--text-primary)]'>
                 Revert to checkpoint? This will restore your workflow to the state saved at this
                 checkpoint.{' '}
-                <span className='font-medium text-[var(--text-error)]'>
-                  This action cannot be undone.
-                </span>
+                <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
               </p>
-              <div className='flex gap-[6px]'>
+              <div className='flex gap-[8px]'>
                 <Button
                   onClick={handleCancelRevert}
-                  variant='default'
-                  className='flex flex-1 items-center justify-center gap-[6px] px-[8px] py-[4px] text-xs'
+                  variant='active'
+                  size='sm'
+                  className='flex-1'
+                  disabled={isReverting}
                 >
-                  <span>Cancel</span>
-                  <span className='text-[10px] text-[var(--text-muted)]'>(Esc)</span>
+                  Cancel
                 </Button>
                 <Button
                   onClick={handleConfirmRevert}
-                  variant='outline'
-                  className='flex-1 px-[8px] py-[4px] text-xs'
+                  variant='destructive'
+                  size='sm'
+                  className='flex-1'
+                  disabled={isReverting}
                 >
-                  Revert
+                  {isReverting ? 'Reverting...' : 'Revert'}
                 </Button>
               </div>
             </div>
