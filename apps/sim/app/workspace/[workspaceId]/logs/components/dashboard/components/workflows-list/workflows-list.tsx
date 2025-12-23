@@ -11,7 +11,6 @@ export interface WorkflowExecutionItem {
 }
 
 export function WorkflowsList({
-  executions,
   filteredExecutions,
   expandedWorkflowId,
   onToggleWorkflow,
@@ -20,7 +19,6 @@ export function WorkflowsList({
   searchQuery,
   segmentDurationMs,
 }: {
-  executions: WorkflowExecutionItem[]
   filteredExecutions: WorkflowExecutionItem[]
   expandedWorkflowId: string | null
   onToggleWorkflow: (workflowId: string) => void

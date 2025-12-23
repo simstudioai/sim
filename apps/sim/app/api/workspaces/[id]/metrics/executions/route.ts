@@ -16,6 +16,10 @@ const QueryParamsSchema = z.object({
   folderIds: z.string().optional(),
   triggers: z.string().optional(),
   level: z.string().optional(), // Supports comma-separated values: 'error,running'
+  allTime: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => v === 'true'),
 })
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -29,17 +33,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
     const userId = session.user.id
 
-    const end = qp.endTime ? new Date(qp.endTime) : new Date()
-    const start = qp.startTime
+    let end = qp.endTime ? new Date(qp.endTime) : new Date()
+    let start = qp.startTime
       ? new Date(qp.startTime)
       : new Date(end.getTime() - 24 * 60 * 60 * 1000)
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start >= end) {
+
+    const isAllTime = qp.allTime === true
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       return NextResponse.json({ error: 'Invalid time range' }, { status: 400 })
     }
 
     const segments = qp.segments
-    const totalMs = Math.max(1, end.getTime() - start.getTime())
-    const segmentMs = Math.max(1, Math.floor(totalMs / Math.max(1, segments)))
 
     const [permission] = await db
       .select()
@@ -75,23 +80,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         workflows: [],
         startTime: start.toISOString(),
         endTime: end.toISOString(),
-        segmentMs,
+        segmentMs: 0,
       })
     }
 
     const workflowIdList = workflows.map((w) => w.id)
 
-    const logWhere = [
-      inArray(workflowExecutionLogs.workflowId, workflowIdList),
-      gte(workflowExecutionLogs.startedAt, start),
-      lte(workflowExecutionLogs.startedAt, end),
-    ] as SQL[]
+    const baseLogWhere = [inArray(workflowExecutionLogs.workflowId, workflowIdList)] as SQL[]
     if (qp.triggers) {
       const t = qp.triggers.split(',').filter(Boolean)
-      logWhere.push(inArray(workflowExecutionLogs.trigger, t))
+      baseLogWhere.push(inArray(workflowExecutionLogs.trigger, t))
     }
 
-    // Handle level filtering with support for derived statuses and multiple selections
     if (qp.level && qp.level !== 'all') {
       const levels = qp.level.split(',').filter(Boolean)
       const levelConditions: SQL[] = []
@@ -100,21 +100,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         if (level === 'error') {
           levelConditions.push(eq(workflowExecutionLogs.level, 'error'))
         } else if (level === 'info') {
-          // Completed info logs only
           const condition = and(
             eq(workflowExecutionLogs.level, 'info'),
             isNotNull(workflowExecutionLogs.endedAt)
           )
           if (condition) levelConditions.push(condition)
         } else if (level === 'running') {
-          // Running logs: info level with no endedAt
           const condition = and(
             eq(workflowExecutionLogs.level, 'info'),
             isNull(workflowExecutionLogs.endedAt)
           )
           if (condition) levelConditions.push(condition)
         } else if (level === 'pending') {
-          // Pending logs: info level with pause status indicators
           const condition = and(
             eq(workflowExecutionLogs.level, 'info'),
             or(
@@ -132,9 +129,54 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       if (levelConditions.length > 0) {
         const combinedCondition =
           levelConditions.length === 1 ? levelConditions[0] : or(...levelConditions)
-        if (combinedCondition) logWhere.push(combinedCondition)
+        if (combinedCondition) baseLogWhere.push(combinedCondition)
       }
     }
+
+    if (isAllTime) {
+      const boundsQuery = db
+        .select({
+          minDate: sql<Date>`MIN(${workflowExecutionLogs.startedAt})`,
+          maxDate: sql<Date>`MAX(${workflowExecutionLogs.startedAt})`,
+        })
+        .from(workflowExecutionLogs)
+        .leftJoin(
+          pausedExecutions,
+          eq(pausedExecutions.executionId, workflowExecutionLogs.executionId)
+        )
+        .where(and(...baseLogWhere))
+
+      const [bounds] = await boundsQuery
+
+      if (bounds?.minDate && bounds?.maxDate) {
+        start = new Date(bounds.minDate)
+        end = new Date(Math.max(new Date(bounds.maxDate).getTime(), Date.now()))
+      } else {
+        return NextResponse.json({
+          workflows: workflows.map((wf) => ({
+            workflowId: wf.id,
+            workflowName: wf.name,
+            segments: [],
+          })),
+          startTime: new Date().toISOString(),
+          endTime: new Date().toISOString(),
+          segmentMs: 0,
+        })
+      }
+    }
+
+    if (start >= end) {
+      return NextResponse.json({ error: 'Invalid time range' }, { status: 400 })
+    }
+
+    const totalMs = Math.max(1, end.getTime() - start.getTime())
+    const segmentMs = Math.max(1, Math.floor(totalMs / Math.max(1, segments)))
+
+    const logWhere = [
+      ...baseLogWhere,
+      gte(workflowExecutionLogs.startedAt, start),
+      lte(workflowExecutionLogs.startedAt, end),
+    ]
 
     const logs = await db
       .select({

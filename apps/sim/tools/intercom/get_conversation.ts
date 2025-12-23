@@ -8,6 +8,7 @@ export interface IntercomGetConversationParams {
   accessToken: string
   conversationId: string
   display_as?: string
+  include_translations?: boolean
 }
 
 export interface IntercomGetConversationResponse {
@@ -40,24 +41,35 @@ export const intercomGetConversationTool: ToolConfig<
     conversationId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Conversation ID to retrieve',
     },
     display_as: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Set to "plaintext" to retrieve messages in plain text',
+    },
+    include_translations: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'When true, conversation parts will be translated to the detected language of the conversation',
     },
   },
 
   request: {
     url: (params) => {
       const url = buildIntercomUrl(`/conversations/${params.conversationId}`)
-      if (params.display_as) {
-        return `${url}?display_as=${params.display_as}`
-      }
-      return url
+      const queryParams = new URLSearchParams()
+
+      if (params.display_as) queryParams.append('display_as', params.display_as)
+      if (params.include_translations !== undefined)
+        queryParams.append('include_translations', String(params.include_translations))
+
+      const queryString = queryParams.toString()
+      return queryString ? `${url}?${queryString}` : url
     },
     method: 'GET',
     headers: (params) => ({

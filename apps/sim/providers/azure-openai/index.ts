@@ -1,4 +1,5 @@
 import { AzureOpenAI } from 'openai'
+import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
@@ -14,7 +15,11 @@ import type {
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
-import { prepareToolExecution, prepareToolsWithUsageControl } from '@/providers/utils'
+import {
+  calculateCost,
+  prepareToolExecution,
+  prepareToolsWithUsageControl,
+} from '@/providers/utils'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('AzureOpenAIProvider')
@@ -34,7 +39,7 @@ export const azureOpenAIProvider: ProviderConfig = {
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
     logger.info('Preparing Azure OpenAI request', {
-      model: request.model || 'azure/gpt-4o',
+      model: request.model,
       hasSystemPrompt: !!request.systemPrompt,
       hasMessages: !!request.messages?.length,
       hasTools: !!request.tools?.length,
@@ -43,8 +48,6 @@ export const azureOpenAIProvider: ProviderConfig = {
       stream: !!request.stream,
     })
 
-    // Extract Azure-specific configuration from request or environment
-    // Priority: request parameters > environment variables
     const azureEndpoint = request.azureEndpoint || env.AZURE_OPENAI_ENDPOINT
     const azureApiVersion =
       request.azureApiVersion || env.AZURE_OPENAI_API_VERSION || '2024-07-01-preview'
@@ -55,17 +58,14 @@ export const azureOpenAIProvider: ProviderConfig = {
       )
     }
 
-    // API key is now handled server-side before this function is called
     const azureOpenAI = new AzureOpenAI({
       apiKey: request.apiKey,
       apiVersion: azureApiVersion,
       endpoint: azureEndpoint,
     })
 
-    // Start with an empty array for all messages
     const allMessages = []
 
-    // Add system prompt if present
     if (request.systemPrompt) {
       allMessages.push({
         role: 'system',
@@ -73,7 +73,6 @@ export const azureOpenAIProvider: ProviderConfig = {
       })
     }
 
-    // Add context if present
     if (request.context) {
       allMessages.push({
         role: 'user',
@@ -81,12 +80,10 @@ export const azureOpenAIProvider: ProviderConfig = {
       })
     }
 
-    // Add remaining messages
     if (request.messages) {
       allMessages.push(...request.messages)
     }
 
-    // Transform tools to Azure OpenAI format if provided
     const tools = request.tools?.length
       ? request.tools.map((tool) => ({
           type: 'function',
@@ -98,24 +95,19 @@ export const azureOpenAIProvider: ProviderConfig = {
         }))
       : undefined
 
-    // Build the request payload - use deployment name instead of model name
-    const deploymentName = (request.model || 'azure/gpt-4o').replace('azure/', '')
+    const deploymentName = request.model.replace('azure/', '')
     const payload: any = {
-      model: deploymentName, // Azure OpenAI uses deployment name
+      model: deploymentName,
       messages: allMessages,
     }
 
-    // Add optional parameters
     if (request.temperature !== undefined) payload.temperature = request.temperature
     if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
 
-    // Add GPT-5 specific parameters
     if (request.reasoningEffort !== undefined) payload.reasoning_effort = request.reasoningEffort
     if (request.verbosity !== undefined) payload.verbosity = request.verbosity
 
-    // Add response format for structured output if specified
     if (request.responseFormat) {
-      // Use Azure OpenAI's JSON schema format
       payload.response_format = {
         type: 'json_schema',
         json_schema: {
@@ -128,7 +120,6 @@ export const azureOpenAIProvider: ProviderConfig = {
       logger.info('Added JSON schema response format to Azure OpenAI request')
     }
 
-    // Handle tools and tool usage control
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
 
     if (tools?.length) {
@@ -156,39 +147,40 @@ export const azureOpenAIProvider: ProviderConfig = {
       }
     }
 
-    // Start execution timer for the entire provider execution
     const providerStartTime = Date.now()
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
     try {
-      // Check if we can stream directly (no tools required)
       if (request.stream && (!tools || tools.length === 0)) {
         logger.info('Using streaming response for Azure OpenAI request')
 
-        // Create a streaming request with token usage tracking
-        const streamResponse = await azureOpenAI.chat.completions.create({
+        const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           stream: true,
           stream_options: { include_usage: true },
-        })
-
-        // Start collecting token usage from the stream
-        const tokenUsage = {
-          prompt: 0,
-          completion: 0,
-          total: 0,
         }
+        const streamResponse = await azureOpenAI.chat.completions.create(streamingParams)
 
-        let _streamContent = ''
-
-        // Create a StreamingExecution response with a callback to update content and tokens
         const streamingResult = {
           stream: createReadableStreamFromAzureOpenAIStream(streamResponse, (content, usage) => {
-            // Update the execution data with the final content and token usage
-            _streamContent = content
             streamingResult.execution.output.content = content
+            streamingResult.execution.output.tokens = {
+              prompt: usage.prompt_tokens,
+              completion: usage.completion_tokens,
+              total: usage.total_tokens,
+            }
 
-            // Update the timing information with the actual completion time
+            const costResult = calculateCost(
+              request.model,
+              usage.prompt_tokens,
+              usage.completion_tokens
+            )
+            streamingResult.execution.output.cost = {
+              input: costResult.input,
+              output: costResult.output,
+              total: costResult.total,
+            }
+
             const streamEndTime = Date.now()
             const streamEndTimeISO = new Date(streamEndTime).toISOString()
 
@@ -197,7 +189,6 @@ export const azureOpenAIProvider: ProviderConfig = {
               streamingResult.execution.output.providerTiming.duration =
                 streamEndTime - providerStartTime
 
-              // Update the time segment as well
               if (streamingResult.execution.output.providerTiming.timeSegments?.[0]) {
                 streamingResult.execution.output.providerTiming.timeSegments[0].endTime =
                   streamEndTime
@@ -205,25 +196,13 @@ export const azureOpenAIProvider: ProviderConfig = {
                   streamEndTime - providerStartTime
               }
             }
-
-            // Update token usage if available from the stream
-            if (usage) {
-              const newTokens = {
-                prompt: usage.prompt_tokens || tokenUsage.prompt,
-                completion: usage.completion_tokens || tokenUsage.completion,
-                total: usage.total_tokens || tokenUsage.total,
-              }
-
-              streamingResult.execution.output.tokens = newTokens
-            }
-            // We don't need to estimate tokens here as logger.ts will handle that
           }),
           execution: {
             success: true,
             output: {
-              content: '', // Will be filled by the stream completion callback
+              content: '',
               model: request.model,
-              tokens: tokenUsage,
+              tokens: { prompt: 0, completion: 0, total: 0 },
               toolCalls: undefined,
               providerTiming: {
                 startTime: providerStartTimeISO,
@@ -239,9 +218,9 @@ export const azureOpenAIProvider: ProviderConfig = {
                   },
                 ],
               },
-              // Cost will be calculated in logger
+              cost: { input: 0, output: 0, total: 0 },
             },
-            logs: [], // No block logs for direct streaming
+            logs: [],
             metadata: {
               startTime: providerStartTimeISO,
               endTime: new Date().toISOString(),
@@ -250,17 +229,11 @@ export const azureOpenAIProvider: ProviderConfig = {
           },
         } as StreamingExecution
 
-        // Return the streaming execution object with explicit casting
         return streamingResult as StreamingExecution
       }
 
-      // Make the initial API request
       const initialCallTime = Date.now()
-
-      // Track the original tool_choice for forced tool tracking
       const originalToolChoice = payload.tool_choice
-
-      // Track forced tools and their usage
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
 
@@ -268,7 +241,6 @@ export const azureOpenAIProvider: ProviderConfig = {
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
-      // Collect token information but don't calculate costs - that will be done in logger.ts
       const tokens = {
         prompt: currentResponse.usage?.prompt_tokens || 0,
         completion: currentResponse.usage?.completion_tokens || 0,
@@ -278,15 +250,10 @@ export const azureOpenAIProvider: ProviderConfig = {
       const toolResults = []
       const currentMessages = [...allMessages]
       let iterationCount = 0
-
-      // Track time spent in model vs tools
       let modelTime = firstResponseTime
       let toolsTime = 0
-
-      // Track if a forced tool has been used
       let hasUsedForcedTool = false
 
-      // Track each model and tool call segment with timestamps
       const timeSegments: TimeSegment[] = [
         {
           type: 'model',
@@ -297,7 +264,6 @@ export const azureOpenAIProvider: ProviderConfig = {
         },
       ]
 
-      // Check if a forced tool was used in the first response
       const firstCheckResult = checkForForcedToolUsage(
         currentResponse,
         originalToolChoice,
@@ -309,7 +275,10 @@ export const azureOpenAIProvider: ProviderConfig = {
       usedForcedTools = firstCheckResult.usedForcedTools
 
       while (iterationCount < MAX_TOOL_ITERATIONS) {
-        // Check for tool calls
+        if (currentResponse.choices[0]?.message?.content) {
+          content = currentResponse.choices[0].message.content
+        }
+
         const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
         if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
           break
@@ -319,126 +288,135 @@ export const azureOpenAIProvider: ProviderConfig = {
           `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1}/${MAX_TOOL_ITERATIONS})`
         )
 
-        // Track time for tool calls in this batch
         const toolsStartTime = Date.now()
 
-        // Process each tool call
-        for (const toolCall of toolCallsInResponse) {
+        const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
+          const toolCallStartTime = Date.now()
+          const toolName = toolCall.function.name
+
           try {
-            const toolName = toolCall.function.name
             const toolArgs = JSON.parse(toolCall.function.arguments)
-
-            // Get the tool from the tools registry
             const tool = request.tools?.find((t) => t.id === toolName)
-            if (!tool) continue
 
-            // Execute the tool
-            const toolCallStartTime = Date.now()
+            if (!tool) return null
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-
             const result = await executeTool(toolName, executionParams, true)
             const toolCallEndTime = Date.now()
-            const toolCallDuration = toolCallEndTime - toolCallStartTime
 
-            // Add to time segments for both success and failure
-            timeSegments.push({
-              type: 'tool',
-              name: toolName,
+            return {
+              toolCall,
+              toolName,
+              toolParams,
+              result,
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,
-              duration: toolCallDuration,
-            })
-
-            // Prepare result content for the LLM
-            let resultContent: any
-            if (result.success) {
-              toolResults.push(result.output)
-              resultContent = result.output
-            } else {
-              // Include error information so LLM can respond appropriately
-              resultContent = {
-                error: true,
-                message: result.error || 'Tool execution failed',
-                tool: toolName,
-              }
+              duration: toolCallEndTime - toolCallStartTime,
             }
-
-            toolCalls.push({
-              name: toolName,
-              arguments: toolParams,
-              startTime: new Date(toolCallStartTime).toISOString(),
-              endTime: new Date(toolCallEndTime).toISOString(),
-              duration: toolCallDuration,
-              result: resultContent,
-              success: result.success,
-            })
-
-            // Add the tool call and result to messages (both success and failure)
-            currentMessages.push({
-              role: 'assistant',
-              content: null,
-              tool_calls: [
-                {
-                  id: toolCall.id,
-                  type: 'function',
-                  function: {
-                    name: toolName,
-                    arguments: toolCall.function.arguments,
-                  },
-                },
-              ],
-            })
-
-            currentMessages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: JSON.stringify(resultContent),
-            })
           } catch (error) {
-            logger.error('Error processing tool call:', {
-              error,
-              toolName: toolCall?.function?.name,
-            })
+            const toolCallEndTime = Date.now()
+            logger.error('Error processing tool call:', { error, toolName })
+
+            return {
+              toolCall,
+              toolName,
+              toolParams: {},
+              result: {
+                success: false,
+                output: undefined,
+                error: error instanceof Error ? error.message : 'Tool execution failed',
+              },
+              startTime: toolCallStartTime,
+              endTime: toolCallEndTime,
+              duration: toolCallEndTime - toolCallStartTime,
+            }
           }
+        })
+
+        const executionResults = await Promise.allSettled(toolExecutionPromises)
+
+        currentMessages.push({
+          role: 'assistant',
+          content: null,
+          tool_calls: toolCallsInResponse.map((tc) => ({
+            id: tc.id,
+            type: 'function',
+            function: {
+              name: tc.function.name,
+              arguments: tc.function.arguments,
+            },
+          })),
+        })
+
+        for (const settledResult of executionResults) {
+          if (settledResult.status === 'rejected' || !settledResult.value) continue
+
+          const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
+            settledResult.value
+
+          timeSegments.push({
+            type: 'tool',
+            name: toolName,
+            startTime: startTime,
+            endTime: endTime,
+            duration: duration,
+          })
+
+          let resultContent: any
+          if (result.success) {
+            toolResults.push(result.output)
+            resultContent = result.output
+          } else {
+            resultContent = {
+              error: true,
+              message: result.error || 'Tool execution failed',
+              tool: toolName,
+            }
+          }
+
+          toolCalls.push({
+            name: toolName,
+            arguments: toolParams,
+            startTime: new Date(startTime).toISOString(),
+            endTime: new Date(endTime).toISOString(),
+            duration: duration,
+            result: resultContent,
+            success: result.success,
+          })
+
+          currentMessages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(resultContent),
+          })
         }
 
-        // Calculate tool call time for this iteration
         const thisToolsTime = Date.now() - toolsStartTime
         toolsTime += thisToolsTime
 
-        // Make the next request with updated messages
         const nextPayload = {
           ...payload,
           messages: currentMessages,
         }
 
-        // Update tool_choice based on which forced tools have been used
         if (typeof originalToolChoice === 'object' && hasUsedForcedTool && forcedTools.length > 0) {
-          // If we have remaining forced tools, get the next one to force
           const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
 
           if (remainingTools.length > 0) {
-            // Force the next tool
             nextPayload.tool_choice = {
               type: 'function',
               function: { name: remainingTools[0] },
             }
             logger.info(`Forcing next tool: ${remainingTools[0]}`)
           } else {
-            // All forced tools have been used, switch to auto
             nextPayload.tool_choice = 'auto'
             logger.info('All forced tools have been used, switching to auto tool_choice')
           }
         }
 
-        // Time the next model call
         const nextModelStartTime = Date.now()
-
-        // Make the next request
         currentResponse = await azureOpenAI.chat.completions.create(nextPayload)
 
-        // Check if any forced tools were used in this response
         const nextCheckResult = checkForForcedToolUsage(
           currentResponse,
           nextPayload.tool_choice,
@@ -452,7 +430,6 @@ export const azureOpenAIProvider: ProviderConfig = {
         const nextModelEndTime = Date.now()
         const thisModelTime = nextModelEndTime - nextModelStartTime
 
-        // Add to time segments
         timeSegments.push({
           type: 'model',
           name: `Model response (iteration ${iterationCount + 1})`,
@@ -461,15 +438,12 @@ export const azureOpenAIProvider: ProviderConfig = {
           duration: thisModelTime,
         })
 
-        // Add to model time
         modelTime += thisModelTime
 
-        // Update content if we have a text response
         if (currentResponse.choices[0]?.message?.content) {
           content = currentResponse.choices[0].message.content
         }
 
-        // Update token counts
         if (currentResponse.usage) {
           tokens.prompt += currentResponse.usage.prompt_tokens || 0
           tokens.completion += currentResponse.usage.completion_tokens || 0
@@ -479,46 +453,44 @@ export const azureOpenAIProvider: ProviderConfig = {
         iterationCount++
       }
 
-      // After all tool processing complete, if streaming was requested, use streaming for the final response
       if (request.stream) {
         logger.info('Using streaming for final response after tool processing')
 
-        // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
-        // This prevents Azure OpenAI API from trying to force tool usage again in the final streaming response
-        const streamingPayload = {
+        const accumulatedCost = calculateCost(request.model, tokens.prompt, tokens.completion)
+
+        const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           messages: currentMessages,
-          tool_choice: 'auto', // Always use 'auto' for the streaming response after tool calls
+          tool_choice: 'auto',
           stream: true,
           stream_options: { include_usage: true },
         }
-
-        const streamResponse = await azureOpenAI.chat.completions.create(streamingPayload)
-
-        // Create the StreamingExecution object with all collected data
-        let _streamContent = ''
+        const streamResponse = await azureOpenAI.chat.completions.create(streamingParams)
 
         const streamingResult = {
           stream: createReadableStreamFromAzureOpenAIStream(streamResponse, (content, usage) => {
-            // Update the execution data with the final content and token usage
-            _streamContent = content
             streamingResult.execution.output.content = content
+            streamingResult.execution.output.tokens = {
+              prompt: tokens.prompt + usage.prompt_tokens,
+              completion: tokens.completion + usage.completion_tokens,
+              total: tokens.total + usage.total_tokens,
+            }
 
-            // Update token usage if available from the stream
-            if (usage) {
-              const newTokens = {
-                prompt: usage.prompt_tokens || tokens.prompt,
-                completion: usage.completion_tokens || tokens.completion,
-                total: usage.total_tokens || tokens.total,
-              }
-
-              streamingResult.execution.output.tokens = newTokens
+            const streamCost = calculateCost(
+              request.model,
+              usage.prompt_tokens,
+              usage.completion_tokens
+            )
+            streamingResult.execution.output.cost = {
+              input: accumulatedCost.input + streamCost.input,
+              output: accumulatedCost.output + streamCost.output,
+              total: accumulatedCost.total + streamCost.total,
             }
           }),
           execution: {
             success: true,
             output: {
-              content: '', // Will be filled by the callback
+              content: '',
               model: request.model,
               tokens: {
                 prompt: tokens.prompt,
@@ -542,9 +514,13 @@ export const azureOpenAIProvider: ProviderConfig = {
                 iterations: iterationCount + 1,
                 timeSegments: timeSegments,
               },
-              // Cost will be calculated in logger
+              cost: {
+                input: accumulatedCost.input,
+                output: accumulatedCost.output,
+                total: accumulatedCost.total,
+              },
             },
-            logs: [], // No block logs at provider level
+            logs: [],
             metadata: {
               startTime: providerStartTimeISO,
               endTime: new Date().toISOString(),
@@ -553,11 +529,9 @@ export const azureOpenAIProvider: ProviderConfig = {
           },
         } as StreamingExecution
 
-        // Return the streaming execution object with explicit casting
         return streamingResult as StreamingExecution
       }
 
-      // Calculate overall timing
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
@@ -578,10 +552,8 @@ export const azureOpenAIProvider: ProviderConfig = {
           iterations: iterationCount + 1,
           timeSegments: timeSegments,
         },
-        // We're not calculating cost here as it will be handled in logger.ts
       }
     } catch (error) {
-      // Include timing information even for errors
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
@@ -591,9 +563,8 @@ export const azureOpenAIProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      // Create a new error with timing information
       const enhancedError = new Error(error instanceof Error ? error.message : String(error))
-      // @ts-ignore - Adding timing property to the error
+      // @ts-ignore
       enhancedError.timing = {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,

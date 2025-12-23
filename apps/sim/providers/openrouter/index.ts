@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -6,6 +7,7 @@ import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromOpenAIStream,
+  supportsNativeStructuredOutputs,
 } from '@/providers/openrouter/utils'
 import type {
   ProviderConfig,
@@ -13,10 +15,48 @@ import type {
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
-import { prepareToolExecution, prepareToolsWithUsageControl } from '@/providers/utils'
+import {
+  calculateCost,
+  generateSchemaInstructions,
+  prepareToolExecution,
+  prepareToolsWithUsageControl,
+} from '@/providers/utils'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('OpenRouterProvider')
+
+/**
+ * Applies structured output configuration to a payload based on model capabilities.
+ * Uses json_schema with require_parameters for supported models, falls back to json_object with prompt instructions.
+ */
+async function applyResponseFormat(
+  targetPayload: any,
+  messages: any[],
+  responseFormat: any,
+  model: string
+): Promise<any[]> {
+  const useNative = await supportsNativeStructuredOutputs(model)
+
+  if (useNative) {
+    logger.info('Using native structured outputs for OpenRouter model', { model })
+    targetPayload.response_format = {
+      type: 'json_schema',
+      json_schema: {
+        name: responseFormat.name || 'response_schema',
+        schema: responseFormat.schema || responseFormat,
+        strict: responseFormat.strict !== false,
+      },
+    }
+    targetPayload.provider = { ...targetPayload.provider, require_parameters: true }
+    return messages
+  }
+
+  logger.info('Using json_object mode with prompt instructions for OpenRouter model', { model })
+  const schema = responseFormat.schema || responseFormat
+  const schemaInstructions = generateSchemaInstructions(schema, responseFormat.name)
+  targetPayload.response_format = { type: 'json_object' }
+  return [...messages, { role: 'user', content: schemaInstructions }]
+}
 
 export const openRouterProvider: ProviderConfig = {
   id: 'openrouter',
@@ -38,7 +78,7 @@ export const openRouterProvider: ProviderConfig = {
       baseURL: 'https://openrouter.ai/api/v1',
     })
 
-    const requestedModel = (request.model || '').replace(/^openrouter\//, '')
+    const requestedModel = request.model.replace(/^openrouter\//, '')
 
     logger.info('Preparing OpenRouter request', {
       model: requestedModel,
@@ -83,17 +123,6 @@ export const openRouterProvider: ProviderConfig = {
     if (request.temperature !== undefined) payload.temperature = request.temperature
     if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
 
-    if (request.responseFormat) {
-      payload.response_format = {
-        type: 'json_schema',
-        json_schema: {
-          name: request.responseFormat.name || 'response_schema',
-          schema: request.responseFormat.schema || request.responseFormat,
-          strict: request.responseFormat.strict !== false,
-        },
-      }
-    }
-
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
     let hasActiveTools = false
     if (tools?.length) {
@@ -110,26 +139,43 @@ export const openRouterProvider: ProviderConfig = {
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
     try {
+      if (request.responseFormat && !hasActiveTools) {
+        payload.messages = await applyResponseFormat(
+          payload,
+          payload.messages,
+          request.responseFormat,
+          requestedModel
+        )
+      }
+
       if (request.stream && (!tools || tools.length === 0 || !hasActiveTools)) {
-        const streamResponse = await client.chat.completions.create({
+        const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           stream: true,
           stream_options: { include_usage: true },
-        })
-
-        const tokenUsage = { prompt: 0, completion: 0, total: 0 }
+        }
+        const streamResponse = await client.chat.completions.create(streamingParams)
 
         const streamingResult = {
           stream: createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
-            if (usage) {
-              const newTokens = {
-                prompt: usage.prompt_tokens || tokenUsage.prompt,
-                completion: usage.completion_tokens || tokenUsage.completion,
-                total: usage.total_tokens || tokenUsage.total,
-              }
-              streamingResult.execution.output.tokens = newTokens
-            }
             streamingResult.execution.output.content = content
+            streamingResult.execution.output.tokens = {
+              prompt: usage.prompt_tokens,
+              completion: usage.completion_tokens,
+              total: usage.total_tokens,
+            }
+
+            const costResult = calculateCost(
+              requestedModel,
+              usage.prompt_tokens,
+              usage.completion_tokens
+            )
+            streamingResult.execution.output.cost = {
+              input: costResult.input,
+              output: costResult.output,
+              total: costResult.total,
+            }
+
             const end = Date.now()
             const endISO = new Date(end).toISOString()
             if (streamingResult.execution.output.providerTiming) {
@@ -147,7 +193,7 @@ export const openRouterProvider: ProviderConfig = {
             output: {
               content: '',
               model: requestedModel,
-              tokens: tokenUsage,
+              tokens: { prompt: 0, completion: 0, total: 0 },
               toolCalls: undefined,
               providerTiming: {
                 startTime: providerStartTimeISO,
@@ -163,6 +209,7 @@ export const openRouterProvider: ProviderConfig = {
                   },
                 ],
               },
+              cost: { input: 0, output: 0, total: 0 },
             },
             logs: [],
             metadata: {
@@ -217,87 +264,125 @@ export const openRouterProvider: ProviderConfig = {
       usedForcedTools = forcedToolResult.usedForcedTools
 
       while (iterationCount < MAX_TOOL_ITERATIONS) {
+        if (currentResponse.choices[0]?.message?.content) {
+          content = currentResponse.choices[0].message.content
+        }
+
         const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
         if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
           break
         }
 
         const toolsStartTime = Date.now()
-        for (const toolCall of toolCallsInResponse) {
+
+        const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
+          const toolCallStartTime = Date.now()
+          const toolName = toolCall.function.name
+
           try {
-            const toolName = toolCall.function.name
             const toolArgs = JSON.parse(toolCall.function.arguments)
             const tool = request.tools?.find((t) => t.id === toolName)
-            if (!tool) continue
 
-            const toolCallStartTime = Date.now()
+            if (!tool) return null
+
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
             const result = await executeTool(toolName, executionParams, true)
             const toolCallEndTime = Date.now()
-            const toolCallDuration = toolCallEndTime - toolCallStartTime
 
-            timeSegments.push({
-              type: 'tool',
-              name: toolName,
+            return {
+              toolCall,
+              toolName,
+              toolParams,
+              result,
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,
-              duration: toolCallDuration,
-            })
-
-            let resultContent: any
-            if (result.success) {
-              toolResults.push(result.output)
-              resultContent = result.output
-            } else {
-              resultContent = {
-                error: true,
-                message: result.error || 'Tool execution failed',
-                tool: toolName,
-              }
+              duration: toolCallEndTime - toolCallStartTime,
             }
-
-            toolCalls.push({
-              name: toolName,
-              arguments: toolParams,
-              startTime: new Date(toolCallStartTime).toISOString(),
-              endTime: new Date(toolCallEndTime).toISOString(),
-              duration: toolCallDuration,
-              result: resultContent,
-              success: result.success,
-            })
-
-            currentMessages.push({
-              role: 'assistant',
-              content: null,
-              tool_calls: [
-                {
-                  id: toolCall.id,
-                  type: 'function',
-                  function: {
-                    name: toolName,
-                    arguments: toolCall.function.arguments,
-                  },
-                },
-              ],
-            })
-
-            currentMessages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: JSON.stringify(resultContent),
-            })
           } catch (error) {
+            const toolCallEndTime = Date.now()
             logger.error('Error processing tool call (OpenRouter):', {
               error: error instanceof Error ? error.message : String(error),
-              toolName: toolCall?.function?.name,
+              toolName,
             })
+
+            return {
+              toolCall,
+              toolName,
+              toolParams: {},
+              result: {
+                success: false,
+                output: undefined,
+                error: error instanceof Error ? error.message : 'Tool execution failed',
+              },
+              startTime: toolCallStartTime,
+              endTime: toolCallEndTime,
+              duration: toolCallEndTime - toolCallStartTime,
+            }
           }
+        })
+
+        const executionResults = await Promise.allSettled(toolExecutionPromises)
+
+        currentMessages.push({
+          role: 'assistant',
+          content: null,
+          tool_calls: toolCallsInResponse.map((tc) => ({
+            id: tc.id,
+            type: 'function',
+            function: {
+              name: tc.function.name,
+              arguments: tc.function.arguments,
+            },
+          })),
+        })
+
+        for (const settledResult of executionResults) {
+          if (settledResult.status === 'rejected' || !settledResult.value) continue
+
+          const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
+            settledResult.value
+
+          timeSegments.push({
+            type: 'tool',
+            name: toolName,
+            startTime: startTime,
+            endTime: endTime,
+            duration: duration,
+          })
+
+          let resultContent: any
+          if (result.success) {
+            toolResults.push(result.output)
+            resultContent = result.output
+          } else {
+            resultContent = {
+              error: true,
+              message: result.error || 'Tool execution failed',
+              tool: toolName,
+            }
+          }
+
+          toolCalls.push({
+            name: toolName,
+            arguments: toolParams,
+            startTime: new Date(startTime).toISOString(),
+            endTime: new Date(endTime).toISOString(),
+            duration: duration,
+            result: resultContent,
+            success: result.success,
+          })
+
+          currentMessages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(resultContent),
+          })
         }
 
         const thisToolsTime = Date.now() - toolsStartTime
         toolsTime += thisToolsTime
 
-        const nextPayload: any = {
+        const nextPayload = {
           ...payload,
           messages: currentMessages,
         }
@@ -343,26 +428,52 @@ export const openRouterProvider: ProviderConfig = {
       }
 
       if (request.stream) {
-        const streamingPayload = {
-          ...payload,
-          messages: currentMessages,
-          tool_choice: 'auto',
+        const accumulatedCost = calculateCost(requestedModel, tokens.prompt, tokens.completion)
+
+        const streamingParams: ChatCompletionCreateParamsStreaming & { provider?: any } = {
+          model: payload.model,
+          messages: [...currentMessages],
           stream: true,
           stream_options: { include_usage: true },
         }
 
-        const streamResponse = await client.chat.completions.create(streamingPayload)
+        if (payload.temperature !== undefined) {
+          streamingParams.temperature = payload.temperature
+        }
+        if (payload.max_tokens !== undefined) {
+          streamingParams.max_tokens = payload.max_tokens
+        }
+
+        if (request.responseFormat) {
+          ;(streamingParams as any).messages = await applyResponseFormat(
+            streamingParams as any,
+            streamingParams.messages,
+            request.responseFormat,
+            requestedModel
+          )
+        }
+
+        const streamResponse = await client.chat.completions.create(streamingParams)
+
         const streamingResult = {
           stream: createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
-            if (usage) {
-              const newTokens = {
-                prompt: usage.prompt_tokens || tokens.prompt,
-                completion: usage.completion_tokens || tokens.completion,
-                total: usage.total_tokens || tokens.total,
-              }
-              streamingResult.execution.output.tokens = newTokens
-            }
             streamingResult.execution.output.content = content
+            streamingResult.execution.output.tokens = {
+              prompt: tokens.prompt + usage.prompt_tokens,
+              completion: tokens.completion + usage.completion_tokens,
+              total: tokens.total + usage.total_tokens,
+            }
+
+            const streamCost = calculateCost(
+              requestedModel,
+              usage.prompt_tokens,
+              usage.completion_tokens
+            )
+            streamingResult.execution.output.cost = {
+              input: accumulatedCost.input + streamCost.input,
+              output: accumulatedCost.output + streamCost.output,
+              total: accumulatedCost.total + streamCost.total,
+            }
           }),
           execution: {
             success: true,
@@ -387,6 +498,11 @@ export const openRouterProvider: ProviderConfig = {
                 iterations: iterationCount + 1,
                 timeSegments: timeSegments,
               },
+              cost: {
+                input: accumulatedCost.input,
+                output: accumulatedCost.output,
+                total: accumulatedCost.total,
+              },
             },
             logs: [],
             metadata: {
@@ -398,6 +514,49 @@ export const openRouterProvider: ProviderConfig = {
         } as StreamingExecution
 
         return streamingResult as StreamingExecution
+      }
+
+      if (request.responseFormat && hasActiveTools && toolCalls.length > 0) {
+        const finalPayload: any = {
+          model: payload.model,
+          messages: [...currentMessages],
+        }
+        if (payload.temperature !== undefined) {
+          finalPayload.temperature = payload.temperature
+        }
+        if (payload.max_tokens !== undefined) {
+          finalPayload.max_tokens = payload.max_tokens
+        }
+
+        finalPayload.messages = await applyResponseFormat(
+          finalPayload,
+          finalPayload.messages,
+          request.responseFormat,
+          requestedModel
+        )
+
+        const finalStartTime = Date.now()
+        const finalResponse = await client.chat.completions.create(finalPayload)
+        const finalEndTime = Date.now()
+        const finalDuration = finalEndTime - finalStartTime
+
+        timeSegments.push({
+          type: 'model',
+          name: 'Final structured response',
+          startTime: finalStartTime,
+          endTime: finalEndTime,
+          duration: finalDuration,
+        })
+        modelTime += finalDuration
+
+        if (finalResponse.choices[0]?.message?.content) {
+          content = finalResponse.choices[0].message.content
+        }
+        if (finalResponse.usage) {
+          tokens.prompt += finalResponse.usage.prompt_tokens || 0
+          tokens.completion += finalResponse.usage.completion_tokens || 0
+          tokens.total += finalResponse.usage.total_tokens || 0
+        }
       }
 
       const providerEndTime = Date.now()
@@ -425,10 +584,21 @@ export const openRouterProvider: ProviderConfig = {
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
-      logger.error('Error in OpenRouter request:', {
+
+      const errorDetails: Record<string, any> = {
         error: error instanceof Error ? error.message : String(error),
         duration: totalDuration,
-      })
+      }
+      if (error && typeof error === 'object') {
+        const err = error as any
+        if (err.status) errorDetails.status = err.status
+        if (err.code) errorDetails.code = err.code
+        if (err.type) errorDetails.type = err.type
+        if (err.error?.message) errorDetails.providerMessage = err.error.message
+        if (err.error?.metadata) errorDetails.metadata = err.error.metadata
+      }
+
+      logger.error('Error in OpenRouter request:', errorDetails)
       const enhancedError = new Error(error instanceof Error ? error.message : String(error))
       // @ts-ignore
       enhancedError.timing = {

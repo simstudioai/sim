@@ -471,8 +471,10 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
     }
   })
 
+  // Include loop/parallel spans that have errors (e.g., validation errors that blocked execution)
+  // These won't have iteration children, so they should appear directly in results
   const nonIterationContainerSpans = normalSpans.filter(
-    (span) => span.type !== 'parallel' && span.type !== 'loop'
+    (span) => (span.type !== 'parallel' && span.type !== 'loop') || span.status === 'error'
   )
 
   if (iterationSpans.length > 0) {

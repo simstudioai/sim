@@ -47,12 +47,13 @@ Interroger des données d'une table Supabase
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `projectId` | chaîne | Oui | Votre ID de projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
-| `table` | chaîne | Oui | Le nom de la table Supabase à interroger |
-| `filter` | chaîne | Non | Filtre PostgREST \(ex. : "id=eq.123"\) |
-| `orderBy` | chaîne | Non | Colonne pour le tri \(ajoutez DESC pour décroissant\) |
-| `limit` | nombre | Non | Nombre maximum de lignes à retourner |
-| `apiKey` | chaîne | Oui | Votre clé secrète de rôle de service Supabase |
+| `projectId` | string | Oui | L'ID de votre projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
+| `table` | string | Oui | Le nom de la table Supabase à interroger |
+| `schema` | string | Non | Schéma de base de données à interroger \(par défaut : public\). Utilisez ceci pour accéder aux tables dans d'autres schémas. |
+| `filter` | string | Non | Filtre PostgREST \(ex. : "id=eq.123"\) |
+| `orderBy` | string | Non | Colonne pour le tri \(ajoutez DESC pour l'ordre décroissant\) |
+| `limit` | number | Non | Nombre maximum de lignes à retourner |
+| `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
 
 #### Sortie
 
@@ -69,10 +70,11 @@ Insérer des données dans une table Supabase
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `projectId` | chaîne | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
-| `table` | chaîne | Oui | Le nom de la table Supabase dans laquelle insérer des données |
-| `data` | tableau | Oui | Les données à insérer (tableau d'objets ou un seul objet) |
-| `apiKey` | chaîne | Oui | Votre clé secrète de rôle de service Supabase |
+| `projectId` | string | Oui | L'ID de votre projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
+| `table` | string | Oui | Le nom de la table Supabase dans laquelle insérer des données |
+| `schema` | string | Non | Schéma de base de données dans lequel insérer \(par défaut : public\). Utilisez ceci pour accéder aux tables dans d'autres schémas. |
+| `data` | array | Oui | Les données à insérer \(tableau d'objets ou un seul objet\) |
+| `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
 
 #### Sortie
 
@@ -89,9 +91,10 @@ Obtenir une seule ligne d'une table Supabase selon des critères de filtrage
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `projectId` | string | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
+| `projectId` | string | Oui | L'ID de votre projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
 | `table` | string | Oui | Le nom de la table Supabase à interroger |
-| `filter` | string | Oui | Filtre PostgREST pour trouver la ligne spécifique (ex. : "id=eq.123") |
+| `schema` | string | Non | Schéma de base de données à interroger \(par défaut : public\). Utilisez ceci pour accéder aux tables dans d'autres schémas. |
+| `filter` | string | Oui | Filtre PostgREST pour trouver la ligne spécifique \(ex. : "id=eq.123"\) |
 | `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
 
 #### Sortie
@@ -109,9 +112,10 @@ Mettre à jour des lignes dans une table Supabase selon des critères de filtrag
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `projectId` | string | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
+| `projectId` | string | Oui | L'ID de votre projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
 | `table` | string | Oui | Le nom de la table Supabase à mettre à jour |
-| `filter` | string | Oui | Filtre PostgREST pour identifier les lignes à mettre à jour (ex. : "id=eq.123") |
+| `schema` | string | Non | Schéma de base de données dans lequel mettre à jour \(par défaut : public\). Utilisez ceci pour accéder aux tables dans d'autres schémas. |
+| `filter` | string | Oui | Filtre PostgREST pour identifier les lignes à mettre à jour \(ex. : "id=eq.123"\) |
 | `data` | object | Oui | Données à mettre à jour dans les lignes correspondantes |
 | `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
 
@@ -130,9 +134,10 @@ Supprimer des lignes d'une table Supabase selon des critères de filtrage
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `projectId` | string | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
-| `table` | string | Oui | Le nom de la table Supabase d'où supprimer des lignes |
-| `filter` | string | Oui | Filtre PostgREST pour identifier les lignes à supprimer (ex. : "id=eq.123") |
+| `projectId` | string | Oui | L'ID de votre projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
+| `table` | string | Oui | Le nom de la table Supabase à partir de laquelle supprimer |
+| `schema` | string | Non | Schéma de base de données à partir duquel supprimer \(par défaut : public\). Utilisez ceci pour accéder aux tables dans d'autres schémas. |
+| `filter` | string | Oui | Filtre PostgREST pour identifier les lignes à supprimer \(ex. : "id=eq.123"\) |
 | `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
 
 #### Sortie
@@ -150,10 +155,11 @@ Insérer ou mettre à jour des données dans une table Supabase (opération upse
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `projectId` | chaîne | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
-| `table` | chaîne | Oui | Le nom de la table Supabase dans laquelle upserter des données |
-| `data` | tableau | Oui | Les données à upserter (insérer ou mettre à jour) - tableau d'objets ou un seul objet |
-| `apiKey` | chaîne | Oui | Votre clé secrète de rôle de service Supabase |
+| `projectId` | string | Oui | L'ID de votre projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
+| `table` | string | Oui | Le nom de la table Supabase dans laquelle effectuer l'upsert |
+| `schema` | string | Non | Schéma de base de données dans lequel effectuer l'upsert \(par défaut : public\). Utilisez ceci pour accéder aux tables dans d'autres schémas. |
+| `data` | array | Oui | Les données à insérer ou mettre à jour \(upsert\) - tableau d'objets ou un seul objet |
+| `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
 
 #### Sortie
 
@@ -170,11 +176,12 @@ Compter les lignes dans une table Supabase
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `projectId` | chaîne | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
-| `table` | chaîne | Oui | Le nom de la table Supabase dont compter les lignes |
-| `filter` | chaîne | Non | Filtre PostgREST (ex. : "status=eq.active") |
-| `countType` | chaîne | Non | Type de comptage : exact, planned ou estimated (par défaut : exact) |
-| `apiKey` | chaîne | Oui | Votre clé secrète de rôle de service Supabase |
+| `projectId` | string | Oui | L'ID de votre projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
+| `table` | string | Oui | Le nom de la table Supabase dont compter les lignes |
+| `schema` | string | Non | Schéma de base de données à partir duquel compter \(par défaut : public\). Utilisez ceci pour accéder aux tables dans d'autres schémas. |
+| `filter` | string | Non | Filtre PostgREST \(ex. : "status=eq.active"\) |
+| `countType` | string | Non | Type de comptage : exact, planned ou estimated \(par défaut : exact\) |
+| `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
 
 #### Sortie
 
@@ -191,14 +198,15 @@ Effectuer une recherche en texte intégral sur une table Supabase
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `projectId` | chaîne | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
-| `table` | chaîne | Oui | Le nom de la table Supabase à rechercher |
-| `column` | chaîne | Oui | La colonne dans laquelle rechercher |
-| `query` | chaîne | Oui | La requête de recherche |
-| `searchType` | chaîne | Non | Type de recherche : plain, phrase ou websearch (par défaut : websearch) |
-| `language` | chaîne | Non | Langue pour la configuration de recherche textuelle (par défaut : english) |
-| `limit` | nombre | Non | Nombre maximum de lignes à retourner |
-| `apiKey` | chaîne | Oui | Votre clé secrète de rôle de service Supabase |
+| `projectId` | string | Oui | L'ID de votre projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
+| `table` | string | Oui | Le nom de la table Supabase à rechercher |
+| `schema` | string | Non | Schéma de base de données dans lequel rechercher \(par défaut : public\). Utilisez ceci pour accéder aux tables dans d'autres schémas. |
+| `column` | string | Oui | La colonne dans laquelle rechercher |
+| `query` | string | Oui | La requête de recherche |
+| `searchType` | string | Non | Type de recherche : plain, phrase ou websearch \(par défaut : websearch\) |
+| `language` | string | Non | Langue pour la configuration de recherche textuelle \(par défaut : english\) |
+| `limit` | number | Non | Nombre maximum de lignes à retourner |
+| `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
 
 #### Sortie
 

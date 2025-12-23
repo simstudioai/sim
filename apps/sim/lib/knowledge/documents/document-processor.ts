@@ -54,9 +54,9 @@ export async function processDocument(
   fileUrl: string,
   filename: string,
   mimeType: string,
-  chunkSize = 1000,
+  chunkSize = 1024,
   chunkOverlap = 200,
-  minChunkSize = 1,
+  minCharactersPerChunk = 100,
   userId?: string,
   workspaceId?: string | null
 ): Promise<{
@@ -92,17 +92,18 @@ export async function processDocument(
       logger.info('Using JSON/YAML chunker for structured data')
       chunks = await JsonYamlChunker.chunkJsonYaml(content, {
         chunkSize,
-        minChunkSize,
+        minCharactersPerChunk,
       })
     } else if (StructuredDataChunker.isStructuredData(content, mimeType)) {
       logger.info('Using structured data chunker for spreadsheet/CSV content')
       chunks = await StructuredDataChunker.chunkStructuredData(content, {
+        chunkSize,
         headers: metadata.headers,
         totalRows: metadata.totalRows || metadata.rowCount,
         sheetName: metadata.sheetNames?.[0],
       })
     } else {
-      const chunker = new TextChunker({ chunkSize, overlap: chunkOverlap, minChunkSize })
+      const chunker = new TextChunker({ chunkSize, chunkOverlap, minCharactersPerChunk })
       chunks = await chunker.chunk(content)
     }
 

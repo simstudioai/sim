@@ -38,6 +38,7 @@ Erstellen Sie einen neuen Kontakt in Intercom mit E-Mail, external_id oder Rolle
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
+| `role` | string | Nein | Die Rolle des Kontakts. Akzeptiert 'user' oder 'lead'. Standardmäßig 'lead', wenn nicht angegeben. |
 | `email` | string | Nein | Die E-Mail-Adresse des Kontakts |
 | `external_id` | string | Nein | Eine eindeutige Kennung für den Kontakt, die vom Client bereitgestellt wird |
 | `phone` | string | Nein | Die Telefonnummer des Kontakts |
@@ -45,9 +46,10 @@ Erstellen Sie einen neuen Kontakt in Intercom mit E-Mail, external_id oder Rolle
 | `avatar` | string | Nein | Eine Avatar-Bild-URL für den Kontakt |
 | `signed_up_at` | number | Nein | Der Zeitpunkt der Registrierung des Benutzers als Unix-Zeitstempel |
 | `last_seen_at` | number | Nein | Der Zeitpunkt, zu dem der Benutzer zuletzt gesehen wurde, als Unix-Zeitstempel |
-| `owner_id` | string | Nein | Die ID eines Administrators, dem die Kontoinhaberschaft des Kontakts zugewiesen wurde |
-| `unsubscribed_from_emails` | boolean | Nein | Ob der Kontakt E-Mails abbestellt hat |
-| `custom_attributes` | string | Nein | Benutzerdefinierte Attribute als JSON-Objekt \(z.B. \{"attribute_name": "value"\}\) |
+| `owner_id` | string | Nein | Die ID eines Administrators, dem die Kontoverantwortung für den Kontakt zugewiesen wurde |
+| `unsubscribed_from_emails` | boolean | Nein | Ob der Kontakt von E-Mails abgemeldet ist |
+| `custom_attributes` | string | Nein | Benutzerdefinierte Attribute als JSON-Objekt \(z. B. \{"attribute_name": "value"\}\) |
+| `company_id` | string | Nein | Unternehmens-ID, mit der der Kontakt bei der Erstellung verknüpft werden soll |
 
 #### Ausgabe
 
@@ -81,16 +83,19 @@ Einen bestehenden Kontakt in Intercom aktualisieren
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `contactId` | string | Ja | Zu aktualisierende Kontakt-ID |
+| `contactId` | string | Ja | Kontakt-ID, die aktualisiert werden soll |
+| `role` | string | Nein | Die Rolle des Kontakts. Akzeptiert 'user' oder 'lead'. |
+| `external_id` | string | Nein | Eine eindeutige Kennung für den Kontakt, die vom Client bereitgestellt wird |
 | `email` | string | Nein | Die E-Mail-Adresse des Kontakts |
 | `phone` | string | Nein | Die Telefonnummer des Kontakts |
 | `name` | string | Nein | Der Name des Kontakts |
 | `avatar` | string | Nein | Eine Avatar-Bild-URL für den Kontakt |
-| `signed_up_at` | number | Nein | Der Zeitpunkt der Registrierung des Benutzers als Unix-Timestamp |
-| `last_seen_at` | number | Nein | Der Zeitpunkt, zu dem der Benutzer zuletzt gesehen wurde, als Unix-Timestamp |
-| `owner_id` | string | Nein | Die ID eines Administrators, dem die Kontoeigentümerschaft des Kontakts zugewiesen wurde |
-| `unsubscribed_from_emails` | boolean | Nein | Ob der Kontakt E-Mails abbestellt hat |
-| `custom_attributes` | string | Nein | Benutzerdefinierte Attribute als JSON-Objekt \(z.B. \{"attribut_name": "wert"\}\) |
+| `signed_up_at` | number | Nein | Der Zeitpunkt der Registrierung des Benutzers als Unix-Zeitstempel |
+| `last_seen_at` | number | Nein | Der Zeitpunkt, zu dem der Benutzer zuletzt gesehen wurde, als Unix-Zeitstempel |
+| `owner_id` | string | Nein | Die ID eines Administrators, dem die Kontoverantwortung für den Kontakt zugewiesen wurde |
+| `unsubscribed_from_emails` | boolean | Nein | Ob der Kontakt von E-Mails abgemeldet ist |
+| `custom_attributes` | string | Nein | Benutzerdefinierte Attribute als JSON-Objekt \(z. B. \{"attribute_name": "value"\}\) |
+| `company_id` | string | Nein | Unternehmens-ID, mit der der Kontakt verknüpft werden soll |
 
 #### Output
 
@@ -125,9 +130,11 @@ Suche nach Kontakten in Intercom mit einer Abfrage
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Ja | Suchabfrage (z.B., \{"field":"email","operator":"=","value":"user@example.com"\}) |
+| `query` | string | Ja | Suchabfrage (z. B. \{"field":"email","operator":"=","value":"user@example.com"\}) |
 | `per_page` | number | Nein | Anzahl der Ergebnisse pro Seite (max: 150) |
 | `starting_after` | string | Nein | Cursor für Paginierung |
+| `sort_field` | string | Nein | Feld zum Sortieren (z. B. "name", "created_at", "last_seen_at") |
+| `sort_order` | string | Nein | Sortierreihenfolge: "ascending" oder "descending" |
 
 #### Ausgabe
 
@@ -163,12 +170,13 @@ Ein Unternehmen in Intercom erstellen oder aktualisieren
 | --------- | ---- | -------- | ----------- |
 | `company_id` | string | Ja | Ihre eindeutige Kennung für das Unternehmen |
 | `name` | string | Nein | Der Name des Unternehmens |
-| `website` | string | Nein | Die Unternehmenswebsite |
-| `plan` | string | Nein | Der Unternehmensplan |
+| `website` | string | Nein | Die Website des Unternehmens |
+| `plan` | string | Nein | Der Name des Unternehmensplans |
 | `size` | number | Nein | Die Anzahl der Mitarbeiter im Unternehmen |
 | `industry` | string | Nein | Die Branche, in der das Unternehmen tätig ist |
-| `monthly_spend` | number | Nein | Wie viel Umsatz das Unternehmen für Ihr Geschäft generiert. Hinweis: Dieses Feld kürzt Dezimalzahlen auf ganze Zahlen \(z.B. wird aus 155,98 die Zahl 155\) |
+| `monthly_spend` | number | Nein | Wie viel Umsatz das Unternehmen für Ihr Geschäft generiert. Hinweis: Dieses Feld rundet Dezimalzahlen auf ganze Zahlen ab (z. B. wird 155,98 zu 155) |
 | `custom_attributes` | string | Nein | Benutzerdefinierte Attribute als JSON-Objekt |
+| `remote_created_at` | number | Nein | Der Zeitpunkt, zu dem das Unternehmen von Ihnen erstellt wurde, als Unix-Zeitstempel |
 
 #### Ausgabe
 
@@ -204,6 +212,7 @@ Listet alle Unternehmen von Intercom mit Paginierungsunterstützung auf. Hinweis
 | --------- | ---- | -------- | ----------- |
 | `per_page` | number | Nein | Anzahl der Ergebnisse pro Seite |
 | `page` | number | Nein | Seitennummer |
+| `starting_after` | string | Nein | Cursor für Paginierung (bevorzugt gegenüber seitenbasierter Paginierung) |
 
 #### Ausgabe
 
@@ -221,7 +230,8 @@ Eine einzelne Konversation anhand der ID von Intercom abrufen
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `conversationId` | string | Ja | Konversations-ID zum Abrufen |
-| `display_as` | string | Nein | Auf "plaintext" setzen, um Nachrichten im Klartext abzurufen |
+| `display_as` | string | Nein | Auf "plaintext" setzen, um Nachrichten als reinen Text abzurufen |
+| `include_translations` | boolean | Nein | Wenn true, werden Konversationsteile in die erkannte Sprache der Konversation übersetzt |
 
 #### Ausgabe
 
@@ -238,8 +248,10 @@ Alle Konversationen von Intercom mit Paginierungsunterstützung auflisten
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `per_page` | number | Nein | Anzahl der Ergebnisse pro Seite \(max: 150\) |
+| `per_page` | number | Nein | Anzahl der Ergebnisse pro Seite (max: 150) |
 | `starting_after` | string | Nein | Cursor für Paginierung |
+| `sort` | string | Nein | Feld zum Sortieren (z. B. "waiting_since", "updated_at", "created_at") |
+| `order` | string | Nein | Sortierreihenfolge: "asc" (aufsteigend) oder "desc" (absteigend) |
 
 #### Ausgabe
 
@@ -256,11 +268,12 @@ Als Administrator auf eine Konversation in Intercom antworten
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | string | Ja | Konversations-ID, auf die geantwortet werden soll |
+| `conversationId` | string | Ja | Konversations-ID zum Antworten |
 | `message_type` | string | Ja | Nachrichtentyp: "comment" oder "note" |
 | `body` | string | Ja | Der Textinhalt der Antwort |
-| `admin_id` | string | Nein | Die ID des Administrators, der die Antwort verfasst. Wenn nicht angegeben, wird ein Standard-Administrator \(Operator/Fin\) verwendet. |
-| `attachment_urls` | string | Nein | Kommagetrennte Liste von Bild-URLs \(max. 10\) |
+| `admin_id` | string | Nein | Die ID des Administrators, der die Antwort verfasst. Falls nicht angegeben, wird ein Standard-Administrator (Operator/Fin) verwendet. |
+| `attachment_urls` | string | Nein | Kommagetrennte Liste von Bild-URLs (max. 10) |
+| `created_at` | number | Nein | Unix-Zeitstempel für den Zeitpunkt der Erstellung der Antwort. Falls nicht angegeben, wird die aktuelle Zeit verwendet. |
 
 #### Ausgabe
 
@@ -278,8 +291,10 @@ Nach Konversationen in Intercom mit einer Abfrage suchen
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Ja | Suchabfrage als JSON-Objekt |
-| `per_page` | number | Nein | Anzahl der Ergebnisse pro Seite (max: 150) |
+| `per_page` | number | Nein | Anzahl der Ergebnisse pro Seite \(max: 150\) |
 | `starting_after` | string | Nein | Cursor für Paginierung |
+| `sort_field` | string | Nein | Feld, nach dem sortiert werden soll \(z. B. "created_at", "updated_at"\) |
+| `sort_order` | string | Nein | Sortierreihenfolge: "ascending" oder "descending" |
 
 #### Ausgabe
 
@@ -297,8 +312,12 @@ Ein neues Ticket in Intercom erstellen
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `ticket_type_id` | string | Ja | Die ID des Ticket-Typs |
-| `contacts` | string | Ja | JSON-Array von Kontakt-Identifikatoren (z.B. \{"id": "contact_id"\}) |
+| `contacts` | string | Ja | JSON-Array von Kontaktkennungen \(z. B. \[\{"id": "contact_id"\}\]\) |
 | `ticket_attributes` | string | Ja | JSON-Objekt mit Ticket-Attributen einschließlich _default_title_ und _default_description_ |
+| `company_id` | string | Nein | Unternehmens-ID, mit der das Ticket verknüpft werden soll |
+| `created_at` | number | Nein | Unix-Zeitstempel für den Zeitpunkt der Ticket-Erstellung. Wenn nicht angegeben, wird die aktuelle Zeit verwendet. |
+| `conversation_to_link_id` | string | Nein | ID einer vorhandenen Konversation, die mit diesem Ticket verknüpft werden soll |
+| `disable_notifications` | boolean | Nein | Wenn true, werden Benachrichtigungen bei der Ticket-Erstellung unterdrückt |
 
 #### Output
 
@@ -330,15 +349,17 @@ Eine neue vom Administrator initiierte Nachricht in Intercom erstellen und sende
 
 #### Input
 
-| Parameter | Type | Erforderlich | Beschreibung |
+| Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `message_type` | string | Ja | Nachrichtentyp: "inapp" oder "email" |
+| `message_type` | string | Ja | Nachrichtentyp: "inapp" für In-App-Nachrichten oder "email" für E-Mail-Nachrichten |
+| `template` | string | Ja | Nachrichtenvorlagenstil: "plain" für einfachen Text oder "personal" für personalisierten Stil |
 | `subject` | string | Nein | Der Betreff der Nachricht \(für E-Mail-Typ\) |
 | `body` | string | Ja | Der Inhalt der Nachricht |
 | `from_type` | string | Ja | Absendertyp: "admin" |
 | `from_id` | string | Ja | Die ID des Administrators, der die Nachricht sendet |
 | `to_type` | string | Ja | Empfängertyp: "contact" |
 | `to_id` | string | Ja | Die ID des Kontakts, der die Nachricht empfängt |
+| `created_at` | number | Nein | Unix-Zeitstempel für den Zeitpunkt der Nachrichtenerstellung. Wenn nicht angegeben, wird die aktuelle Zeit verwendet. |
 
 #### Output
 

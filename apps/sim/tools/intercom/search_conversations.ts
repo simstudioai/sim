@@ -9,6 +9,8 @@ export interface IntercomSearchConversationsParams {
   query: string
   per_page?: number
   starting_after?: string
+  sort_field?: string
+  sort_order?: 'ascending' | 'descending'
 }
 
 export interface IntercomSearchConversationsResponse {
@@ -43,20 +45,32 @@ export const intercomSearchConversationsTool: ToolConfig<
     query: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Search query as JSON object',
     },
     per_page: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of results per page (max: 150)',
     },
     starting_after: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Cursor for pagination',
+    },
+    sort_field: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Field to sort by (e.g., "created_at", "updated_at")',
+    },
+    sort_order: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Sort order: "ascending" or "descending"',
     },
   },
 
@@ -87,6 +101,13 @@ export const intercomSearchConversationsTool: ToolConfig<
       if (params.per_page) body.pagination = { per_page: params.per_page }
       if (params.starting_after)
         body.pagination = { ...body.pagination, starting_after: params.starting_after }
+
+      if (params.sort_field) {
+        body.sort = {
+          field: params.sort_field,
+          order: params.sort_order || 'descending',
+        }
+      }
 
       return body
     },

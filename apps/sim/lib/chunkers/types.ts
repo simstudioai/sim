@@ -1,18 +1,18 @@
-export interface ChunkMetadata {
-  startIndex: number
-  endIndex: number
-  tokenCount: number
-}
-
-export interface TextChunk {
-  text: string
-  metadata: ChunkMetadata
-}
-
+/**
+ * Options for configuring text chunkers
+ *
+ * Units:
+ * - chunkSize: Maximum chunk size in TOKENS (1 token ≈ 4 characters)
+ * - chunkOverlap: Overlap between chunks in TOKENS
+ * - minCharactersPerChunk: Minimum chunk size in CHARACTERS (filters tiny fragments)
+ */
 export interface ChunkerOptions {
+  /** Maximum chunk size in tokens (default: 1024) */
   chunkSize?: number
-  minChunkSize?: number
-  overlap?: number
+  /** Overlap between chunks in tokens (default: 0) */
+  chunkOverlap?: number
+  /** Minimum chunk size in characters to avoid tiny fragments (default: 100) */
+  minCharactersPerChunk?: number
 }
 
 export interface Chunk {
@@ -24,7 +24,7 @@ export interface Chunk {
   }
 }
 
-export interface StructuredDataOptions {
+export interface StructuredDataOptions extends ChunkerOptions {
   headers?: string[]
   totalRows?: number
   sheetName?: string

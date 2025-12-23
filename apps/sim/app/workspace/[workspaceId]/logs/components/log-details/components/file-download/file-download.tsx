@@ -34,9 +34,6 @@ interface FileCardProps {
   workspaceId?: string
 }
 
-/**
- * Formats file size to human readable format
- */
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 B'
   const k = 1024
@@ -45,9 +42,6 @@ function formatFileSize(bytes: number): string {
   return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
 }
 
-/**
- * Individual file card component
- */
 function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps) {
   const [isDownloading, setIsDownloading] = useState(false)
   const router = useRouter()
@@ -142,10 +136,6 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
   )
 }
 
-/**
- * Container component for displaying workflow execution files.
- * Each file is displayed as a separate card with consistent styling.
- */
 export function FileCards({ files, isExecutionFile = false, workspaceId }: FileCardsProps) {
   if (!files || files.length === 0) {
     return null
@@ -170,9 +160,6 @@ export function FileCards({ files, isExecutionFile = false, workspaceId }: FileC
   )
 }
 
-/**
- * Single file download button (legacy export for backwards compatibility)
- */
 export function FileDownload({
   file,
   isExecutionFile = false,

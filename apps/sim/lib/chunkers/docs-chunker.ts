@@ -32,8 +32,8 @@ export class DocsChunker {
     // Use the existing TextChunker for chunking logic
     this.textChunker = new TextChunker({
       chunkSize: options.chunkSize ?? 300, // Max 300 tokens per chunk
-      minChunkSize: options.minChunkSize ?? 1,
-      overlap: options.overlap ?? 50,
+      minCharactersPerChunk: options.minCharactersPerChunk ?? 1,
+      chunkOverlap: options.chunkOverlap ?? 50,
     })
     // Use localhost docs in development, production docs otherwise
     this.baseUrl = options.baseUrl ?? 'https://docs.sim.ai'

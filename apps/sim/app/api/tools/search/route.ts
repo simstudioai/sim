@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       query: validated.query,
       type: 'auto',
       useAutoprompt: true,
-      text: true,
+      highlights: true,
       apiKey: env.EXA_API_KEY,
     })
 
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     const results = (result.output.results || []).map((r: any, index: number) => ({
       title: r.title || '',
       link: r.url || '',
-      snippet: r.text || '',
+      snippet: Array.isArray(r.highlights) ? r.highlights.join(' ... ') : '',
       date: r.publishedDate || undefined,
       position: index + 1,
     }))

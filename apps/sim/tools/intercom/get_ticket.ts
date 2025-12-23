@@ -37,7 +37,7 @@ export const intercomGetTicketTool: ToolConfig<IntercomGetTicketParams, Intercom
       ticketId: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description: 'Ticket ID to retrieve',
       },
     },

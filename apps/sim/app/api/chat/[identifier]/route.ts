@@ -206,7 +206,6 @@ export async function POST(
 
       const { createStreamingResponse } = await import('@/lib/workflows/streaming/streaming')
       const { SSE_HEADERS } = await import('@/lib/core/utils/sse')
-      const { createFilteredResult } = await import('@/app/api/workflows/[id]/execute/route')
 
       const workflowInput: any = { input, conversationId }
       if (files && Array.isArray(files) && files.length > 0) {
@@ -267,7 +266,6 @@ export async function POST(
           isSecureMode: true,
           workflowTriggerType: 'chat',
         },
-        createFilteredResult,
         executionId,
       })
 

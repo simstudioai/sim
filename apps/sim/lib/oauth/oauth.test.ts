@@ -214,6 +214,17 @@ describe('OAuth Token Refresh', () => {
       const [, requestOptions] = (mockFetch as Mock).mock.calls[0]
       expect(requestOptions.headers.Accept).toBe('application/json')
     })
+
+    it('should include User-Agent header for Reddit requests', async () => {
+      const refreshToken = 'test_refresh_token'
+
+      await refreshOAuthToken('reddit', refreshToken)
+
+      const [, requestOptions] = (mockFetch as Mock).mock.calls[0]
+      expect(requestOptions.headers['User-Agent']).toBe(
+        'sim-studio/1.0 (https://github.com/simstudioai/sim)'
+      )
+    })
   })
 
   describe('Error Handling', () => {

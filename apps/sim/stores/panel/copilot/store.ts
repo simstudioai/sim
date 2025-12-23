@@ -8,6 +8,8 @@ import type {
   ClientToolDisplay,
 } from '@/lib/copilot/tools/client/base-tool'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
+import { GetBlockConfigClientTool } from '@/lib/copilot/tools/client/blocks/get-block-config'
+import { GetBlockOptionsClientTool } from '@/lib/copilot/tools/client/blocks/get-block-options'
 import { GetBlocksAndToolsClientTool } from '@/lib/copilot/tools/client/blocks/get-blocks-and-tools'
 import { GetBlocksMetadataClientTool } from '@/lib/copilot/tools/client/blocks/get-blocks-metadata'
 import { GetTriggerBlocksClientTool } from '@/lib/copilot/tools/client/blocks/get-trigger-blocks'
@@ -39,6 +41,8 @@ import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/us
 import { CheckDeploymentStatusClientTool } from '@/lib/copilot/tools/client/workflow/check-deployment-status'
 import { DeployWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/deploy-workflow'
 import { EditWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/edit-workflow'
+import { GetBlockOutputsClientTool } from '@/lib/copilot/tools/client/workflow/get-block-outputs'
+import { GetBlockUpstreamReferencesClientTool } from '@/lib/copilot/tools/client/workflow/get-block-upstream-references'
 import { GetUserWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/get-user-workflow'
 import { GetWorkflowConsoleClientTool } from '@/lib/copilot/tools/client/workflow/get-workflow-console'
 import { GetWorkflowDataClientTool } from '@/lib/copilot/tools/client/workflow/get-workflow-data'
@@ -76,6 +80,8 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   get_workflow_console: (id) => new GetWorkflowConsoleClientTool(id),
   get_blocks_and_tools: (id) => new GetBlocksAndToolsClientTool(id),
   get_blocks_metadata: (id) => new GetBlocksMetadataClientTool(id),
+  get_block_options: (id) => new GetBlockOptionsClientTool(id),
+  get_block_config: (id) => new GetBlockConfigClientTool(id),
   get_trigger_blocks: (id) => new GetTriggerBlocksClientTool(id),
   search_online: (id) => new SearchOnlineClientTool(id),
   search_documentation: (id) => new SearchDocumentationClientTool(id),
@@ -106,6 +112,8 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   manage_custom_tool: (id) => new ManageCustomToolClientTool(id),
   manage_mcp_tool: (id) => new ManageMcpToolClientTool(id),
   sleep: (id) => new SleepClientTool(id),
+  get_block_outputs: (id) => new GetBlockOutputsClientTool(id),
+  get_block_upstream_references: (id) => new GetBlockUpstreamReferencesClientTool(id),
 }
 
 // Read-only static metadata for class-based tools (no instances)
@@ -114,6 +122,8 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   get_workflow_console: (GetWorkflowConsoleClientTool as any)?.metadata,
   get_blocks_and_tools: (GetBlocksAndToolsClientTool as any)?.metadata,
   get_blocks_metadata: (GetBlocksMetadataClientTool as any)?.metadata,
+  get_block_options: (GetBlockOptionsClientTool as any)?.metadata,
+  get_block_config: (GetBlockConfigClientTool as any)?.metadata,
   get_trigger_blocks: (GetTriggerBlocksClientTool as any)?.metadata,
   search_online: (SearchOnlineClientTool as any)?.metadata,
   search_documentation: (SearchDocumentationClientTool as any)?.metadata,
@@ -144,6 +154,8 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   manage_custom_tool: (ManageCustomToolClientTool as any)?.metadata,
   manage_mcp_tool: (ManageMcpToolClientTool as any)?.metadata,
   sleep: (SleepClientTool as any)?.metadata,
+  get_block_outputs: (GetBlockOutputsClientTool as any)?.metadata,
+  get_block_upstream_references: (GetBlockUpstreamReferencesClientTool as any)?.metadata,
 }
 
 function ensureClientToolInstance(toolName: string | undefined, toolCallId: string | undefined) {

@@ -1,23 +1,26 @@
+import type { CompletionUsage } from 'openai/resources/completions'
+import { createOpenAICompatibleStream } from '@/providers/utils'
+
+interface CerebrasChunk {
+  choices?: Array<{
+    delta?: {
+      content?: string
+    }
+  }>
+  usage?: {
+    prompt_tokens?: number
+    completion_tokens?: number
+    total_tokens?: number
+  }
+}
+
 /**
- * Helper to convert a Cerebras streaming response (async iterable) into a ReadableStream.
- * Enqueues only the model's text delta chunks as UTF-8 encoded bytes.
+ * Creates a ReadableStream from a Cerebras streaming response.
+ * Uses the shared OpenAI-compatible streaming utility.
  */
 export function createReadableStreamFromCerebrasStream(
-  cerebrasStream: AsyncIterable<any>
-): ReadableStream {
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of cerebrasStream) {
-          const content = chunk.choices?.[0]?.delta?.content || ''
-          if (content) {
-            controller.enqueue(new TextEncoder().encode(content))
-          }
-        }
-        controller.close()
-      } catch (error) {
-        controller.error(error)
-      }
-    },
-  })
+  cerebrasStream: AsyncIterable<CerebrasChunk>,
+  onComplete?: (content: string, usage: CompletionUsage) => void
+): ReadableStream<Uint8Array> {
+  return createOpenAICompatibleStream(cerebrasStream as any, 'Cerebras', onComplete)
 }

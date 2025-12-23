@@ -48,7 +48,8 @@ Supabaseテーブルからデータを照会する
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
-| `table` | string | はい | 照会するSupabaseテーブルの名前 |
+| `table` | string | はい | クエリするSupabaseテーブルの名前 |
+| `schema` | string | いいえ | クエリするデータベーススキーマ（デフォルト：public）。他のスキーマのテーブルにアクセスする場合に使用します。 |
 | `filter` | string | いいえ | PostgRESTフィルター（例："id=eq.123"） |
 | `orderBy` | string | いいえ | 並べ替える列（降順の場合はDESCを追加） |
 | `limit` | number | いいえ | 返す最大行数 |
@@ -71,6 +72,7 @@ Supabaseテーブルにデータを挿入する
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
 | `table` | string | はい | データを挿入するSupabaseテーブルの名前 |
+| `schema` | string | いいえ | 挿入するデータベーススキーマ（デフォルト：public）。他のスキーマのテーブルにアクセスする場合に使用します。 |
 | `data` | array | はい | 挿入するデータ（オブジェクトの配列または単一のオブジェクト） |
 | `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
 
@@ -89,10 +91,11 @@ Supabaseテーブルにデータを挿入する
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | はい | SupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
-| `table` | string | はい | クエリを実行するSupabaseテーブルの名前 |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `table` | string | はい | クエリするSupabaseテーブルの名前 |
+| `schema` | string | いいえ | クエリするデータベーススキーマ（デフォルト：public）。他のスキーマのテーブルにアクセスする場合に使用します。 |
 | `filter` | string | はい | 特定の行を見つけるためのPostgRESTフィルター（例："id=eq.123"） |
-| `apiKey` | string | はい | Supabaseサービスロールのシークレットキー |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
 
 #### 出力
 
@@ -111,7 +114,8 @@ Supabaseテーブルにデータを挿入する
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
 | `table` | string | はい | 更新するSupabaseテーブルの名前 |
-| `filter` | string | はい | 更新する行を識別するPostgRESTフィルター（例："id=eq.123"） |
+| `schema` | string | いいえ | 更新するデータベーススキーマ（デフォルト：public）。他のスキーマのテーブルにアクセスする場合に使用します。 |
+| `filter` | string | はい | 更新する行を識別するためのPostgRESTフィルター（例："id=eq.123"） |
 | `data` | object | はい | 一致する行で更新するデータ |
 | `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
 
@@ -132,7 +136,8 @@ Supabaseテーブルにデータを挿入する
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
 | `table` | string | はい | 削除するSupabaseテーブルの名前 |
-| `filter` | string | はい | 削除する行を識別するPostgRESTフィルター（例："id=eq.123"） |
+| `schema` | string | いいえ | 削除するデータベーススキーマ（デフォルト：public）。他のスキーマのテーブルにアクセスする場合に使用します。 |
+| `filter` | string | はい | 削除する行を識別するためのPostgRESTフィルター（例："id=eq.123"） |
 | `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
 
 #### 出力
@@ -151,8 +156,9 @@ Supabaseテーブルにデータを挿入または更新する（アップサー
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
-| `table` | string | はい | データをアップサートするSupabaseテーブルの名前 |
-| `data` | array | はい | アップサート（挿入または更新）するデータ - オブジェクトの配列または単一のオブジェクト |
+| `table` | string | はい | データをupsertするSupabaseテーブルの名前 |
+| `schema` | string | いいえ | upsertするデータベーススキーマ（デフォルト：public）。他のスキーマのテーブルにアクセスする場合に使用します。 |
+| `data` | array | はい | upsert（挿入または更新）するデータ（オブジェクトの配列または単一のオブジェクト） |
 | `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
 
 #### 出力
@@ -172,6 +178,7 @@ Supabaseテーブルの行数をカウントする
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
 | `table` | string | はい | 行数をカウントするSupabaseテーブルの名前 |
+| `schema` | string | いいえ | カウント元のデータベーススキーマ（デフォルト：public）。他のスキーマのテーブルにアクセスする場合に使用 |
 | `filter` | string | いいえ | PostgRESTフィルター（例："status=eq.active"） |
 | `countType` | string | いいえ | カウントタイプ：exact、planned、またはestimated（デフォルト：exact） |
 | `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
@@ -193,6 +200,7 @@ Supabaseテーブルで全文検索を実行する
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
 | `table` | string | はい | 検索するSupabaseテーブルの名前 |
+| `schema` | string | いいえ | 検索するデータベーススキーマ（デフォルト：public）。他のスキーマのテーブルにアクセスする場合に使用 |
 | `column` | string | はい | 検索する列 |
 | `query` | string | はい | 検索クエリ |
 | `searchType` | string | いいえ | 検索タイプ：plain、phrase、またはwebsearch（デフォルト：websearch） |
