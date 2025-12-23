@@ -280,8 +280,8 @@ export async function GET(request: NextRequest) {
           output: totalOutputCost,
           tokens: {
             total: totalTokens,
-            prompt: totalPromptTokens,
-            completion: totalCompletionTokens,
+            input: totalPromptTokens,
+            output: totalCompletionTokens,
           },
           models: Object.fromEntries(models),
         }

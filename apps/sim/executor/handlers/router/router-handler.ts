@@ -82,15 +82,15 @@ export class RouterBlockHandler implements BlockHandler {
       }
 
       const tokens = result.tokens || {
-        prompt: DEFAULTS.TOKENS.PROMPT,
-        completion: DEFAULTS.TOKENS.COMPLETION,
+        input: DEFAULTS.TOKENS.PROMPT,
+        output: DEFAULTS.TOKENS.COMPLETION,
         total: DEFAULTS.TOKENS.TOTAL,
       }
 
       const cost = calculateCost(
         result.model,
-        tokens.prompt || DEFAULTS.TOKENS.PROMPT,
-        tokens.completion || DEFAULTS.TOKENS.COMPLETION,
+        tokens.input || DEFAULTS.TOKENS.PROMPT,
+        tokens.output || DEFAULTS.TOKENS.COMPLETION,
         false
       )
 
@@ -98,8 +98,8 @@ export class RouterBlockHandler implements BlockHandler {
         prompt: inputs.prompt,
         model: result.model,
         tokens: {
-          prompt: tokens.prompt || DEFAULTS.TOKENS.PROMPT,
-          completion: tokens.completion || DEFAULTS.TOKENS.COMPLETION,
+          input: tokens.input || DEFAULTS.TOKENS.PROMPT,
+          output: tokens.output || DEFAULTS.TOKENS.COMPLETION,
           total: tokens.total || DEFAULTS.TOKENS.TOTAL,
         },
         cost: {

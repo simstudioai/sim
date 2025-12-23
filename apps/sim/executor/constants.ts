@@ -273,8 +273,8 @@ export function supportsHandles(blockType: string | undefined): boolean {
 
 export function getDefaultTokens() {
   return {
-    prompt: DEFAULTS.TOKENS.PROMPT,
-    completion: DEFAULTS.TOKENS.COMPLETION,
+    input: DEFAULTS.TOKENS.PROMPT,
+    output: DEFAULTS.TOKENS.COMPLETION,
     total: DEFAULTS.TOKENS.TOTAL,
   }
 }

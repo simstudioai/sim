@@ -124,19 +124,18 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
       const metricScores = this.extractMetricScores(parsedContent, inputs.metrics)
 
-      const costCalculation = calculateCost(
-        result.model,
-        result.tokens?.prompt || DEFAULTS.TOKENS.PROMPT,
-        result.tokens?.completion || DEFAULTS.TOKENS.COMPLETION,
-        false
-      )
+      const inputTokens = result.tokens?.input || result.tokens?.prompt || DEFAULTS.TOKENS.PROMPT
+      const outputTokens =
+        result.tokens?.output || result.tokens?.completion || DEFAULTS.TOKENS.COMPLETION
+
+      const costCalculation = calculateCost(result.model, inputTokens, outputTokens, false)
 
       return {
         content: inputs.content,
         model: result.model,
         tokens: {
-          prompt: result.tokens?.prompt || DEFAULTS.TOKENS.PROMPT,
-          completion: result.tokens?.completion || DEFAULTS.TOKENS.COMPLETION,
+          input: inputTokens,
+          output: outputTokens,
           total: result.tokens?.total || DEFAULTS.TOKENS.TOTAL,
         },
         cost: {

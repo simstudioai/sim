@@ -29,6 +29,8 @@ export interface CostMetadata {
       output: number
       total: number
       tokens?: {
+        input?: number
+        output?: number
         prompt?: number
         completion?: number
         total?: number
@@ -39,6 +41,8 @@ export interface CostMetadata {
   output?: number
   total?: number
   tokens?: {
+    input?: number
+    output?: number
     prompt?: number
     completion?: number
     total?: number

@@ -87,7 +87,7 @@ describe('RouterBlockHandler', () => {
           Promise.resolve({
             content: 'target-block-1',
             model: 'mock-model',
-            tokens: { prompt: 100, completion: 5, total: 105 },
+            tokens: { input: 100, output: 5, total: 105 },
             cost: 0.003,
             timing: { total: 300 },
           }),
@@ -160,7 +160,7 @@ describe('RouterBlockHandler', () => {
     expect(result).toEqual({
       prompt: 'Choose the best option.',
       model: 'mock-model',
-      tokens: { prompt: 100, completion: 5, total: 105 },
+      tokens: { input: 100, output: 5, total: 105 },
       cost: {
         input: 0,
         output: 0,

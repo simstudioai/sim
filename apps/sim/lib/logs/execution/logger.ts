@@ -59,8 +59,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
           output: (merged[model].output || 0) + (costs.output || 0),
           total: (merged[model].total || 0) + (costs.total || 0),
           tokens: {
-            prompt: (merged[model].tokens?.prompt || 0) + (costs.tokens?.prompt || 0),
-            completion: (merged[model].tokens?.completion || 0) + (costs.tokens?.completion || 0),
+            input:
+              (merged[model].tokens?.input || merged[model].tokens?.prompt || 0) +
+              (costs.tokens?.input || costs.tokens?.prompt || 0),
+            output:
+              (merged[model].tokens?.output || merged[model].tokens?.completion || 0) +
+              (costs.tokens?.output || costs.tokens?.completion || 0),
             total: (merged[model].tokens?.total || 0) + (costs.tokens?.total || 0),
           },
         }
