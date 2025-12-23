@@ -1,4 +1,5 @@
 import type { RedditSubscribeParams, RedditWriteResponse } from '@/tools/reddit/types'
+import { normalizeSubreddit } from '@/tools/reddit/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const subscribeTool: ToolConfig<RedditSubscribeParams, RedditWriteResponse> = {
@@ -53,8 +54,7 @@ export const subscribeTool: ToolConfig<RedditSubscribeParams, RedditWriteRespons
         throw new Error('action must be "sub" or "unsub"')
       }
 
-      // Sanitize subreddit
-      const subreddit = params.subreddit.trim().replace(/^r\//, '')
+      const subreddit = normalizeSubreddit(params.subreddit)
 
       const formData = new URLSearchParams({
         action: params.action,

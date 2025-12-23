@@ -1,4 +1,5 @@
 import type { RedditPostsParams, RedditPostsResponse } from '@/tools/reddit/types'
+import { normalizeSubreddit } from '@/tools/reddit/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = {
@@ -78,8 +79,7 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
 
   request: {
     url: (params: RedditPostsParams) => {
-      // Sanitize inputs
-      const subreddit = params.subreddit.trim().replace(/^r\//, '')
+      const subreddit = normalizeSubreddit(params.subreddit)
       const sort = params.sort || 'hot'
       const limit = Math.min(Math.max(1, params.limit || 10), 100)
 

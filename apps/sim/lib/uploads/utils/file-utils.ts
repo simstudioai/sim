@@ -1,6 +1,7 @@
 import type { Logger } from '@/lib/logs/console/logger'
 import type { StorageContext } from '@/lib/uploads'
 import { ACCEPTED_FILE_TYPES, SUPPORTED_DOCUMENT_EXTENSIONS } from '@/lib/uploads/utils/validation'
+import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 
 export interface FileAttachment {
@@ -625,11 +626,9 @@ export function extractCleanFilename(urlOrPath: string): string {
 export function extractWorkspaceIdFromExecutionKey(key: string): string | null {
   const segments = key.split('/')
 
-  const UUID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
-
   if (segments[0] === 'execution' && segments.length >= 5) {
     const workspaceId = segments[1]
-    if (workspaceId && UUID_PATTERN.test(workspaceId)) {
+    if (workspaceId && isUuid(workspaceId)) {
       return workspaceId
     }
   }

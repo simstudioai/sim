@@ -14,6 +14,8 @@ import {
   verifyProviderWebhook,
 } from '@/lib/webhooks/utils.server'
 import { executeWebhookJob } from '@/background/webhook-execution'
+import { REFERENCE } from '@/executor/constants'
+import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 
 const logger = createLogger('WebhookProcessor')
 
@@ -170,12 +172,13 @@ export async function findWebhookAndWorkflow(
  * @returns String with all {{VARIABLE}} references replaced
  */
 function resolveEnvVars(value: string, envVars: Record<string, string>): string {
-  const envMatches = value.match(/\{\{([^}]+)\}\}/g)
+  const envVarPattern = createEnvVarPattern()
+  const envMatches = value.match(envVarPattern)
   if (!envMatches) return value
 
   let resolvedValue = value
   for (const match of envMatches) {
-    const envKey = match.slice(2, -2).trim()
+    const envKey = match.slice(REFERENCE.ENV_VAR_START.length, -REFERENCE.ENV_VAR_END.length).trim()
     const envValue = envVars[envKey]
     if (envValue !== undefined) {
       resolvedValue = resolvedValue.replaceAll(match, envValue)

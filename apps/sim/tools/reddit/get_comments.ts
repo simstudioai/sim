@@ -1,4 +1,5 @@
 import type { RedditCommentsParams, RedditCommentsResponse } from '@/tools/reddit/types'
+import { normalizeSubreddit } from '@/tools/reddit/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsResponse> = {
@@ -108,8 +109,7 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
 
   request: {
     url: (params: RedditCommentsParams) => {
-      // Sanitize inputs
-      const subreddit = params.subreddit.trim().replace(/^r\//, '')
+      const subreddit = normalizeSubreddit(params.subreddit)
       const sort = params.sort || 'confidence'
       const limit = Math.min(Math.max(1, params.limit || 50), 100)
 

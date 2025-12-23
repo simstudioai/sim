@@ -16,6 +16,7 @@ import {
 import { Trash } from '@/components/emcn/icons/trash'
 import { Input, Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
+import { isValidEnvVarName } from '@/executor/constants'
 import {
   usePersonalEnvironment,
   useRemoveWorkspaceEnvironment,
@@ -28,7 +29,6 @@ import {
 const logger = createLogger('EnvironmentVariables')
 
 const GRID_COLS = 'grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_auto] items-center'
-const ENV_VAR_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
 const PRIMARY_BUTTON_STYLES =
   '!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
 
@@ -59,7 +59,7 @@ interface UIEnvironmentVariable {
 function validateEnvVarKey(key: string): string | undefined {
   if (!key) return undefined
   if (key.includes(' ')) return 'Spaces are not allowed'
-  if (!ENV_VAR_PATTERN.test(key)) return 'Only letters, numbers, and underscores allowed'
+  if (!isValidEnvVarName(key)) return 'Only letters, numbers, and underscores allowed'
   return undefined
 }
 
@@ -377,7 +377,7 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
     if (equalIndex === -1 || equalIndex === 0) return null
 
     const potentialKey = withoutExport.substring(0, equalIndex).trim()
-    if (!ENV_VAR_PATTERN.test(potentialKey)) return null
+    if (!isValidEnvVarName(potentialKey)) return null
 
     let value = withoutExport.substring(equalIndex + 1)
 

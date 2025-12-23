@@ -1,4 +1,5 @@
 import type { RedditPostsResponse, RedditSearchParams } from '@/tools/reddit/types'
+import { normalizeSubreddit } from '@/tools/reddit/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchTool: ToolConfig<RedditSearchParams, RedditPostsResponse> = {
@@ -85,8 +86,7 @@ export const searchTool: ToolConfig<RedditSearchParams, RedditPostsResponse> = {
 
   request: {
     url: (params: RedditSearchParams) => {
-      // Sanitize inputs
-      const subreddit = params.subreddit.trim().replace(/^r\//, '')
+      const subreddit = normalizeSubreddit(params.subreddit)
       const sort = params.sort || 'relevance'
       const limit = Math.min(Math.max(1, params.limit || 10), 100)
       const restrict_sr = params.restrict_sr !== false // Default to true

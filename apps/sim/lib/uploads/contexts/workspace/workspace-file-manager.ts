@@ -19,6 +19,7 @@ import {
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataByKey, insertFileMetadata } from '@/lib/uploads/server/metadata'
+import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('WorkspaceFileStorage')
@@ -35,11 +36,6 @@ export interface WorkspaceFileRecord {
   uploadedBy: string
   uploadedAt: Date
 }
-
-/**
- * UUID pattern for validating workspace IDs
- */
-const UUID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
 
 /**
  * Workspace file key pattern: workspace/{workspaceId}/{timestamp}-{random}-{filename}
@@ -73,7 +69,7 @@ export function parseWorkspaceFileKey(key: string): string | null {
   }
 
   const workspaceId = match[1]
-  return UUID_PATTERN.test(workspaceId) ? workspaceId : null
+  return isUuid(workspaceId) ? workspaceId : null
 }
 
 /**
@@ -83,7 +79,7 @@ export function parseWorkspaceFileKey(key: string): string | null {
 export function generateWorkspaceFileKey(workspaceId: string, fileName: string): string {
   const timestamp = Date.now()
   const random = Math.random().toString(36).substring(2, 9)
-  const safeFileName = fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')
+  const safeFileName = sanitizeFileName(fileName)
   return `workspace/${workspaceId}/${timestamp}-${random}-${safeFileName}`
 }
 

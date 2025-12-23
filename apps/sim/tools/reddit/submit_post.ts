@@ -1,4 +1,5 @@
 import type { RedditSubmitParams, RedditWriteResponse } from '@/tools/reddit/types'
+import { normalizeSubreddit } from '@/tools/reddit/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const submitPostTool: ToolConfig<RedditSubmitParams, RedditWriteResponse> = {
@@ -78,8 +79,7 @@ export const submitPostTool: ToolConfig<RedditSubmitParams, RedditWriteResponse>
       }
     },
     body: (params: RedditSubmitParams) => {
-      // Sanitize subreddit
-      const subreddit = params.subreddit.trim().replace(/^r\//, '')
+      const subreddit = normalizeSubreddit(params.subreddit)
 
       // Build form data
       const formData = new URLSearchParams({

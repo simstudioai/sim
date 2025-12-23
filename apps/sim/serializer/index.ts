@@ -3,6 +3,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
+import { REFERENCE } from '@/executor/constants'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
@@ -351,7 +352,7 @@ export class Serializer {
       const trimmedValue = responseFormat.trim()
 
       // Check for variable references like <start.input>
-      if (trimmedValue.startsWith('<') && trimmedValue.includes('>')) {
+      if (trimmedValue.startsWith(REFERENCE.START) && trimmedValue.includes(REFERENCE.END)) {
         // Keep variable references as-is
         return trimmedValue
       }

@@ -1,5 +1,6 @@
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
+import { AGENT, isCustomTool } from '@/executor/constants'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { tools } from '@/tools/registry'
@@ -286,10 +287,10 @@ export function getTool(toolId: string): ToolConfig | undefined {
   if (builtInTool) return builtInTool
 
   // Check if it's a custom tool
-  if (toolId.startsWith('custom_') && typeof window !== 'undefined') {
+  if (isCustomTool(toolId) && typeof window !== 'undefined') {
     // Only try to use the sync version on the client
     const customToolsStore = useCustomToolsStore.getState()
-    const identifier = toolId.replace('custom_', '')
+    const identifier = toolId.slice(AGENT.CUSTOM_TOOL_PREFIX.length)
 
     // Try to find the tool directly by ID first
     let customTool = customToolsStore.getTool(identifier)
@@ -319,7 +320,7 @@ export async function getToolAsync(
   if (builtInTool) return builtInTool
 
   // Check if it's a custom tool
-  if (toolId.startsWith('custom_')) {
+  if (isCustomTool(toolId)) {
     return getCustomTool(toolId, workflowId)
   }
 

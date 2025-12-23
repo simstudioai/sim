@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { resolveStartCandidates, StartBlockPath } from '@/lib/workflows/triggers/triggers'
+import { normalizeName, startsWithUuid } from '@/executor/constants'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -74,13 +75,11 @@ export function getInputFormatExample(
       // Add streaming parameters if enabled and outputs are selected
       if (includeStreaming && selectedStreamingOutputs.length > 0) {
         exampleData.stream = true
-        // Convert blockId_attribute format to blockName.attribute format for display
-        const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
 
         const convertedOutputs = selectedStreamingOutputs
           .map((outputId) => {
             // If it starts with a UUID, convert to blockName.attribute format
-            if (UUID_REGEX.test(outputId)) {
+            if (startsWithUuid(outputId)) {
               const underscoreIndex = outputId.indexOf('_')
               if (underscoreIndex === -1) return null
 
@@ -90,9 +89,7 @@ export function getInputFormatExample(
               // Find the block by ID and get its name
               const block = blocks.find((b) => b.id === blockId)
               if (block?.name) {
-                // Normalize block name: lowercase and remove spaces
-                const normalizedBlockName = block.name.toLowerCase().replace(/\s+/g, '')
-                return `${normalizedBlockName}.${attribute}`
+                return `${normalizeName(block.name)}.${attribute}`
               }
               // Block not found (deleted), return null to filter out
               return null
@@ -104,7 +101,7 @@ export function getInputFormatExample(
               const blockName = parts[0]
               // Check if a block with this name exists
               const block = blocks.find(
-                (b) => b.name?.toLowerCase().replace(/\s+/g, '') === blockName.toLowerCase()
+                (b) => b.name && normalizeName(b.name) === normalizeName(blockName)
               )
               if (!block) {
                 // Block not found (deleted), return null to filter out

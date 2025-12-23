@@ -5,6 +5,7 @@ import { executeInE2B } from '@/lib/execution/e2b'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
+import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
 import {
   createEnvVarPattern,
   createWorkflowVariablePattern,
@@ -405,7 +406,7 @@ function resolveWorkflowVariables(
 
     // Find the variable by name (workflowVariables is indexed by ID, values are variable objects)
     const foundVariable = Object.entries(workflowVariables).find(
-      ([_, variable]) => (variable.name || '').replace(/\s+/g, '') === variableName
+      ([_, variable]) => normalizeName(variable.name || '') === variableName
     )
 
     let variableValue: unknown = ''
@@ -513,31 +514,26 @@ function resolveTagVariables(
 ): string {
   let resolvedCode = code
 
-  const tagMatches = resolvedCode.match(/<([a-zA-Z_][a-zA-Z0-9_.]*[a-zA-Z0-9_])>/g) || []
+  const tagPattern = new RegExp(
+    `${REFERENCE.START}([a-zA-Z_][a-zA-Z0-9_${REFERENCE.PATH_DELIMITER}]*[a-zA-Z0-9_])${REFERENCE.END}`,
+    'g'
+  )
+  const tagMatches = resolvedCode.match(tagPattern) || []
 
   for (const match of tagMatches) {
-    const tagName = match.slice(1, -1).trim()
+    const tagName = match.slice(REFERENCE.START.length, -REFERENCE.END.length).trim()
 
     // Handle nested paths like "getrecord.response.data" or "function1.response.result"
     // First try params, then blockData directly, then try with block name mapping
     let tagValue = getNestedValue(params, tagName) || getNestedValue(blockData, tagName) || ''
 
     // If not found and the path starts with a block name, try mapping the block name to ID
-    if (!tagValue && tagName.includes('.')) {
-      const pathParts = tagName.split('.')
+    if (!tagValue && tagName.includes(REFERENCE.PATH_DELIMITER)) {
+      const pathParts = tagName.split(REFERENCE.PATH_DELIMITER)
       const normalizedBlockName = pathParts[0] // This should already be normalized like "function1"
 
-      // Find the block ID by looking for a block name that normalizes to this value
-      let blockId = null
-
-      for (const [blockName, id] of Object.entries(blockNameMapping)) {
-        // Apply the same normalization logic as the UI: remove spaces and lowercase
-        const normalizedName = blockName.replace(/\s+/g, '').toLowerCase()
-        if (normalizedName === normalizedBlockName) {
-          blockId = id
-          break
-        }
-      }
+      // Direct lookup using normalized block name
+      const blockId = blockNameMapping[normalizedBlockName] ?? null
 
       if (blockId) {
         const remainingPath = pathParts.slice(1).join('.')
@@ -615,13 +611,6 @@ function getNestedValue(obj: any, path: string): any {
   return path.split('.').reduce((current, key) => {
     return current && typeof current === 'object' ? current[key] : undefined
   }, obj)
-}
-
-/**
- * Escape special regex characters in a string
- */
-function escapeRegExp(string: string): string {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 /**

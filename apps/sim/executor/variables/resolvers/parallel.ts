@@ -117,7 +117,7 @@ export class ParallelResolver implements Resolver {
     // String handling
     if (typeof rawItems === 'string') {
       // Skip references - they should be resolved by the variable resolver
-      if (rawItems.startsWith('<')) {
+      if (rawItems.startsWith(REFERENCE.START)) {
         return []
       }
 

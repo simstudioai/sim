@@ -1,4 +1,5 @@
 import type { RedditControversialParams, RedditPostsResponse } from '@/tools/reddit/types'
+import { normalizeSubreddit } from '@/tools/reddit/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getControversialTool: ToolConfig<RedditControversialParams, RedditPostsResponse> = {
@@ -72,8 +73,7 @@ export const getControversialTool: ToolConfig<RedditControversialParams, RedditP
 
   request: {
     url: (params: RedditControversialParams) => {
-      // Sanitize inputs
-      const subreddit = params.subreddit.trim().replace(/^r\//, '')
+      const subreddit = normalizeSubreddit(params.subreddit)
       const limit = Math.min(Math.max(1, params.limit || 10), 100)
 
       // Build URL with appropriate parameters using OAuth endpoint

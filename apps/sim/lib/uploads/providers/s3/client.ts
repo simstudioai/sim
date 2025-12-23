@@ -22,6 +22,7 @@ import {
   sanitizeFilenameForMetadata,
   sanitizeStorageMetadata,
 } from '@/lib/uploads/utils/file-utils'
+import { sanitizeFileName } from '@/executor/constants'
 
 let _s3Client: S3Client | null = null
 
@@ -84,7 +85,7 @@ export async function uploadToS3(
     shouldSkipTimestamp = skipTimestampPrefix ?? false
   }
 
-  const safeFileName = fileName.replace(/\s+/g, '-') // Replace spaces with hyphens
+  const safeFileName = sanitizeFileName(fileName)
   const uniqueKey = shouldSkipTimestamp ? fileName : `${Date.now()}-${safeFileName}`
 
   const s3Client = getS3Client()
@@ -223,7 +224,7 @@ export async function initiateS3MultipartUpload(
   const config = customConfig || { bucket: S3_KB_CONFIG.bucket, region: S3_KB_CONFIG.region }
   const s3Client = getS3Client()
 
-  const safeFileName = fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')
+  const safeFileName = sanitizeFileName(fileName)
   const { v4: uuidv4 } = await import('uuid')
   const uniqueKey = `kb/${uuidv4()}-${safeFileName}`
 
