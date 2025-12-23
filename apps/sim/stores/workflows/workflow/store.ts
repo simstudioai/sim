@@ -723,8 +723,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
             // Loop through subblocks and update references
             Object.entries(blockValues).forEach(([subBlockId, value]) => {
-              const oldBlockName = oldBlock.name.replace(/\s+/g, '').toLowerCase()
-              const newBlockName = name.replace(/\s+/g, '').toLowerCase()
+              const oldBlockName = normalizeName(oldBlock.name)
+              const newBlockName = normalizeName(name)
               const regex = new RegExp(`<${oldBlockName}\\.`, 'g')
 
               // Use a recursive function to handle all object types

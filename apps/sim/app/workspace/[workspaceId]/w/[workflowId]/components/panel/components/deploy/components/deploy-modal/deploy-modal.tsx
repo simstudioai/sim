@@ -18,6 +18,7 @@ import { getEnv } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
+import { startsWithUuid } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -289,10 +290,9 @@ export function DeployModal({
     if (!open || selectedStreamingOutputs.length === 0) return
 
     const blocks = Object.values(useWorkflowStore.getState().blocks)
-    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
 
     const validOutputs = selectedStreamingOutputs.filter((outputId) => {
-      if (UUID_REGEX.test(outputId)) {
+      if (startsWithUuid(outputId)) {
         const underscoreIndex = outputId.indexOf('_')
         if (underscoreIndex === -1) return false
 

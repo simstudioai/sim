@@ -24,7 +24,7 @@ vi.mock('@/tools', () => ({
 vi.mock('@/executor/utils/block-data', () => ({
   collectBlockData: vi.fn(() => ({
     blockData: { 'source-block-1': { value: 10, text: 'hello' } },
-    blockNameMapping: { 'Source Block': 'source-block-1' },
+    blockNameMapping: { sourceblock: 'source-block-1' },
   })),
 }))
 
@@ -200,7 +200,7 @@ describe('ConditionBlockHandler', () => {
         envVars: mockContext.environmentVariables,
         workflowVariables: mockContext.workflowVariables,
         blockData: { 'source-block-1': { value: 10, text: 'hello' } },
-        blockNameMapping: { 'Source Block': 'source-block-1' },
+        blockNameMapping: { sourceblock: 'source-block-1' },
         _context: {
           workflowId: 'test-workflow-id',
           workspaceId: 'test-workspace-id',

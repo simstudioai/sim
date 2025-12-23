@@ -1,3 +1,4 @@
+import { normalizeName } from '@/executor/constants'
 import type { SerializedWorkflow } from '@/serializer/types'
 
 /**
@@ -123,7 +124,7 @@ export class BlockPathCalculator {
         // Add both the actual name and the normalized name
         if (block.metadata?.name) {
           names.push(block.metadata.name)
-          names.push(block.metadata.name.toLowerCase().replace(/\s+/g, ''))
+          names.push(normalizeName(block.metadata.name))
         }
         names.push(accessibleBlockId)
       }

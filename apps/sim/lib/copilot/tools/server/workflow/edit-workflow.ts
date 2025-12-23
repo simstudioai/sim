@@ -12,6 +12,7 @@ import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
+import { EDGE } from '@/executor/constants'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 
@@ -773,10 +774,10 @@ function validateSourceHandleForBlock(
       }
 
     case 'condition': {
-      if (!sourceHandle.startsWith('condition-')) {
+      if (!sourceHandle.startsWith(EDGE.CONDITION_PREFIX)) {
         return {
           valid: false,
-          error: `Invalid source handle "${sourceHandle}" for condition block. Must start with "condition-"`,
+          error: `Invalid source handle "${sourceHandle}" for condition block. Must start with "${EDGE.CONDITION_PREFIX}"`,
         }
       }
 
@@ -792,12 +793,12 @@ function validateSourceHandleForBlock(
     }
 
     case 'router':
-      if (sourceHandle === 'source' || sourceHandle.startsWith('router-')) {
+      if (sourceHandle === 'source' || sourceHandle.startsWith(EDGE.ROUTER_PREFIX)) {
         return { valid: true }
       }
       return {
         valid: false,
-        error: `Invalid source handle "${sourceHandle}" for router block. Valid handles: source, router-{targetId}, error`,
+        error: `Invalid source handle "${sourceHandle}" for router block. Valid handles: source, ${EDGE.ROUTER_PREFIX}{targetId}, error`,
       }
 
     default:

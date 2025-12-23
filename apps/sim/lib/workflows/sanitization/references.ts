@@ -1,4 +1,4 @@
-import { normalizeName } from '@/stores/workflows/utils'
+import { normalizeName, REFERENCE } from '@/executor/constants'
 
 export const SYSTEM_REFERENCE_PREFIXES = new Set(['start', 'loop', 'parallel', 'variable'])
 
@@ -9,11 +9,11 @@ const LEADING_REFERENCE_PATTERN = /^[<>=!\s]*$/
 export function splitReferenceSegment(
   segment: string
 ): { leading: string; reference: string } | null {
-  if (!segment.startsWith('<') || !segment.endsWith('>')) {
+  if (!segment.startsWith(REFERENCE.START) || !segment.endsWith(REFERENCE.END)) {
     return null
   }
 
-  const lastOpenBracket = segment.lastIndexOf('<')
+  const lastOpenBracket = segment.lastIndexOf(REFERENCE.START)
   if (lastOpenBracket === -1) {
     return null
   }
@@ -21,7 +21,7 @@ export function splitReferenceSegment(
   const leading = lastOpenBracket > 0 ? segment.slice(0, lastOpenBracket) : ''
   const reference = segment.slice(lastOpenBracket)
 
-  if (!reference.startsWith('<') || !reference.endsWith('>')) {
+  if (!reference.startsWith(REFERENCE.START) || !reference.endsWith(REFERENCE.END)) {
     return null
   }
 
@@ -40,7 +40,7 @@ export function isLikelyReferenceSegment(segment: string): boolean {
     return false
   }
 
-  const inner = reference.slice(1, -1)
+  const inner = reference.slice(REFERENCE.START.length, -REFERENCE.END.length)
 
   if (!inner) {
     return false
@@ -58,10 +58,10 @@ export function isLikelyReferenceSegment(segment: string): boolean {
     return false
   }
 
-  if (inner.includes('.')) {
-    const dotIndex = inner.indexOf('.')
+  if (inner.includes(REFERENCE.PATH_DELIMITER)) {
+    const dotIndex = inner.indexOf(REFERENCE.PATH_DELIMITER)
     const beforeDot = inner.substring(0, dotIndex)
-    const afterDot = inner.substring(dotIndex + 1)
+    const afterDot = inner.substring(dotIndex + REFERENCE.PATH_DELIMITER.length)
 
     if (afterDot.includes(' ')) {
       return false
@@ -82,7 +82,8 @@ export function extractReferencePrefixes(value: string): Array<{ raw: string; pr
     return []
   }
 
-  const matches = value.match(/<[^>]+>/g)
+  const referencePattern = new RegExp(`${REFERENCE.START}[^${REFERENCE.END}]+${REFERENCE.END}`, 'g')
+  const matches = value.match(referencePattern)
   if (!matches) {
     return []
   }
@@ -105,8 +106,8 @@ export function extractReferencePrefixes(value: string): Array<{ raw: string; pr
       continue
     }
 
-    const inner = referenceSegment.slice(1, -1)
-    const [rawPrefix] = inner.split('.')
+    const inner = referenceSegment.slice(REFERENCE.START.length, -REFERENCE.END.length)
+    const [rawPrefix] = inner.split(REFERENCE.PATH_DELIMITER)
     if (!rawPrefix) {
       continue
     }

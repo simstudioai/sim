@@ -22,8 +22,10 @@ import {
   getScheduleTimeValues,
   getSubBlockValue,
 } from '@/lib/workflows/schedules/utils'
+import { REFERENCE } from '@/executor/constants'
 import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionResult } from '@/executor/types'
+import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 
 const logger = createLogger('TriggerScheduleExecution')
@@ -128,17 +130,25 @@ async function ensureBlockVariablesResolvable(
       await Promise.all(
         Object.values(subBlocks).map(async (subBlock) => {
           const value = subBlock.value
-          if (typeof value !== 'string' || !value.includes('{{') || !value.includes('}}')) {
+          if (
+            typeof value !== 'string' ||
+            !value.includes(REFERENCE.ENV_VAR_START) ||
+            !value.includes(REFERENCE.ENV_VAR_END)
+          ) {
             return
           }
 
-          const matches = value.match(/{{([^}]+)}}/g)
+          const envVarPattern = createEnvVarPattern()
+          const matches = value.match(envVarPattern)
           if (!matches) {
             return
           }
 
           for (const match of matches) {
-            const varName = match.slice(2, -2)
+            const varName = match.slice(
+              REFERENCE.ENV_VAR_START.length,
+              -REFERENCE.ENV_VAR_END.length
+            )
             const encryptedValue = variables[varName]
             if (!encryptedValue) {
               throw new Error(`Environment variable "${varName}" was not found`)

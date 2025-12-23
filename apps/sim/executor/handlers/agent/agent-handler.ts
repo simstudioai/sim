@@ -6,7 +6,14 @@ import { createMcpToolId } from '@/lib/mcp/utils'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
-import { AGENT, BlockType, DEFAULTS, HTTP } from '@/executor/constants'
+import {
+  AGENT,
+  BlockType,
+  DEFAULTS,
+  HTTP,
+  REFERENCE,
+  stripCustomToolPrefix,
+} from '@/executor/constants'
 import { memoryService } from '@/executor/handlers/agent/memory'
 import type {
   AgentInputs,
@@ -105,7 +112,7 @@ export class AgentBlockHandler implements BlockHandler {
     if (typeof responseFormat === 'string') {
       const trimmedValue = responseFormat.trim()
 
-      if (trimmedValue.startsWith('<') && trimmedValue.includes('>')) {
+      if (trimmedValue.startsWith(REFERENCE.START) && trimmedValue.includes(REFERENCE.END)) {
         return undefined
       }
 
@@ -1338,7 +1345,7 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   private formatToolCall(tc: any) {
-    const toolName = this.stripCustomToolPrefix(tc.name)
+    const toolName = stripCustomToolPrefix(tc.name)
 
     return {
       ...tc,
@@ -1349,11 +1356,5 @@ export class AgentBlockHandler implements BlockHandler {
       arguments: tc.arguments || tc.input || {},
       result: tc.result || tc.output,
     }
-  }
-
-  private stripCustomToolPrefix(name: string): string {
-    return name.startsWith(AGENT.CUSTOM_TOOL_PREFIX)
-      ? name.replace(AGENT.CUSTOM_TOOL_PREFIX, '')
-      : name
   }
 }

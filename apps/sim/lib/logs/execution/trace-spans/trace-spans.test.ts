@@ -1,8 +1,6 @@
 import { describe, expect, test } from 'vitest'
-import {
-  buildTraceSpans,
-  stripCustomToolPrefix,
-} from '@/lib/logs/execution/trace-spans/trace-spans'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { stripCustomToolPrefix } from '@/executor/constants'
 import type { ExecutionResult } from '@/executor/types'
 
 describe('buildTraceSpans', () => {

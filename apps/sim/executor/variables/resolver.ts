@@ -1,8 +1,8 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { BlockType, REFERENCE } from '@/executor/constants'
+import { BlockType } from '@/executor/constants'
 import type { ExecutionState, LoopScope } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
-import { replaceValidReferences } from '@/executor/utils/reference-validation'
+import { createEnvVarPattern, replaceValidReferences } from '@/executor/utils/reference-validation'
 import { BlockResolver } from '@/executor/variables/resolvers/block'
 import { EnvResolver } from '@/executor/variables/resolvers/env'
 import { LoopResolver } from '@/executor/variables/resolvers/loop'
@@ -185,8 +185,7 @@ export class VariableResolver {
       throw replacementError
     }
 
-    const envRegex = new RegExp(`${REFERENCE.ENV_VAR_START}([^}]+)${REFERENCE.ENV_VAR_END}`, 'g')
-    result = result.replace(envRegex, (match) => {
+    result = result.replace(createEnvVarPattern(), (match) => {
       const resolved = this.resolveReference(match, resolutionContext)
       return typeof resolved === 'string' ? resolved : match
     })
@@ -236,8 +235,7 @@ export class VariableResolver {
       throw replacementError
     }
 
-    const envRegex = new RegExp(`${REFERENCE.ENV_VAR_START}([^}]+)${REFERENCE.ENV_VAR_END}`, 'g')
-    result = result.replace(envRegex, (match) => {
+    result = result.replace(createEnvVarPattern(), (match) => {
       const resolved = this.resolveReference(match, resolutionContext)
       return typeof resolved === 'string' ? resolved : match
     })

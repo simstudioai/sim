@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { getAllBlocks } from '@/blocks'
-import { BlockType } from '@/executor/constants'
+import { BlockType, isMcpTool } from '@/executor/constants'
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
@@ -1384,7 +1384,7 @@ describe('AgentBlockHandler', () => {
 
     it('should handle MCP tools in agent execution', async () => {
       mockExecuteTool.mockImplementation((toolId, params, skipProxy, skipPostProcess, context) => {
-        if (toolId.startsWith('mcp-')) {
+        if (isMcpTool(toolId)) {
           return Promise.resolve({
             success: true,
             output: {
@@ -1660,7 +1660,7 @@ describe('AgentBlockHandler', () => {
       let capturedContext: any
       mockExecuteTool.mockImplementation((toolId, params, skipProxy, skipPostProcess, context) => {
         capturedContext = context
-        if (toolId.startsWith('mcp-')) {
+        if (isMcpTool(toolId)) {
           return Promise.resolve({
             success: true,
             output: { content: [{ type: 'text', text: 'Success' }] },

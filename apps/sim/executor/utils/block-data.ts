@@ -1,3 +1,4 @@
+import { normalizeName } from '@/executor/constants'
 import type { ExecutionContext } from '@/executor/types'
 
 export interface BlockDataCollection {
@@ -14,9 +15,7 @@ export function collectBlockData(ctx: ExecutionContext): BlockDataCollection {
       blockData[id] = state.output
       const workflowBlock = ctx.workflow?.blocks?.find((b) => b.id === id)
       if (workflowBlock?.metadata?.name) {
-        blockNameMapping[workflowBlock.metadata.name] = id
-        const normalized = workflowBlock.metadata.name.replace(/\s+/g, '').toLowerCase()
-        blockNameMapping[normalized] = id
+        blockNameMapping[normalizeName(workflowBlock.metadata.name)] = id
       }
     }
   }

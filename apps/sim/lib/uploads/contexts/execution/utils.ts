@@ -1,3 +1,4 @@
+import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 
 /**
@@ -15,7 +16,7 @@ export interface ExecutionContext {
  */
 export function generateExecutionFileKey(context: ExecutionContext, fileName: string): string {
   const { workspaceId, workflowId, executionId } = context
-  const safeFileName = fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')
+  const safeFileName = sanitizeFileName(fileName)
   return `execution/${workspaceId}/${workflowId}/${executionId}/${safeFileName}`
 }
 
@@ -26,17 +27,7 @@ export function generateFileId(): string {
   return `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
 }
 
-/**
- * UUID pattern for validating execution context IDs
- */
-const UUID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
-
-/**
- * Check if a string matches UUID pattern
- */
-export function isUuid(str: string): boolean {
-  return UUID_PATTERN.test(str)
-}
+export { isUuid }
 
 /**
  * Check if a key matches execution file pattern

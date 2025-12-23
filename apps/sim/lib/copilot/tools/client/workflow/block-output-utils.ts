@@ -4,10 +4,10 @@ import {
 } from '@/lib/core/utils/response-format'
 import { getBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
 import { getBlock } from '@/blocks'
+import { normalizeName } from '@/executor/constants'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable } from '@/stores/panel/variables/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { normalizeName } from '@/stores/workflows/utils'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 
 export interface WorkflowContext {
