@@ -897,11 +897,38 @@ async function handleProxyRequest(
     // Check request body size before sending
     validateRequestBodySize(body, requestId, `proxy:${toolId}`)
 
-    const response = await fetch(proxyUrl, {
-      method: 'POST',
-      headers,
-      body,
-    })
+    // Determine timeout for proxy request: use params.timeout if provided, otherwise default
+    // This ensures the proxy fetch itself doesn't timeout before the actual API request
+    const DEFAULT_TIMEOUT_MS = 120000
+    const MAX_TIMEOUT_MS = 600000
+    let timeoutMs = DEFAULT_TIMEOUT_MS
+    if (typeof params.timeout === 'number' && params.timeout > 0) {
+      timeoutMs = Math.min(params.timeout, MAX_TIMEOUT_MS)
+    } else if (typeof params.timeout === 'string') {
+      const parsed = Number.parseInt(params.timeout, 10)
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        timeoutMs = Math.min(parsed, MAX_TIMEOUT_MS)
+      }
+    }
+
+    let response: Response
+    try {
+      response = await fetch(proxyUrl, {
+        method: 'POST',
+        headers,
+        body,
+        signal: AbortSignal.timeout(timeoutMs),
+      })
+    } catch (fetchError) {
+      // Handle timeout error specifically
+      if (fetchError instanceof Error && fetchError.name === 'TimeoutError') {
+        logger.error(`[${requestId}] Proxy request timed out for ${toolId} after ${timeoutMs}ms`)
+        throw new Error(
+          `Request timed out after ${timeoutMs}ms. Consider increasing the timeout value.`
+        )
+      }
+      throw fetchError
+    }
 
     if (!response.ok) {
       // Check for 413 (Entity Too Large) - body size limit exceeded
