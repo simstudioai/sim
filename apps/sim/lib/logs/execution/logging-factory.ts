@@ -1,6 +1,9 @@
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import type { ExecutionEnvironment, ExecutionTrigger, WorkflowState } from '@/lib/logs/types'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  loadDeployedWorkflowState,
+  loadWorkflowFromNormalizedTables,
+} from '@/lib/workflows/persistence/utils'
 
 export function createTriggerObject(
   type: ExecutionTrigger['type'],
@@ -44,6 +47,24 @@ export async function loadWorkflowStateForExecution(workflowId: string): Promise
     edges: normalizedData.edges || [],
     loops: normalizedData.loops || {},
     parallels: normalizedData.parallels || {},
+  }
+}
+
+/**
+ * Load deployed workflow state for logging purposes.
+ * This fetches the active deployment state, ensuring logs capture
+ * the exact state that was executed (not the live editor state).
+ */
+export async function loadDeployedWorkflowStateForLogging(
+  workflowId: string
+): Promise<WorkflowState> {
+  const deployedData = await loadDeployedWorkflowState(workflowId)
+
+  return {
+    blocks: deployedData.blocks || {},
+    edges: deployedData.edges || [],
+    loops: deployedData.loops || {},
+    parallels: deployedData.parallels || {},
   }
 }
 
