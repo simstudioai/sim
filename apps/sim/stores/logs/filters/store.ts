@@ -99,7 +99,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   folderIds: [],
   searchQuery: '',
   triggers: [],
-  _isInitializing: false,
+  isInitializing: false,
 
   setWorkspaceId: (workspaceId) => set({ workspaceId }),
 
@@ -107,21 +107,21 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setTimeRange: (timeRange) => {
     set({ timeRange })
-    if (!get()._isInitializing) {
+    if (!get().isInitializing) {
       get().syncWithURL()
     }
   },
 
   setLevel: (level) => {
     set({ level })
-    if (!get()._isInitializing) {
+    if (!get().isInitializing) {
       get().syncWithURL()
     }
   },
 
   setWorkflowIds: (workflowIds) => {
     set({ workflowIds })
-    if (!get()._isInitializing) {
+    if (!get().isInitializing) {
       get().syncWithURL()
     }
   },
@@ -137,14 +137,14 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     }
 
     set({ workflowIds: currentWorkflowIds })
-    if (!get()._isInitializing) {
+    if (!get().isInitializing) {
       get().syncWithURL()
     }
   },
 
   setFolderIds: (folderIds) => {
     set({ folderIds })
-    if (!get()._isInitializing) {
+    if (!get().isInitializing) {
       get().syncWithURL()
     }
   },
@@ -160,21 +160,21 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     }
 
     set({ folderIds: currentFolderIds })
-    if (!get()._isInitializing) {
+    if (!get().isInitializing) {
       get().syncWithURL()
     }
   },
 
   setSearchQuery: (searchQuery) => {
     set({ searchQuery })
-    if (!get()._isInitializing) {
+    if (!get().isInitializing) {
       get().syncWithURL()
     }
   },
 
   setTriggers: (triggers: TriggerType[]) => {
     set({ triggers })
-    if (!get()._isInitializing) {
+    if (!get().isInitializing) {
       get().syncWithURL()
     }
   },
@@ -190,13 +190,13 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     }
 
     set({ triggers: currentTriggers })
-    if (!get()._isInitializing) {
+    if (!get().isInitializing) {
       get().syncWithURL()
     }
   },
 
   initializeFromURL: () => {
-    set({ _isInitializing: true })
+    set({ isInitializing: true })
 
     const params = getSearchParams()
     const timeRange = parseTimeRangeFromURL(params.get('timeRange'))
@@ -213,7 +213,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
       folderIds,
       triggers,
       searchQuery,
-      _isInitializing: false,
+      isInitializing: false,
     })
   },
 

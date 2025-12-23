@@ -179,7 +179,7 @@ export interface FilterState {
   folderIds: string[]
   searchQuery: string
   triggers: TriggerType[]
-  _isInitializing: boolean
+  isInitializing: boolean
 
   setWorkspaceId: (workspaceId: string) => void
   setViewMode: (viewMode: 'logs' | 'dashboard') => void
