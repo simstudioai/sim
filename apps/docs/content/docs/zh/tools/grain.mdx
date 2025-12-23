@@ -1,0 +1,218 @@
+---
+title: Grain
+description: 访问会议录音、转录文本和 AI 摘要
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="grain"
+  color="#F6FAF9"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Grain](https://grain.com/) 是一个现代化平台，用于捕捉、存储和分享会议录音、转录文本、重点片段以及 AI 驱动的摘要。Grain 帮助团队将对话转化为可执行的洞察，让每个人都能对会议中的关键时刻保持一致。
+
+使用 Grain，您可以：
+
+- **访问可搜索的录音和转录文本**：可按关键词、参与者或主题查找和回顾每场会议。
+- **分享重点片段和剪辑**：捕捉重要时刻，并在团队或工作流中分享短视频/音频片段。
+- **获取 AI 生成的摘要**：利用 Grain 的先进 AI 自动生成会议摘要、行动项和关键洞察。
+- **按团队或类型组织会议**：为录音打标签和分类，便于访问和报告。
+
+Sim Grain 集成让您的坐席能够：
+
+- 通过灵活的筛选条件（日期时间、参与者、团队等）列出、搜索和获取会议录音及详细信息。
+- 获取会议的 AI 摘要、参与者、重点片段及其他元数据，以支持自动化或分析。
+- 通过 Grain webhook，在新会议被处理、摘要生成或重点片段创建时触发工作流。
+- 轻松将 Grain 数据桥接到其他工具，或在会议中有重要事件发生时即时通知团队成员。
+
+无论您是想自动化后续操作、保留重要对话记录，还是在组织内挖掘洞察，Grain 和 Sim 都能让您轻松将会议智能连接到工作流中。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Grain 集成到您的工作流中。访问会议录音、转录文本、重点片段和 AI 生成的摘要。还可以基于 Grain webhook 事件触发工作流。
+
+## 工具
+
+### `grain_list_recordings`
+
+从 Grain 获取录音列表，可选过滤和分页
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grain API key（个人访问令牌） |
+| `cursor` | string | 否 | 下一页的分页游标 |
+| `beforeDatetime` | string | 否 | 仅包含此 ISO8601 时间戳之前的录音 |
+| `afterDatetime` | string | 否 | 仅包含此 ISO8601 时间戳之后的录音 |
+| `participantScope` | string | 否 | 过滤条件：“internal” 或 “external” |
+| `titleSearch` | string | 否 | 按录音标题搜索过滤 |
+| `teamId` | string | 否 | 按团队 UUID 过滤 |
+| `meetingTypeId` | string | 否 | 按会议类型 UUID 过滤 |
+| `includeHighlights` | boolean | 否 | 响应中包含重点/片段 |
+| `includeParticipants` | boolean | 否 | 响应中包含参与者列表 |
+| `includeAiSummary` | boolean | 否 | 包含 AI 生成的摘要 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `recordings` | array | 录音对象数组 |
+
+### `grain_get_recording`
+
+根据 ID 获取单个录音的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grain API key（个人访问令牌） |
+| `recordingId` | string | 是 | 录音 UUID |
+| `includeHighlights` | boolean | 否 | 包含重点/片段 |
+| `includeParticipants` | boolean | 否 | 包含参与者列表 |
+| `includeAiSummary` | boolean | 否 | 包含 AI 摘要 |
+| `includeCalendarEvent` | boolean | 否 | 包含日历事件数据 |
+| `includeHubspot` | boolean | 否 | 包含 HubSpot 关联 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `id` | string | 录音 UUID |
+| `title` | string | 录音标题 |
+| `start_datetime` | string | ISO8601 开始时间戳 |
+| `end_datetime` | string | ISO8601 结束时间戳 |
+| `duration_ms` | number | 持续时间（毫秒） |
+| `media_type` | string | 音频、转录或视频 |
+| `source` | string | 录音来源（zoom、meet、teams 等） |
+| `url` | string | 在 Grain 中查看的 URL |
+| `thumbnail_url` | string | 缩略图 URL |
+| `tags` | array | 标签字符串数组 |
+| `teams` | array | 录音所属团队 |
+| `meeting_type` | object | 会议类型信息（id、name、scope） |
+| `highlights` | array | 高亮内容（如有） |
+| `participants` | array | 参与者（如有） |
+| `ai_summary` | object | AI 摘要文本（如有） |
+| `calendar_event` | object | 日历事件数据（如有） |
+| `hubspot` | object | HubSpot 关联信息（如有） |
+
+### `grain_get_transcript`
+
+获取录音的完整转录文本
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | ---- | ----------- |
+| `apiKey` | string | 是 | Grain API 密钥（个人访问令牌） |
+| `recordingId` | string | 是 | 录音 UUID |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `transcript` | array | 转录片段数组 |
+
+### `grain_list_teams`
+
+列出工作区中的所有团队
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grain API key（个人访问令牌） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `teams` | array | 团队对象数组 |
+
+### `grain_list_meeting_types`
+
+列出工作区中的所有会议类型
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grain API key（个人访问令牌） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `meeting_types` | array | 会议类型对象数组 |
+
+### `grain_create_hook`
+
+创建一个 webhook 以接收录制事件
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grain API key（个人访问令牌） |
+| `hookUrl` | string | 是 | Webhook endpoint URL（必须响应 2xx） |
+| `filterBeforeDatetime` | string | 否 | 筛选：此日期之前的录制 |
+| `filterAfterDatetime` | string | 否 | 筛选：此日期之后的录制 |
+| `filterParticipantScope` | string | 否 | 筛选：“internal” 或 “external” |
+| `filterTeamId` | string | 否 | 筛选：指定团队 UUID |
+| `filterMeetingTypeId` | string | 否 | 筛选：指定会议类型 |
+| `includeHighlights` | boolean | 否 | 在 webhook 负载中包含重点内容 |
+| `includeParticipants` | boolean | 否 | 在 webhook 负载中包含参与者 |
+| `includeAiSummary` | boolean | 否 | 在 webhook 负载中包含 AI 摘要 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `id` | string | Hook UUID |
+| `enabled` | boolean | Hook 是否激活 |
+| `hook_url` | string | webhook URL |
+| `filter` | object | 已应用的过滤器 |
+| `include` | object | 包含的字段 |
+| `inserted_at` | string | ISO8601 创建时间戳 |
+
+### `grain_list_hooks`
+
+列出该账户下的所有 webhook
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grain API key（个人访问令牌） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `hooks` | array | Hook 对象数组 |
+
+### `grain_delete_hook`
+
+根据 ID 删除 webhook
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Grain API key（个人访问令牌） |
+| `hookId` | string | 是 | 要删除的 Hook UUID |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | webhook 删除成功时为 true |
+
+## 备注
+
+- 分类：`tools`
+- 类型：`grain`

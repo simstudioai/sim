@@ -1,0 +1,58 @@
+---
+title: Circleback
+description: AI 驱动的会议记录与行动项
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="circleback"
+  color="linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Circleback](https://circleback.ai/) 是一个 AI 驱动的平台，可为您的团队自动生成会议记录、行动项、文字稿和录音。每当会议结束后，Circleback 会处理对话内容，提供详细的会议纪要和行动项，同时附上文字稿和录音（如有）。这有助于团队高效捕捉洞见、分发行动项，并确保不会遗漏任何重要信息——所有内容都能无缝集成到您的工作流程中。
+
+通过 Sim Circleback 集成，您可以：
+
+- **获取详细的会议记录和行动项**：自动收集格式良好的会议摘要，并跟踪通话中讨论的可执行任务。
+- **访问完整的会议录音和文字稿**：获取完整对话及相关录音，便于回顾关键时刻或与同事分享。
+- **捕捉与会者信息和会议背景**：与会者名单、会议元数据和标签帮助您有序管理和利用数据。
+- **将洞见直接推送到您的工作流程**：会议结束后，利用 Sim 强大的 webhook 触发器，自动触发自动化流程或将 Circleback 数据发送到其他系统。
+
+**在 Sim 中的工作方式：**  
+Circleback 使用 webhook 触发器：每当会议处理完成，数据会自动推送到您的代理或自动化流程。您可以基于以下内容构建更多自动化：
+
+- 会议完成（所有处理数据可用）
+- 新会议记录（即使会议尚未全部处理，会议纪要也可提前获取）
+- 原始 webhook 集成，适用于高级用例
+
+**Circleback 会议 webhook 有效载荷中包含以下信息：**
+
+| 字段          | 类型    | 描述                                        |
+|----------------|---------|----------------------------------------------------|
+| `id`           | number  | Circleback 会议 ID                              |
+| `name`         | string  | 会议标题                                      |
+| `url`          | string  | 虚拟会议 URL（Zoom、Meet、Teams 等）      |
+| `createdAt`    | string  | 会议创建时间戳                         |
+| `duration`     | number  | 时长（秒）                                |
+| `recordingUrl` | string  | 录制文件 URL（有效期 24 小时）                     |
+| `tags`         | json    | 标签数组                                      |
+| `icalUid`      | string  | 日历事件 ID                                  |
+| `attendees`    | json    | 参会者对象数组                          |
+| `notes`        | string  | Markdown 格式会议记录                          |
+| `actionItems`  | json    | 行动项数组                              |
+| `transcript`   | json    | 会议记录片段数组                       |
+| `insights`     | json    | 用户创建的洞见                              |
+| `meeting`      | json    | 完整会议数据                               |
+
+无论你是想分发即时摘要、记录行动项，还是基于新会议数据构建自定义工作流，Circleback 和 Sim 都能让你自动无缝处理所有与会议相关的事务。
+
+## 使用说明
+
+当会议被处理时，你将收到会议记录、行动项、转录和录音。Circleback 使用 webhook 将数据推送到你的工作流。
+
+## 备注
+
+- 分类：`triggers`
+- 类型：`circleback`
