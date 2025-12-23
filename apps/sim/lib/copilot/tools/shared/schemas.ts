@@ -119,14 +119,16 @@ export const GetBlockOutputsResult = z.object({
       outsideSubflowOutputs: z.array(z.string()).optional(),
     })
   ),
-  variables: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      type: z.string(),
-      tag: z.string(),
-    })
-  ),
+  variables: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        type: z.string(),
+        tag: z.string(),
+      })
+    )
+    .optional(),
 })
 export type GetBlockOutputsInputType = z.infer<typeof GetBlockOutputsInput>
 export type GetBlockOutputsResultType = z.infer<typeof GetBlockOutputsResult>

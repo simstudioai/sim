@@ -115,16 +115,21 @@ export class GetBlockOutputsClientTool extends BaseClientTool {
       }
 
       const includeVariables = !args?.blockIds || args.blockIds.length === 0
-      const variableOutputs = includeVariables ? getWorkflowVariables(activeWorkflowId) : []
-
-      const result = GetBlockOutputsResult.parse({
+      const resultData: {
+        blocks: typeof blockOutputs
+        variables?: ReturnType<typeof getWorkflowVariables>
+      } = {
         blocks: blockOutputs,
-        variables: variableOutputs,
-      })
+      }
+      if (includeVariables) {
+        resultData.variables = getWorkflowVariables(activeWorkflowId)
+      }
+
+      const result = GetBlockOutputsResult.parse(resultData)
 
       logger.info('Retrieved block outputs', {
         blockCount: blockOutputs.length,
-        variableCount: variableOutputs.length,
+        variableCount: resultData.variables?.length ?? 0,
       })
 
       await this.markToolComplete(200, 'Retrieved block outputs', result)
