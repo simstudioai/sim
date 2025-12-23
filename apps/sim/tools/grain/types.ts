@@ -5,11 +5,6 @@
  */
 
 import type { ToolResponse } from '@/tools/types'
-
-// ============================================================================
-// Common Types
-// ============================================================================
-
 export interface GrainTeam {
   id: string
   name: string
@@ -105,10 +100,6 @@ export interface GrainHook {
   inserted_at: string
 }
 
-// ============================================================================
-// Filter and Include Types
-// ============================================================================
-
 export interface GrainRecordingFilter {
   before_datetime?: string
   after_datetime?: string
@@ -132,10 +123,6 @@ export interface GrainRecordingInclude {
   }
 }
 
-// ============================================================================
-// List Recordings Types
-// ============================================================================
-
 export interface GrainListRecordingsParams {
   apiKey: string
   cursor?: string
@@ -157,10 +144,6 @@ export interface GrainListRecordingsResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
-// Get Recording Types
-// ============================================================================
-
 export interface GrainGetRecordingParams {
   apiKey: string
   recordingId: string
@@ -175,10 +158,6 @@ export interface GrainGetRecordingResponse extends ToolResponse {
   output: GrainRecording
 }
 
-// ============================================================================
-// Get Transcript Types
-// ============================================================================
-
 export interface GrainGetTranscriptParams {
   apiKey: string
   recordingId: string
@@ -190,10 +169,6 @@ export interface GrainGetTranscriptResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
-// List Teams Types
-// ============================================================================
-
 export interface GrainListTeamsParams {
   apiKey: string
 }
@@ -204,10 +179,6 @@ export interface GrainListTeamsResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
-// List Meeting Types
-// ============================================================================
-
 export interface GrainListMeetingTypesParams {
   apiKey: string
 }
@@ -217,10 +188,6 @@ export interface GrainListMeetingTypesResponse extends ToolResponse {
     meeting_types: GrainMeetingType[]
   }
 }
-
-// ============================================================================
-// Create Hook Types
-// ============================================================================
 
 export interface GrainCreateHookParams {
   apiKey: string
@@ -239,10 +206,6 @@ export interface GrainCreateHookResponse extends ToolResponse {
   output: GrainHook
 }
 
-// ============================================================================
-// List Hooks Types
-// ============================================================================
-
 export interface GrainListHooksParams {
   apiKey: string
 }
@@ -252,10 +215,6 @@ export interface GrainListHooksResponse extends ToolResponse {
     hooks: GrainHook[]
   }
 }
-
-// ============================================================================
-// Delete Hook Types
-// ============================================================================
 
 export interface GrainDeleteHookParams {
   apiKey: string
