@@ -120,7 +120,7 @@ export default function PlaygroundPage() {
 
   return (
     <Tooltip.Provider>
-      <div className='relative min-h-screen bg-[var(--surface-0)] p-8'>
+      <div className='relative min-h-screen bg-[var(--bg)] p-8'>
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button

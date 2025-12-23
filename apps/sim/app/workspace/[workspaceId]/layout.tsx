@@ -14,7 +14,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
       <ProviderModelsLoader />
       <GlobalCommandsProvider>
         <Tooltip.Provider delayDuration={600} skipDelayDuration={0}>
-          <div className='flex h-screen w-full bg-[var(--surface-0)]'>
+          <div className='flex h-screen w-full bg-[var(--bg)]'>
             <WorkspacePermissionsProvider>
               <div className='shrink-0' suppressHydrationWarning>
                 <Sidebar />

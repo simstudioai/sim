@@ -451,11 +451,11 @@ const TagIcon: React.FC<{
     style={{ background: color }}
   >
     {typeof icon === 'string' ? (
-      <span className='font-bold text-[10px] text-white'>{icon}</span>
+      <span className='!text-white font-bold text-[10px]'>{icon}</span>
     ) : (
       (() => {
         const IconComponent = icon
-        return <IconComponent className='h-[9px] w-[9px] text-white' />
+        return <IconComponent className='!text-white size-[9px]' />
       })()
     )}
   </div>
@@ -1490,13 +1490,13 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                         }}
                       >
                         <TagIcon icon='V' color={BLOCK_COLORS.VARIABLE} />
-                        <span className='flex-1 truncate'>
+                        <span className='flex-1 truncate text-[var(--text-primary)]'>
                           {tag.startsWith(TAG_PREFIXES.VARIABLE)
                             ? tag.substring(TAG_PREFIXES.VARIABLE.length)
                             : tag}
                         </span>
                         {variableInfo && (
-                          <span className='ml-auto text-[10px] text-[var(--white)]/60'>
+                          <span className='ml-auto text-[10px] text-[var(--text-secondary)]'>
                             {variableInfo.type}
                           </span>
                         )}
@@ -1610,9 +1610,11 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                                   }}
                                 >
                                   <TagIcon icon={tagIcon} color={blockColor} />
-                                  <span className='flex-1 truncate'>{child.display}</span>
+                                  <span className='flex-1 truncate text-[var(--text-primary)]'>
+                                    {child.display}
+                                  </span>
                                   {childType && childType !== 'any' && (
-                                    <span className='ml-auto text-[10px] text-[var(--white)]/60'>
+                                    <span className='ml-auto text-[10px] text-[var(--text-secondary)]'>
                                       {childType}
                                     </span>
                                   )}
@@ -1686,9 +1688,11 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                           }}
                         >
                           <TagIcon icon={displayIcon} color={blockColor} />
-                          <span className='flex-1 truncate'>{nestedTag.display}</span>
+                          <span className='flex-1 truncate text-[var(--text-primary)]'>
+                            {nestedTag.display}
+                          </span>
                           {tagDescription && tagDescription !== 'any' && (
-                            <span className='ml-auto text-[10px] text-[var(--white)]/60'>
+                            <span className='ml-auto text-[10px] text-[var(--text-secondary)]'>
                               {tagDescription}
                             </span>
                           )}

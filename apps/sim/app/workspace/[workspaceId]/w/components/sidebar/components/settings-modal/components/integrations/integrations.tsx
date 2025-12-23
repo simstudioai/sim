@@ -296,7 +296,7 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
             )}
 
             {pendingService && showActionRequired && (
-              <div className='flex items-start gap-[12px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-0)] p-[12px]'>
+              <div className='flex items-start gap-[12px] rounded-[8px] border border-[var(--border)] bg-[var(--bg)] p-[12px]'>
                 <ExternalLink className='mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--text-muted)]' />
                 <div className='flex flex-1 flex-col gap-[8px]'>
                   <p className='text-[13px] text-[var(--text-muted)]'>
@@ -323,7 +323,7 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
                       className={cn(
                         'flex items-center justify-between',
                         pendingService === service.id &&
-                          '-m-[8px] rounded-[8px] bg-[var(--surface-0)] p-[8px]'
+                          '-m-[8px] rounded-[8px] bg-[var(--bg)] p-[8px]'
                       )}
                       ref={pendingService === service.id ? pendingServiceRef : undefined}
                     >

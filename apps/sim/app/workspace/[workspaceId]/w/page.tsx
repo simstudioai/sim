@@ -56,9 +56,9 @@ export default function WorkflowsPage() {
   // Always show loading state until redirect happens
   // There should always be a default workflow, so we never show "no workflows found"
   return (
-    <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--surface-0)]'>
-      <div className='relative h-full w-full flex-1 bg-[var(--surface-0)]'>
-        <div className='workflow-container flex h-full items-center justify-center bg-[var(--surface-0)]'>
+    <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--bg)]'>
+      <div className='relative h-full w-full flex-1 bg-[var(--bg)]'>
+        <div className='workflow-container flex h-full items-center justify-center bg-[var(--bg)]'>
           <div
             className='h-[18px] w-[18px] animate-spin rounded-full'
             style={{

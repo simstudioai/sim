@@ -40,101 +40,93 @@
 }
 
 /**
- * Dark color tokens - single source of truth for all colors (dark-only)
+ * Color tokens - single source of truth for all colors
+ * Light mode: Warm theme
+ * Dark mode: Dark neutral theme
  */
 @layer base {
   :root,
   .light {
-    /* Neutrals (surfaces) - Hex-inspired white theme */
-    --surface-0: #ffffff; /* white canvas bg, modal header/droparea */
-    --surface-1: #ffffff; /* white sidebar (primary) */
-    --surface-2: #ffffff; /* white workflow blocks, modals (card) */
-    --surface-3: #ffffff; /* white */
-    --surface-4: #ffffff; /* white */
-    --surface-5: #ffffff; /* subtle off-white for search, buttons, badges (card-2) */
-    --surface-6: #ffffff; /* white */
-    --surface-9: #f2f2f2; /* visible gray for active states, textarea bg (card-3) */
-    --surface-11: #e8e8e8; /* deeper gray */
-    --surface-12: #dedede; /* even deeper */
-    --surface-13: #a3a3a3; /* muted gray */
-    --surface-14: #737373; /* darker gray */
-    --surface-15: #525252; /* darkest gray */
-    --surface-elevated: #ffffff; /* white elevated */
-    --bg-strong: #e8e8e8; /* strong bg element */
+    --bg: #fcfcf9; /* main canvas - warm off-white */
+    --surface-1: #f9faf7; /* sidebar, panels - very close to bg */
+    --surface-2: #fcfcf9; /* cards, modals - matches bg */
+    --surface-3: #f6f7f4; /* popovers, elevated */
+    --surface-4: #f2f3f0; /* buttons base */
+    --border: #e5e6e1; /* primary border */
+    --surface-5: #ecede8; /* inputs, hover states */
+    --border-1: #d7dcda; /* stronger border - sage gray */
+    --surface-6: #d7dcda; /* scroll thumbs, active states */
 
-    /* Text - neutral grays for Hex-inspired theme */
-    --text-primary: #171717; /* near black */
-    --text-secondary: #1f1f1f; /* dark gray */
-    --text-tertiary: #404040; /* medium gray */
-    --text-muted: #5c5c5c; /* muted gray */
-    --text-subtle: #8a8a8a; /* subtle gray */
-    --text-inverse: #fafafa; /* near white */
+    /* Text - warm neutrals */
+    --text-primary: #1a1a1a;
+    --text-secondary: #2d2d2d;
+    --text-tertiary: #525252;
+    --text-muted: #737373;
+    --text-subtle: #8c8c8c;
+    --text-inverse: #f0fff6;
     --text-error: #dc2626;
 
-    /* Borders / dividers - Hex-inspired neutral grays */
-    --border: #e5e5e5; /* neutral gray border */
-    --border-strong: #d4d4d4; /* stronger border */
-    --divider: #ebebeb; /* subtle divider */
-    --border-muted: #ebebeb; /* muted border */
-    --border-success: #d4d4d4; /* success border */
+    /* Borders / dividers */
+    --divider: #e8e9e4;
+    --border-muted: #dfe0db;
+    --border-success: #d7dcda;
 
     /* Brand & state */
     --brand-400: #8e4cfb;
-    --brand-500: #6f3dfa;
     --brand-secondary: #33b4ff;
     --brand-tertiary: #22c55e;
-    --brand-tertiary-2: #33c482;
+    --brand-tertiary-2: #32bd7e;
     --warning: #ea580c;
 
     /* Utility */
     --white: #ffffff;
 
-    /* Font weights - lighter for light mode (-20 from dark) */
+    /* Font weights - lighter for light mode */
     --font-weight-base: 430;
     --font-weight-medium: 450;
     --font-weight-semibold: 500;
 
-    /* RGB for opacity usage - neutral grays */
-    --surface-4-rgb: 255 255 255; /* white */
-    --surface-5-rgb: 248 248 248; /* subtle off-white */
-    --surface-7-rgb: 255 255 255; /* white */
-    --surface-9-rgb: 242 242 242; /* active state gray */
-    --divider-rgb: 235 235 235; /* divider gray */
+    /* RGB for opacity usage */
+    --surface-4-rgb: 242 243 240;
+    --surface-5-rgb: 236 237 232;
+    --surface-7-rgb: 246 247 244;
+    --surface-9-rgb: 232 233 228;
+    --divider-rgb: 232 233 228;
     --white-rgb: 255 255 255;
     --black-rgb: 0 0 0;
 
-    /* Extended palette - neutral grays for Hex-inspired theme */
-    --c-0D0D0D: #0d0d0d; /* near black */
-    --c-1A1A1A: #1a1a1a; /* very dark gray */
-    --c-1F1F1F: #1f1f1f; /* very dark gray */
-    --c-2A2A2A: #2a2a2a; /* dark gray */
-    --c-383838: #383838; /* dark gray */
-    --c-414141: #414141; /* medium-dark gray */
+    /* Extended palette */
+    --c-0D0D0D: #0d0d0d;
+    --c-1A1A1A: #1a1a1a;
+    --c-1F1F1F: #1f1f1f;
+    --c-2A2A2A: #2a2a2a;
+    --c-383838: #383838;
+    --c-414141: #414141;
     --c-442929: #442929;
     --c-491515: #491515;
-    --c-575757: #575757; /* medium gray */
-    --c-686868: #686868; /* medium gray */
-    --c-707070: #707070; /* medium gray */
-    --c-727272: #727272; /* medium gray */
-    --c-737373: #737373; /* medium gray */
-    --c-808080: #808080; /* gray */
-    --c-858585: #858585; /* gray */
-    --c-868686: #868686; /* gray */
-    --c-8D8D8D: #8d8d8d; /* gray */
-    --c-939393: #939393; /* gray */
-    --c-A8A8A8: #a8a8a8; /* light gray */
-    --c-B8B8B8: #b8b8b8; /* light gray */
-    --c-C0C0C0: #c0c0c0; /* light gray */
-    --c-CDCDCD: #cdcdcd; /* light gray */
-    --c-D0D0D0: #d0d0d0; /* light gray */
-    --c-D2D2D2: #d2d2d2; /* light gray */
-    --c-E0E0E0: #e0e0e0; /* very light gray */
-    --c-E5E5E5: #e5e5e5; /* very light gray */
-    --c-E8E8E8: #e8e8e8; /* very light gray */
-    --c-EEEEEE: #eeeeee; /* near white */
-    --c-F0F0F0: #f0f0f0; /* near white */
-    --c-F4F4F4: #f4f4f4; /* near white */
-    --c-F5F5F5: #f5f5f5; /* near white */
+    --c-575757: #575757;
+    --c-686868: #686868;
+    --c-707070: #707070;
+    --c-727272: #727272;
+    --c-737373: #737373;
+    --c-808080: #808080;
+    --c-858585: #858585;
+    --c-868686: #868686;
+    --c-8D8D8D: #8d8d8d;
+    --c-939393: #939393;
+    --c-A8A8A8: #a8a8a8;
+    --c-B8B8B8: #b8b8b8;
+    --c-C0C0C0: #c0c0c0;
+    --c-CDCDCD: #cdcdcd;
+    --c-D0D0D0: #d0d0d0;
+    --c-D2D2D2: #d2d2d2;
+    --c-E0E0E0: #e0e0e0;
+    --c-E5E5E5: #e5e5e5;
+    --c-E8E8E8: #e8e8e8;
+    --c-EEEEEE: #eeeeee;
+    --c-F0F0F0: #f0f0f0;
+    --c-F4F4F4: #f4f4f4;
+    --c-F5F5F5: #f5f5f5;
 
     /* Blues and cyans */
     --c-00B0B0: #00b0b0;
@@ -168,16 +160,16 @@
     /* Terminal status badges */
     --terminal-status-error-bg: #feeeee;
     --terminal-status-error-border: #f87171;
-    --terminal-status-info-bg: #f5f5f4; /* stone-100 */
-    --terminal-status-info-border: #a8a29e; /* stone-400 */
-    --terminal-status-info-color: #57534e; /* stone-600 */
+    --terminal-status-info-bg: #f5f5f4;
+    --terminal-status-info-border: #a8a29e;
+    --terminal-status-info-color: #57534e;
     --terminal-status-warning-bg: #fef9e7;
     --terminal-status-warning-border: #f5c842;
     --terminal-status-warning-color: #a16207;
   }
   .dark {
     /* Surface */
-    --surface-0: #1b1b1b;
+    --bg: #1b1b1b;
     --surface-1: #1e1e1e;
     --surface-2: #232323;
     --surface-3: #242424;
@@ -185,12 +177,7 @@
     --border: #2c2c2c;
     --surface-5: #363636;
     --border-1: #3d3d3d;
-    --surface-12: #454545;
-    --surface-13: #454545;
-    --surface-14: #4a4a4a;
-    --surface-15: #5a5a5a;
-    --surface-elevated: #202020;
-    --bg-strong: #0c0c0c;
+    --surface-6: #454545;
 
     /* Text */
     --text-primary: #e6e6e6;
@@ -201,8 +188,6 @@
     --text-inverse: #1b1b1b;
     --text-error: #ef4444;
 
-    /* Borders / dividers */
-
     /* --border-strong: #303030; */
     --divider: #393939;
     --border-muted: #424242;
@@ -212,7 +197,7 @@
     --brand-400: #8e4cfb;
     --brand-secondary: #33b4ff;
     --brand-tertiary: #22c55e;
-    --brand-tertiary-2: #33c482;
+    --brand-tertiary-2: #32bd7e;
     --warning: #ff6600;
 
     /* Utility */
@@ -323,7 +308,7 @@
   }
 
   body {
-    background-color: var(--surface-0);
+    background-color: var(--bg);
     color: var(--text-primary);
     overscroll-behavior-x: none;
     overscroll-behavior-y: none;
@@ -359,12 +344,12 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background-color: var(--surface-12);
+    background-color: var(--surface-6);
     border-radius: var(--radius);
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background-color: var(--surface-13);
+    background-color: var(--surface-6);
   }
 
   /* Dark Mode Global Scrollbar */
@@ -373,20 +358,20 @@
   }
 
   .dark ::-webkit-scrollbar-thumb {
-    background-color: var(--surface-12);
+    background-color: var(--surface-6);
   }
 
   .dark ::-webkit-scrollbar-thumb:hover {
-    background-color: var(--surface-13);
+    background-color: var(--surface-6);
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--surface-12) var(--surface-1);
+    scrollbar-color: var(--surface-6) var(--surface-1);
   }
 
   .dark * {
-    scrollbar-color: var(--surface-12) var(--surface-4);
+    scrollbar-color: var(--surface-6) var(--surface-4);
   }
 
   .copilot-scrollable {
@@ -402,8 +387,8 @@
 }
 
 .panel-tab-active {
-  background-color: var(--white);
-  color: var(--text-inverse);
+  background-color: var(--surface-5);
+  color: var(--text-primary);
   border-color: var(--border-muted);
 }
 

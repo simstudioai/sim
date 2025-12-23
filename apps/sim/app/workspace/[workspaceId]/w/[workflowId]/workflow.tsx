@@ -106,8 +106,8 @@ const reactFlowStyles = [
   '[&_.react-flow__pane]:!bg-transparent',
   '[&_.react-flow__renderer]:!bg-transparent',
   // Dark mode: solid background, hide dots
-  'dark:[&_.react-flow__pane]:!bg-[var(--surface-0)]',
-  'dark:[&_.react-flow__renderer]:!bg-[var(--surface-0)]',
+  'dark:[&_.react-flow__pane]:!bg-[var(--bg)]',
+  'dark:[&_.react-flow__renderer]:!bg-[var(--bg)]',
   'dark:[&_.react-flow__background]:hidden',
 ].join(' ')
 const reactFlowFitViewOptions = { padding: 0.6 } as const
@@ -360,7 +360,7 @@ const WorkflowContent = React.memo(() => {
   /** Connection line style - red for error handles, default otherwise. */
   const connectionLineStyle = useMemo(
     () => ({
-      stroke: isErrorConnectionDrag ? 'var(--text-error)' : 'var(--surface-12)',
+      stroke: isErrorConnectionDrag ? 'var(--text-error)' : 'var(--surface-6)',
       strokeWidth: 2,
     }),
     [isErrorConnectionDrag]
@@ -2275,11 +2275,11 @@ const WorkflowContent = React.memo(() => {
   }, [selectedEdgeInfo, removeEdge, getNodes, removeBlock, effectivePermissions.canEdit])
 
   return (
-    <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--surface-0)]'>
-      <div className='relative h-full w-full flex-1 bg-[var(--surface-0)]'>
+    <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--bg)]'>
+      <div className='relative h-full w-full flex-1 bg-[var(--bg)]'>
         {/* Loading spinner - always mounted, animation paused when hidden to avoid overhead */}
         <div
-          className={`absolute inset-0 z-[5] flex items-center justify-center bg-[var(--surface-0)] transition-opacity duration-150 ${isWorkflowReady ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
+          className={`absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)] transition-opacity duration-150 ${isWorkflowReady ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
         >
           <div
             className={`h-[18px] w-[18px] rounded-full ${isWorkflowReady ? '' : 'animate-spin'}`}
@@ -2338,7 +2338,7 @@ const WorkflowContent = React.memo(() => {
               noWheelClassName='allow-scroll'
               edgesFocusable={true}
               edgesUpdatable={effectivePermissions.canEdit}
-              className={`workflow-container h-full bg-[var(--surface-0)] transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'}`}
+              className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'}`}
               onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
               onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
               onNodeDragStart={effectivePermissions.canEdit ? onNodeDragStart : undefined}

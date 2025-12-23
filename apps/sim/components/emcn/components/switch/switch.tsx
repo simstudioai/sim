@@ -16,7 +16,7 @@ const Switch = React.forwardRef<
   <SwitchPrimitives.Root
     className={cn(
       'peer inline-flex h-[17px] w-[30px] shrink-0 cursor-pointer items-center rounded-[20px] transition-colors focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
-      'bg-[var(--surface-5)] data-[state=checked]:bg-[var(--surface-14)]',
+      'bg-[var(--surface-5)] data-[state=checked]:bg-[var(--surface-6)]',
       className
     )}
     {...props}

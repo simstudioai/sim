@@ -67,7 +67,7 @@ function formatAbsoluteDate(dateString: string): string {
  */
 export function BaseCardSkeleton() {
   return (
-    <div className='group flex h-full cursor-pointer flex-col gap-[12px] rounded-[4px] bg-[var(--surface-2)] px-[8px] py-[6px] transition-colors hover:bg-[var(--surface-4)]'>
+    <div className='group flex h-full cursor-pointer flex-col gap-[12px] rounded-[4px] bg-[var(--surface-4)] px-[8px] py-[6px] transition-colors hover:bg-[var(--surface-5)]'>
       <div className='flex items-center justify-between gap-[8px]'>
         <div className='h-[17px] w-[120px] animate-pulse rounded-[4px] bg-[var(--surface-5)]' />
         <div className='h-[22px] w-[90px] animate-pulse rounded-[4px] bg-[var(--surface-4)]' />
@@ -122,9 +122,9 @@ export function BaseCard({ id, title, docCount, description, updatedAt }: BaseCa
 
   return (
     <Link href={href} prefetch={true} className='h-full'>
-      <div className='group flex h-full cursor-pointer flex-col gap-[12px] rounded-[4px] bg-[var(--surface-2)] px-[8px] py-[6px] transition-colors hover:bg-[var(--surface-4)]'>
+      <div className='group flex h-full cursor-pointer flex-col gap-[12px] rounded-[4px] bg-[var(--surface-4)] px-[8px] py-[6px] transition-colors hover:bg-[var(--surface-5)]'>
         <div className='flex items-center justify-between gap-[8px]'>
-          <h3 className='min-w-0 flex-1 truncate text-[14px] text-[var(--text-primary)]'>
+          <h3 className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-primary)]'>
             {title}
           </h3>
           {shortId && <Badge className='flex-shrink-0 rounded-[4px] text-[12px]'>{shortId}</Badge>}
@@ -139,7 +139,7 @@ export function BaseCard({ id, title, docCount, description, updatedAt }: BaseCa
             {updatedAt && (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <span className='text-[12px] text-[var(--text-muted)]'>
+                  <span className='text-[12px] text-[var(--text-tertiary)]'>
                     last updated: {formatRelativeTime(updatedAt)}
                   </span>
                 </Tooltip.Trigger>

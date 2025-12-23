@@ -159,7 +159,7 @@ const ModalContent = React.forwardRef<
         className={cn(
           ANIMATION_CLASSES,
           CONTENT_ANIMATION_CLASSES,
-          'fixed top-[50%] left-[50%] z-[500] flex max-h-[84vh] translate-x-[-50%] translate-y-[-50%] flex-col rounded-[8px] border bg-[var(--surface-0)] shadow-sm duration-200',
+          'fixed top-[50%] left-[50%] z-[500] flex max-h-[84vh] translate-x-[-50%] translate-y-[-50%] flex-col rounded-[8px] border bg-[var(--bg)] shadow-sm duration-200',
           MODAL_SIZES[size],
           className
         )}

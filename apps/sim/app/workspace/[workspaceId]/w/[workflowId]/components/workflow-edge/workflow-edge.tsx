@@ -86,7 +86,7 @@ const WorkflowEdgeComponent = ({
 
   // Memoize edge style to prevent object recreation
   const edgeStyle = useMemo(() => {
-    let color = 'var(--surface-12)'
+    let color = 'var(--surface-6)'
     if (edgeDiffStatus === 'deleted') color = 'var(--text-error)'
     else if (isErrorEdge) color = 'var(--text-error)'
     else if (edgeDiffStatus === 'new') color = 'var(--brand-tertiary)'

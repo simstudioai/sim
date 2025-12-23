@@ -108,7 +108,7 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
    */
   const getHandleClasses = (position: 'left' | 'right') => {
     const baseClasses = '!z-[10] !cursor-crosshair !border-none !transition-[colors] !duration-150'
-    const colorClasses = '!bg-[var(--surface-12)]'
+    const colorClasses = '!bg-[var(--surface-6)]'
 
     const positionClasses = {
       left: '!left-[-7px] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-none hover:!left-[-10px] hover:!w-[10px] hover:!rounded-l-full',

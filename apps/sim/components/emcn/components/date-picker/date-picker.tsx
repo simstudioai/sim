@@ -31,7 +31,7 @@ import { cn } from '@/lib/core/utils/cn'
  * Matches the combobox and input styling patterns.
  */
 const datePickerVariants = cva(
-  'flex w-full rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] dark:bg-[var(--surface-9)] px-[8px] font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] dark:placeholder:text-[var(--text-muted)] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 hover:border-[var(--surface-14)] hover:bg-[var(--surface-9)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--surface-11)]',
+  'flex w-full rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)] px-[8px] font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] dark:placeholder:text-[var(--text-muted)] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 hover:border-[var(--surface-6)] hover:bg-[var(--surface-5)] dark:hover:border-[var(--surface-6)] dark:hover:bg-[var(--border-1)]',
   {
     variants: {
       variant: {
@@ -332,13 +332,13 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
             align='start'
             sideOffset={4}
             avoidCollisions={false}
-            className='w-[280px] rounded-[6px] border border-[var(--surface-11)] p-0'
+            className='w-[280px] rounded-[6px] border border-[var(--border-1)] p-0'
           >
             {/* Calendar Header */}
-            <div className='flex items-center justify-between border-[var(--surface-11)] border-b px-[12px] py-[10px]'>
+            <div className='flex items-center justify-between border-[var(--border-1)] border-b px-[12px] py-[10px]'>
               <button
                 type='button'
-                className='flex h-[24px] w-[24px] items-center justify-center rounded-[4px] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)]'
+                className='flex h-[24px] w-[24px] items-center justify-center rounded-[4px] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
                 onClick={goToPrevMonth}
               >
                 <ChevronLeft className='h-4 w-4' />
@@ -348,7 +348,7 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
               </span>
               <button
                 type='button'
-                className='flex h-[24px] w-[24px] items-center justify-center rounded-[4px] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)]'
+                className='flex h-[24px] w-[24px] items-center justify-center rounded-[4px] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
                 onClick={goToNextMonth}
               >
                 <ChevronRight className='h-4 w-4' />
@@ -379,8 +379,8 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
                         isSelected(day)
                           ? 'bg-[var(--brand-secondary)] text-[var(--bg)]'
                           : isToday(day)
-                            ? 'bg-[var(--surface-9)] text-[var(--text-primary)]'
-                            : 'text-[var(--text-primary)] hover:bg-[var(--surface-9)]'
+                            ? 'bg-[var(--surface-5)] text-[var(--text-primary)]'
+                            : 'text-[var(--text-primary)] hover:bg-[var(--surface-5)]'
                       )}
                       onClick={() => handleSelectDate(day)}
                     >
@@ -392,7 +392,7 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>(
             </div>
 
             {/* Today Button */}
-            <div className='border-[var(--surface-11)] border-t px-[8px] py-[8px]'>
+            <div className='border-[var(--border-1)] border-t px-[8px] py-[8px]'>
               <Button variant='active' className='w-full' onClick={handleSelectToday}>
                 Today
               </Button>

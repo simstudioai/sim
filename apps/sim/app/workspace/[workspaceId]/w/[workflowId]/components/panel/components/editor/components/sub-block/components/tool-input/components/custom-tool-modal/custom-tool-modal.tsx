@@ -928,12 +928,12 @@ try {
 }`}
                   minHeight='420px'
                   className={cn(
-                    'bg-[var(--surface-0)]',
+                    'bg-[var(--bg)]',
                     schemaError && 'border-[var(--text-error)]',
                     (schemaGeneration.isLoading || schemaGeneration.isStreaming) &&
                       'cursor-not-allowed opacity-50'
                   )}
-                  gutterClassName='bg-[var(--surface-0)]'
+                  gutterClassName='bg-[var(--bg)]'
                   disabled={schemaGeneration.isLoading || schemaGeneration.isStreaming}
                   onKeyDown={handleKeyDown}
                 />
@@ -989,7 +989,7 @@ try {
                       <span className='font-medium'>Available parameters:</span>{' '}
                       {schemaParameters.map((param, index) => (
                         <span key={param.name}>
-                          <code className='rounded bg-[var(--surface-0)] px-1 py-0.5 text-[var(--text-primary)]'>
+                          <code className='rounded bg-[var(--bg)] px-1 py-0.5 text-[var(--text-primary)]'>
                             {param.name}
                           </code>
                           {index < schemaParameters.length - 1 && ', '}
@@ -1008,12 +1008,12 @@ try {
                     placeholder={'return schemaVariable + {{environmentVariable}}'}
                     minHeight={schemaParameters.length > 0 ? '380px' : '420px'}
                     className={cn(
-                      'bg-[var(--surface-0)]',
+                      'bg-[var(--bg)]',
                       codeError && !codeGeneration.isStreaming && 'border-[var(--text-error)]',
                       (codeGeneration.isLoading || codeGeneration.isStreaming) &&
                         'cursor-not-allowed opacity-50'
                     )}
-                    gutterClassName='bg-[var(--surface-0)]'
+                    gutterClassName='bg-[var(--bg)]'
                     highlightVariables={true}
                     disabled={codeGeneration.isLoading || codeGeneration.isStreaming}
                     onKeyDown={handleKeyDown}

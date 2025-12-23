@@ -832,7 +832,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                 />
               </div>
             ) : (
-              <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-elevated)]'>
+              <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-2)]'>
                 <User className='h-[14px] w-[14px] text-[var(--text-muted)]' />
               </div>
             )}
@@ -873,7 +873,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
             {/* Last updated overlay */}
             {template.updatedAt && (
-              <div className='pointer-events-none absolute right-[12px] bottom-[12px] rounded-[4px] bg-[var(--surface-0)]/80 px-[8px] py-[4px] backdrop-blur-sm'>
+              <div className='pointer-events-none absolute right-[12px] bottom-[12px] rounded-[4px] bg-[var(--bg)]/80 px-[8px] py-[4px] backdrop-blur-sm'>
                 <span className='font-medium text-[12px] text-[var(--text-muted)]'>
                   Last updated{' '}
                   {formatDistanceToNow(new Date(template.updatedAt), {
@@ -1001,7 +1001,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                       />
                     </div>
                   ) : (
-                    <div className='flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-elevated)]'>
+                    <div className='flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-2)]'>
                       <User className='h-[24px] w-[24px] text-[var(--text-muted)]' />
                     </div>
                   )}

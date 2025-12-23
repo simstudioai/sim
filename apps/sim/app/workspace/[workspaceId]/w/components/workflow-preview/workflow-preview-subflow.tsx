@@ -32,7 +32,7 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
 
   // Handle styles matching the actual subflow component
   const handleClass =
-    '!border-none !bg-[var(--surface-12)] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-[2px]'
+    '!border-none !bg-[var(--surface-6)] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-[2px]'
 
   return (
     <div

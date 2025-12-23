@@ -357,7 +357,7 @@ export function General({ onOpenChange }: GeneralProps) {
       <div className='flex items-center gap-[12px]'>
         <div className='relative'>
           <div
-            className={`group relative flex h-9 w-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full transition-all hover:bg-[var(--surface-0)] ${!imageUrl ? 'border border-[var(--border)]' : ''}`}
+            className={`group relative flex h-9 w-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full transition-all hover:bg-[var(--bg)] ${!imageUrl ? 'border border-[var(--border)]' : ''}`}
             onClick={handleProfilePictureClick}
           >
             {(() => {

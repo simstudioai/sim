@@ -172,7 +172,7 @@ export function Editor() {
   return (
     <div className='flex h-full flex-col'>
       {/* Header */}
-      <div className='flex flex-shrink-0 items-center justify-between rounded-[4px] bg-[var(--surface-4)] px-[12px] py-[8px]'>
+      <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between rounded-[4px] border border-[var(--border)] bg-[var(--surface-4)] px-[12px] py-[6px]'>
         <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
           {(blockConfig || isSubflow) && currentBlock?.type !== 'note' && (
             <div

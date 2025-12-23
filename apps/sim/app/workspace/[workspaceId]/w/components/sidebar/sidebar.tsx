@@ -496,7 +496,7 @@ export function Sidebar() {
 
               {/* Search */}
               <div
-                className='mx-[8px] mt-[10px] flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[6px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'
+                className='mx-[8px] mt-[10px] flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[6px] transition-colors duration-100 hover:border-[var(--border-1)] hover:bg-[var(--surface-5)] dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'
                 onClick={() => setIsSearchModalOpen(true)}
               >
                 <div className='flex items-center gap-[6px]'>

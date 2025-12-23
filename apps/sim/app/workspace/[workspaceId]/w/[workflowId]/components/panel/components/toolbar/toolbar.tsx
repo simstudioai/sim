@@ -488,7 +488,7 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
     >
       {/* Header */}
       <div
-        className='flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[4px] bg-[var(--surface-4)] px-[12px] py-[8px]'
+        className='mx-[-1px] flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[4px] border border-[var(--border)] bg-[var(--surface-4)] px-[12px] py-[6px]'
         onClick={handleSearchClick}
       >
         <h2 className='font-medium text-[14px] text-[var(--text-primary)]'>Toolbar</h2>

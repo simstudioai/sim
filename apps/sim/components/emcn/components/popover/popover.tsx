@@ -85,7 +85,7 @@ const POPOVER_ICON_SIZE_CLASSES: Record<PopoverSize, string> = {
  * Variant-specific active state styles for popover items.
  */
 const POPOVER_ITEM_ACTIVE_CLASSES = {
-  secondary: 'bg-[var(--brand-secondary)] text-[var(--surface-0)] [&_svg]:text-[var(--surface-0)]',
+  secondary: 'bg-[var(--brand-secondary)] text-[var(--bg)] [&_svg]:text-[var(--bg)]',
   default: 'bg-[var(--surface-5)] text-[var(--text-primary)] [&_svg]:text-[var(--text-primary)]',
 }
 
@@ -94,7 +94,7 @@ const POPOVER_ITEM_ACTIVE_CLASSES = {
  */
 const POPOVER_ITEM_HOVER_CLASSES = {
   secondary:
-    'hover:bg-[var(--brand-secondary)] hover:text-[var(--surface-0)] hover:[&_svg]:text-[var(--surface-0)]',
+    'hover:bg-[var(--brand-secondary)] hover:text-[var(--bg)] hover:[&_svg]:text-[var(--bg)]',
   default:
     'hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)] hover:[&_svg]:text-[var(--text-primary)]',
 }
