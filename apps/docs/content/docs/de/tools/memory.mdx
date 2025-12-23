@@ -1,6 +1,6 @@
 ---
 title: Memory
-description: Speicher hinzufügen
+description: Konversationsverlauf speichern und abrufen
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,96 +10,94 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#F64F9E"
 />
 
-## Gebrauchsanweisung
+## Übersicht
 
-Memory in den Workflow integrieren. Kann Erinnerungen hinzufügen, eine Erinnerung abrufen, alle Erinnerungen abrufen und Erinnerungen löschen.
+Der Memory-Block speichert den Konversationsverlauf für Agenten. Jede Erinnerung wird durch eine `conversationId` identifiziert, die Sie bereitstellen. Mehrere Agenten können denselben Speicher nutzen, indem sie dieselbe `conversationId` verwenden.
+
+Der Speicher speichert nur Benutzer- und Assistentennachrichten. Systemnachrichten werden nicht gespeichert – sie werden im Agent-Block konfiguriert und zur Laufzeit vorangestellt.
 
 ## Tools
 
 ### `memory_add`
 
-Füge eine neue Erinnerung zur Datenbank hinzu oder ergänze bestehende Erinnerungen mit derselben ID.
+Eine Nachricht zum Speicher hinzufügen. Erstellt einen neuen Speicher, wenn die `conversationId` nicht existiert, oder hängt an einen bestehenden Speicher an.
 
 #### Eingabe
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | string | Nein | Konversationskennung (z.B. user-123, session-abc). Wenn bereits eine Erinnerung mit dieser conversationId für diesen Block existiert, wird die neue Nachricht angehängt. |
-| `id` | string | Nein | Legacy-Parameter für die Konversationskennung. Verwenden Sie stattdessen conversationId. Für Abwärtskompatibilität bereitgestellt. |
-| `role` | string | Ja | Rolle für Agent-Erinnerung (user, assistant oder system) |
-| `content` | string | Ja | Inhalt für Agent-Erinnerung |
-| `blockId` | string | Nein | Optionale Block-ID. Wenn nicht angegeben, wird die aktuelle Block-ID aus dem Ausführungskontext verwendet oder standardmäßig "default" gesetzt. |
+| `conversationId` | string | Ja | Eindeutige Kennung für die Konversation (z. B. `user-123`, `session-abc`) |
+| `role` | string | Ja | Nachrichtenrolle: `user` oder `assistant` |
+| `content` | string | Ja | Nachrichteninhalt |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Ob der Speicher erfolgreich hinzugefügt wurde |
-| `memories` | array | Array von Speicherobjekten einschließlich des neuen oder aktualisierten Speichers |
-| `error` | string | Fehlermeldung, falls der Vorgang fehlgeschlagen ist |
+| `success` | boolean | Ob der Vorgang erfolgreich war |
+| `memories` | array | Aktualisiertes Speicher-Array |
+| `error` | string | Fehlermeldung, falls fehlgeschlagen |
 
 ### `memory_get`
 
-Erinnerungen nach conversationId, blockId, blockName oder einer Kombination abrufen. Gibt alle übereinstimmenden Erinnerungen zurück.
+Speicher nach Konversations-ID abrufen.
 
 #### Eingabe
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | string | Nein | Konversationskennung (z.B. user-123, session-abc). Wenn allein angegeben, werden alle Erinnerungen für diese Konversation über alle Blöcke hinweg zurückgegeben. |
-| `id` | string | Nein | Legacy-Parameter für die Konversationskennung. Verwenden Sie stattdessen conversationId. Für Abwärtskompatibilität bereitgestellt. |
-| `blockId` | string | Nein | Block-Kennung. Wenn allein angegeben, werden alle Erinnerungen für diesen Block über alle Konversationen hinweg zurückgegeben. Wenn mit conversationId angegeben, werden Erinnerungen für diese spezifische Konversation in diesem Block zurückgegeben. |
-| `blockName` | string | Nein | Blockname. Alternative zu blockId. Wenn allein angegeben, werden alle Erinnerungen für Blöcke mit diesem Namen zurückgegeben. Wenn mit conversationId angegeben, werden Erinnerungen für diese Konversation in Blöcken mit diesem Namen zurückgegeben. |
+| `conversationId` | string | Ja | Konversationskennung |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Ob die Erinnerung erfolgreich abgerufen wurde |
-| `memories` | array | Array von Speicherobjekten mit conversationId, blockId, blockName und data-Feldern |
-| `message` | string | Erfolgs- oder Fehlermeldung |
-| `error` | string | Fehlermeldung, wenn der Vorgang fehlgeschlagen ist |
+| `success` | boolean | Ob der Vorgang erfolgreich war |
+| `memories` | array | Array von Nachrichten mit `role` und `content` |
+| `error` | string | Fehlermeldung, falls fehlgeschlagen |
 
 ### `memory_get_all`
 
-Alle Speicher aus der Datenbank abrufen
-
-#### Eingabe
-
-| Parameter | Typ | Erforderlich | Beschreibung |
-| --------- | ---- | -------- | ----------- |
+Alle Erinnerungen für den aktuellen Workspace abrufen.
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Ob alle Erinnerungen erfolgreich abgerufen wurden |
-| `memories` | array | Array aller Speicherobjekte mit key, conversationId, blockId, blockName und data-Feldern |
-| `message` | string | Erfolgs- oder Fehlermeldung |
-| `error` | string | Fehlermeldung, wenn der Vorgang fehlgeschlagen ist |
+| `success` | boolean | Ob der Vorgang erfolgreich war |
+| `memories` | array | Alle Erinnerungsobjekte mit `conversationId` und `data` Feldern |
+| `error` | string | Fehlermeldung, falls fehlgeschlagen |
 
 ### `memory_delete`
 
-Löschen von Erinnerungen nach conversationId, blockId, blockName oder einer Kombination davon. Unterstützt Massenlöschung.
+Erinnerung nach Konversations-ID löschen.
 
 #### Eingabe
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | string | Nein | Konversationskennung (z.B. user-123, session-abc). Wenn allein angegeben, werden alle Erinnerungen für diese Konversation über alle Blöcke hinweg gelöscht. |
-| `id` | string | Nein | Legacy-Parameter für die Konversationskennung. Verwenden Sie stattdessen conversationId. Für Abwärtskompatibilität bereitgestellt. |
-| `blockId` | string | Nein | Block-Kennung. Wenn allein angegeben, werden alle Erinnerungen für diesen Block über alle Konversationen hinweg gelöscht. Wenn mit conversationId angegeben, werden Erinnerungen für diese spezifische Konversation in diesem Block gelöscht. |
-| `blockName` | string | Nein | Blockname. Alternative zu blockId. Wenn allein angegeben, werden alle Erinnerungen für Blöcke mit diesem Namen gelöscht. Wenn mit conversationId angegeben, werden Erinnerungen für diese Konversation in Blöcken mit diesem Namen gelöscht. |
+| `conversationId` | string | Ja | Konversationskennung zum Löschen |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Ob die Erinnerung erfolgreich gelöscht wurde |
-| `message` | string | Erfolgs- oder Fehlermeldung |
-| `error` | string | Fehlermeldung, wenn der Vorgang fehlgeschlagen ist |
+| `success` | boolean | Ob der Vorgang erfolgreich war |
+| `message` | string | Bestätigungsnachricht |
+| `error` | string | Fehlermeldung, falls fehlgeschlagen |
+
+## Agent-Erinnerungstypen
+
+Bei der Verwendung von Erinnerungen mit einem Agent-Block können Sie konfigurieren, wie der Konversationsverlauf verwaltet wird:
+
+| Typ | Beschreibung |
+| ---- | ----------- |
+| **Vollständige Konversation** | Speichert alle Nachrichten, begrenzt durch das Kontextfenster des Modells (verwendet 90%, um Platz für die Antwort zu lassen) |
+| **Gleitendes Fenster (Nachrichten)** | Behält die letzten N Nachrichten (Standard: 10) |
+| **Gleitendes Fenster (Tokens)** | Behält Nachrichten, die in ein Token-Limit passen (Standard: 4000) |
 
 ## Hinweise
 
-- Kategorie: `blocks`
-- Typ: `memory`
+- Erinnerungen sind pro Workspace begrenzt – Workflows im selben Workspace teilen sich den Erinnerungsspeicher
+- Verwenden Sie eindeutige `conversationId` Werte, um Konversationen getrennt zu halten (z.B. Session-IDs, Benutzer-IDs oder UUIDs)
+- Systemnachrichten gehören in die Agent-Block-Konfiguration, nicht in die Erinnerung
