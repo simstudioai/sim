@@ -20,10 +20,12 @@ import {
   getModelsWithTemperatureSupport,
   getModelsWithTempRange01,
   getModelsWithTempRange02,
+  getModelsWithThinking,
   getModelsWithVerbosity,
   getProviderModels as getProviderModelsFromDefinitions,
   getProvidersWithToolUsageControl,
   getReasoningEffortValuesForModel as getReasoningEffortValuesForModelFromDefinitions,
+  getThinkingLevelsForModel as getThinkingLevelsForModelFromDefinitions,
   getVerbosityValuesForModel as getVerbosityValuesForModelFromDefinitions,
   PROVIDER_DEFINITIONS,
   supportsTemperature as supportsTemperatureFromDefinitions,
@@ -929,6 +931,7 @@ export const MODELS_TEMP_RANGE_0_1 = getModelsWithTempRange01()
 export const MODELS_WITH_TEMPERATURE_SUPPORT = getModelsWithTemperatureSupport()
 export const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 export const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
+export const MODELS_WITH_THINKING = getModelsWithThinking()
 export const PROVIDERS_WITH_TOOL_USAGE_CONTROL = getProvidersWithToolUsageControl()
 
 export function supportsTemperature(model: string): boolean {
@@ -961,6 +964,14 @@ export function getReasoningEffortValuesForModel(model: string): string[] | null
  */
 export function getVerbosityValuesForModel(model: string): string[] | null {
   return getVerbosityValuesForModelFromDefinitions(model)
+}
+
+/**
+ * Get thinking levels for a specific model
+ * Returns the valid levels for that model, or null if the model doesn't support thinking
+ */
+export function getThinkingLevelsForModel(model: string): string[] | null {
+  return getThinkingLevelsForModelFromDefinitions(model)
 }
 
 /**

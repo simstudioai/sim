@@ -9,8 +9,10 @@ import {
   getMaxTemperature,
   getProviderIcon,
   getReasoningEffortValuesForModel,
+  getThinkingLevelsForModel,
   getVerbosityValuesForModel,
   MODELS_WITH_REASONING_EFFORT,
+  MODELS_WITH_THINKING,
   MODELS_WITH_VERBOSITY,
   providers,
   supportsTemperature,
@@ -213,6 +215,57 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       condition: {
         field: 'model',
         value: MODELS_WITH_VERBOSITY,
+      },
+    },
+    {
+      id: 'thinkingLevel',
+      title: 'Thinking Level',
+      type: 'dropdown',
+      placeholder: 'Select thinking level...',
+      options: [
+        { label: 'minimal', id: 'minimal' },
+        { label: 'low', id: 'low' },
+        { label: 'medium', id: 'medium' },
+        { label: 'high', id: 'high' },
+      ],
+      dependsOn: ['model'],
+      fetchOptions: async (blockId: string) => {
+        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
+        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
+
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (!activeWorkflowId) {
+          return [
+            { label: 'low', id: 'low' },
+            { label: 'high', id: 'high' },
+          ]
+        }
+
+        const workflowValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
+        const blockValues = workflowValues?.[blockId]
+        const modelValue = blockValues?.model as string
+
+        if (!modelValue) {
+          return [
+            { label: 'low', id: 'low' },
+            { label: 'high', id: 'high' },
+          ]
+        }
+
+        const validOptions = getThinkingLevelsForModel(modelValue)
+        if (!validOptions) {
+          return [
+            { label: 'low', id: 'low' },
+            { label: 'high', id: 'high' },
+          ]
+        }
+
+        return validOptions.map((opt) => ({ label: opt, id: opt }))
+      },
+      value: () => 'high',
+      condition: {
+        field: 'model',
+        value: MODELS_WITH_THINKING,
       },
     },
 
@@ -609,6 +662,7 @@ Example 3 (Array Input):
     temperature: { type: 'number', description: 'Response randomness level' },
     reasoningEffort: { type: 'string', description: 'Reasoning effort level for GPT-5 models' },
     verbosity: { type: 'string', description: 'Verbosity level for GPT-5 models' },
+    thinkingLevel: { type: 'string', description: 'Thinking level for Gemini 3 models' },
     tools: { type: 'json', description: 'Available tools configuration' },
   },
   outputs: {
