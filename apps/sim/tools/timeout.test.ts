@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Tests for timeout functionality in handleProxyRequest and handleInternalRequest
@@ -140,8 +140,7 @@ describe('HTTP Timeout Support', () => {
       const timeoutError = new Error('The operation was aborted')
       timeoutError.name = 'TimeoutError'
 
-      const isTimeoutError =
-        timeoutError instanceof Error && timeoutError.name === 'TimeoutError'
+      const isTimeoutError = timeoutError instanceof Error && timeoutError.name === 'TimeoutError'
 
       expect(isTimeoutError).toBe(true)
     })
