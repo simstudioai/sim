@@ -1,0 +1,218 @@
+---
+title: Grain
+description: Accede a grabaciones de reuniones, transcripciones y resúmenes de IA
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="grain"
+  color="#F6FAF9"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Grain](https://grain.com/) es una plataforma moderna para capturar, almacenar y compartir grabaciones de reuniones, transcripciones, momentos destacados y resúmenes generados por IA. Grain permite a los equipos convertir conversaciones en información procesable y mantener a todos alineados con los momentos clave de las reuniones.
+
+Con Grain, puedes:
+
+- **Acceder a grabaciones y transcripciones con búsqueda**: Encuentra y revisa cada reunión por palabra clave, participante o tema.
+- **Compartir momentos destacados y clips**: Captura momentos importantes y comparte fragmentos cortos de video/audio en tu equipo o flujos de trabajo.
+- **Obtener resúmenes generados por IA**: Produce automáticamente resúmenes de reuniones, elementos de acción e información clave utilizando la IA avanzada de Grain.
+- **Organizar reuniones por equipo o tipo**: Etiqueta y categoriza grabaciones para facilitar el acceso y la generación de informes.
+
+La integración de Sim con Grain permite a tus agentes:
+
+- Listar, buscar y recuperar grabaciones de reuniones y detalles mediante filtros flexibles (fecha y hora, participante, equipo, etc.).
+- Acceder a resúmenes de IA, participantes, momentos destacados y otros metadatos de reuniones para impulsar automatizaciones o análisis.
+- Activar flujos de trabajo cada vez que se procesen nuevas reuniones, se generen resúmenes o se creen momentos destacados a través de webhooks de Grain.
+- Conectar fácilmente los datos de Grain con otras herramientas o notificar a los compañeros de equipo en el momento en que sucede algo importante en una reunión.
+
+Ya sea que desees automatizar acciones de seguimiento, mantener registros de conversaciones importantes o destacar información en toda tu organización, Grain y Sim facilitan la conexión de la inteligencia de reuniones con tus flujos de trabajo.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Grain en tu flujo de trabajo. Accede a grabaciones de reuniones, transcripciones, momentos destacados y resúmenes generados por IA. También puede activar flujos de trabajo basados en eventos de webhook de Grain.
+
+## Herramientas
+
+### `grain_list_recordings`
+
+Lista las grabaciones de Grain con filtros opcionales y paginación
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Grain \(token de acceso personal\) |
+| `cursor` | string | No | Cursor de paginación para la siguiente página |
+| `beforeDatetime` | string | No | Solo grabaciones anteriores a esta marca de tiempo ISO8601 |
+| `afterDatetime` | string | No | Solo grabaciones posteriores a esta marca de tiempo ISO8601 |
+| `participantScope` | string | No | Filtro: "internal" o "external" |
+| `titleSearch` | string | No | Término de búsqueda para filtrar por título de grabación |
+| `teamId` | string | No | Filtrar por UUID de equipo |
+| `meetingTypeId` | string | No | Filtrar por UUID de tipo de reunión |
+| `includeHighlights` | boolean | No | Incluir destacados/clips en la respuesta |
+| `includeParticipants` | boolean | No | Incluir lista de participantes en la respuesta |
+| `includeAiSummary` | boolean | No | Incluir resumen generado por IA |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `recordings` | array | Array de objetos de grabación |
+
+### `grain_get_recording`
+
+Obtiene los detalles de una única grabación por ID
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Grain \(token de acceso personal\) |
+| `recordingId` | string | Sí | El UUID de la grabación |
+| `includeHighlights` | boolean | No | Incluir destacados/clips |
+| `includeParticipants` | boolean | No | Incluir lista de participantes |
+| `includeAiSummary` | boolean | No | Incluir resumen de IA |
+| `includeCalendarEvent` | boolean | No | Incluir datos del evento de calendario |
+| `includeHubspot` | boolean | No | Incluir asociaciones de HubSpot |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | UUID de la grabación |
+| `title` | string | Título de la grabación |
+| `start_datetime` | string | Marca de tiempo de inicio ISO8601 |
+| `end_datetime` | string | Marca de tiempo de finalización ISO8601 |
+| `duration_ms` | number | Duración en milisegundos |
+| `media_type` | string | audio, transcript o video |
+| `source` | string | Fuente de la grabación \(zoom, meet, teams, etc.\) |
+| `url` | string | URL para ver en Grain |
+| `thumbnail_url` | string | URL de la imagen en miniatura |
+| `tags` | array | Array de cadenas de etiquetas |
+| `teams` | array | Equipos a los que pertenece la grabación |
+| `meeting_type` | object | Información del tipo de reunión \(id, nombre, alcance\) |
+| `highlights` | array | Destacados \(si se incluyen\) |
+| `participants` | array | Participantes \(si se incluyen\) |
+| `ai_summary` | object | Texto del resumen de IA \(si se incluye\) |
+| `calendar_event` | object | Datos del evento de calendario \(si se incluyen\) |
+| `hubspot` | object | Asociaciones de HubSpot \(si se incluyen\) |
+
+### `grain_get_transcript`
+
+Obtener la transcripción completa de una grabación
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Grain \(token de acceso personal\) |
+| `recordingId` | string | Sí | El UUID de la grabación |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `transcript` | array | Array de secciones de transcripción |
+
+### `grain_list_teams`
+
+Listar todos los equipos en el espacio de trabajo
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Grain \(token de acceso personal\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `teams` | array | Array de objetos de equipo |
+
+### `grain_list_meeting_types`
+
+Listar todos los tipos de reunión en el espacio de trabajo
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Grain \(token de acceso personal\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `meeting_types` | array | Array de objetos de tipo de reunión |
+
+### `grain_create_hook`
+
+Crear un webhook para recibir eventos de grabación
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Grain \(token de acceso personal\) |
+| `hookUrl` | string | Sí | URL del endpoint del webhook \(debe responder 2xx\) |
+| `filterBeforeDatetime` | string | No | Filtro: grabaciones antes de esta fecha |
+| `filterAfterDatetime` | string | No | Filtro: grabaciones después de esta fecha |
+| `filterParticipantScope` | string | No | Filtro: "internal" o "external" |
+| `filterTeamId` | string | No | Filtro: UUID de equipo específico |
+| `filterMeetingTypeId` | string | No | Filtro: tipo de reunión específico |
+| `includeHighlights` | boolean | No | Incluir destacados en la carga del webhook |
+| `includeParticipants` | boolean | No | Incluir participantes en la carga del webhook |
+| `includeAiSummary` | boolean | No | Incluir resumen de IA en la carga del webhook |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | UUID del hook |
+| `enabled` | boolean | Si el hook está activo |
+| `hook_url` | string | La URL del webhook |
+| `filter` | object | Filtros aplicados |
+| `include` | object | Campos incluidos |
+| `inserted_at` | string | Marca de tiempo de creación ISO8601 |
+
+### `grain_list_hooks`
+
+Listar todos los webhooks de la cuenta
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Grain \(token de acceso personal\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `hooks` | array | Array de objetos hook |
+
+### `grain_delete_hook`
+
+Eliminar un webhook por ID
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Grain \(token de acceso personal\) |
+| `hookId` | string | Sí | El UUID del hook a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Verdadero cuando el webhook se eliminó correctamente |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `grain`
