@@ -1,6 +1,6 @@
 ---
 title: 内存
-description: 添加内存存储
+description: 存储和检索会话历史记录
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,96 +10,94 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#F64F9E"
 />
 
-## 使用说明
+## 概述
 
-将记忆集成到工作流程中。可以添加记忆、获取记忆、获取所有记忆以及删除记忆。
+Memory 模块为代理存储会话历史。每条内存都由你提供的 `conversationId` 唯一标识。多个代理可以通过使用相同的 `conversationId` 共享同一份内存。
+
+Memory 仅存储用户和助手消息。系统消息不会被存储——它们在 Agent 模块中配置，并在运行时作为前缀添加。
 
 ## 工具
 
 ### `memory_add`
 
-向数据库添加新的内存，或将数据追加到具有相同 ID 的现有内存中。
+向内存添加一条消息。如果 `conversationId` 不存在，则创建新的内存，否则追加到现有内存。
 
 #### 输入
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | string | 否 | 会话标识符（例如，user-123，session-abc）。如果此 block 已存在具有该 conversationId 的内存，新消息将附加到该内存中。 |
-| `id` | string | 否 | 会话标识符的旧参数。请改用 conversationId。为向后兼容而提供。 |
-| `role` | string | 是 | 代理内存的角色（user、assistant 或 system） |
-| `content` | string | 是 | 代理内存的内容 |
-| `blockId` | string | 否 | 可选的 block ID。如果未提供，将使用执行上下文中的当前 block ID，或默认为 "default"。 |
+| `conversationId` | string | 是 | 会话的唯一标识符（如 `user-123`、`session-abc`） |
+| `role` | string | 是 | 消息角色：`user` 或 `assistant` |
+| `content` | string | 是 | 消息内容 |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 是否成功添加了内存 |
-| `memories` | 数组 | 包含新添加或更新内存的内存对象数组 |
-| `error` | 字符串 | 如果操作失败，显示错误信息 |
+| `success` | boolean | 操作是否成功 |
+| `memories` | array | 更新后的内存数组 |
+| `error` | string | 失败时的错误信息 |
 
 ### `memory_get`
 
-通过 conversationId、blockId、blockName 或其组合检索内存。返回所有匹配的内存。
+通过会话 ID 检索内存。
 
 #### 输入
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | string | 否 | 会话标识符（例如，user-123，session-abc）。如果单独提供，将返回此会话在所有 block 中的所有内存。 |
-| `id` | string | 否 | 会话标识符的旧参数。请改用 conversationId。为向后兼容而提供。 |
-| `blockId` | string | 否 | block 标识符。如果单独提供，将返回此 block 中所有会话的所有内存。如果与 conversationId 一起提供，将返回此 block 中该特定会话的内存。 |
-| `blockName` | string | 否 | block 名称。blockId 的替代选项。如果单独提供，将返回具有此名称的 block 的所有内存。如果与 conversationId 一起提供，将返回具有此名称的 block 中该会话的内存。 |
+| `conversationId` | string | 是 | 会话标识符 |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 内存是否成功检索 |
-| `memories` | array | 包含 conversationId、blockId、blockName 和 data 字段的内存对象数组 |
-| `message` | string | 成功或错误信息 |
-| `error` | string | 如果操作失败的错误信息 |
+| `success` | boolean | 操作是否成功 |
+| `memories` | array | 包含 `role` 和 `content` 字段的消息数组 |
+| `error` | string | 失败时的错误信息 |
 
 ### `memory_get_all`
 
-从数据库中检索所有内存
-
-#### 输入
-
-| 参数 | 类型 | 必需 | 描述 |
-| --------- | ---- | -------- | ----------- |
+检索当前工作区的所有内存。
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 是否成功检索到所有内存 |
-| `memories` | array | 包含 key、conversationId、blockId、blockName 和 data 字段的所有内存对象数组 |
-| `message` | string | 成功或错误信息 |
-| `error` | string | 如果操作失败的错误信息 |
+| `success` | 布尔值 | 操作是否成功 |
+| `memories` | 数组 | 包含 `conversationId` 和 `data` 字段的所有内存对象 |
+| `error` | 字符串 | 如果失败则为错误信息 |
 
 ### `memory_delete`
 
-通过 conversationId、blockId、blockName 或其组合删除内存。支持批量删除。
+根据会话 ID 删除内存。
 
 #### 输入
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | string | 否 | 会话标识符 \(例如，user-123，session-abc\)。如果单独提供，将删除此会话在所有块中的所有内存。 |
-| `id` | string | 否 | 会话标识符的旧参数。请改用 conversationId。为向后兼容而提供。 |
-| `blockId` | string | 否 | 块标识符。如果单独提供，将删除此块中所有会话的所有内存。如果与 conversationId 一起提供，将删除此块中特定会话的内存。 |
-| `blockName` | string | 否 | 块名称。是 blockId 的替代项。如果单独提供，将删除具有此名称的块的所有内存。如果与 conversationId 一起提供，将删除此名称的块中该会话的内存。 |
+| `conversationId` | string | 是 | 要删除的会话标识符 |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 内存是否成功删除 |
-| `message` | string | 成功或错误信息 |
-| `error` | string | 如果操作失败的错误信息 |
+| `success` | 布尔值 | 操作是否成功 |
+| `message` | 字符串 | 确认信息 |
+| `error` | 字符串 | 如果失败则为错误信息 |
 
-## 注意
+## Agent 内存类型
 
-- 类别：`blocks`
-- 类型：`memory`
+在 Agent block 中使用内存时，可以配置对话历史的管理方式：
+
+| 类型 | 描述 |
+| ---- | ----------- |
+| **完整对话** | 存储所有消息，受模型上下文窗口限制（使用 90% 留出响应空间） |
+| **滑动窗口（消息）** | 保留最近 N 条消息（默认：10） |
+| **滑动窗口（Token）** | 保留在 token 限制内的消息（默认：4000） |
+
+## 注意事项
+
+- 内存以工作区为作用域——同一工作区内的工作流共享内存存储
+- 使用唯一的 `conversationId` 值以区分不同会话（如 session ID、user ID 或 UUID）
+- 系统消息应配置在 Agent block 中，而不是存储在内存中
