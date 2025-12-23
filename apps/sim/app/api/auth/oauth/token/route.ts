@@ -78,10 +78,20 @@ export async function POST(request: NextRequest) {
     try {
       // Refresh the token if needed
       const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
+
+      let instanceUrl: string | undefined
+      if (credential.providerId === 'salesforce' && credential.scope) {
+        const instanceMatch = credential.scope.match(/__sf_instance__:([^\s]+)/)
+        if (instanceMatch) {
+          instanceUrl = instanceMatch[1]
+        }
+      }
+
       return NextResponse.json(
         {
           accessToken,
           idToken: credential.idToken || undefined,
+          ...(instanceUrl && { instanceUrl }),
         },
         { status: 200 }
       )
@@ -147,10 +157,21 @@ export async function GET(request: NextRequest) {
 
     try {
       const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
+
+      // For Salesforce, extract instanceUrl from the scope field
+      let instanceUrl: string | undefined
+      if (credential.providerId === 'salesforce' && credential.scope) {
+        const instanceMatch = credential.scope.match(/__sf_instance__:([^\s]+)/)
+        if (instanceMatch) {
+          instanceUrl = instanceMatch[1]
+        }
+      }
+
       return NextResponse.json(
         {
           accessToken,
           idToken: credential.idToken || undefined,
+          ...(instanceUrl && { instanceUrl }),
         },
         { status: 200 }
       )

@@ -305,10 +305,11 @@ export async function executeTool(
         if (data.idToken) {
           contextParams.idToken = data.idToken
         }
+        if (data.instanceUrl) {
+          contextParams.instanceUrl = data.instanceUrl
+        }
 
-        logger.info(
-          `[${requestId}] Successfully got access token for ${toolId}, length: ${data.accessToken?.length || 0}`
-        )
+        logger.info(`[${requestId}] Successfully got access token for ${toolId}`)
 
         // Preserve credential for downstream transforms while removing it from request payload
         // so we don't leak it to external services.
