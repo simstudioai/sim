@@ -1108,6 +1108,10 @@ function buildAuthRequest(
  * @returns Object containing the new access token and expiration time in seconds, or null if refresh failed
  */
 function getBaseProviderForService(providerId: string): string {
+  if (providerId in OAUTH_PROVIDERS) {
+    return providerId
+  }
+
   for (const [baseProvider, config] of Object.entries(OAUTH_PROVIDERS)) {
     for (const service of Object.values(config.services)) {
       if (service.providerId === providerId) {
