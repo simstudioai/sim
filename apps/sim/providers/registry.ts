@@ -1,12 +1,3 @@
-/**
- * Server-only provider registry
- *
- * This module contains the actual provider implementations with executeRequest functions.
- * It should ONLY be imported from server-side code (API routes, executor handlers, etc.)
- *
- * Client-side code should use @/providers/utils for model lists and metadata.
- */
-
 import { createLogger } from '@/lib/logs/console/logger'
 import { anthropicProvider } from '@/providers/anthropic'
 import { azureOpenAIProvider } from '@/providers/azure-openai'
@@ -25,10 +16,6 @@ import { xAIProvider } from '@/providers/xai'
 
 const logger = createLogger('ProviderRegistry')
 
-/**
- * Server-side provider registry with full implementations.
- * This includes executeRequest functions that use server-only dependencies.
- */
 const providerRegistry: Record<ProviderId, ProviderConfig> = {
   openai: openaiProvider,
   anthropic: anthropicProvider,
@@ -45,13 +32,6 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   ollama: ollamaProvider,
 }
 
-/**
- * Get a provider implementation for execution.
- * This returns the full provider config including executeRequest.
- *
- * @param providerId - The provider ID
- * @returns The provider config or undefined if not found
- */
 export async function getProviderExecutor(
   providerId: ProviderId
 ): Promise<ProviderConfig | undefined> {
@@ -63,10 +43,6 @@ export async function getProviderExecutor(
   return provider
 }
 
-/**
- * Initialize all providers that have an initialize function.
- * Called at server startup.
- */
 export async function initializeProviders(): Promise<void> {
   for (const [id, provider] of Object.entries(providerRegistry)) {
     if (provider.initialize) {
