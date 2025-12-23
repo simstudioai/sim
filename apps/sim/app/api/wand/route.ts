@@ -349,12 +349,6 @@ export async function POST(req: NextRequest) {
                   }
                 }
               }
-
-              logger.info(`[${requestId}] Wand generation streaming completed successfully`)
-
-              if (finalUsage) {
-                await updateUserStatsForWand(session.user.id, finalUsage, requestId)
-              }
             } catch (streamError: any) {
               logger.error(`[${requestId}] Streaming error`, {
                 name: streamError?.name,
