@@ -26,6 +26,8 @@ export function useSearchState({
   const [sections, setSections] = useState<SuggestionSection[]>([])
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
 
+  const [highlightedBadgeIndex, setHighlightedBadgeIndex] = useState<number | null>(null)
+
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
@@ -52,6 +54,7 @@ export function useSearchState({
   const handleInputChange = useCallback(
     (value: string) => {
       setCurrentInput(value)
+      setHighlightedBadgeIndex(null)
 
       if (debounceRef.current) {
         clearTimeout(debounceRef.current)
@@ -125,11 +128,22 @@ export function useSearchState({
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
       if (event.key === 'Backspace' && currentInput === '') {
-        if (appliedFilters.length > 0) {
-          event.preventDefault()
-          removeBadge(appliedFilters.length - 1)
+        event.preventDefault()
+
+        if (highlightedBadgeIndex !== null) {
+          removeBadge(highlightedBadgeIndex)
+          setHighlightedBadgeIndex(null)
+        } else if (appliedFilters.length > 0) {
+          setHighlightedBadgeIndex(appliedFilters.length - 1)
         }
         return
+      }
+
+      if (
+        highlightedBadgeIndex !== null &&
+        !['ArrowDown', 'ArrowUp', 'Enter'].includes(event.key)
+      ) {
+        setHighlightedBadgeIndex(null)
       }
 
       if (event.key === 'Enter') {
@@ -180,6 +194,7 @@ export function useSearchState({
     [
       currentInput,
       appliedFilters,
+      highlightedBadgeIndex,
       isOpen,
       highlightedIndex,
       suggestions,
@@ -226,6 +241,7 @@ export function useSearchState({
     suggestions,
     sections,
     highlightedIndex,
+    highlightedBadgeIndex,
 
     inputRef,
     dropdownRef,
@@ -238,7 +254,7 @@ export function useSearchState({
     removeBadge,
     clearAll,
     initializeFromQuery,
-
     setHighlightedIndex,
+    setHighlightedBadgeIndex,
   }
 }
