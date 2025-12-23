@@ -70,7 +70,7 @@ describe('OAuth Connections API Route', () => {
       })
     )
 
-    vi.doMock('@/lib/oauth/oauth', () => ({
+    vi.doMock('@/lib/oauth/utils', () => ({
       parseProvider: mockParseProvider,
       evaluateScopeCoverage: mockEvaluateScopeCoverage,
     }))

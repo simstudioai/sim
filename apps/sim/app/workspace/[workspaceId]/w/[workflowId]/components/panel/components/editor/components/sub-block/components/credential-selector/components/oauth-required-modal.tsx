@@ -307,8 +307,8 @@ export function OAuthRequiredModal({
   let ProviderIcon = baseProviderConfig?.icon || (() => null)
 
   if (baseProviderConfig) {
-    for (const service of Object.values(baseProviderConfig.services)) {
-      if (service.id === serviceId || service.providerId === provider) {
+    for (const [key, service] of Object.entries(baseProviderConfig.services)) {
+      if (key === serviceId || service.providerId === provider) {
         providerName = service.name
         ProviderIcon = service.icon
         break

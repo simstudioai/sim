@@ -5,7 +5,7 @@ import {
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
-import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth/oauth'
+import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth'
 
 const logger = createLogger('OAuthRequestAccessClientTool')
 

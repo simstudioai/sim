@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import {
   AirtableIcon,
   AsanaIcon,
@@ -41,107 +40,21 @@ import {
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import type { OAuthProviderConfig } from './types'
 
 const logger = createLogger('OAuth')
 
-export type OAuthProvider =
-  | 'google'
-  | 'github'
-  | 'x'
-  | 'confluence'
-  | 'airtable'
-  | 'notion'
-  | 'jira'
-  | 'dropbox'
-  | 'microsoft'
-  | 'linear'
-  | 'slack'
-  | 'reddit'
-  | 'trello'
-  | 'wealthbox'
-  | 'webflow'
-  | 'asana'
-  | 'pipedrive'
-  | 'hubspot'
-  | 'salesforce'
-  | 'linkedin'
-  | 'shopify'
-  | 'zoom'
-  | 'wordpress'
-  | 'spotify'
-  | string
-
-export type OAuthService =
-  | 'google'
-  | 'google-email'
-  | 'google-drive'
-  | 'google-docs'
-  | 'google-sheets'
-  | 'google-calendar'
-  | 'google-vault'
-  | 'google-forms'
-  | 'google-groups'
-  | 'vertex-ai'
-  | 'github'
-  | 'x'
-  | 'confluence'
-  | 'airtable'
-  | 'notion'
-  | 'jira'
-  | 'dropbox'
-  | 'microsoft-excel'
-  | 'microsoft-teams'
-  | 'microsoft-planner'
-  | 'sharepoint'
-  | 'outlook'
-  | 'linear'
-  | 'slack'
-  | 'reddit'
-  | 'wealthbox'
-  | 'onedrive'
-  | 'webflow'
-  | 'trello'
-  | 'asana'
-  | 'pipedrive'
-  | 'hubspot'
-  | 'salesforce'
-  | 'linkedin'
-  | 'shopify'
-  | 'zoom'
-  | 'wordpress'
-  | 'spotify'
-
-export interface OAuthProviderConfig {
-  id: OAuthProvider
-  name: string
-  icon: (props: { className?: string }) => ReactNode
-  services: Record<string, OAuthServiceConfig>
-  defaultService: string
-}
-
-export interface OAuthServiceConfig {
-  id: string
-  name: string
-  description: string
-  providerId: string
-  icon: (props: { className?: string }) => ReactNode
-  baseProviderIcon: (props: { className?: string }) => ReactNode
-  scopes: string[]
-}
-
 export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
   google: {
-    id: 'google',
     name: 'Google',
-    icon: (props) => GoogleIcon(props),
+    icon: GoogleIcon,
     services: {
       gmail: {
-        id: 'gmail',
         name: 'Gmail',
         description: 'Automate email workflows and enhance communication efficiency.',
         providerId: 'google-email',
-        icon: (props) => GmailIcon(props),
-        baseProviderIcon: (props) => GoogleIcon(props),
+        icon: GmailIcon,
+        baseProviderIcon: GoogleIcon,
         scopes: [
           'https://www.googleapis.com/auth/gmail.send',
           'https://www.googleapis.com/auth/gmail.modify',
@@ -149,48 +62,44 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         ],
       },
       'google-drive': {
-        id: 'google-drive',
         name: 'Google Drive',
         description: 'Streamline file organization and document workflows.',
         providerId: 'google-drive',
-        icon: (props) => GoogleDriveIcon(props),
-        baseProviderIcon: (props) => GoogleIcon(props),
+        icon: GoogleDriveIcon,
+        baseProviderIcon: GoogleIcon,
         scopes: [
           'https://www.googleapis.com/auth/drive.file',
           'https://www.googleapis.com/auth/drive',
         ],
       },
       'google-docs': {
-        id: 'google-docs',
         name: 'Google Docs',
         description: 'Create, read, and edit Google Documents programmatically.',
         providerId: 'google-docs',
-        icon: (props) => GoogleDocsIcon(props),
-        baseProviderIcon: (props) => GoogleIcon(props),
+        icon: GoogleDocsIcon,
+        baseProviderIcon: GoogleIcon,
         scopes: [
           'https://www.googleapis.com/auth/drive.file',
           'https://www.googleapis.com/auth/drive',
         ],
       },
       'google-sheets': {
-        id: 'google-sheets',
         name: 'Google Sheets',
         description: 'Manage and analyze data with Google Sheets integration.',
         providerId: 'google-sheets',
-        icon: (props) => GoogleSheetsIcon(props),
-        baseProviderIcon: (props) => GoogleIcon(props),
+        icon: GoogleSheetsIcon,
+        baseProviderIcon: GoogleIcon,
         scopes: [
           'https://www.googleapis.com/auth/drive.file',
           'https://www.googleapis.com/auth/drive',
         ],
       },
       'google-forms': {
-        id: 'google-forms',
         name: 'Google Forms',
         description: 'Retrieve Google Form responses.',
         providerId: 'google-forms',
-        icon: (props) => GoogleFormsIcon(props),
-        baseProviderIcon: (props) => GoogleIcon(props),
+        icon: GoogleFormsIcon,
+        baseProviderIcon: GoogleIcon,
         scopes: [
           'https://www.googleapis.com/auth/userinfo.email',
           'https://www.googleapis.com/auth/userinfo.profile',
@@ -198,71 +107,64 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         ],
       },
       'google-calendar': {
-        id: 'google-calendar',
         name: 'Google Calendar',
         description: 'Schedule and manage events with Google Calendar.',
         providerId: 'google-calendar',
-        icon: (props) => GoogleCalendarIcon(props),
-        baseProviderIcon: (props) => GoogleIcon(props),
+        icon: GoogleCalendarIcon,
+        baseProviderIcon: GoogleIcon,
         scopes: ['https://www.googleapis.com/auth/calendar'],
       },
       'google-vault': {
-        id: 'google-vault',
         name: 'Google Vault',
         description: 'Search, export, and manage matters/holds via Google Vault.',
         providerId: 'google-vault',
-        icon: (props) => GoogleIcon(props),
-        baseProviderIcon: (props) => GoogleIcon(props),
+        icon: GoogleIcon,
+        baseProviderIcon: GoogleIcon,
         scopes: [
           'https://www.googleapis.com/auth/ediscovery',
           'https://www.googleapis.com/auth/devstorage.read_only',
         ],
       },
       'google-groups': {
-        id: 'google-groups',
         name: 'Google Groups',
         description: 'Manage Google Workspace Groups and their members.',
         providerId: 'google-groups',
-        icon: (props) => GoogleGroupsIcon(props),
-        baseProviderIcon: (props) => GoogleIcon(props),
+        icon: GoogleGroupsIcon,
+        baseProviderIcon: GoogleIcon,
         scopes: [
           'https://www.googleapis.com/auth/admin.directory.group',
           'https://www.googleapis.com/auth/admin.directory.group.member',
         ],
       },
       'vertex-ai': {
-        id: 'vertex-ai',
         name: 'Vertex AI',
         description: 'Access Google Cloud Vertex AI for Gemini models with OAuth.',
         providerId: 'vertex-ai',
-        icon: (props) => VertexIcon(props),
-        baseProviderIcon: (props) => VertexIcon(props),
+        icon: VertexIcon,
+        baseProviderIcon: VertexIcon,
         scopes: ['https://www.googleapis.com/auth/cloud-platform'],
       },
     },
     defaultService: 'gmail',
   },
   microsoft: {
-    id: 'microsoft',
     name: 'Microsoft',
-    icon: (props) => MicrosoftIcon(props),
+    icon: MicrosoftIcon,
     services: {
       'microsoft-excel': {
-        id: 'microsoft-excel',
         name: 'Microsoft Excel',
         description: 'Connect to Microsoft Excel and manage spreadsheets.',
         providerId: 'microsoft-excel',
-        icon: (props) => MicrosoftExcelIcon(props),
-        baseProviderIcon: (props) => MicrosoftIcon(props),
+        icon: MicrosoftExcelIcon,
+        baseProviderIcon: MicrosoftIcon,
         scopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
       },
       'microsoft-planner': {
-        id: 'microsoft-planner',
         name: 'Microsoft Planner',
         description: 'Connect to Microsoft Planner and manage tasks.',
         providerId: 'microsoft-planner',
-        icon: (props) => MicrosoftPlannerIcon(props),
-        baseProviderIcon: (props) => MicrosoftIcon(props),
+        icon: MicrosoftPlannerIcon,
+        baseProviderIcon: MicrosoftIcon,
         scopes: [
           'openid',
           'profile',
@@ -274,12 +176,11 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         ],
       },
       'microsoft-teams': {
-        id: 'microsoft-teams',
         name: 'Microsoft Teams',
         description: 'Connect to Microsoft Teams and manage messages.',
         providerId: 'microsoft-teams',
-        icon: (props) => MicrosoftTeamsIcon(props),
-        baseProviderIcon: (props) => MicrosoftIcon(props),
+        icon: MicrosoftTeamsIcon,
+        baseProviderIcon: MicrosoftIcon,
         scopes: [
           'openid',
           'profile',
@@ -304,12 +205,11 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         ],
       },
       outlook: {
-        id: 'outlook',
         name: 'Outlook',
         description: 'Connect to Outlook and manage emails.',
         providerId: 'outlook',
-        icon: (props) => OutlookIcon(props),
-        baseProviderIcon: (props) => MicrosoftIcon(props),
+        icon: OutlookIcon,
+        baseProviderIcon: MicrosoftIcon,
         scopes: [
           'openid',
           'profile',
@@ -322,21 +222,19 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         ],
       },
       onedrive: {
-        id: 'onedrive',
         name: 'OneDrive',
         description: 'Connect to OneDrive and manage files.',
         providerId: 'onedrive',
-        icon: (props) => MicrosoftOneDriveIcon(props),
-        baseProviderIcon: (props) => MicrosoftIcon(props),
+        icon: MicrosoftOneDriveIcon,
+        baseProviderIcon: MicrosoftIcon,
         scopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
       },
       sharepoint: {
-        id: 'sharepoint',
         name: 'SharePoint',
         description: 'Connect to SharePoint and manage sites.',
         providerId: 'sharepoint',
-        icon: (props) => MicrosoftSharepointIcon(props),
-        baseProviderIcon: (props) => MicrosoftIcon(props),
+        icon: MicrosoftSharepointIcon,
+        baseProviderIcon: MicrosoftIcon,
         scopes: [
           'openid',
           'profile',
@@ -348,54 +246,48 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         ],
       },
     },
-    defaultService: 'microsoft',
+    defaultService: 'outlook',
   },
   github: {
-    id: 'github',
     name: 'GitHub',
-    icon: (props) => GithubIcon(props),
+    icon: GithubIcon,
     services: {
       github: {
-        id: 'github',
         name: 'GitHub',
         description: 'Manage repositories, issues, and pull requests.',
         providerId: 'github-repo',
-        icon: (props) => GithubIcon(props),
-        baseProviderIcon: (props) => GithubIcon(props),
+        icon: GithubIcon,
+        baseProviderIcon: GithubIcon,
         scopes: ['repo', 'user:email', 'read:user', 'workflow'],
       },
     },
     defaultService: 'github',
   },
   x: {
-    id: 'x',
     name: 'X',
-    icon: (props) => xIcon(props),
+    icon: xIcon,
     services: {
       x: {
-        id: 'x',
         name: 'X',
         description: 'Read and post tweets on X (formerly Twitter).',
         providerId: 'x',
-        icon: (props) => xIcon(props),
-        baseProviderIcon: (props) => xIcon(props),
+        icon: xIcon,
+        baseProviderIcon: xIcon,
         scopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
       },
     },
     defaultService: 'x',
   },
   confluence: {
-    id: 'confluence',
     name: 'Confluence',
-    icon: (props) => ConfluenceIcon(props),
+    icon: ConfluenceIcon,
     services: {
       confluence: {
-        id: 'confluence',
         name: 'Confluence',
         description: 'Access Confluence content and documentation.',
         providerId: 'confluence',
-        icon: (props) => ConfluenceIcon(props),
-        baseProviderIcon: (props) => ConfluenceIcon(props),
+        icon: ConfluenceIcon,
+        baseProviderIcon: ConfluenceIcon,
         scopes: [
           'read:confluence-content.all',
           'read:confluence-space.summary',
@@ -425,17 +317,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     defaultService: 'confluence',
   },
   jira: {
-    id: 'jira',
     name: 'Jira',
-    icon: (props) => JiraIcon(props),
+    icon: JiraIcon,
     services: {
       jira: {
-        id: 'jira',
         name: 'Jira',
         description: 'Access Jira projects and issues.',
         providerId: 'jira',
-        icon: (props) => JiraIcon(props),
-        baseProviderIcon: (props) => JiraIcon(props),
+        icon: JiraIcon,
+        baseProviderIcon: JiraIcon,
         scopes: [
           'read:jira-user',
           'read:jira-work',
@@ -481,68 +371,60 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     defaultService: 'jira',
   },
   airtable: {
-    id: 'airtable',
     name: 'Airtable',
-    icon: (props) => AirtableIcon(props),
+    icon: AirtableIcon,
     services: {
       airtable: {
-        id: 'airtable',
         name: 'Airtable',
         description: 'Manage Airtable bases, tables, and records.',
         providerId: 'airtable',
-        icon: (props) => AirtableIcon(props),
-        baseProviderIcon: (props) => AirtableIcon(props),
+        icon: AirtableIcon,
+        baseProviderIcon: AirtableIcon,
         scopes: ['data.records:read', 'data.records:write', 'user.email:read', 'webhook:manage'],
       },
     },
     defaultService: 'airtable',
   },
   notion: {
-    id: 'notion',
     name: 'Notion',
-    icon: (props) => NotionIcon(props),
+    icon: NotionIcon,
     services: {
       notion: {
-        id: 'notion',
         name: 'Notion',
         description: 'Connect to your Notion workspace to manage pages and databases.',
         providerId: 'notion',
-        icon: (props) => NotionIcon(props),
-        baseProviderIcon: (props) => NotionIcon(props),
+        icon: NotionIcon,
+        baseProviderIcon: NotionIcon,
         scopes: [],
       },
     },
     defaultService: 'notion',
   },
   linear: {
-    id: 'linear',
     name: 'Linear',
-    icon: (props) => LinearIcon(props),
+    icon: LinearIcon,
     services: {
       linear: {
-        id: 'linear',
         name: 'Linear',
         description: 'Manage issues and projects in Linear.',
         providerId: 'linear',
-        icon: (props) => LinearIcon(props),
-        baseProviderIcon: (props) => LinearIcon(props),
+        icon: LinearIcon,
+        baseProviderIcon: LinearIcon,
         scopes: ['read', 'write'],
       },
     },
     defaultService: 'linear',
   },
   dropbox: {
-    id: 'dropbox',
     name: 'Dropbox',
-    icon: (props) => DropboxIcon(props),
+    icon: DropboxIcon,
     services: {
       dropbox: {
-        id: 'dropbox',
         name: 'Dropbox',
         description: 'Upload, download, share, and manage files in Dropbox.',
         providerId: 'dropbox',
-        icon: (props) => DropboxIcon(props),
-        baseProviderIcon: (props) => DropboxIcon(props),
+        icon: DropboxIcon,
+        baseProviderIcon: DropboxIcon,
         scopes: [
           'account_info.read',
           'files.metadata.read',
@@ -557,17 +439,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     defaultService: 'dropbox',
   },
   shopify: {
-    id: 'shopify',
     name: 'Shopify',
-    icon: (props) => ShopifyIcon(props),
+    icon: ShopifyIcon,
     services: {
       shopify: {
-        id: 'shopify',
         name: 'Shopify',
         description: 'Manage products, orders, and customers in your Shopify store.',
         providerId: 'shopify',
-        icon: (props) => ShopifyIcon(props),
-        baseProviderIcon: (props) => ShopifyIcon(props),
+        icon: ShopifyIcon,
+        baseProviderIcon: ShopifyIcon,
         scopes: [
           'write_products',
           'write_orders',
@@ -581,17 +461,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     defaultService: 'shopify',
   },
   slack: {
-    id: 'slack',
     name: 'Slack',
-    icon: (props) => SlackIcon(props),
+    icon: SlackIcon,
     services: {
       slack: {
-        id: 'slack',
         name: 'Slack',
         description: 'Send messages using a Slack bot.',
         providerId: 'slack',
-        icon: (props) => SlackIcon(props),
-        baseProviderIcon: (props) => SlackIcon(props),
+        icon: SlackIcon,
+        baseProviderIcon: SlackIcon,
         scopes: [
           'channels:read',
           'channels:history',
@@ -613,17 +491,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     defaultService: 'slack',
   },
   reddit: {
-    id: 'reddit',
     name: 'Reddit',
-    icon: (props) => RedditIcon(props),
+    icon: RedditIcon,
     services: {
       reddit: {
-        id: 'reddit',
         name: 'Reddit',
         description: 'Access Reddit data and content from subreddits.',
         providerId: 'reddit',
-        icon: (props) => RedditIcon(props),
-        baseProviderIcon: (props) => RedditIcon(props),
+        icon: RedditIcon,
+        baseProviderIcon: RedditIcon,
         scopes: [
           'identity',
           'read',
@@ -647,85 +523,75 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     defaultService: 'reddit',
   },
   wealthbox: {
-    id: 'wealthbox',
     name: 'Wealthbox',
-    icon: (props) => WealthboxIcon(props),
+    icon: WealthboxIcon,
     services: {
       wealthbox: {
-        id: 'wealthbox',
         name: 'Wealthbox',
         description: 'Manage contacts, notes, and tasks in your Wealthbox CRM.',
         providerId: 'wealthbox',
-        icon: (props) => WealthboxIcon(props),
-        baseProviderIcon: (props) => WealthboxIcon(props),
+        icon: WealthboxIcon,
+        baseProviderIcon: WealthboxIcon,
         scopes: ['login', 'data'],
       },
     },
     defaultService: 'wealthbox',
   },
   webflow: {
-    id: 'webflow',
     name: 'Webflow',
-    icon: (props) => WebflowIcon(props),
+    icon: WebflowIcon,
     services: {
       webflow: {
-        id: 'webflow',
         name: 'Webflow',
         description: 'Manage Webflow CMS collections, sites, and content.',
         providerId: 'webflow',
-        icon: (props) => WebflowIcon(props),
-        baseProviderIcon: (props) => WebflowIcon(props),
+        icon: WebflowIcon,
+        baseProviderIcon: WebflowIcon,
         scopes: ['cms:read', 'cms:write', 'sites:read', 'sites:write'],
       },
     },
     defaultService: 'webflow',
   },
   trello: {
-    id: 'trello',
     name: 'Trello',
-    icon: (props) => TrelloIcon(props),
+    icon: TrelloIcon,
     services: {
       trello: {
-        id: 'trello',
         name: 'Trello',
         description: 'Manage Trello boards, cards, and workflows.',
         providerId: 'trello',
-        icon: (props) => TrelloIcon(props),
-        baseProviderIcon: (props) => TrelloIcon(props),
+        icon: TrelloIcon,
+        baseProviderIcon: TrelloIcon,
         scopes: ['read', 'write'],
       },
     },
     defaultService: 'trello',
   },
   asana: {
-    id: 'asana',
     name: 'Asana',
-    icon: (props) => AsanaIcon(props),
+    icon: AsanaIcon,
     services: {
       asana: {
-        id: 'asana',
         name: 'Asana',
         description: 'Manage Asana projects, tasks, and workflows.',
         providerId: 'asana',
-        icon: (props) => AsanaIcon(props),
-        baseProviderIcon: (props) => AsanaIcon(props),
+        icon: AsanaIcon,
+        baseProviderIcon: AsanaIcon,
         scopes: ['default'],
       },
     },
     defaultService: 'asana',
   },
   pipedrive: {
-    id: 'pipedrive',
     name: 'Pipedrive',
-    icon: (props) => PipedriveIcon(props),
+    icon: PipedriveIcon,
     services: {
       pipedrive: {
-        id: 'pipedrive',
         name: 'Pipedrive',
         description: 'Manage deals, contacts, and sales pipeline in Pipedrive CRM.',
         providerId: 'pipedrive',
-        icon: (props) => PipedriveIcon(props),
-        baseProviderIcon: (props) => PipedriveIcon(props),
+        icon: PipedriveIcon,
+        baseProviderIcon: PipedriveIcon,
         scopes: [
           'base',
           'deals:full',
@@ -740,17 +606,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     defaultService: 'pipedrive',
   },
   hubspot: {
-    id: 'hubspot',
     name: 'HubSpot',
-    icon: (props) => HubspotIcon(props),
+    icon: HubspotIcon,
     services: {
       hubspot: {
-        id: 'hubspot',
         name: 'HubSpot',
         description: 'Access and manage your HubSpot CRM data.',
         providerId: 'hubspot',
-        icon: (props) => HubspotIcon(props),
-        baseProviderIcon: (props) => HubspotIcon(props),
+        icon: HubspotIcon,
+        baseProviderIcon: HubspotIcon,
         scopes: [
           'crm.objects.contacts.read',
           'crm.objects.contacts.write',
@@ -781,51 +645,45 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     defaultService: 'hubspot',
   },
   linkedin: {
-    id: 'linkedin',
     name: 'LinkedIn',
-    icon: (props) => LinkedInIcon(props),
+    icon: LinkedInIcon,
     services: {
       linkedin: {
-        id: 'linkedin',
         name: 'LinkedIn',
         description: 'Share posts and access profile data on LinkedIn.',
         providerId: 'linkedin',
-        icon: (props) => LinkedInIcon(props),
-        baseProviderIcon: (props) => LinkedInIcon(props),
+        icon: LinkedInIcon,
+        baseProviderIcon: LinkedInIcon,
         scopes: ['profile', 'openid', 'email', 'w_member_social'],
       },
     },
     defaultService: 'linkedin',
   },
   salesforce: {
-    id: 'salesforce',
     name: 'Salesforce',
-    icon: (props) => SalesforceIcon(props),
+    icon: SalesforceIcon,
     services: {
       salesforce: {
-        id: 'salesforce',
         name: 'Salesforce',
         description: 'Access and manage your Salesforce CRM data.',
         providerId: 'salesforce',
-        icon: (props) => SalesforceIcon(props),
-        baseProviderIcon: (props) => SalesforceIcon(props),
+        icon: SalesforceIcon,
+        baseProviderIcon: SalesforceIcon,
         scopes: ['api', 'refresh_token', 'openid', 'offline_access'],
       },
     },
     defaultService: 'salesforce',
   },
   zoom: {
-    id: 'zoom',
     name: 'Zoom',
-    icon: (props) => ZoomIcon(props),
+    icon: ZoomIcon,
     services: {
       zoom: {
-        id: 'zoom',
         name: 'Zoom',
         description: 'Create and manage Zoom meetings, users, and recordings.',
         providerId: 'zoom',
-        icon: (props) => ZoomIcon(props),
-        baseProviderIcon: (props) => ZoomIcon(props),
+        icon: ZoomIcon,
+        baseProviderIcon: ZoomIcon,
         scopes: [
           'user:read:user',
           'meeting:write:meeting',
@@ -844,34 +702,30 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     defaultService: 'zoom',
   },
   wordpress: {
-    id: 'wordpress',
     name: 'WordPress',
-    icon: (props) => WordpressIcon(props),
+    icon: WordpressIcon,
     services: {
       wordpress: {
-        id: 'wordpress',
         name: 'WordPress',
         description: 'Manage posts, pages, media, comments, and more on WordPress sites.',
         providerId: 'wordpress',
-        icon: (props) => WordpressIcon(props),
-        baseProviderIcon: (props) => WordpressIcon(props),
+        icon: WordpressIcon,
+        baseProviderIcon: WordpressIcon,
         scopes: ['global'],
       },
     },
     defaultService: 'wordpress',
   },
   spotify: {
-    id: 'spotify',
     name: 'Spotify',
-    icon: (props) => SpotifyIcon(props),
+    icon: SpotifyIcon,
     services: {
       spotify: {
-        id: 'spotify',
         name: 'Spotify',
         description: 'Search music, manage playlists, control playback, and access your library.',
         providerId: 'spotify',
-        icon: (props) => SpotifyIcon(props),
-        baseProviderIcon: (props) => SpotifyIcon(props),
+        icon: SpotifyIcon,
+        baseProviderIcon: SpotifyIcon,
         scopes: [
           'user-read-private',
           'user-read-email',
@@ -895,211 +749,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'spotify',
   },
-}
-
-/**
- * Service metadata without React components - safe for server-side use
- */
-export interface OAuthServiceMetadata {
-  providerId: string
-  name: string
-  description: string
-  baseProvider: string
-}
-
-/**
- * Returns a flat list of all available OAuth services with metadata.
- * This is safe to use on the server as it doesn't include React components.
- */
-export function getAllOAuthServices(): OAuthServiceMetadata[] {
-  const services: OAuthServiceMetadata[] = []
-
-  for (const [baseProviderId, provider] of Object.entries(OAUTH_PROVIDERS)) {
-    for (const service of Object.values(provider.services)) {
-      services.push({
-        providerId: service.providerId,
-        name: service.name,
-        description: service.description,
-        baseProvider: baseProviderId,
-      })
-    }
-  }
-
-  return services
-}
-
-export function getServiceByProviderAndId(
-  provider: OAuthProvider,
-  serviceId?: string
-): OAuthServiceConfig {
-  const providerConfig = OAUTH_PROVIDERS[provider]
-  if (!providerConfig) {
-    throw new Error(`Provider ${provider} not found`)
-  }
-
-  if (!serviceId) {
-    return providerConfig.services[providerConfig.defaultService]
-  }
-
-  return (
-    providerConfig.services[serviceId] || providerConfig.services[providerConfig.defaultService]
-  )
-}
-
-export function getProviderIdFromServiceId(serviceId: string): string {
-  for (const provider of Object.values(OAUTH_PROVIDERS)) {
-    for (const [id, service] of Object.entries(provider.services)) {
-      if (id === serviceId) {
-        return service.providerId
-      }
-    }
-  }
-
-  // Default fallback
-  return serviceId
-}
-
-export function getServiceConfigByProviderId(providerId: string): OAuthServiceConfig | null {
-  for (const provider of Object.values(OAUTH_PROVIDERS)) {
-    for (const service of Object.values(provider.services)) {
-      if (service.providerId === providerId || service.id === providerId) {
-        return service
-      }
-    }
-  }
-
-  return null
-}
-
-export function getCanonicalScopesForProvider(providerId: string): string[] {
-  const service = getServiceConfigByProviderId(providerId)
-  return service?.scopes ? [...service.scopes] : []
-}
-
-export function normalizeScopes(scopes: string[]): string[] {
-  const seen = new Set<string>()
-  for (const scope of scopes) {
-    const trimmed = scope.trim()
-    if (trimmed && !seen.has(trimmed)) {
-      seen.add(trimmed)
-    }
-  }
-  return Array.from(seen)
-}
-
-export interface ScopeEvaluation {
-  canonicalScopes: string[]
-  grantedScopes: string[]
-  missingScopes: string[]
-  extraScopes: string[]
-  requiresReauthorization: boolean
-}
-
-export function evaluateScopeCoverage(
-  providerId: string,
-  grantedScopes: string[]
-): ScopeEvaluation {
-  const canonicalScopes = getCanonicalScopesForProvider(providerId)
-  const normalizedGranted = normalizeScopes(grantedScopes)
-
-  const canonicalSet = new Set(canonicalScopes)
-  const grantedSet = new Set(normalizedGranted)
-
-  const missingScopes = canonicalScopes.filter((scope) => !grantedSet.has(scope))
-  const extraScopes = normalizedGranted.filter((scope) => !canonicalSet.has(scope))
-
-  return {
-    canonicalScopes,
-    grantedScopes: normalizedGranted,
-    missingScopes,
-    extraScopes,
-    requiresReauthorization: missingScopes.length > 0,
-  }
-}
-
-export interface Credential {
-  id: string
-  name: string
-  provider: OAuthProvider
-  serviceId?: string
-  lastUsed?: string
-  isDefault?: boolean
-  scopes?: string[]
-  canonicalScopes?: string[]
-  missingScopes?: string[]
-  extraScopes?: string[]
-  requiresReauthorization?: boolean
-}
-
-export interface ProviderConfig {
-  baseProvider: string
-  featureType: string
-}
-
-/**
- * Parse a provider string into its base provider and feature type
- * This is a server-safe utility that can be used in both client and server code
- */
-export function parseProvider(provider: OAuthProvider): ProviderConfig {
-  // Handle special cases first
-  if (provider === 'outlook') {
-    return {
-      baseProvider: 'microsoft',
-      featureType: 'outlook',
-    }
-  }
-  if (provider === 'onedrive') {
-    return {
-      baseProvider: 'microsoft',
-      featureType: 'onedrive',
-    }
-  }
-  if (provider === 'sharepoint') {
-    return {
-      baseProvider: 'microsoft',
-      featureType: 'sharepoint',
-    }
-  }
-  if (provider === 'microsoft-teams' || provider === 'microsoftteams') {
-    return {
-      baseProvider: 'microsoft',
-      featureType: 'microsoft-teams',
-    }
-  }
-  if (provider === 'microsoft-excel') {
-    return {
-      baseProvider: 'microsoft',
-      featureType: 'microsoft-excel',
-    }
-  }
-  if (provider === 'microsoft-planner') {
-    return {
-      baseProvider: 'microsoft',
-      featureType: 'microsoft-planner',
-    }
-  }
-  if (provider === 'vertex-ai') {
-    return {
-      baseProvider: 'google',
-      featureType: 'vertex-ai',
-    }
-  }
-
-  // Handle compound providers (e.g., 'google-email' -> { baseProvider: 'google', featureType: 'email' })
-  const [base, feature] = provider.split('-')
-
-  if (feature) {
-    return {
-      baseProvider: base,
-      featureType: feature,
-    }
-  }
-
-  // For simple providers, use 'default' as feature type
-  return {
-    baseProvider: provider,
-    featureType: 'default',
-  }
 }
 
 interface ProviderAuthConfig {
@@ -1193,18 +842,6 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         supportsRefreshTokenRotation: true,
       }
     }
-    // case 'supabase': {
-    //   const { clientId, clientSecret } = getCredentials(
-    //     env.SUPABASE_CLIENT_ID,
-    //     env.SUPABASE_CLIENT_SECRET
-    //   )
-    //   return {
-    //     tokenEndpoint: 'https://api.supabase.com/v1/oauth/token',
-    //     clientId,
-    //     clientSecret,
-    //     useBasicAuth: false,
-    //   }
-    // }
     case 'notion': {
       const { clientId, clientSecret } = getCredentials(
         env.NOTION_CLIENT_ID,
@@ -1217,42 +854,9 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         useBasicAuth: false,
       }
     }
-    case 'microsoft': {
-      const { clientId, clientSecret } = getCredentials(
-        env.MICROSOFT_CLIENT_ID,
-        env.MICROSOFT_CLIENT_SECRET
-      )
-      return {
-        tokenEndpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
-        clientId,
-        clientSecret,
-        useBasicAuth: false,
-      }
-    }
-    case 'outlook': {
-      const { clientId, clientSecret } = getCredentials(
-        env.MICROSOFT_CLIENT_ID,
-        env.MICROSOFT_CLIENT_SECRET
-      )
-      return {
-        tokenEndpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
-        clientId,
-        clientSecret,
-        useBasicAuth: false,
-      }
-    }
-    case 'onedrive': {
-      const { clientId, clientSecret } = getCredentials(
-        env.MICROSOFT_CLIENT_ID,
-        env.MICROSOFT_CLIENT_SECRET
-      )
-      return {
-        tokenEndpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
-        clientId,
-        clientSecret,
-        useBasicAuth: false,
-      }
-    }
+    case 'microsoft':
+    case 'outlook':
+    case 'onedrive':
     case 'sharepoint': {
       const { clientId, clientSecret } = getCredentials(
         env.MICROSOFT_CLIENT_ID,
