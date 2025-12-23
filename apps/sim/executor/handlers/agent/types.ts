@@ -21,6 +21,7 @@ export interface AgentInputs {
   azureApiVersion?: string
   vertexProject?: string
   vertexLocation?: string
+  vertexCredential?: string
   reasoningEffort?: string
   verbosity?: string
 }

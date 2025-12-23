@@ -32,6 +32,7 @@ import {
   SlackIcon,
   SpotifyIcon,
   TrelloIcon,
+  VertexIcon,
   WealthboxIcon,
   WebflowIcon,
   WordpressIcon,
@@ -80,6 +81,7 @@ export type OAuthService =
   | 'google-vault'
   | 'google-forms'
   | 'google-groups'
+  | 'vertex-ai'
   | 'github'
   | 'x'
   | 'confluence'
@@ -236,6 +238,16 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/admin.directory.group.member',
         ],
         scopeHints: ['admin.directory.group'],
+      },
+      'vertex-ai': {
+        id: 'vertex-ai',
+        name: 'Vertex AI',
+        description: 'Access Google Cloud Vertex AI for Gemini models with OAuth.',
+        providerId: 'vertex-ai',
+        icon: (props) => VertexIcon(props),
+        baseProviderIcon: (props) => VertexIcon(props),
+        scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+        scopeHints: ['cloud-platform', 'vertex', 'aiplatform'],
       },
     },
     defaultService: 'gmail',
@@ -1097,6 +1109,12 @@ export function parseProvider(provider: OAuthProvider): ProviderConfig {
     return {
       baseProvider: 'microsoft',
       featureType: 'microsoft-planner',
+    }
+  }
+  if (provider === 'vertex-ai') {
+    return {
+      baseProvider: 'google',
+      featureType: 'vertex-ai',
     }
   }
 

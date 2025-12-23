@@ -315,6 +315,19 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       },
     },
     {
+      id: 'vertexCredential',
+      title: 'Google Cloud Account',
+      type: 'oauth-input',
+      serviceId: 'vertex-ai',
+      requiredScopes: ['https://www.googleapis.com/auth/cloud-platform'],
+      placeholder: 'Select Google Cloud account',
+      required: true,
+      condition: {
+        field: 'model',
+        value: providers.vertex.models,
+      },
+    },
+    {
       id: 'tools',
       title: 'Tools',
       type: 'tool-input',
@@ -328,17 +341,21 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       password: true,
       connectionDroppable: false,
       required: true,
-      // Hide API key for hosted models, Ollama models, and vLLM models
+      // Hide API key for hosted models, Ollama models, vLLM models, and Vertex models (uses OAuth)
       condition: isHosted
         ? {
             field: 'model',
-            value: getHostedModels(),
+            value: [...getHostedModels(), ...providers.vertex.models],
             not: true, // Show for all models EXCEPT those listed
           }
         : () => ({
             field: 'model',
-            value: [...getCurrentOllamaModels(), ...getCurrentVLLMModels()],
-            not: true, // Show for all models EXCEPT Ollama and vLLM models
+            value: [
+              ...getCurrentOllamaModels(),
+              ...getCurrentVLLMModels(),
+              ...providers.vertex.models,
+            ],
+            not: true, // Show for all models EXCEPT Ollama, vLLM, and Vertex models
           }),
     },
     {
