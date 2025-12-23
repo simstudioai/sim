@@ -144,7 +144,7 @@ describe('workflow store', () => {
       expect(state.blocks.parallel1?.data?.count).toBe(5)
 
       expect(state.parallels.parallel1).toBeDefined()
-      expect(state.parallels.parallel1.distribution).toBe('')
+      expect(state.parallels.parallel1.distribution).toBeUndefined()
     })
 
     it.concurrent('should regenerate parallels when updateParallelCollection is called', () => {

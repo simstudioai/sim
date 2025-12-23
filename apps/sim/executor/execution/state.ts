@@ -14,6 +14,8 @@ export interface LoopScope {
   condition?: string
   loopType?: 'for' | 'forEach' | 'while' | 'doWhile'
   skipFirstConditionCheck?: boolean
+  /** Error message if loop validation failed (e.g., exceeded max iterations) */
+  validationError?: string
 }
 
 export interface ParallelScope {
@@ -23,6 +25,8 @@ export interface ParallelScope {
   completedCount: number
   totalExpectedNodes: number
   items?: any[]
+  /** Error message if parallel validation failed (e.g., exceeded max branches) */
+  validationError?: string
 }
 
 export class ExecutionState implements BlockStateController {

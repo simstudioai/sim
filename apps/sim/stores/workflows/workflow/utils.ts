@@ -103,7 +103,7 @@ export function convertParallelBlockToParallel(
     : 'collection'
 
   const distribution =
-    validatedParallelType === 'collection' ? parallelBlock.data?.collection || '' : ''
+    validatedParallelType === 'collection' ? parallelBlock.data?.collection || '' : undefined
 
   const count = parallelBlock.data?.count || 5
 
