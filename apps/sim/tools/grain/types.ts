@@ -137,7 +137,7 @@ export interface GrainRecordingInclude {
 // ============================================================================
 
 export interface GrainListRecordingsParams {
-  accessToken: string
+  apiKey: string
   cursor?: string
   beforeDatetime?: string
   afterDatetime?: string
@@ -162,7 +162,7 @@ export interface GrainListRecordingsResponse extends ToolResponse {
 // ============================================================================
 
 export interface GrainGetRecordingParams {
-  accessToken: string
+  apiKey: string
   recordingId: string
   includeHighlights?: boolean
   includeParticipants?: boolean
@@ -180,7 +180,7 @@ export interface GrainGetRecordingResponse extends ToolResponse {
 // ============================================================================
 
 export interface GrainGetTranscriptParams {
-  accessToken: string
+  apiKey: string
   recordingId: string
 }
 
@@ -195,7 +195,7 @@ export interface GrainGetTranscriptResponse extends ToolResponse {
 // ============================================================================
 
 export interface GrainListTeamsParams {
-  accessToken: string
+  apiKey: string
 }
 
 export interface GrainListTeamsResponse extends ToolResponse {
@@ -209,7 +209,7 @@ export interface GrainListTeamsResponse extends ToolResponse {
 // ============================================================================
 
 export interface GrainListMeetingTypesParams {
-  accessToken: string
+  apiKey: string
 }
 
 export interface GrainListMeetingTypesResponse extends ToolResponse {
@@ -223,7 +223,7 @@ export interface GrainListMeetingTypesResponse extends ToolResponse {
 // ============================================================================
 
 export interface GrainCreateHookParams {
-  accessToken: string
+  apiKey: string
   hookUrl: string
   filterBeforeDatetime?: string
   filterAfterDatetime?: string
@@ -244,7 +244,7 @@ export interface GrainCreateHookResponse extends ToolResponse {
 // ============================================================================
 
 export interface GrainListHooksParams {
-  accessToken: string
+  apiKey: string
 }
 
 export interface GrainListHooksResponse extends ToolResponse {
@@ -258,7 +258,7 @@ export interface GrainListHooksResponse extends ToolResponse {
 // ============================================================================
 
 export interface GrainDeleteHookParams {
-  accessToken: string
+  apiKey: string
   hookId: string
 }
 

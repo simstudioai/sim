@@ -7,7 +7,7 @@ export const GrainBlock: BlockConfig = {
   type: 'grain',
   name: 'Grain',
   description: 'Access meeting recordings, transcripts, and AI summaries',
-  authMode: AuthMode.OAuth,
+  authMode: AuthMode.ApiKey,
   triggerAllowed: true,
   longDescription:
     'Integrate Grain into your workflow. Access meeting recordings, transcripts, highlights, and AI-generated summaries. Can also trigger workflows based on Grain webhook events.',
@@ -32,11 +32,11 @@ export const GrainBlock: BlockConfig = {
       value: () => 'grain_list_recordings',
     },
     {
-      id: 'credential',
-      title: 'Grain Account',
-      type: 'oauth-input',
-      serviceId: 'grain',
-      placeholder: 'Select Grain account',
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      placeholder: 'Enter your Grain API key',
+      password: true,
       required: true,
     },
     // Recording ID (for get_recording and get_transcript)
@@ -232,7 +232,7 @@ export const GrainBlock: BlockConfig = {
       },
       params: (params) => {
         const baseParams: Record<string, unknown> = {
-          credential: params.credential,
+          apiKey: params.apiKey,
         }
 
         switch (params.operation) {
@@ -313,7 +313,7 @@ export const GrainBlock: BlockConfig = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Grain access token' },
+    apiKey: { type: 'string', description: 'Grain API key (Personal Access Token)' },
     recordingId: { type: 'string', description: 'Recording UUID' },
     cursor: { type: 'string', description: 'Pagination cursor' },
     beforeDatetime: {

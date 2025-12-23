@@ -8,17 +8,12 @@ export const grainGetRecordingTool: ToolConfig<GrainGetRecordingParams, GrainGet
     description: 'Get details of a single recording by ID',
     version: '1.0.0',
 
-    oauth: {
-      required: true,
-      provider: 'grain',
-    },
-
     params: {
-      accessToken: {
+      apiKey: {
         type: 'string',
-        required: false,
-        visibility: 'hidden',
-        description: 'OAuth access token (auto-injected)',
+        required: true,
+        visibility: 'user-only',
+        description: 'Grain API key (Personal Access Token)',
       },
       recordingId: {
         type: 'string',
@@ -61,16 +56,11 @@ export const grainGetRecordingTool: ToolConfig<GrainGetRecordingParams, GrainGet
     request: {
       url: (params) => `https://api.grain.com/_/public-api/v2/recordings/${params.recordingId}`,
       method: 'POST',
-      headers: (params) => {
-        if (!params.accessToken) {
-          throw new Error('Missing access token for Grain API request')
-        }
-        return {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${params.accessToken}`,
-          'Public-Api-Version': '2025-10-31',
-        }
-      },
+      headers: (params) => ({
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${params.apiKey}`,
+        'Public-Api-Version': '2025-10-31',
+      }),
       body: (params) => {
         const include: Record<string, any> = {}
 
