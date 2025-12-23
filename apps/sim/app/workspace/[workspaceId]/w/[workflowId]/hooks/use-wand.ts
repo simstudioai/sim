@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import type { GenerationType } from '@/blocks/types'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 
@@ -76,6 +76,7 @@ export function useWand({
   onStreamStart,
   onGenerationComplete,
 }: UseWandProps) {
+  const queryClient = useQueryClient()
   const [isLoading, setIsLoading] = useState(false)
   const [isPromptVisible, setIsPromptVisible] = useState(false)
   const [promptInputValue, setPromptInputValue] = useState('')
@@ -251,7 +252,6 @@ export function useWand({
         })
 
         setTimeout(() => {
-          const queryClient = getQueryClient()
           queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
         }, 1000)
       } catch (error: any) {
@@ -274,6 +274,7 @@ export function useWand({
       onStreamChunk,
       onStreamStart,
       onGenerationComplete,
+      queryClient,
     ]
   )
 

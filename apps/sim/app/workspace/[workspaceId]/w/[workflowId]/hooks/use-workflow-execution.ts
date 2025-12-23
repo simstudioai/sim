@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -13,7 +14,6 @@ import {
   StartBlockPath,
   TriggerUtils,
 } from '@/lib/workflows/triggers/triggers'
-import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { coerceValue } from '@/executor/utils/start-block'
@@ -88,6 +88,7 @@ function extractExecutionResult(error: unknown): ExecutionResult | null {
 }
 
 export function useWorkflowExecution() {
+  const queryClient = useQueryClient()
   const currentWorkflow = useCurrentWorkflow()
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
   const { toggleConsole, addConsole } = useTerminalConsoleStore()
@@ -564,7 +565,6 @@ export function useWorkflowExecution() {
 
                 // Invalidate subscription queries to update usage
                 setTimeout(() => {
-                  const queryClient = getQueryClient()
                   queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
                 }, 1000)
 
@@ -633,7 +633,6 @@ export function useWorkflowExecution() {
 
           // Invalidate subscription queries to update usage
           setTimeout(() => {
-            const queryClient = getQueryClient()
             queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
           }, 1000)
         }
@@ -657,6 +656,7 @@ export function useWorkflowExecution() {
       setPendingBlocks,
       setActiveBlocks,
       workflows,
+      queryClient,
     ]
   )
 
