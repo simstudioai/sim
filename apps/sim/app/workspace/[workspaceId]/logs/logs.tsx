@@ -137,9 +137,7 @@ export default function Logs() {
 
     const hasStatusChange =
       prevLog?.id === updatedLog.id &&
-      (updatedLog.duration !== prevLog.duration ||
-        updatedLog.level !== prevLog.level ||
-        updatedLog.hasPendingPause !== prevLog.hasPendingPause)
+      (updatedLog.duration !== prevLog.duration || updatedLog.status !== prevLog.status)
 
     if (updatedLog !== selectedLog) {
       setSelectedLog(updatedLog)

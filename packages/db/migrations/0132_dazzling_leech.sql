@@ -1,0 +1,1 @@
+ALTER TABLE "workflow_execution_logs" ADD COLUMN "status" text DEFAULT 'running' NOT NULL;

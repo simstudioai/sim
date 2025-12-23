@@ -107,6 +107,7 @@ export interface WorkflowLog {
   deploymentVersion?: number | null
   deploymentVersionName?: string | null
   level: string
+  status?: string | null
   duration: string | null
   trigger: string | null
   createdAt: string

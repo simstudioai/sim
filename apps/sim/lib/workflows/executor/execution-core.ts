@@ -356,7 +356,28 @@ export async function executeWorkflowCore(
       await updateWorkflowRunCounts(workflowId)
     }
 
-    // Complete logging session
+    if (result.status === 'cancelled') {
+      await loggingSession.safeCompleteWithCancellation({
+        endedAt: new Date().toISOString(),
+        totalDurationMs: totalDuration || 0,
+        traceSpans: traceSpans || [],
+      })
+
+      logger.info(`[${requestId}] Workflow execution cancelled`, {
+        duration: result.metadata?.duration,
+      })
+
+      return result
+    }
+
+    if (result.status === 'paused') {
+      logger.info(`[${requestId}] Workflow execution paused`, {
+        duration: result.metadata?.duration,
+      })
+
+      return result
+    }
+
     await loggingSession.safeComplete({
       endedAt: new Date().toISOString(),
       totalDurationMs: totalDuration || 0,

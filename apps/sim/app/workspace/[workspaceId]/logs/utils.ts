@@ -7,8 +7,7 @@ import { getBlock } from '@/blocks/registry'
 const CORE_TRIGGER_TYPES = ['manual', 'api', 'schedule', 'chat', 'webhook'] as const
 const RUNNING_COLOR = '#22c55e' as const
 const PENDING_COLOR = '#f59e0b' as const
-
-export type LogStatus = 'error' | 'pending' | 'running' | 'info'
+export type LogStatus = 'error' | 'pending' | 'running' | 'info' | 'cancelled'
 
 /**
  * Checks if a hex color is gray/neutral (low saturation) or too light/dark
@@ -77,10 +76,15 @@ export const StatusBadge = React.memo(({ status }: StatusBadgeProps) => {
       color: lightenColor(RUNNING_COLOR, 65),
       label: 'Running',
     },
+    cancelled: {
+      bg: 'var(--terminal-status-info-bg)',
+      color: 'var(--terminal-status-info-color)',
+      label: 'Cancelled',
+    },
     info: {
       bg: 'var(--terminal-status-info-bg)',
       color: 'var(--terminal-status-info-color)',
-      label: 'Info',
+      label: 'Completed',
     },
   }[status]
 
@@ -271,6 +275,7 @@ export interface ExecutionLog {
   executionId: string
   startedAt: string
   level: string
+  status: string
   trigger: string
   triggerUserId: string | null
   triggerInputs?: unknown
@@ -291,6 +296,7 @@ interface RawLogResponse extends LogWithDuration, LogWithExecutionData {
   endedAt?: string
   createdAt?: string
   level?: string
+  status?: string
   trigger?: string
   triggerUserId?: string | null
   error?: string
@@ -331,6 +337,7 @@ export function mapToExecutionLog(log: RawLogResponse): ExecutionLog {
     executionId: log.executionId,
     startedAt,
     level: log.level || 'info',
+    status: log.status || 'completed',
     trigger: log.trigger || 'manual',
     triggerUserId: log.triggerUserId || null,
     triggerInputs: undefined,
@@ -365,6 +372,7 @@ export function mapToExecutionLogAlt(log: RawLogResponse): ExecutionLog {
     executionId: log.executionId,
     startedAt: log.createdAt || log.startedAt || new Date().toISOString(),
     level: log.level || 'info',
+    status: log.status || 'completed',
     trigger: log.trigger || 'manual',
     triggerUserId: log.triggerUserId || null,
     triggerInputs: undefined,

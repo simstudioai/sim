@@ -149,6 +149,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
         stateSnapshotId: snapshotResult.snapshot.id,
         deploymentVersionId: deploymentVersionId ?? null,
         level: 'info',
+        status: 'running',
         trigger: trigger.type,
         startedAt: startTime,
         endedAt: null,
@@ -206,8 +207,9 @@ export class ExecutionLogger implements IExecutionLoggerService {
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]
     workflowInput?: any
-    isResume?: boolean // If true, merge with existing data instead of replacing
-    level?: 'info' | 'error' // Optional override for log level (used in cost-only fallback)
+    isResume?: boolean
+    level?: 'info' | 'error'
+    status?: 'completed' | 'failed' | 'cancelled'
   }): Promise<WorkflowExecutionLog> {
     const {
       executionId,
@@ -219,6 +221,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       workflowInput,
       isResume,
       level: levelOverride,
+      status: statusOverride,
     } = params
 
     logger.debug(`Completing workflow execution ${executionId}`, { isResume })
@@ -248,6 +251,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     })
 
     const level = levelOverride ?? (hasErrors ? 'error' : 'info')
+    const status = statusOverride ?? (hasErrors ? 'failed' : 'completed')
 
     // Extract files from trace spans, final output, and workflow input
     const executionFiles = this.extractFilesFromExecution(traceSpans, finalOutput, workflowInput)
@@ -309,6 +313,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       .update(workflowExecutionLogs)
       .set({
         level,
+        status,
         endedAt: new Date(endedAt),
         totalDurationMs: actualTotalDuration,
         files: mergedFiles.length > 0 ? mergedFiles : null,

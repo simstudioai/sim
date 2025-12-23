@@ -25,10 +25,21 @@ interface LogRowProps {
 const LogRow = memo(
   function LogRow({ log, isSelected, onClick, selectedRowRef }: LogRowProps) {
     const formattedDate = useMemo(() => formatDate(log.createdAt), [log.createdAt])
-    const baseLevel = (log.level || 'info').toLowerCase()
-    const isError = baseLevel === 'error'
-    const isPending = !isError && log.hasPendingPause === true
-    const isRunning = !isError && !isPending && log.duration === null
+
+    const getDisplayStatus = (): 'running' | 'pending' | 'cancelled' | 'error' | 'info' => {
+      switch (log.status) {
+        case 'running':
+          return 'running'
+        case 'pending':
+          return 'pending'
+        case 'cancelled':
+          return 'cancelled'
+        case 'failed':
+          return 'error'
+        default:
+          return 'info'
+      }
+    }
 
     const handleClick = useCallback(() => onClick(log), [onClick, log])
 
@@ -54,9 +65,7 @@ const LogRow = memo(
 
           {/* Status */}
           <div className='w-[12%] min-w-[100px]'>
-            <StatusBadge
-              status={isError ? 'error' : isPending ? 'pending' : isRunning ? 'running' : 'info'}
-            />
+            <StatusBadge status={getDisplayStatus()} />
           </div>
 
           {/* Workflow */}
@@ -93,7 +102,7 @@ const LogRow = memo(
         </div>
 
         {/* Resume Link */}
-        {isPending && log.executionId && (log.workflow?.id || log.workflowId) && (
+        {log.status === 'pending' && log.executionId && (log.workflow?.id || log.workflowId) && (
           <Link
             href={`/resume/${log.workflow?.id || log.workflowId}/${log.executionId}`}
             target='_blank'
@@ -115,8 +124,7 @@ const LogRow = memo(
     return (
       prevProps.log.id === nextProps.log.id &&
       prevProps.log.duration === nextProps.log.duration &&
-      prevProps.log.level === nextProps.log.level &&
-      prevProps.log.hasPendingPause === nextProps.log.hasPendingPause &&
+      prevProps.log.status === nextProps.log.status &&
       prevProps.isSelected === nextProps.isSelected
     )
   }

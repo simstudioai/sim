@@ -102,11 +102,18 @@ export const LogDetails = memo(function LogDetails({
 
   const logStatus: LogStatus = useMemo(() => {
     if (!log) return 'info'
-    const baseLevel = (log.level || 'info').toLowerCase()
-    const isError = baseLevel === 'error'
-    const isPending = !isError && log.hasPendingPause === true
-    const isRunning = !isError && !isPending && log.duration === null
-    return isError ? 'error' : isPending ? 'pending' : isRunning ? 'running' : 'info'
+    switch (log.status) {
+      case 'running':
+        return 'running'
+      case 'pending':
+        return 'pending'
+      case 'cancelled':
+        return 'cancelled'
+      case 'failed':
+        return 'error'
+      default:
+        return 'info'
+    }
   }, [log])
 
   return (

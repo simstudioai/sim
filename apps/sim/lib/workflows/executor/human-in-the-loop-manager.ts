@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
-import { pausedExecutions, resumeQueue } from '@sim/db/schema'
+import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/schema'
 import { and, asc, desc, eq, inArray, lt, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
@@ -154,6 +154,11 @@ export class PauseResumeManager {
           updatedAt: now,
         },
       })
+
+    await db
+      .update(workflowExecutionLogs)
+      .set({ status: 'pending' })
+      .where(eq(workflowExecutionLogs.executionId, executionId))
 
     await PauseResumeManager.processQueuedResumes(executionId)
   }
@@ -765,6 +770,11 @@ export class PauseResumeManager {
           .update(pausedExecutions)
           .set({ status: 'fully_resumed', updatedAt: now })
           .where(eq(pausedExecutions.executionId, parentExecutionId))
+
+        await tx
+          .update(workflowExecutionLogs)
+          .set({ status: 'completed' })
+          .where(eq(workflowExecutionLogs.executionId, parentExecutionId))
       }
     })
   }

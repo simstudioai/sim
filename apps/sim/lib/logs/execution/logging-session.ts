@@ -44,6 +44,12 @@ export interface SessionErrorCompleteParams {
   traceSpans?: TraceSpan[]
 }
 
+export interface SessionCancelledParams {
+  endedAt?: string
+  totalDurationMs?: number
+  traceSpans?: TraceSpan[]
+}
+
 export class LoggingSession {
   private workflowId: string
   private executionId: string
@@ -52,7 +58,8 @@ export class LoggingSession {
   private trigger?: ExecutionTrigger
   private environment?: ExecutionEnvironment
   private workflowState?: WorkflowState
-  private isResume = false // Track if this is a resume execution
+  private isResume = false
+  private completed = false
 
   constructor(
     workflowId: string,
@@ -127,6 +134,10 @@ export class LoggingSession {
   }
 
   async complete(params: SessionCompleteParams = {}): Promise<void> {
+    if (this.completed) {
+      return
+    }
+
     const { endedAt, totalDurationMs, finalOutput, traceSpans, workflowInput } = params
 
     try {
@@ -144,6 +155,8 @@ export class LoggingSession {
         workflowInput,
         isResume: this.isResume,
       })
+
+      this.completed = true
 
       // Track workflow execution outcome
       if (traceSpans && traceSpans.length > 0) {
@@ -194,6 +207,10 @@ export class LoggingSession {
   }
 
   async completeWithError(params: SessionErrorCompleteParams = {}): Promise<void> {
+    if (this.completed) {
+      return
+    }
+
     try {
       const { endedAt, totalDurationMs, error, traceSpans } = params
 
@@ -242,6 +259,8 @@ export class LoggingSession {
         traceSpans: spans,
       })
 
+      this.completed = true
+
       // Track workflow execution error outcome
       try {
         const { trackPlatformEvent } = await import('@/lib/core/telemetry')
@@ -274,6 +293,74 @@ export class LoggingSession {
       })
       // Rethrow so safeCompleteWithError can decide what to do
       throw enhancedError
+    }
+  }
+
+  async completeWithCancellation(params: SessionCancelledParams = {}): Promise<void> {
+    if (this.completed) {
+      return
+    }
+
+    try {
+      const { endedAt, totalDurationMs, traceSpans } = params
+
+      const endTime = endedAt ? new Date(endedAt) : new Date()
+      const durationMs = typeof totalDurationMs === 'number' ? totalDurationMs : 0
+
+      const costSummary = traceSpans?.length
+        ? calculateCostSummary(traceSpans)
+        : {
+            totalCost: BASE_EXECUTION_CHARGE,
+            totalInputCost: 0,
+            totalOutputCost: 0,
+            totalTokens: 0,
+            totalPromptTokens: 0,
+            totalCompletionTokens: 0,
+            baseExecutionCharge: BASE_EXECUTION_CHARGE,
+            modelCost: 0,
+            models: {},
+          }
+
+      await executionLogger.completeWorkflowExecution({
+        executionId: this.executionId,
+        endedAt: endTime.toISOString(),
+        totalDurationMs: Math.max(1, durationMs),
+        costSummary,
+        finalOutput: { cancelled: true },
+        traceSpans: traceSpans || [],
+        status: 'cancelled',
+      })
+
+      this.completed = true
+
+      try {
+        const { trackPlatformEvent } = await import('@/lib/core/telemetry')
+        trackPlatformEvent('platform.workflow.executed', {
+          'workflow.id': this.workflowId,
+          'execution.duration_ms': Math.max(1, durationMs),
+          'execution.status': 'cancelled',
+          'execution.trigger': this.triggerType,
+          'execution.blocks_executed': traceSpans?.length || 0,
+          'execution.has_errors': false,
+        })
+      } catch (_e) {
+        // Silently fail
+      }
+
+      if (this.requestId) {
+        logger.debug(
+          `[${this.requestId}] Completed cancelled logging for execution ${this.executionId}`
+        )
+      }
+    } catch (cancelError) {
+      logger.error(`Failed to complete cancelled logging for execution ${this.executionId}:`, {
+        requestId: this.requestId,
+        workflowId: this.workflowId,
+        executionId: this.executionId,
+        error: cancelError instanceof Error ? cancelError.message : String(cancelError),
+        stack: cancelError instanceof Error ? cancelError.stack : undefined,
+      })
+      throw cancelError
     }
   }
 
@@ -372,6 +459,25 @@ export class LoggingSession {
     }
   }
 
+  async safeCompleteWithCancellation(params?: SessionCancelledParams): Promise<void> {
+    try {
+      await this.completeWithCancellation(params)
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      logger.warn(
+        `[${this.requestId || 'unknown'}] CompleteWithCancellation failed for execution ${this.executionId}, attempting fallback`,
+        { error: errorMsg }
+      )
+      await this.completeWithCostOnlyLog({
+        traceSpans: params?.traceSpans,
+        endedAt: params?.endedAt,
+        totalDurationMs: params?.totalDurationMs,
+        errorMessage: 'Execution was cancelled',
+        isError: false,
+      })
+    }
+  }
+
   private async completeWithCostOnlyLog(params: {
     traceSpans?: TraceSpan[]
     endedAt?: string
@@ -379,6 +485,10 @@ export class LoggingSession {
     errorMessage: string
     isError: boolean
   }): Promise<void> {
+    if (this.completed) {
+      return
+    }
+
     logger.warn(
       `[${this.requestId || 'unknown'}] Logging completion failed for execution ${this.executionId} - attempting cost-only fallback`
     )
@@ -408,6 +518,8 @@ export class LoggingSession {
         isResume: this.isResume,
         level: params.isError ? 'error' : 'info',
       })
+
+      this.completed = true
 
       logger.info(
         `[${this.requestId || 'unknown'}] Cost-only fallback succeeded for execution ${this.executionId}`
