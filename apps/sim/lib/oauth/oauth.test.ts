@@ -1,4 +1,4 @@
-import { describe, expect, it, type Mock, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/config/env', () => ({
   env: {
@@ -73,7 +73,7 @@ function createMockFetch() {
   })
 }
 
-function withMockFetch<T>(mockFetch: Mock, fn: () => Promise<T>): Promise<T> {
+function withMockFetch<T>(mockFetch: ReturnType<typeof vi.fn>, fn: () => Promise<T>): Promise<T> {
   const originalFetch = global.fetch
   global.fetch = mockFetch
   return fn().finally(() => {
