@@ -1,4 +1,3 @@
-import { normalizeName } from '@/executor/constants'
 import type { SerializedWorkflow } from '@/serializer/types'
 
 /**
@@ -97,42 +96,5 @@ export class BlockPathCalculator {
     }
 
     return accessibleMap
-  }
-
-  /**
-   * Gets accessible block names for a specific block (for error messages).
-   *
-   * @param blockId - The block ID to get accessible names for
-   * @param workflow - The serialized workflow
-   * @param accessibleBlocksMap - Pre-calculated accessible blocks map
-   * @returns Array of accessible block names and aliases
-   */
-  static getAccessibleBlockNames(
-    blockId: string,
-    workflow: SerializedWorkflow,
-    accessibleBlocksMap: Map<string, Set<string>>
-  ): string[] {
-    const accessibleBlockIds = accessibleBlocksMap.get(blockId) || new Set<string>()
-    const names: string[] = []
-
-    // Create a map of block IDs to blocks for efficient lookup
-    const blockById = new Map(workflow.blocks.map((block) => [block.id, block]))
-
-    for (const accessibleBlockId of accessibleBlockIds) {
-      const block = blockById.get(accessibleBlockId)
-      if (block) {
-        // Add both the actual name and the normalized name
-        if (block.metadata?.name) {
-          names.push(block.metadata.name)
-          names.push(normalizeName(block.metadata.name))
-        }
-        names.push(accessibleBlockId)
-      }
-    }
-
-    // Add special aliases
-    names.push('start') // Always allow start alias
-
-    return [...new Set(names)] // Remove duplicates
   }
 }

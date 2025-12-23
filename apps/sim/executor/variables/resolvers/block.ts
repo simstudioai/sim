@@ -12,15 +12,13 @@ import {
 import type { SerializedWorkflow } from '@/serializer/types'
 
 export class BlockResolver implements Resolver {
-  private blockByNormalizedName: Map<string, string>
+  private nameToBlockId: Map<string, string>
 
   constructor(private workflow: SerializedWorkflow) {
-    this.blockByNormalizedName = new Map()
+    this.nameToBlockId = new Map()
     for (const block of workflow.blocks) {
-      this.blockByNormalizedName.set(block.id, block.id)
       if (block.metadata?.name) {
-        const normalized = normalizeName(block.metadata.name)
-        this.blockByNormalizedName.set(normalized, block.id)
+        this.nameToBlockId.set(normalizeName(block.metadata.name), block.id)
       }
     }
   }
@@ -84,11 +82,7 @@ export class BlockResolver implements Resolver {
   }
 
   private findBlockIdByName(name: string): string | undefined {
-    if (this.blockByNormalizedName.has(name)) {
-      return this.blockByNormalizedName.get(name)
-    }
-    const normalized = normalizeName(name)
-    return this.blockByNormalizedName.get(normalized)
+    return this.nameToBlockId.get(normalizeName(name))
   }
 
   public formatValueForBlock(
