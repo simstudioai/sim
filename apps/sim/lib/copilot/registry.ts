@@ -36,6 +36,8 @@ export const ToolIds = z.enum([
   'manage_custom_tool',
   'manage_mcp_tool',
   'sleep',
+  'get_block_outputs',
+  'get_block_upstream_references',
 ])
 export type ToolId = z.infer<typeof ToolIds>
 
@@ -277,6 +279,24 @@ export const ToolArgSchemas = {
       .max(180)
       .describe('The number of seconds to sleep (0-180, max 3 minutes)'),
   }),
+
+  get_block_outputs: z.object({
+    blockIds: z
+      .array(z.string())
+      .optional()
+      .describe(
+        'Optional array of block UUIDs. If provided, returns outputs only for those blocks. If not provided, returns outputs for all blocks in the workflow.'
+      ),
+  }),
+
+  get_block_upstream_references: z.object({
+    blockIds: z
+      .array(z.string())
+      .min(1)
+      .describe(
+        'Array of block UUIDs. Returns all upstream references (block outputs and variables) accessible to each block based on workflow connections.'
+      ),
+  }),
 } as const
 export type ToolArgSchemaMap = typeof ToolArgSchemas
 
@@ -346,6 +366,11 @@ export const ToolSSESchemas = {
   manage_custom_tool: toolCallSSEFor('manage_custom_tool', ToolArgSchemas.manage_custom_tool),
   manage_mcp_tool: toolCallSSEFor('manage_mcp_tool', ToolArgSchemas.manage_mcp_tool),
   sleep: toolCallSSEFor('sleep', ToolArgSchemas.sleep),
+  get_block_outputs: toolCallSSEFor('get_block_outputs', ToolArgSchemas.get_block_outputs),
+  get_block_upstream_references: toolCallSSEFor(
+    'get_block_upstream_references',
+    ToolArgSchemas.get_block_upstream_references
+  ),
 } as const
 export type ToolSSESchemaMap = typeof ToolSSESchemas
 
@@ -602,6 +627,60 @@ export const ToolResultSchemas = {
     success: z.boolean(),
     seconds: z.number(),
     message: z.string().optional(),
+  }),
+  get_block_outputs: z.object({
+    blocks: z.array(
+      z.object({
+        blockId: z.string(),
+        blockName: z.string(),
+        blockType: z.string(),
+        outputs: z.array(z.string()),
+        insideSubflowOutputs: z.array(z.string()).optional(),
+        outsideSubflowOutputs: z.array(z.string()).optional(),
+      })
+    ),
+    variables: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        type: z.string(),
+        tag: z.string(),
+      })
+    ),
+  }),
+  get_block_upstream_references: z.object({
+    results: z.array(
+      z.object({
+        blockId: z.string(),
+        blockName: z.string(),
+        insideSubflows: z
+          .array(
+            z.object({
+              blockId: z.string(),
+              blockName: z.string(),
+              blockType: z.string(),
+            })
+          )
+          .optional(),
+        accessibleBlocks: z.array(
+          z.object({
+            blockId: z.string(),
+            blockName: z.string(),
+            blockType: z.string(),
+            outputs: z.array(z.string()),
+            accessContext: z.enum(['inside', 'outside']).optional(),
+          })
+        ),
+        variables: z.array(
+          z.object({
+            id: z.string(),
+            name: z.string(),
+            type: z.string(),
+            tag: z.string(),
+          })
+        ),
+      })
+    ),
   }),
 } as const
 export type ToolResultSchemaMap = typeof ToolResultSchemas
