@@ -460,7 +460,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
           <ModalHeader>Delete Tag</ModalHeader>
           <ModalBody className='!pb-[16px]'>
             <div className='space-y-[8px]'>
-              <p className='text-[12px] text-[var(--text-tertiary)]'>
+              <p className='text-[12px] text-[var(--text-secondary)]'>
                 Are you sure you want to delete the "{selectedTag?.displayName}" tag? This will
                 remove this tag from {selectedTagUsage?.documentCount || 0} document
                 {selectedTagUsage?.documentCount !== 1 ? 's' : ''}.{' '}

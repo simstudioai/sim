@@ -174,7 +174,7 @@ export function CreateChunkModal({
         <ModalContent size='sm'>
           <ModalHeader>Discard Changes</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               You have unsaved changes. Are you sure you want to close without saving?
             </p>
           </ModalBody>

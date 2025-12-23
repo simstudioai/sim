@@ -264,6 +264,8 @@ export interface SubBlockConfig {
   rows?: number
   // Multi-select functionality
   multiSelect?: boolean
+  // Combobox specific: Enable search input in dropdown
+  searchable?: boolean
   // Wand configuration for AI assistance
   wandConfig?: {
     enabled: boolean

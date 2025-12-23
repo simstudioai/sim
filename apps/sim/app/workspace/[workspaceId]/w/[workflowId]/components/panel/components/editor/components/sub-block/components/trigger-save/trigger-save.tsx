@@ -435,7 +435,7 @@ export function TriggerSave({
         <ModalContent size='sm'>
           <ModalHeader>Delete Trigger</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to delete this trigger configuration? This will remove the
               webhook and stop all incoming triggers.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>

@@ -383,7 +383,7 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
         <ModalContent className='w-[400px]'>
           <ModalHeader>Disconnect Service</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to disconnect{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {serviceToDisconnect?.service.name}

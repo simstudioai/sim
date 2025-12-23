@@ -4,7 +4,6 @@ import {
   Database,
   HardDrive,
   HeadphonesIcon,
-  Infinity as InfinityIcon,
   Server,
   ShieldCheck,
   Users,
@@ -26,7 +25,9 @@ export const TEAM_PLAN_FEATURES: PlanFeature[] = [
   { icon: Zap, text: '75 runs per minute (sync)' },
   { icon: Clock, text: '500 runs per minute (async)' },
   { icon: HardDrive, text: '500GB file storage (pooled)' },
-  { icon: InfinityIcon, text: 'Everything in Pro' },
+  { icon: Building2, text: 'Unlimited workspaces' },
+  { icon: Users, text: 'Unlimited invites' },
+  { icon: Database, text: 'Unlimited log retention' },
   { icon: SlackMonoIcon, text: 'Dedicated Slack channel' },
 ]
 

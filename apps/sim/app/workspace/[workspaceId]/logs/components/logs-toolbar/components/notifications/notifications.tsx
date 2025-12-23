@@ -1332,7 +1332,7 @@ export function NotificationSettings({
         <ModalContent className='w-[400px]'>
           <ModalHeader>Delete Notification</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               This will permanently remove the notification and stop all deliveries.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>

@@ -536,7 +536,7 @@ export function Panel() {
         <ModalContent size='sm'>
           <ModalHeader>Delete Workflow</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Deleting this workflow will permanently remove all associated blocks, executions, and
               configuration.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>

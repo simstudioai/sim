@@ -394,7 +394,7 @@ export function ChatDeploy({
         <ModalContent size='sm'>
           <ModalHeader>Delete Chat</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to delete this chat?{' '}
               <span className='text-[var(--text-error)]'>
                 This will remove the chat at "{getEmailDomain()}/chat/{existingChat?.identifier}"

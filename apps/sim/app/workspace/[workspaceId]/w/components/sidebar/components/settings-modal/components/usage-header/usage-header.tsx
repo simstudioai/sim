@@ -7,28 +7,21 @@ import {
   USAGE_PILL_COLORS,
   USAGE_THRESHOLDS,
 } from '@/lib/billing/client/usage-visualization'
-import { cn } from '@/lib/core/utils/cn'
 
 const PILL_COUNT = 5
 
 interface UsageHeaderProps {
   title: string
-  gradientTitle?: boolean
   showBadge?: boolean
   badgeText?: string
+  badgeVariant?: 'blue-secondary' | 'red'
   onBadgeClick?: () => void
   rightContent?: ReactNode
   current: number
   limit: number
-  progressValue?: number
   seatsText?: string
   isBlocked?: boolean
-  blockedReason?: 'payment_failed' | 'dispute' | null
-  blockedByOrgOwner?: boolean
-  onResolvePayment?: () => void
-  onContactSupport?: () => void
-  status?: 'ok' | 'warning' | 'exceeded' | 'blocked'
-  percentUsed?: number
+  progressValue?: number
 }
 
 /**
@@ -36,22 +29,16 @@ interface UsageHeaderProps {
  */
 export function UsageHeader({
   title,
-  gradientTitle = false,
   showBadge = false,
   badgeText,
+  badgeVariant = 'blue-secondary',
   onBadgeClick,
   rightContent,
   current,
   limit,
-  progressValue,
   seatsText,
   isBlocked,
-  blockedReason,
-  blockedByOrgOwner,
-  onResolvePayment,
-  onContactSupport,
-  status,
-  percentUsed,
+  progressValue,
 }: UsageHeaderProps) {
   const progress = progressValue ?? (limit > 0 ? Math.min((current / limit) * 100, 100) : 0)
   const filledPillsCount = Math.ceil((progress / 100) * PILL_COUNT)
@@ -66,21 +53,16 @@ export function UsageHeader({
       <div className='flex items-center justify-between'>
         {/* Left side: plan name and usage */}
         <div className='flex flex-col gap-[4px]'>
-          <span
-            className={cn(
-              'font-medium text-[12px]',
-              gradientTitle
-                ? 'gradient-text bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary'
-                : 'text-[var(--text-secondary)]'
-            )}
-          >
+          <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
             {title}
-            {seatsText && <span className='ml-[6px] text-[var(--text-muted)]'>({seatsText})</span>}
+            {seatsText && (
+              <span className='ml-[6px] text-[var(--text-tertiary)]'>({seatsText})</span>
+            )}
           </span>
           <div className='flex items-center gap-[4px]'>
             {isBlocked ? (
               <span className='font-medium text-[14px] text-[var(--text-error)]'>
-                Payment Required
+                Payment failed
               </span>
             ) : (
               <>
@@ -101,7 +83,11 @@ export function UsageHeader({
         {/* Right side: badge and pills */}
         <div className='flex flex-col items-end gap-[8px]'>
           {showBadge && badgeText && (
-            <Badge variant='blue-secondary' onClick={onBadgeClick}>
+            <Badge
+              variant={badgeVariant}
+              onClick={onBadgeClick}
+              className={onBadgeClick ? 'cursor-pointer' : 'cursor-default'}
+            >
               {badgeText}
             </Badge>
           )}
@@ -122,73 +108,6 @@ export function UsageHeader({
           </div>
         </div>
       </div>
-
-      {/* Status messages */}
-      {isBlocked && blockedReason === 'dispute' && (
-        <div className='flex items-center justify-between rounded-[6px] bg-[var(--surface-4)] px-[8px] py-[4px]'>
-          <span className='text-[12px] text-[var(--text-error)]'>
-            Account frozen. Please contact support to resolve this issue.
-          </span>
-          {onContactSupport && (
-            <button
-              type='button'
-              className='font-medium text-[12px] text-[var(--text-error)] underline underline-offset-2'
-              onClick={onContactSupport}
-            >
-              Get help
-            </button>
-          )}
-        </div>
-      )}
-
-      {isBlocked && blockedReason !== 'dispute' && !blockedByOrgOwner && (
-        <div className='flex items-center justify-between rounded-[6px] bg-[var(--surface-4)] px-[8px] py-[4px]'>
-          <span className='text-[12px] text-[var(--text-error)]'>
-            Payment failed. Please update your payment method.
-          </span>
-          {onResolvePayment && (
-            <button
-              type='button'
-              className='font-medium text-[12px] text-[var(--text-error)] underline underline-offset-2'
-              onClick={onResolvePayment}
-            >
-              Resolve payment
-            </button>
-          )}
-        </div>
-      )}
-
-      {isBlocked && blockedByOrgOwner && blockedReason !== 'dispute' && (
-        <div className='rounded-[6px] bg-[var(--surface-4)] px-[8px] py-[4px]'>
-          <span className='text-[12px] text-[var(--text-error)]'>
-            Organization billing issue. Please contact your organization owner.
-          </span>
-        </div>
-      )}
-
-      {isBlocked && blockedByOrgOwner && blockedReason === 'dispute' && (
-        <div className='rounded-[6px] bg-[var(--surface-4)] px-[8px] py-[4px]'>
-          <span className='text-[12px] text-[var(--text-error)]'>
-            Organization account frozen. Please contact support.
-          </span>
-        </div>
-      )}
-
-      {!isBlocked && status === 'exceeded' && (
-        <div className='rounded-[6px] bg-[var(--surface-4)] px-[8px] py-[4px]'>
-          <span className='text-[12px] text-[var(--warning)]'>
-            Usage limit exceeded. Increase your limit to continue.
-          </span>
-        </div>
-      )}
-
-      {!isBlocked && status === 'warning' && (
-        <div className='rounded-[6px] bg-[var(--surface-4)] px-[8px] py-[4px]'>
-          <span className='text-[12px] text-[var(--warning)]'>
-            {typeof percentUsed === 'number' ? `${percentUsed}%` : '80%+'} of your limit used.
-          </span>
-        </div>
-      )}
     </div>
   )
 }

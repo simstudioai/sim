@@ -306,7 +306,7 @@ export function WorkspaceHeader({
                 <>
                   <div className='relative flex items-center justify-between'>
                     <PopoverSection>Workspaces</PopoverSection>
-                    <div className='flex items-center gap-[6px]'>
+                    <div className='flex translate-y-[-2px] items-center gap-[6px]'>
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button

@@ -209,7 +209,7 @@ export function CustomTools() {
         <ModalContent className='w-[400px]'>
           <ModalHeader>Delete Custom Tool</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{toolToDelete?.name}</span>?{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>

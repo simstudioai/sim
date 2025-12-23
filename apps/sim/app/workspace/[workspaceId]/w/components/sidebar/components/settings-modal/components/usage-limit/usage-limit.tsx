@@ -2,8 +2,8 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Check, Pencil, X } from 'lucide-react'
-import { Button } from '@/components/emcn'
+import { Check, X } from 'lucide-react'
+import { Badge, Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useUpdateUsageLimit } from '@/hooks/queries/subscription'
@@ -172,10 +172,12 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
     const inputWidthCh = Math.max(3, inputValue.length + 1)
 
     return (
-      <div className='flex items-center'>
+      <div className='flex items-center gap-[6px]'>
         {isEditing ? (
           <>
-            <span className='text-[var(--text-muted)] text-xs tabular-nums'>$</span>
+            <span className='font-medium text-[14px] text-[var(--text-primary)] tabular-nums'>
+              $
+            </span>
             <input
               ref={inputRef}
               type='number'
@@ -190,7 +192,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
                 handleSubmit()
               }}
               className={cn(
-                'border-0 bg-transparent p-0 text-xs tabular-nums',
+                'border-0 bg-transparent p-0 font-medium text-[14px] text-[var(--text-primary)] tabular-nums',
                 'outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
                 '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
                 hasError && 'text-[var(--text-error)]'
@@ -204,35 +206,36 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
               spellCheck='false'
               style={{ width: `${inputWidthCh}ch` }}
             />
+            <Button
+              variant='ghost'
+              className='h-[12px] w-[12px] flex-shrink-0 p-0'
+              onClick={handleSubmit}
+              disabled={isUpdating}
+              aria-label='Save limit'
+            >
+              {hasError ? (
+                <X className='h-[12px] w-[12px] text-[var(--text-error)]' />
+              ) : (
+                <Check className='h-[12px] w-[12px]' />
+              )}
+            </Button>
           </>
         ) : (
-          <span className='text-[var(--text-muted)] text-xs tabular-nums'>
-            ${pendingLimit !== null ? pendingLimit : currentLimit}
-          </span>
-        )}
-        {canEdit && (
-          <Button
-            variant='ghost'
-            className={cn(
-              'ml-1 h-4 w-4 p-0 transition-colors hover:bg-transparent',
-              hasError
-                ? 'text-[var(--text-error)] hover:text-[var(--text-error)]'
-                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+          <>
+            <span className='font-medium text-[14px] text-[var(--text-primary)] tabular-nums'>
+              ${pendingLimit !== null ? pendingLimit : currentLimit}
+            </span>
+            {canEdit && (
+              <Badge
+                size='sm'
+                variant='outline'
+                className='cursor-pointer'
+                onClick={handleStartEdit}
+              >
+                Edit Limit
+              </Badge>
             )}
-            onClick={isEditing ? handleSubmit : handleStartEdit}
-            disabled={isUpdating}
-          >
-            {isEditing ? (
-              hasError ? (
-                <X className='!h-3 !w-3' />
-              ) : (
-                <Check className='!h-3 !w-3' />
-              )
-            ) : (
-              <Pencil className='!h-3 !w-3' />
-            )}
-            <span className='sr-only'>{isEditing ? 'Save limit' : 'Edit limit'}</span>
-          </Button>
+          </>
         )}
       </div>
     )

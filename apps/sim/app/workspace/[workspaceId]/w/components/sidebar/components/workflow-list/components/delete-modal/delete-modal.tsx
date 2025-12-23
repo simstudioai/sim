@@ -105,7 +105,7 @@ export function DeleteModal({
       <ModalContent className='w-[400px]'>
         <ModalHeader>{title}</ModalHeader>
         <ModalBody>
-          <p className='text-[12px] text-[var(--text-tertiary)]'>
+          <p className='text-[12px] text-[var(--text-secondary)]'>
             {renderDescription()}{' '}
             <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
           </p>

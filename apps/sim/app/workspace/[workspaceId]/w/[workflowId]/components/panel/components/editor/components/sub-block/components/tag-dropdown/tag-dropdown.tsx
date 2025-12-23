@@ -68,10 +68,15 @@ interface TagDropdownProps {
 }
 
 /**
- * Checks if the tag trigger (<) should show the tag dropdown
- * @param text - The full text content
- * @param cursorPosition - Current cursor position
- * @returns Object indicating whether to show the dropdown
+ * Checks if the tag trigger (`<`) should show the tag dropdown.
+ *
+ * @remarks
+ * The dropdown appears when there's an unclosed `<` bracket before the cursor.
+ * A closing `>` bracket after the last `<` will prevent the dropdown from showing.
+ *
+ * @param text - The full text content of the input field
+ * @param cursorPosition - Current cursor position in the text
+ * @returns Object with `show` property indicating whether to display the dropdown
  */
 export const checkTagTrigger = (text: string, cursorPosition: number): { show: boolean } => {
   if (cursorPosition >= 1) {
@@ -86,6 +91,17 @@ export const checkTagTrigger = (text: string, cursorPosition: number): { show: b
   return { show: false }
 }
 
+/**
+ * Extracts the search term for tag filtering from the current input.
+ *
+ * @remarks
+ * Returns the text between the last unclosed `<` and the cursor position,
+ * converted to lowercase for case-insensitive matching.
+ *
+ * @param text - The full text content of the input field
+ * @param cursorPosition - Current cursor position in the text
+ * @returns The search term for filtering tags, or empty string if not in tag context
+ */
 export const getTagSearchTerm = (text: string, cursorPosition: number): string => {
   if (cursorPosition <= 0) {
     return ''
@@ -107,6 +123,9 @@ export const getTagSearchTerm = (text: string, cursorPosition: number): string =
   return textBeforeCursor.slice(lastOpenBracket + 1).toLowerCase()
 }
 
+/**
+ * Color constants for block type icons in the tag dropdown.
+ */
 const BLOCK_COLORS = {
   VARIABLE: '#2F8BFF',
   DEFAULT: '#2F55FF',
@@ -114,6 +133,9 @@ const BLOCK_COLORS = {
   PARALLEL: '#FEE12B',
 } as const
 
+/**
+ * Prefix constants for special tag types.
+ */
 const TAG_PREFIXES = {
   VARIABLE: 'variable.',
 } as const
@@ -128,14 +150,29 @@ const ensureRootTag = (tags: string[], rootTag: string): string[] => {
 }
 
 /**
- * Gets a subblock value from the store
+ * Gets a subblock value from the store.
+ *
+ * @param blockId - The block identifier
+ * @param property - The property name to retrieve
+ * @returns The value from the subblock store
  */
 const getSubBlockValue = (blockId: string, property: string): any => {
   return useSubBlockStore.getState().getValue(blockId, property)
 }
 
 /**
- * Gets the output type for a specific path in a block's outputs
+ * Gets the output type for a specific path in a block's outputs.
+ *
+ * @remarks
+ * Handles special cases for trigger blocks, starter blocks with chat mode,
+ * and tool-based operations.
+ *
+ * @param block - The block state
+ * @param blockConfig - The block configuration, or null
+ * @param blockId - The block identifier
+ * @param outputPath - The dot-separated path to the output field
+ * @param mergedSubBlocksOverride - Optional override for subblock values
+ * @returns The type of the output field (e.g., 'string', 'array', 'any')
  */
 const getOutputTypeForPath = (
   block: BlockState,
@@ -181,7 +218,15 @@ const getOutputTypeForPath = (
 }
 
 /**
- * Recursively generates all output paths from an outputs schema
+ * Recursively generates all output paths from an outputs schema.
+ *
+ * @remarks
+ * Traverses nested objects and arrays to build dot-separated paths
+ * for all leaf values in the schema.
+ *
+ * @param outputs - The outputs schema object
+ * @param prefix - Current path prefix for recursion
+ * @returns Array of dot-separated paths to all output fields
  */
 const generateOutputPaths = (outputs: Record<string, any>, prefix = ''): string[] => {
   const paths: string[] = []
@@ -230,7 +275,15 @@ const generateOutputPaths = (outputs: Record<string, any>, prefix = ''): string[
 }
 
 /**
- * Recursively generates all output paths with their types from an outputs schema
+ * Recursively generates all output paths with their types from an outputs schema.
+ *
+ * @remarks
+ * Similar to generateOutputPaths but also captures the type information
+ * for each path, useful for displaying type hints in the UI.
+ *
+ * @param outputs - The outputs schema object
+ * @param prefix - Current path prefix for recursion
+ * @returns Array of objects containing path and type for each output field
  */
 const generateOutputPathsWithTypes = (
   outputs: Record<string, any>,
@@ -269,7 +322,11 @@ const generateOutputPathsWithTypes = (
 }
 
 /**
- * Generates output paths for a tool-based block
+ * Generates output paths for a tool-based block.
+ *
+ * @param blockConfig - The block configuration containing tools config
+ * @param operation - The selected operation for the tool
+ * @returns Array of output paths for the tool, or empty array on error
  */
 const generateToolOutputPaths = (blockConfig: BlockConfig, operation: string): string[] => {
   if (!blockConfig?.tools?.config?.tool) return []
@@ -289,7 +346,12 @@ const generateToolOutputPaths = (blockConfig: BlockConfig, operation: string): s
 }
 
 /**
- * Gets the output type for a specific path in a tool's outputs
+ * Gets the output type for a specific path in a tool's outputs.
+ *
+ * @param blockConfig - The block configuration containing tools config
+ * @param operation - The selected operation for the tool
+ * @param path - The dot-separated path to the output field
+ * @returns The type of the output field, or 'any' if not found
  */
 const getToolOutputType = (blockConfig: BlockConfig, operation: string, path: string): string => {
   if (!blockConfig?.tools?.config?.tool) return 'any'
@@ -311,7 +373,16 @@ const getToolOutputType = (blockConfig: BlockConfig, operation: string, path: st
 }
 
 /**
- * Calculates the viewport position of the caret in a textarea/input
+ * Calculates the viewport position of the caret in a textarea/input.
+ *
+ * @remarks
+ * Creates a hidden mirror div with identical styling to measure the
+ * precise position of the caret for popover anchoring.
+ *
+ * @param element - The textarea or input element
+ * @param caretPosition - The character position of the caret
+ * @param text - The text content of the element
+ * @returns Object with `left` and `top` viewport coordinates
  */
 const getCaretViewportPosition = (
   element: HTMLTextAreaElement | HTMLInputElement,
@@ -361,7 +432,15 @@ const getCaretViewportPosition = (
 }
 
 /**
- * Renders a tag icon with background color - can use either a React icon component or a letter
+ * Renders a tag icon with background color.
+ *
+ * @remarks
+ * Supports either a React icon component or a single letter string
+ * for flexible icon display in the tag dropdown.
+ *
+ * @param icon - Either a letter string or a Lucide icon component
+ * @param color - Background color for the icon container
+ * @returns A styled icon element
  */
 const TagIcon: React.FC<{
   icon: string | React.ComponentType<{ className?: string }>
@@ -383,7 +462,18 @@ const TagIcon: React.FC<{
 )
 
 /**
- * Wrapper for PopoverBackButton that handles parent tag navigation
+ * Wrapper for PopoverBackButton that handles parent tag navigation.
+ *
+ * @remarks
+ * Extends the base PopoverBackButton to support selecting the parent tag
+ * when navigating back from a nested folder view.
+ *
+ * @param selectedIndex - Currently selected item index
+ * @param setSelectedIndex - Callback to update selection
+ * @param flatTagList - Flat list of all available tags
+ * @param nestedBlockTagGroups - Groups of nested block tags
+ * @param itemRefs - Refs to item DOM elements for scrolling
+ * @returns The back button component with parent tag support
  */
 const TagDropdownBackButton: React.FC<{
   selectedIndex: number
@@ -432,8 +522,26 @@ const TagDropdownBackButton: React.FC<{
 }
 
 /**
- * TagDropdown component that displays available tags (variables and block outputs)
- * for selection in input fields. Uses the Popover component system for consistent styling.
+ * TagDropdown component that displays available tags for selection in input fields.
+ *
+ * @remarks
+ * Displays variables and block outputs that can be referenced in workflow inputs.
+ * Uses the Popover component system for consistent styling and positioning.
+ * Supports keyboard navigation, search filtering, and nested folder views.
+ *
+ * @example
+ * ```tsx
+ * <TagDropdown
+ *   visible={showDropdown}
+ *   onSelect={handleTagSelect}
+ *   blockId={currentBlockId}
+ *   activeSourceBlockId={null}
+ *   inputValue={inputText}
+ *   cursorPosition={cursor}
+ *   onClose={() => setShowDropdown(false)}
+ *   inputRef={textareaRef}
+ * />
+ * ```
  */
 export const TagDropdown: React.FC<TagDropdownProps> = ({
   visible,

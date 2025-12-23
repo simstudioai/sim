@@ -29,7 +29,7 @@ export function RemoveMemberDialog({
       <ModalContent className='w-[400px]'>
         <ModalHeader>{isSelfRemoval ? 'Leave Organization' : 'Remove Team Member'}</ModalHeader>
         <ModalBody>
-          <p className='text-[12px] text-[var(--text-muted)]'>
+          <p className='text-[12px] text-[var(--text-secondary)]'>
             {isSelfRemoval
               ? 'Are you sure you want to leave this organization? You will lose access to all team resources.'
               : `Are you sure you want to remove ${memberName} from the team?`}{' '}

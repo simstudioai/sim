@@ -222,7 +222,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
           )}
         </div>
         <Button
-          variant='default'
+          variant='active'
           onClick={() => setIsDialogOpen(true)}
           disabled={isLoading}
           className={cn(
@@ -240,7 +240,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
             {isCancelAtPeriodEnd ? 'Restore' : 'Cancel'} {subscription.plan} Subscription
           </ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               {isCancelAtPeriodEnd
                 ? 'Your subscription is set to cancel at the end of the billing period. Would you like to keep your subscription active?'
                 : `You'll be redirected to Stripe to manage your subscription. You'll keep access until ${formatDate(
@@ -254,11 +254,11 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
             {!isCancelAtPeriodEnd && (
               <div className='mt-[12px]'>
                 <div className='rounded-[6px] bg-[var(--surface-4)] p-[12px]'>
-                  <ul className='space-y-[4px] text-[12px] text-[var(--text-muted)]'>
-                    <li>• Keep all features until {formatDate(periodEndDate)}</li>
-                    <li>• No more charges</li>
-                    <li>• Data preserved</li>
-                    <li>• Can reactivate anytime</li>
+                  <ul className='space-y-[4px] text-[12px] text-[var(--text-secondary)]'>
+                    <li>- Keep all features until {formatDate(periodEndDate)}</li>
+                    <li>- No more charges</li>
+                    <li>- Data preserved</li>
+                    <li>- Can reactivate anytime</li>
                   </ul>
                 </div>
               </div>
@@ -266,7 +266,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
           </ModalBody>
           <ModalFooter>
             <Button
-              variant='default'
+              variant='active'
               onClick={isCancelAtPeriodEnd ? () => setIsDialogOpen(false) : handleKeep}
               disabled={isLoading}
             >

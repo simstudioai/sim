@@ -81,6 +81,10 @@ interface StatusTextConfig {
 
 /**
  * Determines if user can manage billing based on plan type and org role.
+ *
+ * @param planType - The user's current plan type
+ * @param orgRole - The user's role in the organization, if applicable
+ * @returns True if the user has billing management permissions
  */
 function canManageBilling(planType: PlanType, orgRole: OrgRole | null): boolean {
   if (planType === 'free' || planType === 'pro') return true
@@ -92,17 +96,18 @@ function canManageBilling(planType: PlanType, orgRole: OrgRole | null): boolean 
 
 /**
  * Determines the badge configuration based on display state.
- * Note: Free users cannot be blocked (no payment method on file).
+ *
+ * Priority order:
+ * 1. Blocked/dispute states (all users including free with past due payments)
+ * 2. Free users see upgrade badge
+ * 3. Critical usage shows "Get Help" (enterprise) or "Set Limit" (others)
+ *
+ * @param state - The current display state
+ * @returns Badge configuration with visibility, variant, and label
  */
 function getBadgeConfig(state: DisplayState): BadgeConfig {
   const { isBlocked, isDispute, planType, isCritical, canManageBilling } = state
 
-  // Free users only see upgrade (they cannot be blocked)
-  if (planType === 'free') {
-    return { show: true, variant: 'blue-secondary', label: 'Upgrade' }
-  }
-
-  // Blocked states - only for paid plans, only show to billing managers
   if (isDispute && canManageBilling) {
     return { show: true, variant: 'red', label: 'Get Help' }
   }
@@ -110,7 +115,10 @@ function getBadgeConfig(state: DisplayState): BadgeConfig {
     return { show: true, variant: 'red', label: 'Fix Now' }
   }
 
-  // Critical usage - enterprise shows "Get Help", others show "Set Limit"
+  if (planType === 'free') {
+    return { show: true, variant: 'blue-secondary', label: 'Upgrade' }
+  }
+
   if (isCritical && canManageBilling) {
     const label = planType === 'enterprise' ? 'Get Help' : 'Set Limit'
     return { show: true, variant: 'red', label }
@@ -120,16 +128,21 @@ function getBadgeConfig(state: DisplayState): BadgeConfig {
 }
 
 /**
- * Determines the status text configuration.
+ * Determines the status text configuration for the usage display.
+ *
+ * @param isBlocked - Whether billing is blocked
+ * @param isDispute - Whether there is a payment dispute
+ * @param usage - Current and limit usage values
+ * @returns Status text configuration with display text and error state
  */
 function getStatusTextConfig(
   isBlocked: boolean,
   isDispute: boolean,
   usage: { current: number; limit: number }
 ): StatusTextConfig {
-  if (isBlocked) {
+  if (isBlocked || isDispute) {
     return {
-      text: isDispute ? 'Account Frozen' : 'Payment Required',
+      text: 'Payment failed',
       isError: true,
     }
   }
@@ -140,7 +153,14 @@ function getStatusTextConfig(
 }
 
 /**
- * Calculates whether plan text fits based on available space.
+ * Calculates whether plan text fits based on available sidebar space.
+ *
+ * @param planType - The user's current plan type
+ * @param usage - Current and limit usage values
+ * @param sidebarWidth - Current sidebar width in pixels
+ * @param badgeShowing - Whether a badge is currently displayed
+ * @param isBlocked - Whether billing is blocked
+ * @returns True if plan text should be displayed
  */
 function shouldShowPlanText(
   planType: PlanType,
@@ -274,7 +294,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   if (isLoading) {
     return (
       <div className='flex flex-shrink-0 flex-col gap-[8px] border-t px-[13.5px] pt-[8px] pb-[10px]'>
-        <div className='flex items-center justify-between'>
+        <div className='flex h-[18px] items-center justify-between'>
           <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
             <Skeleton className='h-[12px] w-[28px] rounded-[4px]' />
             <div className='h-[14px] w-[1.5px] flex-shrink-0 bg-[var(--divider)]' />
@@ -345,7 +365,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Top row */}
-      <div className='flex items-center justify-between'>
+      <div className='flex h-[18px] items-center justify-between'>
         <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
           {showPlanText && (
             <>
@@ -374,7 +394,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
           </div>
         </div>
         {badgeConfig.show && (
-          <Badge variant={badgeConfig.variant} size='sm'>
+          <Badge variant={badgeConfig.variant} size='sm' className='-translate-y-[1px]'>
             {badgeConfig.label}
           </Badge>
         )}
@@ -386,25 +406,18 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
           const isFilled = i < filledPillsCount
           const baseColor = isFilled ? filledColor : USAGE_PILL_COLORS.UNFILLED
 
-          let backgroundColor = baseColor
+          const backgroundColor = baseColor
           let backgroundImage: string | undefined
 
-          if (isHovered && wavePosition !== null && pillCount > 0) {
+          if (isHovered && wavePosition !== null) {
             const headIndex = Math.floor(wavePosition)
-            const progress = wavePosition - headIndex
             const pillOffsetFromStart = i - startAnimationIndex
 
             if (pillOffsetFromStart >= 0 && pillOffsetFromStart < headIndex) {
-              backgroundColor = isFilled ? baseColor : USAGE_PILL_COLORS.UNFILLED
-              backgroundImage = `linear-gradient(to right, ${filledColor} 0%, ${filledColor} 100%)`
+              backgroundImage = `linear-gradient(to right, ${filledColor}, ${filledColor})`
             } else if (pillOffsetFromStart === headIndex) {
-              const fillPercent = Math.max(0, Math.min(1, progress)) * 100
-              backgroundColor = isFilled ? baseColor : USAGE_PILL_COLORS.UNFILLED
-              backgroundImage = `linear-gradient(to right, ${filledColor} 0%, ${filledColor} ${fillPercent}%, ${
-                isFilled ? baseColor : USAGE_PILL_COLORS.UNFILLED
-              } ${fillPercent}%, ${isFilled ? baseColor : USAGE_PILL_COLORS.UNFILLED} 100%)`
-            } else if (pillOffsetFromStart > headIndex) {
-              backgroundColor = isFilled ? baseColor : USAGE_PILL_COLORS.UNFILLED
+              const fillPercent = (wavePosition - headIndex) * 100
+              backgroundImage = `linear-gradient(to right, ${filledColor} ${fillPercent}%, ${baseColor} ${fillPercent}%)`
             }
           }
 

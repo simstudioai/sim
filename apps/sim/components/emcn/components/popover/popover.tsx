@@ -469,7 +469,12 @@ const PopoverScrollArea = React.forwardRef<HTMLDivElement, PopoverScrollAreaProp
   ({ className, ...props }, ref) => {
     return (
       <div
-        className={cn('min-h-0 overflow-auto overscroll-contain', className)}
+        className={cn(
+          'min-h-0 overflow-auto overscroll-contain',
+          // Add margin to wrapper divs containing sections (not individual items)
+          '[&>div:has([data-popover-section]):not(:first-child)]:mt-[6px]',
+          className
+        )}
         ref={ref}
         {...props}
       />
@@ -599,7 +604,7 @@ const PopoverSection = React.forwardRef<HTMLDivElement, PopoverSectionProps>(
     return (
       <div
         className={cn(
-          'min-w-0 font-base text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]',
+          'mt-[6px] min-w-0 font-base text-[var(--text-tertiary)] first:mt-0 first:pt-0 dark:text-[var(--text-tertiary)]',
           POPOVER_SECTION_SIZE_CLASSES[size],
           className
         )}
@@ -745,6 +750,7 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
         <div
           ref={ref}
           className={cn(
+            'peer',
             POPOVER_ITEM_BASE_CLASSES,
             POPOVER_ITEM_SIZE_CLASSES[size],
             POPOVER_ITEM_HOVER_CLASSES[variant],
@@ -765,7 +771,9 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
               POPOVER_ITEM_SIZE_CLASSES[size],
               folderTitleActive
                 ? POPOVER_ITEM_ACTIVE_CLASSES[variant]
-                : POPOVER_ITEM_HOVER_CLASSES[variant]
+                : POPOVER_ITEM_HOVER_CLASSES[variant],
+              // Hide active/hover background when back button is hovered
+              'peer-hover:!bg-transparent'
             )}
             role='button'
             onClick={(e) => {

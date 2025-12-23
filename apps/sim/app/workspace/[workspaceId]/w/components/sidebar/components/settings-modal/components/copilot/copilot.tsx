@@ -313,7 +313,7 @@ export function Copilot() {
         <ModalContent className='w-[400px]'>
           <ModalHeader>Delete API key</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Deleting{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {deleteKey?.name || 'Unnamed Key'}

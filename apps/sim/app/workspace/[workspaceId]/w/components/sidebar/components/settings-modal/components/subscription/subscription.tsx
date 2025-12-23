@@ -1,11 +1,13 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { Info } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Combobox, Label, Switch } from '@/components/emcn'
+import { Combobox, Label, Switch, Tooltip } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
+import { USAGE_THRESHOLDS } from '@/lib/billing/client/usage-visualization'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
@@ -57,18 +59,27 @@ interface WorkspaceAdmin {
 function SubscriptionSkeleton() {
   return (
     <div className='flex h-full flex-col gap-[20px]'>
-      {/* Current Plan & Usage Header */}
-      <div className='flex items-center justify-between'>
-        <div className='flex flex-col gap-[4px]'>
-          <Skeleton className='h-[14px] w-[64px] rounded-[4px]' />
-          <Skeleton className='h-[17px] w-[90px] rounded-[4px]' />
-        </div>
-        <div className='flex flex-col items-end gap-[8px]'>
-          <Skeleton className='h-[22px] w-[47px] rounded-[4px]' />
-          <div className='flex w-[100px] items-center gap-[4px]'>
-            {[...Array(5)].map((_, i) => (
-              <Skeleton key={i} className='h-[6px] flex-1 rounded-[2px]' />
-            ))}
+      {/* UsageHeader skeleton */}
+      <div className='flex flex-col gap-[12px]'>
+        <div className='flex items-center justify-between'>
+          {/* Left side: plan name and usage */}
+          <div className='flex flex-col gap-[4px]'>
+            <div className='flex h-[18px] items-center'>
+              <Skeleton className='h-[12px] w-[40px] rounded-[4px]' />
+            </div>
+            <div className='flex h-[21px] items-center gap-[4px]'>
+              <Skeleton className='h-[14px] w-[50px] rounded-[4px]' />
+              <span className='font-medium text-[14px] text-[var(--text-primary)]'>/</span>
+              <Skeleton className='h-[14px] w-[50px] rounded-[4px]' />
+            </div>
+          </div>
+          {/* Right side: pills */}
+          <div className='flex flex-col items-end gap-[8px]'>
+            <div className='flex w-[100px] items-center gap-[4px]'>
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} className='h-[6px] flex-1 rounded-[2px]' />
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -78,58 +89,68 @@ function SubscriptionSkeleton() {
         {/* Pro and Team Cards Grid */}
         <div className='grid grid-cols-2 gap-[10px]'>
           {/* Pro Plan Card */}
-          <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-            <div className='flex items-center justify-between gap-[8px] border-[var(--border-1)] border-b px-[14px] py-[10px]'>
+          <article className='flex flex-1 flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
+            <div className='flex items-center justify-between gap-[8px] px-[14px] py-[10px]'>
               <Skeleton className='h-[14px] w-[24px] rounded-[4px]' />
-              <Skeleton className='h-[17px] w-[80px] rounded-[4px]' />
+              <div className='flex items-baseline'>
+                <Skeleton className='h-[14px] w-[28px] rounded-[4px]' />
+                <Skeleton className='ml-[4px] h-[12px] w-[40px] rounded-[4px]' />
+              </div>
             </div>
-            <div className='flex flex-1 flex-col gap-[14px] px-[14px] py-[12px]'>
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className='flex items-center gap-[8px]'>
-                  <Skeleton className='h-[12px] w-[12px] rounded-[4px]' />
-                  <Skeleton className='h-[14px] w-[120px] rounded-[4px]' />
-                </div>
-              ))}
-              <Skeleton className='h-[30px] w-full rounded-[4px]' />
+            <div className='flex flex-1 flex-col gap-[16px] rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[16px]'>
+              <ul className='flex flex-1 flex-col gap-[14px]'>
+                {[...Array(6)].map((_, i) => (
+                  <li key={i} className='flex items-center gap-[8px]'>
+                    <Skeleton className='h-[12px] w-[12px] flex-shrink-0 rounded-[4px]' />
+                    <Skeleton className='h-[12px] w-[120px] rounded-[4px]' />
+                  </li>
+                ))}
+              </ul>
+              <Skeleton className='h-[28px] w-full rounded-[5px]' />
             </div>
-          </div>
+          </article>
 
           {/* Team Plan Card */}
-          <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-            <div className='flex items-center justify-between gap-[8px] border-[var(--border-1)] border-b px-[14px] py-[10px]'>
+          <article className='flex flex-1 flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
+            <div className='flex items-center justify-between gap-[8px] px-[14px] py-[10px]'>
               <Skeleton className='h-[14px] w-[32px] rounded-[4px]' />
-              <Skeleton className='h-[17px] w-[80px] rounded-[4px]' />
+              <div className='flex items-baseline'>
+                <Skeleton className='h-[14px] w-[28px] rounded-[4px]' />
+                <Skeleton className='ml-[4px] h-[12px] w-[40px] rounded-[4px]' />
+              </div>
             </div>
-            <div className='flex flex-1 flex-col gap-[14px] px-[14px] py-[12px]'>
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className='flex items-center gap-[8px]'>
-                  <Skeleton className='h-[12px] w-[12px] rounded-[4px]' />
-                  <Skeleton className='h-[14px] w-[130px] rounded-[4px]' />
-                </div>
-              ))}
-              <Skeleton className='h-[30px] w-full rounded-[4px]' />
+            <div className='flex flex-1 flex-col gap-[16px] rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[16px]'>
+              <ul className='flex flex-1 flex-col gap-[14px]'>
+                {[...Array(5)].map((_, i) => (
+                  <li key={i} className='flex items-center gap-[8px]'>
+                    <Skeleton className='h-[12px] w-[12px] flex-shrink-0 rounded-[4px]' />
+                    <Skeleton className='h-[12px] w-[130px] rounded-[4px]' />
+                  </li>
+                ))}
+              </ul>
+              <Skeleton className='h-[28px] w-full rounded-[5px]' />
             </div>
-          </div>
+          </article>
         </div>
 
-        {/* Enterprise Card - Horizontal Layout */}
-        <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-          <div className='flex items-center justify-between gap-[8px] border-[var(--border-1)] border-b px-[14px] py-[10px]'>
-            <div className='flex flex-col gap-[6px]'>
-              <Skeleton className='h-[14px] w-[64px] rounded-[4px]' />
-              <Skeleton className='h-[17px] w-[48px] rounded-[4px]' />
-            </div>
-            <Skeleton className='h-[30px] w-[88px] rounded-[4px]' />
+        {/* Enterprise Card - inlineButton layout */}
+        <article className='flex flex-1 flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
+          <div className='flex items-center justify-between gap-[8px] px-[14px] py-[10px]'>
+            <Skeleton className='h-[14px] w-[64px] rounded-[4px]' />
+            <div className='flex items-baseline' />
           </div>
-          <div className='flex items-center gap-[8px] px-[14px] py-[12px]'>
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className='flex items-center gap-[8px]'>
-                <Skeleton className='h-[12px] w-[12px] rounded-[4px]' />
-                <Skeleton className='h-[14px] w-[100px] rounded-[4px]' />
-              </div>
-            ))}
+          <div className='flex items-center justify-between gap-[16px] rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[12px]'>
+            <ul className='flex flex-row flex-wrap items-center gap-x-[16px] gap-y-[8px]'>
+              {[...Array(5)].map((_, i) => (
+                <li key={i} className='flex items-center gap-[8px]'>
+                  <Skeleton className='h-[12px] w-[12px] flex-shrink-0 rounded-[4px]' />
+                  <Skeleton className='h-[12px] w-[100px] rounded-[4px]' />
+                </li>
+              ))}
+            </ul>
+            <Skeleton className='h-[28px] w-[64px] flex-shrink-0 rounded-[5px]' />
           </div>
-        </div>
+        </article>
       </div>
     </div>
   )
@@ -197,7 +218,13 @@ export function Subscription() {
     minimumLimit: usageLimitResponse?.data?.minimumLimit || (subscription.isPro ? 20 : 40),
   }
 
-  const billingStatus = subscriptionData?.data?.billingBlocked ? 'blocked' : 'ok'
+  const isBlocked = Boolean(subscriptionData?.data?.billingBlocked)
+  const blockedReason = subscriptionData?.data?.billingBlockedReason as
+    | 'payment_failed'
+    | 'dispute'
+    | null
+  const isDispute = isBlocked && blockedReason === 'dispute'
+  const isCritical = isBlocked || usage.percentUsed >= USAGE_THRESHOLDS.CRITICAL
 
   const billedAccountUserId = workspaceData?.settings?.workspace?.billedAccountUserId ?? null
   const workspaceAdmins: WorkspaceAdmin[] =
@@ -262,16 +289,25 @@ export function Subscription() {
     }
   )
 
-  const showBadge = permissions.canEditUsageLimit && !permissions.showTeamMemberView
-  const badgeText = subscription.isFree ? 'Upgrade' : 'Increase Limit'
+  const showBadge =
+    (permissions.canEditUsageLimit && !permissions.showTeamMemberView) ||
+    permissions.showTeamMemberView ||
+    subscription.isEnterprise ||
+    isBlocked
 
-  const handleBadgeClick = () => {
-    if (subscription.isFree) {
-      handleUpgrade('pro')
-    } else if (permissions.canEditUsageLimit && usageLimitRef.current) {
-      usageLimitRef.current.startEdit()
+  const getBadgeConfig = (): { text: string; variant: 'blue-secondary' | 'red' } => {
+    if (permissions.showTeamMemberView || subscription.isEnterprise) {
+      return { text: `${subscription.seats} seats`, variant: 'blue-secondary' }
     }
+    if (isDispute) return { text: 'Get Help', variant: 'red' }
+    if (isBlocked) return { text: 'Fix Now', variant: 'red' }
+    if (subscription.isFree) return { text: 'Upgrade', variant: 'blue-secondary' }
+    if (isCritical && permissions.canEditUsageLimit) {
+      return { text: 'Increase Limit', variant: 'red' }
+    }
+    return { text: 'Increase Limit', variant: 'blue-secondary' }
   }
+  const badgeConfig = getBadgeConfig()
 
   const handleUpgradeWithErrorHandling = useCallback(
     async (targetPlan: TargetPlan) => {
@@ -283,6 +319,60 @@ export function Subscription() {
     },
     [handleUpgrade]
   )
+
+  const handleBadgeClick = useCallback(async () => {
+    // Dispute: open help modal
+    if (isDispute) {
+      window.dispatchEvent(new CustomEvent('open-help-modal'))
+      return
+    }
+
+    // Blocked: open billing portal
+    if (isBlocked) {
+      try {
+        const context = subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
+        const res = await fetch('/api/billing/portal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            context,
+            organizationId: activeOrgId,
+            returnUrl: `${getBaseUrl()}/workspace?billing=updated`,
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok || !data?.url) {
+          throw new Error(data?.error || 'Failed to start billing portal')
+        }
+        window.location.href = data.url
+      } catch (e) {
+        logger.error('Failed to open billing portal', { error: e })
+        alert(e instanceof Error ? e.message : 'Failed to open billing portal')
+      }
+      return
+    }
+
+    // Free: upgrade to pro
+    if (subscription.isFree) {
+      handleUpgradeWithErrorHandling('pro')
+      return
+    }
+
+    // Paid: edit usage limit
+    if (permissions.canEditUsageLimit && usageLimitRef.current) {
+      usageLimitRef.current.startEdit()
+    }
+  }, [
+    isDispute,
+    isBlocked,
+    subscription.isFree,
+    subscription.isTeam,
+    subscription.isEnterprise,
+    activeOrgId,
+    permissions.canEditUsageLimit,
+    handleUpgradeWithErrorHandling,
+    logger,
+  ])
 
   const renderPlanCard = useCallback(
     (planType: 'pro' | 'team' | 'enterprise', options?: { horizontal?: boolean }) => {
@@ -346,10 +436,10 @@ export function Subscription() {
       {/* Current Plan & Usage Overview */}
       <UsageHeader
         title={formatPlanName(subscription.plan)}
-        gradientTitle={!subscription.isFree}
         showBadge={showBadge}
-        badgeText={badgeText}
-        onBadgeClick={handleBadgeClick}
+        badgeText={badgeConfig.text}
+        badgeVariant={badgeConfig.variant}
+        onBadgeClick={permissions.showTeamMemberView ? undefined : handleBadgeClick}
         seatsText={
           permissions.canManageTeam || subscription.isEnterprise
             ? `${subscription.seats} seats`
@@ -370,43 +460,8 @@ export function Subscription() {
               ? usage.current // placeholder; rightContent will render UsageLimit
               : usage.limit
         }
-        isBlocked={Boolean(subscriptionData?.data?.billingBlocked)}
-        blockedReason={subscriptionData?.data?.billingBlockedReason}
-        blockedByOrgOwner={Boolean(subscriptionData?.data?.blockedByOrgOwner)}
-        status={billingStatus}
-        percentUsed={
-          subscription.isEnterprise || subscription.isTeam
-            ? organizationBillingData?.totalUsageLimit &&
-              organizationBillingData.totalUsageLimit > 0 &&
-              organizationBillingData.totalCurrentUsage !== undefined
-              ? (organizationBillingData.totalCurrentUsage /
-                  organizationBillingData.totalUsageLimit) *
-                100
-              : usage.percentUsed
-            : usage.percentUsed
-        }
-        onContactSupport={() => {
-          window.dispatchEvent(new CustomEvent('open-help-modal'))
-        }}
-        onResolvePayment={async () => {
-          try {
-            const res = await fetch('/api/billing/portal', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                context: subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user',
-                organizationId: activeOrgId,
-                returnUrl: `${getBaseUrl()}/workspace?billing=updated`,
-              }),
-            })
-            const data = await res.json()
-            if (!res.ok || !data?.url)
-              throw new Error(data?.error || 'Failed to start billing portal')
-            window.location.href = data.url
-          } catch (e) {
-            alert(e instanceof Error ? e.message : 'Failed to open billing portal')
-          }
-        }}
+        isBlocked={isBlocked}
+        progressValue={Math.min(usage.percentUsed, 100)}
         rightContent={
           !subscription.isFree &&
           (permissions.canEditUsageLimit || permissions.showTeamMemberView) ? (
@@ -432,22 +487,7 @@ export function Subscription() {
             />
           ) : undefined
         }
-        progressValue={Math.min(usage.percentUsed, 100)}
       />
-
-      {/* Enterprise Usage Limit Notice */}
-      {subscription.isEnterprise && (
-        <p className='text-center text-[12px] text-[var(--text-muted)]'>
-          Contact enterprise for support usage limit changes
-        </p>
-      )}
-
-      {/* Team Member Notice */}
-      {permissions.showTeamMemberView && (
-        <p className='text-center text-[12px] text-[var(--text-muted)]'>
-          Contact your team admin to increase limits
-        </p>
-      )}
 
       {/* Upgrade Plans */}
       {permissions.showUpgradePlans && (
@@ -456,6 +496,12 @@ export function Subscription() {
           {(() => {
             const hasEnterprise = visiblePlans.includes('enterprise')
             const nonEnterprisePlans = visiblePlans.filter((plan) => plan !== 'enterprise')
+
+            // Free users: Pro + Team in 2-col grid, Enterprise horizontal
+            // Pro users: Team + Enterprise both vertical (single column)
+            // Team admins: Enterprise only (horizontal)
+            const showEnterpriseHorizontal =
+              subscription.isFree || (subscription.isTeam && isTeamAdmin)
 
             return (
               <>
@@ -469,7 +515,8 @@ export function Subscription() {
                     {nonEnterprisePlans.map((plan) => renderPlanCard(plan))}
                   </div>
                 )}
-                {hasEnterprise && renderPlanCard('enterprise', { horizontal: true })}
+                {hasEnterprise &&
+                  renderPlanCard('enterprise', { horizontal: showEnterpriseHorizontal })}
               </>
             )
           })()}
@@ -487,15 +534,17 @@ export function Subscription() {
         />
       )}
 
-      {/* Next Billing Date */}
-      {subscription.isPaid && subscriptionData?.data?.periodEnd && (
-        <div className='flex items-center justify-between'>
-          <Label>Next Billing Date</Label>
-          <span className='text-[12px] text-[var(--text-secondary)]'>
-            {new Date(subscriptionData.data.periodEnd).toLocaleDateString()}
-          </span>
-        </div>
-      )}
+      {/* Next Billing Date - hidden from team members */}
+      {subscription.isPaid &&
+        subscriptionData?.data?.periodEnd &&
+        !permissions.showTeamMemberView && (
+          <div className='flex items-center justify-between'>
+            <Label>Next Billing Date</Label>
+            <span className='text-[12px] text-[var(--text-secondary)]'>
+              {new Date(subscriptionData.data.periodEnd).toLocaleDateString()}
+            </span>
+          </div>
+        )}
 
       {/* Usage notifications */}
       {subscription.isPaid && <BillingUsageNotificationsToggle />}
@@ -515,10 +564,20 @@ export function Subscription() {
         />
       )}
 
-      {/* Billed Account for Workspace - Fixed at bottom */}
-      {!isLoading && canManageWorkspaceKeys && (
+      {/* Billed Account for Workspace - Only visible to team admins */}
+      {!isLoading && isTeamAdmin && (
         <div className='mt-auto flex items-center justify-between'>
-          <Label htmlFor='billed-account'>Billed Account</Label>
+          <div className='flex items-center gap-[6px]'>
+            <Label htmlFor='billed-account'>Billed Account</Label>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Info className='h-[12px] w-[12px] text-[var(--text-secondary)]' />
+              </Tooltip.Trigger>
+              <Tooltip.Content>
+                <span>Usage from this workspace will be billed to this account</span>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          </div>
           {workspaceAdmins.length === 0 ? (
             <div className='rounded-[6px] border border-[var(--border)] border-dashed px-[12px] py-[6px] text-[12px] text-[var(--text-muted)]'>
               No admins available
@@ -561,7 +620,7 @@ function BillingUsageNotificationsToggle() {
 
   return (
     <div className='flex items-center justify-between'>
-      <div className='flex flex-col gap-[2px]'>
+      <div className='flex flex-col gap-[4px]'>
         <Label htmlFor='usage-notifications'>Usage notifications</Label>
         <span className='text-[12px] text-[var(--text-muted)]'>
           Email me when I reach 80% usage
