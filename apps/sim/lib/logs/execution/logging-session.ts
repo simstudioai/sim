@@ -455,6 +455,7 @@ export class LoggingSession {
         errorMessage:
           params?.error?.message || `Execution failed to store trace spans: ${errorMsg}`,
         isError: true,
+        status: 'failed',
       })
     }
   }
@@ -474,6 +475,7 @@ export class LoggingSession {
         totalDurationMs: params?.totalDurationMs,
         errorMessage: 'Execution was cancelled',
         isError: false,
+        status: 'cancelled',
       })
     }
   }
@@ -484,6 +486,7 @@ export class LoggingSession {
     totalDurationMs?: number
     errorMessage: string
     isError: boolean
+    status?: 'completed' | 'failed' | 'cancelled'
   }): Promise<void> {
     if (this.completed) {
       return
@@ -517,6 +520,7 @@ export class LoggingSession {
         traceSpans: [],
         isResume: this.isResume,
         level: params.isError ? 'error' : 'info',
+        status: params.status,
       })
 
       this.completed = true
