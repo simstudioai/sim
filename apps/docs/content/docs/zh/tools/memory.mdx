@@ -1,6 +1,6 @@
 ---
 title: 内存
-description: 存储和检索会话历史记录
+description: 添加记忆存储
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,94 +10,91 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#F64F9E"
 />
 
-## 概述
+## 使用说明
 
-Memory 模块为代理存储会话历史。每条内存都由你提供的 `conversationId` 唯一标识。多个代理可以通过使用相同的 `conversationId` 共享同一份内存。
-
-Memory 仅存储用户和助手消息。系统消息不会被存储——它们在 Agent 模块中配置，并在运行时作为前缀添加。
+将 Memory 集成到工作流程中。可以添加、获取单条记忆、获取所有记忆，以及删除记忆。
 
 ## 工具
 
 ### `memory_add`
 
-向内存添加一条消息。如果 `conversationId` 不存在，则创建新的内存，否则追加到现有内存。
+向数据库添加新记忆，或将内容追加到已有相同 ID 的记忆中。
 
 #### 输入
 
 | 参数 | 类型 | 必需 | 描述 |
-| --------- | ---- | -------- | ----------- |
-| `conversationId` | string | 是 | 会话的唯一标识符（如 `user-123`、`session-abc`） |
-| `role` | string | 是 | 消息角色：`user` 或 `assistant` |
-| `content` | string | 是 | 消息内容 |
+| --------- | ---- | ---- | ----------- |
+| `conversationId` | string | 否 | 会话标识符（如 user-123、session-abc）。如果已存在该 conversationId 的记忆，则新消息会追加到其中。 |
+| `id` | string | 否 | 旧版会话标识参数。请使用 conversationId，保留用于兼容性。 |
+| `role` | string | 是 | agent 记忆的角色（user、assistant 或 system） |
+| `content` | string | 是 | agent 记忆的内容 |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作是否成功 |
-| `memories` | array | 更新后的内存数组 |
-| `error` | string | 失败时的错误信息 |
+| `success` | boolean | 记忆是否添加成功 |
+| `memories` | array | 包含新建或更新记忆的记忆对象数组 |
+| `error` | string | 操作失败时的错误信息 |
 
 ### `memory_get`
 
-通过会话 ID 检索内存。
+根据 conversationId 检索记忆，返回匹配的记忆内容。
 
 #### 输入
 
 | 参数 | 类型 | 必需 | 描述 |
-| --------- | ---- | -------- | ----------- |
-| `conversationId` | string | 是 | 会话标识符 |
+| --------- | ---- | ---- | ----------- |
+| `conversationId` | string | 否 | 会话标识符（如 user-123、session-abc）。返回该会话的记忆。 |
+| `id` | string | 否 | 旧版会话标识参数。请使用 conversationId，保留用于兼容性。 |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作是否成功 |
-| `memories` | array | 包含 `role` 和 `content` 字段的消息数组 |
-| `error` | string | 失败时的错误信息 |
+| `success` | boolean | 是否成功检索到内存 |
+| `memories` | array | 包含 conversationId 和 data 字段的内存对象数组 |
+| `message` | string | 成功或错误信息 |
+| `error` | string | 操作失败时的错误信息 |
 
 ### `memory_get_all`
 
-检索当前工作区的所有内存。
-
-#### 输出
-
-| 参数 | 类型 | 描述 |
-| --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作是否成功 |
-| `memories` | 数组 | 包含 `conversationId` 和 `data` 字段的所有内存对象 |
-| `error` | 字符串 | 如果失败则为错误信息 |
-
-### `memory_delete`
-
-根据会话 ID 删除内存。
+从数据库中检索所有内存
 
 #### 输入
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | string | 是 | 要删除的会话标识符 |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作是否成功 |
-| `message` | 字符串 | 确认信息 |
-| `error` | 字符串 | 如果失败则为错误信息 |
+| `success` | boolean | 是否成功检索到所有内存 |
+| `memories` | array | 包含 key、conversationId 和 data 字段的所有内存对象数组 |
+| `message` | string | 成功或错误信息 |
+| `error` | string | 操作失败时的错误信息 |
 
-## Agent 内存类型
+### `memory_delete`
 
-在 Agent block 中使用内存时，可以配置对话历史的管理方式：
+根据 conversationId 删除内存。
 
-| 类型 | 描述 |
-| ---- | ----------- |
-| **完整对话** | 存储所有消息，受模型上下文窗口限制（使用 90% 留出响应空间） |
-| **滑动窗口（消息）** | 保留最近 N 条消息（默认：10） |
-| **滑动窗口（Token）** | 保留在 token 限制内的消息（默认：4000） |
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | 否 | 会话标识符（如 user-123、session-abc）。将删除该会话的所有内存。 |
+| `id` | string | 否 | 旧版会话标识参数。请使用 conversationId，保留用于兼容性。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功删除内存 |
+| `message` | string | 成功或错误信息 |
+| `error` | string | 操作失败时的错误信息 |
 
 ## 注意事项
 
-- 内存以工作区为作用域——同一工作区内的工作流共享内存存储
-- 使用唯一的 `conversationId` 值以区分不同会话（如 session ID、user ID 或 UUID）
-- 系统消息应配置在 Agent block 中，而不是存储在内存中
+- 类别：`blocks`
+- 类型：`memory`

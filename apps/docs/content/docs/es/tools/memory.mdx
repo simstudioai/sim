@@ -1,6 +1,6 @@
 ---
 title: Memoria
-description: Almacena y recupera el historial de conversaciones
+description: Añadir almacén de memoria
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,94 +10,91 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#F64F9E"
 />
 
-## Descripción general
+## Instrucciones de uso
 
-El bloque Memory almacena el historial de conversaciones para agentes. Cada memoria se identifica mediante un `conversationId` que proporcionas. Múltiples agentes pueden compartir la misma memoria usando el mismo `conversationId`.
-
-Memory almacena solo mensajes de usuario y asistente. Los mensajes del sistema no se almacenan, se configuran en el bloque Agent y se añaden como prefijo en tiempo de ejecución.
+Integra memoria en el flujo de trabajo. Puede añadir, obtener una memoria, obtener todas las memorias y eliminar memorias.
 
 ## Herramientas
 
 ### `memory_add`
 
-Añade un mensaje a la memoria. Crea una nueva memoria si el `conversationId` no existe, o añade al final de la memoria existente.
+Añadir una nueva memoria a la base de datos o agregar a una memoria existente con el mismo ID.
 
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
-| `conversationId` | string | Sí | Identificador único para la conversación (ej., `user-123`, `session-abc`) |
-| `role` | string | Sí | Rol del mensaje: `user` o `assistant` |
-| `content` | string | Sí | Contenido del mensaje |
+| `conversationId` | string | No | Identificador de conversación \(ej., user-123, session-abc\). Si ya existe una memoria con este conversationId, el nuevo mensaje se agregará a ella. |
+| `id` | string | No | Parámetro heredado para identificador de conversación. Usa conversationId en su lugar. Proporcionado para compatibilidad con versiones anteriores. |
+| `role` | string | Sí | Rol para la memoria del agente \(user, assistant o system\) |
+| `content` | string | Sí | Contenido para la memoria del agente |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Si la operación tuvo éxito |
-| `memories` | array | Array de memoria actualizado |
-| `error` | string | Mensaje de error si falló |
+| `success` | boolean | Si la memoria se añadió correctamente |
+| `memories` | array | Array de objetos de memoria incluyendo la memoria nueva o actualizada |
+| `error` | string | Mensaje de error si la operación falló |
 
 ### `memory_get`
 
-Recupera la memoria por ID de conversación.
+Recuperar memoria por conversationId. Devuelve las memorias coincidentes.
 
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
-| `conversationId` | string | Sí | Identificador de conversación |
+| `conversationId` | string | No | Identificador de conversación \(ej., user-123, session-abc\). Devuelve las memorias para esta conversación. |
+| `id` | string | No | Parámetro heredado para identificador de conversación. Usa conversationId en su lugar. Proporcionado para compatibilidad con versiones anteriores. |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Si la operación tuvo éxito |
-| `memories` | array | Array de mensajes con `role` y `content` |
-| `error` | string | Mensaje de error si falló |
+| `success` | boolean | Si la memoria se recuperó exitosamente |
+| `memories` | array | Array de objetos de memoria con campos conversationId y data |
+| `message` | string | Mensaje de éxito o error |
+| `error` | string | Mensaje de error si la operación falló |
 
 ### `memory_get_all`
 
-Recuperar todas las memorias del espacio de trabajo actual.
+Recupera todas las memorias de la base de datos
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Indica si la operación se realizó correctamente |
-| `memories` | array | Todos los objetos de memoria con campos `conversationId` y `data` |
+| `success` | boolean | Si todas las memorias se recuperaron exitosamente |
+| `memories` | array | Array de todos los objetos de memoria con campos key, conversationId y data |
+| `message` | string | Mensaje de éxito o error |
 | `error` | string | Mensaje de error si la operación falló |
 
 ### `memory_delete`
 
-Eliminar memoria por ID de conversación.
+Elimina memorias por conversationId.
 
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
-| `conversationId` | string | Sí | Identificador de conversación a eliminar |
+| `conversationId` | string | No | Identificador de conversación (ej., user-123, session-abc). Elimina todas las memorias de esta conversación. |
+| `id` | string | No | Parámetro heredado para identificador de conversación. Usa conversationId en su lugar. Proporcionado para compatibilidad con versiones anteriores. |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Indica si la operación se realizó correctamente |
-| `message` | string | Mensaje de confirmación |
+| `success` | boolean | Si la memoria se eliminó exitosamente |
+| `message` | string | Mensaje de éxito o error |
 | `error` | string | Mensaje de error si la operación falló |
-
-## Tipos de memoria del agente
-
-Al usar memoria con un bloque de agente, puedes configurar cómo se gestiona el historial de conversación:
-
-| Tipo | Descripción |
-| ---- | ----------- |
-| **Conversación completa** | Almacena todos los mensajes, limitado por la ventana de contexto del modelo (usa el 90% para dejar espacio para la respuesta) |
-| **Ventana deslizante (mensajes)** | Mantiene los últimos N mensajes (predeterminado: 10) |
-| **Ventana deslizante (tokens)** | Mantiene los mensajes que caben dentro de un límite de tokens (predeterminado: 4000) |
 
 ## Notas
 
-- La memoria está limitada por espacio de trabajo: los flujos de trabajo en el mismo espacio de trabajo comparten el almacén de memoria
-- Usa valores únicos de `conversationId` para mantener las conversaciones separadas (p. ej., IDs de sesión, IDs de usuario o UUIDs)
-- Los mensajes del sistema pertenecen a la configuración del bloque de agente, no a la memoria
+- Categoría: `blocks`
+- Tipo: `memory`

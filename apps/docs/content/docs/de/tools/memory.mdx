@@ -1,6 +1,6 @@
 ---
 title: Memory
-description: Konversationsverlauf speichern und abrufen
+description: Speicher hinzufügen
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,94 +10,91 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#F64F9E"
 />
 
-## Übersicht
+## Nutzungsanweisungen
 
-Der Memory-Block speichert den Konversationsverlauf für Agenten. Jede Erinnerung wird durch eine `conversationId` identifiziert, die Sie bereitstellen. Mehrere Agenten können denselben Speicher nutzen, indem sie dieselbe `conversationId` verwenden.
-
-Der Speicher speichert nur Benutzer- und Assistentennachrichten. Systemnachrichten werden nicht gespeichert – sie werden im Agent-Block konfiguriert und zur Laufzeit vorangestellt.
+Integrieren Sie Memory in den Workflow. Kann Erinnerungen hinzufügen, abrufen, alle Erinnerungen abrufen und Erinnerungen löschen.
 
 ## Tools
 
 ### `memory_add`
 
-Eine Nachricht zum Speicher hinzufügen. Erstellt einen neuen Speicher, wenn die `conversationId` nicht existiert, oder hängt an einen bestehenden Speicher an.
+Fügen Sie eine neue Erinnerung zur Datenbank hinzu oder hängen Sie sie an eine bestehende Erinnerung mit derselben ID an.
 
 #### Eingabe
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | string | Ja | Eindeutige Kennung für die Konversation (z. B. `user-123`, `session-abc`) |
-| `role` | string | Ja | Nachrichtenrolle: `user` oder `assistant` |
-| `content` | string | Ja | Nachrichteninhalt |
+| `conversationId` | string | Nein | Konversationskennung \(z. B. user-123, session-abc\). Wenn bereits eine Erinnerung mit dieser conversationId existiert, wird die neue Nachricht an diese angehängt. |
+| `id` | string | Nein | Legacy-Parameter für Konversationskennung. Verwenden Sie stattdessen conversationId. Wird aus Gründen der Abwärtskompatibilität bereitgestellt. |
+| `role` | string | Ja | Rolle für Agent-Erinnerung \(user, assistant oder system\) |
+| `content` | string | Ja | Inhalt für Agent-Erinnerung |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Ob der Vorgang erfolgreich war |
-| `memories` | array | Aktualisiertes Speicher-Array |
-| `error` | string | Fehlermeldung, falls fehlgeschlagen |
+| `success` | boolean | Ob die Erinnerung erfolgreich hinzugefügt wurde |
+| `memories` | array | Array von Erinnerungsobjekten einschließlich der neuen oder aktualisierten Erinnerung |
+| `error` | string | Fehlermeldung, falls der Vorgang fehlgeschlagen ist |
 
 ### `memory_get`
 
-Speicher nach Konversations-ID abrufen.
+Erinnerung nach conversationId abrufen. Gibt übereinstimmende Erinnerungen zurück.
 
 #### Eingabe
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | string | Ja | Konversationskennung |
+| `conversationId` | string | Nein | Konversationskennung \(z. B. user-123, session-abc\). Gibt Erinnerungen für diese Konversation zurück. |
+| `id` | string | Nein | Legacy-Parameter für Konversationskennung. Verwenden Sie stattdessen conversationId. Wird aus Gründen der Abwärtskompatibilität bereitgestellt. |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Ob der Vorgang erfolgreich war |
-| `memories` | array | Array von Nachrichten mit `role` und `content` |
+| `success` | boolean | Ob der Speicher erfolgreich abgerufen wurde |
+| `memories` | array | Array von Speicherobjekten mit conversationId- und data-Feldern |
+| `message` | string | Erfolgs- oder Fehlermeldung |
 | `error` | string | Fehlermeldung, falls fehlgeschlagen |
 
 ### `memory_get_all`
 
-Alle Erinnerungen für den aktuellen Workspace abrufen.
-
-#### Ausgabe
-
-| Parameter | Typ | Beschreibung |
-| --------- | ---- | ----------- |
-| `success` | boolean | Ob der Vorgang erfolgreich war |
-| `memories` | array | Alle Erinnerungsobjekte mit `conversationId` und `data` Feldern |
-| `error` | string | Fehlermeldung, falls fehlgeschlagen |
-
-### `memory_delete`
-
-Erinnerung nach Konversations-ID löschen.
+Alle Speicher aus der Datenbank abrufen
 
 #### Eingabe
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | string | Ja | Konversationskennung zum Löschen |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Ob der Vorgang erfolgreich war |
-| `message` | string | Bestätigungsnachricht |
+| `success` | boolean | Ob alle Speicher erfolgreich abgerufen wurden |
+| `memories` | array | Array aller Speicherobjekte mit key-, conversationId- und data-Feldern |
+| `message` | string | Erfolgs- oder Fehlermeldung |
 | `error` | string | Fehlermeldung, falls fehlgeschlagen |
 
-## Agent-Erinnerungstypen
+### `memory_delete`
 
-Bei der Verwendung von Erinnerungen mit einem Agent-Block können Sie konfigurieren, wie der Konversationsverlauf verwaltet wird:
+Speicher nach conversationId löschen.
 
-| Typ | Beschreibung |
-| ---- | ----------- |
-| **Vollständige Konversation** | Speichert alle Nachrichten, begrenzt durch das Kontextfenster des Modells (verwendet 90%, um Platz für die Antwort zu lassen) |
-| **Gleitendes Fenster (Nachrichten)** | Behält die letzten N Nachrichten (Standard: 10) |
-| **Gleitendes Fenster (Tokens)** | Behält Nachrichten, die in ein Token-Limit passen (Standard: 4000) |
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Nein | Konversationskennung (z. B. user-123, session-abc). Löscht alle Speicher für diese Konversation. |
+| `id` | string | Nein | Legacy-Parameter für Konversationskennung. Verwenden Sie stattdessen conversationId. Wird aus Gründen der Abwärtskompatibilität bereitgestellt. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Speicher erfolgreich gelöscht wurde |
+| `message` | string | Erfolgs- oder Fehlermeldung |
+| `error` | string | Fehlermeldung, falls fehlgeschlagen |
 
 ## Hinweise
 
-- Erinnerungen sind pro Workspace begrenzt – Workflows im selben Workspace teilen sich den Erinnerungsspeicher
-- Verwenden Sie eindeutige `conversationId` Werte, um Konversationen getrennt zu halten (z.B. Session-IDs, Benutzer-IDs oder UUIDs)
-- Systemnachrichten gehören in die Agent-Block-Konfiguration, nicht in die Erinnerung
+- Kategorie: `blocks`
+- Typ: `memory`
