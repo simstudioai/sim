@@ -12,6 +12,14 @@ import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/a
 
 const logger = createLogger('KnowledgeBaseByIdAPI')
 
+/**
+ * Schema for updating a knowledge base
+ *
+ * Chunking config units:
+ * - maxSize: tokens (1 token ≈ 4 characters)
+ * - minSize: characters
+ * - overlap: characters
+ */
 const UpdateKnowledgeBaseSchema = z.object({
   name: z.string().min(1, 'Name is required').optional(),
   description: z.string().optional(),
@@ -20,10 +28,23 @@ const UpdateKnowledgeBaseSchema = z.object({
   workspaceId: z.string().nullable().optional(),
   chunkingConfig: z
     .object({
-      maxSize: z.number(),
-      minSize: z.number(),
-      overlap: z.number(),
+      /** Maximum chunk size in tokens (1 token ≈ 4 characters) */
+      maxSize: z.number().min(100).max(4000),
+      /** Minimum chunk size in characters */
+      minSize: z.number().min(1).max(2000),
+      /** Overlap between chunks in characters */
+      overlap: z.number().min(0).max(500),
     })
+    .refine(
+      (data) => {
+        // Convert maxSize from tokens to characters for comparison (1 token ≈ 4 chars)
+        const maxSizeInChars = data.maxSize * 4
+        return data.minSize < maxSizeInChars
+      },
+      {
+        message: 'Min chunk size (characters) must be less than max chunk size (tokens × 4)',
+      }
+    )
     .optional(),
 })
 

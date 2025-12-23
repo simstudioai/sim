@@ -34,9 +34,15 @@ Once your documents are processed, you can view and edit the individual chunks. 
 <Image src="/static/knowledgebase/knowledgebase.png" alt="Document chunks view showing processed content" width={800} height={500} />
 
 ### Chunk Configuration
-- **Default chunk size**: 1,024 characters
-- **Configurable range**: 100-4,000 characters per chunk
-- **Smart overlap**: 200 characters by default for context preservation
+
+When creating a knowledge base, you can configure how documents are split into chunks:
+
+| Setting | Unit | Default | Range | Description |
+|---------|------|---------|-------|-------------|
+| **Max Chunk Size** | tokens | 1,024 | 100-4,000 | Maximum size of each chunk (1 token ≈ 4 characters) |
+| **Min Chunk Size** | characters | 1 | 1-2,000 | Minimum chunk size to avoid tiny fragments |
+| **Overlap** | characters | 200 | 0-500 | Context overlap between consecutive chunks |
+
 - **Hierarchical splitting**: Respects document structure (sections, paragraphs, sentences)
 
 ### Editing Capabilities

@@ -17,23 +17,24 @@ function getTokenCount(text: string): number {
 }
 
 /**
- * Configuration for JSON/YAML chunking
+ * Configuration for JSON/YAML chunking (aligned with Chonkie standards)
  * Reduced limits to ensure we stay well under OpenAI's 8,191 token limit per embedding request
  */
 const JSON_YAML_CHUNKING_CONFIG = {
-  TARGET_CHUNK_SIZE: 1000, // Target tokens per chunk
-  MIN_CHUNK_SIZE: 100, // Minimum tokens per chunk
+  TARGET_CHUNK_SIZE: 1024, // Target tokens per chunk (aligned with Chonkie)
+  MIN_CHARACTERS_PER_CHUNK: 100, // Minimum characters per chunk to filter tiny fragments
   MAX_CHUNK_SIZE: 1500, // Maximum tokens per chunk
   MAX_DEPTH_FOR_SPLITTING: 5, // Maximum depth to traverse for splitting
 }
 
 export class JsonYamlChunker {
-  private chunkSize: number
-  private minChunkSize: number
+  private chunkSize: number // in tokens
+  private minCharactersPerChunk: number // in characters
 
   constructor(options: ChunkerOptions = {}) {
-    this.chunkSize = options.chunkSize || JSON_YAML_CHUNKING_CONFIG.TARGET_CHUNK_SIZE
-    this.minChunkSize = options.minChunkSize || JSON_YAML_CHUNKING_CONFIG.MIN_CHUNK_SIZE
+    this.chunkSize = options.chunkSize ?? JSON_YAML_CHUNKING_CONFIG.TARGET_CHUNK_SIZE
+    this.minCharactersPerChunk =
+      options.minCharactersPerChunk ?? JSON_YAML_CHUNKING_CONFIG.MIN_CHARACTERS_PER_CHUNK
   }
 
   /**
@@ -99,7 +100,8 @@ export class JsonYamlChunker {
     const content = JSON.stringify(data, null, 2)
     const tokenCount = getTokenCount(content)
 
-    if (tokenCount >= this.minChunkSize) {
+    // Filter tiny fragments using character count (Chonkie standard)
+    if (content.length >= this.minCharactersPerChunk) {
       chunks.push({
         text: content,
         tokenCount,
@@ -318,7 +320,8 @@ export class JsonYamlChunker {
       }
     }
 
-    if (currentChunk && currentTokens >= this.minChunkSize) {
+    // Filter tiny fragments using character count (Chonkie standard)
+    if (currentChunk && currentChunk.length >= this.minCharactersPerChunk) {
       chunks.push({
         text: currentChunk,
         tokenCount: currentTokens,

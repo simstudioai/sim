@@ -139,8 +139,8 @@ describe('Knowledge Base API Route', () => {
       const invalidData = {
         name: 'Test KB',
         chunkingConfig: {
-          maxSize: 100,
-          minSize: 200, // Invalid: minSize > maxSize
+          maxSize: 100, // 100 tokens = 400 characters
+          minSize: 500, // Invalid: minSize (500 chars) > maxSize (400 chars)
           overlap: 50,
         },
       }
@@ -168,7 +168,7 @@ describe('Knowledge Base API Route', () => {
       expect(data.data.embeddingDimension).toBe(1536)
       expect(data.data.chunkingConfig).toEqual({
         maxSize: 1024,
-        minSize: 1,
+        minSize: 100,
         overlap: 200,
       })
     })
