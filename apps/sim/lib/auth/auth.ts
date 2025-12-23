@@ -122,7 +122,6 @@ export const auth = betterAuth({
           if (existing) {
             let scopeToStore = account.scope
 
-            // For Salesforce, fetch instance URL and add it to the scope
             if (account.providerId === 'salesforce' && account.accessToken) {
               try {
                 const response = await fetch(
@@ -137,7 +136,6 @@ export const auth = betterAuth({
                 if (response.ok) {
                   const data = await response.json()
 
-                  // Extract instance URL from profile field (format: https://na1.salesforce.com/id/...)
                   if (data.profile) {
                     const match = data.profile.match(/^(https:\/\/[^/]+)/)
                     if (match && match[1] !== 'https://login.salesforce.com') {
@@ -173,19 +171,16 @@ export const auth = betterAuth({
           return { data: account }
         },
         after: async (account) => {
-          // Salesforce-specific handling: set default token expiration and fetch instance URL
           if (account.providerId === 'salesforce') {
             const updates: {
               accessTokenExpiresAt?: Date
               scope?: string
             } = {}
 
-            // Salesforce doesn't return expires_in, set default 2-hour expiration
             if (!account.accessTokenExpiresAt) {
               updates.accessTokenExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000)
             }
 
-            // Fetch instance URL from Salesforce userinfo endpoint and store it in scope
             if (account.accessToken) {
               try {
                 const response = await fetch(
@@ -200,7 +195,6 @@ export const auth = betterAuth({
                 if (response.ok) {
                   const data = await response.json()
 
-                  // Extract instance URL from profile field (format: https://na1.salesforce.com/id/...)
                   if (data.profile) {
                     const match = data.profile.match(/^(https:\/\/[^/]+)/)
                     if (match && match[1] !== 'https://login.salesforce.com') {
@@ -216,7 +210,6 @@ export const auth = betterAuth({
               }
             }
 
-            // Apply updates if any
             if (Object.keys(updates).length > 0) {
               await db.update(schema.account).set(updates).where(eq(schema.account.id, account.id))
             }
