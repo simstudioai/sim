@@ -73,7 +73,7 @@ export const cerebrasProvider: ProviderConfig = {
         : undefined
 
       const payload: any = {
-        model: (request.model || 'cerebras/llama-3.3-70b').replace('cerebras/', ''),
+        model: request.model.replace('cerebras/', ''),
         messages: allMessages,
       }
       if (request.temperature !== undefined) payload.temperature = request.temperature
@@ -145,7 +145,7 @@ export const cerebrasProvider: ProviderConfig = {
             success: true,
             output: {
               content: '',
-              model: request.model || 'cerebras/llama-3.3-70b',
+              model: request.model,
               tokens: { prompt: 0, completion: 0, total: 0 },
               toolCalls: undefined,
               providerTiming: {
@@ -470,7 +470,7 @@ export const cerebrasProvider: ProviderConfig = {
             success: true,
             output: {
               content: '',
-              model: request.model || 'cerebras/llama-3.3-70b',
+              model: request.model,
               tokens: {
                 prompt: tokens.prompt,
                 completion: tokens.completion,

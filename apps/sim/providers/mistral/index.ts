@@ -36,7 +36,7 @@ export const mistralProvider: ProviderConfig = {
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
     logger.info('Preparing Mistral request', {
-      model: request.model || 'mistral-large-latest',
+      model: request.model,
       hasSystemPrompt: !!request.systemPrompt,
       hasMessages: !!request.messages?.length,
       hasTools: !!request.tools?.length,
@@ -86,7 +86,7 @@ export const mistralProvider: ProviderConfig = {
       : undefined
 
     const payload: any = {
-      model: request.model || 'mistral-large-latest',
+      model: request.model,
       messages: allMessages,
     }
 
@@ -126,7 +126,7 @@ export const mistralProvider: ProviderConfig = {
                   : toolChoice.type === 'any'
                     ? `force:${toolChoice.any?.name || 'unknown'}`
                     : 'unknown',
-          model: request.model || 'mistral-large-latest',
+          model: request.model,
         })
       }
     }

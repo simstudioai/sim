@@ -58,7 +58,7 @@ export const anthropicProvider: ProviderConfig = {
       throw new Error('API key is required for Anthropic')
     }
 
-    const modelId = request.model || 'claude-3-7-sonnet-20250219'
+    const modelId = request.model
     const useNativeStructuredOutputs = !!(
       request.responseFormat && supportsNativeStructuredOutputs(modelId)
     )
@@ -174,7 +174,7 @@ export const anthropicProvider: ProviderConfig = {
     }
 
     const payload: any = {
-      model: request.model || 'claude-3-7-sonnet-20250219',
+      model: request.model,
       messages,
       system: systemPrompt,
       max_tokens: Number.parseInt(String(request.maxTokens)) || 1024,
@@ -608,7 +608,7 @@ export const anthropicProvider: ProviderConfig = {
             success: true,
             output: {
               content: '',
-              model: request.model || 'claude-3-7-sonnet-20250219',
+              model: request.model,
               tokens: {
                 prompt: tokens.prompt,
                 completion: tokens.completion,
@@ -990,7 +990,7 @@ export const anthropicProvider: ProviderConfig = {
             success: true,
             output: {
               content: '',
-              model: request.model || 'claude-3-7-sonnet-20250219',
+              model: request.model,
               tokens: {
                 prompt: tokens.prompt,
                 completion: tokens.completion,
@@ -1034,7 +1034,7 @@ export const anthropicProvider: ProviderConfig = {
 
       return {
         content,
-        model: request.model || 'claude-3-7-sonnet-20250219',
+        model: request.model,
         tokens,
         toolCalls:
           toolCalls.length > 0

@@ -28,9 +28,7 @@ export const googleProvider: ProviderConfig = {
       throw new Error('API key is required for Google Gemini')
     }
 
-    const model = request.model || 'gemini-2.5-pro'
-
-    logger.info('Creating Google Gemini client', { model })
+    logger.info('Creating Google Gemini client', { model: request.model })
 
     // Create client with API key
     const ai = new GoogleGenAI({ apiKey: request.apiKey })
@@ -38,7 +36,7 @@ export const googleProvider: ProviderConfig = {
     // Use shared execution logic
     return executeGeminiRequest({
       ai,
-      model,
+      model: request.model,
       request,
       providerType: 'google',
     })

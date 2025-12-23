@@ -39,7 +39,7 @@ export const azureOpenAIProvider: ProviderConfig = {
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
     logger.info('Preparing Azure OpenAI request', {
-      model: request.model || 'azure/gpt-4o',
+      model: request.model,
       hasSystemPrompt: !!request.systemPrompt,
       hasMessages: !!request.messages?.length,
       hasTools: !!request.tools?.length,
@@ -95,7 +95,7 @@ export const azureOpenAIProvider: ProviderConfig = {
         }))
       : undefined
 
-    const deploymentName = (request.model || 'azure/gpt-4o').replace('azure/', '')
+    const deploymentName = request.model.replace('azure/', '')
     const payload: any = {
       model: deploymentName,
       messages: allMessages,

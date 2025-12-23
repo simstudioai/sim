@@ -69,10 +69,7 @@ export const groqProvider: ProviderConfig = {
       : undefined
 
     const payload: any = {
-      model: (request.model || 'groq/meta-llama/llama-4-scout-17b-16e-instruct').replace(
-        'groq/',
-        ''
-      ),
+      model: request.model.replace('groq/', ''),
       messages: allMessages,
     }
 
@@ -109,7 +106,7 @@ export const groqProvider: ProviderConfig = {
           toolChoice: payload.tool_choice,
           forcedToolsCount: forcedTools.length,
           hasFilteredTools,
-          model: request.model || 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
+          model: request.model,
         })
       }
     }
@@ -149,7 +146,7 @@ export const groqProvider: ProviderConfig = {
           success: true,
           output: {
             content: '',
-            model: request.model || 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
+            model: request.model,
             tokens: { prompt: 0, completion: 0, total: 0 },
             toolCalls: undefined,
             providerTiming: {
@@ -425,7 +422,7 @@ export const groqProvider: ProviderConfig = {
             success: true,
             output: {
               content: '',
-              model: request.model || 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
+              model: request.model,
               tokens: {
                 prompt: tokens.prompt,
                 completion: tokens.completion,

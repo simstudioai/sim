@@ -46,7 +46,7 @@ export const vertexProvider: ProviderConfig = {
     }
 
     // Strip 'vertex/' prefix from model name if present
-    const model = (request.model || 'vertex/gemini-2.5-pro').replace('vertex/', '')
+    const model = request.model.replace('vertex/', '')
 
     logger.info('Creating Vertex AI client', {
       project: vertexProject,

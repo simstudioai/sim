@@ -105,7 +105,7 @@ export const deepseekProvider: ProviderConfig = {
                     : toolChoice.type === 'any'
                       ? `force:${toolChoice.any?.name || 'unknown'}`
                       : 'unknown',
-            model: request.model || 'deepseek-v3',
+            model: request.model,
           })
         }
       }
@@ -145,7 +145,7 @@ export const deepseekProvider: ProviderConfig = {
             success: true,
             output: {
               content: '',
-              model: request.model || 'deepseek-chat',
+              model: request.model,
               tokens: { prompt: 0, completion: 0, total: 0 },
               toolCalls: undefined,
               providerTiming: {
@@ -469,7 +469,7 @@ export const deepseekProvider: ProviderConfig = {
             success: true,
             output: {
               content: '',
-              model: request.model || 'deepseek-chat',
+              model: request.model,
               tokens: {
                 prompt: tokens.prompt,
                 completion: tokens.completion,
