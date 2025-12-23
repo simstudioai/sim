@@ -428,7 +428,7 @@ describe('buildTraceSpans', () => {
             content: 'Based on my research using multiple sources...',
             model: 'gpt-4o',
             tokens: { input: 50, output: 200, total: 250 },
-            cost: { total: 0.0025, prompt: 0.001, completion: 0.0015 },
+            cost: { total: 0.0025, input: 0.001, output: 0.0015 },
             providerTiming: {
               duration: 15000,
               startTime: '2024-01-01T10:00:00.000Z',
