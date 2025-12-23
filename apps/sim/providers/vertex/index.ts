@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai'
+import { OAuth2Client } from 'google-auth-library'
 import { env } from '@/lib/core/config/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
@@ -15,9 +16,8 @@ const logger = createLogger('VertexProvider')
  * Shares core execution logic with Google Gemini provider.
  *
  * Authentication:
- * - Uses OAuth access token (from `gcloud auth print-access-token` or service account)
- * - Token refresh should be handled at the OAuth layer before calling this provider
- * - Access token is passed via HTTP Authorization header
+ * - Uses OAuth access token passed via googleAuthOptions.authClient
+ * - Token refresh is handled at the OAuth layer before calling this provider
  */
 export const vertexProvider: ProviderConfig = {
   id: 'vertex',
@@ -54,20 +54,21 @@ export const vertexProvider: ProviderConfig = {
       model,
     })
 
+    // Create an OAuth2Client and set the access token
+    // This allows us to use an OAuth access token with the SDK
+    const authClient = new OAuth2Client()
+    authClient.setCredentials({ access_token: request.apiKey })
+
     // Create client with Vertex AI configuration
-    // Pass access token via HTTP Authorization header
     const ai = new GoogleGenAI({
       vertexai: true,
       project: vertexProject,
       location: vertexLocation,
-      httpOptions: {
-        headers: {
-          Authorization: `Bearer ${request.apiKey}`,
-        },
+      googleAuthOptions: {
+        authClient,
       },
     })
 
-    // Use shared execution logic
     return executeGeminiRequest({
       ai,
       model,

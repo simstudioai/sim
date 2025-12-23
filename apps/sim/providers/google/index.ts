@@ -30,10 +30,8 @@ export const googleProvider: ProviderConfig = {
 
     logger.info('Creating Google Gemini client', { model: request.model })
 
-    // Create client with API key
     const ai = new GoogleGenAI({ apiKey: request.apiKey })
 
-    // Use shared execution logic
     return executeGeminiRequest({
       ai,
       model: request.model,
