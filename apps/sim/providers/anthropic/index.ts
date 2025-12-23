@@ -20,38 +20,43 @@ import { executeTool } from '@/tools'
 const logger = createLogger('AnthropicProvider')
 
 // Models that support native structured outputs (November 2025+)
-// See: https://platform.claude.com/docs/en/build-with-claude/structured-outputs
-const STRUCTURED_OUTPUT_MODELS = [
-  'claude-haiku-4-5',
-  'claude-sonnet-4-5',
-  'claude-opus-4-5',
-  'claude-opus-4-1',
+// See: https://docs.anthropic.com/en/docs/build-with-claude/structured-outputs
+// These are the base model identifiers - we match against the start of model names
+// to handle dated versions like "claude-sonnet-4-5-20250101"
+const STRUCTURED_OUTPUT_MODEL_PREFIXES = [
+  'claude-3-5-haiku',    // Claude 3.5 Haiku supports structured outputs
+  'claude-sonnet-4',     // Claude Sonnet 4.x
+  'claude-opus-4',       // Claude Opus 4.x
 ]
 
 /**
- * Check if a model supports native structured outputs
+ * Check if a model supports native structured outputs.
+ * Uses prefix matching to handle dated model versions (e.g., "claude-sonnet-4-5-20250101").
+ * Only Claude 3.5+ and Claude 4.x models support this feature.
  */
 function supportsNativeStructuredOutput(model: string): boolean {
-  return STRUCTURED_OUTPUT_MODELS.some(
-    (supportedModel) =>
-      model.toLowerCase().includes(supportedModel.toLowerCase()) ||
-      model.toLowerCase().startsWith(supportedModel.toLowerCase())
+  const normalizedModel = model.toLowerCase()
+  return STRUCTURED_OUTPUT_MODEL_PREFIXES.some((prefix) =>
+    normalizedModel.startsWith(prefix.toLowerCase())
   )
 }
 
 /**
- * Ensure schema has additionalProperties: false (required for structured outputs)
+ * Ensure schema has additionalProperties: false on all object types.
+ * This is required by Anthropic's structured outputs API.
+ * Recursively processes nested schemas including oneOf, anyOf, allOf, and discriminated unions.
  */
 function ensureAdditionalPropertiesFalse(schema: any): any {
   if (!schema || typeof schema !== 'object') return schema
 
   const result = { ...schema }
 
+  // Set additionalProperties: false on object types
   if (result.type === 'object' && result.additionalProperties === undefined) {
     result.additionalProperties = false
   }
 
-  // Recursively process nested objects
+  // Recursively process nested object properties
   if (result.properties) {
     result.properties = { ...result.properties }
     for (const key of Object.keys(result.properties)) {
@@ -64,24 +69,64 @@ function ensureAdditionalPropertiesFalse(schema: any): any {
     result.items = ensureAdditionalPropertiesFalse(result.items)
   }
 
+  // Process oneOf (discriminated unions, alternative schemas)
+  if (Array.isArray(result.oneOf)) {
+    result.oneOf = result.oneOf.map(ensureAdditionalPropertiesFalse)
+  }
+
+  // Process anyOf (multiple valid schemas)
+  if (Array.isArray(result.anyOf)) {
+    result.anyOf = result.anyOf.map(ensureAdditionalPropertiesFalse)
+  }
+
+  // Process allOf (schema composition/inheritance)
+  if (Array.isArray(result.allOf)) {
+    result.allOf = result.allOf.map(ensureAdditionalPropertiesFalse)
+  }
+
+  // Process definitions/defs (reusable schema components)
+  if (result.definitions) {
+    result.definitions = { ...result.definitions }
+    for (const key of Object.keys(result.definitions)) {
+      result.definitions[key] = ensureAdditionalPropertiesFalse(result.definitions[key])
+    }
+  }
+  if (result.$defs) {
+    result.$defs = { ...result.$defs }
+    for (const key of Object.keys(result.$defs)) {
+      result.$defs[key] = ensureAdditionalPropertiesFalse(result.$defs[key])
+    }
+  }
+
   return result
 }
 
 /**
- * Create a message using either standard or beta API based on structured output requirements
+ * Create a message using either standard or beta API based on structured output requirements.
+ *
+ * When native structured outputs are enabled, uses Anthropic's beta API with constrained decoding.
+ * The beta API is accessed via anthropic.beta.messages - we use a type assertion because
+ * the @anthropic-ai/sdk types may not yet include the structured outputs beta parameters.
+ * See: https://docs.anthropic.com/en/docs/build-with-claude/structured-outputs
  */
 async function createMessage(
   anthropic: Anthropic,
   payload: any,
   useNativeStructuredOutput: boolean,
-  structuredOutputSchema: any,
-  logger: any
+  structuredOutputSchema: any
 ): Promise<Anthropic.Message> {
   if (useNativeStructuredOutput && structuredOutputSchema) {
-    // Use beta API with native structured outputs
-    // See: https://platform.claude.com/docs/en/build-with-claude/structured-outputs
+    // Use beta API with native structured outputs (constrained decoding)
     logger.info('Making request with native structured outputs via beta API')
-    return await (anthropic.beta.messages as any).create({
+
+    // Type assertion needed: beta.messages.create accepts additional parameters
+    // (betas, output_format) that aren't in the standard SDK types yet.
+    // The beta API was released November 2025 and SDK types may lag behind.
+    const betaMessages = anthropic.beta.messages as {
+      create(params: any): Promise<Anthropic.Message>
+    }
+
+    return await betaMessages.create({
       ...payload,
       betas: ['structured-outputs-2025-11-13'],
       output_format: {
@@ -96,19 +141,27 @@ async function createMessage(
 }
 
 /**
- * Create a streaming message using either standard or beta API
+ * Create a streaming message using either standard or beta API.
+ *
+ * When native structured outputs are enabled, uses Anthropic's beta API with constrained decoding.
+ * Returns a stream that can be processed with createReadableStreamFromAnthropicStream.
  */
 async function createStreamingMessage(
   anthropic: Anthropic,
   payload: any,
   useNativeStructuredOutput: boolean,
-  structuredOutputSchema: any,
-  logger: any
-): Promise<any> {
+  structuredOutputSchema: any
+): Promise<AsyncIterable<any>> {
   if (useNativeStructuredOutput && structuredOutputSchema) {
     // Use beta API with native structured outputs for streaming
     logger.info('Making streaming request with native structured outputs via beta API')
-    return await (anthropic.beta.messages as any).create({
+
+    // Type assertion needed for beta API parameters (see createMessage comment)
+    const betaMessages = anthropic.beta.messages as {
+      create(params: any): Promise<AsyncIterable<any>>
+    }
+
+    return await betaMessages.create({
       ...payload,
       stream: true,
       betas: ['structured-outputs-2025-11-13'],
@@ -383,8 +436,7 @@ ${fieldDescriptions}
         anthropic,
         payload,
         useNativeStructuredOutput,
-        structuredOutputSchema,
-        logger
+        structuredOutputSchema
       )
 
       // Start collecting token usage
@@ -462,8 +514,7 @@ ${fieldDescriptions}
           anthropic,
           payload,
           useNativeStructuredOutput,
-          structuredOutputSchema,
-          logger
+          structuredOutputSchema
         )
         const firstResponseTime = Date.now() - initialCallTime
 
@@ -665,8 +716,7 @@ ${fieldDescriptions}
               anthropic,
               nextPayload,
               useNativeStructuredOutput,
-              structuredOutputSchema,
-              logger
+              structuredOutputSchema
             )
 
             // Check if any forced tools were used in this response
@@ -810,8 +860,7 @@ ${fieldDescriptions}
         anthropic,
         payload,
         useNativeStructuredOutput,
-        structuredOutputSchema,
-        logger
+        structuredOutputSchema
       )
       const firstResponseTime = Date.now() - initialCallTime
 
@@ -1008,8 +1057,7 @@ ${fieldDescriptions}
             anthropic,
             nextPayload,
             useNativeStructuredOutput,
-            structuredOutputSchema,
-            logger
+            structuredOutputSchema
           )
 
           // Check if any forced tools were used in this response
@@ -1101,8 +1149,7 @@ ${fieldDescriptions}
           anthropic,
           streamingPayload,
           useNativeStructuredOutput,
-          structuredOutputSchema,
-          logger
+          structuredOutputSchema
         )
 
         // Create a StreamingExecution response with all collected data
