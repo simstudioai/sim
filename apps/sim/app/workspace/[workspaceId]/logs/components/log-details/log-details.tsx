@@ -7,8 +7,12 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { FileCards, FrozenCanvas, TraceSpans } from '@/app/workspace/[workspaceId]/logs/components'
 import { useLogDetailsResize } from '@/app/workspace/[workspaceId]/logs/hooks'
-import type { LogStatus } from '@/app/workspace/[workspaceId]/logs/utils'
-import { formatDate, StatusBadge, TriggerBadge } from '@/app/workspace/[workspaceId]/logs/utils'
+import {
+  formatDate,
+  getDisplayStatus,
+  StatusBadge,
+  TriggerBadge,
+} from '@/app/workspace/[workspaceId]/logs/utils'
 import { formatCost } from '@/providers/utils'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
@@ -100,21 +104,7 @@ export const LogDetails = memo(function LogDetails({
     [log?.createdAt]
   )
 
-  const logStatus: LogStatus = useMemo(() => {
-    if (!log) return 'info'
-    switch (log.status) {
-      case 'running':
-        return 'running'
-      case 'pending':
-        return 'pending'
-      case 'cancelled':
-        return 'cancelled'
-      case 'failed':
-        return 'error'
-      default:
-        return 'info'
-    }
-  }, [log])
+  const logStatus = useMemo(() => getDisplayStatus(log?.status), [log?.status])
 
   return (
     <>

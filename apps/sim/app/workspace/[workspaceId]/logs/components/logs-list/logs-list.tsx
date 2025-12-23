@@ -6,8 +6,14 @@ import Link from 'next/link'
 import { List, type RowComponentProps, useListRef } from 'react-window'
 import { Badge, buttonVariants } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import {
+  formatDate,
+  formatDuration,
+  getDisplayStatus,
+  StatusBadge,
+  TriggerBadge,
+} from '@/app/workspace/[workspaceId]/logs/utils'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
-import { formatDate, formatDuration, StatusBadge, TriggerBadge } from '../../utils'
 
 const LOG_ROW_HEIGHT = 44 as const
 
@@ -25,21 +31,6 @@ interface LogRowProps {
 const LogRow = memo(
   function LogRow({ log, isSelected, onClick, selectedRowRef }: LogRowProps) {
     const formattedDate = useMemo(() => formatDate(log.createdAt), [log.createdAt])
-
-    const getDisplayStatus = (): 'running' | 'pending' | 'cancelled' | 'error' | 'info' => {
-      switch (log.status) {
-        case 'running':
-          return 'running'
-        case 'pending':
-          return 'pending'
-        case 'cancelled':
-          return 'cancelled'
-        case 'failed':
-          return 'error'
-        default:
-          return 'info'
-      }
-    }
 
     const handleClick = useCallback(() => onClick(log), [onClick, log])
 
@@ -65,7 +56,7 @@ const LogRow = memo(
 
           {/* Status */}
           <div className='w-[12%] min-w-[100px]'>
-            <StatusBadge status={getDisplayStatus()} />
+            <StatusBadge status={getDisplayStatus(log.status)} />
           </div>
 
           {/* Workflow */}

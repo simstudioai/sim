@@ -9,6 +9,21 @@ const RUNNING_COLOR = '#22c55e' as const
 const PENDING_COLOR = '#f59e0b' as const
 export type LogStatus = 'error' | 'pending' | 'running' | 'info' | 'cancelled'
 
+export function getDisplayStatus(status: string | null | undefined): LogStatus {
+  switch (status) {
+    case 'running':
+      return 'running'
+    case 'pending':
+      return 'pending'
+    case 'cancelled':
+      return 'cancelled'
+    case 'failed':
+      return 'error'
+    default:
+      return 'info'
+  }
+}
+
 /**
  * Checks if a hex color is gray/neutral (low saturation) or too light/dark
  */
