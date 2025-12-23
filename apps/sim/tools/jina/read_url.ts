@@ -168,8 +168,6 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
         success: response.ok,
         output: {
           content: data.data?.content || data.content || JSON.stringify(data),
-          links: data.data?.links || undefined,
-          images: data.data?.images || undefined,
         },
       }
     }
