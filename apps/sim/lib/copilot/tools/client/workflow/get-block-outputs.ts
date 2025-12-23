@@ -95,29 +95,27 @@ export class GetBlockOutputsClientTool extends BaseClientTool {
         let insideSubflowOutputs: string[] | undefined
         let outsideSubflowOutputs: string[] | undefined
 
-        if (block.type === 'loop' || block.type === 'parallel') {
-          const insidePaths = getSubflowInsidePaths(block.type, blockId, loops, parallels)
-          insideSubflowOutputs = formatOutputsWithPrefix(insidePaths, blockName)
-          outsideSubflowOutputs = formatOutputsWithPrefix(['results'], blockName)
-        }
-
-        const outputPaths = computeBlockOutputPaths(block, ctx)
-        const formattedOutputs = formatOutputsWithPrefix(outputPaths, blockName)
-
         const blockOutput: GetBlockOutputsResultType['blocks'][0] = {
           blockId,
           blockName,
           blockType: block.type,
-          outputs: formattedOutputs,
+          outputs: [],
         }
 
-        if (insideSubflowOutputs) blockOutput.insideSubflowOutputs = insideSubflowOutputs
-        if (outsideSubflowOutputs) blockOutput.outsideSubflowOutputs = outsideSubflowOutputs
+        if (block.type === 'loop' || block.type === 'parallel') {
+          const insidePaths = getSubflowInsidePaths(block.type, blockId, loops, parallels)
+          blockOutput.insideSubflowOutputs = formatOutputsWithPrefix(insidePaths, blockName)
+          blockOutput.outsideSubflowOutputs = formatOutputsWithPrefix(['results'], blockName)
+        } else {
+          const outputPaths = computeBlockOutputPaths(block, ctx)
+          blockOutput.outputs = formatOutputsWithPrefix(outputPaths, blockName)
+        }
 
         blockOutputs.push(blockOutput)
       }
 
-      const variableOutputs = getWorkflowVariables(activeWorkflowId)
+      const includeVariables = !args?.blockIds || args.blockIds.length === 0
+      const variableOutputs = includeVariables ? getWorkflowVariables(activeWorkflowId) : []
 
       const result = GetBlockOutputsResult.parse({
         blocks: blockOutputs,
