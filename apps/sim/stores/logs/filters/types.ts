@@ -166,7 +166,7 @@ export type TimeRange =
   | 'Past 30 days'
   | 'All time'
 
-export type LogLevel = 'error' | 'info' | 'running' | 'pending' | 'all'
+export type LogLevel = 'error' | 'info' | 'running' | 'pending' | 'all' | (string & {})
 export type TriggerType = 'chat' | 'api' | 'webhook' | 'manual' | 'schedule' | 'all' | string
 
 /** Filter state for logs and dashboard views */

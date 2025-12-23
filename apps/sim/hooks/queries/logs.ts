@@ -56,6 +56,54 @@ function getStartDateFromTimeRange(timeRange: string): Date | null {
   }
 }
 
+/**
+ * Applies common filter parameters to a URLSearchParams object.
+ * Shared between paginated and non-paginated log fetches.
+ */
+function applyFilterParams(params: URLSearchParams, filters: Omit<LogFilters, 'limit'>): void {
+  if (filters.level !== 'all') {
+    params.set('level', filters.level)
+  }
+
+  if (filters.triggers.length > 0) {
+    params.set('triggers', filters.triggers.join(','))
+  }
+
+  if (filters.workflowIds.length > 0) {
+    params.set('workflowIds', filters.workflowIds.join(','))
+  }
+
+  if (filters.folderIds.length > 0) {
+    params.set('folderIds', filters.folderIds.join(','))
+  }
+
+  const startDate = getStartDateFromTimeRange(filters.timeRange)
+  if (startDate) {
+    params.set('startDate', startDate.toISOString())
+  }
+
+  if (filters.searchQuery.trim()) {
+    const parsedQuery = parseQuery(filters.searchQuery.trim())
+    const searchParams = queryToApiParams(parsedQuery)
+
+    for (const [key, value] of Object.entries(searchParams)) {
+      params.set(key, value)
+    }
+  }
+}
+
+function buildQueryParams(workspaceId: string, filters: LogFilters, page: number): string {
+  const params = new URLSearchParams()
+
+  params.set('workspaceId', workspaceId)
+  params.set('limit', filters.limit.toString())
+  params.set('offset', ((page - 1) * filters.limit).toString())
+
+  applyFilterParams(params, filters)
+
+  return params.toString()
+}
+
 async function fetchLogsPage(
   workspaceId: string,
   filters: LogFilters,
@@ -89,46 +137,6 @@ async function fetchLogDetail(logId: string): Promise<WorkflowLog> {
   return data
 }
 
-function buildQueryParams(workspaceId: string, filters: LogFilters, page: number): string {
-  const params = new URLSearchParams()
-
-  params.set('workspaceId', workspaceId)
-  params.set('limit', filters.limit.toString())
-  params.set('offset', ((page - 1) * filters.limit).toString())
-
-  if (filters.level !== 'all') {
-    params.set('level', filters.level)
-  }
-
-  if (filters.triggers.length > 0) {
-    params.set('triggers', filters.triggers.join(','))
-  }
-
-  if (filters.workflowIds.length > 0) {
-    params.set('workflowIds', filters.workflowIds.join(','))
-  }
-
-  if (filters.folderIds.length > 0) {
-    params.set('folderIds', filters.folderIds.join(','))
-  }
-
-  const startDate = getStartDateFromTimeRange(filters.timeRange)
-  if (startDate) {
-    params.set('startDate', startDate.toISOString())
-  }
-
-  if (filters.searchQuery.trim()) {
-    const parsedQuery = parseQuery(filters.searchQuery.trim())
-    const searchParams = queryToApiParams(parsedQuery)
-
-    for (const [key, value] of Object.entries(searchParams)) {
-      params.set(key, value)
-    }
-  }
-
-  return params.toString()
-}
-
 interface UseLogsListOptions {
   enabled?: boolean
   refetchInterval?: number | false
@@ -144,8 +152,8 @@ export function useLogsList(
     queryFn: ({ pageParam }) => fetchLogsPage(workspaceId as string, filters, pageParam),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
-    staleTime: 0, // Always consider stale for real-time logs
-    placeholderData: keepPreviousData, // Keep showing old data while fetching new data
+    staleTime: 0,
+    placeholderData: keepPreviousData,
     initialPageParam: 1,
     getNextPageParam: (lastPage) => lastPage.nextPage,
   })
@@ -156,7 +164,7 @@ export function useLogDetail(logId: string | undefined) {
     queryKey: logKeys.detail(logId),
     queryFn: () => fetchLogDetail(logId as string),
     enabled: Boolean(logId),
-    staleTime: 30 * 1000, // Details can be slightly stale (30 seconds)
+    staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
   })
 }
@@ -177,35 +185,7 @@ async function fetchAllLogs(
   params.set('limit', DASHBOARD_LOGS_LIMIT.toString())
   params.set('offset', '0')
 
-  if (filters.level !== 'all') {
-    params.set('level', filters.level)
-  }
-
-  if (filters.triggers.length > 0) {
-    params.set('triggers', filters.triggers.join(','))
-  }
-
-  if (filters.workflowIds.length > 0) {
-    params.set('workflowIds', filters.workflowIds.join(','))
-  }
-
-  if (filters.folderIds.length > 0) {
-    params.set('folderIds', filters.folderIds.join(','))
-  }
-
-  const startDate = getStartDateFromTimeRange(filters.timeRange)
-  if (startDate) {
-    params.set('startDate', startDate.toISOString())
-  }
-
-  if (filters.searchQuery.trim()) {
-    const parsedQuery = parseQuery(filters.searchQuery.trim())
-    const searchParams = queryToApiParams(parsedQuery)
-
-    for (const [key, value] of Object.entries(searchParams)) {
-      params.set(key, value)
-    }
-  }
+  applyFilterParams(params, filters)
 
   const response = await fetch(`/api/logs?${params.toString()}`)
 

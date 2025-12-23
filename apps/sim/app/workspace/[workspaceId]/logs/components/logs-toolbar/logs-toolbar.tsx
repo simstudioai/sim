@@ -156,10 +156,8 @@ export function LogsToolbar({
   } = useFilterStore()
   const folders = useFolderStore((state) => state.folders)
 
-  // Use the same workflow source as the dashboard's WorkflowsList
   const allWorkflows = useWorkflowRegistry((state) => state.workflows)
 
-  // Transform registry workflows to the format needed for combobox options
   const workflows = useMemo(() => {
     return Object.values(allWorkflows).map((w) => ({
       id: w.id,
@@ -174,7 +172,6 @@ export function LogsToolbar({
 
   const isDashboardView = viewMode === 'dashboard'
 
-  // Status filter
   const selectedStatuses = useMemo((): string[] => {
     if (level === 'all' || !level) return []
     return level.split(',').filter(Boolean)
@@ -195,7 +192,7 @@ export function LogsToolbar({
       if (values.length === 0) {
         setLevel('all')
       } else {
-        setLevel(values.join(',') as any)
+        setLevel(values.join(','))
       }
     },
     [setLevel]
@@ -220,7 +217,6 @@ export function LogsToolbar({
     return null
   }, [selectedStatuses])
 
-  // Workflow filter
   const workflowOptions: ComboboxOption[] = useMemo(
     () => workflows.map((w) => ({ value: w.id, label: w.name, icon: getColorIcon(w.color) })),
     [workflows]
@@ -238,7 +234,6 @@ export function LogsToolbar({
   const selectedWorkflow =
     workflowIds.length === 1 ? workflows.find((w) => w.id === workflowIds[0]) : null
 
-  // Folder filter
   const folderOptions: ComboboxOption[] = useMemo(
     () => folderList.map((f) => ({ value: f.id, label: f.name })),
     [folderList]
@@ -253,7 +248,6 @@ export function LogsToolbar({
     return `${folderIds.length} folders`
   }, [folderIds, folderList])
 
-  // Trigger filter
   const triggerOptions: ComboboxOption[] = useMemo(
     () =>
       getTriggerOptions().map((t) => ({
