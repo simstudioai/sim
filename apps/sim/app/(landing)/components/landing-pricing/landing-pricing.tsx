@@ -41,7 +41,7 @@ interface PricingTier {
  * Free plan features with consistent icons
  */
 const FREE_PLAN_FEATURES: PricingFeature[] = [
-  { icon: DollarSign, text: '$10 usage limit' },
+  { icon: DollarSign, text: '$20 usage limit' },
   { icon: HardDrive, text: '5GB file storage' },
   { icon: Workflow, text: 'Public template access' },
   { icon: Database, text: 'Limited log retention' },
