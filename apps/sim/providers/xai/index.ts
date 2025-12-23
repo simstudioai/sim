@@ -48,7 +48,7 @@ export const xAIProvider: ProviderConfig = {
       hasTools: !!request.tools?.length,
       toolCount: request.tools?.length || 0,
       hasResponseFormat: !!request.responseFormat,
-      model: request.model || 'grok-3-latest',
+      model: request.model,
       streaming: !!request.stream,
     })
 
@@ -87,7 +87,7 @@ export const xAIProvider: ProviderConfig = {
       )
     }
     const basePayload: any = {
-      model: request.model || 'grok-3-latest',
+      model: request.model,
       messages: allMessages,
     }
 
@@ -139,7 +139,7 @@ export const xAIProvider: ProviderConfig = {
           success: true,
           output: {
             content: '',
-            model: request.model || 'grok-3-latest',
+            model: request.model,
             tokens: { prompt: 0, completion: 0, total: 0 },
             toolCalls: undefined,
             providerTiming: {
@@ -505,7 +505,7 @@ export const xAIProvider: ProviderConfig = {
             success: true,
             output: {
               content: '',
-              model: request.model || 'grok-3-latest',
+              model: request.model,
               tokens: {
                 prompt: tokens.prompt,
                 completion: tokens.completion,

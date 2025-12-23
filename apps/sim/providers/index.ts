@@ -1,11 +1,11 @@
 import { getCostMultiplier } from '@/lib/core/config/feature-flags'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
-import type { ProviderRequest, ProviderResponse } from '@/providers/types'
+import { getProviderExecutor } from '@/providers/registry'
+import type { ProviderId, ProviderRequest, ProviderResponse } from '@/providers/types'
 import {
   calculateCost,
   generateStructuredOutputInstructions,
-  getProvider,
   shouldBillModelUsage,
   supportsTemperature,
 } from '@/providers/utils'
@@ -40,7 +40,7 @@ export async function executeProviderRequest(
   providerId: string,
   request: ProviderRequest
 ): Promise<ProviderResponse | ReadableStream | StreamingExecution> {
-  const provider = getProvider(providerId)
+  const provider = await getProviderExecutor(providerId as ProviderId)
   if (!provider) {
     throw new Error(`Provider not found: ${providerId}`)
   }

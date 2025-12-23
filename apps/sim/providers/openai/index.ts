@@ -33,7 +33,7 @@ export const openaiProvider: ProviderConfig = {
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
     logger.info('Preparing OpenAI request', {
-      model: request.model || 'gpt-4o',
+      model: request.model,
       hasSystemPrompt: !!request.systemPrompt,
       hasMessages: !!request.messages?.length,
       hasTools: !!request.tools?.length,
@@ -76,7 +76,7 @@ export const openaiProvider: ProviderConfig = {
       : undefined
 
     const payload: any = {
-      model: request.model || 'gpt-4o',
+      model: request.model,
       messages: allMessages,
     }
 
@@ -121,7 +121,7 @@ export const openaiProvider: ProviderConfig = {
                   : toolChoice.type === 'any'
                     ? `force:${toolChoice.any?.name || 'unknown'}`
                     : 'unknown',
-          model: request.model || 'gpt-4o',
+          model: request.model,
         })
       }
     }

@@ -164,6 +164,7 @@ export interface ProviderRequest {
   vertexLocation?: string
   reasoningEffort?: string
   verbosity?: string
+  thinkingLevel?: string
 }
 
 export const providers: Record<string, ProviderConfig> = {}

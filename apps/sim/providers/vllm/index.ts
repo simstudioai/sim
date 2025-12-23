@@ -130,7 +130,7 @@ export const vllmProvider: ProviderConfig = {
       : undefined
 
     const payload: any = {
-      model: (request.model || getProviderDefaultModel('vllm')).replace(/^vllm\//, ''),
+      model: request.model.replace(/^vllm\//, ''),
       messages: allMessages,
     }
 

@@ -39,6 +39,10 @@ export interface ModelCapabilities {
   verbosity?: {
     values: string[]
   }
+  thinking?: {
+    levels: string[]
+    default?: string
+  }
 }
 
 export interface ModelDefinition {
@@ -730,6 +734,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['low', 'high'],
+            default: 'high',
+          },
         },
         contextWindow: 1000000,
       },
@@ -743,6 +751,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['minimal', 'low', 'medium', 'high'],
+            default: 'high',
+          },
         },
         contextWindow: 1000000,
       },
@@ -832,6 +844,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['low', 'high'],
+            default: 'high',
+          },
         },
         contextWindow: 1000000,
       },
@@ -845,6 +861,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['minimal', 'low', 'medium', 'high'],
+            default: 'high',
+          },
         },
         contextWindow: 1000000,
       },
@@ -1863,4 +1883,50 @@ export function supportsNativeStructuredOutputs(modelId: string): boolean {
     }
   }
   return false
+}
+
+/**
+ * Check if a model supports thinking/reasoning features.
+ * Returns the thinking capability config if supported, null otherwise.
+ */
+export function getThinkingCapability(
+  modelId: string
+): { levels: string[]; default?: string } | null {
+  const normalizedModelId = modelId.toLowerCase()
+
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    for (const model of provider.models) {
+      if (model.capabilities.thinking) {
+        const baseModelId = model.id.toLowerCase()
+        if (normalizedModelId === baseModelId || normalizedModelId.startsWith(`${baseModelId}-`)) {
+          return model.capabilities.thinking
+        }
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Get all models that support thinking capability
+ */
+export function getModelsWithThinking(): string[] {
+  const models: string[] = []
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    for (const model of provider.models) {
+      if (model.capabilities.thinking) {
+        models.push(model.id)
+      }
+    }
+  }
+  return models
+}
+
+/**
+ * Get the thinking levels for a specific model
+ * Returns the valid levels for that model, or null if the model doesn't support thinking
+ */
+export function getThinkingLevelsForModel(modelId: string): string[] | null {
+  const capability = getThinkingCapability(modelId)
+  return capability?.levels ?? null
 }

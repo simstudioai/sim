@@ -1,8 +1,9 @@
 import { db } from '@sim/db'
-import { mcpServers } from '@sim/db/schema'
+import { account, mcpServers } from '@sim/db/schema'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
 import { AGENT, BlockType, DEFAULTS, HTTP } from '@/executor/constants'
@@ -919,6 +920,7 @@ export class AgentBlockHandler implements BlockHandler {
       azureApiVersion: inputs.azureApiVersion,
       vertexProject: inputs.vertexProject,
       vertexLocation: inputs.vertexLocation,
+      vertexCredential: inputs.vertexCredential,
       responseFormat,
       workflowId: ctx.workflowId,
       workspaceId: ctx.workspaceId,
@@ -997,7 +999,17 @@ export class AgentBlockHandler implements BlockHandler {
     responseFormat: any,
     providerStartTime: number
   ) {
-    const finalApiKey = this.getApiKey(providerId, model, providerRequest.apiKey)
+    let finalApiKey: string
+
+    // For Vertex AI, resolve OAuth credential to access token
+    if (providerId === 'vertex' && providerRequest.vertexCredential) {
+      finalApiKey = await this.resolveVertexCredential(
+        providerRequest.vertexCredential,
+        ctx.workflowId
+      )
+    } else {
+      finalApiKey = this.getApiKey(providerId, model, providerRequest.apiKey)
+    }
 
     const { blockData, blockNameMapping } = collectBlockData(ctx)
 
@@ -1024,7 +1036,6 @@ export class AgentBlockHandler implements BlockHandler {
       blockNameMapping,
     })
 
-    this.logExecutionSuccess(providerId, model, ctx, block, providerStartTime, response)
     return this.processProviderResponse(response, block, responseFormat)
   }
 
@@ -1048,15 +1059,6 @@ export class AgentBlockHandler implements BlockHandler {
       const errorMessage = await extractAPIErrorMessage(response)
       throw new Error(errorMessage)
     }
-
-    this.logExecutionSuccess(
-      providerRequest.provider,
-      providerRequest.model,
-      ctx,
-      block,
-      providerStartTime,
-      'HTTP response'
-    )
 
     const contentType = response.headers.get('Content-Type')
     if (contentType?.includes(HTTP.CONTENT_TYPE.EVENT_STREAM)) {
@@ -1117,21 +1119,33 @@ export class AgentBlockHandler implements BlockHandler {
     }
   }
 
-  private logExecutionSuccess(
-    provider: string,
-    model: string,
-    ctx: ExecutionContext,
-    block: SerializedBlock,
-    startTime: number,
-    response: any
-  ) {
-    const executionTime = Date.now() - startTime
-    const responseType =
-      response instanceof ReadableStream
-        ? 'stream'
-        : response && typeof response === 'object' && 'stream' in response
-          ? 'streaming-execution'
-          : 'json'
+  /**
+   * Resolves a Vertex AI OAuth credential to an access token
+   */
+  private async resolveVertexCredential(credentialId: string, workflowId: string): Promise<string> {
+    const requestId = `vertex-${Date.now()}`
+
+    logger.info(`[${requestId}] Resolving Vertex AI credential: ${credentialId}`)
+
+    // Get the credential - we need to find the owner
+    // Since we're in a workflow context, we can query the credential directly
+    const credential = await db.query.account.findFirst({
+      where: eq(account.id, credentialId),
+    })
+
+    if (!credential) {
+      throw new Error(`Vertex AI credential not found: ${credentialId}`)
+    }
+
+    // Refresh the token if needed
+    const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
+
+    if (!accessToken) {
+      throw new Error('Failed to get Vertex AI access token')
+    }
+
+    logger.info(`[${requestId}] Successfully resolved Vertex AI credential`)
+    return accessToken
   }
 
   private handleExecutionError(
