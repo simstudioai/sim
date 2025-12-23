@@ -671,23 +671,21 @@ export const useWorkflowStore = create<WorkflowStore>()(
         const oldBlock = get().blocks[id]
         if (!oldBlock) return { success: false, changedSubblocks: [] }
 
-        // Check for normalized name collisions
         const normalizedNewName = normalizeName(name)
-        const currentBlocks = get().blocks
 
-        // Find any other block with the same normalized name
-        const conflictingBlock = Object.entries(currentBlocks).find(([blockId, block]) => {
-          return (
-            blockId !== id && // Different block
-            block.name && // Has a name
-            normalizeName(block.name) === normalizedNewName // Same normalized name
-          )
-        })
+        if (!normalizedNewName) {
+          logger.error(`Cannot rename block to empty name`)
+          return { success: false, changedSubblocks: [] }
+        }
+
+        const currentBlocks = get().blocks
+        const conflictingBlock = Object.entries(currentBlocks).find(
+          ([blockId, block]) => blockId !== id && normalizeName(block.name) === normalizedNewName
+        )
 
         if (conflictingBlock) {
-          // Don't allow the rename - another block already uses this normalized name
           logger.error(
-            `Cannot rename block to "${name}" - another block "${conflictingBlock[1].name}" already uses the normalized name "${normalizedNewName}"`
+            `Cannot rename block to "${name}" - conflicts with "${conflictingBlock[1].name}"`
           )
           return { success: false, changedSubblocks: [] }
         }

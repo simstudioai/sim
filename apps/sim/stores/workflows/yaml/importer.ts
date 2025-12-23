@@ -2,6 +2,7 @@ import { load as yamlParse } from 'js-yaml'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBlock } from '@/blocks'
+import { normalizeName } from '@/executor/constants'
 import {
   type ConnectionsFormat,
   expandConditionInputs,
@@ -173,6 +174,34 @@ function validateBlockTypes(yamlWorkflow: YamlWorkflow): { errors: string[]; war
 }
 
 /**
+ * Validates block names are non-empty and unique (by normalized name).
+ */
+function validateBlockNames(blocks: Record<string, YamlBlock>): string[] {
+  const errors: string[] = []
+  const seen = new Map<string, string>()
+
+  for (const [blockId, block] of Object.entries(blocks)) {
+    const normalized = normalizeName(block.name)
+
+    if (!normalized) {
+      errors.push(`Block "${blockId}" has empty name`)
+      continue
+    }
+
+    const existingBlockId = seen.get(normalized)
+    if (existingBlockId) {
+      errors.push(
+        `Block "${blockId}" has same name as "${existingBlockId}" (normalized: "${normalized}")`
+      )
+    } else {
+      seen.set(normalized, blockId)
+    }
+  }
+
+  return errors
+}
+
+/**
  * Calculate positions for blocks based on their connections
  * Uses a simple layered approach similar to the auto-layout algorithm
  */
@@ -334,18 +363,19 @@ export function convertYamlToWorkflow(yamlWorkflow: YamlWorkflow): ImportResult 
   errors.push(...typeErrors)
   warnings.push(...typeWarnings)
 
+  // Validate block names (non-empty and unique)
+  const nameErrors = validateBlockNames(yamlWorkflow.blocks)
+  errors.push(...nameErrors)
+
   if (errors.length > 0) {
     return { blocks: [], edges: [], errors, warnings }
   }
 
-  // Calculate positions
   const positions = calculateBlockPositions(yamlWorkflow)
 
-  // Convert blocks
   Object.entries(yamlWorkflow.blocks).forEach(([blockId, yamlBlock]) => {
     const position = positions[blockId] || { x: 100, y: 100 }
 
-    // Expand condition inputs from clean format to internal format
     const processedInputs =
       yamlBlock.type === 'condition'
         ? expandConditionInputs(blockId, yamlBlock.inputs || {})

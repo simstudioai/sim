@@ -594,18 +594,18 @@ describe('workflow store', () => {
       }
     )
 
-    it.concurrent('should handle edge cases with empty or whitespace-only names', () => {
+    it.concurrent('should reject empty or whitespace-only names', () => {
       const { updateBlockName } = useWorkflowStore.getState()
 
       const result1 = updateBlockName('block1', '')
-      expect(result1.success).toBe(true)
+      expect(result1.success).toBe(false)
 
       const result2 = updateBlockName('block2', '   ')
-      expect(result2.success).toBe(true)
+      expect(result2.success).toBe(false)
 
       const state = useWorkflowStore.getState()
-      expect(state.blocks.block1.name).toBe('')
-      expect(state.blocks.block2.name).toBe('   ')
+      expect(state.blocks.block1.name).toBe('column ad')
+      expect(state.blocks.block2.name).toBe('Employee Length')
     })
 
     it.concurrent('should return false when trying to rename a non-existent block', () => {
