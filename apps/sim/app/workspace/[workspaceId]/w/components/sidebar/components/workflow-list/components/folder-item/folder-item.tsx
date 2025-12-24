@@ -75,6 +75,16 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
     getFolderIds: () => folder.id,
   })
 
+  // Folder expand hook - must be declared before callbacks that use expandFolder
+  const {
+    isExpanded,
+    handleToggleExpanded,
+    expandFolder,
+    handleKeyDown: handleExpandKeyDown,
+  } = useFolderExpand({
+    folderId: folder.id,
+  })
+
   /**
    * Handle create workflow in folder using React Query mutation.
    * Generates name and color upfront for optimistic UI updates.
@@ -95,6 +105,8 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
 
       if (result.id) {
         router.push(`/workspace/${workspaceId}/w/${result.id}`)
+        // Expand the parent folder so the new workflow is visible
+        expandFolder()
         // Scroll to the newly created workflow
         window.dispatchEvent(
           new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: result.id } })
@@ -104,7 +116,7 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
       // Error already handled by mutation's onError callback
       logger.error('Failed to create workflow in folder:', error)
     }
-  }, [createWorkflowMutation, workspaceId, folder.id, router])
+  }, [createWorkflowMutation, workspaceId, folder.id, router, expandFolder])
 
   /**
    * Handle create sub-folder using React Query mutation.
@@ -118,6 +130,8 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
         parentId: folder.id,
       })
       if (result.id) {
+        // Expand the parent folder so the new folder is visible
+        expandFolder()
         // Scroll to the newly created folder
         window.dispatchEvent(
           new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: result.id } })
@@ -126,16 +140,7 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
     } catch (error) {
       logger.error('Failed to create folder:', error)
     }
-  }, [createFolderMutation, workspaceId, folder.id])
-
-  // Folder expand hook
-  const {
-    isExpanded,
-    handleToggleExpanded,
-    handleKeyDown: handleExpandKeyDown,
-  } = useFolderExpand({
-    folderId: folder.id,
-  })
+  }, [createFolderMutation, workspaceId, folder.id, expandFolder])
 
   /**
    * Drag start handler - sets folder data for drag operation
