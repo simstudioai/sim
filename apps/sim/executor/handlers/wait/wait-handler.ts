@@ -1,37 +1,37 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
-const logger = createLogger('WaitBlockHandler')
-
 /**
- * Helper function to sleep for a specified number of milliseconds
- * On client-side: checks for cancellation every 100ms (non-blocking for UI)
- * On server-side: simple sleep without polling (server execution can't be cancelled mid-flight)
+ * Helper function to sleep for a specified number of milliseconds with AbortSignal support.
+ * The sleep will be cancelled immediately when the AbortSignal is aborted.
  */
-const sleep = async (ms: number, checkCancelled?: () => boolean): Promise<boolean> => {
-  const isClientSide = typeof window !== 'undefined'
-
-  if (!isClientSide) {
-    await new Promise((resolve) => setTimeout(resolve, ms))
-    return true
+const sleep = async (ms: number, signal?: AbortSignal): Promise<boolean> => {
+  if (signal?.aborted) {
+    return false
   }
 
-  const chunkMs = 100
-  let elapsed = 0
+  return new Promise((resolve) => {
+    let timeoutId: NodeJS.Timeout | undefined
 
-  while (elapsed < ms) {
-    if (checkCancelled?.()) {
-      return false
+    const onAbort = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+      resolve(false)
     }
 
-    const sleepTime = Math.min(chunkMs, ms - elapsed)
-    await new Promise((resolve) => setTimeout(resolve, sleepTime))
-    elapsed += sleepTime
-  }
+    if (signal) {
+      signal.addEventListener('abort', onAbort, { once: true })
+    }
 
-  return true
+    timeoutId = setTimeout(() => {
+      if (signal) {
+        signal.removeEventListener('abort', onAbort)
+      }
+      resolve(true)
+    }, ms)
+  })
 }
 
 /**
@@ -65,11 +65,7 @@ export class WaitBlockHandler implements BlockHandler {
       throw new Error(`Wait time exceeds maximum of ${maxDisplay}`)
     }
 
-    const checkCancelled = () => {
-      return (ctx as any).isCancelled === true
-    }
-
-    const completed = await sleep(waitMs, checkCancelled)
+    const completed = await sleep(waitMs, ctx.abortSignal)
 
     if (!completed) {
       return {

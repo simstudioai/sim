@@ -222,8 +222,12 @@ export interface ExecutionContext {
     output: any
   ) => Promise<void>
 
-  // Cancellation support
-  isCancelled?: boolean
+  /**
+   * AbortSignal for cancellation support.
+   * When the signal is aborted, execution should stop gracefully.
+   * This is triggered when the SSE client disconnects.
+   */
+  abortSignal?: AbortSignal
 
   // Dynamically added nodes that need to be scheduled (e.g., from parallel expansion)
   pendingDynamicNodes?: string[]

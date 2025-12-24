@@ -37,7 +37,6 @@ export class DAGExecutor {
   private workflowInput: WorkflowInput
   private workflowVariables: Record<string, unknown>
   private contextExtensions: ContextExtensions
-  private isCancelled = false
   private dagBuilder: DAGBuilder
 
   constructor(options: DAGExecutorOptions) {
@@ -53,13 +52,6 @@ export class DAGExecutor {
     const savedIncomingEdges = this.contextExtensions.dagIncomingEdges
     const dag = this.dagBuilder.build(this.workflow, triggerBlockId, savedIncomingEdges)
     const { context, state } = this.createExecutionContext(workflowId, triggerBlockId)
-
-    // Link cancellation flag to context
-    Object.defineProperty(context, 'isCancelled', {
-      get: () => this.isCancelled,
-      enumerable: true,
-      configurable: true,
-    })
 
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
     const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
@@ -80,10 +72,6 @@ export class DAGExecutor {
     )
     const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
     return await engine.run(triggerBlockId)
-  }
-
-  cancel(): void {
-    this.isCancelled = true
   }
 
   async continueExecution(
@@ -180,6 +168,7 @@ export class DAGExecutor {
       onStream: this.contextExtensions.onStream,
       onBlockStart: this.contextExtensions.onBlockStart,
       onBlockComplete: this.contextExtensions.onBlockComplete,
+      abortSignal: this.contextExtensions.abortSignal,
     }
 
     if (this.contextExtensions.resumeFromSnapshot) {

@@ -39,7 +39,7 @@ export class ExecutionEngine {
       this.initializeQueue(triggerBlockId)
 
       while (this.hasWork()) {
-        if (this.context.isCancelled && this.executing.size === 0) {
+        if (this.context.abortSignal?.aborted && this.executing.size === 0) {
           break
         }
         await this.processQueue()
@@ -54,7 +54,7 @@ export class ExecutionEngine {
       this.context.metadata.endTime = new Date(endTime).toISOString()
       this.context.metadata.duration = endTime - startTime
 
-      if (this.context.isCancelled) {
+      if (this.context.abortSignal?.aborted) {
         return {
           success: false,
           output: this.finalOutput,
@@ -75,7 +75,7 @@ export class ExecutionEngine {
       this.context.metadata.endTime = new Date(endTime).toISOString()
       this.context.metadata.duration = endTime - startTime
 
-      if (this.context.isCancelled) {
+      if (this.context.abortSignal?.aborted) {
         return {
           success: false,
           output: this.finalOutput,
@@ -234,7 +234,7 @@ export class ExecutionEngine {
 
   private async processQueue(): Promise<void> {
     while (this.readyQueue.length > 0) {
-      if (this.context.isCancelled) {
+      if (this.context.abortSignal?.aborted) {
         break
       }
       const nodeId = this.dequeue()

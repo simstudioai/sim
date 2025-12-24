@@ -229,7 +229,7 @@ export class LoopOrchestrator {
       }
     }
 
-    if (ctx.isCancelled) {
+    if (ctx.abortSignal?.aborted) {
       logger.info('Loop execution cancelled', { loopId, iteration: scope.iteration })
       return this.createExitResult(ctx, loopId, scope)
     }

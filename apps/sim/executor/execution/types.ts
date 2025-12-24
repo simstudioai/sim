@@ -22,6 +22,11 @@ export interface ContextExtensions {
   dagIncomingEdges?: Record<string, string[]>
   snapshotState?: SerializableExecutionState
   metadata?: ExecutionMetadata
+  /**
+   * AbortSignal for cancellation support.
+   * When aborted, the execution should stop gracefully.
+   */
+  abortSignal?: AbortSignal
   onStream?: (streamingExecution: unknown) => Promise<void>
   onBlockStart?: (
     blockId: string,
