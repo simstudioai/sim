@@ -267,14 +267,8 @@ export interface GrafanaCreateAnnotationParams extends GrafanaBaseParams {
 
 export interface GrafanaAnnotation {
   id: number
-  alertId: number
-  alertName: string
   dashboardId: number
   dashboardUID: string
-  panelId: number
-  userId: number
-  newState: string
-  prevState: string
   created: number
   updated: number
   time: number
@@ -380,7 +374,6 @@ export interface GrafanaFolder {
   id: number
   uid: string
   title: string
-  url: string
   hasAcl: boolean
   canSave: boolean
   canEdit: boolean

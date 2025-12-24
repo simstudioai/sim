@@ -110,32 +110,27 @@ export const listAnnotationsTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
+    // Handle potential nested array structure
+    const rawAnnotations = Array.isArray(data) ? data.flat() : []
+
     return {
       success: true,
       output: {
-        annotations: Array.isArray(data)
-          ? data.map((a: any) => ({
-              id: a.id,
-              alertId: a.alertId,
-              alertName: a.alertName,
-              dashboardId: a.dashboardId,
-              dashboardUID: a.dashboardUID,
-              panelId: a.panelId,
-              userId: a.userId,
-              newState: a.newState,
-              prevState: a.prevState,
-              created: a.created,
-              updated: a.updated,
-              time: a.time,
-              timeEnd: a.timeEnd,
-              text: a.text,
-              tags: a.tags || [],
-              login: a.login,
-              email: a.email,
-              avatarUrl: a.avatarUrl,
-              data: a.data,
-            }))
-          : [],
+        annotations: rawAnnotations.map((a: any) => ({
+          id: a.id,
+          dashboardId: a.dashboardId,
+          dashboardUID: a.dashboardUID,
+          created: a.created,
+          updated: a.updated,
+          time: a.time,
+          timeEnd: a.timeEnd,
+          text: a.text,
+          tags: a.tags || [],
+          login: a.login,
+          email: a.email,
+          avatarUrl: a.avatarUrl,
+          data: a.data || {},
+        })),
       },
     }
   },
@@ -148,12 +143,21 @@ export const listAnnotationsTool: ToolConfig<
         type: 'object',
         properties: {
           id: { type: 'number', description: 'Annotation ID' },
-          text: { type: 'string', description: 'Annotation text' },
-          tags: { type: 'array', description: 'Annotation tags' },
+          dashboardId: { type: 'number', description: 'Dashboard ID' },
+          dashboardUID: { type: 'string', description: 'Dashboard UID' },
+          created: { type: 'number', description: 'Creation timestamp in epoch ms' },
+          updated: { type: 'number', description: 'Last update timestamp in epoch ms' },
           time: { type: 'number', description: 'Start time in epoch ms' },
           timeEnd: { type: 'number', description: 'End time in epoch ms' },
-          dashboardUID: { type: 'string', description: 'Dashboard UID' },
-          panelId: { type: 'number', description: 'Panel ID' },
+          text: { type: 'string', description: 'Annotation text' },
+          tags: { type: 'array', items: { type: 'string' }, description: 'Annotation tags' },
+          login: { type: 'string', description: 'Login of the user who created the annotation' },
+          email: { type: 'string', description: 'Email of the user who created the annotation' },
+          avatarUrl: { type: 'string', description: 'Avatar URL of the user' },
+          data: {
+            type: 'json',
+            description: 'Additional annotation data object from Grafana',
+          },
         },
       },
     },
