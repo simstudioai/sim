@@ -19,6 +19,7 @@ const sleep = async (ms: number, options: SleepOptions = {}): Promise<boolean> =
   }
 
   return new Promise((resolve) => {
+    // biome-ignore lint/style/useConst: needs to be declared before cleanup() but assigned later
     let mainTimeoutId: NodeJS.Timeout | undefined
     let checkIntervalId: NodeJS.Timeout | undefined
     let resolved = false
