@@ -178,13 +178,13 @@ export const MEMORY = {
 } as const
 
 export const ROUTER = {
-  DEFAULT_MODEL: 'gpt-4o',
+  DEFAULT_MODEL: 'claude-sonnet-4-5',
   DEFAULT_TEMPERATURE: 0,
   INFERENCE_TEMPERATURE: 0.1,
 } as const
 
 export const EVALUATOR = {
-  DEFAULT_MODEL: 'gpt-4o',
+  DEFAULT_MODEL: 'claude-sonnet-4-5',
   DEFAULT_TEMPERATURE: 0.1,
   RESPONSE_SCHEMA_NAME: 'evaluation_response',
   JSON_INDENT: 2,

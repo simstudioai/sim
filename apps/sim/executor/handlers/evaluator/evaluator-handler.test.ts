@@ -467,7 +467,7 @@ describe('EvaluatorBlockHandler', () => {
         json: () =>
           Promise.resolve({
             content: JSON.stringify({ score: 7 }),
-            model: 'gpt-4o',
+            model: 'claude-sonnet-4-5',
             tokens: {},
             cost: 0,
             timing: {},
@@ -480,6 +480,6 @@ describe('EvaluatorBlockHandler', () => {
     const fetchCallArgs = mockFetch.mock.calls[0]
     const requestBody = JSON.parse(fetchCallArgs[1].body)
 
-    expect(requestBody.model).toBe('gpt-4o')
+    expect(requestBody.model).toBe('claude-sonnet-4-5')
   })
 })
