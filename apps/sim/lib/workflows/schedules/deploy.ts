@@ -228,6 +228,13 @@ export async function createSchedulesForDeploy(
     return { success: true }
   }
 
+  let lastScheduleInfo: {
+    scheduleId: string
+    cronExpression?: string
+    nextRunAt?: Date
+    timezone?: string
+  } | null = null
+
   for (const block of scheduleBlocks) {
     const blockId = block.id as string
 
@@ -282,16 +289,13 @@ export async function createSchedulesForDeploy(
       nextRunAt: nextRunAt?.toISOString(),
     })
 
-    return {
-      success: true,
-      scheduleId: values.id,
-      cronExpression,
-      nextRunAt,
-      timezone,
-    }
+    lastScheduleInfo = { scheduleId: values.id, cronExpression, nextRunAt, timezone }
   }
 
-  return { success: true }
+  return {
+    success: true,
+    ...lastScheduleInfo,
+  }
 }
 
 /**
