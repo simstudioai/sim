@@ -464,6 +464,8 @@ export function DeployModal({
       setDeploymentInfo((prev) => (prev ? { ...prev, needsRedeployment: false } : prev))
     } catch (error: unknown) {
       logger.error('Error redeploying workflow:', { error })
+      const errorMessage = error instanceof Error ? error.message : 'Failed to redeploy workflow'
+      setApiDeployError(errorMessage)
     } finally {
       setIsSubmitting(false)
     }

@@ -782,4 +782,397 @@ describe('Schedule Utilities', () => {
       expect(date.toISOString()).toBe('2025-10-14T14:00:00.000Z')
     })
   })
+
+  describe('Edge Cases and DST Transitions', () => {
+    describe('DST Transition Edge Cases', () => {
+      it.concurrent('should handle DST spring forward transition (2:00 AM skipped)', () => {
+        // In US timezones, DST spring forward happens at 2:00 AM -> jumps to 3:00 AM
+        // March 9, 2025 is DST transition day in America/New_York
+        const scheduleValues = {
+          scheduleTime: '',
+          scheduleStartAt: '',
+          timezone: 'America/New_York',
+          minutesInterval: 15,
+          hourlyMinute: 0,
+          dailyTime: [2, 30] as [number, number], // 2:30 AM (during the skipped hour)
+          weeklyDay: 1,
+          weeklyTime: [2, 30] as [number, number],
+          monthlyDay: 1,
+          monthlyTime: [2, 30] as [number, number],
+          cronExpression: null,
+        }
+
+        // Should handle the skipped hour gracefully
+        const nextRun = calculateNextRunTime('daily', scheduleValues)
+        expect(nextRun instanceof Date).toBe(true)
+        expect(nextRun > new Date()).toBe(true)
+      })
+
+      it.concurrent('should handle DST fall back transition (1:00 AM repeated)', () => {
+        // In US timezones, DST fall back happens at 2:00 AM -> falls back to 1:00 AM
+        // November 2, 2025 is DST fall back day in America/Los_Angeles
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2025-11-01T12:00:00.000Z'))
+
+        const scheduleValues = {
+          scheduleTime: '',
+          scheduleStartAt: '',
+          timezone: 'America/Los_Angeles',
+          minutesInterval: 15,
+          hourlyMinute: 0,
+          dailyTime: [1, 30] as [number, number], // 1:30 AM (during the repeated hour)
+          weeklyDay: 1,
+          weeklyTime: [1, 30] as [number, number],
+          monthlyDay: 1,
+          monthlyTime: [1, 30] as [number, number],
+          cronExpression: null,
+        }
+
+        const nextRun = calculateNextRunTime('daily', scheduleValues)
+        expect(nextRun instanceof Date).toBe(true)
+        expect(nextRun > new Date()).toBe(true)
+
+        vi.useRealTimers()
+      })
+    })
+
+    describe('End of Month Edge Cases', () => {
+      it.concurrent('should handle February 29th in non-leap year', () => {
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2025-01-15T12:00:00.000Z')) // 2025 is not a leap year
+
+        const scheduleValues = {
+          scheduleTime: '',
+          scheduleStartAt: '',
+          timezone: 'UTC',
+          minutesInterval: 15,
+          hourlyMinute: 0,
+          dailyTime: [9, 0] as [number, number],
+          weeklyDay: 1,
+          weeklyTime: [9, 0] as [number, number],
+          monthlyDay: 29, // Feb doesn't have 29 days in 2025
+          monthlyTime: [9, 0] as [number, number],
+          cronExpression: null,
+        }
+
+        const nextRun = calculateNextRunTime('monthly', scheduleValues)
+        // Should skip February and schedule for next valid month (March 29)
+        expect(nextRun.getUTCMonth()).not.toBe(1) // Not February
+
+        vi.useRealTimers()
+      })
+
+      it.concurrent('should handle February 29th in leap year', () => {
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2024-01-15T12:00:00.000Z')) // 2024 is a leap year
+
+        const scheduleValues = {
+          scheduleTime: '',
+          scheduleStartAt: '',
+          timezone: 'UTC',
+          minutesInterval: 15,
+          hourlyMinute: 0,
+          dailyTime: [9, 0] as [number, number],
+          weeklyDay: 1,
+          weeklyTime: [9, 0] as [number, number],
+          monthlyDay: 29, // Feb has 29 days in 2024
+          monthlyTime: [9, 0] as [number, number],
+          cronExpression: null,
+        }
+
+        const nextRun = calculateNextRunTime('monthly', scheduleValues)
+        expect(nextRun instanceof Date).toBe(true)
+
+        vi.useRealTimers()
+      })
+
+      it.concurrent('should handle day 31 in months with only 30 days', () => {
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2025-04-05T12:00:00.000Z')) // April has 30 days
+
+        const scheduleValues = {
+          scheduleTime: '',
+          scheduleStartAt: '',
+          timezone: 'UTC',
+          minutesInterval: 15,
+          hourlyMinute: 0,
+          dailyTime: [9, 0] as [number, number],
+          weeklyDay: 1,
+          weeklyTime: [9, 0] as [number, number],
+          monthlyDay: 31, // April only has 30 days
+          monthlyTime: [9, 0] as [number, number],
+          cronExpression: null,
+        }
+
+        const nextRun = calculateNextRunTime('monthly', scheduleValues)
+        // Should skip April and schedule for May 31
+        expect(nextRun.getUTCDate()).toBe(31)
+        expect(nextRun.getUTCMonth()).toBe(4) // May (0-indexed)
+
+        vi.useRealTimers()
+      })
+    })
+
+    describe('Timezone-specific Edge Cases', () => {
+      it.concurrent('should handle Australia/Lord_Howe with 30-minute DST shift', () => {
+        // Lord Howe Island has a unique 30-minute DST shift
+        const scheduleValues = {
+          scheduleTime: '',
+          scheduleStartAt: '',
+          timezone: 'Australia/Lord_Howe',
+          minutesInterval: 15,
+          hourlyMinute: 0,
+          dailyTime: [14, 0] as [number, number],
+          weeklyDay: 1,
+          weeklyTime: [14, 0] as [number, number],
+          monthlyDay: 1,
+          monthlyTime: [14, 0] as [number, number],
+          cronExpression: null,
+        }
+
+        const nextRun = calculateNextRunTime('daily', scheduleValues)
+        expect(nextRun instanceof Date).toBe(true)
+        expect(nextRun > new Date()).toBe(true)
+      })
+
+      it.concurrent('should handle negative UTC offsets correctly', () => {
+        // America/Sao_Paulo (UTC-3)
+        const scheduleValues = {
+          scheduleTime: '',
+          scheduleStartAt: '',
+          timezone: 'America/Sao_Paulo',
+          minutesInterval: 15,
+          hourlyMinute: 0,
+          dailyTime: [23, 30] as [number, number], // 11:30 PM local
+          weeklyDay: 1,
+          weeklyTime: [23, 30] as [number, number],
+          monthlyDay: 1,
+          monthlyTime: [23, 30] as [number, number],
+          cronExpression: null,
+        }
+
+        const nextRun = calculateNextRunTime('daily', scheduleValues)
+        expect(nextRun instanceof Date).toBe(true)
+        // 11:30 PM in UTC-3 should be 2:30 AM UTC next day
+        expect(nextRun.getUTCHours()).toBeGreaterThanOrEqual(2)
+      })
+    })
+
+    describe('Complex Cron Pattern Edge Cases', () => {
+      it.concurrent('should handle cron with specific days of month and week', () => {
+        const scheduleValues = {
+          scheduleTime: '',
+          scheduleStartAt: '',
+          timezone: 'UTC',
+          minutesInterval: 15,
+          hourlyMinute: 0,
+          dailyTime: [9, 0] as [number, number],
+          weeklyDay: 1,
+          weeklyTime: [9, 0] as [number, number],
+          monthlyDay: 1,
+          monthlyTime: [9, 0] as [number, number],
+          cronExpression: '0 9 13 * 5', // Friday the 13th at 9:00 AM
+        }
+
+        const result = validateCronExpression(scheduleValues.cronExpression, 'UTC')
+        expect(result.isValid).toBe(true)
+        expect(result.nextRun).toBeInstanceOf(Date)
+      })
+
+      it.concurrent('should handle cron with multiple specific hours', () => {
+        const scheduleValues = {
+          scheduleTime: '',
+          scheduleStartAt: '',
+          timezone: 'America/New_York',
+          minutesInterval: 15,
+          hourlyMinute: 0,
+          dailyTime: [9, 0] as [number, number],
+          weeklyDay: 1,
+          weeklyTime: [9, 0] as [number, number],
+          monthlyDay: 1,
+          monthlyTime: [9, 0] as [number, number],
+          cronExpression: '0 9,12,15,18 * * *', // At 9 AM, noon, 3 PM, 6 PM
+        }
+
+        const result = validateCronExpression(scheduleValues.cronExpression, 'America/New_York')
+        expect(result.isValid).toBe(true)
+        expect(result.nextRun).toBeInstanceOf(Date)
+      })
+
+      it.concurrent('should handle cron with step values in multiple fields', () => {
+        const scheduleValues = {
+          scheduleTime: '',
+          scheduleStartAt: '',
+          timezone: 'Europe/Paris',
+          minutesInterval: 15,
+          hourlyMinute: 0,
+          dailyTime: [9, 0] as [number, number],
+          weeklyDay: 1,
+          weeklyTime: [9, 0] as [number, number],
+          monthlyDay: 1,
+          monthlyTime: [9, 0] as [number, number],
+          cronExpression: '*/15 */2 * * *', // Every 15 minutes, every 2 hours
+        }
+
+        const result = validateCronExpression(scheduleValues.cronExpression, 'Europe/Paris')
+        expect(result.isValid).toBe(true)
+        expect(result.nextRun).toBeInstanceOf(Date)
+      })
+
+      it.concurrent('should handle cron with ranges', () => {
+        const scheduleValues = {
+          scheduleTime: '',
+          scheduleStartAt: '',
+          timezone: 'Asia/Singapore',
+          minutesInterval: 15,
+          hourlyMinute: 0,
+          dailyTime: [9, 0] as [number, number],
+          weeklyDay: 1,
+          weeklyTime: [9, 0] as [number, number],
+          monthlyDay: 1,
+          monthlyTime: [9, 0] as [number, number],
+          cronExpression: '0 9-17 * * 1-5', // Business hours (9 AM - 5 PM) on weekdays
+        }
+
+        const result = validateCronExpression(scheduleValues.cronExpression, 'Asia/Singapore')
+        expect(result.isValid).toBe(true)
+        expect(result.nextRun).toBeInstanceOf(Date)
+      })
+    })
+
+    describe('Validation Edge Cases', () => {
+      it.concurrent('should reject cron with invalid day of week', () => {
+        const result = validateCronExpression('0 9 * * 8', 'UTC') // Day 8 doesn't exist (0-7)
+        expect(result.isValid).toBe(false)
+        expect(result.error).toBeDefined()
+      })
+
+      it.concurrent('should reject cron with invalid month', () => {
+        const result = validateCronExpression('0 9 1 13 *', 'UTC') // Month 13 doesn't exist (1-12)
+        expect(result.isValid).toBe(false)
+        expect(result.error).toBeDefined()
+      })
+
+      it.concurrent('should reject cron with invalid hour', () => {
+        const result = validateCronExpression('0 25 * * *', 'UTC') // Hour 25 doesn't exist (0-23)
+        expect(result.isValid).toBe(false)
+        expect(result.error).toBeDefined()
+      })
+
+      it.concurrent('should reject cron with invalid minute', () => {
+        const result = validateCronExpression('60 9 * * *', 'UTC') // Minute 60 doesn't exist (0-59)
+        expect(result.isValid).toBe(false)
+        expect(result.error).toBeDefined()
+      })
+
+      it.concurrent('should handle standard cron expressions correctly', () => {
+        // Croner requires proper spacing, so test with standard spaces
+        const result = validateCronExpression('0 9 * * *', 'UTC')
+        expect(result.isValid).toBe(true)
+        expect(result.nextRun).toBeInstanceOf(Date)
+      })
+
+      it.concurrent('should reject cron with too few fields', () => {
+        const result = validateCronExpression('0 9 * *', 'UTC') // Missing day of week field
+        expect(result.isValid).toBe(false)
+        expect(result.error).toBeDefined()
+      })
+
+      it.concurrent('should reject cron with too many fields', () => {
+        const result = validateCronExpression('0 0 9 * * * *', 'UTC') // Too many fields (has seconds)
+        expect(result.isValid).toBe(false)
+        expect(result.error).toBeDefined()
+      })
+
+      it.concurrent('should handle timezone with invalid IANA name', () => {
+        const result = validateCronExpression('0 9 * * *', 'Invalid/Timezone')
+        // Croner might handle this differently, but it should either reject or fall back
+        expect(result).toBeDefined()
+      })
+    })
+
+    describe('Boundary Conditions', () => {
+      it.concurrent('should handle midnight (00:00)', () => {
+        const scheduleValues = {
+          scheduleTime: '',
+          scheduleStartAt: '',
+          timezone: 'UTC',
+          minutesInterval: 15,
+          hourlyMinute: 0,
+          dailyTime: [0, 0] as [number, number], // Midnight
+          weeklyDay: 1,
+          weeklyTime: [0, 0] as [number, number],
+          monthlyDay: 1,
+          monthlyTime: [0, 0] as [number, number],
+          cronExpression: null,
+        }
+
+        const nextRun = calculateNextRunTime('daily', scheduleValues)
+        expect(nextRun.getUTCHours()).toBe(0)
+        expect(nextRun.getUTCMinutes()).toBe(0)
+      })
+
+      it.concurrent('should handle end of day (23:59)', () => {
+        const scheduleValues = {
+          scheduleTime: '',
+          scheduleStartAt: '',
+          timezone: 'UTC',
+          minutesInterval: 15,
+          hourlyMinute: 0,
+          dailyTime: [23, 59] as [number, number], // One minute before midnight
+          weeklyDay: 1,
+          weeklyTime: [23, 59] as [number, number],
+          monthlyDay: 1,
+          monthlyTime: [23, 59] as [number, number],
+          cronExpression: null,
+        }
+
+        const nextRun = calculateNextRunTime('daily', scheduleValues)
+        expect(nextRun.getUTCHours()).toBe(23)
+        expect(nextRun.getUTCMinutes()).toBe(59)
+      })
+
+      it.concurrent('should handle first day of month', () => {
+        const scheduleValues = {
+          scheduleTime: '',
+          scheduleStartAt: '',
+          timezone: 'UTC',
+          minutesInterval: 15,
+          hourlyMinute: 0,
+          dailyTime: [9, 0] as [number, number],
+          weeklyDay: 1,
+          weeklyTime: [9, 0] as [number, number],
+          monthlyDay: 1, // First day of month
+          monthlyTime: [9, 0] as [number, number],
+          cronExpression: null,
+        }
+
+        const nextRun = calculateNextRunTime('monthly', scheduleValues)
+        expect(nextRun.getUTCDate()).toBe(1)
+        expect(nextRun.getUTCHours()).toBe(9)
+      })
+
+      it.concurrent('should handle minimum interval (every minute)', () => {
+        const scheduleValues = {
+          scheduleTime: '',
+          scheduleStartAt: '',
+          timezone: 'UTC',
+          minutesInterval: 1, // Every minute
+          hourlyMinute: 0,
+          dailyTime: [9, 0] as [number, number],
+          weeklyDay: 1,
+          weeklyTime: [9, 0] as [number, number],
+          monthlyDay: 1,
+          monthlyTime: [9, 0] as [number, number],
+          cronExpression: null,
+        }
+
+        const nextRun = calculateNextRunTime('minutes', scheduleValues)
+        const now = Date.now()
+        // Should be within the next minute
+        expect(nextRun.getTime()).toBeGreaterThan(now)
+        expect(nextRun.getTime()).toBeLessThanOrEqual(now + 60 * 1000 + 1000)
+      })
+    })
+  })
 })

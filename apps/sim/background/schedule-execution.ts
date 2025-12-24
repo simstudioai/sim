@@ -565,6 +565,7 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
             updatedAt: now,
             nextRunAt,
             failedCount: 0,
+            lastQueuedAt: null,
           },
           requestId,
           `Error updating schedule ${payload.scheduleId} after success`,

@@ -3,7 +3,12 @@ import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { deployWorkflow } from '@/lib/workflows/persistence/utils'
+import { deployWorkflow, loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  createSchedulesForDeploy,
+  deleteSchedulesForWorkflow,
+  validateWorkflowSchedules,
+} from '@/lib/workflows/schedules'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -98,11 +103,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse(error.message, error.status)
     }
 
-    // Attribution: this route is UI-only; require session user as actor
     const actorUserId: string | null = session?.user?.id ?? null
     if (!actorUserId) {
       logger.warn(`[${requestId}] Unable to resolve actor user for workflow deployment: ${id}`)
       return createErrorResponse('Unable to determine deploying user', 400)
+    }
+
+    const normalizedData = await loadWorkflowFromNormalizedTables(id)
+    if (!normalizedData) {
+      return createErrorResponse('Failed to load workflow state', 500)
+    }
+
+    const scheduleValidation = validateWorkflowSchedules(normalizedData.blocks)
+    if (!scheduleValidation.isValid) {
+      logger.warn(
+        `[${requestId}] Schedule validation failed for workflow ${id}: ${scheduleValidation.error}`
+      )
+      return createErrorResponse(`Invalid schedule configuration: ${scheduleValidation.error}`, 400)
     }
 
     const deployResult = await deployWorkflow({
@@ -117,6 +134,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const deployedAt = deployResult.deployedAt!
 
+    let scheduleInfo: { scheduleId?: string; cronExpression?: string; nextRunAt?: Date } = {}
+    const scheduleResult = await createSchedulesForDeploy(id, normalizedData.blocks, db)
+    if (!scheduleResult.success) {
+      logger.error(
+        `[${requestId}] Failed to create schedule for workflow ${id}: ${scheduleResult.error}`
+      )
+    } else if (scheduleResult.scheduleId) {
+      scheduleInfo = {
+        scheduleId: scheduleResult.scheduleId,
+        cronExpression: scheduleResult.cronExpression,
+        nextRunAt: scheduleResult.nextRunAt,
+      }
+      logger.info(
+        `[${requestId}] Schedule created for workflow ${id}: ${scheduleResult.scheduleId}`
+      )
+    }
+
     logger.info(`[${requestId}] Workflow deployed successfully: ${id}`)
 
     const responseApiKeyInfo = workflowData!.workspaceId
@@ -127,6 +161,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       apiKey: responseApiKeyInfo,
       isDeployed: true,
       deployedAt,
+      schedule: scheduleInfo.scheduleId
+        ? {
+            id: scheduleInfo.scheduleId,
+            cronExpression: scheduleInfo.cronExpression,
+            nextRunAt: scheduleInfo.nextRunAt,
+          }
+        : undefined,
     })
   } catch (error: any) {
     logger.error(`[${requestId}] Error deploying workflow: ${id}`, {
@@ -156,6 +197,8 @@ export async function DELETE(
     }
 
     await db.transaction(async (tx) => {
+      await deleteSchedulesForWorkflow(id, tx)
+
       await tx
         .update(workflowDeploymentVersion)
         .set({ isActive: false })
@@ -169,7 +212,6 @@ export async function DELETE(
 
     logger.info(`[${requestId}] Workflow undeployed successfully: ${id}`)
 
-    // Track workflow undeployment
     try {
       const { trackPlatformEvent } = await import('@/lib/core/telemetry')
       trackPlatformEvent('platform.workflow.undeployed', {

@@ -564,7 +564,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     scheduleInfo,
     isLoading: isLoadingScheduleInfo,
     reactivateSchedule,
-    disableSchedule,
   } = useScheduleInfo(id, type, currentWorkflowId)
 
   const { childWorkflowId, childIsDeployed, childNeedsRedeploy, refetchDeployment } =
