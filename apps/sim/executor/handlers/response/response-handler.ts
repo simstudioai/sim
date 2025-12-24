@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockOutput } from '@/blocks/types'
-import { BlockType, HTTP } from '@/executor/constants'
+import { BlockType, HTTP, REFERENCE } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -220,7 +220,11 @@ export class ResponseBlockHandler implements BlockHandler {
   }
 
   private isVariableReference(value: any): boolean {
-    return typeof value === 'string' && value.trim().startsWith('<') && value.trim().includes('>')
+    return (
+      typeof value === 'string' &&
+      value.trim().startsWith(REFERENCE.START) &&
+      value.trim().includes(REFERENCE.END)
+    )
   }
 
   private parseObjectStrings(data: any): any {

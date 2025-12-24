@@ -23,7 +23,7 @@ export interface ParsedFunctionCall {
  */
 export interface ExecutionState {
   contents: Content[]
-  tokens: { prompt: number; completion: number; total: number }
+  tokens: { input: number; output: number; total: number }
   cost: { input: number; output: number; total: number; pricing: ModelPricing }
   toolCalls: FunctionCallResponse[]
   toolResults: Record<string, unknown>[]

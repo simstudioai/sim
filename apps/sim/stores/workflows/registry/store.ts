@@ -3,7 +3,6 @@ import { devtools } from 'zustand/middleware'
 import { withOptimisticUpdate } from '@/lib/core/utils/optimistic-update'
 import { createLogger } from '@/lib/logs/console/logger'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
-import { API_ENDPOINTS } from '@/stores/constants'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type {
   DeploymentStatus,
@@ -673,21 +672,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             }
 
             logger.info(`Successfully deleted workflow ${id} from database`)
-
-            fetch(API_ENDPOINTS.SCHEDULE, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                workflowId: id,
-                state: {
-                  blocks: {},
-                  edges: [],
-                  loops: {},
-                },
-              }),
-            }).catch((error) => {
-              logger.error(`Error cancelling schedule for deleted workflow ${id}:`, error)
-            })
           },
           rollback: (originalState) => {
             set({

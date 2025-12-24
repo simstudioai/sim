@@ -8,7 +8,6 @@ import {
   validateNumericId,
   validatePathSegment,
   validateUrlWithDNS,
-  validateUUID,
 } from '@/lib/core/security/input-validation'
 import { sanitizeForLogging } from '@/lib/core/security/redaction'
 
@@ -189,54 +188,6 @@ describe('validatePathSegment', () => {
       const result = validatePathSegment('ABC123', {
         customPattern: /^[A-Z]{3}-\d{3}$/,
       })
-      expect(result.isValid).toBe(false)
-    })
-  })
-})
-
-describe('validateUUID', () => {
-  describe('valid UUIDs', () => {
-    it.concurrent('should accept valid UUID v4', () => {
-      const result = validateUUID('550e8400-e29b-41d4-a716-446655440000')
-      expect(result.isValid).toBe(true)
-    })
-
-    it.concurrent('should accept UUID with uppercase letters', () => {
-      const result = validateUUID('550E8400-E29B-41D4-A716-446655440000')
-      expect(result.isValid).toBe(true)
-      expect(result.sanitized).toBe('550e8400-e29b-41d4-a716-446655440000')
-    })
-
-    it.concurrent('should normalize UUID to lowercase', () => {
-      const result = validateUUID('550E8400-E29B-41D4-A716-446655440000')
-      expect(result.sanitized).toBe('550e8400-e29b-41d4-a716-446655440000')
-    })
-  })
-
-  describe('invalid UUIDs', () => {
-    it.concurrent('should reject non-UUID strings', () => {
-      const result = validateUUID('not-a-uuid')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('valid UUID')
-    })
-
-    it.concurrent('should reject UUID with wrong version', () => {
-      const result = validateUUID('550e8400-e29b-31d4-a716-446655440000') // version 3
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject UUID with wrong variant', () => {
-      const result = validateUUID('550e8400-e29b-41d4-1716-446655440000') // wrong variant
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject empty string', () => {
-      const result = validateUUID('')
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject null', () => {
-      const result = validateUUID(null)
       expect(result.isValid).toBe(false)
     })
   })

@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import { SYSTEM_REFERENCE_PREFIXES } from '@/lib/workflows/sanitization/references'
-import { normalizeName } from '@/stores/workflows/utils'
+import { normalizeName } from '@/executor/constants'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
 

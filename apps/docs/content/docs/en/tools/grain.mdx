@@ -1,0 +1,223 @@
+---
+title: Grain
+description: Access meeting recordings, transcripts, and AI summaries
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="grain"
+  color="#F6FAF9"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Grain](https://grain.com/) is a modern platform for capturing, storing, and sharing meeting recordings, transcripts, highlights, and AI-powered summaries. Grain enables teams to turn conversations into actionable insights and keep everyone aligned on key moments from meetings.
+
+With Grain, you can:
+
+- **Access searchable recordings and transcripts**: Find and review every meeting by keyword, participant, or topic.
+- **Share highlights and clips**: Capture important moments and share short video/audio highlights across your team or workflows.
+- **Get AI-generated summaries**: Automatically produce meeting summaries, action items, and key insights using Grain’s advanced AI.
+- **Organize meetings by team or type**: Tag and categorize recordings for easy access and reporting.
+
+The Sim Grain integration empowers your agents to:
+
+- List, search, and retrieve meeting recordings and details by flexible filters (datetime, participant, team, etc).
+- Access AI summaries, participants, highlights, and other metadata for meetings to power automations or analysis.
+- Trigger workflows whenever new meetings are processed, summaries are generated, or highlights are created via Grain webhooks.
+- Easily bridge Grain data into other tools or notify teammates the moment something important happens in a meeting.
+
+Whether you want to automate follow-up actions, keep records of important conversations, or surface insights across your organization, Grain and Sim make it easy to connect meeting intelligence to your workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Grain into your workflow. Access meeting recordings, transcripts, highlights, and AI-generated summaries. Can also trigger workflows based on Grain webhook events.
+
+
+
+## Tools
+
+### `grain_list_recordings`
+
+List recordings from Grain with optional filters and pagination
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
+| `cursor` | string | No | Pagination cursor for next page |
+| `beforeDatetime` | string | No | Only recordings before this ISO8601 timestamp |
+| `afterDatetime` | string | No | Only recordings after this ISO8601 timestamp |
+| `participantScope` | string | No | Filter: "internal" or "external" |
+| `titleSearch` | string | No | Search term to filter by recording title |
+| `teamId` | string | No | Filter by team UUID |
+| `meetingTypeId` | string | No | Filter by meeting type UUID |
+| `includeHighlights` | boolean | No | Include highlights/clips in response |
+| `includeParticipants` | boolean | No | Include participant list in response |
+| `includeAiSummary` | boolean | No | Include AI-generated summary |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordings` | array | Array of recording objects |
+
+### `grain_get_recording`
+
+Get details of a single recording by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
+| `recordingId` | string | Yes | The recording UUID |
+| `includeHighlights` | boolean | No | Include highlights/clips |
+| `includeParticipants` | boolean | No | Include participant list |
+| `includeAiSummary` | boolean | No | Include AI summary |
+| `includeCalendarEvent` | boolean | No | Include calendar event data |
+| `includeHubspot` | boolean | No | Include HubSpot associations |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Recording UUID |
+| `title` | string | Recording title |
+| `start_datetime` | string | ISO8601 start timestamp |
+| `end_datetime` | string | ISO8601 end timestamp |
+| `duration_ms` | number | Duration in milliseconds |
+| `media_type` | string | audio, transcript, or video |
+| `source` | string | Recording source \(zoom, meet, teams, etc.\) |
+| `url` | string | URL to view in Grain |
+| `thumbnail_url` | string | Thumbnail image URL |
+| `tags` | array | Array of tag strings |
+| `teams` | array | Teams the recording belongs to |
+| `meeting_type` | object | Meeting type info \(id, name, scope\) |
+| `highlights` | array | Highlights \(if included\) |
+| `participants` | array | Participants \(if included\) |
+| `ai_summary` | object | AI summary text \(if included\) |
+| `calendar_event` | object | Calendar event data \(if included\) |
+| `hubspot` | object | HubSpot associations \(if included\) |
+
+### `grain_get_transcript`
+
+Get the full transcript of a recording
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
+| `recordingId` | string | Yes | The recording UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transcript` | array | Array of transcript sections |
+
+### `grain_list_teams`
+
+List all teams in the workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `teams` | array | Array of team objects |
+
+### `grain_list_meeting_types`
+
+List all meeting types in the workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `meeting_types` | array | Array of meeting type objects |
+
+### `grain_create_hook`
+
+Create a webhook to receive recording events
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
+| `hookUrl` | string | Yes | Webhook endpoint URL \(must respond 2xx\) |
+| `filterBeforeDatetime` | string | No | Filter: recordings before this date |
+| `filterAfterDatetime` | string | No | Filter: recordings after this date |
+| `filterParticipantScope` | string | No | Filter: "internal" or "external" |
+| `filterTeamId` | string | No | Filter: specific team UUID |
+| `filterMeetingTypeId` | string | No | Filter: specific meeting type |
+| `includeHighlights` | boolean | No | Include highlights in webhook payload |
+| `includeParticipants` | boolean | No | Include participants in webhook payload |
+| `includeAiSummary` | boolean | No | Include AI summary in webhook payload |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Hook UUID |
+| `enabled` | boolean | Whether hook is active |
+| `hook_url` | string | The webhook URL |
+| `filter` | object | Applied filters |
+| `include` | object | Included fields |
+| `inserted_at` | string | ISO8601 creation timestamp |
+
+### `grain_list_hooks`
+
+List all webhooks for the account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `hooks` | array | Array of hook objects |
+
+### `grain_delete_hook`
+
+Delete a webhook by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
+| `hookId` | string | Yes | The hook UUID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | True when webhook was successfully deleted |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `grain`

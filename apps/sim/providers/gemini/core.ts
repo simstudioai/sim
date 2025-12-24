@@ -53,8 +53,8 @@ function createInitialState(
   return {
     contents,
     tokens: {
-      prompt: initialUsage.promptTokenCount,
-      completion: initialUsage.candidatesTokenCount,
+      input: initialUsage.promptTokenCount,
+      output: initialUsage.candidatesTokenCount,
       total: initialUsage.totalTokenCount,
     },
     cost: initialCost,
@@ -192,8 +192,8 @@ function updateStateWithResponse(
   return {
     ...state,
     tokens: {
-      prompt: state.tokens.prompt + usage.promptTokenCount,
-      completion: state.tokens.completion + usage.candidatesTokenCount,
+      input: state.tokens.input + usage.promptTokenCount,
+      output: state.tokens.output + usage.candidatesTokenCount,
       total: state.tokens.total + usage.totalTokenCount,
     },
     cost: {
@@ -263,7 +263,7 @@ function createStreamingResult(
       output: {
         content: '',
         model: '',
-        tokens: state?.tokens ?? { prompt: 0, completion: 0, total: 0 },
+        tokens: state?.tokens ?? { input: 0, output: 0, total: 0 },
         toolCalls: state?.toolCalls.length
           ? { list: state.toolCalls, count: state.toolCalls.length }
           : undefined,
@@ -447,8 +447,8 @@ export async function executeGeminiRequest(
         (content: string, usage: GeminiUsage) => {
           streamingResult.execution.output.content = content
           streamingResult.execution.output.tokens = {
-            prompt: usage.promptTokenCount,
-            completion: usage.candidatesTokenCount,
+            input: usage.promptTokenCount,
+            output: usage.candidatesTokenCount,
             total: usage.totalTokenCount,
           }
 
@@ -592,8 +592,8 @@ export async function executeGeminiRequest(
             (streamContent: string, usage: GeminiUsage) => {
               streamingResult.execution.output.content = streamContent
               streamingResult.execution.output.tokens = {
-                prompt: accumulatedTokens.prompt + usage.promptTokenCount,
-                completion: accumulatedTokens.completion + usage.candidatesTokenCount,
+                input: accumulatedTokens.input + usage.promptTokenCount,
+                output: accumulatedTokens.output + usage.candidatesTokenCount,
                 total: accumulatedTokens.total + usage.totalTokenCount,
               }
 

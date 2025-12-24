@@ -1,0 +1,59 @@
+---
+title: Circleback
+description: Notes de réunion et tâches générées par IA
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="circleback"
+  color="linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Circleback](https://circleback.ai/) est une plateforme alimentée par IA qui automatise les notes de réunion, les tâches, les transcriptions et les enregistrements pour votre équipe. Lorsqu'une réunion est terminée, Circleback traite la conversation et fournit des notes détaillées et des tâches, accompagnées d'une transcription et d'un enregistrement (lorsque disponible). Cela aide les équipes à capturer efficacement les informations, à distribuer les tâches et à s'assurer que rien n'est oublié, le tout intégré de manière transparente dans vos flux de travail.
+
+Avec l'intégration Sim Circleback, vous pouvez :
+
+- **Recevoir des notes de réunion détaillées et des tâches** : collectez automatiquement des résumés de réunion bien formatés et suivez les tâches discutées lors de vos appels.
+- **Accéder aux enregistrements et transcriptions complètes des réunions** : obtenez la conversation complète et l'enregistrement associé, facilitant la révision des moments clés ou le partage avec des collègues.
+- **Capturer les informations sur les participants et le contexte de la réunion** : les listes de participants, les métadonnées de réunion et les tags aident à garder vos données organisées et exploitables.
+- **Transmettre les informations directement dans vos flux de travail** : déclenchez des automatisations ou envoyez les données Circleback vers d'autres systèmes dès qu'une réunion est terminée, en utilisant les puissants déclencheurs webhook de Sim.
+
+**Comment cela fonctionne dans Sim :**  
+Circleback utilise des déclencheurs webhook : chaque fois qu'une réunion est traitée, les données sont automatiquement transmises à votre agent ou automatisation. Vous pouvez créer d'autres automatisations basées sur :
+
+- Réunion terminée (toutes les données traitées disponibles)
+- Nouvelles notes (notes prêtes avant même que la réunion complète ne soit traitée)
+- Intégration webhook brute pour des cas d'usage avancés
+
+**Les informations suivantes sont disponibles dans la charge utile du webhook de réunion Circleback :**
+
+| Champ          | Type    | Description                                        |
+|----------------|---------|----------------------------------------------------|
+| `id`           | number  | ID de réunion Circleback                           |
+| `name`         | string  | Titre de la réunion                                |
+| `url`          | string  | URL de réunion virtuelle (Zoom, Meet, Teams, etc.) |
+| `createdAt`    | string  | Horodatage de création de la réunion               |
+| `duration`     | number  | Durée en secondes                                  |
+| `recordingUrl` | string  | URL d'enregistrement (valide 24 heures)            |
+| `tags`         | json    | Tableau d'étiquettes                               |
+| `icalUid`      | string  | ID d'événement de calendrier                       |
+| `attendees`    | json    | Tableau d'objets participants                      |
+| `notes`        | string  | Notes de réunion en Markdown                       |
+| `actionItems`  | json    | Tableau d'éléments d'action                        |
+| `transcript`   | json    | Tableau de segments de transcription               |
+| `insights`     | json    | Informations créées par l'utilisateur              |
+| `meeting`      | json    | Charge utile complète de la réunion                |
+
+Que vous souhaitiez distribuer des résumés instantanés, enregistrer des éléments d'action ou créer des workflows personnalisés déclenchés par de nouvelles données de réunion, Circleback et Sim facilitent la gestion automatique de tout ce qui concerne vos réunions.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Recevez les notes de réunion, les éléments d'action, les transcriptions et les enregistrements lorsque les réunions sont traitées. Circleback utilise des webhooks pour transmettre les données à vos workflows.
+
+## Remarques
+
+- Catégorie : `triggers`
+- Type : `circleback`

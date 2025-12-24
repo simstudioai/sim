@@ -16,8 +16,10 @@ import {
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { Executor } from '@/executor'
+import { REFERENCE } from '@/executor/constants'
 import type { ExecutionCallbacks, ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionResult } from '@/executor/types'
+import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 
@@ -179,8 +181,8 @@ export async function executeWorkflowCore(
       userId,
       workspaceId: providedWorkspaceId,
       variables,
-      skipLogCreation, // Skip if resuming an existing execution
-      deploymentVersionId, // Only set for deployed executions
+      skipLogCreation,
+      deploymentVersionId,
     })
 
     // Process block states with env var substitution using pre-decrypted values
@@ -190,11 +192,19 @@ export async function executeWorkflowCore(
           (subAcc, [key, subBlock]) => {
             let value = subBlock.value
 
-            if (typeof value === 'string' && value.includes('{{') && value.includes('}}')) {
-              const matches = value.match(/{{([^}]+)}}/g)
+            if (
+              typeof value === 'string' &&
+              value.includes(REFERENCE.ENV_VAR_START) &&
+              value.includes(REFERENCE.ENV_VAR_END)
+            ) {
+              const envVarPattern = createEnvVarPattern()
+              const matches = value.match(envVarPattern)
               if (matches) {
                 for (const match of matches) {
-                  const varName = match.slice(2, -2)
+                  const varName = match.slice(
+                    REFERENCE.ENV_VAR_START.length,
+                    -REFERENCE.ENV_VAR_END.length
+                  )
                   const decryptedValue = decryptedEnvVars[varName]
                   if (decryptedValue !== undefined) {
                     value = (value as string).replace(match, decryptedValue)
@@ -218,7 +228,7 @@ export async function executeWorkflowCore(
       (acc, [blockId, blockState]) => {
         if (blockState.responseFormat && typeof blockState.responseFormat === 'string') {
           const responseFormatValue = blockState.responseFormat.trim()
-          if (responseFormatValue && !responseFormatValue.startsWith('<')) {
+          if (responseFormatValue && !responseFormatValue.startsWith(REFERENCE.START)) {
             try {
               acc[blockId] = {
                 ...blockState,
@@ -356,7 +366,28 @@ export async function executeWorkflowCore(
       await updateWorkflowRunCounts(workflowId)
     }
 
-    // Complete logging session
+    if (result.status === 'cancelled') {
+      await loggingSession.safeCompleteWithCancellation({
+        endedAt: new Date().toISOString(),
+        totalDurationMs: totalDuration || 0,
+        traceSpans: traceSpans || [],
+      })
+
+      logger.info(`[${requestId}] Workflow execution cancelled`, {
+        duration: result.metadata?.duration,
+      })
+
+      return result
+    }
+
+    if (result.status === 'paused') {
+      logger.info(`[${requestId}] Workflow execution paused`, {
+        duration: result.metadata?.duration,
+      })
+
+      return result
+    }
+
     await loggingSession.safeComplete({
       endedAt: new Date().toISOString(),
       totalDurationMs: totalDuration || 0,

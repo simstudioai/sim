@@ -1,15 +1,8 @@
+import { normalizeName } from '@/executor/constants'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { BlockState, SubBlockState } from '@/stores/workflows/workflow/types'
 
-/**
- * Normalizes a name for comparison by converting to lowercase and removing spaces.
- * Used for both block names and variable names to ensure consistent matching.
- * @param name - The name to normalize
- * @returns The normalized name
- */
-export function normalizeName(name: string): string {
-  return name.toLowerCase().replace(/\s+/g, '')
-}
+export { normalizeName }
 
 /**
  * Generates a unique block name by finding the highest number suffix among existing blocks

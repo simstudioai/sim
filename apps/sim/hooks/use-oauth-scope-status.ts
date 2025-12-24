@@ -1,6 +1,6 @@
 'use client'
 
-import type { Credential } from '@/lib/oauth/oauth'
+import type { Credential } from '@/lib/oauth'
 
 export interface OAuthScopeStatus {
   requiresReauthorization: boolean

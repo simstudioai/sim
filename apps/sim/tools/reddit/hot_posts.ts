@@ -1,4 +1,5 @@
 import type { RedditHotPostsResponse, RedditPost } from '@/tools/reddit/types'
+import { normalizeSubreddit } from '@/tools/reddit/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface HotPostsParams {
@@ -41,8 +42,7 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
 
   request: {
     url: (params) => {
-      // Sanitize inputs and enforce limits
-      const subreddit = params.subreddit.trim().replace(/^r\//, '')
+      const subreddit = normalizeSubreddit(params.subreddit)
       const limit = Math.min(Math.max(1, params.limit || 10), 100)
 
       return `https://oauth.reddit.com/r/${subreddit}/hot?limit=${limit}&raw_json=1`

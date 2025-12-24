@@ -1,8 +1,6 @@
 import { describe, expect, test } from 'vitest'
-import {
-  buildTraceSpans,
-  stripCustomToolPrefix,
-} from '@/lib/logs/execution/trace-spans/trace-spans'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { stripCustomToolPrefix } from '@/executor/constants'
 import type { ExecutionResult } from '@/executor/types'
 
 describe('buildTraceSpans', () => {
@@ -23,7 +21,7 @@ describe('buildTraceSpans', () => {
           output: {
             content: 'Agent response',
             model: 'gpt-4o',
-            tokens: { prompt: 10, completion: 20, total: 30 },
+            tokens: { input: 10, output: 20, total: 30 },
             providerTiming: {
               duration: 8000,
               startTime: '2024-01-01T10:00:00.000Z',
@@ -138,7 +136,7 @@ describe('buildTraceSpans', () => {
           output: {
             content: 'Agent response',
             model: 'gpt-4o',
-            tokens: { prompt: 10, completion: 20, total: 30 },
+            tokens: { input: 10, output: 20, total: 30 },
             providerTiming: {
               duration: 4000,
               startTime: '2024-01-01T10:00:00.500Z',
@@ -427,8 +425,8 @@ describe('buildTraceSpans', () => {
           output: {
             content: 'Based on my research using multiple sources...',
             model: 'gpt-4o',
-            tokens: { prompt: 50, completion: 200, total: 250 },
-            cost: { total: 0.0025, prompt: 0.001, completion: 0.0015 },
+            tokens: { input: 50, output: 200, total: 250 },
+            cost: { total: 0.0025, input: 0.001, output: 0.0015 },
             providerTiming: {
               duration: 15000,
               startTime: '2024-01-01T10:00:00.000Z',

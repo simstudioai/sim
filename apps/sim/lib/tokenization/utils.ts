@@ -57,7 +57,7 @@ export function isTokenizableBlockType(blockType?: string): boolean {
  */
 export function hasRealTokenData(tokens?: TokenUsage): boolean {
   if (!tokens) return false
-  return tokens.total > 0 || tokens.prompt > 0 || tokens.completion > 0
+  return tokens.total > 0 || tokens.input > 0 || tokens.output > 0
 }
 
 /**

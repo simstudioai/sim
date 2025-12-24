@@ -168,8 +168,6 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
         success: response.ok,
         output: {
           content: data.data?.content || data.content || JSON.stringify(data),
-          links: data.data?.links || undefined,
-          images: data.data?.images || undefined,
         },
       }
     }
@@ -187,15 +185,6 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
     content: {
       type: 'string',
       description: 'The extracted content from the URL, processed into clean, LLM-friendly text',
-    },
-    links: {
-      type: 'array',
-      description:
-        'List of links found on the page (when gatherLinks or withLinksummary is enabled)',
-    },
-    images: {
-      type: 'array',
-      description: 'List of images found on the page (when withImagesummary is enabled)',
     },
   },
 }

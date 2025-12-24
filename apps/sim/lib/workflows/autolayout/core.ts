@@ -11,6 +11,7 @@ import {
   prepareBlockMetrics,
 } from '@/lib/workflows/autolayout/utils'
 import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
+import { EDGE } from '@/executor/constants'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('AutoLayout:Core')
@@ -31,8 +32,8 @@ function getSourceHandleYOffset(block: BlockState, sourceHandle?: string | null)
     return HANDLE_POSITIONS.SUBFLOW_START_Y_OFFSET
   }
 
-  if (block.type === 'condition' && sourceHandle?.startsWith('condition-')) {
-    const conditionId = sourceHandle.replace('condition-', '')
+  if (block.type === 'condition' && sourceHandle?.startsWith(EDGE.CONDITION_PREFIX)) {
+    const conditionId = sourceHandle.replace(EDGE.CONDITION_PREFIX, '')
     try {
       const conditionsValue = block.subBlocks?.conditions?.value
       if (typeof conditionsValue === 'string' && conditionsValue) {

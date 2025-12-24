@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
+import { EDGE } from '@/executor/constants'
 
 const logger = createLogger('YamlParsingUtils')
 
@@ -110,7 +111,7 @@ export function generateBlockConnections(
       successTargets.push(edge.target)
     } else if (handle === 'error') {
       errorTargets.push(edge.target)
-    } else if (handle.startsWith('condition-')) {
+    } else if (handle.startsWith(EDGE.CONDITION_PREFIX)) {
       const rawConditionId = extractConditionId(handle)
       rawConditionIds.push(rawConditionId)
 
@@ -671,22 +672,22 @@ function createConditionHandle(blockId: string, conditionId: string, blockType?:
   if (blockType === 'condition') {
     // Map semantic condition IDs to the internal format the system expects
     const actualConditionId = `${blockId}-${conditionId}`
-    return `condition-${actualConditionId}`
+    return `${EDGE.CONDITION_PREFIX}${actualConditionId}`
   }
   // For other blocks that might have conditions, use a more explicit format
-  return `condition-${blockId}-${conditionId}`
+  return `${EDGE.CONDITION_PREFIX}${blockId}-${conditionId}`
 }
 
 function extractConditionId(sourceHandle: string): string {
   // Extract condition ID from handle like "condition-blockId-semantic-key"
   // Example: "condition-e23e6318-bcdc-4572-a76b-5015e3950121-else-if-1752111795510"
 
-  if (!sourceHandle.startsWith('condition-')) {
+  if (!sourceHandle.startsWith(EDGE.CONDITION_PREFIX)) {
     return sourceHandle
   }
 
-  // Remove "condition-" prefix
-  const withoutPrefix = sourceHandle.substring('condition-'.length)
+  // Remove condition prefix
+  const withoutPrefix = sourceHandle.substring(EDGE.CONDITION_PREFIX.length)
 
   // Special case: check if this ends with "-else" (the auto-added else condition)
   if (withoutPrefix.endsWith('-else')) {

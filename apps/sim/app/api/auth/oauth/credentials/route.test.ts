@@ -42,7 +42,7 @@ describe('OAuth Credentials API Route', () => {
       getSession: mockGetSession,
     }))
 
-    vi.doMock('@/lib/oauth/oauth', () => ({
+    vi.doMock('@/lib/oauth/utils', () => ({
       parseProvider: mockParseProvider,
       evaluateScopeCoverage: mockEvaluateScopeCoverage,
     }))

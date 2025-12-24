@@ -1,6 +1,9 @@
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import type { ExecutionEnvironment, ExecutionTrigger, WorkflowState } from '@/lib/logs/types'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  loadDeployedWorkflowState,
+  loadWorkflowFromNormalizedTables,
+} from '@/lib/workflows/persistence/utils'
 
 export function createTriggerObject(
   type: ExecutionTrigger['type'],
@@ -47,6 +50,24 @@ export async function loadWorkflowStateForExecution(workflowId: string): Promise
   }
 }
 
+/**
+ * Load deployed workflow state for logging purposes.
+ * This fetches the active deployment state, ensuring logs capture
+ * the exact state that was executed (not the live editor state).
+ */
+export async function loadDeployedWorkflowStateForLogging(
+  workflowId: string
+): Promise<WorkflowState> {
+  const deployedData = await loadDeployedWorkflowState(workflowId)
+
+  return {
+    blocks: deployedData.blocks || {},
+    edges: deployedData.edges || [],
+    loops: deployedData.loops || {},
+    parallels: deployedData.parallels || {},
+  }
+}
+
 export function calculateCostSummary(traceSpans: any[]): {
   totalCost: number
   totalInputCost: number
@@ -62,7 +83,7 @@ export function calculateCostSummary(traceSpans: any[]): {
       input: number
       output: number
       total: number
-      tokens: { prompt: number; completion: number; total: number }
+      tokens: { input: number; output: number; total: number }
     }
   >
 } {
@@ -110,7 +131,7 @@ export function calculateCostSummary(traceSpans: any[]): {
       input: number
       output: number
       total: number
-      tokens: { prompt: number; completion: number; total: number }
+      tokens: { input: number; output: number; total: number }
     }
   > = {}
 
@@ -129,14 +150,14 @@ export function calculateCostSummary(traceSpans: any[]): {
           input: 0,
           output: 0,
           total: 0,
-          tokens: { prompt: 0, completion: 0, total: 0 },
+          tokens: { input: 0, output: 0, total: 0 },
         }
       }
       models[model].input += span.cost.input || 0
       models[model].output += span.cost.output || 0
       models[model].total += span.cost.total || 0
-      models[model].tokens.prompt += span.tokens?.input ?? span.tokens?.prompt ?? 0
-      models[model].tokens.completion += span.tokens?.output ?? span.tokens?.completion ?? 0
+      models[model].tokens.input += span.tokens?.input ?? span.tokens?.prompt ?? 0
+      models[model].tokens.output += span.tokens?.output ?? span.tokens?.completion ?? 0
       models[model].tokens.total += span.tokens?.total || 0
     }
   }

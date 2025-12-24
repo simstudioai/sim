@@ -39,7 +39,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必填 | 说明 |
 | --------- | ---- | -------- | ----------- |
-| `model` | string | 是 | 要使用的模型（例如 gpt-4o、claude-sonnet-4-5、gemini-2.0-flash） |
+| `model` | string | 是 | 要使用的模型（例如，gpt-4o、claude-sonnet-4-5、gemini-2.0-flash） |
 | `systemPrompt` | string | 否 | 设置助手行为的 system prompt |
 | `context` | string | 是 | 发送给模型的用户消息或上下文 |
 | `apiKey` | string | 否 | 提供方的 API key（如未提供，托管模型将使用平台密钥） |
@@ -49,6 +49,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `azureApiVersion` | string | 否 | Azure OpenAI API 版本 |
 | `vertexProject` | string | 否 | Vertex AI 的 Google Cloud 项目 ID |
 | `vertexLocation` | string | 否 | Vertex AI 的 Google Cloud 区域（默认为 us-central1） |
+| `vertexCredential` | string | 否 | Vertex AI 的 Google Cloud OAuth 凭证 ID |
 
 #### 输出
 

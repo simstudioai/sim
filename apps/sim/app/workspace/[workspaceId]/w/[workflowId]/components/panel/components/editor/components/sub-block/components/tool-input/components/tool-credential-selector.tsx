@@ -4,7 +4,6 @@ import { Button, Combobox } from '@/components/emcn/components'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
-  getServiceIdFromScopes,
   OAUTH_PROVIDERS,
   type OAuthProvider,
   type OAuthService,
@@ -45,7 +44,7 @@ interface ToolCredentialSelectorProps {
   provider: OAuthProvider
   requiredScopes?: string[]
   label?: string
-  serviceId?: OAuthService
+  serviceId: OAuthService
   disabled?: boolean
 }
 
@@ -65,15 +64,7 @@ export function ToolCredentialSelector({
 
   const selectedId = value || ''
 
-  const effectiveServiceId = useMemo(
-    () => serviceId || getServiceIdFromScopes(provider, requiredScopes),
-    [provider, requiredScopes, serviceId]
-  )
-
-  const effectiveProviderId = useMemo(
-    () => getProviderIdFromServiceId(effectiveServiceId),
-    [effectiveServiceId]
-  )
+  const effectiveProviderId = useMemo(() => getProviderIdFromServiceId(serviceId), [serviceId])
 
   const {
     data: credentials = [],
@@ -126,7 +117,7 @@ export function ToolCredentialSelector({
     onChange('')
   }, [invalidSelection, onChange])
 
-  useCredentialRefreshTriggers(refetchCredentials, effectiveProviderId, provider)
+  useCredentialRefreshTriggers(refetchCredentials)
 
   const handleOpenChange = useCallback(
     (isOpen: boolean) => {
@@ -240,18 +231,14 @@ export function ToolCredentialSelector({
           toolName={getProviderName(provider)}
           requiredScopes={getCanonicalScopesForProvider(effectiveProviderId)}
           newScopes={missingRequiredScopes}
-          serviceId={effectiveServiceId}
+          serviceId={serviceId}
         />
       )}
     </>
   )
 }
 
-function useCredentialRefreshTriggers(
-  refetchCredentials: () => Promise<unknown>,
-  effectiveProviderId?: string,
-  provider?: OAuthProvider
-) {
+function useCredentialRefreshTriggers(refetchCredentials: () => Promise<unknown>) {
   useEffect(() => {
     const refresh = () => {
       void refetchCredentials()
@@ -269,26 +256,12 @@ function useCredentialRefreshTriggers(
       }
     }
 
-    const handleCredentialDisconnected = (event: Event) => {
-      const customEvent = event as CustomEvent<{ providerId?: string }>
-      const providerId = customEvent.detail?.providerId
-
-      if (
-        providerId &&
-        (providerId === effectiveProviderId || (provider && providerId.startsWith(provider)))
-      ) {
-        refresh()
-      }
-    }
-
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('pageshow', handlePageShow)
-    window.addEventListener('credential-disconnected', handleCredentialDisconnected)
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('pageshow', handlePageShow)
-      window.removeEventListener('credential-disconnected', handleCredentialDisconnected)
     }
-  }, [refetchCredentials, effectiveProviderId, provider])
+  }, [refetchCredentials])
 }

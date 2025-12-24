@@ -304,8 +304,9 @@ export const workflowExecutionLogs = pgTable(
       { onDelete: 'set null' }
     ),
 
-    level: text('level').notNull(), // 'info', 'error'
-    trigger: text('trigger').notNull(), // 'api', 'webhook', 'schedule', 'manual', 'chat'
+    level: text('level').notNull(), // 'info' | 'error'
+    status: text('status').notNull().default('running'), // 'running' | 'pending' | 'completed' | 'failed' | 'cancelled'
+    trigger: text('trigger').notNull(), // 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
 
     startedAt: timestamp('started_at').notNull(),
     endedAt: timestamp('ended_at'),

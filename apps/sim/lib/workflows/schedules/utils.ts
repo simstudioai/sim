@@ -324,7 +324,7 @@ export function generateCronExpression(
  * Uses Croner library with timezone support for accurate scheduling across timezones and DST transitions
  * @param scheduleType - Type of schedule (minutes, hourly, daily, etc)
  * @param scheduleValues - Object with schedule configuration values
- * @param lastRanAt - Optional last execution time
+ * @param lastRanAt - Optional last execution time (currently unused, Croner calculates from current time)
  * @returns Date object for next execution time
  */
 export function calculateNextRunTime(

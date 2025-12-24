@@ -3,6 +3,7 @@ import type { CompletionUsage } from 'openai/resources/completions'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { createLogger, type Logger } from '@/lib/logs/console/logger'
+import { isCustomTool } from '@/executor/constants'
 import {
   getComputerUseModels,
   getEmbeddingModelPricing,
@@ -431,7 +432,7 @@ export async function transformBlockTool(
 
   let toolConfig: any
 
-  if (toolId.startsWith('custom_') && getToolAsync) {
+  if (isCustomTool(toolId) && getToolAsync) {
     toolConfig = await getToolAsync(toolId)
   } else {
     toolConfig = getTool(toolId)

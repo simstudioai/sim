@@ -1,0 +1,59 @@
+---
+title: Circleback
+description: KI-gestützte Meeting-Notizen und Aufgaben
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="circleback"
+  color="linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Circleback](https://circleback.ai/) ist eine KI-gestützte Plattform, die Meeting-Notizen, Aufgaben, Transkripte und Aufzeichnungen für Ihr Team automatisiert. Wenn ein Meeting abgeschlossen ist, verarbeitet Circleback die Konversation und liefert detaillierte Notizen und Aufgaben sowie ein Transkript und eine Aufzeichnung (sofern verfügbar). Dies hilft Teams dabei, Erkenntnisse effizient zu erfassen, Aufgaben zu verteilen und sicherzustellen, dass nichts übersehen wird – alles nahtlos in Ihre Workflows integriert.
+
+Mit der Sim Circleback-Integration können Sie:
+
+- **Detaillierte Meeting-Notizen und Aufgaben erhalten**: Sammeln Sie automatisch gut formatierte Meeting-Zusammenfassungen und verfolgen Sie umsetzbare Aufgaben, die während Ihrer Anrufe besprochen wurden.
+- **Auf vollständige Meeting-Aufzeichnungen und Transkripte zugreifen**: Erhalten Sie die vollständige Konversation und die zugehörige Aufzeichnung, um wichtige Momente einfach zu überprüfen oder mit Kollegen zu teilen.
+- **Teilnehmerinformationen und Meeting-Kontext erfassen**: Teilnehmerlisten, Meeting-Metadaten und Tags helfen dabei, Ihre Daten organisiert und umsetzbar zu halten.
+- **Erkenntnisse direkt in Ihre Workflows liefern**: Lösen Sie Automatisierungen aus oder senden Sie Circleback-Daten an andere Systeme, sobald ein Meeting beendet ist, mithilfe der leistungsstarken Webhook-Trigger von Sim.
+
+**So funktioniert es in Sim:**  
+Circleback verwendet Webhook-Trigger: Sobald ein Meeting verarbeitet wurde, werden die Daten automatisch an Ihren Agenten oder Ihre Automatisierung übertragen. Sie können weitere Automatisierungen basierend auf folgenden Ereignissen erstellen:
+
+- Meeting abgeschlossen (alle verarbeiteten Daten verfügbar)
+- Neue Notizen (Notizen sind verfügbar, noch bevor das Meeting vollständig verarbeitet ist)
+- Raw-Webhook-Integration für erweiterte Anwendungsfälle
+
+**Die folgenden Informationen sind in der Circleback-Meeting-Webhook-Payload verfügbar:**
+
+| Feld          | Typ    | Beschreibung                                        |
+|----------------|---------|----------------------------------------------------|
+| `id`           | number  | Circleback Meeting-ID                              |
+| `name`         | string  | Meeting-Titel                                      |
+| `url`          | string  | Virtueller Meeting-Link (Zoom, Meet, Teams usw.)      |
+| `createdAt`    | string  | Zeitstempel der Meeting-Erstellung                         |
+| `duration`     | number  | Dauer in Sekunden                                |
+| `recordingUrl` | string  | Aufzeichnungs-URL (24 Stunden gültig)                     |
+| `tags`         | json    | Array von Tags                                      |
+| `icalUid`      | string  | Kalender-Event-ID                                  |
+| `attendees`    | json    | Array von Teilnehmer-Objekten                          |
+| `notes`        | string  | Meeting-Notizen in Markdown                          |
+| `actionItems`  | json    | Array von Aufgaben                              |
+| `transcript`   | json    | Array von Transkript-Segmenten                       |
+| `insights`     | json    | Vom Nutzer erstellte Insights                              |
+| `meeting`      | json    | Vollständige Meeting-Daten                               |
+
+Egal, ob Sie sofortige Zusammenfassungen verteilen, Aufgaben protokollieren oder benutzerdefinierte Workflows erstellen möchten, die durch neue Meeting-Daten ausgelöst werden – Circleback und Sim machen es nahtlos, alles rund um Ihre Meetings automatisch zu verwalten.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Erhalten Sie Meeting-Notizen, Aufgaben, Transkripte und Aufzeichnungen, wenn Meetings verarbeitet werden. Circleback nutzt Webhooks, um Daten an Ihre Workflows zu übermitteln.
+
+## Hinweise
+
+- Kategorie: `triggers`
+- Typ: `circleback`

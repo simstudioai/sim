@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolCall, TraceSpan } from '@/lib/logs/types'
-import { isWorkflowBlockType } from '@/executor/constants'
+import { isWorkflowBlockType, stripCustomToolPrefix } from '@/executor/constants'
 import type { ExecutionResult } from '@/executor/types'
 
 const logger = createLogger('TraceSpans')
@@ -768,8 +768,4 @@ function ensureNestedWorkflowsProcessed(span: TraceSpan): TraceSpan {
   processedSpan.children = mergedChildren.length > 0 ? mergedChildren : undefined
 
   return processedSpan
-}
-
-export function stripCustomToolPrefix(name: string) {
-  return name.startsWith('custom_') ? name.replace('custom_', '') : name
 }

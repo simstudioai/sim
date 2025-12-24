@@ -1,4 +1,8 @@
+import { db } from '@sim/db'
+import { account } from '@sim/db/schema'
+import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
+import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType, DEFAULTS, EVALUATOR, HTTP } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
@@ -25,8 +29,16 @@ export class EvaluatorBlockHandler implements BlockHandler {
     const evaluatorConfig = {
       model: inputs.model || EVALUATOR.DEFAULT_MODEL,
       apiKey: inputs.apiKey,
+      vertexProject: inputs.vertexProject,
+      vertexLocation: inputs.vertexLocation,
+      vertexCredential: inputs.vertexCredential,
     }
     const providerId = getProviderFromModel(evaluatorConfig.model)
+
+    let finalApiKey = evaluatorConfig.apiKey
+    if (providerId === 'vertex' && evaluatorConfig.vertexCredential) {
+      finalApiKey = await this.resolveVertexCredential(evaluatorConfig.vertexCredential)
+    }
 
     const processedContent = this.processContent(inputs.content)
 
@@ -87,7 +99,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
     try {
       const url = buildAPIUrl('/api/providers')
 
-      const providerRequest = {
+      const providerRequest: Record<string, any> = {
         provider: providerId,
         model: evaluatorConfig.model,
         systemPrompt: systemPromptObj.systemPrompt,
@@ -101,8 +113,13 @@ export class EvaluatorBlockHandler implements BlockHandler {
         ]),
 
         temperature: EVALUATOR.DEFAULT_TEMPERATURE,
-        apiKey: evaluatorConfig.apiKey,
+        apiKey: finalApiKey,
         workflowId: ctx.workflowId,
+      }
+
+      if (providerId === 'vertex') {
+        providerRequest.vertexProject = evaluatorConfig.vertexProject
+        providerRequest.vertexLocation = evaluatorConfig.vertexLocation
       }
 
       const response = await fetch(url.toString(), {
@@ -124,19 +141,18 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
       const metricScores = this.extractMetricScores(parsedContent, inputs.metrics)
 
-      const costCalculation = calculateCost(
-        result.model,
-        result.tokens?.prompt || DEFAULTS.TOKENS.PROMPT,
-        result.tokens?.completion || DEFAULTS.TOKENS.COMPLETION,
-        false
-      )
+      const inputTokens = result.tokens?.input || result.tokens?.prompt || DEFAULTS.TOKENS.PROMPT
+      const outputTokens =
+        result.tokens?.output || result.tokens?.completion || DEFAULTS.TOKENS.COMPLETION
+
+      const costCalculation = calculateCost(result.model, inputTokens, outputTokens, false)
 
       return {
         content: inputs.content,
         model: result.model,
         tokens: {
-          prompt: result.tokens?.prompt || DEFAULTS.TOKENS.PROMPT,
-          completion: result.tokens?.completion || DEFAULTS.TOKENS.COMPLETION,
+          input: inputTokens,
+          output: outputTokens,
           total: result.tokens?.total || DEFAULTS.TOKENS.TOTAL,
         },
         cost: {
@@ -250,5 +266,31 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
     logger.warn(`Metric "${metricName}" not found in LLM response`)
     return DEFAULTS.EXECUTION_TIME
+  }
+
+  /**
+   * Resolves a Vertex AI OAuth credential to an access token
+   */
+  private async resolveVertexCredential(credentialId: string): Promise<string> {
+    const requestId = `vertex-evaluator-${Date.now()}`
+
+    logger.info(`[${requestId}] Resolving Vertex AI credential: ${credentialId}`)
+
+    const credential = await db.query.account.findFirst({
+      where: eq(account.id, credentialId),
+    })
+
+    if (!credential) {
+      throw new Error(`Vertex AI credential not found: ${credentialId}`)
+    }
+
+    const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
+
+    if (!accessToken) {
+      throw new Error('Failed to get Vertex AI access token')
+    }
+
+    logger.info(`[${requestId}] Successfully resolved Vertex AI credential`)
+    return accessToken
   }
 }

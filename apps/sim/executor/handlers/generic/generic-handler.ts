@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBlock } from '@/blocks/index'
+import { isMcpTool } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
@@ -17,10 +18,10 @@ export class GenericBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<any> {
-    const isMcpTool = block.config.tool?.startsWith('mcp-')
+    const isMcp = block.config.tool ? isMcpTool(block.config.tool) : false
     let tool = null
 
-    if (!isMcpTool) {
+    if (!isMcp) {
       tool = getTool(block.config.tool)
       if (!tool) {
         throw new Error(`Tool not found: ${block.config.tool}`)

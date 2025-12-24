@@ -14,10 +14,10 @@ export interface TokenEstimate {
 }
 
 export interface TokenUsage {
-  /** Number of prompt/input tokens */
-  prompt: number
-  /** Number of completion/output tokens */
-  completion: number
+  /** Number of input tokens */
+  input: number
+  /** Number of output tokens */
+  output: number
   /** Total number of tokens */
   total: number
 }

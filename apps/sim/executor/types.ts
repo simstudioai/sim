@@ -69,8 +69,8 @@ export interface NormalizedBlockOutput {
   content?: string
   model?: string
   tokens?: {
-    prompt?: number
-    completion?: number
+    input?: number
+    output?: number
     total?: number
   }
   toolCalls?: {
@@ -235,7 +235,7 @@ export interface ExecutionResult {
   error?: string
   logs?: BlockLog[]
   metadata?: ExecutionMetadata
-  status?: 'completed' | 'paused'
+  status?: 'completed' | 'paused' | 'cancelled'
   pausePoints?: PausePoint[]
   snapshotSeed?: SerializedSnapshot
   _streamingMetadata?: {
