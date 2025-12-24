@@ -32,6 +32,11 @@ export interface ExecuteWorkflowCoreOptions {
   callbacks: ExecutionCallbacks
   loggingSession: LoggingSession
   skipLogCreation?: boolean // For resume executions - reuse existing log entry
+  /**
+   * AbortSignal for cancellation support.
+   * When aborted (e.g., client disconnects from SSE), execution stops gracefully.
+   */
+  abortSignal?: AbortSignal
 }
 
 function parseVariableValueByType(value: any, type: string): any {
@@ -98,11 +103,11 @@ function parseVariableValueByType(value: any, type: string): any {
 export async function executeWorkflowCore(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
-  const { snapshot, callbacks, loggingSession, skipLogCreation } = options
+  const { snapshot, callbacks, loggingSession, skipLogCreation, abortSignal } = options
   const { metadata, workflow, input, workflowVariables, selectedOutputs } = snapshot
   const { requestId, workflowId, userId, triggerType, executionId, triggerBlockId, useDraftState } =
     metadata
-  const { onBlockStart, onBlockComplete, onStream, onExecutorCreated } = callbacks
+  const { onBlockStart, onBlockComplete, onStream } = callbacks
 
   const providedWorkspaceId = metadata.workspaceId
   if (!providedWorkspaceId) {
@@ -326,6 +331,7 @@ export async function executeWorkflowCore(
       dagIncomingEdges: snapshot.state?.dagIncomingEdges,
       snapshotState: snapshot.state,
       metadata,
+      abortSignal,
     }
 
     const executorInstance = new Executor({
@@ -347,10 +353,6 @@ export async function executeWorkflowCore(
           v.value = parseVariableValueByType(v.value, v.type)
         }
       }
-    }
-
-    if (onExecutorCreated) {
-      onExecutorCreated(executorInstance)
     }
 
     const result = (await executorInstance.execute(

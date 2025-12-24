@@ -496,7 +496,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const encoder = new TextEncoder()
-    let executorInstance: any = null
+    const abortController = new AbortController()
     let isStreamClosed = false
 
     const stream = new ReadableStream<Uint8Array>({
@@ -688,11 +688,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               onBlockStart,
               onBlockComplete,
               onStream,
-              onExecutorCreated: (executor) => {
-                executorInstance = executor
-              },
             },
             loggingSession,
+            abortSignal: abortController.signal,
           })
 
           if (result.status === 'paused') {
@@ -769,11 +767,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       },
       cancel() {
         isStreamClosed = true
-        logger.info(`[${requestId}] Client aborted SSE stream, cancelling executor`)
-
-        if (executorInstance && typeof executorInstance.cancel === 'function') {
-          executorInstance.cancel()
-        }
+        logger.info(
+          `[${requestId}] Client aborted SSE stream, signalling cancellation via AbortController`
+        )
+        abortController.abort()
       },
     })
 
