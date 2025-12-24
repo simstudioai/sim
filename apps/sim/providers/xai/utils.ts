@@ -1,32 +1,20 @@
-import { createLogger } from '@/lib/logs/console/logger'
-import { trackForcedToolUsage } from '@/providers/utils'
-
-const logger = createLogger('XAIProvider')
+import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
+import type { CompletionUsage } from 'openai/resources/completions'
+import { checkForForcedToolUsageOpenAI, createOpenAICompatibleStream } from '@/providers/utils'
 
 /**
- * Helper to wrap XAI (OpenAI-compatible) streaming into a browser-friendly
- * ReadableStream of raw assistant text chunks.
+ * Creates a ReadableStream from an xAI streaming response.
+ * Uses the shared OpenAI-compatible streaming utility.
  */
-export function createReadableStreamFromXAIStream(xaiStream: any): ReadableStream {
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of xaiStream) {
-          const content = chunk.choices[0]?.delta?.content || ''
-          if (content) {
-            controller.enqueue(new TextEncoder().encode(content))
-          }
-        }
-        controller.close()
-      } catch (err) {
-        controller.error(err)
-      }
-    },
-  })
+export function createReadableStreamFromXAIStream(
+  xaiStream: AsyncIterable<ChatCompletionChunk>,
+  onComplete?: (content: string, usage: CompletionUsage) => void
+): ReadableStream<Uint8Array> {
+  return createOpenAICompatibleStream(xaiStream, 'xAI', onComplete)
 }
 
 /**
- * Creates a response format payload for XAI API requests.
+ * Creates a response format payload for xAI requests with JSON schema.
  */
 export function createResponseFormatPayload(
   basePayload: any,
@@ -54,7 +42,8 @@ export function createResponseFormatPayload(
 }
 
 /**
- * Helper function to check for forced tool usage in responses.
+ * Checks if a forced tool was used in an xAI response.
+ * Uses the shared OpenAI-compatible forced tool usage helper.
  */
 export function checkForForcedToolUsage(
   response: any,
@@ -62,22 +51,5 @@ export function checkForForcedToolUsage(
   forcedTools: string[],
   usedForcedTools: string[]
 ): { hasUsedForcedTool: boolean; usedForcedTools: string[] } {
-  let hasUsedForcedTool = false
-  let updatedUsedForcedTools = usedForcedTools
-
-  if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
-    const toolCallsResponse = response.choices[0].message.tool_calls
-    const result = trackForcedToolUsage(
-      toolCallsResponse,
-      toolChoice,
-      logger,
-      'xai',
-      forcedTools,
-      updatedUsedForcedTools
-    )
-    hasUsedForcedTool = result.hasUsedForcedTool
-    updatedUsedForcedTools = result.usedForcedTools
-  }
-
-  return { hasUsedForcedTool, usedForcedTools: updatedUsedForcedTools }
+  return checkForForcedToolUsageOpenAI(response, toolChoice, 'xAI', forcedTools, usedForcedTools)
 }

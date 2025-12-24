@@ -47,12 +47,13 @@ Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Su
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | 字符串 | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
-| `table` | 字符串 | 是 | 要查询的 Supabase 表名 |
-| `filter` | 字符串 | 否 | PostgREST 过滤条件 \(例如："id=eq.123"\) |
-| `orderBy` | 字符串 | 否 | 排序的列名 \(添加 DESC 表示降序\) |
-| `limit` | 数字 | 否 | 返回的最大行数 |
-| `apiKey` | 字符串 | 是 | 您的 Supabase 服务角色密钥 |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `table` | string | 是 | 要查询的 Supabase 表名 |
+| `schema` | string | 否 | 要查询的数据库 schema \(默认：public\)。用于访问其他 schema 下的表。|
+| `filter` | string | 否 | PostgREST 过滤条件 \(例如："id=eq.123"\) |
+| `orderBy` | string | 否 | 排序的列名 \(添加 DESC 表示降序\) |
+| `limit` | number | 否 | 返回的最大行数 |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
 
 #### 输出
 
@@ -71,7 +72,8 @@ Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Su
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
 | `table` | string | 是 | 要插入数据的 Supabase 表名 |
-| `data` | array | 是 | 要插入的数据 \(对象数组或单个对象\) |
+| `schema` | string | 否 | 要插入的数据库 schema \(默认：public\)。用于访问其他 schema 下的表。|
+| `data` | array | 是 | 要插入的数据（对象数组或单个对象）|
 | `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
 
 #### 输出
@@ -91,7 +93,8 @@ Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Su
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
 | `table` | string | 是 | 要查询的 Supabase 表名 |
-| `filter` | string | 是 | PostgREST 筛选条件以找到特定行 \(例如："id=eq.123"\) |
+| `schema` | string | 否 | 要查询的数据库 schema \(默认：public\)。用于访问其他 schema 下的表。|
+| `filter` | string | 是 | 用于查找特定行的 PostgREST 过滤条件 \(例如："id=eq.123"\) |
 | `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
 
 #### 输出
@@ -110,9 +113,10 @@ Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Su
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
-| `table` | string | 是 | 要更新的 Supabase 表的名称 |
-| `filter` | string | 是 | 用于标识要更新行的 PostgREST 筛选条件 \(例如："id=eq.123"\) |
-| `data` | object | 是 | 要更新到匹配行的数据 |
+| `table` | string | 是 | 要更新的 Supabase 表名 |
+| `schema` | string | 否 | 要更新的数据库 schema \(默认：public\)。用于访问其他 schema 下的表。|
+| `filter` | string | 是 | PostgREST 筛选条件，用于定位要更新的行 \(例如："id=eq.123"\) |
+| `data` | object | 是 | 要在匹配行中更新的数据 |
 | `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
 
 #### 输出
@@ -131,8 +135,9 @@ Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Su
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
-| `table` | string | 是 | 要删除的 Supabase 表的名称 |
-| `filter` | string | 是 | 用于标识要删除行的 PostgREST 筛选条件 \(例如："id=eq.123"\) |
+| `table` | string | 是 | 要删除数据的 Supabase 表名 |
+| `schema` | string | 否 | 要删除数据的数据库 schema \(默认：public\)。用于访问其他 schema 下的表。|
+| `filter` | string | 是 | PostgREST 筛选条件，用于定位要删除的行 \(例如："id=eq.123"\) |
 | `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
 
 #### 输出
@@ -151,8 +156,9 @@ Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Su
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
-| `table` | string | 是 | 要插入或更新数据的 Supabase 表名 |
-| `data` | array | 是 | 要插入或更新的数据 \(插入或更新\) - 对象数组或单个对象 |
+| `table` | string | 是 | 要 upsert 数据的 Supabase 表名 |
+| `schema` | string | 否 | 要 upsert 的数据库 schema \(默认：public\)。用于访问其他 schema 下的表。|
+| `data` | array | 是 | 要 upsert（插入或更新）的数据——对象数组或单个对象 |
 | `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
 
 #### 输出
@@ -172,6 +178,7 @@ Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Su
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
 | `table` | string | 是 | 要统计行数的 Supabase 表名 |
+| `schema` | string | 否 | 要统计的数据库 schema \(默认：public\)。用于访问其他 schema 下的表。 |
 | `filter` | string | 否 | PostgREST 过滤条件 \(例如："status=eq.active"\) |
 | `countType` | string | 否 | 计数类型：exact、planned 或 estimated \(默认：exact\) |
 | `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
@@ -193,8 +200,9 @@ Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Su
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
 | `table` | string | 是 | 要搜索的 Supabase 表名 |
-| `column` | string | 是 | 要搜索的列 |
-| `query` | string | 是 | 搜索查询 |
+| `schema` | string | 否 | 要搜索的数据库 schema \(默认：public\)。用于访问其他 schema 下的表。 |
+| `column` | string | 是 | 要搜索的列名 |
+| `query` | string | 是 | 搜索查询内容 |
 | `searchType` | string | 否 | 搜索类型：plain、phrase 或 websearch \(默认：websearch\) |
 | `language` | string | 否 | 文本搜索配置的语言 \(默认：english\) |
 | `limit` | number | 否 | 返回的最大行数 |

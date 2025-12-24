@@ -4,8 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
   id: 'memory_delete',
   name: 'Delete Memory',
-  description:
-    'Delete memories by conversationId, blockId, blockName, or a combination. Supports bulk deletion.',
+  description: 'Delete memories by conversationId.',
   version: '1.0.0',
 
   params: {
@@ -13,7 +12,7 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
       type: 'string',
       required: false,
       description:
-        'Conversation identifier (e.g., user-123, session-abc). If provided alone, deletes all memories for this conversation across all blocks.',
+        'Conversation identifier (e.g., user-123, session-abc). Deletes all memories for this conversation.',
     },
     id: {
       type: 'string',
@@ -21,50 +20,36 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
       description:
         'Legacy parameter for conversation identifier. Use conversationId instead. Provided for backwards compatibility.',
     },
-    blockId: {
-      type: 'string',
-      required: false,
-      description:
-        'Block identifier. If provided alone, deletes all memories for this block across all conversations. If provided with conversationId, deletes memories for that specific conversation in this block.',
-    },
-    blockName: {
-      type: 'string',
-      required: false,
-      description:
-        'Block name. Alternative to blockId. If provided alone, deletes all memories for blocks with this name. If provided with conversationId, deletes memories for that conversation in blocks with this name.',
-    },
   },
 
   request: {
     url: (params): any => {
-      const workflowId = params._context?.workflowId
+      const workspaceId = params._context?.workspaceId
 
-      if (!workflowId) {
+      if (!workspaceId) {
         return {
           _errorResponse: {
             status: 400,
             data: {
               success: false,
               error: {
-                message: 'workflowId is required and must be provided in execution context',
+                message: 'workspaceId is required and must be provided in execution context',
               },
             },
           },
         }
       }
 
-      // Use 'id' as fallback for 'conversationId' for backwards compatibility
       const conversationId = params.conversationId || params.id
 
-      if (!conversationId && !params.blockId && !params.blockName) {
+      if (!conversationId) {
         return {
           _errorResponse: {
             status: 400,
             data: {
               success: false,
               error: {
-                message:
-                  'At least one of conversationId, id, blockId, or blockName must be provided',
+                message: 'conversationId or id must be provided',
               },
             },
           },
@@ -72,17 +57,8 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
       }
 
       const url = new URL('/api/memory', 'http://dummy')
-      url.searchParams.set('workflowId', workflowId)
-
-      if (conversationId) {
-        url.searchParams.set('conversationId', conversationId)
-      }
-      if (params.blockId) {
-        url.searchParams.set('blockId', params.blockId)
-      }
-      if (params.blockName) {
-        url.searchParams.set('blockName', params.blockName)
-      }
+      url.searchParams.set('workspaceId', workspaceId)
+      url.searchParams.set('conversationId', conversationId)
 
       return url.pathname + url.search
     },

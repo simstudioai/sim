@@ -49,126 +49,6 @@ const ExecuteWorkflowSchema = z.object({
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-/**
- * Execute workflow with streaming support - used by chat and other streaming endpoints
- *
- * This function assumes preprocessing has already been completed.
- * Callers must run preprocessExecution() first to validate workflow, check usage limits,
- * and resolve actor before calling this function.
- *
- * This is a wrapper function that:
- * - Supports streaming callbacks (onStream, onBlockComplete)
- * - Returns ExecutionResult instead of NextResponse
- * - Handles pause/resume logic
- *
- * Used by:
- * - Chat execution (/api/chat/[identifier]/route.ts)
- * - Streaming responses (lib/workflows/streaming.ts)
- */
-export async function executeWorkflow(
-  workflow: any,
-  requestId: string,
-  input: any | undefined,
-  actorUserId: string,
-  streamConfig?: {
-    enabled: boolean
-    selectedOutputs?: string[]
-    isSecureMode?: boolean
-    workflowTriggerType?: 'api' | 'chat'
-    onStream?: (streamingExec: any) => Promise<void>
-    onBlockComplete?: (blockId: string, output: any) => Promise<void>
-    skipLoggingComplete?: boolean
-  },
-  providedExecutionId?: string
-): Promise<any> {
-  const workflowId = workflow.id
-  const executionId = providedExecutionId || uuidv4()
-  const triggerType = streamConfig?.workflowTriggerType || 'api'
-  const loggingSession = new LoggingSession(workflowId, executionId, triggerType, requestId)
-
-  try {
-    const metadata: ExecutionMetadata = {
-      requestId,
-      executionId,
-      workflowId,
-      workspaceId: workflow.workspaceId,
-      userId: actorUserId,
-      workflowUserId: workflow.userId,
-      triggerType,
-      useDraftState: false,
-      startTime: new Date().toISOString(),
-      isClientSession: false,
-    }
-
-    const snapshot = new ExecutionSnapshot(
-      metadata,
-      workflow,
-      input,
-      workflow.variables || {},
-      streamConfig?.selectedOutputs || []
-    )
-
-    const result = await executeWorkflowCore({
-      snapshot,
-      callbacks: {
-        onStream: streamConfig?.onStream,
-        onBlockComplete: streamConfig?.onBlockComplete
-          ? async (blockId: string, _blockName: string, _blockType: string, output: any) => {
-              await streamConfig.onBlockComplete!(blockId, output)
-            }
-          : undefined,
-      },
-      loggingSession,
-    })
-
-    if (result.status === 'paused') {
-      if (!result.snapshotSeed) {
-        logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
-          executionId,
-        })
-      } else {
-        await PauseResumeManager.persistPauseResult({
-          workflowId,
-          executionId,
-          pausePoints: result.pausePoints || [],
-          snapshotSeed: result.snapshotSeed,
-          executorUserId: result.metadata?.userId,
-        })
-      }
-    } else {
-      await PauseResumeManager.processQueuedResumes(executionId)
-    }
-
-    if (streamConfig?.skipLoggingComplete) {
-      return {
-        ...result,
-        _streamingMetadata: {
-          loggingSession,
-          processedInput: input,
-        },
-      }
-    }
-
-    return result
-  } catch (error: any) {
-    logger.error(`[${requestId}] Workflow execution failed:`, error)
-    throw error
-  }
-}
-
-export function createFilteredResult(result: any) {
-  return {
-    ...result,
-    logs: undefined,
-    metadata: result.metadata
-      ? {
-          ...result.metadata,
-          workflowConnections: undefined,
-        }
-      : undefined,
-  }
-}
-
 function resolveOutputIds(
   selectedOutputs: string[] | undefined,
   blocks: Record<string, any>
@@ -606,7 +486,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           isSecureMode: false,
           workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
         },
-        createFilteredResult,
         executionId,
       })
 
@@ -743,14 +622,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
           const onStream = async (streamingExec: StreamingExecution) => {
             const blockId = (streamingExec.execution as any).blockId
+
             const reader = streamingExec.stream.getReader()
             const decoder = new TextDecoder()
+            let chunkCount = 0
 
             try {
               while (true) {
                 const { done, value } = await reader.read()
                 if (done) break
 
+                chunkCount++
                 const chunk = decoder.decode(value, { stream: true })
                 sendEvent({
                   type: 'stream:chunk',

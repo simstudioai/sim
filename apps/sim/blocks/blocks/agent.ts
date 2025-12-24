@@ -9,8 +9,10 @@ import {
   getMaxTemperature,
   getProviderIcon,
   getReasoningEffortValuesForModel,
+  getThinkingLevelsForModel,
   getVerbosityValuesForModel,
   MODELS_WITH_REASONING_EFFORT,
+  MODELS_WITH_THINKING,
   MODELS_WITH_VERBOSITY,
   providers,
   supportsTemperature,
@@ -71,8 +73,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   longDescription:
     'The Agent block is a core workflow block that is a wrapper around an LLM. It takes in system/user prompts and calls an LLM provider. It can also make tool calls by directly containing tools inside of its tool input. It can additionally return structured output.',
   bestPractices: `
-  - Cannot use core blocks like API, Webhook, Function, Workflow, Memory as tools. Only integrations or custom tools. 
-  - Check custom tools examples for YAML syntax. Only construct these if there isn't an existing integration for that purpose.
+  - Prefer using integrations as tools within the agent block over separate integration blocks unless complete determinism needed. 
   - Response Format should be a valid JSON Schema. This determines the output of the agent only if present. Fields can be accessed at root level by the following blocks: e.g. <agent1.field>. If response format is not present, the agent will return the standard outputs: content, model, tokens, toolCalls.
   `,
   docsLink: 'https://docs.sim.ai/blocks/agent',
@@ -109,7 +110,19 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
         })
       },
     },
-
+    {
+      id: 'vertexCredential',
+      title: 'Google Cloud Account',
+      type: 'oauth-input',
+      serviceId: 'vertex-ai',
+      requiredScopes: ['https://www.googleapis.com/auth/cloud-platform'],
+      placeholder: 'Select Google Cloud account',
+      required: true,
+      condition: {
+        field: 'model',
+        value: providers.vertex.models,
+      },
+    },
     {
       id: 'reasoningEffort',
       title: 'Reasoning Effort',
@@ -216,6 +229,57 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
         value: MODELS_WITH_VERBOSITY,
       },
     },
+    {
+      id: 'thinkingLevel',
+      title: 'Thinking Level',
+      type: 'dropdown',
+      placeholder: 'Select thinking level...',
+      options: [
+        { label: 'minimal', id: 'minimal' },
+        { label: 'low', id: 'low' },
+        { label: 'medium', id: 'medium' },
+        { label: 'high', id: 'high' },
+      ],
+      dependsOn: ['model'],
+      fetchOptions: async (blockId: string) => {
+        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
+        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
+
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (!activeWorkflowId) {
+          return [
+            { label: 'low', id: 'low' },
+            { label: 'high', id: 'high' },
+          ]
+        }
+
+        const workflowValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
+        const blockValues = workflowValues?.[blockId]
+        const modelValue = blockValues?.model as string
+
+        if (!modelValue) {
+          return [
+            { label: 'low', id: 'low' },
+            { label: 'high', id: 'high' },
+          ]
+        }
+
+        const validOptions = getThinkingLevelsForModel(modelValue)
+        if (!validOptions) {
+          return [
+            { label: 'low', id: 'low' },
+            { label: 'high', id: 'high' },
+          ]
+        }
+
+        return validOptions.map((opt) => ({ label: opt, id: opt }))
+      },
+      value: () => 'high',
+      condition: {
+        field: 'model',
+        value: MODELS_WITH_THINKING,
+      },
+    },
 
     {
       id: 'azureEndpoint',
@@ -276,17 +340,21 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       password: true,
       connectionDroppable: false,
       required: true,
-      // Hide API key for hosted models, Ollama models, and vLLM models
+      // Hide API key for hosted models, Ollama models, vLLM models, and Vertex models (uses OAuth)
       condition: isHosted
         ? {
             field: 'model',
-            value: getHostedModels(),
+            value: [...getHostedModels(), ...providers.vertex.models],
             not: true, // Show for all models EXCEPT those listed
           }
         : () => ({
             field: 'model',
-            value: [...getCurrentOllamaModels(), ...getCurrentVLLMModels()],
-            not: true, // Show for all models EXCEPT Ollama and vLLM models
+            value: [
+              ...getCurrentOllamaModels(),
+              ...getCurrentVLLMModels(),
+              ...providers.vertex.models,
+            ],
+            not: true, // Show for all models EXCEPT Ollama, vLLM, and Vertex models
           }),
     },
     {
@@ -610,6 +678,7 @@ Example 3 (Array Input):
     temperature: { type: 'number', description: 'Response randomness level' },
     reasoningEffort: { type: 'string', description: 'Reasoning effort level for GPT-5 models' },
     verbosity: { type: 'string', description: 'Verbosity level for GPT-5 models' },
+    thinkingLevel: { type: 'string', description: 'Thinking level for Gemini 3 models' },
     tools: { type: 'json', description: 'Available tools configuration' },
   },
   outputs: {

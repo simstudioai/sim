@@ -38,17 +38,19 @@ Créer un nouveau contact dans Intercom avec email, external_id ou role
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
-| `email` | string | Non | L'adresse email du contact |
+| --------- | ---- | ------------ | ----------- |
+| `role` | string | Non | Le rôle du contact. Accepte « user » ou « lead ». Par défaut « lead » si non spécifié. |
+| `email` | string | Non | L'adresse e-mail du contact |
 | `external_id` | string | Non | Un identifiant unique pour le contact fourni par le client |
 | `phone` | string | Non | Le numéro de téléphone du contact |
 | `name` | string | Non | Le nom du contact |
 | `avatar` | string | Non | Une URL d'image d'avatar pour le contact |
-| `signed_up_at` | number | Non | L'heure à laquelle l'utilisateur s'est inscrit sous forme d'horodatage Unix |
-| `last_seen_at` | number | Non | L'heure à laquelle l'utilisateur a été vu pour la dernière fois sous forme d'horodatage Unix |
-| `owner_id` | string | Non | L'identifiant d'un administrateur qui a été assigné comme propriétaire du compte du contact |
-| `unsubscribed_from_emails` | boolean | Non | Indique si le contact est désabonné des emails |
-| `custom_attributes` | string | Non | Attributs personnalisés sous forme d'objet JSON (par exemple, \{"nom_attribut": "valeur"\}) |
+| `signed_up_at` | number | Non | L'heure d'inscription de l'utilisateur sous forme d'horodatage Unix |
+| `last_seen_at` | number | Non | L'heure de dernière activité de l'utilisateur sous forme d'horodatage Unix |
+| `owner_id` | string | Non | L'identifiant d'un administrateur auquel la propriété du compte du contact a été attribuée |
+| `unsubscribed_from_emails` | boolean | Non | Indique si le contact s'est désabonné des e-mails |
+| `custom_attributes` | string | Non | Attributs personnalisés sous forme d'objet JSON (par ex., \{"nom_attribut": "valeur"\}) |
+| `company_id` | string | Non | Identifiant de l'entreprise à associer au contact lors de la création |
 
 #### Sortie
 
@@ -81,17 +83,20 @@ Mettre à jour un contact existant dans Intercom
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
-| `contactId` | string | Oui | ID du contact à mettre à jour |
-| `email` | string | Non | Adresse e-mail du contact |
-| `phone` | string | Non | Numéro de téléphone du contact |
-| `name` | string | Non | Nom du contact |
-| `avatar` | string | Non | URL de l'image d'avatar pour le contact |
-| `signed_up_at` | number | Non | Moment où l'utilisateur s'est inscrit, en timestamp Unix |
-| `last_seen_at` | number | Non | Moment où l'utilisateur a été vu pour la dernière fois, en timestamp Unix |
-| `owner_id` | string | Non | ID d'un administrateur qui a été assigné comme propriétaire du compte du contact |
-| `unsubscribed_from_emails` | boolean | Non | Indique si le contact est désabonné des e-mails |
-| `custom_attributes` | string | Non | Attributs personnalisés sous forme d'objet JSON (par exemple, \{"nom_attribut": "valeur"\}) |
+| --------- | ---- | ------------ | ----------- |
+| `contactId` | string | Oui | Identifiant du contact à mettre à jour |
+| `role` | string | Non | Le rôle du contact. Accepte « user » ou « lead ». |
+| `external_id` | string | Non | Un identifiant unique pour le contact fourni par le client |
+| `email` | string | Non | L'adresse e-mail du contact |
+| `phone` | string | Non | Le numéro de téléphone du contact |
+| `name` | string | Non | Le nom du contact |
+| `avatar` | string | Non | Une URL d'image d'avatar pour le contact |
+| `signed_up_at` | number | Non | L'heure d'inscription de l'utilisateur sous forme d'horodatage Unix |
+| `last_seen_at` | number | Non | L'heure de dernière activité de l'utilisateur sous forme d'horodatage Unix |
+| `owner_id` | string | Non | L'identifiant d'un administrateur auquel la propriété du compte du contact a été attribuée |
+| `unsubscribed_from_emails` | boolean | Non | Indique si le contact s'est désabonné des e-mails |
+| `custom_attributes` | string | Non | Attributs personnalisés sous forme d'objet JSON (par ex., \{"nom_attribut": "valeur"\}) |
+| `company_id` | string | Non | Identifiant de l'entreprise à associer au contact |
 
 #### Sortie
 
@@ -125,10 +130,12 @@ Rechercher des contacts dans Intercom à l'aide d'une requête
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
-| `query` | chaîne | Oui | Requête de recherche \(ex., \{"field":"email","operator":"=","value":"user@example.com"\}\) |
-| `per_page` | nombre | Non | Nombre de résultats par page \(max : 150\) |
-| `starting_after` | chaîne | Non | Curseur pour la pagination |
+| --------- | ---- | ----------- | ----------- |
+| `query` | string | Oui | Requête de recherche \(par ex., \{"field":"email","operator":"=","value":"user@example.com"\}\) |
+| `per_page` | number | Non | Nombre de résultats par page \(max : 150\) |
+| `starting_after` | string | Non | Curseur pour la pagination |
+| `sort_field` | string | Non | Champ de tri \(par ex., "name", "created_at", "last_seen_at"\) |
+| `sort_order` | string | Non | Ordre de tri : "ascending" ou "descending" |
 
 #### Sortie
 
@@ -161,15 +168,16 @@ Créer ou mettre à jour une entreprise dans Intercom
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
+| --------- | ---- | ----------- | ----------- |
 | `company_id` | string | Oui | Votre identifiant unique pour l'entreprise |
 | `name` | string | Non | Le nom de l'entreprise |
 | `website` | string | Non | Le site web de l'entreprise |
-| `plan` | string | Non | Le nom du forfait de l'entreprise |
+| `plan` | string | Non | Le nom du plan de l'entreprise |
 | `size` | number | Non | Le nombre d'employés dans l'entreprise |
 | `industry` | string | Non | Le secteur d'activité de l'entreprise |
-| `monthly_spend` | number | Non | Le montant des revenus que l'entreprise génère pour votre activité. Remarque : ce champ tronque les décimales en nombres entiers (par exemple, 155,98 devient 155) |
+| `monthly_spend` | number | Non | Le chiffre d'affaires que l'entreprise génère pour votre activité. Remarque : ce champ tronque les nombres décimaux en entiers \(par ex., 155,98 devient 155\) |
 | `custom_attributes` | string | Non | Attributs personnalisés sous forme d'objet JSON |
+| `remote_created_at` | number | Non | La date de création de l'entreprise par vous sous forme d'horodatage Unix |
 
 #### Sortie
 
@@ -205,6 +213,7 @@ Liste toutes les entreprises d'Intercom avec prise en charge de la pagination. R
 | --------- | ---- | ----------- | ----------- |
 | `per_page` | number | Non | Nombre de résultats par page |
 | `page` | number | Non | Numéro de page |
+| `starting_after` | string | Non | Curseur pour la pagination \(préféré à la pagination par page\) |
 
 #### Sortie
 
@@ -220,9 +229,10 @@ Récupérer une seule conversation par ID depuis Intercom
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 | `conversationId` | string | Oui | ID de la conversation à récupérer |
-| `display_as` | string | Non | Définir à "plaintext" pour récupérer les messages en texte brut |
+| `display_as` | string | Non | Définir sur "plaintext" pour récupérer les messages en texte brut |
+| `include_translations` | boolean | Non | Lorsque true, les parties de la conversation seront traduites dans la langue détectée de la conversation |
 
 #### Sortie
 
@@ -238,9 +248,11 @@ Lister toutes les conversations depuis Intercom avec prise en charge de la pagin
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 | `per_page` | number | Non | Nombre de résultats par page \(max : 150\) |
 | `starting_after` | string | Non | Curseur pour la pagination |
+| `sort` | string | Non | Champ de tri \(ex., "waiting_since", "updated_at", "created_at"\) |
+| `order` | string | Non | Ordre de tri : "asc" \(croissant\) ou "desc" \(décroissant\) |
 
 #### Sortie
 
@@ -256,12 +268,13 @@ Répondre à une conversation en tant qu'administrateur dans Intercom
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 | `conversationId` | string | Oui | ID de la conversation à laquelle répondre |
 | `message_type` | string | Oui | Type de message : "comment" ou "note" |
-| `body` | string | Oui | Le corps du texte de la réponse |
-| `admin_id` | string | Non | L'ID de l'administrateur qui rédige la réponse. Si non fourni, un administrateur par défaut (Operator/Fin) sera utilisé. |
-| `attachment_urls` | string | Non | Liste d'URLs d'images séparées par des virgules (max 10) |
+| `body` | string | Oui | Corps du texte de la réponse |
+| `admin_id` | string | Non | ID de l'administrateur qui rédige la réponse. Si non fourni, un administrateur par défaut \(Operator/Fin\) sera utilisé. |
+| `attachment_urls` | string | Non | Liste d'URL d'images séparées par des virgules \(max 10\) |
+| `created_at` | number | Non | Horodatage Unix du moment où la réponse a été créée. Si non fourni, l'heure actuelle est utilisée. |
 
 #### Sortie
 
@@ -277,10 +290,12 @@ Rechercher des conversations dans Intercom à l'aide d'une requête
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ----------- | ----------- |
 | `query` | string | Oui | Requête de recherche sous forme d'objet JSON |
-| `per_page` | number | Non | Nombre de résultats par page (max : 150) |
+| `per_page` | number | Non | Nombre de résultats par page \(max : 150\) |
 | `starting_after` | string | Non | Curseur pour la pagination |
+| `sort_field` | string | Non | Champ de tri \(par exemple, "created_at", "updated_at"\) |
+| `sort_order` | string | Non | Ordre de tri : "ascending" ou "descending" |
 
 #### Sortie
 
@@ -296,10 +311,14 @@ Créer un nouveau ticket dans Intercom
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ----------- | ----------- |
 | `ticket_type_id` | string | Oui | L'ID du type de ticket |
-| `contacts` | string | Oui | Tableau JSON d'identifiants de contact (par ex., \[\{"id": "contact_id"\}\]) |
+| `contacts` | string | Oui | Tableau JSON d'identifiants de contacts \(par exemple, \[\{"id": "contact_id"\}\]\) |
 | `ticket_attributes` | string | Oui | Objet JSON avec les attributs du ticket incluant _default_title_ et _default_description_ |
+| `company_id` | string | Non | ID de l'entreprise à associer au ticket |
+| `created_at` | number | Non | Horodatage Unix du moment où le ticket a été créé. Si non fourni, l'heure actuelle est utilisée. |
+| `conversation_to_link_id` | string | Non | ID d'une conversation existante à lier à ce ticket |
+| `disable_notifications` | boolean | Non | Lorsque défini sur true, supprime les notifications lors de la création du ticket |
 
 #### Sortie
 
@@ -332,14 +351,16 @@ Créer et envoyer un nouveau message initié par l'administrateur dans Intercom
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
-| `message_type` | string | Oui | Type de message : "inapp" ou "email" |
-| `subject` | string | Non | Objet du message (pour le type email) |
-| `body` | string | Oui | Corps du message |
+| --------- | ---- | ----------- | ----------- |
+| `message_type` | string | Oui | Type de message : "inapp" pour les messages in-app ou "email" pour les messages e-mail |
+| `template` | string | Oui | Style du modèle de message : "plain" pour texte brut ou "personal" pour style personnalisé |
+| `subject` | string | Non | Le sujet du message \(pour le type e-mail\) |
+| `body` | string | Oui | Le corps du message |
 | `from_type` | string | Oui | Type d'expéditeur : "admin" |
-| `from_id` | string | Oui | ID de l'administrateur qui envoie le message |
+| `from_id` | string | Oui | L'ID de l'administrateur qui envoie le message |
 | `to_type` | string | Oui | Type de destinataire : "contact" |
-| `to_id` | string | Oui | ID du contact qui reçoit le message |
+| `to_id` | string | Oui | L'ID du contact qui reçoit le message |
+| `created_at` | number | Non | Horodatage Unix du moment où le message a été créé. Si non fourni, l'heure actuelle est utilisée. |
 
 #### Sortie
 

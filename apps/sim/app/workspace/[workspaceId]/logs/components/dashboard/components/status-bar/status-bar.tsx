@@ -36,7 +36,7 @@ export function StatusBar({
       const end = new Date(start.getTime() + (segmentDurationMs || 0))
       const rangeLabel = Number.isNaN(start.getTime())
         ? ''
-        : `${start.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric' })} – ${end.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+        : `${start.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} – ${end.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit' })}`
       return {
         rangeLabel,
         successLabel: `${segment.successRate.toFixed(1)}%`,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDate, formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
 
@@ -15,7 +15,7 @@ export interface LineChartMultiSeries {
   dashed?: boolean
 }
 
-export function LineChart({
+function LineChartComponent({
   data,
   label,
   color,
@@ -95,6 +95,133 @@ export function LineChart({
 
   const hasExternalWrapper = !label || label === ''
 
+  const allSeries = useMemo(
+    () =>
+      (Array.isArray(series) && series.length > 0
+        ? [{ id: 'base', label, color, data }, ...series]
+        : [{ id: 'base', label, color, data }]
+      ).map((s, idx) => ({ ...s, id: s.id || s.label || String(idx) })),
+    [series, label, color, data]
+  )
+
+  const { maxValue, minValue, valueRange } = useMemo(() => {
+    const flatValues = allSeries.flatMap((s) => s.data.map((d) => d.value))
+    const rawMax = Math.max(...flatValues, 1)
+    const rawMin = Math.min(...flatValues, 0)
+    const paddedMax = rawMax === 0 ? 1 : rawMax * 1.1
+    const paddedMin = Math.min(0, rawMin)
+    const unitSuffixPre = (unit || '').trim().toLowerCase()
+    let maxVal = Math.ceil(paddedMax)
+    let minVal = Math.floor(paddedMin)
+    if (unitSuffixPre === 'ms' || unitSuffixPre === 'latency') {
+      minVal = 0
+      if (paddedMax < 10) {
+        maxVal = Math.ceil(paddedMax)
+      } else if (paddedMax < 100) {
+        maxVal = Math.ceil(paddedMax / 10) * 10
+      } else if (paddedMax < 1000) {
+        maxVal = Math.ceil(paddedMax / 50) * 50
+      } else if (paddedMax < 10000) {
+        maxVal = Math.ceil(paddedMax / 500) * 500
+      } else {
+        maxVal = Math.ceil(paddedMax / 1000) * 1000
+      }
+    }
+    return {
+      maxValue: maxVal,
+      minValue: minVal,
+      valueRange: maxVal - minVal || 1,
+    }
+  }, [allSeries, unit])
+
+  const yMin = padding.top + 3
+  const yMax = padding.top + chartHeight - 3
+
+  const scaledPoints = useMemo(
+    () =>
+      data.map((d, i) => {
+        const usableW = Math.max(1, chartWidth)
+        const x = padding.left + (i / (data.length - 1 || 1)) * usableW
+        const rawY = padding.top + chartHeight - ((d.value - minValue) / valueRange) * chartHeight
+        const y = Math.max(yMin, Math.min(yMax, rawY))
+        return { x, y }
+      }),
+    [data, chartWidth, chartHeight, minValue, valueRange, yMin, yMax, padding.left, padding.top]
+  )
+
+  const scaledSeries = useMemo(
+    () =>
+      allSeries.map((s) => {
+        const pts = s.data.map((d, i) => {
+          const usableW = Math.max(1, chartWidth)
+          const x = padding.left + (i / (s.data.length - 1 || 1)) * usableW
+          const rawY = padding.top + chartHeight - ((d.value - minValue) / valueRange) * chartHeight
+          const y = Math.max(yMin, Math.min(yMax, rawY))
+          return { x, y }
+        })
+        return { ...s, pts }
+      }),
+    [
+      allSeries,
+      chartWidth,
+      chartHeight,
+      minValue,
+      valueRange,
+      yMin,
+      yMax,
+      padding.left,
+      padding.top,
+    ]
+  )
+
+  const getSeriesById = (id?: string | null) => scaledSeries.find((s) => s.id === id)
+  const visibleSeries = useMemo(
+    () => (activeSeriesId ? scaledSeries.filter((s) => s.id === activeSeriesId) : scaledSeries),
+    [activeSeriesId, scaledSeries]
+  )
+
+  const pathD = useMemo(() => {
+    if (scaledPoints.length <= 1) return ''
+    const p = scaledPoints
+    const tension = 0.2
+    let d = `M ${p[0].x} ${p[0].y}`
+    for (let i = 0; i < p.length - 1; i++) {
+      const p0 = p[i - 1] || p[i]
+      const p1 = p[i]
+      const p2 = p[i + 1]
+      const p3 = p[i + 2] || p[i + 1]
+      const cp1x = p1.x + ((p2.x - p0.x) / 6) * tension
+      let cp1y = p1.y + ((p2.y - p0.y) / 6) * tension
+      const cp2x = p2.x - ((p3.x - p1.x) / 6) * tension
+      let cp2y = p2.y - ((p3.y - p1.y) / 6) * tension
+      cp1y = Math.max(yMin, Math.min(yMax, cp1y))
+      cp2y = Math.max(yMin, Math.min(yMax, cp2y))
+      d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
+    }
+    return d
+  }, [scaledPoints, yMin, yMax])
+
+  const getCompactDateLabel = (timestamp?: string) => {
+    if (!timestamp) return ''
+    try {
+      const f = formatDate(timestamp)
+      return `${f.compactDate} ${f.compactTime}`
+    } catch (e) {
+      const d = new Date(timestamp)
+      if (Number.isNaN(d.getTime())) return ''
+      return d.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      })
+    }
+  }
+
+  const currentHoverDate =
+    hoverIndex !== null && data[hoverIndex] ? getCompactDateLabel(data[hoverIndex].timestamp) : ''
+
   if (containerWidth === null) {
     return (
       <div
@@ -118,109 +245,6 @@ export function LineChart({
       </div>
     )
   }
-
-  const allSeries = (
-    Array.isArray(series) && series.length > 0
-      ? [{ id: 'base', label, color, data }, ...series]
-      : [{ id: 'base', label, color, data }]
-  ).map((s, idx) => ({ ...s, id: s.id || s.label || String(idx) }))
-
-  const flatValues = allSeries.flatMap((s) => s.data.map((d) => d.value))
-  const rawMax = Math.max(...flatValues, 1)
-  const rawMin = Math.min(...flatValues, 0)
-  const paddedMax = rawMax === 0 ? 1 : rawMax * 1.1
-  const paddedMin = Math.min(0, rawMin)
-  const unitSuffixPre = (unit || '').trim().toLowerCase()
-  let maxValue = Math.ceil(paddedMax)
-  let minValue = Math.floor(paddedMin)
-  if (unitSuffixPre === 'ms' || unitSuffixPre === 'latency') {
-    minValue = 0
-    if (paddedMax < 10) {
-      maxValue = Math.ceil(paddedMax)
-    } else if (paddedMax < 100) {
-      maxValue = Math.ceil(paddedMax / 10) * 10
-    } else if (paddedMax < 1000) {
-      maxValue = Math.ceil(paddedMax / 50) * 50
-    } else if (paddedMax < 10000) {
-      maxValue = Math.ceil(paddedMax / 500) * 500
-    } else {
-      maxValue = Math.ceil(paddedMax / 1000) * 1000
-    }
-  }
-  const valueRange = maxValue - minValue || 1
-
-  const yMin = padding.top + 3
-  const yMax = padding.top + chartHeight - 3
-
-  const scaledPoints = data.map((d, i) => {
-    const usableW = Math.max(1, chartWidth)
-    const x = padding.left + (i / (data.length - 1 || 1)) * usableW
-    const rawY = padding.top + chartHeight - ((d.value - minValue) / valueRange) * chartHeight
-    const y = Math.max(yMin, Math.min(yMax, rawY))
-    return { x, y }
-  })
-
-  const scaledSeries = allSeries.map((s) => {
-    const pts = s.data.map((d, i) => {
-      const usableW = Math.max(1, chartWidth)
-      const x = padding.left + (i / (s.data.length - 1 || 1)) * usableW
-      const rawY = padding.top + chartHeight - ((d.value - minValue) / valueRange) * chartHeight
-      const y = Math.max(yMin, Math.min(yMax, rawY))
-      return { x, y }
-    })
-    return { ...s, pts }
-  })
-
-  const getSeriesById = (id?: string | null) => scaledSeries.find((s) => s.id === id)
-  const visibleSeries = activeSeriesId
-    ? scaledSeries.filter((s) => s.id === activeSeriesId)
-    : scaledSeries
-  const orderedSeries = (() => {
-    if (!activeSeriesId) return visibleSeries
-    return visibleSeries
-  })()
-
-  const pathD = (() => {
-    if (scaledPoints.length <= 1) return ''
-    const p = scaledPoints
-    const tension = 0.2
-    let d = `M ${p[0].x} ${p[0].y}`
-    for (let i = 0; i < p.length - 1; i++) {
-      const p0 = p[i - 1] || p[i]
-      const p1 = p[i]
-      const p2 = p[i + 1]
-      const p3 = p[i + 2] || p[i + 1]
-      const cp1x = p1.x + ((p2.x - p0.x) / 6) * tension
-      let cp1y = p1.y + ((p2.y - p0.y) / 6) * tension
-      const cp2x = p2.x - ((p3.x - p1.x) / 6) * tension
-      let cp2y = p2.y - ((p3.y - p1.y) / 6) * tension
-      cp1y = Math.max(yMin, Math.min(yMax, cp1y))
-      cp2y = Math.max(yMin, Math.min(yMax, cp2y))
-      d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
-    }
-    return d
-  })()
-
-  const getCompactDateLabel = (timestamp?: string) => {
-    if (!timestamp) return ''
-    try {
-      const f = formatDate(timestamp)
-      return `${f.compactDate} ${f.compactTime}`
-    } catch (e) {
-      const d = new Date(timestamp)
-      if (Number.isNaN(d.getTime())) return ''
-      return d.toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      })
-    }
-  }
-
-  const currentHoverDate =
-    hoverIndex !== null && data[hoverIndex] ? getCompactDateLabel(data[hoverIndex].timestamp) : ''
 
   return (
     <div
@@ -386,7 +410,7 @@ export function LineChart({
               )
             })()}
 
-          {orderedSeries.map((s, idx) => {
+          {visibleSeries.map((s, idx) => {
             const isActive = activeSeriesId ? activeSeriesId === s.id : true
             const isHovered = hoverSeriesId ? hoverSeriesId === s.id : false
             const baseOpacity = isActive ? 1 : 0.12
@@ -682,4 +706,8 @@ export function LineChart({
   )
 }
 
+/**
+ * Memoized LineChart component to prevent re-renders when parent updates.
+ */
+export const LineChart = memo(LineChartComponent)
 export default LineChart

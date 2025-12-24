@@ -19,10 +19,10 @@ interface ProcessingOptions {
   baseUrl?: string
   /** Chunk size in tokens */
   chunkSize?: number
-  /** Minimum chunk size */
-  minChunkSize?: number
-  /** Overlap between chunks */
-  overlap?: number
+  /** Minimum chunk size in characters */
+  minCharactersPerChunk?: number
+  /** Overlap between chunks in tokens */
+  chunkOverlap?: number
   /** Dry run - only display results, don't save to DB */
   dryRun?: boolean
   /** Verbose output */
@@ -37,8 +37,8 @@ async function processDocs(options: ProcessingOptions = {}) {
     docsPath: options.docsPath || path.join(process.cwd(), '../../apps/docs/content/docs/en'),
     baseUrl: options.baseUrl || (isDev ? 'http://localhost:4000' : 'https://docs.sim.ai'),
     chunkSize: options.chunkSize || 1024,
-    minChunkSize: options.minChunkSize || 100,
-    overlap: options.overlap || 200,
+    minCharactersPerChunk: options.minCharactersPerChunk || 100,
+    chunkOverlap: options.chunkOverlap || 200,
     clearExisting: options.clearExisting ?? false,
     dryRun: options.dryRun ?? false,
     verbose: options.verbose ?? false,
@@ -59,8 +59,8 @@ async function processDocs(options: ProcessingOptions = {}) {
     // Initialize the chunker
     const chunker = new DocsChunker({
       chunkSize: config.chunkSize,
-      minChunkSize: config.minChunkSize,
-      overlap: config.overlap,
+      minCharactersPerChunk: config.minCharactersPerChunk,
+      chunkOverlap: config.chunkOverlap,
       baseUrl: config.baseUrl,
     })
 

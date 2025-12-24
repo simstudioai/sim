@@ -398,6 +398,7 @@ export function useWorkflowExecution() {
             }
 
             const streamCompletionTimes = new Map<string, number>()
+            const processedFirstChunk = new Set<string>()
 
             const onStream = async (streamingExecution: StreamingExecution) => {
               const promise = (async () => {
@@ -405,16 +406,14 @@ export function useWorkflowExecution() {
                 const reader = streamingExecution.stream.getReader()
                 const blockId = (streamingExecution.execution as any)?.blockId
 
-                let isFirstChunk = true
-
-                if (blockId) {
+                if (blockId && !streamedContent.has(blockId)) {
                   streamedContent.set(blockId, '')
                 }
+
                 try {
                   while (true) {
                     const { done, value } = await reader.read()
                     if (done) {
-                      // Record when this stream completed
                       if (blockId) {
                         streamCompletionTimes.set(blockId, Date.now())
                       }
@@ -425,13 +424,12 @@ export function useWorkflowExecution() {
                       streamedContent.set(blockId, (streamedContent.get(blockId) || '') + chunk)
                     }
 
-                    // Add separator before first chunk if this isn't the first block
                     let chunkToSend = chunk
-                    if (isFirstChunk && streamedContent.size > 1) {
-                      chunkToSend = `\n\n${chunk}`
-                      isFirstChunk = false
-                    } else if (isFirstChunk) {
-                      isFirstChunk = false
+                    if (blockId && !processedFirstChunk.has(blockId)) {
+                      processedFirstChunk.add(blockId)
+                      if (streamedContent.size > 1) {
+                        chunkToSend = `\n\n${chunk}`
+                      }
                     }
 
                     controller.enqueue(encodeSSE({ blockId, chunk: chunkToSend }))

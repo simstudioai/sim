@@ -1,23 +1,14 @@
+import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
+import type { CompletionUsage } from 'openai/resources/completions'
+import { createOpenAICompatibleStream } from '@/providers/utils'
+
 /**
- * Helper to wrap Groq streaming into a browser-friendly ReadableStream
- * of raw assistant text chunks.
- *
- * @param groqStream - The Groq streaming response
- * @returns A ReadableStream that emits text chunks
+ * Creates a ReadableStream from a Groq streaming response.
+ * Uses the shared OpenAI-compatible streaming utility.
  */
-export function createReadableStreamFromGroqStream(groqStream: any): ReadableStream {
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of groqStream) {
-          if (chunk.choices[0]?.delta?.content) {
-            controller.enqueue(new TextEncoder().encode(chunk.choices[0].delta.content))
-          }
-        }
-        controller.close()
-      } catch (err) {
-        controller.error(err)
-      }
-    },
-  })
+export function createReadableStreamFromGroqStream(
+  groqStream: AsyncIterable<ChatCompletionChunk>,
+  onComplete?: (content: string, usage: CompletionUsage) => void
+): ReadableStream<Uint8Array> {
+  return createOpenAICompatibleStream(groqStream, 'Groq', onComplete)
 }

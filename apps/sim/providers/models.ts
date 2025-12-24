@@ -23,13 +23,7 @@ import {
   VllmIcon,
   xAIIcon,
 } from '@/components/icons'
-
-export interface ModelPricing {
-  input: number // Per 1M tokens
-  cachedInput?: number // Per 1M tokens (if supported)
-  output: number // Per 1M tokens
-  updatedAt: string
-}
+import type { ModelPricing } from '@/providers/types'
 
 export interface ModelCapabilities {
   temperature?: {
@@ -38,11 +32,16 @@ export interface ModelCapabilities {
   }
   toolUsageControl?: boolean
   computerUse?: boolean
+  nativeStructuredOutputs?: boolean
   reasoningEffort?: {
     values: string[]
   }
   verbosity?: {
     values: string[]
+  }
+  thinking?: {
+    levels: string[]
+    default?: string
   }
 }
 
@@ -50,7 +49,7 @@ export interface ModelDefinition {
   id: string
   pricing: ModelPricing
   capabilities: ModelCapabilities
-  contextWindow?: number // Maximum context window in tokens (may be undefined for dynamic providers)
+  contextWindow?: number
 }
 
 export interface ProviderDefinition {
@@ -62,13 +61,9 @@ export interface ProviderDefinition {
   modelPatterns?: RegExp[]
   icon?: React.ComponentType<{ className?: string }>
   capabilities?: ModelCapabilities
-  // Indicates whether reliable context window information is available for this provider's models
   contextInformationAvailable?: boolean
 }
 
-/**
- * Comprehensive provider definitions, single source of truth
- */
 export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   openrouter: {
     id: 'openrouter',
@@ -616,6 +611,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
         },
         contextWindow: 200000,
       },
@@ -629,6 +625,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
         },
         contextWindow: 200000,
       },
@@ -655,6 +652,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
         },
         contextWindow: 200000,
       },
@@ -668,6 +666,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
         },
         contextWindow: 200000,
       },
@@ -735,6 +734,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['low', 'high'],
+            default: 'high',
+          },
         },
         contextWindow: 1000000,
       },
@@ -748,6 +751,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['minimal', 'low', 'medium', 'high'],
+            default: 'high',
+          },
         },
         contextWindow: 1000000,
       },
@@ -837,6 +844,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['low', 'high'],
+            default: 'high',
+          },
         },
         contextWindow: 1000000,
       },
@@ -850,6 +861,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['minimal', 'low', 'medium', 'high'],
+            default: 'high',
+          },
         },
         contextWindow: 1000000,
       },
@@ -1619,23 +1634,14 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
 }
 
-/**
- * Get all models for a specific provider
- */
 export function getProviderModels(providerId: string): string[] {
   return PROVIDER_DEFINITIONS[providerId]?.models.map((m) => m.id) || []
 }
 
-/**
- * Get the default model for a specific provider
- */
 export function getProviderDefaultModel(providerId: string): string {
   return PROVIDER_DEFINITIONS[providerId]?.defaultModel || ''
 }
 
-/**
- * Get pricing information for a specific model
- */
 export function getModelPricing(modelId: string): ModelPricing | null {
   for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
     const model = provider.models.find((m) => m.id.toLowerCase() === modelId.toLowerCase())
@@ -1646,20 +1652,15 @@ export function getModelPricing(modelId: string): ModelPricing | null {
   return null
 }
 
-/**
- * Get capabilities for a specific model
- */
 export function getModelCapabilities(modelId: string): ModelCapabilities | null {
   for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
     const model = provider.models.find((m) => m.id.toLowerCase() === modelId.toLowerCase())
     if (model) {
-      // Merge provider capabilities with model capabilities, model takes precedence
       const capabilities: ModelCapabilities = { ...provider.capabilities, ...model.capabilities }
       return capabilities
     }
   }
 
-  // If no model found, check for provider-level capabilities for dynamically fetched models
   for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
     if (provider.modelPatterns) {
       for (const pattern of provider.modelPatterns) {
@@ -1673,9 +1674,6 @@ export function getModelCapabilities(modelId: string): ModelCapabilities | null 
   return null
 }
 
-/**
- * Get all models that support temperature
- */
 export function getModelsWithTemperatureSupport(): string[] {
   const models: string[] = []
   for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
@@ -1688,9 +1686,6 @@ export function getModelsWithTemperatureSupport(): string[] {
   return models
 }
 
-/**
- * Get all models with temperature range 0-1
- */
 export function getModelsWithTempRange01(): string[] {
   const models: string[] = []
   for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
@@ -1703,9 +1698,6 @@ export function getModelsWithTempRange01(): string[] {
   return models
 }
 
-/**
- * Get all models with temperature range 0-2
- */
 export function getModelsWithTempRange02(): string[] {
   const models: string[] = []
   for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
@@ -1718,9 +1710,6 @@ export function getModelsWithTempRange02(): string[] {
   return models
 }
 
-/**
- * Get all providers that support tool usage control
- */
 export function getProvidersWithToolUsageControl(): string[] {
   const providers: string[] = []
   for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
@@ -1731,9 +1720,6 @@ export function getProvidersWithToolUsageControl(): string[] {
   return providers
 }
 
-/**
- * Get all models that are hosted (don't require user API keys)
- */
 export function getHostedModels(): string[] {
   return [
     ...getProviderModels('openai'),
@@ -1742,9 +1728,6 @@ export function getHostedModels(): string[] {
   ]
 }
 
-/**
- * Get all computer use models
- */
 export function getComputerUseModels(): string[] {
   const models: string[] = []
   for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
@@ -1757,32 +1740,20 @@ export function getComputerUseModels(): string[] {
   return models
 }
 
-/**
- * Check if a model supports temperature
- */
 export function supportsTemperature(modelId: string): boolean {
   const capabilities = getModelCapabilities(modelId)
   return !!capabilities?.temperature
 }
 
-/**
- * Get maximum temperature for a model
- */
 export function getMaxTemperature(modelId: string): number | undefined {
   const capabilities = getModelCapabilities(modelId)
   return capabilities?.temperature?.max
 }
 
-/**
- * Check if a provider supports tool usage control
- */
 export function supportsToolUsageControl(providerId: string): boolean {
   return getProvidersWithToolUsageControl().includes(providerId)
 }
 
-/**
- * Update Ollama models dynamically
- */
 export function updateOllamaModels(models: string[]): void {
   PROVIDER_DEFINITIONS.ollama.models = models.map((modelId) => ({
     id: modelId,
@@ -1795,9 +1766,6 @@ export function updateOllamaModels(models: string[]): void {
   }))
 }
 
-/**
- * Update vLLM models dynamically
- */
 export function updateVLLMModels(models: string[]): void {
   PROVIDER_DEFINITIONS.vllm.models = models.map((modelId) => ({
     id: modelId,
@@ -1810,9 +1778,6 @@ export function updateVLLMModels(models: string[]): void {
   }))
 }
 
-/**
- * Update OpenRouter models dynamically
- */
 export function updateOpenRouterModels(models: string[]): void {
   PROVIDER_DEFINITIONS.openrouter.models = models.map((modelId) => ({
     id: modelId,
@@ -1825,9 +1790,6 @@ export function updateOpenRouterModels(models: string[]): void {
   }))
 }
 
-/**
- * Embedding model pricing - separate from chat models
- */
 export const EMBEDDING_MODEL_PRICING: Record<string, ModelPricing> = {
   'text-embedding-3-small': {
     input: 0.02, // $0.02 per 1M tokens
@@ -1846,16 +1808,10 @@ export const EMBEDDING_MODEL_PRICING: Record<string, ModelPricing> = {
   },
 }
 
-/**
- * Get pricing for embedding models specifically
- */
 export function getEmbeddingModelPricing(modelId: string): ModelPricing | null {
   return EMBEDDING_MODEL_PRICING[modelId] || null
 }
 
-/**
- * Get all models that support reasoning effort
- */
 export function getModelsWithReasoningEffort(): string[] {
   const models: string[] = []
   for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
@@ -1882,9 +1838,6 @@ export function getReasoningEffortValuesForModel(modelId: string): string[] | nu
   return null
 }
 
-/**
- * Get all models that support verbosity
- */
 export function getModelsWithVerbosity(): string[] {
   const models: string[] = []
   for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
@@ -1909,4 +1862,71 @@ export function getVerbosityValuesForModel(modelId: string): string[] | null {
     }
   }
   return null
+}
+
+/**
+ * Check if a model supports native structured outputs.
+ * Handles model IDs with date suffixes (e.g., claude-sonnet-4-5-20250514).
+ */
+export function supportsNativeStructuredOutputs(modelId: string): boolean {
+  const normalizedModelId = modelId.toLowerCase()
+
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    for (const model of provider.models) {
+      if (model.capabilities.nativeStructuredOutputs) {
+        const baseModelId = model.id.toLowerCase()
+        // Check exact match or date-suffixed version (e.g., claude-sonnet-4-5-20250514)
+        if (normalizedModelId === baseModelId || normalizedModelId.startsWith(`${baseModelId}-`)) {
+          return true
+        }
+      }
+    }
+  }
+  return false
+}
+
+/**
+ * Check if a model supports thinking/reasoning features.
+ * Returns the thinking capability config if supported, null otherwise.
+ */
+export function getThinkingCapability(
+  modelId: string
+): { levels: string[]; default?: string } | null {
+  const normalizedModelId = modelId.toLowerCase()
+
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    for (const model of provider.models) {
+      if (model.capabilities.thinking) {
+        const baseModelId = model.id.toLowerCase()
+        if (normalizedModelId === baseModelId || normalizedModelId.startsWith(`${baseModelId}-`)) {
+          return model.capabilities.thinking
+        }
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Get all models that support thinking capability
+ */
+export function getModelsWithThinking(): string[] {
+  const models: string[] = []
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    for (const model of provider.models) {
+      if (model.capabilities.thinking) {
+        models.push(model.id)
+      }
+    }
+  }
+  return models
+}
+
+/**
+ * Get the thinking levels for a specific model
+ * Returns the valid levels for that model, or null if the model doesn't support thinking
+ */
+export function getThinkingLevelsForModel(modelId: string): string[] | null {
+  const capability = getThinkingCapability(modelId)
+  return capability?.levels ?? null
 }

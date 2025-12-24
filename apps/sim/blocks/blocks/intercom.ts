@@ -48,6 +48,19 @@ export const IntercomBlock: BlockConfig = {
     },
     // Contact fields
     {
+      id: 'role',
+      title: 'Role',
+      type: 'dropdown',
+      options: [
+        { label: 'Lead', id: 'lead' },
+        { label: 'User', id: 'user' },
+      ],
+      condition: {
+        field: 'operation',
+        value: ['create_contact', 'update_contact'],
+      },
+    },
+    {
       id: 'contactId',
       title: 'Contact ID',
       type: 'short-input',
@@ -75,7 +88,7 @@ export const IntercomBlock: BlockConfig = {
       placeholder: 'External identifier for the contact',
       condition: {
         field: 'operation',
-        value: ['create_contact'],
+        value: ['create_contact', 'update_contact'],
       },
     },
     {
@@ -162,11 +175,44 @@ export const IntercomBlock: BlockConfig = {
       },
     },
     {
+      id: 'contact_company_id',
+      title: 'Company ID',
+      type: 'short-input',
+      placeholder: 'Company ID to associate with contact',
+      condition: {
+        field: 'operation',
+        value: ['create_contact', 'update_contact'],
+      },
+    },
+    {
       id: 'query',
       title: 'Search Query',
       type: 'long-input',
       placeholder: 'JSON search query or text',
       required: true,
+      condition: {
+        field: 'operation',
+        value: ['search_contacts', 'search_conversations'],
+      },
+    },
+    {
+      id: 'sort_field',
+      title: 'Sort Field',
+      type: 'short-input',
+      placeholder: 'Field to sort by (e.g., name, created_at)',
+      condition: {
+        field: 'operation',
+        value: ['search_contacts', 'search_conversations'],
+      },
+    },
+    {
+      id: 'sort_order',
+      title: 'Sort Order',
+      type: 'dropdown',
+      options: [
+        { label: 'Descending', id: 'descending' },
+        { label: 'Ascending', id: 'ascending' },
+      ],
       condition: {
         field: 'operation',
         value: ['search_contacts', 'search_conversations'],
@@ -255,6 +301,16 @@ export const IntercomBlock: BlockConfig = {
         value: ['create_company'],
       },
     },
+    {
+      id: 'remote_created_at',
+      title: 'Remote Created At',
+      type: 'short-input',
+      placeholder: 'Unix timestamp when company was created',
+      condition: {
+        field: 'operation',
+        value: ['create_company'],
+      },
+    },
     // Conversation fields
     {
       id: 'conversationId',
@@ -278,6 +334,42 @@ export const IntercomBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: ['get_conversation'],
+      },
+    },
+    {
+      id: 'include_translations',
+      title: 'Include Translations',
+      type: 'dropdown',
+      options: [
+        { label: 'False', id: 'false' },
+        { label: 'True', id: 'true' },
+      ],
+      condition: {
+        field: 'operation',
+        value: ['get_conversation'],
+      },
+    },
+    {
+      id: 'sort',
+      title: 'Sort By',
+      type: 'short-input',
+      placeholder: 'Field to sort by (e.g., waiting_since, updated_at)',
+      condition: {
+        field: 'operation',
+        value: ['list_conversations'],
+      },
+    },
+    {
+      id: 'order',
+      title: 'Order',
+      type: 'dropdown',
+      options: [
+        { label: 'Descending', id: 'desc' },
+        { label: 'Ascending', id: 'asc' },
+      ],
+      condition: {
+        field: 'operation',
+        value: ['list_conversations'],
       },
     },
     {
@@ -321,6 +413,16 @@ export const IntercomBlock: BlockConfig = {
       title: 'Attachment URLs',
       type: 'short-input',
       placeholder: 'Comma-separated image URLs (max 10)',
+      condition: {
+        field: 'operation',
+        value: ['reply_conversation'],
+      },
+    },
+    {
+      id: 'reply_created_at',
+      title: 'Created At',
+      type: 'short-input',
+      placeholder: 'Unix timestamp for reply creation time',
       condition: {
         field: 'operation',
         value: ['reply_conversation'],
@@ -371,6 +473,49 @@ export const IntercomBlock: BlockConfig = {
         value: ['create_ticket'],
       },
     },
+    {
+      id: 'ticket_company_id',
+      title: 'Company ID',
+      type: 'short-input',
+      placeholder: 'Company ID to associate with ticket',
+      condition: {
+        field: 'operation',
+        value: ['create_ticket'],
+      },
+    },
+    {
+      id: 'ticket_created_at',
+      title: 'Created At',
+      type: 'short-input',
+      placeholder: 'Unix timestamp for ticket creation time',
+      condition: {
+        field: 'operation',
+        value: ['create_ticket'],
+      },
+    },
+    {
+      id: 'conversation_to_link_id',
+      title: 'Conversation to Link',
+      type: 'short-input',
+      placeholder: 'ID of conversation to link to ticket',
+      condition: {
+        field: 'operation',
+        value: ['create_ticket'],
+      },
+    },
+    {
+      id: 'disable_notifications',
+      title: 'Disable Notifications',
+      type: 'dropdown',
+      options: [
+        { label: 'False', id: 'false' },
+        { label: 'True', id: 'true' },
+      ],
+      condition: {
+        field: 'operation',
+        value: ['create_ticket'],
+      },
+    },
     // Message fields
     {
       id: 'message_type_msg',
@@ -379,6 +524,20 @@ export const IntercomBlock: BlockConfig = {
       options: [
         { label: 'In-App', id: 'inapp' },
         { label: 'Email', id: 'email' },
+      ],
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['create_message'],
+      },
+    },
+    {
+      id: 'template',
+      title: 'Template',
+      type: 'dropdown',
+      options: [
+        { label: 'Plain', id: 'plain' },
+        { label: 'Personal', id: 'personal' },
       ],
       required: true,
       condition: {
@@ -440,6 +599,16 @@ export const IntercomBlock: BlockConfig = {
         value: ['create_message'],
       },
     },
+    {
+      id: 'message_created_at',
+      title: 'Created At',
+      type: 'short-input',
+      placeholder: 'Unix timestamp for message creation time',
+      condition: {
+        field: 'operation',
+        value: ['create_message'],
+      },
+    },
     // Pagination fields
     {
       id: 'per_page',
@@ -464,7 +633,13 @@ export const IntercomBlock: BlockConfig = {
       placeholder: 'Cursor for pagination',
       condition: {
         field: 'operation',
-        value: ['list_contacts', 'search_contacts', 'list_conversations', 'search_conversations'],
+        value: [
+          'list_contacts',
+          'search_contacts',
+          'list_companies',
+          'list_conversations',
+          'search_conversations',
+        ],
       },
     },
     {
@@ -537,7 +712,19 @@ export const IntercomBlock: BlockConfig = {
         }
       },
       params: (params) => {
-        const { operation, message_type_msg, company_name, ...rest } = params
+        const {
+          operation,
+          message_type_msg,
+          company_name,
+          contact_company_id,
+          reply_created_at,
+          ticket_company_id,
+          ticket_created_at,
+          message_created_at,
+          include_translations,
+          disable_notifications,
+          ...rest
+        } = params
         const cleanParams: Record<string, any> = {}
 
         // Special mapping for message_type in create_message
@@ -548,6 +735,42 @@ export const IntercomBlock: BlockConfig = {
         // Special mapping for company name
         if (operation === 'create_company' && company_name) {
           cleanParams.name = company_name
+        }
+
+        // Map contact_company_id to company_id for contact operations
+        if (
+          (operation === 'create_contact' || operation === 'update_contact') &&
+          contact_company_id
+        ) {
+          cleanParams.company_id = contact_company_id
+        }
+
+        // Map reply_created_at to created_at for reply_conversation
+        if (operation === 'reply_conversation' && reply_created_at) {
+          cleanParams.created_at = Number(reply_created_at)
+        }
+
+        // Map ticket fields
+        if (operation === 'create_ticket') {
+          if (ticket_company_id) cleanParams.company_id = ticket_company_id
+          if (ticket_created_at) cleanParams.created_at = Number(ticket_created_at)
+          if (disable_notifications !== undefined && disable_notifications !== '') {
+            cleanParams.disable_notifications = disable_notifications === 'true'
+          }
+        }
+
+        // Map message_created_at to created_at for create_message
+        if (operation === 'create_message' && message_created_at) {
+          cleanParams.created_at = Number(message_created_at)
+        }
+
+        // Convert include_translations string to boolean for get_conversation
+        if (
+          operation === 'get_conversation' &&
+          include_translations !== undefined &&
+          include_translations !== ''
+        ) {
+          cleanParams.include_translations = include_translations === 'true'
         }
 
         Object.entries(rest).forEach(([key, value]) => {

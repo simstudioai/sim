@@ -2265,7 +2265,14 @@ const WorkflowContent = React.memo(() => {
           className={`absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)] transition-opacity duration-150 ${isWorkflowReady ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
         >
           <div
-            className={`h-[18px] w-[18px] rounded-full border-[1.5px] border-muted-foreground border-t-transparent ${isWorkflowReady ? '' : 'animate-spin'}`}
+            className={`h-[18px] w-[18px] rounded-full ${isWorkflowReady ? '' : 'animate-spin'}`}
+            style={{
+              background:
+                'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
+              mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+              WebkitMask:
+                'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+            }}
           />
         </div>
 

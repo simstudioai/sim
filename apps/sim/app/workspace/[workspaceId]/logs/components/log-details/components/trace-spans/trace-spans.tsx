@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronDown, Code } from '@/components/emcn'
 import { WorkflowIcon } from '@/components/icons'
@@ -531,9 +531,10 @@ interface TraceSpanItemProps {
 }
 
 /**
- * Individual trace span card component
+ * Individual trace span card component.
+ * Memoized to prevent re-renders when sibling spans change.
  */
-function TraceSpanItem({
+const TraceSpanItem = memo(function TraceSpanItem({
   span,
   totalDuration,
   workflowStartTime,
@@ -779,12 +780,16 @@ function TraceSpanItem({
         ))}
     </>
   )
-}
+})
 
 /**
- * Displays workflow execution trace spans with nested structure
+ * Displays workflow execution trace spans with nested structure.
+ * Memoized to prevent re-renders when parent LogDetails updates.
  */
-export function TraceSpans({ traceSpans, totalDuration = 0 }: TraceSpansProps) {
+export const TraceSpans = memo(function TraceSpans({
+  traceSpans,
+  totalDuration = 0,
+}: TraceSpansProps) {
   const { workflowStartTime, actualTotalDuration, normalizedSpans } = useMemo(() => {
     if (!traceSpans || traceSpans.length === 0) {
       return { workflowStartTime: 0, actualTotalDuration: totalDuration, normalizedSpans: [] }
@@ -827,4 +832,4 @@ export function TraceSpans({ traceSpans, totalDuration = 0 }: TraceSpansProps) {
       </div>
     </div>
   )
-}
+})

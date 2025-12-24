@@ -87,6 +87,7 @@ export function AutocompleteSearch({
     suggestions,
     sections,
     highlightedIndex,
+    highlightedBadgeIndex,
     inputRef,
     dropdownRef,
     handleInputChange,
@@ -162,7 +163,7 @@ export function AutocompleteSearch({
         }}
       >
         <PopoverAnchor asChild>
-          <div className='relative flex h-[32px] w-[400px] items-center rounded-[8px] bg-[var(--surface-5)]'>
+          <div className='relative flex h-[32px] w-full items-center rounded-[8px] bg-[var(--surface-5)]'>
             {/* Search Icon */}
             <Search className='mr-[6px] ml-[8px] h-[14px] w-[14px] flex-shrink-0 text-[var(--text-subtle)]' />
 
@@ -175,7 +176,11 @@ export function AutocompleteSearch({
                   variant='outline'
                   role='button'
                   tabIndex={0}
-                  className='h-6 shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2 text-[11px]'
+                  className={cn(
+                    'h-6 shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2 text-[11px]',
+                    highlightedBadgeIndex === index &&
+                      'ring-1 ring-[var(--border-focus)] ring-offset-1 ring-offset-[var(--surface-5)]'
+                  )}
                   onClick={() => removeBadge(index)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {

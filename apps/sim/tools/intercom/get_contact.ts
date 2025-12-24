@@ -39,7 +39,7 @@ export const intercomGetContactTool: ToolConfig<
     contactId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Contact ID to retrieve',
     },
   },

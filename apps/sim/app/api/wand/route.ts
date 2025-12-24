@@ -69,7 +69,7 @@ function safeStringify(value: unknown): string {
 }
 
 async function updateUserStatsForWand(
-  workflowId: string,
+  userId: string,
   usage: {
     prompt_tokens?: number
     completion_tokens?: number
@@ -88,21 +88,6 @@ async function updateUserStatsForWand(
   }
 
   try {
-    const [workflowRecord] = await db
-      .select({ userId: workflow.userId, workspaceId: workflow.workspaceId })
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .limit(1)
-
-    if (!workflowRecord?.userId) {
-      logger.warn(
-        `[${requestId}] No user found for workflow ${workflowId}, cannot update user stats`
-      )
-      return
-    }
-
-    const userId = workflowRecord.userId
-    const workspaceId = workflowRecord.workspaceId
     const totalTokens = usage.total_tokens || 0
     const promptTokens = usage.prompt_tokens || 0
     const completionTokens = usage.completion_tokens || 0
@@ -146,8 +131,6 @@ async function updateUserStatsForWand(
       inputTokens: promptTokens,
       outputTokens: completionTokens,
       cost: costToStore,
-      workspaceId: workspaceId ?? undefined,
-      workflowId,
     })
 
     await checkAndBillOverageThreshold(userId)
@@ -325,6 +308,11 @@ export async function POST(req: NextRequest) {
 
                     if (data === '[DONE]') {
                       logger.info(`[${requestId}] Received [DONE] signal`)
+
+                      if (finalUsage) {
+                        await updateUserStatsForWand(session.user.id, finalUsage, requestId)
+                      }
+
                       controller.enqueue(
                         encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`)
                       )
@@ -353,10 +341,6 @@ export async function POST(req: NextRequest) {
                           `[${requestId}] Received usage data: ${JSON.stringify(parsed.usage)}`
                         )
                       }
-
-                      if (chunkCount % 10 === 0) {
-                        logger.debug(`[${requestId}] Processed ${chunkCount} chunks`)
-                      }
                     } catch (parseError) {
                       logger.debug(
                         `[${requestId}] Skipped non-JSON line: ${data.substring(0, 100)}`
@@ -364,12 +348,6 @@ export async function POST(req: NextRequest) {
                     }
                   }
                 }
-              }
-
-              logger.info(`[${requestId}] Wand generation streaming completed successfully`)
-
-              if (finalUsage && workflowId) {
-                await updateUserStatsForWand(workflowId, finalUsage, requestId)
               }
             } catch (streamError: any) {
               logger.error(`[${requestId}] Streaming error`, {
@@ -438,8 +416,8 @@ export async function POST(req: NextRequest) {
 
     logger.info(`[${requestId}] Wand generation successful`)
 
-    if (completion.usage && workflowId) {
-      await updateUserStatsForWand(workflowId, completion.usage, requestId)
+    if (completion.usage) {
+      await updateUserStatsForWand(session.user.id, completion.usage, requestId)
     }
 
     return NextResponse.json({ success: true, content: generatedContent })

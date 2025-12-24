@@ -42,13 +42,13 @@ export const intercomListContactsTool: ToolConfig<
     per_page: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of results per page (max: 150)',
     },
     starting_after: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Cursor for pagination - ID to start after',
     },
   },

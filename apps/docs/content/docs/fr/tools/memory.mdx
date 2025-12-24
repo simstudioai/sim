@@ -1,6 +1,6 @@
 ---
 title: Mémoire
-description: Ajouter un stockage de mémoire
+description: Ajouter un magasin de mémoire
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -12,53 +12,50 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## Instructions d'utilisation
 
-Intégrer la mémoire dans le flux de travail. Peut ajouter, obtenir une mémoire, obtenir toutes les mémoires et supprimer des mémoires.
+Intégrer la mémoire dans le flux de travail. Permet d'ajouter, d'obtenir une mémoire, d'obtenir toutes les mémoires et de supprimer des mémoires.
 
 ## Outils
 
 ### `memory_add`
 
-Ajoutez une nouvelle mémoire à la base de données ou complétez une mémoire existante avec le même ID.
+Ajouter une nouvelle mémoire à la base de données ou ajouter à une mémoire existante avec le même ID.
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
-| `conversationId` | chaîne | Non | Identifiant de conversation (par ex., user-123, session-abc). Si une mémoire avec cet identifiant de conversation existe déjà pour ce bloc, le nouveau message y sera ajouté. |
+| --------- | ---- | ----------- | ----------- |
+| `conversationId` | chaîne | Non | Identifiant de conversation \(par ex., user-123, session-abc\). Si une mémoire avec cet identifiant existe déjà, le nouveau message y sera ajouté. |
 | `id` | chaîne | Non | Paramètre hérité pour l'identifiant de conversation. Utilisez conversationId à la place. Fourni pour la rétrocompatibilité. |
-| `role` | chaîne | Oui | Rôle pour la mémoire de l'agent (user, assistant, ou system) |
+| `role` | chaîne | Oui | Rôle pour la mémoire de l'agent \(user, assistant ou system\) |
 | `content` | chaîne | Oui | Contenu pour la mémoire de l'agent |
-| `blockId` | chaîne | Non | ID de bloc optionnel. Si non fourni, utilise l'ID du bloc actuel du contexte d'exécution, ou par défaut "default". |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Indique si la mémoire a été ajoutée avec succès |
-| `memories` | array | Tableau d'objets de mémoire incluant la nouvelle mémoire ou celle mise à jour |
-| `error` | string | Message d'erreur si l'opération a échoué |
+| `success` | booléen | Indique si la mémoire a été ajoutée avec succès |
+| `memories` | tableau | Tableau d'objets mémoire incluant la mémoire nouvelle ou mise à jour |
+| `error` | chaîne | Message d'erreur en cas d'échec de l'opération |
 
 ### `memory_get`
 
-Récupérer la mémoire par conversationId, blockId, blockName, ou une combinaison. Renvoie toutes les mémoires correspondantes.
+Récupérer la mémoire par conversationId. Renvoie les mémoires correspondantes.
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
-| `conversationId` | chaîne | Non | Identifiant de conversation (par ex., user-123, session-abc). Si fourni seul, renvoie toutes les mémoires pour cette conversation à travers tous les blocs. |
+| --------- | ---- | ----------- | ----------- |
+| `conversationId` | chaîne | Non | Identifiant de conversation \(par ex., user-123, session-abc\). Renvoie les mémoires pour cette conversation. |
 | `id` | chaîne | Non | Paramètre hérité pour l'identifiant de conversation. Utilisez conversationId à la place. Fourni pour la rétrocompatibilité. |
-| `blockId` | chaîne | Non | Identifiant de bloc. Si fourni seul, renvoie toutes les mémoires pour ce bloc à travers toutes les conversations. Si fourni avec conversationId, renvoie les mémoires pour cette conversation spécifique dans ce bloc. |
-| `blockName` | chaîne | Non | Nom du bloc. Alternative à blockId. Si fourni seul, renvoie toutes les mémoires pour les blocs avec ce nom. Si fourni avec conversationId, renvoie les mémoires pour cette conversation dans les blocs avec ce nom. |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | booléen | Indique si la mémoire a été récupérée avec succès |
-| `memories` | tableau | Tableau d'objets de mémoire avec les champs conversationId, blockId, blockName et data |
+| `memories` | tableau | Tableau d'objets mémoire avec les champs conversationId et data |
 | `message` | chaîne | Message de succès ou d'erreur |
-| `error` | chaîne | Message d'erreur si l'opération a échoué |
+| `error` | chaîne | Message d'erreur en cas d'échec |
 
 ### `memory_get_all`
 
@@ -74,30 +71,28 @@ Récupérer toutes les mémoires de la base de données
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | booléen | Indique si toutes les mémoires ont été récupérées avec succès |
-| `memories` | tableau | Tableau de tous les objets de mémoire avec les champs key, conversationId, blockId, blockName et data |
+| `memories` | tableau | Tableau de tous les objets mémoire avec les champs key, conversationId et data |
 | `message` | chaîne | Message de succès ou d'erreur |
-| `error` | chaîne | Message d'erreur si l'opération a échoué |
+| `error` | chaîne | Message d'erreur en cas d'échec |
 
 ### `memory_delete`
 
-Supprimer des mémoires par conversationId, blockId, blockName, ou une combinaison. Prend en charge la suppression en masse.
+Supprimer les mémoires par conversationId.
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `conversationId` | chaîne | Non | Identifiant de conversation \(par exemple, user-123, session-abc\). Si fourni seul, supprime toutes les mémoires pour cette conversation dans tous les blocs. |
+| `conversationId` | chaîne | Non | Identifiant de conversation (par ex., user-123, session-abc). Supprime toutes les mémoires pour cette conversation. |
 | `id` | chaîne | Non | Paramètre hérité pour l'identifiant de conversation. Utilisez conversationId à la place. Fourni pour la rétrocompatibilité. |
-| `blockId` | chaîne | Non | Identifiant de bloc. Si fourni seul, supprime toutes les mémoires pour ce bloc dans toutes les conversations. Si fourni avec conversationId, supprime les mémoires pour cette conversation spécifique dans ce bloc. |
-| `blockName` | chaîne | Non | Nom du bloc. Alternative à blockId. Si fourni seul, supprime toutes les mémoires pour les blocs avec ce nom. Si fourni avec conversationId, supprime les mémoires pour cette conversation dans les blocs avec ce nom. |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | booléen | Indique si le souvenir a été supprimé avec succès |
+| `success` | booléen | Indique si la mémoire a été supprimée avec succès |
 | `message` | chaîne | Message de succès ou d'erreur |
-| `error` | chaîne | Message d'erreur si l'opération a échoué |
+| `error` | chaîne | Message d'erreur en cas d'échec |
 
 ## Notes
 

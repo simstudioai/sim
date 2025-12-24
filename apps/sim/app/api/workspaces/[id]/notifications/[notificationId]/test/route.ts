@@ -89,7 +89,7 @@ function buildTestPayload(subscription: typeof workspaceNotificationSubscription
   }
 
   if (subscription.includeUsageData) {
-    data.usage = { currentPeriodCost: 2.45, limit: 10, plan: 'pro', isExceeded: false }
+    data.usage = { currentPeriodCost: 2.45, limit: 20, plan: 'pro', isExceeded: false }
   }
 
   return { payload, timestamp }

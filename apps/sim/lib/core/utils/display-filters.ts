@@ -41,7 +41,7 @@ function filterUserFile(data: any): any {
 const DISPLAY_FILTERS = [filterUserFile]
 
 export function filterForDisplay(data: any): any {
-  const seen = new WeakSet()
+  const seen = new Set<object>()
   return filterForDisplayInternal(data, seen, 0)
 }
 
@@ -49,7 +49,7 @@ function getObjectType(data: unknown): string {
   return Object.prototype.toString.call(data).slice(8, -1)
 }
 
-function filterForDisplayInternal(data: any, seen: WeakSet<object>, depth: number): any {
+function filterForDisplayInternal(data: any, seen: Set<object>, depth: number): any {
   try {
     if (data === null || data === undefined) {
       return data
@@ -93,6 +93,7 @@ function filterForDisplayInternal(data: any, seen: WeakSet<object>, depth: numbe
       return '[Unknown Type]'
     }
 
+    // True circular reference: object is an ancestor in the current path
     if (seen.has(data)) {
       return '[Circular Reference]'
     }
@@ -131,18 +132,24 @@ function filterForDisplayInternal(data: any, seen: WeakSet<object>, depth: numbe
         return `[ArrayBuffer: ${(data as ArrayBuffer).byteLength} bytes]`
 
       case 'Map': {
+        seen.add(data)
         const obj: Record<string, any> = {}
         for (const [key, value] of (data as Map<any, any>).entries()) {
           const keyStr = typeof key === 'string' ? key : String(key)
           obj[keyStr] = filterForDisplayInternal(value, seen, depth + 1)
         }
+        seen.delete(data)
         return obj
       }
 
-      case 'Set':
-        return Array.from(data as Set<any>).map((item) =>
+      case 'Set': {
+        seen.add(data)
+        const result = Array.from(data as Set<any>).map((item) =>
           filterForDisplayInternal(item, seen, depth + 1)
         )
+        seen.delete(data)
+        return result
+      }
 
       case 'WeakMap':
         return '[WeakMap]'
@@ -161,17 +168,22 @@ function filterForDisplayInternal(data: any, seen: WeakSet<object>, depth: numbe
       return `[${objectType}: ${(data as ArrayBufferView).byteLength} bytes]`
     }
 
+    // Add to current path before processing children
     seen.add(data)
 
     for (const filterFn of DISPLAY_FILTERS) {
-      const result = filterFn(data)
-      if (result !== data) {
-        return filterForDisplayInternal(result, seen, depth + 1)
+      const filtered = filterFn(data)
+      if (filtered !== data) {
+        const result = filterForDisplayInternal(filtered, seen, depth + 1)
+        seen.delete(data)
+        return result
       }
     }
 
     if (Array.isArray(data)) {
-      return data.map((item) => filterForDisplayInternal(item, seen, depth + 1))
+      const result = data.map((item) => filterForDisplayInternal(item, seen, depth + 1))
+      seen.delete(data)
+      return result
     }
 
     const result: Record<string, any> = {}
@@ -182,6 +194,8 @@ function filterForDisplayInternal(data: any, seen: WeakSet<object>, depth: numbe
         result[key] = '[Error accessing property]'
       }
     }
+    // Remove from current path after processing children
+    seen.delete(data)
     return result
   } catch {
     return '[Unserializable]'
