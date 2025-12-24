@@ -40,7 +40,6 @@ export interface CopilotChat {
   model: string
   messages: CopilotMessage[]
   messageCount: number
-  previewYaml: string | null
   planArtifact: string | null
   config: CopilotChatConfig | null
   createdAt: Date

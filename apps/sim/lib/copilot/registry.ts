@@ -41,7 +41,6 @@ export const ToolIds = z.enum([
 ])
 export type ToolId = z.infer<typeof ToolIds>
 
-// Base SSE wrapper for tool_call events emitted by the LLM
 const ToolCallSSEBase = z.object({
   type: z.literal('tool_call'),
   data: z.object({
@@ -53,18 +52,14 @@ const ToolCallSSEBase = z.object({
 })
 export type ToolCallSSE = z.infer<typeof ToolCallSSEBase>
 
-// Reusable small schemas
 const StringArray = z.array(z.string())
 const BooleanOptional = z.boolean().optional()
 const NumberOptional = z.number().optional()
 
-// Tool argument schemas (per SSE examples provided)
 export const ToolArgSchemas = {
   get_user_workflow: z.object({}),
-  // New tools
   list_user_workflows: z.object({}),
   get_workflow_from_name: z.object({ workflow_name: z.string() }),
-  // Workflow data tool (variables, custom tools, MCP tools, files)
   get_workflow_data: z.object({
     data_type: z.enum(['global_variables', 'custom_tools', 'mcp_tools', 'files']),
   }),
@@ -377,7 +372,6 @@ export type ToolSSESchemaMap = typeof ToolSSESchemas
 // Known result schemas per tool (what tool_result.result should conform to)
 // Note: Where legacy variability exists, schema captures the common/expected shape for new runtime.
 const BuildOrEditWorkflowResult = z.object({
-  yamlContent: z.string(),
   description: z.string().optional(),
   workflowState: z.unknown().optional(),
   data: z
@@ -411,14 +405,9 @@ const ExecutionEntry = z.object({
 })
 
 export const ToolResultSchemas = {
-  get_user_workflow: z.object({ yamlContent: z.string() }).or(z.string()),
-  // New tools
+  get_user_workflow: z.string(),
   list_user_workflows: z.object({ workflow_names: z.array(z.string()) }),
-  get_workflow_from_name: z
-    .object({ yamlContent: z.string() })
-    .or(z.object({ userWorkflow: z.string() }))
-    .or(z.string()),
-  // Workflow data tool results (variables, custom tools, MCP tools, files)
+  get_workflow_from_name: z.object({ userWorkflow: z.string() }).or(z.string()),
   get_workflow_data: z.union([
     z.object({
       variables: z.array(z.object({ id: z.string(), name: z.string(), value: z.any() })),
@@ -462,7 +451,6 @@ export const ToolResultSchemas = {
   set_global_workflow_variables: z
     .object({ variables: z.record(z.any()) })
     .or(z.object({ message: z.any().optional(), data: z.any().optional() })),
-  // New
   oauth_request_access: z.object({
     granted: z.boolean().optional(),
     message: z.string().optional(),
@@ -685,7 +673,6 @@ export const ToolResultSchemas = {
 } as const
 export type ToolResultSchemaMap = typeof ToolResultSchemas
 
-// Consolidated registry entry per tool
 export const ToolRegistry = Object.freeze(
   (Object.keys(ToolArgSchemas) as ToolId[]).reduce(
     (acc, toolId) => {
@@ -703,7 +690,6 @@ export const ToolRegistry = Object.freeze(
 )
 export type ToolRegistryMap = typeof ToolRegistry
 
-// Convenience helper types inferred from schemas
 export type InferArgs<T extends ToolId> = z.infer<(typeof ToolArgSchemas)[T]>
 export type InferResult<T extends ToolId> = z.infer<(typeof ToolResultSchemas)[T]>
 export type InferToolCallSSE<T extends ToolId> = z.infer<(typeof ToolSSESchemas)[T]>

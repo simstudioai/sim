@@ -19,6 +19,7 @@ const sleep = async (ms: number, options: SleepOptions = {}): Promise<boolean> =
   }
 
   return new Promise((resolve) => {
+    // biome-ignore lint/style/useConst: Variable is assigned after closure definitions that reference it
     let mainTimeoutId: NodeJS.Timeout | undefined
     let checkIntervalId: NodeJS.Timeout | undefined
     let resolved = false
