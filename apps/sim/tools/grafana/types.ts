@@ -267,14 +267,8 @@ export interface GrafanaCreateAnnotationParams extends GrafanaBaseParams {
 
 export interface GrafanaAnnotation {
   id: number
-  alertId: number
-  alertName: string
   dashboardId: number
   dashboardUID: string
-  panelId: number
-  userId: number
-  newState: string
-  prevState: string
   created: number
   updated: number
   time: number
@@ -285,6 +279,13 @@ export interface GrafanaAnnotation {
   email: string
   avatarUrl: string
   data: any
+  // Optional fields - only present for alert annotations or specific cases
+  alertId?: number
+  alertName?: string
+  panelId?: number
+  userId?: number
+  newState?: string
+  prevState?: string
 }
 
 export interface GrafanaCreateAnnotationResponse extends ToolResponse {
