@@ -3,7 +3,12 @@ import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { deployWorkflow } from '@/lib/workflows/persistence/utils'
+import { deployWorkflow, loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  createSchedulesForDeploy,
+  deleteSchedulesForWorkflow,
+  validateWorkflowSchedules,
+} from '@/lib/workflows/schedules/deploy'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -105,6 +110,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse('Unable to determine deploying user', 400)
     }
 
+    // Load current workflow state to validate schedule blocks before deployment
+    const normalizedData = await loadWorkflowFromNormalizedTables(id)
+    if (!normalizedData) {
+      return createErrorResponse('Failed to load workflow state', 500)
+    }
+
+    // Validate schedule blocks before deploying
+    const scheduleValidation = validateWorkflowSchedules(normalizedData.blocks)
+    if (!scheduleValidation.isValid) {
+      logger.warn(
+        `[${requestId}] Schedule validation failed for workflow ${id}: ${scheduleValidation.error}`
+      )
+      return createErrorResponse(`Invalid schedule configuration: ${scheduleValidation.error}`, 400)
+    }
+
     const deployResult = await deployWorkflow({
       workflowId: id,
       deployedBy: actorUserId,
@@ -117,6 +137,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const deployedAt = deployResult.deployedAt!
 
+    // Create or update schedules for the deployed workflow
+    let scheduleInfo: { scheduleId?: string; cronExpression?: string; nextRunAt?: Date } = {}
+    const scheduleResult = await createSchedulesForDeploy(id, normalizedData.blocks, db)
+    if (!scheduleResult.success) {
+      // Log but don't fail deployment - schedule creation is secondary
+      logger.error(
+        `[${requestId}] Failed to create schedule for workflow ${id}: ${scheduleResult.error}`
+      )
+    } else if (scheduleResult.scheduleId) {
+      scheduleInfo = {
+        scheduleId: scheduleResult.scheduleId,
+        cronExpression: scheduleResult.cronExpression,
+        nextRunAt: scheduleResult.nextRunAt,
+      }
+      logger.info(
+        `[${requestId}] Schedule created for workflow ${id}: ${scheduleResult.scheduleId}`
+      )
+    }
+
     logger.info(`[${requestId}] Workflow deployed successfully: ${id}`)
 
     const responseApiKeyInfo = workflowData!.workspaceId
@@ -127,6 +166,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       apiKey: responseApiKeyInfo,
       isDeployed: true,
       deployedAt,
+      schedule: scheduleInfo.scheduleId
+        ? {
+            id: scheduleInfo.scheduleId,
+            cronExpression: scheduleInfo.cronExpression,
+            nextRunAt: scheduleInfo.nextRunAt,
+          }
+        : undefined,
     })
   } catch (error: any) {
     logger.error(`[${requestId}] Error deploying workflow: ${id}`, {
@@ -156,6 +202,9 @@ export async function DELETE(
     }
 
     await db.transaction(async (tx) => {
+      // Delete all schedules for this workflow
+      await deleteSchedulesForWorkflow(id, tx)
+
       await tx
         .update(workflowDeploymentVersion)
         .set({ isActive: false })

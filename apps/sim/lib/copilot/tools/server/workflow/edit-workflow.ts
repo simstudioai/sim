@@ -1824,7 +1824,7 @@ function applyOperationsToWorkflowState(
             validationErrors.push(...validationResult.errors)
 
             Object.entries(validationResult.validInputs).forEach(([key, value]) => {
-              // Skip runtime subblock IDs (webhookId, triggerPath, testUrl, testUrlExpiresAt, scheduleId)
+              // Skip runtime subblock IDs (webhookId, triggerPath, testUrl, testUrlExpiresAt)
               if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
                 return
               }

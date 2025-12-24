@@ -15,17 +15,15 @@ export interface UseScheduleInfoReturn {
   isLoading: boolean
   /** Function to reactivate a disabled schedule */
   reactivateSchedule: (scheduleId: string) => Promise<void>
-  /** Function to disable an active schedule */
-  disableSchedule: (scheduleId: string) => Promise<void>
 }
 
 /**
- * Custom hook for managing schedule information
+ * Custom hook for fetching schedule information
  *
  * @param blockId - The ID of the block
  * @param blockType - The type of the block
  * @param workflowId - The current workflow ID
- * @returns Schedule information state and operations
+ * @returns Schedule information state and reactivate function
  */
 export function useScheduleInfo(
   blockId: string,
@@ -44,7 +42,6 @@ export function useScheduleInfo(
 
         const params = new URLSearchParams({
           workflowId: wfId,
-          mode: 'schedule',
           blockId,
         })
 
@@ -77,6 +74,7 @@ export function useScheduleInfo(
           timezone: scheduleTimezone,
           status: schedule.status,
           isDisabled: schedule.status === 'disabled',
+          failedCount: schedule.failedCount || 0,
           id: schedule.id,
         })
       } catch (error) {
@@ -94,42 +92,17 @@ export function useScheduleInfo(
       try {
         const response = await fetch(`/api/schedules/${scheduleId}`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'reactivate' }),
         })
 
         if (response.ok && workflowId) {
-          fetchScheduleInfo(workflowId)
+          await fetchScheduleInfo(workflowId)
         } else {
           logger.error('Failed to reactivate schedule')
         }
       } catch (error) {
         logger.error('Error reactivating schedule:', error)
-      }
-    },
-    [workflowId, fetchScheduleInfo]
-  )
-
-  const disableSchedule = useCallback(
-    async (scheduleId: string) => {
-      try {
-        const response = await fetch(`/api/schedules/${scheduleId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ action: 'disable' }),
-        })
-
-        if (response.ok && workflowId) {
-          fetchScheduleInfo(workflowId)
-        } else {
-          logger.error('Failed to disable schedule')
-        }
-      } catch (error) {
-        logger.error('Error disabling schedule:', error)
       }
     },
     [workflowId, fetchScheduleInfo]
@@ -152,6 +125,5 @@ export function useScheduleInfo(
     scheduleInfo,
     isLoading,
     reactivateSchedule,
-    disableSchedule,
   }
 }

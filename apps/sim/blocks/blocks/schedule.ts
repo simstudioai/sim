@@ -155,17 +155,10 @@ export const ScheduleBlock: BlockConfig = {
     },
 
     {
-      id: 'scheduleSave',
-      type: 'schedule-save',
+      id: 'scheduleInfo',
+      type: 'schedule-info',
       mode: 'trigger',
       hideFromPreview: true,
-    },
-
-    {
-      id: 'scheduleId',
-      type: 'short-input',
-      hidden: true,
-      mode: 'trigger',
     },
   ],
 

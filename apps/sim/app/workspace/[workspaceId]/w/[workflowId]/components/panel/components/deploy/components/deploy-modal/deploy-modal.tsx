@@ -19,6 +19,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { startsWithUuid } from '@/executor/constants'
+import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -68,6 +69,7 @@ export function DeployModal({
   )
   const isDeployed = deploymentStatus?.isDeployed ?? isDeployedProp
   const setDeploymentStatus = useWorkflowRegistry((state) => state.setDeploymentStatus)
+  const addNotification = useNotificationStore((state) => state.addNotification)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isUndeploying, setIsUndeploying] = useState(false)
   const [deploymentInfo, setDeploymentInfo] = useState<WorkflowDeploymentInfo | null>(null)
@@ -258,7 +260,14 @@ export function DeployModal({
     } catch (error: unknown) {
       logger.error('Error deploying workflow:', { error })
       const errorMessage = error instanceof Error ? error.message : 'Failed to deploy workflow'
-      setApiDeployError(errorMessage)
+
+      // Close modal and show notification for deploy errors
+      onOpenChange(false)
+      addNotification({
+        level: 'error',
+        message: errorMessage,
+        workflowId: workflowId || undefined,
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -464,6 +473,15 @@ export function DeployModal({
       setDeploymentInfo((prev) => (prev ? { ...prev, needsRedeployment: false } : prev))
     } catch (error: unknown) {
       logger.error('Error redeploying workflow:', { error })
+      const errorMessage = error instanceof Error ? error.message : 'Failed to redeploy workflow'
+
+      // Close modal and show notification for redeploy errors
+      onOpenChange(false)
+      addNotification({
+        level: 'error',
+        message: errorMessage,
+        workflowId: workflowId || undefined,
+      })
     } finally {
       setIsSubmitting(false)
     }
