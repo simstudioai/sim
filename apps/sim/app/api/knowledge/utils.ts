@@ -99,7 +99,7 @@ export interface EmbeddingData {
 
 export interface KnowledgeBaseAccessResult {
   hasAccess: true
-  knowledgeBase: Pick<KnowledgeBaseData, 'id' | 'userId'>
+  knowledgeBase: Pick<KnowledgeBaseData, 'id' | 'userId' | 'workspaceId'>
 }
 
 export interface KnowledgeBaseAccessDenied {
