@@ -148,11 +148,11 @@ export function useRegisterGlobalCommands(commands: GlobalCommand[] | (() => Glo
   }
 
   const commandsRef = useRef<GlobalCommand[]>([])
-  commandsRef.current = typeof commands === 'function' ? commands() : commands
+  const list = typeof commands === 'function' ? commands() : commands
+  commandsRef.current = list
 
   useEffect(() => {
-    const list = typeof commands === 'function' ? commands() : commands
-    const wrappedCommands = list.map((cmd) => ({
+    const wrappedCommands = commandsRef.current.map((cmd) => ({
       ...cmd,
       handler: (event: KeyboardEvent) => {
         const currentCmd = commandsRef.current.find((c) => c.id === cmd.id)
