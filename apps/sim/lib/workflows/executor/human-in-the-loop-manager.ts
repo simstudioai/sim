@@ -335,6 +335,7 @@ export class PauseResumeManager {
       await PauseResumeManager.markResumeFailed({
         resumeEntryId,
         pausedExecutionId: pausedExecution.id,
+        parentExecutionId: pausedExecution.executionId,
         contextId,
         failureReason: (error as Error).message,
       })
@@ -357,6 +358,12 @@ export class PauseResumeManager {
     userId: string
   }): Promise<ExecutionResult> {
     const { resumeExecutionId, pausedExecution, contextId, resumeInput, userId } = args
+    const parentExecutionId = pausedExecution.executionId
+
+    await db
+      .update(workflowExecutionLogs)
+      .set({ status: 'running' })
+      .where(eq(workflowExecutionLogs.executionId, parentExecutionId))
 
     logger.info('Starting resume execution', {
       resumeExecutionId,
@@ -672,7 +679,7 @@ export class PauseResumeManager {
       'manual'
     const loggingSession = new LoggingSession(
       metadata.workflowId,
-      resumeExecutionId,
+      parentExecutionId,
       triggerType,
       metadata.requestId
     )
@@ -770,10 +777,10 @@ export class PauseResumeManager {
           .update(pausedExecutions)
           .set({ status: 'fully_resumed', updatedAt: now })
           .where(eq(pausedExecutions.executionId, parentExecutionId))
-
+      } else {
         await tx
           .update(workflowExecutionLogs)
-          .set({ status: 'completed' })
+          .set({ status: 'pending' })
           .where(eq(workflowExecutionLogs.executionId, parentExecutionId))
       }
     })
@@ -782,6 +789,7 @@ export class PauseResumeManager {
   private static async markResumeFailed(args: {
     resumeEntryId: string
     pausedExecutionId: string
+    parentExecutionId: string
     contextId: string
     failureReason: string
   }): Promise<void> {
@@ -799,6 +807,11 @@ export class PauseResumeManager {
           pausePoints: sql`jsonb_set(pause_points, ARRAY[${args.contextId}, 'resumeStatus'], '"failed"'::jsonb)`,
         })
         .where(eq(pausedExecutions.id, args.pausedExecutionId))
+
+      await tx
+        .update(workflowExecutionLogs)
+        .set({ status: 'failed' })
+        .where(eq(workflowExecutionLogs.executionId, args.parentExecutionId))
     })
   }
 

@@ -99,7 +99,7 @@ export const StatusBadge = React.memo(({ status }: StatusBadgeProps) => {
     info: {
       bg: 'var(--terminal-status-info-bg)',
       color: 'var(--terminal-status-info-color)',
-      label: 'Completed',
+      label: 'Info',
     },
   }[status]
 
