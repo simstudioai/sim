@@ -161,15 +161,27 @@ export const intercomCreateMessageTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    message: {
       type: 'object',
-      description: 'Created message data',
+      description: 'Created message object',
       properties: {
-        message: { type: 'object', description: 'Created message object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
+        id: { type: 'string', description: 'Unique identifier for the message' },
+        type: { type: 'string', description: 'Object type (message)' },
+        created_at: { type: 'number', description: 'Unix timestamp when message was created' },
+        body: { type: 'string', description: 'Body of the message' },
+        message_type: { type: 'string', description: 'Type of the message (in_app or email)' },
+        conversation_id: { type: 'string', description: 'ID of the conversation created' },
+        owner: { type: 'object', description: 'Owner of the message' },
       },
     },
+    metadata: {
+      type: 'object',
+      description: 'Operation metadata',
+      properties: {
+        operation: { type: 'string', description: 'The operation performed (create_message)' },
+        messageId: { type: 'string', description: 'ID of the created message' },
+      },
+    },
+    success: { type: 'boolean', description: 'Operation success status' },
   },
 }
