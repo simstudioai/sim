@@ -134,6 +134,13 @@ export function Panel() {
   }
 
   /**
+   * Cancels the currently executing workflow
+   */
+  const cancelWorkflow = useCallback(async () => {
+    await handleCancelExecution()
+  }, [handleCancelExecution])
+
+  /**
    * Runs the workflow with usage limit check
    */
   const runWorkflow = useCallback(async () => {
@@ -143,13 +150,6 @@ export function Panel() {
     }
     await handleRunWorkflow()
   }, [usageExceeded, handleRunWorkflow])
-
-  /**
-   * Cancels the currently executing workflow
-   */
-  const cancelWorkflow = useCallback(async () => {
-    await handleCancelExecution()
-  }, [handleCancelExecution])
 
   // Chat state
   const { isChatOpen, setIsChatOpen } = useChatStore()
@@ -300,7 +300,6 @@ export function Panel() {
       {
         id: 'run-workflow',
         handler: () => {
-          // Do exactly what the Run button does
           if (isExecuting) {
             void cancelWorkflow()
           } else {
