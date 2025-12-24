@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { isCancellationRequested } from '@/lib/execution/cancellation'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   BlockType,
@@ -31,6 +32,8 @@ import type { SerializedBlock } from '@/serializer/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('BlockExecutor')
+
+const CANCELLATION_CHECK_INTERVAL_MS = 1000
 
 export class BlockExecutor {
   constructor(
@@ -548,10 +551,16 @@ export class BlockExecutor {
       return
     }
 
-    const [clientStream, executorStream] = stream.tee()
+    const { clientStream: controlledClientStream, consume } = this.createControlledStream(
+      ctx,
+      stream,
+      blockId,
+      responseFormat,
+      streamingExec
+    )
 
     const processedClientStream = streamingResponseFormatProcessor.processStream(
-      clientStream,
+      controlledClientStream,
       blockId,
       selectedOutputs,
       responseFormat
@@ -562,13 +571,6 @@ export class BlockExecutor {
       stream: processedClientStream,
     }
 
-    const executorConsumption = this.consumeExecutorStream(
-      executorStream,
-      streamingExec,
-      blockId,
-      responseFormat
-    )
-
     const clientConsumption = (async () => {
       try {
         await ctx.onStream?.(clientStreamingExec)
@@ -577,7 +579,7 @@ export class BlockExecutor {
       }
     })()
 
-    await Promise.all([clientConsumption, executorConsumption])
+    await Promise.all([clientConsumption, consume()])
   }
 
   private async forwardStream(
@@ -605,57 +607,98 @@ export class BlockExecutor {
     }
   }
 
-  private async consumeExecutorStream(
-    stream: ReadableStream,
-    streamingExec: { execution: any },
+  private createControlledStream(
+    ctx: ExecutionContext,
+    sourceStream: ReadableStream,
     blockId: string,
-    responseFormat: any
-  ): Promise<void> {
-    const reader = stream.getReader()
-    const decoder = new TextDecoder()
+    responseFormat: any,
+    streamingExec: { execution: any }
+  ): { clientStream: ReadableStream; consume: () => Promise<void> } {
+    let clientController: ReadableStreamDefaultController<Uint8Array> | null = null
     let fullContent = ''
 
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        fullContent += decoder.decode(value, { stream: true })
-      }
-    } catch (error) {
-      logger.error('Error reading executor stream for block', { blockId, error })
-    } finally {
+    const clientStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        clientController = controller
+      },
+    })
+
+    const consume = async () => {
+      const reader = sourceStream.getReader()
+      const decoder = new TextDecoder()
+      let lastCancellationCheck = Date.now()
+
       try {
-        reader.releaseLock()
-      } catch {}
-    }
+        while (true) {
+          const now = Date.now()
+          if (ctx.executionId && now - lastCancellationCheck >= CANCELLATION_CHECK_INTERVAL_MS) {
+            lastCancellationCheck = now
+            const cancelled = await isCancellationRequested(ctx.executionId)
+            if (cancelled) {
+              ctx.isCancelled = true
+              try {
+                clientController?.close()
+              } catch {}
+              reader.cancel()
+              break
+            }
+          }
 
-    if (!fullContent) {
-      return
-    }
+          const { done, value } = await reader.read()
+          if (done) {
+            try {
+              clientController?.close()
+            } catch {}
+            break
+          }
 
-    const executionOutput = streamingExec.execution?.output
-    if (!executionOutput || typeof executionOutput !== 'object') {
-      return
-    }
-
-    if (responseFormat) {
-      try {
-        const parsed = JSON.parse(fullContent.trim())
-
-        streamingExec.execution.output = {
-          ...parsed,
-          tokens: executionOutput.tokens,
-          toolCalls: executionOutput.toolCalls,
-          providerTiming: executionOutput.providerTiming,
-          cost: executionOutput.cost,
-          model: executionOutput.model,
+          fullContent += decoder.decode(value, { stream: true })
+          try {
+            clientController?.enqueue(value)
+          } catch {}
         }
-        return
       } catch (error) {
-        logger.warn('Failed to parse streamed content for response format', { blockId, error })
+        if (!ctx.isCancelled) {
+          logger.error('Error reading stream for block', { blockId, error })
+        }
+        try {
+          clientController?.close()
+        } catch {}
+      } finally {
+        try {
+          reader.releaseLock()
+        } catch {}
       }
+
+      if (!fullContent) {
+        return
+      }
+
+      const executionOutput = streamingExec.execution?.output
+      if (!executionOutput || typeof executionOutput !== 'object') {
+        return
+      }
+
+      if (responseFormat) {
+        try {
+          const parsed = JSON.parse(fullContent.trim())
+          streamingExec.execution.output = {
+            ...parsed,
+            tokens: executionOutput.tokens,
+            toolCalls: executionOutput.toolCalls,
+            providerTiming: executionOutput.providerTiming,
+            cost: executionOutput.cost,
+            model: executionOutput.model,
+          }
+          return
+        } catch (error) {
+          logger.warn('Failed to parse streamed content for response format', { blockId, error })
+        }
+      }
+
+      executionOutput.content = fullContent
     }
 
-    executionOutput.content = fullContent
+    return { clientStream, consume }
   }
 }
