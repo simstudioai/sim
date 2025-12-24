@@ -6,6 +6,7 @@
 import type { Edge } from 'reactflow'
 import { z } from 'zod'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -375,6 +376,8 @@ export async function executeWorkflowCore(
         traceSpans: traceSpans || [],
       })
 
+      await clearExecutionCancellation(executionId)
+
       logger.info(`[${requestId}] Workflow execution cancelled`, {
         duration: result.metadata?.duration,
       })
@@ -383,6 +386,8 @@ export async function executeWorkflowCore(
     }
 
     if (result.status === 'paused') {
+      await clearExecutionCancellation(executionId)
+
       logger.info(`[${requestId}] Workflow execution paused`, {
         duration: result.metadata?.duration,
       })
@@ -398,6 +403,8 @@ export async function executeWorkflowCore(
       workflowInput: processedInput,
     })
 
+    await clearExecutionCancellation(executionId)
+
     logger.info(`[${requestId}] Workflow execution completed`, {
       success: result.success,
       duration: result.metadata?.duration,
@@ -407,7 +414,6 @@ export async function executeWorkflowCore(
   } catch (error: any) {
     logger.error(`[${requestId}] Execution failed:`, error)
 
-    // Extract execution result from error if available
     const executionResult = (error as any)?.executionResult
     const { traceSpans } = executionResult ? buildTraceSpans(executionResult) : { traceSpans: [] }
 
@@ -420,6 +426,8 @@ export async function executeWorkflowCore(
       },
       traceSpans,
     })
+
+    await clearExecutionCancellation(executionId)
 
     throw error
   }
