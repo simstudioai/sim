@@ -1055,7 +1055,7 @@ export function Chat() {
                 {isStreaming ? (
                   <Button
                     onClick={handleStopStreaming}
-                    className='h-[22px] w-[22px] rounded-full p-0 transition-colors !bg-[var(--c-C0C0C0)] hover:!bg-[var(--c-D0D0D0)]'
+                    className='!bg-[var(--c-C0C0C0)] hover:!bg-[var(--c-D0D0D0)] h-[22px] w-[22px] rounded-full p-0 transition-colors'
                   >
                     <Square className='h-2.5 w-2.5 fill-black text-black' />
                   </Button>

@@ -886,6 +886,21 @@ export function useWorkflowExecution() {
       const activeBlocksSet = new Set<string>()
       const streamedContent = new Map<string, string>()
 
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/77a2b2bc-808d-4bfd-a366-739b0b04635d', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: 'use-workflow-execution.ts:executeWorkflow:apiCall',
+          message: 'About to call executionStream.execute',
+          data: { activeWorkflowId, startBlockId, hasInput: !!finalWorkflowInput },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          hypothesisId: 'D',
+        }),
+      }).catch(() => {})
+      // #endregion
+
       // Execute the workflow
       try {
         await executionStream.execute({
