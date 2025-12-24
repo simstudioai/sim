@@ -8,7 +8,7 @@ import { BlockType, DEFAULTS, EVALUATOR, HTTP } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { buildAPIUrl, extractAPIErrorMessage } from '@/executor/utils/http'
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
-import { calculateCost, getProviderFromModel } from '@/providers/utils'
+import { calculateCost, getApiKey, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('EvaluatorBlockHandler')
@@ -35,9 +35,11 @@ export class EvaluatorBlockHandler implements BlockHandler {
     }
     const providerId = getProviderFromModel(evaluatorConfig.model)
 
-    let finalApiKey = evaluatorConfig.apiKey
+    let finalApiKey: string
     if (providerId === 'vertex' && evaluatorConfig.vertexCredential) {
       finalApiKey = await this.resolveVertexCredential(evaluatorConfig.vertexCredential)
+    } else {
+      finalApiKey = this.getApiKey(providerId, evaluatorConfig.model, evaluatorConfig.apiKey)
     }
 
     const processedContent = this.processContent(inputs.content)
@@ -120,6 +122,11 @@ export class EvaluatorBlockHandler implements BlockHandler {
       if (providerId === 'vertex') {
         providerRequest.vertexProject = evaluatorConfig.vertexProject
         providerRequest.vertexLocation = evaluatorConfig.vertexLocation
+      }
+
+      if (providerId === 'azure-openai') {
+        providerRequest.azureEndpoint = inputs.azureEndpoint
+        providerRequest.azureApiVersion = inputs.azureApiVersion
       }
 
       const response = await fetch(url.toString(), {
@@ -266,6 +273,20 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
     logger.warn(`Metric "${metricName}" not found in LLM response`)
     return DEFAULTS.EXECUTION_TIME
+  }
+
+  private getApiKey(providerId: string, model: string, inputApiKey: string): string {
+    try {
+      return getApiKey(providerId, model, inputApiKey)
+    } catch (error) {
+      logger.error('Failed to get API key:', {
+        provider: providerId,
+        model,
+        error: error instanceof Error ? error.message : String(error),
+        hasProvidedApiKey: !!inputApiKey,
+      })
+      throw new Error(error instanceof Error ? error.message : 'API key error')
+    }
   }
 
   /**
