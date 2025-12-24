@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { requestCancellation } from '@/lib/execution/active-executors'
+import { requestCancellation } from '@/lib/execution/cancellation'
 
 const CancelExecutionSchema = z.object({
   executionId: z.string().uuid(),

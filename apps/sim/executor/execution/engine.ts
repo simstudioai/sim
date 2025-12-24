@@ -1,4 +1,4 @@
-import { isCancellationRequested } from '@/lib/execution/active-executors'
+import { isCancellationRequested } from '@/lib/execution/cancellation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
