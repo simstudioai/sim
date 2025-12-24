@@ -1,0 +1,316 @@
+'use client'
+
+import { useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import {
+  Button,
+  Input as EmcnInput,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  Trash,
+} from '@/components/emcn'
+import { AnthropicIcon, ExaAIIcon, GeminiIcon, MistralIcon, OpenAIIcon } from '@/components/icons'
+import { Skeleton } from '@/components/ui'
+import { createLogger } from '@/lib/logs/console/logger'
+import {
+  type BYOKKey,
+  type BYOKProviderId,
+  useBYOKKeys,
+  useDeleteBYOKKey,
+  useUpsertBYOKKey,
+} from '@/hooks/queries/byok-keys'
+
+const logger = createLogger('BYOKSettings')
+
+const PROVIDERS: {
+  id: BYOKProviderId
+  name: string
+  icon: React.ComponentType<{ className?: string }>
+  description: string
+  placeholder: string
+}[] = [
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    icon: OpenAIIcon,
+    description: 'LLM calls and Knowledge Base embeddings',
+    placeholder: 'sk-...',
+  },
+  {
+    id: 'anthropic',
+    name: 'Anthropic',
+    icon: AnthropicIcon,
+    description: 'LLM calls',
+    placeholder: 'sk-ant-...',
+  },
+  {
+    id: 'google',
+    name: 'Google',
+    icon: GeminiIcon,
+    description: 'LLM calls',
+    placeholder: 'Enter your API key',
+  },
+  {
+    id: 'mistral',
+    name: 'Mistral',
+    icon: MistralIcon,
+    description: 'LLM calls and Knowledge Base OCR',
+    placeholder: 'Enter your API key',
+  },
+  {
+    id: 'exa',
+    name: 'Exa',
+    icon: ExaAIIcon,
+    description: 'Web Search block',
+    placeholder: 'Enter your API key',
+  },
+]
+
+function BYOKKeySkeleton() {
+  return (
+    <div className='flex items-center justify-between gap-[12px] rounded-[8px] border p-[12px]'>
+      <div className='flex items-center gap-[12px]'>
+        <Skeleton className='h-[32px] w-[32px] rounded-[6px]' />
+        <div className='flex flex-col gap-[4px]'>
+          <Skeleton className='h-[16px] w-[80px]' />
+          <Skeleton className='h-[14px] w-[160px]' />
+        </div>
+      </div>
+      <Skeleton className='h-[32px] w-[80px] rounded-[6px]' />
+    </div>
+  )
+}
+
+export function BYOK() {
+  const params = useParams()
+  const workspaceId = (params?.workspaceId as string) || ''
+
+  const { data: keys = [], isLoading } = useBYOKKeys(workspaceId)
+  const upsertKey = useUpsertBYOKKey()
+  const deleteKey = useDeleteBYOKKey()
+
+  const [editingProvider, setEditingProvider] = useState<BYOKProviderId | null>(null)
+  const [apiKeyInput, setApiKeyInput] = useState('')
+  const [showApiKey, setShowApiKey] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const [deleteConfirmProvider, setDeleteConfirmProvider] = useState<BYOKProviderId | null>(null)
+
+  const getKeyForProvider = (providerId: BYOKProviderId): BYOKKey | undefined => {
+    return keys.find((k) => k.providerId === providerId)
+  }
+
+  const handleSave = async () => {
+    if (!editingProvider || !apiKeyInput.trim()) return
+
+    setError(null)
+    try {
+      await upsertKey.mutateAsync({
+        workspaceId,
+        providerId: editingProvider,
+        apiKey: apiKeyInput.trim(),
+      })
+      setEditingProvider(null)
+      setApiKeyInput('')
+      setShowApiKey(false)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to save API key'
+      setError(message)
+      logger.error('Failed to save BYOK key', { error: err })
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteConfirmProvider) return
+
+    try {
+      await deleteKey.mutateAsync({
+        workspaceId,
+        providerId: deleteConfirmProvider,
+      })
+      setDeleteConfirmProvider(null)
+    } catch (err) {
+      logger.error('Failed to delete BYOK key', { error: err })
+    }
+  }
+
+  const openEditModal = (providerId: BYOKProviderId) => {
+    setEditingProvider(providerId)
+    setApiKeyInput('')
+    setShowApiKey(false)
+    setError(null)
+  }
+
+  return (
+    <>
+      <div className='flex h-full flex-col gap-[16px]'>
+        <p className='text-[13px] text-[var(--text-secondary)]'>
+          Use your own API keys for hosted model providers.
+        </p>
+
+        <div className='min-h-0 flex-1 overflow-y-auto'>
+          {isLoading ? (
+            <div className='flex flex-col gap-[8px]'>
+              {PROVIDERS.map((p) => (
+                <BYOKKeySkeleton key={p.id} />
+              ))}
+            </div>
+          ) : (
+            <div className='flex flex-col gap-[8px]'>
+              {PROVIDERS.map((provider) => {
+                const existingKey = getKeyForProvider(provider.id)
+                const Icon = provider.icon
+
+                return (
+                  <div
+                    key={provider.id}
+                    className='flex items-center justify-between gap-[12px] rounded-[8px] border p-[12px]'
+                  >
+                    <div className='flex items-center gap-[12px]'>
+                      <div className='flex h-[32px] w-[32px] items-center justify-center rounded-[6px] bg-[var(--surface-3)]'>
+                        <Icon className='h-[18px] w-[18px]' />
+                      </div>
+                      <div className='flex flex-col gap-[2px]'>
+                        <span className='font-medium text-[14px]'>{provider.name}</span>
+                        <span className='text-[12px] text-[var(--text-tertiary)]'>
+                          {provider.description}
+                        </span>
+                        {existingKey && (
+                          <span className='font-mono text-[11px] text-[var(--text-muted)]'>
+                            {existingKey.maskedKey}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className='flex items-center gap-[6px]'>
+                      {existingKey && (
+                        <Button
+                          variant='ghost'
+                          className='h-9 w-9'
+                          onClick={() => setDeleteConfirmProvider(provider.id)}
+                        >
+                          <Trash />
+                        </Button>
+                      )}
+                      <Button variant='default' onClick={() => openEditModal(provider.id)}>
+                        {existingKey ? 'Update' : 'Add Key'}
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <Modal
+        open={!!editingProvider}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingProvider(null)
+            setApiKeyInput('')
+            setShowApiKey(false)
+            setError(null)
+          }
+        }}
+      >
+        <ModalContent className='w-[420px]'>
+          <ModalHeader>
+            {editingProvider && (
+              <>
+                {getKeyForProvider(editingProvider) ? 'Update' : 'Add'}{' '}
+                {PROVIDERS.find((p) => p.id === editingProvider)?.name} API Key
+              </>
+            )}
+          </ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
+              This key will be used for all {PROVIDERS.find((p) => p.id === editingProvider)?.name}{' '}
+              requests in this workspace. Your key is encrypted and stored securely.
+            </p>
+
+            <div className='mt-[12px] flex flex-col gap-[8px]'>
+              <div className='relative'>
+                <EmcnInput
+                  type={showApiKey ? 'text' : 'password'}
+                  value={apiKeyInput}
+                  onChange={(e) => {
+                    setApiKeyInput(e.target.value)
+                    if (error) setError(null)
+                  }}
+                  placeholder={PROVIDERS.find((p) => p.id === editingProvider)?.placeholder}
+                  className='h-9 pr-[36px]'
+                  autoFocus
+                />
+                <Button
+                  variant='ghost'
+                  className='-translate-y-1/2 absolute top-1/2 right-[4px] h-[28px] w-[28px] p-0'
+                  onClick={() => setShowApiKey(!showApiKey)}
+                >
+                  {showApiKey ? (
+                    <EyeOff className='h-[14px] w-[14px]' />
+                  ) : (
+                    <Eye className='h-[14px] w-[14px]' />
+                  )}
+                </Button>
+              </div>
+              {error && (
+                <p className='text-[11px] text-[var(--text-error)] leading-tight'>{error}</p>
+              )}
+            </div>
+          </ModalBody>
+
+          <ModalFooter>
+            <Button
+              variant='default'
+              onClick={() => {
+                setEditingProvider(null)
+                setApiKeyInput('')
+                setShowApiKey(false)
+                setError(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant='primary'
+              onClick={handleSave}
+              disabled={!apiKeyInput.trim() || upsertKey.isPending}
+            >
+              {upsertKey.isPending ? 'Saving...' : 'Save'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal open={!!deleteConfirmProvider} onOpenChange={() => setDeleteConfirmProvider(null)}>
+        <ModalContent className='w-[400px]'>
+          <ModalHeader>Delete API Key</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
+              Are you sure you want to delete the{' '}
+              <span className='font-medium text-[var(--text-primary)]'>
+                {PROVIDERS.find((p) => p.id === deleteConfirmProvider)?.name}
+              </span>{' '}
+              API key? This workspace will revert to using platform keys with the 2x multiplier.
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant='default' onClick={() => setDeleteConfirmProvider(null)}>
+              Cancel
+            </Button>
+            <Button variant='primary' onClick={handleDelete} disabled={deleteKey.isPending}>
+              {deleteKey.isPending ? 'Deleting...' : 'Delete'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </>
+  )
+}

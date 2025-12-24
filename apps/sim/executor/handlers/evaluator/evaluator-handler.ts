@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
+import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { BlockOutput } from '@/blocks/types'
@@ -8,7 +9,7 @@ import { BlockType, DEFAULTS, EVALUATOR, HTTP } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { buildAPIUrl, extractAPIErrorMessage } from '@/executor/utils/http'
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
-import { calculateCost, getApiKey, getProviderFromModel } from '@/providers/utils'
+import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('EvaluatorBlockHandler')
@@ -36,10 +37,18 @@ export class EvaluatorBlockHandler implements BlockHandler {
     const providerId = getProviderFromModel(evaluatorConfig.model)
 
     let finalApiKey: string
+    let isBYOK = false
     if (providerId === 'vertex' && evaluatorConfig.vertexCredential) {
       finalApiKey = await this.resolveVertexCredential(evaluatorConfig.vertexCredential)
     } else {
-      finalApiKey = this.getApiKey(providerId, evaluatorConfig.model, evaluatorConfig.apiKey)
+      const result = await this.getApiKeyWithBYOK(
+        providerId,
+        evaluatorConfig.model,
+        ctx.workspaceId,
+        evaluatorConfig.apiKey
+      )
+      finalApiKey = result.apiKey
+      isBYOK = result.isBYOK
     }
 
     const processedContent = this.processContent(inputs.content)
@@ -116,6 +125,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
         temperature: EVALUATOR.DEFAULT_TEMPERATURE,
         apiKey: finalApiKey,
+        isBYOK,
         workflowId: ctx.workflowId,
       }
 
@@ -275,9 +285,14 @@ export class EvaluatorBlockHandler implements BlockHandler {
     return DEFAULTS.EXECUTION_TIME
   }
 
-  private getApiKey(providerId: string, model: string, inputApiKey: string): string {
+  private async getApiKeyWithBYOK(
+    providerId: string,
+    model: string,
+    workspaceId: string | undefined,
+    inputApiKey?: string
+  ): Promise<{ apiKey: string; isBYOK: boolean }> {
     try {
-      return getApiKey(providerId, model, inputApiKey)
+      return await getApiKeyWithBYOK(providerId, model, workspaceId, inputApiKey)
     } catch (error) {
       logger.error('Failed to get API key:', {
         provider: providerId,

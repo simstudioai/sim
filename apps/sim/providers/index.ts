@@ -88,7 +88,8 @@ export async function executeProviderRequest(
     const { input: promptTokens = 0, output: completionTokens = 0 } = response.tokens
     const useCachedInput = !!request.context && request.context.length > 0
 
-    if (shouldBillModelUsage(response.model)) {
+    const shouldBill = shouldBillModelUsage(response.model) && !request.isBYOK
+    if (shouldBill) {
       const costMultiplier = getCostMultiplier()
       response.cost = calculateCost(
         response.model,
@@ -109,9 +110,13 @@ export async function executeProviderRequest(
           updatedAt: new Date().toISOString(),
         },
       }
-      logger.debug(
-        `Not billing model usage for ${response.model} - user provided API key or not hosted model`
-      )
+      if (request.isBYOK) {
+        logger.debug(`Not billing model usage for ${response.model} - workspace BYOK key used`)
+      } else {
+        logger.debug(
+          `Not billing model usage for ${response.model} - user provided API key or not hosted model`
+        )
+      }
     }
   }
 

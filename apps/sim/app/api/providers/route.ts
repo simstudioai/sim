@@ -2,12 +2,12 @@ import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
-import { getApiKey } from '@/providers/utils'
 
 const logger = createLogger('ProvidersAPI')
 
@@ -81,11 +81,14 @@ export async function POST(request: NextRequest) {
     })
 
     let finalApiKey: string
+    let isBYOK = body.isBYOK ?? false
     try {
       if (provider === 'vertex' && vertexCredential) {
         finalApiKey = await resolveVertexCredential(requestId, vertexCredential)
       } else {
-        finalApiKey = getApiKey(provider, model, apiKey)
+        const result = await getApiKeyWithBYOK(provider, model, workspaceId, apiKey)
+        finalApiKey = result.apiKey
+        isBYOK = result.isBYOK
       }
     } catch (error) {
       logger.error(`[${requestId}] Failed to get API key:`, {
@@ -106,9 +109,9 @@ export async function POST(request: NextRequest) {
       model,
       workflowId,
       hasApiKey: !!finalApiKey,
+      isBYOK,
     })
 
-    // Execute provider request directly with the managed key
     const response = await executeProviderRequest(provider, {
       model,
       systemPrompt,
@@ -117,6 +120,7 @@ export async function POST(request: NextRequest) {
       temperature,
       maxTokens,
       apiKey: finalApiKey,
+      isBYOK,
       azureEndpoint,
       azureApiVersion,
       vertexProject,

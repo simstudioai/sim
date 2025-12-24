@@ -100,7 +100,12 @@ export async function PUT(
     try {
       const validatedData = UpdateChunkSchema.parse(body)
 
-      const updatedChunk = await updateChunk(chunkId, validatedData, requestId)
+      const updatedChunk = await updateChunk(
+        chunkId,
+        validatedData,
+        requestId,
+        accessCheck.knowledgeBase?.workspaceId
+      )
 
       logger.info(
         `[${requestId}] Chunk updated: ${chunkId} in document ${documentId} in knowledge base ${knowledgeBaseId}`

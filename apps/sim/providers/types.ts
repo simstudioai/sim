@@ -158,6 +158,7 @@ export interface ProviderRequest {
   blockData?: Record<string, any>
   blockNameMapping?: Record<string, string>
   isCopilotRequest?: boolean
+  isBYOK?: boolean
   azureEndpoint?: string
   azureApiVersion?: string
   vertexProject?: string
