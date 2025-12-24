@@ -76,6 +76,10 @@ export interface ExecuteStreamOptions {
  */
 export function useExecutionStream() {
   const abortControllerRef = useRef<AbortController | null>(null)
+  const currentExecutionRef = useRef<{ workflowId: string; executionId: string | null }>({
+    workflowId: '',
+    executionId: null,
+  })
 
   const execute = useCallback(async (options: ExecuteStreamOptions) => {
     const { workflowId, callbacks = {}, ...payload } = options
@@ -88,6 +92,8 @@ export function useExecutionStream() {
     // Create new abort controller
     const abortController = new AbortController()
     abortControllerRef.current = abortController
+
+    currentExecutionRef.current = { workflowId, executionId: null }
 
     try {
       const response = await fetch(`/api/workflows/${workflowId}/execute`, {
@@ -106,6 +112,11 @@ export function useExecutionStream() {
 
       if (!response.body) {
         throw new Error('No response body')
+      }
+
+      const executionId = response.headers.get('X-Execution-Id')
+      if (executionId) {
+        currentExecutionRef.current.executionId = executionId
       }
 
       // Read SSE stream
@@ -215,6 +226,7 @@ export function useExecutionStream() {
       throw error
     } finally {
       abortControllerRef.current = null
+      currentExecutionRef.current = { workflowId: '', executionId: null }
     }
   }, [])
 
@@ -223,6 +235,17 @@ export function useExecutionStream() {
       abortControllerRef.current.abort()
       abortControllerRef.current = null
     }
+
+    const { workflowId, executionId } = currentExecutionRef.current
+    if (workflowId && executionId) {
+      fetch(`/api/workflows/${workflowId}/execute/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ executionId }),
+      }).catch(() => {})
+    }
+
+    currentExecutionRef.current = { workflowId: '', executionId: null }
   }, [])
 
   return {

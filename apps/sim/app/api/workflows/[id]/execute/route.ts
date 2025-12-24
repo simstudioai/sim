@@ -7,6 +7,7 @@ import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { clearCancellation } from '@/lib/execution/active-executors'
 import { processInputFileFields } from '@/lib/execution/files'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -496,7 +497,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const encoder = new TextEncoder()
-    let executorInstance: any = null
     let isStreamClosed = false
 
     const stream = new ReadableStream<Uint8Array>({
@@ -688,9 +688,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               onBlockStart,
               onBlockComplete,
               onStream,
-              onExecutorCreated: (executor) => {
-                executorInstance = executor
-              },
             },
             loggingSession,
           })
@@ -757,22 +754,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             },
           })
         } finally {
+          await clearCancellation(executionId)
+
           if (!isStreamClosed) {
             try {
               controller.enqueue(encoder.encode('data: [DONE]\n\n'))
               controller.close()
             } catch {
-              // Stream already closed - nothing to do
+              // Stream already closed
             }
           }
-        }
-      },
-      cancel() {
-        isStreamClosed = true
-        logger.info(`[${requestId}] Client aborted SSE stream, cancelling executor`)
-
-        if (executorInstance && typeof executorInstance.cancel === 'function') {
-          executorInstance.cancel()
         }
       },
     })

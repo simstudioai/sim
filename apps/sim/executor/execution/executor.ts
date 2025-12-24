@@ -54,9 +54,11 @@ export class DAGExecutor {
     const dag = this.dagBuilder.build(this.workflow, triggerBlockId, savedIncomingEdges)
     const { context, state } = this.createExecutionContext(workflowId, triggerBlockId)
 
-    // Link cancellation flag to context
     Object.defineProperty(context, 'isCancelled', {
       get: () => this.isCancelled,
+      set: (value: boolean) => {
+        this.isCancelled = value
+      },
       enumerable: true,
       configurable: true,
     })

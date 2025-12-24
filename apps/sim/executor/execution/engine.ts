@@ -1,3 +1,4 @@
+import { isCancellationRequested } from '@/lib/execution/active-executors'
 import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
@@ -33,13 +34,24 @@ export class ExecutionEngine {
     this.allowResumeTriggers = this.context.metadata.resumeFromSnapshot === true
   }
 
+  private async checkCancellation(): Promise<boolean> {
+    if (this.context.isCancelled) return true
+    const executionId = this.context.executionId
+    if (!executionId) return false
+    const cancelled = await isCancellationRequested(executionId)
+    if (cancelled) {
+      this.context.isCancelled = true
+    }
+    return cancelled
+  }
+
   async run(triggerBlockId?: string): Promise<ExecutionResult> {
     const startTime = Date.now()
     try {
       this.initializeQueue(triggerBlockId)
 
       while (this.hasWork()) {
-        if (this.context.isCancelled && this.executing.size === 0) {
+        if ((await this.checkCancellation()) && this.executing.size === 0) {
           break
         }
         await this.processQueue()
@@ -234,7 +246,7 @@ export class ExecutionEngine {
 
   private async processQueue(): Promise<void> {
     while (this.readyQueue.length > 0) {
-      if (this.context.isCancelled) {
+      if (await this.checkCancellation()) {
         break
       }
       const nodeId = this.dequeue()

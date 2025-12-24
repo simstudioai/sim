@@ -102,7 +102,7 @@ export async function executeWorkflowCore(
   const { metadata, workflow, input, workflowVariables, selectedOutputs } = snapshot
   const { requestId, workflowId, userId, triggerType, executionId, triggerBlockId, useDraftState } =
     metadata
-  const { onBlockStart, onBlockComplete, onStream, onExecutorCreated } = callbacks
+  const { onBlockStart, onBlockComplete, onStream } = callbacks
 
   const providedWorkspaceId = metadata.workspaceId
   if (!providedWorkspaceId) {
@@ -347,10 +347,6 @@ export async function executeWorkflowCore(
           v.value = parseVariableValueByType(v.value, v.type)
         }
       }
-    }
-
-    if (onExecutorCreated) {
-      onExecutorCreated(executorInstance)
     }
 
     const result = (await executorInstance.execute(

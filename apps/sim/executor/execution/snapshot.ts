@@ -34,7 +34,6 @@ export interface ExecutionCallbacks {
     blockType: string,
     output: any
   ) => Promise<void>
-  onExecutorCreated?: (executor: any) => void
 }
 
 export interface SerializableExecutionState {
