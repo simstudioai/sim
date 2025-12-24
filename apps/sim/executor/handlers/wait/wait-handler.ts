@@ -1,32 +1,61 @@
+import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { BlockType } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
-/**
- * Helper function to sleep for a specified number of milliseconds with AbortSignal support.
- * The sleep will be cancelled immediately when the AbortSignal is aborted.
- */
-const sleep = async (ms: number, signal?: AbortSignal): Promise<boolean> => {
-  if (signal?.aborted) {
+const CANCELLATION_CHECK_INTERVAL_MS = 500
+
+interface SleepOptions {
+  signal?: AbortSignal
+  executionId?: string
+}
+
+const sleep = async (ms: number, options: SleepOptions = {}): Promise<boolean> => {
+  const { signal, executionId } = options
+  const useRedis = isRedisCancellationEnabled() && !!executionId
+
+  if (!useRedis && signal?.aborted) {
     return false
   }
 
   return new Promise((resolve) => {
-    let timeoutId: NodeJS.Timeout | undefined
+    let mainTimeoutId: NodeJS.Timeout | undefined
+    let checkIntervalId: NodeJS.Timeout | undefined
+    let resolved = false
+
+    const cleanup = () => {
+      if (mainTimeoutId) clearTimeout(mainTimeoutId)
+      if (checkIntervalId) clearInterval(checkIntervalId)
+      if (!useRedis && signal) signal.removeEventListener('abort', onAbort)
+    }
 
     const onAbort = () => {
-      if (timeoutId) clearTimeout(timeoutId)
+      if (resolved) return
+      resolved = true
+      cleanup()
       resolve(false)
     }
 
-    if (signal) {
+    if (useRedis) {
+      checkIntervalId = setInterval(async () => {
+        if (resolved) return
+        try {
+          const cancelled = await isExecutionCancelled(executionId!)
+          if (cancelled) {
+            resolved = true
+            cleanup()
+            resolve(false)
+          }
+        } catch {}
+      }, CANCELLATION_CHECK_INTERVAL_MS)
+    } else if (signal) {
       signal.addEventListener('abort', onAbort, { once: true })
     }
 
-    timeoutId = setTimeout(() => {
-      if (signal) {
-        signal.removeEventListener('abort', onAbort)
-      }
+    mainTimeoutId = setTimeout(() => {
+      if (resolved) return
+      resolved = true
+      cleanup()
       resolve(true)
     }, ms)
   })
@@ -63,7 +92,10 @@ export class WaitBlockHandler implements BlockHandler {
       throw new Error(`Wait time exceeds maximum of ${maxDisplay}`)
     }
 
-    const completed = await sleep(waitMs, ctx.abortSignal)
+    const completed = await sleep(waitMs, {
+      signal: ctx.abortSignal,
+      executionId: ctx.executionId,
+    })
 
     if (!completed) {
       return {

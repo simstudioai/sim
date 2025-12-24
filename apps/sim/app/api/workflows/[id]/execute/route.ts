@@ -7,6 +7,7 @@ import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { processInputFileFields } from '@/lib/execution/files'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -767,10 +768,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       },
       cancel() {
         isStreamClosed = true
-        logger.info(
-          `[${requestId}] Client aborted SSE stream, signalling cancellation via AbortController`
-        )
+        logger.info(`[${requestId}] Client aborted SSE stream, signalling cancellation`)
         abortController.abort()
+        markExecutionCancelled(executionId).catch(() => {})
       },
     })
 
