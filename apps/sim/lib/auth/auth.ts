@@ -1437,6 +1437,9 @@ export const auth = betterAuth({
           pkce: true,
           accessType: 'offline',
           prompt: 'consent',
+          authorizationUrlParams: {
+            token_access_type: 'offline',
+          },
           getUserInfo: async (tokens) => {
             try {
               const response = await fetch(
