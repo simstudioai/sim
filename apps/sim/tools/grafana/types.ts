@@ -279,13 +279,6 @@ export interface GrafanaAnnotation {
   email: string
   avatarUrl: string
   data: any
-  // Optional fields - only present for alert annotations or specific cases
-  alertId?: number
-  alertName?: string
-  panelId?: number
-  userId?: number
-  newState?: string
-  prevState?: string
 }
 
 export interface GrafanaCreateAnnotationResponse extends ToolResponse {
@@ -381,7 +374,6 @@ export interface GrafanaFolder {
   id: number
   uid: string
   title: string
-  url: string
   hasAcl: boolean
   canSave: boolean
   canEdit: boolean

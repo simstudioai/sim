@@ -130,13 +130,6 @@ export const listAnnotationsTool: ToolConfig<
           email: a.email,
           avatarUrl: a.avatarUrl,
           data: a.data || {},
-          // Optional fields - only included if they exist in the response
-          ...(a.alertId !== undefined && { alertId: a.alertId }),
-          ...(a.alertName !== undefined && { alertName: a.alertName }),
-          ...(a.panelId !== undefined && { panelId: a.panelId }),
-          ...(a.userId !== undefined && { userId: a.userId }),
-          ...(a.newState !== undefined && { newState: a.newState }),
-          ...(a.prevState !== undefined && { prevState: a.prevState }),
         })),
       },
     }
