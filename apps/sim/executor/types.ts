@@ -235,7 +235,7 @@ export interface ExecutionResult {
   error?: string
   logs?: BlockLog[]
   metadata?: ExecutionMetadata
-  status?: 'completed' | 'paused'
+  status?: 'completed' | 'paused' | 'cancelled'
   pausePoints?: PausePoint[]
   snapshotSeed?: SerializedSnapshot
   _streamingMetadata?: {

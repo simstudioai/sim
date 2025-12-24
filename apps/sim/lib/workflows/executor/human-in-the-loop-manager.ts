@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
-import { pausedExecutions, resumeQueue } from '@sim/db/schema'
+import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/schema'
 import { and, asc, desc, eq, inArray, lt, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
@@ -154,6 +154,11 @@ export class PauseResumeManager {
           updatedAt: now,
         },
       })
+
+    await db
+      .update(workflowExecutionLogs)
+      .set({ status: 'pending' })
+      .where(eq(workflowExecutionLogs.executionId, executionId))
 
     await PauseResumeManager.processQueuedResumes(executionId)
   }
@@ -330,6 +335,7 @@ export class PauseResumeManager {
       await PauseResumeManager.markResumeFailed({
         resumeEntryId,
         pausedExecutionId: pausedExecution.id,
+        parentExecutionId: pausedExecution.executionId,
         contextId,
         failureReason: (error as Error).message,
       })
@@ -352,6 +358,12 @@ export class PauseResumeManager {
     userId: string
   }): Promise<ExecutionResult> {
     const { resumeExecutionId, pausedExecution, contextId, resumeInput, userId } = args
+    const parentExecutionId = pausedExecution.executionId
+
+    await db
+      .update(workflowExecutionLogs)
+      .set({ status: 'running' })
+      .where(eq(workflowExecutionLogs.executionId, parentExecutionId))
 
     logger.info('Starting resume execution', {
       resumeExecutionId,
@@ -667,7 +679,7 @@ export class PauseResumeManager {
       'manual'
     const loggingSession = new LoggingSession(
       metadata.workflowId,
-      resumeExecutionId,
+      parentExecutionId,
       triggerType,
       metadata.requestId
     )
@@ -765,6 +777,11 @@ export class PauseResumeManager {
           .update(pausedExecutions)
           .set({ status: 'fully_resumed', updatedAt: now })
           .where(eq(pausedExecutions.executionId, parentExecutionId))
+      } else {
+        await tx
+          .update(workflowExecutionLogs)
+          .set({ status: 'pending' })
+          .where(eq(workflowExecutionLogs.executionId, parentExecutionId))
       }
     })
   }
@@ -772,6 +789,7 @@ export class PauseResumeManager {
   private static async markResumeFailed(args: {
     resumeEntryId: string
     pausedExecutionId: string
+    parentExecutionId: string
     contextId: string
     failureReason: string
   }): Promise<void> {
@@ -789,6 +807,11 @@ export class PauseResumeManager {
           pausePoints: sql`jsonb_set(pause_points, ARRAY[${args.contextId}, 'resumeStatus'], '"failed"'::jsonb)`,
         })
         .where(eq(pausedExecutions.id, args.pausedExecutionId))
+
+      await tx
+        .update(workflowExecutionLogs)
+        .set({ status: 'failed' })
+        .where(eq(workflowExecutionLogs.executionId, args.parentExecutionId))
     })
   }
 

@@ -713,7 +713,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             await PauseResumeManager.processQueuedResumes(executionId)
           }
 
-          if (result.error === 'Workflow execution was cancelled') {
+          if (result.status === 'cancelled') {
             logger.info(`[${requestId}] Workflow execution was cancelled`)
             sendEvent({
               type: 'execution:cancelled',
