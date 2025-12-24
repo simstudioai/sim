@@ -593,7 +593,7 @@ function SubBlockComponent({
         )
 
       case 'schedule-info':
-        return <ScheduleInfo blockId={blockId} isPreview={isPreview} disabled={disabled} />
+        return <ScheduleInfo blockId={blockId} isPreview={isPreview} />
 
       case 'oauth-input':
         return (

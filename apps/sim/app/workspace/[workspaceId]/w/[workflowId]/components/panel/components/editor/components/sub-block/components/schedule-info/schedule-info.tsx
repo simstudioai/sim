@@ -10,7 +10,6 @@ const logger = createLogger('ScheduleStatus')
 interface ScheduleInfoProps {
   blockId: string
   isPreview?: boolean
-  disabled?: boolean
 }
 
 /**
