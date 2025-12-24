@@ -9,7 +9,7 @@ import {
   getScheduleTimeValues,
   getSubBlockValue,
   validateCronExpression,
-} from './utils'
+} from '@/lib/workflows/schedules/utils'
 
 /**
  * Result of schedule validation

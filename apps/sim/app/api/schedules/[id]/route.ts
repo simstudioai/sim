@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateCronExpression } from '@/lib/workflows/schedules/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('ScheduleAPI')
@@ -44,6 +45,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         id: workflowSchedule.id,
         workflowId: workflowSchedule.workflowId,
         status: workflowSchedule.status,
+        cronExpression: workflowSchedule.cronExpression,
+        timezone: workflowSchedule.timezone,
       })
       .from(workflowSchedule)
       .where(eq(workflowSchedule.id, scheduleId))
@@ -85,8 +88,19 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ message: 'Schedule is already active' }, { status: 200 })
     }
 
+    if (!schedule.cronExpression) {
+      logger.error(`[${requestId}] Schedule has no cron expression: ${scheduleId}`)
+      return NextResponse.json({ error: 'Schedule has no cron expression' }, { status: 400 })
+    }
+
+    const cronResult = validateCronExpression(schedule.cronExpression, schedule.timezone || 'UTC')
+    if (!cronResult.isValid || !cronResult.nextRun) {
+      logger.error(`[${requestId}] Invalid cron expression for schedule: ${scheduleId}`)
+      return NextResponse.json({ error: 'Schedule has invalid cron expression' }, { status: 400 })
+    }
+
     const now = new Date()
-    const nextRunAt = new Date(now.getTime() + 60 * 1000) // Schedule to run in 1 minute
+    const nextRunAt = cronResult.nextRun
 
     await db
       .update(workflowSchedule)

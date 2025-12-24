@@ -8,7 +8,7 @@ import {
   createSchedulesForDeploy,
   deleteSchedulesForWorkflow,
   validateWorkflowSchedules,
-} from '@/lib/workflows/schedules/deploy'
+} from '@/lib/workflows/schedules'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -103,20 +103,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse(error.message, error.status)
     }
 
-    // Attribution: this route is UI-only; require session user as actor
     const actorUserId: string | null = session?.user?.id ?? null
     if (!actorUserId) {
       logger.warn(`[${requestId}] Unable to resolve actor user for workflow deployment: ${id}`)
       return createErrorResponse('Unable to determine deploying user', 400)
     }
 
-    // Load current workflow state to validate schedule blocks before deployment
     const normalizedData = await loadWorkflowFromNormalizedTables(id)
     if (!normalizedData) {
       return createErrorResponse('Failed to load workflow state', 500)
     }
 
-    // Validate schedule blocks before deploying
     const scheduleValidation = validateWorkflowSchedules(normalizedData.blocks)
     if (!scheduleValidation.isValid) {
       logger.warn(
@@ -137,11 +134,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const deployedAt = deployResult.deployedAt!
 
-    // Create or update schedules for the deployed workflow
     let scheduleInfo: { scheduleId?: string; cronExpression?: string; nextRunAt?: Date } = {}
     const scheduleResult = await createSchedulesForDeploy(id, normalizedData.blocks, db)
     if (!scheduleResult.success) {
-      // Log but don't fail deployment - schedule creation is secondary
       logger.error(
         `[${requestId}] Failed to create schedule for workflow ${id}: ${scheduleResult.error}`
       )
@@ -202,7 +197,6 @@ export async function DELETE(
     }
 
     await db.transaction(async (tx) => {
-      // Delete all schedules for this workflow
       await deleteSchedulesForWorkflow(id, tx)
 
       await tx
@@ -218,7 +212,6 @@ export async function DELETE(
 
     logger.info(`[${requestId}] Workflow undeployed successfully: ${id}`)
 
-    // Track workflow undeployment
     try {
       const { trackPlatformEvent } = await import('@/lib/core/telemetry')
       trackPlatformEvent('platform.workflow.undeployed', {

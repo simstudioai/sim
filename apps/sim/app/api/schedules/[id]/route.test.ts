@@ -52,7 +52,7 @@ vi.mock('@/lib/logs/console/logger', () => ({
   }),
 }))
 
-import { PUT } from '@/app/api/schedules/[id]/route'
+import { PUT } from './route'
 
 function createRequest(body: Record<string, unknown>): NextRequest {
   return new NextRequest(new URL('http://test/api/schedules/sched-1'), {
@@ -184,7 +184,15 @@ describe('Schedule PUT API (Reactivate)', () => {
 
     it('allows workflow owner to reactivate', async () => {
       mockDbChain([
-        [{ id: 'sched-1', workflowId: 'wf-1', status: 'disabled' }],
+        [
+          {
+            id: 'sched-1',
+            workflowId: 'wf-1',
+            status: 'disabled',
+            cronExpression: '*/5 * * * *',
+            timezone: 'UTC',
+          },
+        ],
         [{ userId: 'user-1', workspaceId: null }],
       ])
 
@@ -198,7 +206,15 @@ describe('Schedule PUT API (Reactivate)', () => {
     it('allows workspace member with write permission to reactivate', async () => {
       mockGetUserEntityPermissions.mockResolvedValue('write')
       mockDbChain([
-        [{ id: 'sched-1', workflowId: 'wf-1', status: 'disabled' }],
+        [
+          {
+            id: 'sched-1',
+            workflowId: 'wf-1',
+            status: 'disabled',
+            cronExpression: '*/5 * * * *',
+            timezone: 'UTC',
+          },
+        ],
         [{ userId: 'other-user', workspaceId: 'ws-1' }],
       ])
 
@@ -210,7 +226,15 @@ describe('Schedule PUT API (Reactivate)', () => {
     it('allows workspace admin to reactivate', async () => {
       mockGetUserEntityPermissions.mockResolvedValue('admin')
       mockDbChain([
-        [{ id: 'sched-1', workflowId: 'wf-1', status: 'disabled' }],
+        [
+          {
+            id: 'sched-1',
+            workflowId: 'wf-1',
+            status: 'disabled',
+            cronExpression: '*/5 * * * *',
+            timezone: 'UTC',
+          },
+        ],
         [{ userId: 'other-user', workspaceId: 'ws-1' }],
       ])
 
@@ -237,7 +261,15 @@ describe('Schedule PUT API (Reactivate)', () => {
 
     it('successfully reactivates disabled schedule', async () => {
       mockDbChain([
-        [{ id: 'sched-1', workflowId: 'wf-1', status: 'disabled' }],
+        [
+          {
+            id: 'sched-1',
+            workflowId: 'wf-1',
+            status: 'disabled',
+            cronExpression: '*/5 * * * *',
+            timezone: 'UTC',
+          },
+        ],
         [{ userId: 'user-1', workspaceId: null }],
       ])
 
@@ -250,9 +282,59 @@ describe('Schedule PUT API (Reactivate)', () => {
       expect(mockDbUpdate).toHaveBeenCalled()
     })
 
-    it('sets nextRunAt to approximately 1 minute in future', async () => {
+    it('returns 400 when schedule has no cron expression', async () => {
       mockDbChain([
-        [{ id: 'sched-1', workflowId: 'wf-1', status: 'disabled' }],
+        [
+          {
+            id: 'sched-1',
+            workflowId: 'wf-1',
+            status: 'disabled',
+            cronExpression: null,
+            timezone: 'UTC',
+          },
+        ],
+        [{ userId: 'user-1', workspaceId: null }],
+      ])
+
+      const res = await PUT(createRequest({ action: 'reactivate' }), createParams('sched-1'))
+
+      expect(res.status).toBe(400)
+      const data = await res.json()
+      expect(data.error).toBe('Schedule has no cron expression')
+    })
+
+    it('returns 400 when schedule has invalid cron expression', async () => {
+      mockDbChain([
+        [
+          {
+            id: 'sched-1',
+            workflowId: 'wf-1',
+            status: 'disabled',
+            cronExpression: 'invalid-cron',
+            timezone: 'UTC',
+          },
+        ],
+        [{ userId: 'user-1', workspaceId: null }],
+      ])
+
+      const res = await PUT(createRequest({ action: 'reactivate' }), createParams('sched-1'))
+
+      expect(res.status).toBe(400)
+      const data = await res.json()
+      expect(data.error).toBe('Schedule has invalid cron expression')
+    })
+
+    it('calculates nextRunAt from stored cron expression (every 5 minutes)', async () => {
+      mockDbChain([
+        [
+          {
+            id: 'sched-1',
+            workflowId: 'wf-1',
+            status: 'disabled',
+            cronExpression: '*/5 * * * *',
+            timezone: 'UTC',
+          },
+        ],
         [{ userId: 'user-1', workspaceId: null }],
       ])
 
@@ -264,9 +346,293 @@ describe('Schedule PUT API (Reactivate)', () => {
       const data = await res.json()
       const nextRunAt = new Date(data.nextRunAt).getTime()
 
-      // nextRunAt should be ~60 seconds from now
-      expect(nextRunAt).toBeGreaterThanOrEqual(beforeCall + 60000 - 1000)
-      expect(nextRunAt).toBeLessThanOrEqual(afterCall + 60000 + 1000)
+      // nextRunAt should be within 0-5 minutes in the future
+      expect(nextRunAt).toBeGreaterThan(beforeCall)
+      expect(nextRunAt).toBeLessThanOrEqual(afterCall + 5 * 60 * 1000 + 1000)
+      // Should align with 5-minute intervals (minute divisible by 5)
+      expect(new Date(nextRunAt).getMinutes() % 5).toBe(0)
+    })
+
+    it('calculates nextRunAt from daily cron expression', async () => {
+      mockDbChain([
+        [
+          {
+            id: 'sched-1',
+            workflowId: 'wf-1',
+            status: 'disabled',
+            cronExpression: '30 14 * * *', // 2:30 PM daily
+            timezone: 'UTC',
+          },
+        ],
+        [{ userId: 'user-1', workspaceId: null }],
+      ])
+
+      const beforeCall = Date.now()
+      const res = await PUT(createRequest({ action: 'reactivate' }), createParams('sched-1'))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      const nextRunAt = new Date(data.nextRunAt)
+
+      // Should be a future date at 14:30 UTC
+      expect(nextRunAt.getTime()).toBeGreaterThan(beforeCall)
+      expect(nextRunAt.getUTCHours()).toBe(14)
+      expect(nextRunAt.getUTCMinutes()).toBe(30)
+      expect(nextRunAt.getUTCSeconds()).toBe(0)
+    })
+
+    it('calculates nextRunAt from weekly cron expression', async () => {
+      mockDbChain([
+        [
+          {
+            id: 'sched-1',
+            workflowId: 'wf-1',
+            status: 'disabled',
+            cronExpression: '0 9 * * 1', // Monday at 9:00 AM
+            timezone: 'UTC',
+          },
+        ],
+        [{ userId: 'user-1', workspaceId: null }],
+      ])
+
+      const beforeCall = Date.now()
+      const res = await PUT(createRequest({ action: 'reactivate' }), createParams('sched-1'))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      const nextRunAt = new Date(data.nextRunAt)
+
+      // Should be a future date on Monday at 09:00 UTC
+      expect(nextRunAt.getTime()).toBeGreaterThan(beforeCall)
+      expect(nextRunAt.getUTCDay()).toBe(1) // Monday
+      expect(nextRunAt.getUTCHours()).toBe(9)
+      expect(nextRunAt.getUTCMinutes()).toBe(0)
+    })
+
+    it('calculates nextRunAt from monthly cron expression', async () => {
+      mockDbChain([
+        [
+          {
+            id: 'sched-1',
+            workflowId: 'wf-1',
+            status: 'disabled',
+            cronExpression: '0 10 15 * *', // 15th of month at 10:00 AM
+            timezone: 'UTC',
+          },
+        ],
+        [{ userId: 'user-1', workspaceId: null }],
+      ])
+
+      const beforeCall = Date.now()
+      const res = await PUT(createRequest({ action: 'reactivate' }), createParams('sched-1'))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      const nextRunAt = new Date(data.nextRunAt)
+
+      // Should be a future date on the 15th at 10:00 UTC
+      expect(nextRunAt.getTime()).toBeGreaterThan(beforeCall)
+      expect(nextRunAt.getUTCDate()).toBe(15)
+      expect(nextRunAt.getUTCHours()).toBe(10)
+      expect(nextRunAt.getUTCMinutes()).toBe(0)
+    })
+  })
+
+  describe('Timezone Handling in Reactivation', () => {
+    it('calculates nextRunAt with America/New_York timezone', async () => {
+      mockDbChain([
+        [
+          {
+            id: 'sched-1',
+            workflowId: 'wf-1',
+            status: 'disabled',
+            cronExpression: '0 9 * * *', // 9:00 AM Eastern
+            timezone: 'America/New_York',
+          },
+        ],
+        [{ userId: 'user-1', workspaceId: null }],
+      ])
+
+      const beforeCall = Date.now()
+      const res = await PUT(createRequest({ action: 'reactivate' }), createParams('sched-1'))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      const nextRunAt = new Date(data.nextRunAt)
+
+      // Should be a future date
+      expect(nextRunAt.getTime()).toBeGreaterThan(beforeCall)
+      // The exact UTC hour will depend on DST, but it should be 13:00 or 14:00 UTC
+      const utcHour = nextRunAt.getUTCHours()
+      expect([13, 14]).toContain(utcHour) // 9 AM ET = 1-2 PM UTC depending on DST
+      expect(nextRunAt.getUTCMinutes()).toBe(0)
+    })
+
+    it('calculates nextRunAt with Asia/Tokyo timezone', async () => {
+      mockDbChain([
+        [
+          {
+            id: 'sched-1',
+            workflowId: 'wf-1',
+            status: 'disabled',
+            cronExpression: '30 15 * * *', // 3:30 PM Japan Time
+            timezone: 'Asia/Tokyo',
+          },
+        ],
+        [{ userId: 'user-1', workspaceId: null }],
+      ])
+
+      const beforeCall = Date.now()
+      const res = await PUT(createRequest({ action: 'reactivate' }), createParams('sched-1'))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      const nextRunAt = new Date(data.nextRunAt)
+
+      // Should be a future date
+      expect(nextRunAt.getTime()).toBeGreaterThan(beforeCall)
+      // 3:30 PM JST (UTC+9) = 6:30 AM UTC
+      expect(nextRunAt.getUTCHours()).toBe(6)
+      expect(nextRunAt.getUTCMinutes()).toBe(30)
+    })
+
+    it('calculates nextRunAt with Europe/London timezone', async () => {
+      mockDbChain([
+        [
+          {
+            id: 'sched-1',
+            workflowId: 'wf-1',
+            status: 'disabled',
+            cronExpression: '0 12 * * 5', // Friday at noon London time
+            timezone: 'Europe/London',
+          },
+        ],
+        [{ userId: 'user-1', workspaceId: null }],
+      ])
+
+      const beforeCall = Date.now()
+      const res = await PUT(createRequest({ action: 'reactivate' }), createParams('sched-1'))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      const nextRunAt = new Date(data.nextRunAt)
+
+      // Should be a future date on Friday
+      expect(nextRunAt.getTime()).toBeGreaterThan(beforeCall)
+      expect(nextRunAt.getUTCDay()).toBe(5) // Friday
+      // UTC hour depends on BST/GMT (11:00 or 12:00 UTC)
+      const utcHour = nextRunAt.getUTCHours()
+      expect([11, 12]).toContain(utcHour)
+      expect(nextRunAt.getUTCMinutes()).toBe(0)
+    })
+
+    it('uses UTC as default timezone when timezone is not set', async () => {
+      mockDbChain([
+        [
+          {
+            id: 'sched-1',
+            workflowId: 'wf-1',
+            status: 'disabled',
+            cronExpression: '0 10 * * *', // 10:00 AM
+            timezone: null,
+          },
+        ],
+        [{ userId: 'user-1', workspaceId: null }],
+      ])
+
+      const beforeCall = Date.now()
+      const res = await PUT(createRequest({ action: 'reactivate' }), createParams('sched-1'))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      const nextRunAt = new Date(data.nextRunAt)
+
+      // Should be a future date at 10:00 UTC
+      expect(nextRunAt.getTime()).toBeGreaterThan(beforeCall)
+      expect(nextRunAt.getUTCHours()).toBe(10)
+      expect(nextRunAt.getUTCMinutes()).toBe(0)
+    })
+
+    it('handles minutely schedules with timezone correctly', async () => {
+      mockDbChain([
+        [
+          {
+            id: 'sched-1',
+            workflowId: 'wf-1',
+            status: 'disabled',
+            cronExpression: '*/10 * * * *', // Every 10 minutes
+            timezone: 'America/Los_Angeles',
+          },
+        ],
+        [{ userId: 'user-1', workspaceId: null }],
+      ])
+
+      const beforeCall = Date.now()
+      const res = await PUT(createRequest({ action: 'reactivate' }), createParams('sched-1'))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      const nextRunAt = new Date(data.nextRunAt)
+
+      // Should be a future date within the next 10 minutes
+      expect(nextRunAt.getTime()).toBeGreaterThan(beforeCall)
+      expect(nextRunAt.getTime()).toBeLessThanOrEqual(beforeCall + 10 * 60 * 1000 + 1000)
+      // Should align with 10-minute intervals
+      expect(nextRunAt.getMinutes() % 10).toBe(0)
+    })
+
+    it('handles hourly schedules with timezone correctly', async () => {
+      mockDbChain([
+        [
+          {
+            id: 'sched-1',
+            workflowId: 'wf-1',
+            status: 'disabled',
+            cronExpression: '15 * * * *', // At minute 15 of every hour
+            timezone: 'America/Chicago',
+          },
+        ],
+        [{ userId: 'user-1', workspaceId: null }],
+      ])
+
+      const beforeCall = Date.now()
+      const res = await PUT(createRequest({ action: 'reactivate' }), createParams('sched-1'))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      const nextRunAt = new Date(data.nextRunAt)
+
+      // Should be a future date at minute 15
+      expect(nextRunAt.getTime()).toBeGreaterThan(beforeCall)
+      expect(nextRunAt.getMinutes()).toBe(15)
+      expect(nextRunAt.getSeconds()).toBe(0)
+    })
+
+    it('handles custom cron expressions with complex patterns and timezone', async () => {
+      mockDbChain([
+        [
+          {
+            id: 'sched-1',
+            workflowId: 'wf-1',
+            status: 'disabled',
+            cronExpression: '0 9 * * 1-5', // Weekdays at 9 AM
+            timezone: 'America/New_York',
+          },
+        ],
+        [{ userId: 'user-1', workspaceId: null }],
+      ])
+
+      const beforeCall = Date.now()
+      const res = await PUT(createRequest({ action: 'reactivate' }), createParams('sched-1'))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      const nextRunAt = new Date(data.nextRunAt)
+
+      // Should be a future date on a weekday (1-5)
+      expect(nextRunAt.getTime()).toBeGreaterThan(beforeCall)
+      const dayOfWeek = nextRunAt.getUTCDay()
+      expect([1, 2, 3, 4, 5]).toContain(dayOfWeek)
     })
   })
 

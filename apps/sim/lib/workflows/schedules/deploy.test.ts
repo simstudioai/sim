@@ -61,19 +61,13 @@ vi.mock('./utils', async (importOriginal) => {
   }
 })
 
-// Mock crypto.randomUUID
 vi.stubGlobal('crypto', {
   randomUUID: mockRandomUUID,
 })
 
-import {
-  createSchedulesForDeploy,
-  deleteSchedulesForWorkflow,
-  findScheduleBlocks,
-  validateScheduleBlock,
-  validateWorkflowSchedules,
-} from './deploy'
+import { createSchedulesForDeploy, deleteSchedulesForWorkflow } from './deploy'
 import type { BlockState } from './utils'
+import { findScheduleBlocks, validateScheduleBlock, validateWorkflowSchedules } from './validation'
 
 describe('Schedule Deploy Utilities', () => {
   beforeEach(() => {
