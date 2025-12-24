@@ -15,9 +15,7 @@ const sleep = async (ms: number, signal?: AbortSignal): Promise<boolean> => {
     let timeoutId: NodeJS.Timeout | undefined
 
     const onAbort = () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId)
-      }
+      if (timeoutId) clearTimeout(timeoutId)
       resolve(false)
     }
 
