@@ -37,6 +37,7 @@ import {
   useUsageLimits,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { Variables } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/variables/variables'
+import { useAutoLayout } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-auto-layout'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useChatStore } from '@/stores/chat/store'
@@ -99,6 +100,7 @@ export function Panel() {
     hydration.phase === 'state-loading'
   const { getJson } = useWorkflowJsonStore()
   const { blocks } = useWorkflowStore()
+  const { handleAutoLayout: autoLayoutWithFitView } = useAutoLayout(activeWorkflowId || null)
 
   // Delete workflow hook
   const { isDeleting, handleDeleteWorkflow } = useDeleteWorkflow({
@@ -201,22 +203,11 @@ export function Panel() {
 
     setIsAutoLayouting(true)
     try {
-      // Use the standalone auto layout utility for immediate frontend updates
-      const { applyAutoLayoutAndUpdateStore } = await import('../../utils')
-
-      const result = await applyAutoLayoutAndUpdateStore(activeWorkflowId!)
-
-      if (result.success) {
-        logger.info('Auto layout completed successfully')
-      } else {
-        logger.error('Auto layout failed:', result.error)
-      }
-    } catch (error) {
-      logger.error('Auto layout error:', error)
+      await autoLayoutWithFitView()
     } finally {
       setIsAutoLayouting(false)
     }
-  }, [isExecuting, userPermissions.canEdit, isAutoLayouting, activeWorkflowId])
+  }, [isExecuting, userPermissions.canEdit, isAutoLayouting, autoLayoutWithFitView])
 
   /**
    * Handles exporting workflow as JSON

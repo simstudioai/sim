@@ -1066,7 +1066,6 @@ export async function GET(req: NextRequest) {
       model: chat.model,
       messages: Array.isArray(chat.messages) ? chat.messages : [],
       messageCount: Array.isArray(chat.messages) ? chat.messages.length : 0,
-      previewYaml: null, // Not needed for chat list
       planArtifact: chat.planArtifact || null,
       config: chat.config || null,
       createdAt: chat.createdAt,

@@ -198,7 +198,7 @@ const WorkflowContent = React.memo(() => {
     return resizeLoopNodes(updateNodeDimensions)
   }, [resizeLoopNodes, updateNodeDimensions])
 
-  const { applyAutoLayoutAndUpdateStore } = useAutoLayout(activeWorkflowId || null)
+  const { handleAutoLayout: autoLayoutWithFitView } = useAutoLayout(activeWorkflowId || null)
 
   const isWorkflowEmpty = useMemo(() => Object.keys(blocks).length === 0, [blocks])
 
@@ -441,19 +441,8 @@ const WorkflowContent = React.memo(() => {
   /** Applies auto-layout to the workflow canvas. */
   const handleAutoLayout = useCallback(async () => {
     if (Object.keys(blocks).length === 0) return
-
-    try {
-      const result = await applyAutoLayoutAndUpdateStore()
-
-      if (result.success) {
-        logger.info('Auto layout completed successfully')
-      } else {
-        logger.error('Auto layout failed:', result.error)
-      }
-    } catch (error) {
-      logger.error('Auto layout error:', error)
-    }
-  }, [blocks, applyAutoLayoutAndUpdateStore])
+    await autoLayoutWithFitView()
+  }, [blocks, autoLayoutWithFitView])
 
   const debouncedAutoLayout = useCallback(() => {
     const debounceTimer = setTimeout(() => {
