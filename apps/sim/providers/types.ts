@@ -134,12 +134,12 @@ export interface Message {
 
 export interface ProviderRequest {
   model: string
-  systemPrompt: string
+  systemPrompt?: string
   context?: string
   tools?: ProviderToolConfig[]
   temperature?: number
   maxTokens?: number
-  apiKey: string
+  apiKey?: string
   messages?: Message[]
   responseFormat?: {
     name: string

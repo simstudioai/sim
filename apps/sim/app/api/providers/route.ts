@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -80,26 +79,20 @@ export async function POST(request: NextRequest) {
       verbosity,
     })
 
-    let finalApiKey: string
-    let isBYOK = body.isBYOK ?? false
+    let finalApiKey: string | undefined = apiKey
     try {
       if (provider === 'vertex' && vertexCredential) {
         finalApiKey = await resolveVertexCredential(requestId, vertexCredential)
-      } else {
-        const result = await getApiKeyWithBYOK(provider, model, workspaceId, apiKey)
-        finalApiKey = result.apiKey
-        isBYOK = result.isBYOK
       }
     } catch (error) {
-      logger.error(`[${requestId}] Failed to get API key:`, {
+      logger.error(`[${requestId}] Failed to resolve Vertex credential:`, {
         provider,
         model,
         error: error instanceof Error ? error.message : String(error),
-        hasProvidedApiKey: !!apiKey,
         hasVertexCredential: !!vertexCredential,
       })
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'API key error' },
+        { error: error instanceof Error ? error.message : 'Credential error' },
         { status: 400 }
       )
     }
@@ -109,7 +102,6 @@ export async function POST(request: NextRequest) {
       model,
       workflowId,
       hasApiKey: !!finalApiKey,
-      isBYOK,
     })
 
     const response = await executeProviderRequest(provider, {
@@ -120,7 +112,6 @@ export async function POST(request: NextRequest) {
       temperature,
       maxTokens,
       apiKey: finalApiKey,
-      isBYOK,
       azureEndpoint,
       azureApiVersion,
       vertexProject,

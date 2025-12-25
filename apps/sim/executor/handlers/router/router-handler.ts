@@ -1,7 +1,6 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
-import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -48,19 +47,9 @@ export class RouterBlockHandler implements BlockHandler {
       const messages = [{ role: 'user', content: routerConfig.prompt }]
       const systemPrompt = generateRouterPrompt(routerConfig.prompt, targetBlocks)
 
-      let finalApiKey: string
-      let isBYOK = false
+      let finalApiKey: string | undefined = routerConfig.apiKey
       if (providerId === 'vertex' && routerConfig.vertexCredential) {
         finalApiKey = await this.resolveVertexCredential(routerConfig.vertexCredential)
-      } else {
-        const result = await this.getApiKeyWithBYOK(
-          providerId,
-          routerConfig.model,
-          ctx.workspaceId,
-          routerConfig.apiKey
-        )
-        finalApiKey = result.apiKey
-        isBYOK = result.isBYOK
       }
 
       const providerRequest: Record<string, any> = {
@@ -70,8 +59,8 @@ export class RouterBlockHandler implements BlockHandler {
         context: JSON.stringify(messages),
         temperature: ROUTER.INFERENCE_TEMPERATURE,
         apiKey: finalApiKey,
-        isBYOK,
         workflowId: ctx.workflowId,
+        workspaceId: ctx.workspaceId,
       }
 
       if (providerId === 'vertex') {
@@ -186,25 +175,6 @@ export class RouterBlockHandler implements BlockHandler {
           currentState: ctx.blockStates.get(targetBlock.id)?.output,
         }
       })
-  }
-
-  private async getApiKeyWithBYOK(
-    providerId: string,
-    model: string,
-    workspaceId: string | undefined,
-    inputApiKey?: string
-  ): Promise<{ apiKey: string; isBYOK: boolean }> {
-    try {
-      return await getApiKeyWithBYOK(providerId, model, workspaceId, inputApiKey)
-    } catch (error) {
-      logger.error('Failed to get API key:', {
-        provider: providerId,
-        model,
-        error: error instanceof Error ? error.message : String(error),
-        hasProvidedApiKey: !!inputApiKey,
-      })
-      throw new Error(error instanceof Error ? error.message : 'API key error')
-    }
   }
 
   /**

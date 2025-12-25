@@ -1,7 +1,6 @@
 import { db } from '@sim/db'
 import { account, mcpServers } from '@sim/db/schema'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
 import { createLogger } from '@/lib/logs/console/logger'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -1007,23 +1006,13 @@ export class AgentBlockHandler implements BlockHandler {
     responseFormat: any,
     providerStartTime: number
   ) {
-    let finalApiKey: string
-    let isBYOK = false
+    let finalApiKey: string | undefined = providerRequest.apiKey
 
     if (providerId === 'vertex' && providerRequest.vertexCredential) {
       finalApiKey = await this.resolveVertexCredential(
         providerRequest.vertexCredential,
         ctx.workflowId
       )
-    } else {
-      const result = await this.getApiKeyWithBYOK(
-        providerId,
-        model,
-        ctx.workspaceId,
-        providerRequest.apiKey
-      )
-      finalApiKey = result.apiKey
-      isBYOK = result.isBYOK
     }
 
     const { blockData, blockNameMapping } = collectBlockData(ctx)
@@ -1036,14 +1025,13 @@ export class AgentBlockHandler implements BlockHandler {
       temperature: providerRequest.temperature,
       maxTokens: providerRequest.maxTokens,
       apiKey: finalApiKey,
-      isBYOK,
       azureEndpoint: providerRequest.azureEndpoint,
       azureApiVersion: providerRequest.azureApiVersion,
       vertexProject: providerRequest.vertexProject,
       vertexLocation: providerRequest.vertexLocation,
       responseFormat: providerRequest.responseFormat,
       workflowId: providerRequest.workflowId,
-      workspaceId: providerRequest.workspaceId,
+      workspaceId: ctx.workspaceId,
       stream: providerRequest.stream,
       messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
       environmentVariables: ctx.environmentVariables || {},
@@ -1119,25 +1107,6 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     return this.createMinimalStreamingExecution(response.body!)
-  }
-
-  private async getApiKeyWithBYOK(
-    providerId: string,
-    model: string,
-    workspaceId: string | undefined,
-    inputApiKey?: string
-  ): Promise<{ apiKey: string; isBYOK: boolean }> {
-    try {
-      return await getApiKeyWithBYOK(providerId, model, workspaceId, inputApiKey)
-    } catch (error) {
-      logger.error('Failed to get API key:', {
-        provider: providerId,
-        model,
-        error: error instanceof Error ? error.message : String(error),
-        hasProvidedApiKey: !!inputApiKey,
-      })
-      throw new Error(error instanceof Error ? error.message : 'API key error')
-    }
   }
 
   /**

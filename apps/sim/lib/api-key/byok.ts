@@ -82,11 +82,15 @@ export async function getApiKeyWithBYOK(
     const hostedModels = getHostedModels()
     const isModelHosted = hostedModels.some((m) => m.toLowerCase() === model.toLowerCase())
 
+    logger.debug('BYOK check', { provider, model, workspaceId, isHosted, isModelHosted })
+
     if (isModelHosted || isMistralModel) {
       const byokResult = await getBYOKKey(workspaceId, byokProviderId)
       if (byokResult) {
+        logger.info('Using BYOK key', { provider, model, workspaceId })
         return byokResult
       }
+      logger.debug('No BYOK key found, falling back', { provider, model, workspaceId })
 
       if (isModelHosted) {
         try {
@@ -104,6 +108,12 @@ export async function getApiKeyWithBYOK(
   }
 
   if (!userProvidedKey) {
+    logger.debug('BYOK not applicable, no user key provided', {
+      provider,
+      model,
+      workspaceId,
+      isHosted,
+    })
     throw new Error(`API key is required for ${provider} ${model}`)
   }
 

@@ -1,7 +1,6 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
-import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { BlockOutput } from '@/blocks/types'
@@ -36,19 +35,9 @@ export class EvaluatorBlockHandler implements BlockHandler {
     }
     const providerId = getProviderFromModel(evaluatorConfig.model)
 
-    let finalApiKey: string
-    let isBYOK = false
+    let finalApiKey: string | undefined = evaluatorConfig.apiKey
     if (providerId === 'vertex' && evaluatorConfig.vertexCredential) {
       finalApiKey = await this.resolveVertexCredential(evaluatorConfig.vertexCredential)
-    } else {
-      const result = await this.getApiKeyWithBYOK(
-        providerId,
-        evaluatorConfig.model,
-        ctx.workspaceId,
-        evaluatorConfig.apiKey
-      )
-      finalApiKey = result.apiKey
-      isBYOK = result.isBYOK
     }
 
     const processedContent = this.processContent(inputs.content)
@@ -125,8 +114,8 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
         temperature: EVALUATOR.DEFAULT_TEMPERATURE,
         apiKey: finalApiKey,
-        isBYOK,
         workflowId: ctx.workflowId,
+        workspaceId: ctx.workspaceId,
       }
 
       if (providerId === 'vertex') {
@@ -283,25 +272,6 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
     logger.warn(`Metric "${metricName}" not found in LLM response`)
     return DEFAULTS.EXECUTION_TIME
-  }
-
-  private async getApiKeyWithBYOK(
-    providerId: string,
-    model: string,
-    workspaceId: string | undefined,
-    inputApiKey?: string
-  ): Promise<{ apiKey: string; isBYOK: boolean }> {
-    try {
-      return await getApiKeyWithBYOK(providerId, model, workspaceId, inputApiKey)
-    } catch (error) {
-      logger.error('Failed to get API key:', {
-        provider: providerId,
-        model,
-        error: error instanceof Error ? error.message : String(error),
-        hasProvidedApiKey: !!inputApiKey,
-      })
-      throw new Error(error instanceof Error ? error.message : 'API key error')
-    }
   }
 
   /**
