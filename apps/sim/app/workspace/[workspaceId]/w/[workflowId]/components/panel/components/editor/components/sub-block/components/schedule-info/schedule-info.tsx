@@ -3,6 +3,7 @@ import { Badge } from '@/components/emcn'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 import { useRedeployWorkflowSchedule, useScheduleQuery } from '@/hooks/queries/schedules'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 interface ScheduleInfoProps {
   blockId: string
@@ -46,7 +47,7 @@ export function ScheduleInfo({ blockId, isPreview = false }: ScheduleInfoProps) 
       {(failedCount > 0 || isDisabled) && (
         <div className='space-y-1'>
           <div className='flex flex-wrap items-center gap-2'>
-            {failedCount >= 100 && isDisabled ? (
+            {failedCount >= MAX_CONSECUTIVE_FAILURES && isDisabled ? (
               <Badge
                 variant='outline'
                 className='cursor-pointer'
@@ -70,9 +71,14 @@ export function ScheduleInfo({ blockId, isPreview = false }: ScheduleInfoProps) 
               </Badge>
             ) : null}
           </div>
-          {failedCount >= 100 && isDisabled && (
+          {failedCount >= MAX_CONSECUTIVE_FAILURES && isDisabled && (
             <p className='text-[12px] text-[var(--text-tertiary)]'>
-              Disabled after 100 consecutive failures
+              Disabled after {MAX_CONSECUTIVE_FAILURES} consecutive failures
+            </p>
+          )}
+          {redeployMutation.isError && (
+            <p className='text-[12px] text-[var(--text-error)]'>
+              Failed to redeploy. Please try again.
             </p>
           )}
         </div>

@@ -27,10 +27,9 @@ import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/
 import type { ExecutionResult } from '@/executor/types'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
+import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 const logger = createLogger('TriggerScheduleExecution')
-
-const MAX_CONSECUTIVE_FAILURES = 100
 
 type WorkflowRecord = typeof workflow.$inferSelect
 type WorkflowScheduleUpdate = Partial<typeof workflowSchedule.$inferInsert>
