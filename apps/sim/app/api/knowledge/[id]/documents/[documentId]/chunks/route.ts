@@ -184,7 +184,8 @@ export async function POST(
         documentId,
         docTags,
         validatedData,
-        requestId
+        requestId,
+        accessCheck.knowledgeBase?.workspaceId
       )
 
       let cost = null

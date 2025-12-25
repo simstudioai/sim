@@ -1,3 +1,4 @@
+import { getBYOKKey } from '@/lib/api-key/byok'
 import { type Chunk, JsonYamlChunker, StructuredDataChunker, TextChunker } from '@/lib/chunkers'
 import { env } from '@/lib/core/config/env'
 import { parseBuffer, parseFile } from '@/lib/file-parsers'
@@ -131,6 +132,17 @@ export async function processDocument(
   }
 }
 
+async function getMistralApiKey(workspaceId?: string | null): Promise<string | null> {
+  if (workspaceId) {
+    const byokResult = await getBYOKKey(workspaceId, 'mistral')
+    if (byokResult) {
+      logger.info('Using workspace BYOK key for Mistral OCR')
+      return byokResult.apiKey
+    }
+  }
+  return env.MISTRAL_API_KEY || null
+}
+
 async function parseDocument(
   fileUrl: string,
   filename: string,
@@ -146,7 +158,9 @@ async function parseDocument(
   const isPDF = mimeType === 'application/pdf'
   const hasAzureMistralOCR =
     env.OCR_AZURE_API_KEY && env.OCR_AZURE_ENDPOINT && env.OCR_AZURE_MODEL_NAME
-  const hasMistralOCR = env.MISTRAL_API_KEY
+
+  const mistralApiKey = await getMistralApiKey(workspaceId)
+  const hasMistralOCR = !!mistralApiKey
 
   if (isPDF && (hasAzureMistralOCR || hasMistralOCR)) {
     if (hasAzureMistralOCR) {
@@ -156,7 +170,7 @@ async function parseDocument(
 
     if (hasMistralOCR) {
       logger.info(`Using Mistral OCR: ${filename}`)
-      return parseWithMistralOCR(fileUrl, filename, mimeType, userId, workspaceId)
+      return parseWithMistralOCR(fileUrl, filename, mimeType, userId, workspaceId, mistralApiKey)
     }
   }
 
@@ -360,9 +374,18 @@ async function parseWithAzureMistralOCR(
       message: error instanceof Error ? error.message : String(error),
     })
 
-    return env.MISTRAL_API_KEY
-      ? parseWithMistralOCR(fileUrl, filename, mimeType, userId, workspaceId)
-      : parseWithFileParser(fileUrl, filename, mimeType)
+    const fallbackMistralKey = await getMistralApiKey(workspaceId)
+    if (fallbackMistralKey) {
+      return parseWithMistralOCR(
+        fileUrl,
+        filename,
+        mimeType,
+        userId,
+        workspaceId,
+        fallbackMistralKey
+      )
+    }
+    return parseWithFileParser(fileUrl, filename, mimeType)
   }
 }
 
@@ -371,9 +394,11 @@ async function parseWithMistralOCR(
   filename: string,
   mimeType: string,
   userId?: string,
-  workspaceId?: string | null
+  workspaceId?: string | null,
+  mistralApiKey?: string | null
 ) {
-  if (!env.MISTRAL_API_KEY) {
+  const apiKey = mistralApiKey || env.MISTRAL_API_KEY
+  if (!apiKey) {
     throw new Error('Mistral API key required')
   }
 
@@ -388,7 +413,7 @@ async function parseWithMistralOCR(
     userId,
     workspaceId
   )
-  const params = { filePath: httpsUrl, apiKey: env.MISTRAL_API_KEY, resultType: 'text' as const }
+  const params = { filePath: httpsUrl, apiKey, resultType: 'text' as const }
 
   try {
     const response = await retryWithExponentialBackoff(

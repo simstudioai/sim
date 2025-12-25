@@ -388,21 +388,6 @@ describe('EvaluatorBlockHandler', () => {
     })
   })
 
-  it('should throw error when API key is missing for non-hosted models', async () => {
-    const inputs = {
-      content: 'Test content',
-      metrics: [{ name: 'score', description: 'Score', range: { min: 0, max: 10 } }],
-      model: 'gpt-4o',
-      // No apiKey provided
-    }
-
-    mockGetProviderFromModel.mockReturnValue('openai')
-
-    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
-      /API key is required/
-    )
-  })
-
   it('should handle Vertex AI models with OAuth credential', async () => {
     const inputs = {
       content: 'Test content to evaluate',

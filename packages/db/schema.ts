@@ -420,6 +420,28 @@ export const workspaceEnvironment = pgTable(
   })
 )
 
+export const workspaceBYOKKeys = pgTable(
+  'workspace_byok_keys',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id').notNull(),
+    encryptedApiKey: text('encrypted_api_key').notNull(),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceProviderUnique: uniqueIndex('workspace_byok_provider_unique').on(
+      table.workspaceId,
+      table.providerId
+    ),
+    workspaceIdx: index('workspace_byok_workspace_idx').on(table.workspaceId),
+  })
+)
+
 export const settings = pgTable('settings', {
   id: text('id').primaryKey(), // Use the user id as the key
   userId: text('user_id')

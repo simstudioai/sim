@@ -484,7 +484,7 @@ export async function processDocumentAsync(
             const batchNum = Math.floor(i / batchSize) + 1
 
             logger.info(`[${documentId}] Processing embedding batch ${batchNum}/${totalBatches}`)
-            const batchEmbeddings = await generateEmbeddings(batch)
+            const batchEmbeddings = await generateEmbeddings(batch, undefined, kb[0].workspaceId)
             embeddings.push(...batchEmbeddings)
           }
         }

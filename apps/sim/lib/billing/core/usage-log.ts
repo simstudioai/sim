@@ -66,7 +66,7 @@ export interface LogFixedUsageParams {
  * Log a model usage charge (token-based)
  */
 export async function logModelUsage(params: LogModelUsageParams): Promise<void> {
-  if (!isBillingEnabled) {
+  if (!isBillingEnabled || params.cost <= 0) {
     return
   }
 
@@ -108,7 +108,7 @@ export async function logModelUsage(params: LogModelUsageParams): Promise<void> 
  * Log a fixed charge (flat fee like base execution charge or search)
  */
 export async function logFixedUsage(params: LogFixedUsageParams): Promise<void> {
-  if (!isBillingEnabled) {
+  if (!isBillingEnabled || params.cost <= 0) {
     return
   }
 

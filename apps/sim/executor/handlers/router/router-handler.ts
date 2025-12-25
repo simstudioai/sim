@@ -8,7 +8,7 @@ import { generateRouterPrompt } from '@/blocks/blocks/router'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType, DEFAULTS, HTTP, isAgentBlockType, ROUTER } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
-import { calculateCost, getApiKey, getProviderFromModel } from '@/providers/utils'
+import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('RouterBlockHandler')
@@ -47,11 +47,9 @@ export class RouterBlockHandler implements BlockHandler {
       const messages = [{ role: 'user', content: routerConfig.prompt }]
       const systemPrompt = generateRouterPrompt(routerConfig.prompt, targetBlocks)
 
-      let finalApiKey: string
+      let finalApiKey: string | undefined = routerConfig.apiKey
       if (providerId === 'vertex' && routerConfig.vertexCredential) {
         finalApiKey = await this.resolveVertexCredential(routerConfig.vertexCredential)
-      } else {
-        finalApiKey = this.getApiKey(providerId, routerConfig.model, routerConfig.apiKey)
       }
 
       const providerRequest: Record<string, any> = {
@@ -62,6 +60,7 @@ export class RouterBlockHandler implements BlockHandler {
         temperature: ROUTER.INFERENCE_TEMPERATURE,
         apiKey: finalApiKey,
         workflowId: ctx.workflowId,
+        workspaceId: ctx.workspaceId,
       }
 
       if (providerId === 'vertex') {
@@ -176,20 +175,6 @@ export class RouterBlockHandler implements BlockHandler {
           currentState: ctx.blockStates.get(targetBlock.id)?.output,
         }
       })
-  }
-
-  private getApiKey(providerId: string, model: string, inputApiKey: string): string {
-    try {
-      return getApiKey(providerId, model, inputApiKey)
-    } catch (error) {
-      logger.error('Failed to get API key:', {
-        provider: providerId,
-        model,
-        error: error instanceof Error ? error.message : String(error),
-        hasProvidedApiKey: !!inputApiKey,
-      })
-      throw new Error(error instanceof Error ? error.message : 'API key error')
-    }
   }
 
   /**
