@@ -105,11 +105,6 @@ export function hasWorkflowChanged(
       ...new Set([...Object.keys(currentSubBlocks), ...Object.keys(deployedSubBlocks)]),
     ].sort()
 
-    // Check if any subBlocks are missing in either state
-    if (Object.keys(currentSubBlocks).length !== Object.keys(deployedSubBlocks).length) {
-      return true
-    }
-
     // Normalize and compare each subBlock
     for (const subBlockId of allSubBlockIds) {
       // If the subBlock doesn't exist in either state, there's a difference
