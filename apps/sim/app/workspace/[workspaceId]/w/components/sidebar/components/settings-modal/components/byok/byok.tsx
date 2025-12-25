@@ -65,9 +65,9 @@ const PROVIDERS: {
 
 function BYOKKeySkeleton() {
   return (
-    <div className='flex items-center justify-between gap-[12px] rounded-[8px] border p-[12px]'>
+    <div className='flex items-center justify-between gap-[12px] rounded-[8px] p-[12px]'>
       <div className='flex items-center gap-[12px]'>
-        <Skeleton className='h-[32px] w-[32px] rounded-[6px]' />
+        <Skeleton className='h-[24px] w-[24px] rounded-[6px]' />
         <div className='flex flex-col gap-[4px]'>
           <Skeleton className='h-[16px] w-[80px]' />
           <Skeleton className='h-[14px] w-[160px]' />
@@ -161,11 +161,11 @@ export function BYOK() {
                 return (
                   <div
                     key={provider.id}
-                    className='flex items-center justify-between gap-[12px] rounded-[8px] border p-[12px]'
+                    className='flex items-center justify-between gap-[12px] rounded-[8px] p-[12px]'
                   >
                     <div className='flex items-center gap-[12px]'>
-                      <div className='flex h-[32px] w-[32px] items-center justify-center rounded-[6px] bg-[var(--surface-3)]'>
-                        <Icon className='h-[18px] w-[18px]' />
+                      <div className='flex h-[24px] w-[24px] items-center justify-center rounded-[4px] bg-[var(--surface-3)]'>
+                        <Icon className='h-[14px] w-[14px]' />
                       </div>
                       <div className='flex flex-col gap-[2px]'>
                         <span className='font-medium text-[14px]'>{provider.name}</span>
