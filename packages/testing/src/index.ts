@@ -54,6 +54,7 @@ export {
   databaseMock,
   drizzleOrmMock,
   loggerMock,
+  type MockFetchResponse,
   setupGlobalFetchMock,
   setupGlobalStorageMocks,
 } from './mocks'
