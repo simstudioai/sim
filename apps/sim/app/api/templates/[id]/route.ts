@@ -169,7 +169,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (creatorId !== undefined) updateData.creatorId = creatorId
 
     if (updateState && template.workflowId) {
-      const { verifyWorkflowAccess } = await import('@/socket-server/middleware/permissions')
+      const { verifyWorkflowAccess } = await import('@/socket/middleware/permissions')
       const { hasAccess: hasWorkflowAccess } = await verifyWorkflowAccess(
         session.user.id,
         template.workflowId

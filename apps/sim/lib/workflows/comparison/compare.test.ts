@@ -1,40 +1,45 @@
 /**
  * Tests for workflow change detection comparison logic
  */
+import {
+  createBlock as createTestBlock,
+  createWorkflowState as createTestWorkflowState,
+} from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { hasWorkflowChanged } from './compare'
 
 /**
- * Helper to create a minimal valid workflow state
+ * Type helper for converting test workflow state to app workflow state.
  */
-function createWorkflowState(overrides: Partial<WorkflowState> = {}): WorkflowState {
-  return {
-    blocks: {},
-    edges: [],
-    loops: {},
-    parallels: {},
-    ...overrides,
-  } as WorkflowState
+function asAppState<T>(state: T): WorkflowState {
+  return state as unknown as WorkflowState
 }
 
 /**
- * Helper to create a block with common fields
+ * Helper to create a minimal valid workflow state using @sim/testing factory.
+ */
+function createWorkflowState(overrides: Partial<WorkflowState> = {}): WorkflowState {
+  return asAppState(createTestWorkflowState(overrides as any))
+}
+
+/**
+ * Helper to create a block with common fields using @sim/testing factory.
  */
 function createBlock(id: string, overrides: Record<string, any> = {}): any {
-  return {
+  return createTestBlock({
     id,
-    name: `Block ${id}`,
-    type: 'agent',
-    position: { x: 100, y: 100 },
-    subBlocks: {},
-    outputs: {},
-    enabled: true,
-    horizontalHandles: true,
-    advancedMode: false,
-    height: 200,
+    name: overrides.name ?? `Block ${id}`,
+    type: overrides.type ?? 'agent',
+    position: overrides.position ?? { x: 100, y: 100 },
+    subBlocks: overrides.subBlocks ?? {},
+    outputs: overrides.outputs ?? {},
+    enabled: overrides.enabled ?? true,
+    horizontalHandles: overrides.horizontalHandles ?? true,
+    advancedMode: overrides.advancedMode ?? false,
+    height: overrides.height ?? 200,
     ...overrides,
-  }
+  })
 }
 
 describe('hasWorkflowChanged', () => {
@@ -654,7 +659,13 @@ describe('hasWorkflowChanged', () => {
       })
       const state2 = createWorkflowState({
         loops: {
-          loop1: { id: 'loop1', nodes: ['block1'], loopType: 'forEach', forEachItems: '[]' },
+          loop1: {
+            id: 'loop1',
+            nodes: ['block1'],
+            loopType: 'forEach',
+            forEachItems: '[]',
+            iterations: 0,
+          },
         },
       })
       expect(hasWorkflowChanged(state1, state2)).toBe(true)
@@ -682,6 +693,7 @@ describe('hasWorkflowChanged', () => {
             nodes: ['block1'],
             loopType: 'forEach',
             forEachItems: '<block.items>',
+            iterations: 0,
           },
         },
       })
@@ -692,6 +704,7 @@ describe('hasWorkflowChanged', () => {
             nodes: ['block1'],
             loopType: 'forEach',
             forEachItems: '<other.items>',
+            iterations: 0,
           },
         },
       })
@@ -706,6 +719,7 @@ describe('hasWorkflowChanged', () => {
             nodes: ['block1'],
             loopType: 'while',
             whileCondition: '<counter> < 10',
+            iterations: 0,
           },
         },
       })
@@ -716,6 +730,7 @@ describe('hasWorkflowChanged', () => {
             nodes: ['block1'],
             loopType: 'while',
             whileCondition: '<counter> < 20',
+            iterations: 0,
           },
         },
       })

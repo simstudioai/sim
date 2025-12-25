@@ -4,7 +4,7 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockRequest } from '@/app/api/__test-utils__/utils'
+import { createMockLogger, createMockRequest } from '@/app/api/__test-utils__/utils'
 
 describe('OAuth Connections API Route', () => {
   const mockGetSession = vi.fn()
@@ -14,12 +14,7 @@ describe('OAuth Connections API Route', () => {
     where: vi.fn().mockReturnThis(),
     limit: vi.fn(),
   }
-  const mockLogger = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }
+  const mockLogger = createMockLogger()
   const mockParseProvider = vi.fn()
   const mockEvaluateScopeCoverage = vi.fn()
 
