@@ -41,15 +41,16 @@ async function storeOTP(email: string, chatId: string, otp: string): Promise<voi
     const now = new Date()
     const expiresAt = new Date(now.getTime() + OTP_EXPIRY_MS)
 
-    await db.delete(verification).where(eq(verification.identifier, identifier))
-
-    await db.insert(verification).values({
-      id: randomUUID(),
-      identifier,
-      value: otp,
-      expiresAt,
-      createdAt: now,
-      updatedAt: now,
+    await db.transaction(async (tx) => {
+      await tx.delete(verification).where(eq(verification.identifier, identifier))
+      await tx.insert(verification).values({
+        id: randomUUID(),
+        identifier,
+        value: otp,
+        expiresAt,
+        createdAt: now,
+        updatedAt: now,
+      })
     })
   }
 }

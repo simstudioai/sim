@@ -78,6 +78,13 @@ describe('Chat OTP API Route', () => {
         select: mockDbSelect,
         insert: mockDbInsert,
         delete: mockDbDelete,
+        transaction: vi.fn(async (callback) => {
+          return callback({
+            select: mockDbSelect,
+            insert: mockDbInsert,
+            delete: mockDbDelete,
+          })
+        }),
       },
     }))
 
