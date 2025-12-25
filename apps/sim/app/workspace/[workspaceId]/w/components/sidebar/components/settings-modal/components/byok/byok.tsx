@@ -11,7 +11,6 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Trash,
 } from '@/components/emcn'
 import { AnthropicIcon, GeminiIcon, MistralIcon, OpenAIIcon } from '@/components/icons'
 import { Skeleton } from '@/components/ui'
@@ -65,10 +64,10 @@ const PROVIDERS: {
 
 function BYOKKeySkeleton() {
   return (
-    <div className='flex items-center justify-between gap-[12px] rounded-[8px] p-[12px]'>
+    <div className='flex items-center justify-between gap-[12px]'>
       <div className='flex items-center gap-[12px]'>
         <Skeleton className='h-9 w-9 flex-shrink-0 rounded-[6px]' />
-        <div className='flex flex-col justify-center gap-[1px]'>
+        <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
           <Skeleton className='h-[14px] w-[100px]' />
           <Skeleton className='h-[13px] w-[200px]' />
         </div>
@@ -159,41 +158,40 @@ export function BYOK() {
                 const Icon = provider.icon
 
                 return (
-                  <div
-                    key={provider.id}
-                    className='flex items-center justify-between gap-[12px] rounded-[8px] p-[12px]'
-                  >
+                  <div key={provider.id} className='flex items-center justify-between gap-[12px]'>
                     <div className='flex items-center gap-[12px]'>
                       <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-[var(--surface-6)]'>
                         <Icon className='h-4 w-4' />
                       </div>
-                      <div className='flex flex-col gap-[2px]'>
+                      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                         <span className='font-medium text-[14px]'>{provider.name}</span>
-                        <span className='text-[12px] text-[var(--text-tertiary)]'>
-                          {provider.description}
-                        </span>
-                        {existingKey && (
-                          <span className='font-mono text-[11px] text-[var(--text-muted)]'>
-                            {existingKey.maskedKey}
-                          </span>
-                        )}
+                        <p className='truncate text-[13px] text-[var(--text-muted)]'>
+                          {existingKey ? existingKey.maskedKey : provider.description}
+                        </p>
                       </div>
                     </div>
 
-                    <div className='flex items-center gap-[6px]'>
-                      {existingKey && (
+                    {existingKey ? (
+                      <div className='flex flex-shrink-0 items-center gap-[8px]'>
+                        <Button variant='ghost' onClick={() => openEditModal(provider.id)}>
+                          Update
+                        </Button>
                         <Button
                           variant='ghost'
-                          className='h-9 w-9'
                           onClick={() => setDeleteConfirmProvider(provider.id)}
                         >
-                          <Trash />
+                          Delete
                         </Button>
-                      )}
-                      <Button variant='default' onClick={() => openEditModal(provider.id)}>
-                        {existingKey ? 'Update' : 'Add Key'}
+                      </div>
+                    ) : (
+                      <Button
+                        variant='primary'
+                        className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+                        onClick={() => openEditModal(provider.id)}
+                      >
+                        Add Key
                       </Button>
-                    </div>
+                    )}
                   </div>
                 )
               })}
@@ -228,7 +226,24 @@ export function BYOK() {
               requests in this workspace. Your key is encrypted and stored securely.
             </p>
 
-            <div className='mt-[12px] flex flex-col gap-[8px]'>
+            <div className='mt-[16px] flex flex-col gap-[8px]'>
+              <p className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                Enter your API key
+              </p>
+              {/* Hidden decoy fields to prevent browser autofill */}
+              <input
+                type='text'
+                name='fakeusernameremembered'
+                autoComplete='username'
+                style={{
+                  position: 'absolute',
+                  left: '-9999px',
+                  opacity: 0,
+                  pointerEvents: 'none',
+                }}
+                tabIndex={-1}
+                readOnly
+              />
               <div className='relative'>
                 <EmcnInput
                   type={showApiKey ? 'text' : 'password'}
@@ -240,6 +255,12 @@ export function BYOK() {
                   placeholder={PROVIDERS.find((p) => p.id === editingProvider)?.placeholder}
                   className='h-9 pr-[36px]'
                   autoFocus
+                  name='byok_api_key'
+                  autoComplete='off'
+                  autoCorrect='off'
+                  autoCapitalize='off'
+                  data-lpignore='true'
+                  data-form-type='other'
                 />
                 <Button
                   variant='ghost'
@@ -275,6 +296,7 @@ export function BYOK() {
               variant='primary'
               onClick={handleSave}
               disabled={!apiKeyInput.trim() || upsertKey.isPending}
+              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
             >
               {upsertKey.isPending ? 'Saving...' : 'Save'}
             </Button>
@@ -298,7 +320,12 @@ export function BYOK() {
             <Button variant='default' onClick={() => setDeleteConfirmProvider(null)}>
               Cancel
             </Button>
-            <Button variant='primary' onClick={handleDelete} disabled={deleteKey.isPending}>
+            <Button
+              variant='primary'
+              onClick={handleDelete}
+              disabled={deleteKey.isPending}
+              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+            >
               {deleteKey.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>
