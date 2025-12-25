@@ -1,6 +1,7 @@
+import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
-import { chat } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
+import { chat, verification } from '@sim/db/schema'
+import { and, eq, gt } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { renderOTPEmail } from '@/components/emails/render-email'
@@ -22,24 +23,11 @@ const OTP_EXPIRY = 15 * 60 // 15 minutes
 const OTP_EXPIRY_MS = OTP_EXPIRY * 1000
 
 /**
- * In-memory OTP storage for single-instance deployments without Redis.
- * Only used when REDIS_URL is not configured (determined once at startup).
- *
- * Warning: This does NOT work in multi-instance/serverless deployments.
+ * Stores OTP in Redis or database depending on storage method.
+ * Uses the verification table for database storage.
  */
-const inMemoryOTPStore = new Map<string, { otp: string; expiresAt: number }>()
-
-function cleanupExpiredOTPs() {
-  const now = Date.now()
-  for (const [key, value] of inMemoryOTPStore.entries()) {
-    if (value.expiresAt < now) {
-      inMemoryOTPStore.delete(key)
-    }
-  }
-}
-
 async function storeOTP(email: string, chatId: string, otp: string): Promise<void> {
-  const key = `otp:${email}:${chatId}`
+  const identifier = `chat-otp:${chatId}:${email}`
   const storageMethod = getStorageMethod()
 
   if (storageMethod === 'redis') {
@@ -47,18 +35,28 @@ async function storeOTP(email: string, chatId: string, otp: string): Promise<voi
     if (!redis) {
       throw new Error('Redis configured but client unavailable')
     }
+    const key = `otp:${email}:${chatId}`
     await redis.set(key, otp, 'EX', OTP_EXPIRY)
   } else {
-    cleanupExpiredOTPs()
-    inMemoryOTPStore.set(key, {
-      otp,
-      expiresAt: Date.now() + OTP_EXPIRY_MS,
+    const now = new Date()
+    const expiresAt = new Date(now.getTime() + OTP_EXPIRY_MS)
+
+    await db.transaction(async (tx) => {
+      await tx.delete(verification).where(eq(verification.identifier, identifier))
+      await tx.insert(verification).values({
+        id: randomUUID(),
+        identifier,
+        value: otp,
+        expiresAt,
+        createdAt: now,
+        updatedAt: now,
+      })
     })
   }
 }
 
 async function getOTP(email: string, chatId: string): Promise<string | null> {
-  const key = `otp:${email}:${chatId}`
+  const identifier = `chat-otp:${chatId}:${email}`
   const storageMethod = getStorageMethod()
 
   if (storageMethod === 'redis') {
@@ -66,22 +64,27 @@ async function getOTP(email: string, chatId: string): Promise<string | null> {
     if (!redis) {
       throw new Error('Redis configured but client unavailable')
     }
+    const key = `otp:${email}:${chatId}`
     return redis.get(key)
   }
 
-  const entry = inMemoryOTPStore.get(key)
-  if (!entry) return null
+  const now = new Date()
+  const [record] = await db
+    .select({
+      value: verification.value,
+      expiresAt: verification.expiresAt,
+    })
+    .from(verification)
+    .where(and(eq(verification.identifier, identifier), gt(verification.expiresAt, now)))
+    .limit(1)
 
-  if (entry.expiresAt < Date.now()) {
-    inMemoryOTPStore.delete(key)
-    return null
-  }
+  if (!record) return null
 
-  return entry.otp
+  return record.value
 }
 
 async function deleteOTP(email: string, chatId: string): Promise<void> {
-  const key = `otp:${email}:${chatId}`
+  const identifier = `chat-otp:${chatId}:${email}`
   const storageMethod = getStorageMethod()
 
   if (storageMethod === 'redis') {
@@ -89,9 +92,10 @@ async function deleteOTP(email: string, chatId: string): Promise<void> {
     if (!redis) {
       throw new Error('Redis configured but client unavailable')
     }
+    const key = `otp:${email}:${chatId}`
     await redis.del(key)
   } else {
-    inMemoryOTPStore.delete(key)
+    await db.delete(verification).where(eq(verification.identifier, identifier))
   }
 }
 
