@@ -885,7 +885,8 @@ export function ToolInput({
         block.type === 'knowledge' ||
         block.type === 'function') &&
       block.type !== 'evaluator' &&
-      block.type !== 'mcp'
+      block.type !== 'mcp' &&
+      block.type !== 'file'
   )
 
   const value = isPreview ? previewValue : storeValue

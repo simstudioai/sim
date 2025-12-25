@@ -66,7 +66,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           loops: normalizedData.loops,
           parallels: normalizedData.parallels,
         }
-        const { hasWorkflowChanged } = await import('@/lib/workflows/utils')
+        const { hasWorkflowChanged } = await import('@/lib/workflows/comparison')
         needsRedeployment = hasWorkflowChanged(currentState as any, active.state as any)
       }
     }
