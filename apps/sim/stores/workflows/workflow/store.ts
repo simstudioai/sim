@@ -2,6 +2,7 @@ import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
+import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks'
@@ -591,8 +592,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         const newId = crypto.randomUUID()
         const offsetPosition = {
-          x: block.position.x + 250,
-          y: block.position.y + 20,
+          x: block.position.x + DEFAULT_DUPLICATE_OFFSET.x,
+          y: block.position.y + DEFAULT_DUPLICATE_OFFSET.y,
         }
 
         const newName = getUniqueBlockName(block.name, get().blocks)
