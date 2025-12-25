@@ -198,9 +198,7 @@ const WorkflowContent = React.memo(() => {
     return resizeLoopNodes(updateNodeDimensions)
   }, [resizeLoopNodes, updateNodeDimensions])
 
-  const { handleAutoLayout: autoLayoutWithFitView } = useAutoLayout(activeWorkflowId || null, {
-    fitView,
-  })
+  const { handleAutoLayout: autoLayoutWithFitView } = useAutoLayout(activeWorkflowId || null)
 
   const isWorkflowEmpty = useMemo(() => Object.keys(blocks).length === 0, [blocks])
 

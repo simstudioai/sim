@@ -67,13 +67,13 @@ function BYOKKeySkeleton() {
   return (
     <div className='flex items-center justify-between gap-[12px] rounded-[8px] p-[12px]'>
       <div className='flex items-center gap-[12px]'>
-        <Skeleton className='h-[24px] w-[24px] rounded-[6px]' />
-        <div className='flex flex-col gap-[4px]'>
-          <Skeleton className='h-[16px] w-[80px]' />
-          <Skeleton className='h-[14px] w-[160px]' />
+        <Skeleton className='h-9 w-9 flex-shrink-0 rounded-[6px]' />
+        <div className='flex flex-col justify-center gap-[1px]'>
+          <Skeleton className='h-[14px] w-[100px]' />
+          <Skeleton className='h-[13px] w-[200px]' />
         </div>
       </div>
-      <Skeleton className='h-[32px] w-[80px] rounded-[6px]' />
+      <Skeleton className='h-[32px] w-[72px] rounded-[6px]' />
     </div>
   )
 }
@@ -164,8 +164,8 @@ export function BYOK() {
                     className='flex items-center justify-between gap-[12px] rounded-[8px] p-[12px]'
                   >
                     <div className='flex items-center gap-[12px]'>
-                      <div className='flex h-[24px] w-[24px] items-center justify-center rounded-[4px] bg-[var(--surface-3)]'>
-                        <Icon className='h-[14px] w-[14px]' />
+                      <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-[var(--surface-6)]'>
+                        <Icon className='h-4 w-4' />
                       </div>
                       <div className='flex flex-col gap-[2px]'>
                         <span className='font-medium text-[14px]'>{provider.name}</span>

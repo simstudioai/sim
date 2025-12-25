@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { useReactFlow } from 'reactflow'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { AutoLayoutOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/auto-layout-utils'
 import { applyAutoLayoutAndUpdateStore as applyAutoLayoutStandalone } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/auto-layout-utils'
@@ -7,33 +8,28 @@ export type { AutoLayoutOptions }
 
 const logger = createLogger('useAutoLayout')
 
-interface UseAutoLayoutOptions {
-  fitView?: (options?: { padding?: number; duration?: number }) => void
-}
-
 /**
  * Hook providing auto-layout functionality for workflows.
  * Binds workflowId context and provides memoized callback for React components.
- * Optionally accepts a fitView function to animate after successful layout.
+ * Includes automatic fitView animation after successful layout.
  *
- * @param workflowId - The workflow ID to apply layout to
- * @param options - Optional configuration including fitView function from useReactFlow
+ * Note: This hook requires a ReactFlowProvider ancestor.
  */
-export function useAutoLayout(workflowId: string | null, options: UseAutoLayoutOptions = {}) {
-  const { fitView } = options
+export function useAutoLayout(workflowId: string | null) {
+  const { fitView } = useReactFlow()
 
   const applyAutoLayoutAndUpdateStore = useCallback(
-    async (layoutOptions: AutoLayoutOptions = {}) => {
+    async (options: AutoLayoutOptions = {}) => {
       if (!workflowId) {
         return { success: false, error: 'No workflow ID provided' }
       }
-      return applyAutoLayoutStandalone(workflowId, layoutOptions)
+      return applyAutoLayoutStandalone(workflowId, options)
     },
     [workflowId]
   )
 
   /**
-   * Applies auto-layout and optionally animates to fit all blocks in view
+   * Applies auto-layout and animates to fit all blocks in view
    */
   const handleAutoLayout = useCallback(async () => {
     try {
@@ -41,11 +37,9 @@ export function useAutoLayout(workflowId: string | null, options: UseAutoLayoutO
 
       if (result.success) {
         logger.info('Auto layout completed successfully')
-        if (fitView) {
-          requestAnimationFrame(() => {
-            fitView({ padding: 0.8, duration: 600 })
-          })
-        }
+        requestAnimationFrame(() => {
+          fitView({ padding: 0.8, duration: 600 })
+        })
       } else {
         logger.error('Auto layout failed:', result.error)
       }
