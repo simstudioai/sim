@@ -84,6 +84,7 @@ export function normalizeParallel(parallel: any): any {
  */
 export function sanitizeTools(tools: any[] | undefined): any[] {
   if (!Array.isArray(tools)) return []
+
   return tools.map(({ isExpanded, ...rest }) => rest)
 }
 
