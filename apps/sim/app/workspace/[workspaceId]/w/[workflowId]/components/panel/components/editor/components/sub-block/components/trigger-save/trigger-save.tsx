@@ -8,7 +8,6 @@ import {
   ModalHeader,
 } from '@/components/emcn/components'
 import { Trash } from '@/components/emcn/icons/trash'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -367,12 +366,7 @@ export function TriggerSave({
             saveStatus === 'error' && 'bg-red-600 hover:bg-red-700'
           )}
         >
-          {saveStatus === 'saving' && (
-            <>
-              <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
-              Saving...
-            </>
-          )}
+          {saveStatus === 'saving' && 'Saving...'}
           {saveStatus === 'saved' && 'Saved'}
           {saveStatus === 'error' && 'Error'}
           {saveStatus === 'idle' && (webhookId ? 'Update Configuration' : 'Save Configuration')}
@@ -394,59 +388,48 @@ export function TriggerSave({
         )}
       </div>
 
-      {errorMessage && (
-        <Alert variant='destructive' className='mt-2'>
-          <AlertDescription>{errorMessage}</AlertDescription>
-        </Alert>
-      )}
+      {errorMessage && <p className='mt-2 text-[12px] text-[var(--text-error)]'>{errorMessage}</p>}
 
       {webhookId && hasWebhookUrlDisplay && (
-        <div className='mt-2 space-y-1'>
+        <div className='mt-4 space-y-2'>
           <div className='flex items-center justify-between'>
-            <span className='font-medium text-sm'>Test Webhook URL</span>
+            <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+              Test Webhook URL
+            </span>
             <Button
-              variant='outline'
+              variant='ghost'
               onClick={generateTestUrl}
               disabled={isGeneratingTestUrl || isProcessing}
-              className='h-[32px] rounded-[8px] px-[12px]'
             >
-              {isGeneratingTestUrl ? (
-                <>
-                  <div className='mr-2 h-3 w-3 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
-                  Generating…
-                </>
-              ) : testUrl ? (
-                'Regenerate'
-              ) : (
-                'Generate'
-              )}
+              {isGeneratingTestUrl ? 'Generating…' : testUrl ? 'Regenerate' : 'Generate'}
             </Button>
           </div>
           {testUrl ? (
-            <ShortInput
-              blockId={blockId}
-              subBlockId={`${subBlockId}-test-url`}
-              config={{
-                id: `${subBlockId}-test-url`,
-                type: 'short-input',
-                readOnly: true,
-                showCopyButton: true,
-              }}
-              value={testUrl}
-              readOnly={true}
-              showCopyButton={true}
-              disabled={isPreview || disabled}
-              isPreview={isPreview}
-            />
+            <>
+              <ShortInput
+                blockId={blockId}
+                subBlockId={`${subBlockId}-test-url`}
+                config={{
+                  id: `${subBlockId}-test-url`,
+                  type: 'short-input',
+                  readOnly: true,
+                  showCopyButton: true,
+                }}
+                value={testUrl}
+                readOnly={true}
+                showCopyButton={true}
+                disabled={isPreview || disabled}
+                isPreview={isPreview}
+              />
+              {testUrlExpiresAt && (
+                <p className='text-[12px] text-[var(--text-tertiary)]'>
+                  Expires {new Date(testUrlExpiresAt).toLocaleString()}
+                </p>
+              )}
+            </>
           ) : (
-            <p className='text-muted-foreground text-xs'>
-              Generate a temporary URL that executes this webhook against the live (undeployed)
-              workflow state.
-            </p>
-          )}
-          {testUrlExpiresAt && (
-            <p className='text-muted-foreground text-xs'>
-              Expires at {new Date(testUrlExpiresAt).toLocaleString()}
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
+              Generate a temporary URL to test against the live (undeployed) workflow state.
             </p>
           )}
         </div>

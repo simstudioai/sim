@@ -144,7 +144,7 @@ describe('Schedule GET API', () => {
   it('indicates disabled schedule with failures', async () => {
     mockDbChain([
       [{ userId: 'user-1', workspaceId: null }],
-      [{ id: 'sched-1', status: 'disabled', failedCount: 10 }],
+      [{ id: 'sched-1', status: 'disabled', failedCount: 100 }],
     ])
 
     const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))

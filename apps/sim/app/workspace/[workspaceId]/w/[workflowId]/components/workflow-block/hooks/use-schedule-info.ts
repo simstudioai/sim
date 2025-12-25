@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
-import { createLogger } from '@/lib/logs/console/logger'
-import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
+import { useCallback } from 'react'
+import {
+  useReactivateSchedule,
+  useScheduleInfo as useScheduleInfoQuery,
+} from '@/hooks/queries/schedules'
 import type { ScheduleInfo } from '../types'
-
-const logger = createLogger('useScheduleInfo')
 
 /**
  * Return type for the useScheduleInfo hook
@@ -18,7 +18,7 @@ export interface UseScheduleInfoReturn {
 }
 
 /**
- * Custom hook for fetching schedule information
+ * Custom hook for fetching schedule information using TanStack Query
  *
  * @param blockId - The ID of the block
  * @param blockType - The type of the block
@@ -30,96 +30,37 @@ export function useScheduleInfo(
   blockType: string,
   workflowId: string
 ): UseScheduleInfoReturn {
-  const [isLoading, setIsLoading] = useState(false)
-  const [scheduleInfo, setScheduleInfo] = useState<ScheduleInfo | null>(null)
-
-  const fetchScheduleInfo = useCallback(
-    async (wfId: string) => {
-      if (!wfId) return
-
-      try {
-        setIsLoading(true)
-
-        const params = new URLSearchParams({
-          workflowId: wfId,
-          blockId,
-        })
-
-        const response = await fetch(`/api/schedules?${params}`, {
-          cache: 'no-store',
-          headers: { 'Cache-Control': 'no-cache' },
-        })
-
-        if (!response.ok) {
-          setScheduleInfo(null)
-          return
-        }
-
-        const data = await response.json()
-
-        if (!data.schedule) {
-          setScheduleInfo(null)
-          return
-        }
-
-        const schedule = data.schedule
-        const scheduleTimezone = schedule.timezone || 'UTC'
-
-        setScheduleInfo({
-          scheduleTiming: schedule.cronExpression
-            ? parseCronToHumanReadable(schedule.cronExpression, scheduleTimezone)
-            : 'Unknown schedule',
-          nextRunAt: schedule.nextRunAt,
-          lastRanAt: schedule.lastRanAt,
-          timezone: scheduleTimezone,
-          status: schedule.status,
-          isDisabled: schedule.status === 'disabled',
-          failedCount: schedule.failedCount || 0,
-          id: schedule.id,
-        })
-      } catch (error) {
-        logger.error('Error fetching schedule info:', error)
-        setScheduleInfo(null)
-      } finally {
-        setIsLoading(false)
-      }
-    },
-    [blockId]
+  const { scheduleInfo: queryScheduleInfo, isLoading } = useScheduleInfoQuery(
+    workflowId,
+    blockId,
+    blockType
   )
+
+  const reactivateMutation = useReactivateSchedule()
 
   const reactivateSchedule = useCallback(
     async (scheduleId: string) => {
-      try {
-        const response = await fetch(`/api/schedules/${scheduleId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'reactivate' }),
-        })
-
-        if (response.ok && workflowId) {
-          await fetchScheduleInfo(workflowId)
-        } else {
-          logger.error('Failed to reactivate schedule')
-        }
-      } catch (error) {
-        logger.error('Error reactivating schedule:', error)
-      }
+      await reactivateMutation.mutateAsync({
+        scheduleId,
+        workflowId,
+        blockId,
+      })
     },
-    [workflowId, fetchScheduleInfo]
+    [reactivateMutation, workflowId, blockId]
   )
 
-  useEffect(() => {
-    if (blockType === 'schedule' && workflowId) {
-      fetchScheduleInfo(workflowId)
-    } else {
-      setScheduleInfo(null)
-      setIsLoading(false)
-    }
-
-    return () => {
-      setIsLoading(false)
-    }
-  }, [blockType, workflowId, fetchScheduleInfo])
+  const scheduleInfo: ScheduleInfo | null = queryScheduleInfo
+    ? {
+        scheduleTiming: queryScheduleInfo.scheduleTiming,
+        nextRunAt: queryScheduleInfo.nextRunAt,
+        lastRanAt: queryScheduleInfo.lastRanAt,
+        timezone: queryScheduleInfo.timezone,
+        status: queryScheduleInfo.status,
+        isDisabled: queryScheduleInfo.isDisabled,
+        failedCount: queryScheduleInfo.failedCount,
+        id: queryScheduleInfo.id,
+      }
+    : null
 
   return {
     scheduleInfo,
