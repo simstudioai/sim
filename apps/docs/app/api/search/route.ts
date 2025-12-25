@@ -7,7 +7,9 @@ export const runtime = 'nodejs'
 export const revalidate = 0
 
 /**
- * Semantic search API endpoint using vector embeddings + hybrid search
+ * Hybrid search API endpoint
+ * - English: Vector embeddings + keyword search
+ * - Other languages: Keyword search only
  */
 export async function GET(request: NextRequest) {
   try {
@@ -20,27 +22,51 @@ export async function GET(request: NextRequest) {
       return NextResponse.json([])
     }
 
-    const queryEmbedding = await generateSearchEmbedding(query)
     const candidateLimit = limit * 3
     const similarityThreshold = 0.6
 
-    const vectorResults = await db
-      .select({
-        chunkId: docsEmbeddings.chunkId,
-        chunkText: docsEmbeddings.chunkText,
-        sourceDocument: docsEmbeddings.sourceDocument,
-        sourceLink: docsEmbeddings.sourceLink,
-        headerText: docsEmbeddings.headerText,
-        headerLevel: docsEmbeddings.headerLevel,
-        similarity: sql<number>`1 - (${docsEmbeddings.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector)`,
-        searchType: sql<string>`'vector'`,
-      })
-      .from(docsEmbeddings)
-      .where(
-        sql`1 - (${docsEmbeddings.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector) >= ${similarityThreshold}`
-      )
-      .orderBy(sql`${docsEmbeddings.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector`)
-      .limit(candidateLimit)
+    const localeMap: Record<string, string> = {
+      en: 'english',
+      es: 'spanish',
+      fr: 'french',
+      de: 'german',
+      ja: 'simple', // PostgreSQL doesn't have Japanese support, use simple
+      zh: 'simple', // PostgreSQL doesn't have Chinese support, use simple
+    }
+    const tsConfig = localeMap[locale] || 'simple'
+
+    const useVectorSearch = locale === 'en'
+    let vectorResults: Array<{
+      chunkId: string
+      chunkText: string
+      sourceDocument: string
+      sourceLink: string
+      headerText: string
+      headerLevel: number
+      similarity: number
+      searchType: string
+    }> = []
+
+    if (useVectorSearch) {
+      const queryEmbedding = await generateSearchEmbedding(query)
+      vectorResults = await db
+        .select({
+          chunkId: docsEmbeddings.chunkId,
+          chunkText: docsEmbeddings.chunkText,
+          sourceDocument: docsEmbeddings.sourceDocument,
+          sourceLink: docsEmbeddings.sourceLink,
+          headerText: docsEmbeddings.headerText,
+          headerLevel: docsEmbeddings.headerLevel,
+          similarity: sql<number>`1 - (${docsEmbeddings.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector)`,
+          searchType: sql<string>`'vector'`,
+        })
+        .from(docsEmbeddings)
+        .where(
+          sql`1 - (${docsEmbeddings.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector) >= ${similarityThreshold}`
+        )
+        .orderBy(sql`${docsEmbeddings.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector`)
+        .limit(candidateLimit)
+    }
 
     const keywordResults = await db
       .select({
@@ -50,13 +76,13 @@ export async function GET(request: NextRequest) {
         sourceLink: docsEmbeddings.sourceLink,
         headerText: docsEmbeddings.headerText,
         headerLevel: docsEmbeddings.headerLevel,
-        similarity: sql<number>`ts_rank(${docsEmbeddings.chunkTextTsv}, plainto_tsquery('english', ${query}))`,
+        similarity: sql<number>`ts_rank(${docsEmbeddings.chunkTextTsv}, plainto_tsquery(${tsConfig}, ${query}))`,
         searchType: sql<string>`'keyword'`,
       })
       .from(docsEmbeddings)
-      .where(sql`${docsEmbeddings.chunkTextTsv} @@ plainto_tsquery('english', ${query})`)
+      .where(sql`${docsEmbeddings.chunkTextTsv} @@ plainto_tsquery(${tsConfig}, ${query})`)
       .orderBy(
-        sql`ts_rank(${docsEmbeddings.chunkTextTsv}, plainto_tsquery('english', ${query})) DESC`
+        sql`ts_rank(${docsEmbeddings.chunkTextTsv}, plainto_tsquery(${tsConfig}, ${query})) DESC`
       )
       .limit(candidateLimit)
 

@@ -27,5 +27,14 @@ export async function generateSearchEmbedding(query: string): Promise<number[]> 
   }
 
   const data = await response.json()
+
+  if (!data?.data || !Array.isArray(data.data) || data.data.length === 0) {
+    throw new Error('OpenAI API returned invalid response structure: missing or empty data array')
+  }
+
+  if (!data.data[0]?.embedding || !Array.isArray(data.data[0].embedding)) {
+    throw new Error('OpenAI API returned invalid response structure: missing or invalid embedding')
+  }
+
   return data.data[0].embedding
 }
