@@ -2075,4 +2075,196 @@ describe('hasWorkflowChanged', () => {
       expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
     })
   })
+
+  describe('Variable Changes', () => {
+    it.concurrent('should detect added variables', () => {
+      const deployedState = {
+        ...createWorkflowState({}),
+        variables: {},
+      }
+
+      const currentState = {
+        ...createWorkflowState({}),
+        variables: {
+          var1: { id: 'var1', name: 'myVar', type: 'string', value: 'hello' },
+        },
+      }
+
+      expect(hasWorkflowChanged(currentState as any, deployedState as any)).toBe(true)
+    })
+
+    it.concurrent('should detect removed variables', () => {
+      const deployedState = {
+        ...createWorkflowState({}),
+        variables: {
+          var1: { id: 'var1', name: 'myVar', type: 'string', value: 'hello' },
+        },
+      }
+
+      const currentState = {
+        ...createWorkflowState({}),
+        variables: {},
+      }
+
+      expect(hasWorkflowChanged(currentState as any, deployedState as any)).toBe(true)
+    })
+
+    it.concurrent('should detect variable value changes', () => {
+      const deployedState = {
+        ...createWorkflowState({}),
+        variables: {
+          var1: { id: 'var1', name: 'myVar', type: 'string', value: 'hello' },
+        },
+      }
+
+      const currentState = {
+        ...createWorkflowState({}),
+        variables: {
+          var1: { id: 'var1', name: 'myVar', type: 'string', value: 'world' },
+        },
+      }
+
+      expect(hasWorkflowChanged(currentState as any, deployedState as any)).toBe(true)
+    })
+
+    it.concurrent('should detect variable type changes', () => {
+      const deployedState = {
+        ...createWorkflowState({}),
+        variables: {
+          var1: { id: 'var1', name: 'myVar', type: 'string', value: '123' },
+        },
+      }
+
+      const currentState = {
+        ...createWorkflowState({}),
+        variables: {
+          var1: { id: 'var1', name: 'myVar', type: 'number', value: 123 },
+        },
+      }
+
+      expect(hasWorkflowChanged(currentState as any, deployedState as any)).toBe(true)
+    })
+
+    it.concurrent('should detect variable name changes', () => {
+      const deployedState = {
+        ...createWorkflowState({}),
+        variables: {
+          var1: { id: 'var1', name: 'oldName', type: 'string', value: 'hello' },
+        },
+      }
+
+      const currentState = {
+        ...createWorkflowState({}),
+        variables: {
+          var1: { id: 'var1', name: 'newName', type: 'string', value: 'hello' },
+        },
+      }
+
+      expect(hasWorkflowChanged(currentState as any, deployedState as any)).toBe(true)
+    })
+
+    it.concurrent('should not detect change for identical variables', () => {
+      const deployedState = {
+        ...createWorkflowState({}),
+        variables: {
+          var1: { id: 'var1', name: 'myVar', type: 'string', value: 'hello' },
+          var2: { id: 'var2', name: 'count', type: 'number', value: 42 },
+        },
+      }
+
+      const currentState = {
+        ...createWorkflowState({}),
+        variables: {
+          var1: { id: 'var1', name: 'myVar', type: 'string', value: 'hello' },
+          var2: { id: 'var2', name: 'count', type: 'number', value: 42 },
+        },
+      }
+
+      expect(hasWorkflowChanged(currentState as any, deployedState as any)).toBe(false)
+    })
+
+    it.concurrent('should not detect change for empty variables on both sides', () => {
+      const deployedState = {
+        ...createWorkflowState({}),
+        variables: {},
+      }
+
+      const currentState = {
+        ...createWorkflowState({}),
+        variables: {},
+      }
+
+      expect(hasWorkflowChanged(currentState as any, deployedState as any)).toBe(false)
+    })
+
+    it.concurrent('should not detect change for undefined vs empty object variables', () => {
+      const deployedState = {
+        ...createWorkflowState({}),
+        variables: undefined,
+      }
+
+      const currentState = {
+        ...createWorkflowState({}),
+        variables: {},
+      }
+
+      expect(hasWorkflowChanged(currentState as any, deployedState as any)).toBe(false)
+    })
+
+    it.concurrent('should handle complex variable values (objects)', () => {
+      const deployedState = {
+        ...createWorkflowState({}),
+        variables: {
+          var1: { id: 'var1', name: 'config', type: 'object', value: { key: 'value1' } },
+        },
+      }
+
+      const currentState = {
+        ...createWorkflowState({}),
+        variables: {
+          var1: { id: 'var1', name: 'config', type: 'object', value: { key: 'value2' } },
+        },
+      }
+
+      expect(hasWorkflowChanged(currentState as any, deployedState as any)).toBe(true)
+    })
+
+    it.concurrent('should handle complex variable values (arrays)', () => {
+      const deployedState = {
+        ...createWorkflowState({}),
+        variables: {
+          var1: { id: 'var1', name: 'items', type: 'array', value: [1, 2, 3] },
+        },
+      }
+
+      const currentState = {
+        ...createWorkflowState({}),
+        variables: {
+          var1: { id: 'var1', name: 'items', type: 'array', value: [1, 2, 4] },
+        },
+      }
+
+      expect(hasWorkflowChanged(currentState as any, deployedState as any)).toBe(true)
+    })
+
+    it.concurrent('should not detect change when variable key order differs', () => {
+      const deployedState = {
+        ...createWorkflowState({}),
+        variables: {
+          var1: { id: 'var1', name: 'myVar', type: 'string', value: 'hello' },
+          var2: { id: 'var2', name: 'count', type: 'number', value: 42 },
+        },
+      }
+
+      const currentState = {
+        ...createWorkflowState({}),
+        variables: {
+          var2: { id: 'var2', name: 'count', type: 'number', value: 42 },
+          var1: { id: 'var1', name: 'myVar', type: 'string', value: 'hello' },
+        },
+      }
+
+      expect(hasWorkflowChanged(currentState as any, deployedState as any)).toBe(false)
+    })
+  })
 })

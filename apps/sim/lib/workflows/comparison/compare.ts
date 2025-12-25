@@ -224,5 +224,16 @@ export function hasWorkflowChanged(
     }
   }
 
+  // 6. Compare variables
+  const currentVariables = (currentState as any).variables || {}
+  const deployedVariables = (deployedState as any).variables || {}
+
+  const normalizedCurrentVars = normalizeValue(currentVariables)
+  const normalizedDeployedVars = normalizeValue(deployedVariables)
+
+  if (normalizedStringify(normalizedCurrentVars) !== normalizedStringify(normalizedDeployedVars)) {
+    return true
+  }
+
   return false
 }
