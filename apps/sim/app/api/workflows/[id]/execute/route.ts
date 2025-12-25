@@ -318,6 +318,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       loops: Record<string, any>
       parallels: Record<string, any>
       deploymentVersionId?: string
+      variables?: Record<string, any>
     } | null = null
 
     let processedInput = input
@@ -327,6 +328,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         : await loadDeployedWorkflowState(workflowId)
 
       if (workflowData) {
+        const deployedVariables =
+          !shouldUseDraftState && 'variables' in workflowData
+            ? (workflowData as any).variables
+            : undefined
+
         cachedWorkflowData = {
           blocks: workflowData.blocks,
           edges: workflowData.edges,
@@ -336,6 +342,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             !shouldUseDraftState && 'deploymentVersionId' in workflowData
               ? (workflowData.deploymentVersionId as string)
               : undefined,
+          variables: deployedVariables,
         }
 
         const serializedWorkflow = new Serializer().serializeWorkflow(
@@ -405,11 +412,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           workflowStateOverride: effectiveWorkflowStateOverride,
         }
 
+        const executionVariables = cachedWorkflowData?.variables ?? workflow.variables ?? {}
+
         const snapshot = new ExecutionSnapshot(
           metadata,
           workflow,
           processedInput,
-          workflow.variables || {},
+          executionVariables,
           selectedOutputs
         )
 
@@ -471,6 +480,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         selectedOutputs,
         cachedWorkflowData?.blocks || {}
       )
+      const streamVariables = cachedWorkflowData?.variables ?? (workflow as any).variables
+
       const stream = await createStreamingResponse({
         requestId,
         workflow: {
@@ -478,7 +489,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           userId: actorUserId,
           workspaceId,
           isDeployed: workflow.isDeployed,
-          variables: (workflow as any).variables,
+          variables: streamVariables,
         },
         input: processedInput,
         executingUserId: actorUserId,
@@ -675,11 +686,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             workflowStateOverride: effectiveWorkflowStateOverride,
           }
 
+          const sseExecutionVariables = cachedWorkflowData?.variables ?? workflow.variables ?? {}
+
           const snapshot = new ExecutionSnapshot(
             metadata,
             workflow,
             processedInput,
-            workflow.variables || {},
+            sseExecutionVariables,
             selectedOutputs
           )
 

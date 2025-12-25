@@ -1,4 +1,5 @@
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import {
   normalizedStringify,
   normalizeEdge,
@@ -100,10 +101,12 @@ export function hasWorkflowChanged(
       subBlocks: undefined,
     }
 
-    // Get all subBlock IDs from both states
+    // Get all subBlock IDs from both states, excluding runtime metadata
     const allSubBlockIds = [
       ...new Set([...Object.keys(currentSubBlocks), ...Object.keys(deployedSubBlocks)]),
-    ].sort()
+    ]
+      .filter((id) => !TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(id))
+      .sort()
 
     // Normalize and compare each subBlock
     for (const subBlockId of allSubBlockIds) {
@@ -222,6 +225,17 @@ export function hasWorkflowChanged(
     ) {
       return true
     }
+  }
+
+  // 6. Compare variables
+  const currentVariables = (currentState as any).variables || {}
+  const deployedVariables = (deployedState as any).variables || {}
+
+  const normalizedCurrentVars = normalizeValue(currentVariables)
+  const normalizedDeployedVars = normalizeValue(deployedVariables)
+
+  if (normalizedStringify(normalizedCurrentVars) !== normalizedStringify(normalizedDeployedVars)) {
+    return true
   }
 
   return false

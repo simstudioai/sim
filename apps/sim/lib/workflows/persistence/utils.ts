@@ -42,6 +42,7 @@ export interface NormalizedWorkflowData {
 
 export interface DeployedWorkflowData extends NormalizedWorkflowData {
   deploymentVersionId: string
+  variables?: Record<string, any>
 }
 
 export async function blockExistsInDeployment(
@@ -94,13 +95,14 @@ export async function loadDeployedWorkflowState(workflowId: string): Promise<Dep
       throw new Error(`Workflow ${workflowId} has no active deployment`)
     }
 
-    const state = active.state as WorkflowState
+    const state = active.state as WorkflowState & { variables?: Record<string, any> }
 
     return {
       blocks: state.blocks || {},
       edges: state.edges || [],
       loops: state.loops || {},
       parallels: state.parallels || {},
+      variables: state.variables || {},
       isFromNormalizedTables: false,
       deploymentVersionId: active.id,
     }

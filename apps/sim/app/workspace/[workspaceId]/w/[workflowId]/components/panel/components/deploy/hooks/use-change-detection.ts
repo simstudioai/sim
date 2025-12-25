@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -27,8 +28,18 @@ export function useChangeDetection({
   const subBlockValues = useSubBlockStore((state) =>
     workflowId ? state.workflowValues[workflowId] : null
   )
+  const allVariables = useVariablesStore((state) => state.variables)
+  const workflowVariables = useMemo(() => {
+    if (!workflowId) return {}
+    const vars: Record<string, any> = {}
+    for (const [id, variable] of Object.entries(allVariables)) {
+      if (variable.workflowId === workflowId) {
+        vars[id] = variable
+      }
+    }
+    return vars
+  }, [workflowId, allVariables])
 
-  // Build current state with subblock values merged into blocks
   const currentState = useMemo((): WorkflowState | null => {
     if (!workflowId) return null
 
@@ -37,12 +48,10 @@ export function useChangeDetection({
       const blockSubValues = subBlockValues?.[blockId] || {}
       const subBlocks: Record<string, any> = {}
 
-      // Merge subblock values into the block's subBlocks structure
       for (const [subId, value] of Object.entries(blockSubValues)) {
         subBlocks[subId] = { value }
       }
 
-      // Also include existing subBlocks from the block itself
       if (block.subBlocks) {
         for (const [subId, subBlock] of Object.entries(block.subBlocks)) {
           if (!subBlocks[subId]) {
@@ -64,10 +73,10 @@ export function useChangeDetection({
       edges,
       loops,
       parallels,
-    }
-  }, [workflowId, blocks, edges, loops, parallels, subBlockValues])
+      variables: workflowVariables,
+    } as WorkflowState & { variables: Record<string, any> }
+  }, [workflowId, blocks, edges, loops, parallels, subBlockValues, workflowVariables])
 
-  // Compute change detection with debouncing for performance
   const rawChangeDetected = useMemo(() => {
     if (!currentState || !deployedState || isLoadingDeployedState) {
       return false
@@ -75,13 +84,7 @@ export function useChangeDetection({
     return hasWorkflowChanged(currentState, deployedState)
   }, [currentState, deployedState, isLoadingDeployedState])
 
-  // Debounce to avoid UI flicker during rapid edits
   const changeDetected = useDebounce(rawChangeDetected, 300)
 
-  const setChangeDetected = () => {
-    // No-op: change detection is now computed, not stateful
-    // Kept for API compatibility
-  }
-
-  return { changeDetected, setChangeDetected }
+  return { changeDetected }
 }

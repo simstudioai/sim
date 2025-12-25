@@ -35,7 +35,6 @@ interface DeployModalProps {
   workflowId: string | null
   isDeployed: boolean
   needsRedeployment: boolean
-  setNeedsRedeployment: (value: boolean) => void
   deployedState: WorkflowState
   isLoadingDeployedState: boolean
   refetchDeployedState: () => Promise<void>
@@ -58,7 +57,6 @@ export function DeployModal({
   workflowId,
   isDeployed: isDeployedProp,
   needsRedeployment,
-  setNeedsRedeployment,
   deployedState,
   isLoadingDeployedState,
   refetchDeployedState,
@@ -229,7 +227,6 @@ export function DeployModal({
 
       setDeploymentStatus(workflowId, isDeployedStatus, deployedAtTime, apiKeyLabel)
 
-      setNeedsRedeployment(false)
       if (workflowId) {
         useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
       }
@@ -453,7 +450,6 @@ export function DeployModal({
         getApiKeyLabel(apiKey)
       )
 
-      setNeedsRedeployment(false)
       if (workflowId) {
         useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
       }

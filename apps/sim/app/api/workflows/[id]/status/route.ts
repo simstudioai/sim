@@ -1,4 +1,4 @@
-import { db, workflowDeploymentVersion } from '@sim/db'
+import { db, workflow, workflowDeploymentVersion } from '@sim/db'
 import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -22,17 +22,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return createErrorResponse(validation.error.message, validation.error.status)
     }
 
-    // Check if the workflow has meaningful changes that would require redeployment
     let needsRedeployment = false
 
     if (validation.workflow.isDeployed) {
-      // Get current state from normalized tables (same logic as deployment API)
-      // Load current state from normalized tables using centralized helper
       const normalizedData = await loadWorkflowFromNormalizedTables(id)
 
       if (!normalizedData) {
-        // Workflow exists but has no blocks in normalized tables (empty workflow or not migrated)
-        // This is valid state - return success with no redeployment needed
         return createSuccessResponse({
           isDeployed: validation.workflow.isDeployed,
           deployedAt: validation.workflow.deployedAt,
@@ -41,11 +36,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         })
       }
 
+      const [workflowRecord] = await db
+        .select({ variables: workflow.variables })
+        .from(workflow)
+        .where(eq(workflow.id, id))
+        .limit(1)
+
       const currentState = {
         blocks: normalizedData.blocks,
         edges: normalizedData.edges,
         loops: normalizedData.loops,
         parallels: normalizedData.parallels,
+        variables: workflowRecord?.variables || {},
         lastSaved: Date.now(),
       }
 
