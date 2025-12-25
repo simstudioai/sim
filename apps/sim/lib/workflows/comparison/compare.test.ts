@@ -2267,4 +2267,245 @@ describe('hasWorkflowChanged', () => {
       expect(hasWorkflowChanged(currentState as any, deployedState as any)).toBe(false)
     })
   })
+
+  describe('Trigger Runtime Metadata (Should Not Trigger Change)', () => {
+    it.concurrent('should not detect change when webhookId differs', () => {
+      const deployedState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            type: 'starter',
+            subBlocks: {
+              triggerConfig: { value: { event: 'push' } },
+              webhookId: { value: null },
+            },
+          }),
+        },
+      })
+
+      const currentState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            type: 'starter',
+            subBlocks: {
+              triggerConfig: { value: { event: 'push' } },
+              webhookId: { value: 'wh_123456' },
+            },
+          }),
+        },
+      })
+
+      expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
+    })
+
+    it.concurrent('should not detect change when triggerPath differs', () => {
+      const deployedState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            type: 'starter',
+            subBlocks: {
+              triggerConfig: { value: { event: 'push' } },
+              triggerPath: { value: '' },
+            },
+          }),
+        },
+      })
+
+      const currentState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            type: 'starter',
+            subBlocks: {
+              triggerConfig: { value: { event: 'push' } },
+              triggerPath: { value: '/api/webhooks/abc123' },
+            },
+          }),
+        },
+      })
+
+      expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
+    })
+
+    it.concurrent('should not detect change when testUrl differs', () => {
+      const deployedState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            type: 'starter',
+            subBlocks: {
+              triggerConfig: { value: { event: 'push' } },
+              testUrl: { value: null },
+            },
+          }),
+        },
+      })
+
+      const currentState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            type: 'starter',
+            subBlocks: {
+              triggerConfig: { value: { event: 'push' } },
+              testUrl: { value: 'https://test.example.com/webhook' },
+            },
+          }),
+        },
+      })
+
+      expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
+    })
+
+    it.concurrent('should not detect change when testUrlExpiresAt differs', () => {
+      const deployedState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            type: 'starter',
+            subBlocks: {
+              triggerConfig: { value: { event: 'push' } },
+              testUrlExpiresAt: { value: null },
+            },
+          }),
+        },
+      })
+
+      const currentState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            type: 'starter',
+            subBlocks: {
+              triggerConfig: { value: { event: 'push' } },
+              testUrlExpiresAt: { value: '2025-12-31T23:59:59Z' },
+            },
+          }),
+        },
+      })
+
+      expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
+    })
+
+    it.concurrent('should not detect change when all runtime metadata differs', () => {
+      const deployedState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            type: 'starter',
+            subBlocks: {
+              triggerConfig: { value: { event: 'push' } },
+              webhookId: { value: null },
+              triggerPath: { value: '' },
+              testUrl: { value: null },
+              testUrlExpiresAt: { value: null },
+            },
+          }),
+        },
+      })
+
+      const currentState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            type: 'starter',
+            subBlocks: {
+              triggerConfig: { value: { event: 'push' } },
+              webhookId: { value: 'wh_123456' },
+              triggerPath: { value: '/api/webhooks/abc123' },
+              testUrl: { value: 'https://test.example.com/webhook' },
+              testUrlExpiresAt: { value: '2025-12-31T23:59:59Z' },
+            },
+          }),
+        },
+      })
+
+      expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
+    })
+
+    it.concurrent(
+      'should detect change when triggerConfig differs but runtime metadata also differs',
+      () => {
+        const deployedState = createWorkflowState({
+          blocks: {
+            block1: createBlock('block1', {
+              type: 'starter',
+              subBlocks: {
+                triggerConfig: { value: { event: 'push' } },
+                webhookId: { value: null },
+              },
+            }),
+          },
+        })
+
+        const currentState = createWorkflowState({
+          blocks: {
+            block1: createBlock('block1', {
+              type: 'starter',
+              subBlocks: {
+                triggerConfig: { value: { event: 'pull_request' } },
+                webhookId: { value: 'wh_123456' },
+              },
+            }),
+          },
+        })
+
+        expect(hasWorkflowChanged(currentState, deployedState)).toBe(true)
+      }
+    )
+
+    it.concurrent(
+      'should not detect change when runtime metadata is added to current state',
+      () => {
+        const deployedState = createWorkflowState({
+          blocks: {
+            block1: createBlock('block1', {
+              type: 'starter',
+              subBlocks: {
+                triggerConfig: { value: { event: 'push' } },
+              },
+            }),
+          },
+        })
+
+        const currentState = createWorkflowState({
+          blocks: {
+            block1: createBlock('block1', {
+              type: 'starter',
+              subBlocks: {
+                triggerConfig: { value: { event: 'push' } },
+                webhookId: { value: 'wh_123456' },
+                triggerPath: { value: '/api/webhooks/abc123' },
+              },
+            }),
+          },
+        })
+
+        expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
+      }
+    )
+
+    it.concurrent(
+      'should not detect change when runtime metadata is removed from current state',
+      () => {
+        const deployedState = createWorkflowState({
+          blocks: {
+            block1: createBlock('block1', {
+              type: 'starter',
+              subBlocks: {
+                triggerConfig: { value: { event: 'push' } },
+                webhookId: { value: 'wh_old123' },
+                triggerPath: { value: '/api/webhooks/old' },
+              },
+            }),
+          },
+        })
+
+        const currentState = createWorkflowState({
+          blocks: {
+            block1: createBlock('block1', {
+              type: 'starter',
+              subBlocks: {
+                triggerConfig: { value: { event: 'push' } },
+              },
+            }),
+          },
+        })
+
+        expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
+      }
+    )
+  })
 })
