@@ -13,7 +13,7 @@ import {
   ModalHeader,
   Trash,
 } from '@/components/emcn'
-import { AnthropicIcon, ExaAIIcon, GeminiIcon, MistralIcon, OpenAIIcon } from '@/components/icons'
+import { AnthropicIcon, GeminiIcon, MistralIcon, OpenAIIcon } from '@/components/icons'
 import { Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -59,13 +59,6 @@ const PROVIDERS: {
     name: 'Mistral',
     icon: MistralIcon,
     description: 'LLM calls and Knowledge Base OCR',
-    placeholder: 'Enter your API key',
-  },
-  {
-    id: 'exa',
-    name: 'Exa',
-    icon: ExaAIIcon,
-    description: 'Web Search block',
     placeholder: 'Enter your API key',
   },
 ]

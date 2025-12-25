@@ -25,7 +25,6 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     }),
     body: (params) => ({
       query: params.query,
-      workspaceId: params._context?.workspaceId,
     }),
   },
 
