@@ -2520,14 +2520,6 @@ export const useCopilotStore = create<CopilotStore>()(
       return messageCheckpoints[messageId] || []
     },
 
-    // Preview YAML (stubbed/no-op)
-    setPreviewYaml: async (_yamlContent: string) => {},
-    clearPreviewYaml: async () => {
-      set((state) => ({
-        currentChat: state.currentChat ? { ...state.currentChat, previewYaml: null } : null,
-      }))
-    },
-
     // Handle streaming response
     handleStreamingResponse: async (
       stream: ReadableStream,
@@ -2685,7 +2677,6 @@ export const useCopilotStore = create<CopilotStore>()(
         model: selectedModel,
         messages: get().messages,
         messageCount: get().messages.length,
-        previewYaml: null,
         planArtifact: streamingPlanContent || null,
         config: {
           mode,
@@ -2842,10 +2833,6 @@ export const useCopilotStore = create<CopilotStore>()(
         }
       }
     },
-
-    // Diff updates are out of scope for minimal store
-    updateDiffStore: async (_yamlContent: string) => {},
-    updateDiffStoreWithWorkflowState: async (_workflowState: any) => {},
 
     setSelectedModel: async (model) => {
       logger.info('[Context Usage] Model changed', { from: get().selectedModel, to: model })

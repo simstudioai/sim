@@ -14,7 +14,6 @@ const logger = createLogger('DiffControls')
 
 export const DiffControls = memo(function DiffControls() {
   const isTerminalResizing = useTerminalStore((state) => state.isResizing)
-  // Optimized: Single diff store subscription
   const {
     isShowingDiff,
     isDiffReady,
@@ -38,12 +37,10 @@ export const DiffControls = memo(function DiffControls() {
     )
   )
 
-  // Optimized: Single copilot store subscription for needed values
-  const { updatePreviewToolCallState, clearPreviewYaml, currentChat, messages } = useCopilotStore(
+  const { updatePreviewToolCallState, currentChat, messages } = useCopilotStore(
     useCallback(
       (state) => ({
         updatePreviewToolCallState: state.updatePreviewToolCallState,
-        clearPreviewYaml: state.clearPreviewYaml,
         currentChat: state.currentChat,
         messages: state.messages,
       }),
@@ -222,11 +219,6 @@ export const DiffControls = memo(function DiffControls() {
         logger.warn('Failed to create checkpoint before accept:', error)
       })
 
-      // Clear preview YAML immediately
-      await clearPreviewYaml().catch((error) => {
-        logger.warn('Failed to clear preview YAML:', error)
-      })
-
       // Resolve target toolCallId for build/edit and update to terminal success state in the copilot store
       try {
         const { toolCallsById, messages } = useCopilotStore.getState()
@@ -266,15 +258,10 @@ export const DiffControls = memo(function DiffControls() {
       logger.error('Workflow update failed:', errorMessage)
       alert(`Failed to save workflow changes: ${errorMessage}`)
     }
-  }, [createCheckpoint, clearPreviewYaml, updatePreviewToolCallState, acceptChanges])
+  }, [createCheckpoint, updatePreviewToolCallState, acceptChanges])
 
   const handleReject = useCallback(() => {
     logger.info('Rejecting proposed changes (optimistic)')
-
-    // Clear preview YAML immediately
-    clearPreviewYaml().catch((error) => {
-      logger.warn('Failed to clear preview YAML:', error)
-    })
 
     // Resolve target toolCallId for build/edit and update to terminal rejected state in the copilot store
     try {
@@ -306,7 +293,7 @@ export const DiffControls = memo(function DiffControls() {
     rejectChanges().catch((error) => {
       logger.error('Failed to reject changes (background):', error)
     })
-  }, [clearPreviewYaml, updatePreviewToolCallState, rejectChanges])
+  }, [updatePreviewToolCallState, rejectChanges])
 
   // Don't show anything if no diff is available or diff is not ready
   if (!hasActiveDiff || !isDiffReady) {
