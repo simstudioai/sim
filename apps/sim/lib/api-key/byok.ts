@@ -6,7 +6,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('BYOKKeys')
 
-export type BYOKProviderId = 'openai' | 'anthropic' | 'google' | 'mistral' | 'exa'
+export type BYOKProviderId = 'openai' | 'anthropic' | 'google' | 'mistral'
 
 export interface BYOKKeyResult {
   apiKey: string

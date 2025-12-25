@@ -2,11 +2,6 @@ import type { ToolResponse } from '@/tools/types'
 
 export interface SearchParams {
   query: string
-  _context?: {
-    workflowId?: string
-    workspaceId?: string
-    executionId?: string
-  }
 }
 
 export interface SearchResponse extends ToolResponse {

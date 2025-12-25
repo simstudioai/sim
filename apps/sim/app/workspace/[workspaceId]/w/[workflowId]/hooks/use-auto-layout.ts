@@ -9,9 +9,11 @@ export type { AutoLayoutOptions }
 const logger = createLogger('useAutoLayout')
 
 /**
- * Hook providing auto-layout functionality for workflows
- * Binds workflowId context and provides memoized callback for React components
- * Includes automatic fitView animation after successful layout
+ * Hook providing auto-layout functionality for workflows.
+ * Binds workflowId context and provides memoized callback for React components.
+ * Includes automatic fitView animation after successful layout.
+ *
+ * Note: This hook requires a ReactFlowProvider ancestor.
  */
 export function useAutoLayout(workflowId: string | null) {
   const { fitView } = useReactFlow()

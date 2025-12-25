@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getBYOKKey } from '@/lib/api-key/byok'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { SEARCH_TOOL_COST } from '@/lib/billing/constants'
 import { env } from '@/lib/core/config/env'
@@ -11,7 +10,6 @@ const logger = createLogger('search')
 
 const SearchRequestSchema = z.object({
   query: z.string().min(1),
-  workspaceId: z.string().optional(),
 })
 
 export const maxDuration = 60
@@ -41,17 +39,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validated = SearchRequestSchema.parse(body)
 
-    let exaApiKey = env.EXA_API_KEY
-    let isBYOK = false
-
-    if (validated.workspaceId) {
-      const byokResult = await getBYOKKey(validated.workspaceId, 'exa')
-      if (byokResult) {
-        exaApiKey = byokResult.apiKey
-        isBYOK = true
-        logger.info(`[${requestId}] Using workspace BYOK key for Exa search`)
-      }
-    }
+    const exaApiKey = env.EXA_API_KEY
 
     if (!exaApiKey) {
       logger.error(`[${requestId}] No Exa API key available`)
@@ -64,7 +52,6 @@ export async function POST(request: NextRequest) {
     logger.info(`[${requestId}] Executing search`, {
       userId,
       query: validated.query,
-      isBYOK,
     })
 
     const result = await executeTool('exa_search', {
@@ -100,7 +87,7 @@ export async function POST(request: NextRequest) {
     const cost = {
       input: 0,
       output: 0,
-      total: isBYOK ? 0 : SEARCH_TOOL_COST,
+      total: SEARCH_TOOL_COST,
       tokens: {
         input: 0,
         output: 0,
@@ -119,7 +106,6 @@ export async function POST(request: NextRequest) {
       userId,
       resultCount: results.length,
       cost: cost.total,
-      isBYOK,
     })
 
     return NextResponse.json({
