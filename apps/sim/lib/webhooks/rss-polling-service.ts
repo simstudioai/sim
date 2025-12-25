@@ -10,7 +10,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('RssPollingService')
 
-const MAX_CONSECUTIVE_FAILURES = 10
+const MAX_CONSECUTIVE_FAILURES = 100
 const MAX_GUIDS_TO_TRACK = 100 // Track recent guids to prevent duplicates
 
 interface RssWebhookConfig {

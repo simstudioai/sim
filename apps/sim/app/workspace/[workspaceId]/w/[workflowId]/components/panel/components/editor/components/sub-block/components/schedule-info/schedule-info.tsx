@@ -46,7 +46,7 @@ export function ScheduleInfo({ blockId, isPreview = false }: ScheduleInfoProps) 
       {(failedCount > 0 || isDisabled) && (
         <div className='space-y-1'>
           <div className='flex flex-wrap items-center gap-2'>
-            {failedCount >= 10 && isDisabled ? (
+            {failedCount >= 100 && isDisabled ? (
               <Badge
                 variant='outline'
                 className='cursor-pointer'
@@ -70,9 +70,9 @@ export function ScheduleInfo({ blockId, isPreview = false }: ScheduleInfoProps) 
               </Badge>
             ) : null}
           </div>
-          {failedCount >= 10 && isDisabled && (
+          {failedCount >= 100 && isDisabled && (
             <p className='text-[12px] text-[var(--text-tertiary)]'>
-              Disabled after 10 consecutive failures
+              Disabled after 100 consecutive failures
             </p>
           )}
         </div>

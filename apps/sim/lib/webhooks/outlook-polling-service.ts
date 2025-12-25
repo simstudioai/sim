@@ -10,7 +10,7 @@ import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/
 
 const logger = createLogger('OutlookPollingService')
 
-const MAX_CONSECUTIVE_FAILURES = 10
+const MAX_CONSECUTIVE_FAILURES = 100
 
 async function markWebhookFailed(webhookId: string) {
   try {

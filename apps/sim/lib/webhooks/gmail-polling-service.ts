@@ -11,7 +11,7 @@ import { downloadAttachments, extractAttachmentInfo } from '@/tools/gmail/utils'
 
 const logger = createLogger('GmailPollingService')
 
-const MAX_CONSECUTIVE_FAILURES = 10
+const MAX_CONSECUTIVE_FAILURES = 100
 
 interface GmailWebhookConfig {
   labelIds: string[]
