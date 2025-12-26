@@ -3,7 +3,7 @@ import { member, organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { toDecimal, toFixedString, toNumber } from '@/lib/billing/utils/decimal'
+import { Decimal, toDecimal, toFixedString, toNumber } from '@/lib/billing/utils/decimal'
 
 const logger = createLogger('CreditBalance')
 
@@ -162,7 +162,7 @@ export async function deductFromCredits(userId: string, cost: number): Promise<D
     creditsUsed = await atomicDeductUserCredits(userId, cost)
   }
 
-  const overflow = Math.max(0, cost - creditsUsed)
+  const overflow = toNumber(Decimal.max(0, toDecimal(cost).minus(creditsUsed)))
 
   if (creditsUsed > 0) {
     logger.info('Deducted credits atomically', {
