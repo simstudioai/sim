@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { AlertCircle, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
+  Badge,
   Button,
   Modal,
   ModalBody,
@@ -258,6 +259,7 @@ try {
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 })
   const [schemaParamSelectedIndex, setSchemaParamSelectedIndex] = useState(0)
+  const schemaParamItemRefs = useRef<Map<number, HTMLElement>>(new Map())
 
   const createToolMutation = useCreateCustomTool()
   const updateToolMutation = useUpdateCustomTool()
@@ -285,6 +287,19 @@ try {
       resetForm()
     }
   }, [open])
+
+  // Auto-scroll selected parameter into view
+  useEffect(() => {
+    if (!showSchemaParams || schemaParamSelectedIndex < 0) return
+
+    const element = schemaParamItemRefs.current.get(schemaParamSelectedIndex)
+    if (element) {
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      })
+    }
+  }, [schemaParamSelectedIndex, showSchemaParams])
 
   const resetForm = () => {
     setJsonSchema('')
@@ -874,11 +889,6 @@ try {
                     )}
                   </div>
                   <div className='flex min-w-0 flex-1 items-center justify-end gap-1 pr-[4px]'>
-                    {!isSchemaPromptActive && schemaPromptSummary && (
-                      <span className='text-[var(--text-tertiary)] text-xs italic'>
-                        with {schemaPromptSummary}
-                      </span>
-                    )}
                     {!isSchemaPromptActive ? (
                       <button
                         type='button'
@@ -953,11 +963,6 @@ try {
                     )}
                   </div>
                   <div className='flex min-w-0 flex-1 items-center justify-end gap-1 pr-[4px]'>
-                    {!isCodePromptActive && codePromptSummary && (
-                      <span className='text-[var(--text-tertiary)] text-xs italic'>
-                        with {codePromptSummary}
-                      </span>
-                    )}
                     {!isCodePromptActive ? (
                       <button
                         type='button'
@@ -985,18 +990,19 @@ try {
                 </div>
                 {schemaParameters.length > 0 && (
                   <div className='mb-2 rounded-[6px] border bg-[var(--surface-2)] p-2'>
-                    <p className='text-[var(--text-tertiary)] text-xs'>
-                      <span className='font-medium'>Available parameters:</span>{' '}
-                      {schemaParameters.map((param, index) => (
-                        <span key={param.name}>
-                          <code className='rounded bg-[var(--bg)] px-1 py-0.5 text-[var(--text-primary)]'>
-                            {param.name}
-                          </code>
-                          {index < schemaParameters.length - 1 && ', '}
-                        </span>
+                    <div className='flex flex-wrap items-center gap-1.5 text-xs'>
+                      <span className='font-medium text-[var(--text-tertiary)]'>
+                        Available parameters:
+                      </span>
+                      {schemaParameters.map((param) => (
+                        <Badge key={param.name} variant='blue-secondary' size='sm'>
+                          {param.name}
+                        </Badge>
                       ))}
-                      {'. '}Start typing a parameter name for autocomplete.
-                    </p>
+                      <span className='text-[var(--text-tertiary)]'>
+                        Start typing a parameter name for autocomplete.
+                      </span>
+                    </div>
                   </div>
                 )}
                 <div ref={codeEditorRef} className='relative'>
@@ -1085,7 +1091,7 @@ try {
                       </PopoverAnchor>
                       <PopoverContent
                         maxHeight={240}
-                        className='min-w-[260px] max-w-[260px]'
+                        className='min-w-[280px]'
                         side='bottom'
                         align='start'
                         collisionPadding={6}
@@ -1105,18 +1111,20 @@ try {
                                 e.stopPropagation()
                                 handleSchemaParamSelect(param.name)
                               }}
-                              className='flex items-center gap-2'
+                              ref={(el) => {
+                                if (el) {
+                                  schemaParamItemRefs.current.set(index, el)
+                                }
+                              }}
                             >
-                              <div
-                                className='flex h-5 w-5 items-center justify-center rounded'
-                                style={{ backgroundColor: '#2F8BFF' }}
-                              >
-                                <span className='h-3 w-3 font-bold text-white text-xs'>P</span>
-                              </div>
-                              <span className='flex-1 truncate'>{param.name}</span>
-                              <span className='text-[var(--text-tertiary)] text-xs'>
-                                {param.type}
+                              <span className='flex-1 truncate text-[var(--text-primary)]'>
+                                {param.name}
                               </span>
+                              {param.type && param.type !== 'any' && (
+                                <span className='ml-auto text-[10px] text-[var(--text-secondary)]'>
+                                  {param.type}
+                                </span>
+                              )}
                             </PopoverItem>
                           ))}
                         </PopoverScrollArea>
