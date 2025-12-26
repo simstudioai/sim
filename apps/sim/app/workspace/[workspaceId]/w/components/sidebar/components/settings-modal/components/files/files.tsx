@@ -509,7 +509,7 @@ export function Files() {
               </div>
               <div className='flex items-center gap-[3px]'>
                 {Array.from({ length: 12 }).map((_, i) => {
-                  const filledCount = Math.ceil((Math.min(storageInfo.percentUsed, 100) / 100) * 16)
+                  const filledCount = Math.ceil((Math.min(storageInfo.percentUsed, 100) / 100) * 12)
                   const isFilled = i < filledCount
                   return (
                     <div

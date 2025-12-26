@@ -10,13 +10,14 @@
 export function syncThemeToNextThemes(theme: 'system' | 'light' | 'dark') {
   if (typeof window === 'undefined') return
 
+  const oldValue = localStorage.getItem('sim-theme')
   localStorage.setItem('sim-theme', theme)
 
   window.dispatchEvent(
     new StorageEvent('storage', {
       key: 'sim-theme',
       newValue: theme,
-      oldValue: localStorage.getItem('sim-theme'),
+      oldValue: oldValue,
       storageArea: localStorage,
       url: window.location.href,
     })

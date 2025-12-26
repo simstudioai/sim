@@ -55,7 +55,7 @@ export function TagInput({
   return (
     <div
       className={cn(
-        'scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[6px] py-[4px] focus-within:outline-none dark:bg-[var(--surface-5)]',
+        'scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[6px] py-[4px] focus-within:outline-none',
         disabled && 'cursor-not-allowed opacity-50',
         className
       )}
