@@ -140,9 +140,7 @@ export const auth = betterAuth({
                     const match = data.profile.match(/^(https:\/\/[^/]+)/)
                     if (match && match[1] !== 'https://login.salesforce.com') {
                       const instanceUrl = match[1]
-                      const existingScope =
-                        account.scope || 'api refresh_token openid offline_access'
-                      scopeToStore = `__sf_instance__:${instanceUrl} ${existingScope}`
+                      scopeToStore = `__sf_instance__:${instanceUrl} ${account.scope}`
                     }
                   }
                 }
@@ -199,9 +197,7 @@ export const auth = betterAuth({
                     const match = data.profile.match(/^(https:\/\/[^/]+)/)
                     if (match && match[1] !== 'https://login.salesforce.com') {
                       const instanceUrl = match[1]
-                      const existingScope =
-                        account.scope || 'api refresh_token openid offline_access'
-                      updates.scope = `__sf_instance__:${instanceUrl} ${existingScope}`
+                      updates.scope = `__sf_instance__:${instanceUrl} ${account.scope}`
                     }
                   }
                 }
