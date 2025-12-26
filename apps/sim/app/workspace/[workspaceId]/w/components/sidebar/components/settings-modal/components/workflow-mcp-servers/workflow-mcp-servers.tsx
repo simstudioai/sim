@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Check, Clipboard, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -14,7 +15,6 @@ import {
 } from '@/components/emcn'
 import { Input, Skeleton } from '@/components/ui'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   useCreateWorkflowMcpServer,
   useDeleteWorkflowMcpServer,

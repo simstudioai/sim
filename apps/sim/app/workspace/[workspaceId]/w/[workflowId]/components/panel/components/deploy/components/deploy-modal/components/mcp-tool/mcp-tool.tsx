@@ -1,11 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Server } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Badge, Combobox, type ComboboxOption, Input, Label, Textarea } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
-import { createLogger } from '@/lib/logs/console/logger'
 import { generateToolInputSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
 import { isValidStartBlockType } from '@/lib/workflows/triggers/trigger-utils'

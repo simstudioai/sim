@@ -1,10 +1,10 @@
 import { db } from '@sim/db'
 import { permissions, workflowMcpServer, workspace } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('McpDiscoverAPI')
 
