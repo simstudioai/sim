@@ -159,15 +159,16 @@ export class EdgeConstructor {
       const sourceIsParallelBlock = parallelBlockIds.has(source)
       const targetIsParallelBlock = parallelBlockIds.has(target)
 
+      let loopSentinelStartId: string | undefined
+
       if (sourceIsLoopBlock) {
         const sentinelEndId = buildSentinelEndId(originalSource)
-        const loopSentinelStartId = buildSentinelStartId(originalSource)
+        loopSentinelStartId = buildSentinelStartId(originalSource)
         if (!dag.nodes.has(sentinelEndId) || !dag.nodes.has(loopSentinelStartId)) {
           continue
         }
         source = sentinelEndId
         sourceHandle = EDGE.LOOP_EXIT
-        this.addEdge(dag, loopSentinelStartId, target, EDGE.LOOP_EXIT, targetHandle)
       }
 
       if (targetIsLoopBlock) {
@@ -193,6 +194,10 @@ export class EdgeConstructor {
           continue
         }
         target = sentinelStartId
+      }
+
+      if (loopSentinelStartId) {
+        this.addEdge(dag, loopSentinelStartId, target, EDGE.LOOP_EXIT, targetHandle)
       }
 
       if (this.edgeCrossesLoopBoundary(source, target, blocksInLoops, dag)) {
