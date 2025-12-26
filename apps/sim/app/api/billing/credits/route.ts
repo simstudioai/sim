@@ -1,9 +1,9 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getCreditBalance } from '@/lib/billing/credits/balance'
 import { purchaseCredits } from '@/lib/billing/credits/purchase'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CreditsAPI')
 

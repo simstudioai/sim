@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createLogger } from '@/lib/logs/console/logger'
 import { buildDeleteQuery, createMySQLConnection, executeQuery } from '@/app/api/tools/mysql/utils'
 
 const logger = createLogger('MySQLDeleteAPI')

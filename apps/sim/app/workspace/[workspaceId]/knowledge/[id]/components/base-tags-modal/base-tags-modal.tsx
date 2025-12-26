@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Loader2 } from 'lucide-react'
 import {
   Button,
@@ -17,7 +18,6 @@ import {
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { SUPPORTED_FIELD_TYPES, TAG_SLOT_CONFIG } from '@/lib/knowledge/constants'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import {
   type TagDefinition,

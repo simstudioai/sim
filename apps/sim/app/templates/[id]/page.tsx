@@ -1,9 +1,9 @@
 import { db } from '@sim/db'
 import { templateCreators, templates } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { Metadata } from 'next'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 import TemplateDetails from '@/app/templates/[id]/template'
 
 const logger = createLogger('TemplateMetadata')

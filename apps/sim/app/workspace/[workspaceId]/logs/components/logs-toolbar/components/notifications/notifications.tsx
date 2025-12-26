@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { AlertCircle, Plus, X } from 'lucide-react'
 import {
   Badge,
@@ -21,7 +22,6 @@ import {
 import { SlackIcon } from '@/components/icons'
 import { Skeleton } from '@/components/ui'
 import { cn } from '@/lib/core/utils/cn'
-import { createLogger } from '@/lib/logs/console/logger'
 import { ALL_TRIGGER_TYPES, type TriggerType } from '@/lib/logs/types'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import {

@@ -61,7 +61,7 @@ describe('OAuth Credentials API Route', () => {
       jwtDecode: vi.fn(),
     }))
 
-    vi.doMock('@/lib/logs/console/logger', () => ({
+    vi.doMock('@sim/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
 

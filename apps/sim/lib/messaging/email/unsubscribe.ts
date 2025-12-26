@@ -1,9 +1,9 @@
 import { createHash, randomBytes } from 'crypto'
 import { db } from '@sim/db'
 import { settings, user } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { EmailType } from '@/lib/messaging/email/mailer'
 
 const logger = createLogger('Unsubscribe')

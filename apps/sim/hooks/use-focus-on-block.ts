@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
+import { createLogger } from '@sim/logger'
 import { useReactFlow } from 'reactflow'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('useFocusOnBlock')
 

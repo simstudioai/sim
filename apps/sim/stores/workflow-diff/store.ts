@@ -1,7 +1,7 @@
+import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   type DiffAnalysis,
   stripWorkflowDiffMarkers,

@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { GoogleSlidesToolParams, GoogleSlidesWriteResponse } from '@/tools/google_slides/types'
 import type { ToolConfig } from '@/tools/types'
 

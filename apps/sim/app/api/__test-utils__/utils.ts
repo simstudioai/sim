@@ -735,7 +735,7 @@ export function mockKnowledgeSchemas() {
  * This ensures tests can assert on the same mockLogger instance exported from this module.
  */
 export function mockConsoleLogger() {
-  vi.doMock('@/lib/logs/console/logger', () => ({
+  vi.doMock('@sim/logger', () => ({
     createLogger: vi.fn().mockReturnValue(mockLogger),
   }))
 }

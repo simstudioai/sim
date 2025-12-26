@@ -7,9 +7,9 @@
 
 import type React from 'react'
 import { useCallback, useMemo } from 'react'
+import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { McpIcon } from '@/components/icons'
-import { createLogger } from '@/lib/logs/console/logger'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { mcpKeys, useMcpToolsQuery } from '@/hooks/queries/mcp'
 

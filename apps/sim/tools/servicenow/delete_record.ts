@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { ServiceNowDeleteParams, ServiceNowDeleteResponse } from '@/tools/servicenow/types'
 import { createBasicAuthHeader } from '@/tools/servicenow/utils'
 import type { ToolConfig } from '@/tools/types'

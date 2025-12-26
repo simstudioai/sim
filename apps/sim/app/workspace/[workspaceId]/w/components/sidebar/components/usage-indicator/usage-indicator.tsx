@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
@@ -11,7 +12,6 @@ import {
   getSubscriptionStatus,
   getUsage,
 } from '@/lib/billing/client/utils'
-import { createLogger } from '@/lib/logs/console/logger'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
 import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'

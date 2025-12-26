@@ -1,10 +1,10 @@
 import { db } from '@sim/db'
 import { permissions, userStats, workflow as workflowTable, workspace } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import type { ExecutionResult } from '@/executor/types'
 

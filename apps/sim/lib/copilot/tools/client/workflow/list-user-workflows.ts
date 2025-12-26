@@ -1,10 +1,10 @@
+import { createLogger } from '@sim/logger'
 import { ListChecks, Loader2, X, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('ListUserWorkflowsClientTool')
 

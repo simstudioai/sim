@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { XReadParams, XReadResponse, XTweet } from '@/tools/x/types'
 import { transformTweet } from '@/tools/x/types'

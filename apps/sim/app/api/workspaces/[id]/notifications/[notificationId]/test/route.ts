@@ -1,12 +1,12 @@
 import { createHmac } from 'crypto'
 import { db } from '@sim/db'
 import { account, workspaceNotificationSubscription } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { getSession } from '@/lib/auth'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { createLogger } from '@/lib/logs/console/logger'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 

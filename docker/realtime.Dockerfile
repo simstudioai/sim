@@ -11,10 +11,11 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json bun.lock turbo.json ./
-RUN mkdir -p apps packages/db packages/testing
+RUN mkdir -p apps packages/db packages/testing packages/logger
 COPY apps/sim/package.json ./apps/sim/package.json
 COPY packages/db/package.json ./packages/db/package.json
 COPY packages/testing/package.json ./packages/testing/package.json
+COPY packages/logger/package.json ./packages/logger/package.json
 
 # Install dependencies with cache mount for faster builds
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
@@ -34,6 +35,7 @@ COPY package.json bun.lock turbo.json ./
 COPY apps/sim/package.json ./apps/sim/package.json
 COPY packages/db/package.json ./packages/db/package.json
 COPY packages/testing/package.json ./packages/testing/package.json
+COPY packages/logger/package.json ./packages/logger/package.json
 
 # Copy source code (changes most frequently - placed last to maximize cache hits)
 COPY apps/sim ./apps/sim

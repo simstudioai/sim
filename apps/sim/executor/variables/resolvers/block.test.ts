@@ -4,7 +4,7 @@ import { ExecutionState } from '@/executor/execution/state'
 import { BlockResolver } from './block'
 import type { ResolutionContext } from './reference'
 
-vi.mock('@/lib/logs/console/logger', () => loggerMock)
+vi.mock('@sim/logger', () => loggerMock)
 
 /**
  * Creates a minimal workflow for testing.

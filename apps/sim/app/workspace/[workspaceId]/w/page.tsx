@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { ReactFlowProvider } from 'reactflow'
-import { createLogger } from '@/lib/logs/console/logger'
 import { Panel, Terminal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'

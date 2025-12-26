@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { formatDistanceToNow } from 'date-fns'
 import {
   ChartNoAxesColumn,
@@ -34,7 +35,6 @@ import { VerifiedBadge } from '@/components/ui/verified-badge'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { CredentialRequirement } from '@/lib/workflows/credentials/credential-extractor'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
 import { getBlock } from '@/blocks/registry'

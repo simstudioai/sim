@@ -6,8 +6,8 @@
  * Response: AdminSingleResponse<AdminSeatAnalytics>
  */
 
+import { createLogger } from '@sim/logger'
 import { getOrganizationSeatAnalytics } from '@/lib/billing/validation/seat-management'
-import { createLogger } from '@/lib/logs/console/logger'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   internalErrorResponse,

@@ -1,11 +1,11 @@
 import { createHash } from 'crypto'
 import { db } from '@sim/db'
 import { chat, workflow } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { NextRequest, NextResponse } from 'next/server'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { createLogger } from '@/lib/logs/console/logger'
 import { hasAdminPermission } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('ChatAuthUtils')

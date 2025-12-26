@@ -1,6 +1,7 @@
 'use client'
 
 import React, { type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Loader2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -15,7 +16,6 @@ import {
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
-import { createLogger } from '@/lib/logs/console/logger'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { API_ENDPOINTS } from '@/stores/constants'

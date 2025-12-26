@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import { ZodError } from 'zod'
-import { createLogger } from '@/lib/logs/console/logger'
 import { persistWorkflowOperation } from '@/socket/database/operations'
 import type { HandlerDependencies } from '@/socket/handlers/workflow'
 import type { AuthenticatedSocket } from '@/socket/middleware/auth'

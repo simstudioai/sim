@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback } from 'react'
+import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { ChevronDown } from 'lucide-react'
 import { Badge } from '@/components/emcn'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
 
 const logger = createLogger('FieldItem')

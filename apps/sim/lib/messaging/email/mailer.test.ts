@@ -67,7 +67,7 @@ vi.mock('@/lib/messaging/email/utils', () => ({
 }))
 
 // Mock the logger
-vi.mock('@/lib/logs/console/logger', () => ({
+vi.mock('@sim/logger', () => ({
   createLogger: () => ({
     info: vi.fn(),
     warn: vi.fn(),

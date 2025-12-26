@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
 import { subscription as subscriptionTable, user } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('BillingPortal')
 

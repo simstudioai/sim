@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import { resolveStartCandidates, StartBlockPath } from '@/lib/workflows/triggers/triggers'
 import { normalizeName, startsWithUuid } from '@/executor/constants'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'

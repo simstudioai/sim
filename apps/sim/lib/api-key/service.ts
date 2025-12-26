@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import { apiKey as apiKeyTable } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { authenticateApiKey } from '@/lib/api-key/auth'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
 

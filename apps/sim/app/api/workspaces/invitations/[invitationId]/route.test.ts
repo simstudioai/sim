@@ -60,7 +60,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
     mockHasWorkspaceAdminAccess(userId, workspaceId),
 }))
 
-vi.mock('@/lib/logs/console/logger', () => loggerMock)
+vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/lib/core/utils/urls', () => ({
   getBaseUrl: vi.fn().mockReturnValue('https://test.sim.ai'),

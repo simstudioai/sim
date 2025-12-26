@@ -4,7 +4,7 @@ import type { DAGEdge } from '@/executor/dag/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { EdgeManager } from './edge-manager'
 
-vi.mock('@/lib/logs/console/logger', () => ({
+vi.mock('@sim/logger', () => ({
   createLogger: vi.fn(() => ({
     info: vi.fn(),
     error: vi.fn(),

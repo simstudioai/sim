@@ -17,10 +17,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY package.json bun.lock turbo.json ./
-RUN mkdir -p apps packages/db packages/testing
+RUN mkdir -p apps packages/db packages/testing packages/logger
 COPY apps/sim/package.json ./apps/sim/package.json
 COPY packages/db/package.json ./packages/db/package.json
 COPY packages/testing/package.json ./packages/testing/package.json
+COPY packages/logger/package.json ./packages/logger/package.json
 
 # Install turbo globally, then dependencies, then rebuild isolated-vm for Node.js
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
@@ -46,6 +47,7 @@ COPY package.json bun.lock turbo.json ./
 COPY apps/sim/package.json ./apps/sim/package.json
 COPY packages/db/package.json ./packages/db/package.json
 COPY packages/testing/package.json ./packages/testing/package.json
+COPY packages/logger/package.json ./packages/logger/package.json
 
 # Copy workspace configuration files (needed for turbo)
 COPY apps/sim/next.config.ts ./apps/sim/next.config.ts
