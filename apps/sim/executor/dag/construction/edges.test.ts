@@ -564,4 +564,532 @@ describe('EdgeConstructor', () => {
       expect(outsideNode.outgoingEdges.size).toBe(0)
     })
   })
+
+  describe('Subflow-to-subflow edge wiring', () => {
+    describe('Parallel → Parallel', () => {
+      it('should wire parallel sentinel end to next parallel sentinel start', () => {
+        const parallel1Id = 'parallel-1'
+        const parallel2Id = 'parallel-2'
+        const task1Id = 'task-1'
+        const task2Id = 'task-2'
+        const parallel1SentinelStart = `parallel-${parallel1Id}-sentinel-start`
+        const parallel1SentinelEnd = `parallel-${parallel1Id}-sentinel-end`
+        const parallel2SentinelStart = `parallel-${parallel2Id}-sentinel-start`
+        const parallel2SentinelEnd = `parallel-${parallel2Id}-sentinel-end`
+
+        const workflow = createMockWorkflow(
+          [
+            createMockBlock(parallel1Id, 'parallel'),
+            createMockBlock(parallel2Id, 'parallel'),
+            createMockBlock(task1Id),
+            createMockBlock(task2Id),
+          ],
+          [{ source: parallel1Id, target: parallel2Id }],
+          {},
+          {
+            [parallel1Id]: { id: parallel1Id, nodes: [task1Id], count: 2 },
+            [parallel2Id]: { id: parallel2Id, nodes: [task2Id], count: 2 },
+          }
+        )
+
+        const dag = createMockDAG([
+          task1Id,
+          task2Id,
+          parallel1SentinelStart,
+          parallel1SentinelEnd,
+          parallel2SentinelStart,
+          parallel2SentinelEnd,
+        ])
+        dag.parallelConfigs.set(parallel1Id, { id: parallel1Id, nodes: [task1Id], count: 2 })
+        dag.parallelConfigs.set(parallel2Id, { id: parallel2Id, nodes: [task2Id], count: 2 })
+
+        edgeConstructor.execute(
+          workflow,
+          dag,
+          new Set([task1Id, task2Id]),
+          new Set(),
+          new Set([
+            task1Id,
+            task2Id,
+            parallel1SentinelStart,
+            parallel1SentinelEnd,
+            parallel2SentinelStart,
+            parallel2SentinelEnd,
+          ]),
+          new Map()
+        )
+
+        const parallel1EndNode = dag.nodes.get(parallel1SentinelEnd)!
+        const edgesToParallel2 = Array.from(parallel1EndNode.outgoingEdges.values()).filter(
+          (e) => e.target === parallel2SentinelStart
+        )
+        expect(edgesToParallel2.length).toBeGreaterThan(0)
+        expect(edgesToParallel2[0].sourceHandle).toBe('parallel_exit')
+      })
+    })
+
+    describe('Loop → Loop', () => {
+      it('should wire loop sentinel end to next loop sentinel start', () => {
+        const loop1Id = 'loop-1'
+        const loop2Id = 'loop-2'
+        const task1Id = 'task-1'
+        const task2Id = 'task-2'
+        const loop1SentinelStart = `loop-${loop1Id}-sentinel-start`
+        const loop1SentinelEnd = `loop-${loop1Id}-sentinel-end`
+        const loop2SentinelStart = `loop-${loop2Id}-sentinel-start`
+        const loop2SentinelEnd = `loop-${loop2Id}-sentinel-end`
+
+        const workflow = createMockWorkflow(
+          [
+            createMockBlock(loop1Id, 'loop'),
+            createMockBlock(loop2Id, 'loop'),
+            createMockBlock(task1Id),
+            createMockBlock(task2Id),
+          ],
+          [{ source: loop1Id, target: loop2Id }],
+          {
+            [loop1Id]: {
+              id: loop1Id,
+              nodes: [task1Id],
+              iterations: 3,
+              loopType: 'for',
+            } as SerializedLoop,
+            [loop2Id]: {
+              id: loop2Id,
+              nodes: [task2Id],
+              iterations: 3,
+              loopType: 'for',
+            } as SerializedLoop,
+          }
+        )
+
+        const dag = createMockDAG([
+          task1Id,
+          task2Id,
+          loop1SentinelStart,
+          loop1SentinelEnd,
+          loop2SentinelStart,
+          loop2SentinelEnd,
+        ])
+        dag.loopConfigs.set(loop1Id, {
+          id: loop1Id,
+          nodes: [task1Id],
+          iterations: 3,
+          loopType: 'for',
+        } as SerializedLoop)
+        dag.loopConfigs.set(loop2Id, {
+          id: loop2Id,
+          nodes: [task2Id],
+          iterations: 3,
+          loopType: 'for',
+        } as SerializedLoop)
+
+        edgeConstructor.execute(
+          workflow,
+          dag,
+          new Set(),
+          new Set([task1Id, task2Id]),
+          new Set([
+            task1Id,
+            task2Id,
+            loop1SentinelStart,
+            loop1SentinelEnd,
+            loop2SentinelStart,
+            loop2SentinelEnd,
+          ]),
+          new Map()
+        )
+
+        const loop1EndNode = dag.nodes.get(loop1SentinelEnd)!
+        const edgesToLoop2 = Array.from(loop1EndNode.outgoingEdges.values()).filter(
+          (e) => e.target === loop2SentinelStart
+        )
+        expect(edgesToLoop2.length).toBeGreaterThan(0)
+        expect(edgesToLoop2[0].sourceHandle).toBe('loop_exit')
+
+        const loop1StartNode = dag.nodes.get(loop1SentinelStart)!
+        const earlyExitEdges = Array.from(loop1StartNode.outgoingEdges.values()).filter(
+          (e) => e.target === loop2SentinelStart && e.sourceHandle === 'loop_exit'
+        )
+        expect(earlyExitEdges.length).toBeGreaterThan(0)
+      })
+    })
+
+    describe('Parallel → Loop', () => {
+      it('should wire parallel sentinel end to loop sentinel start', () => {
+        const parallelId = 'parallel-1'
+        const loopId = 'loop-1'
+        const taskInParallelId = 'parallel-task'
+        const taskInLoopId = 'loop-task'
+        const parallelSentinelStart = `parallel-${parallelId}-sentinel-start`
+        const parallelSentinelEnd = `parallel-${parallelId}-sentinel-end`
+        const loopSentinelStart = `loop-${loopId}-sentinel-start`
+        const loopSentinelEnd = `loop-${loopId}-sentinel-end`
+
+        const workflow = createMockWorkflow(
+          [
+            createMockBlock(parallelId, 'parallel'),
+            createMockBlock(loopId, 'loop'),
+            createMockBlock(taskInParallelId),
+            createMockBlock(taskInLoopId),
+          ],
+          [{ source: parallelId, target: loopId }],
+          {
+            [loopId]: {
+              id: loopId,
+              nodes: [taskInLoopId],
+              iterations: 3,
+              loopType: 'for',
+            } as SerializedLoop,
+          },
+          {
+            [parallelId]: { id: parallelId, nodes: [taskInParallelId], count: 2 },
+          }
+        )
+
+        const dag = createMockDAG([
+          taskInParallelId,
+          taskInLoopId,
+          parallelSentinelStart,
+          parallelSentinelEnd,
+          loopSentinelStart,
+          loopSentinelEnd,
+        ])
+        dag.parallelConfigs.set(parallelId, {
+          id: parallelId,
+          nodes: [taskInParallelId],
+          count: 2,
+        })
+        dag.loopConfigs.set(loopId, {
+          id: loopId,
+          nodes: [taskInLoopId],
+          iterations: 3,
+          loopType: 'for',
+        } as SerializedLoop)
+
+        edgeConstructor.execute(
+          workflow,
+          dag,
+          new Set([taskInParallelId]),
+          new Set([taskInLoopId]),
+          new Set([
+            taskInParallelId,
+            taskInLoopId,
+            parallelSentinelStart,
+            parallelSentinelEnd,
+            loopSentinelStart,
+            loopSentinelEnd,
+          ]),
+          new Map()
+        )
+
+        const parallelEndNode = dag.nodes.get(parallelSentinelEnd)!
+        const edgesToLoop = Array.from(parallelEndNode.outgoingEdges.values()).filter(
+          (e) => e.target === loopSentinelStart
+        )
+        expect(edgesToLoop.length).toBeGreaterThan(0)
+        expect(edgesToLoop[0].sourceHandle).toBe('parallel_exit')
+      })
+    })
+
+    describe('Loop → Parallel', () => {
+      it('should wire loop sentinel end to parallel sentinel start', () => {
+        const loopId = 'loop-1'
+        const parallelId = 'parallel-1'
+        const taskInLoopId = 'loop-task'
+        const taskInParallelId = 'parallel-task'
+        const loopSentinelStart = `loop-${loopId}-sentinel-start`
+        const loopSentinelEnd = `loop-${loopId}-sentinel-end`
+        const parallelSentinelStart = `parallel-${parallelId}-sentinel-start`
+        const parallelSentinelEnd = `parallel-${parallelId}-sentinel-end`
+
+        const workflow = createMockWorkflow(
+          [
+            createMockBlock(loopId, 'loop'),
+            createMockBlock(parallelId, 'parallel'),
+            createMockBlock(taskInLoopId),
+            createMockBlock(taskInParallelId),
+          ],
+          [{ source: loopId, target: parallelId }],
+          {
+            [loopId]: {
+              id: loopId,
+              nodes: [taskInLoopId],
+              iterations: 3,
+              loopType: 'for',
+            } as SerializedLoop,
+          },
+          {
+            [parallelId]: { id: parallelId, nodes: [taskInParallelId], count: 2 },
+          }
+        )
+
+        const dag = createMockDAG([
+          taskInLoopId,
+          taskInParallelId,
+          loopSentinelStart,
+          loopSentinelEnd,
+          parallelSentinelStart,
+          parallelSentinelEnd,
+        ])
+        dag.loopConfigs.set(loopId, {
+          id: loopId,
+          nodes: [taskInLoopId],
+          iterations: 3,
+          loopType: 'for',
+        } as SerializedLoop)
+        dag.parallelConfigs.set(parallelId, {
+          id: parallelId,
+          nodes: [taskInParallelId],
+          count: 2,
+        })
+
+        edgeConstructor.execute(
+          workflow,
+          dag,
+          new Set([taskInParallelId]),
+          new Set([taskInLoopId]),
+          new Set([
+            taskInLoopId,
+            taskInParallelId,
+            loopSentinelStart,
+            loopSentinelEnd,
+            parallelSentinelStart,
+            parallelSentinelEnd,
+          ]),
+          new Map()
+        )
+
+        const loopEndNode = dag.nodes.get(loopSentinelEnd)!
+        const edgesToParallel = Array.from(loopEndNode.outgoingEdges.values()).filter(
+          (e) => e.target === parallelSentinelStart
+        )
+        expect(edgesToParallel.length).toBeGreaterThan(0)
+        expect(edgesToParallel[0].sourceHandle).toBe('loop_exit')
+
+        const loopStartNode = dag.nodes.get(loopSentinelStart)!
+        const earlyExitEdges = Array.from(loopStartNode.outgoingEdges.values()).filter(
+          (e) => e.target === parallelSentinelStart && e.sourceHandle === 'loop_exit'
+        )
+        expect(earlyExitEdges.length).toBeGreaterThan(0)
+      })
+    })
+
+    describe('Subflow → Regular block', () => {
+      it('should wire parallel sentinel end to regular block', () => {
+        const parallelId = 'parallel-1'
+        const taskInParallelId = 'parallel-task'
+        const regularBlockId = 'regular-block'
+        const parallelSentinelStart = `parallel-${parallelId}-sentinel-start`
+        const parallelSentinelEnd = `parallel-${parallelId}-sentinel-end`
+
+        const workflow = createMockWorkflow(
+          [
+            createMockBlock(parallelId, 'parallel'),
+            createMockBlock(taskInParallelId),
+            createMockBlock(regularBlockId),
+          ],
+          [{ source: parallelId, target: regularBlockId }],
+          {},
+          {
+            [parallelId]: { id: parallelId, nodes: [taskInParallelId], count: 2 },
+          }
+        )
+
+        const dag = createMockDAG([
+          taskInParallelId,
+          regularBlockId,
+          parallelSentinelStart,
+          parallelSentinelEnd,
+        ])
+        dag.parallelConfigs.set(parallelId, {
+          id: parallelId,
+          nodes: [taskInParallelId],
+          count: 2,
+        })
+
+        edgeConstructor.execute(
+          workflow,
+          dag,
+          new Set([taskInParallelId]),
+          new Set(),
+          new Set([taskInParallelId, regularBlockId, parallelSentinelStart, parallelSentinelEnd]),
+          new Map()
+        )
+
+        const parallelEndNode = dag.nodes.get(parallelSentinelEnd)!
+        const edgesToRegular = Array.from(parallelEndNode.outgoingEdges.values()).filter(
+          (e) => e.target === regularBlockId
+        )
+        expect(edgesToRegular.length).toBe(1)
+        expect(edgesToRegular[0].sourceHandle).toBe('parallel_exit')
+
+        const regularBlockNode = dag.nodes.get(regularBlockId)!
+        expect(regularBlockNode.incomingEdges.has(parallelSentinelEnd)).toBe(true)
+      })
+
+      it('should wire loop sentinel end to regular block', () => {
+        const loopId = 'loop-1'
+        const taskInLoopId = 'loop-task'
+        const regularBlockId = 'regular-block'
+        const loopSentinelStart = `loop-${loopId}-sentinel-start`
+        const loopSentinelEnd = `loop-${loopId}-sentinel-end`
+
+        const workflow = createMockWorkflow(
+          [
+            createMockBlock(loopId, 'loop'),
+            createMockBlock(taskInLoopId),
+            createMockBlock(regularBlockId),
+          ],
+          [{ source: loopId, target: regularBlockId }],
+          {
+            [loopId]: {
+              id: loopId,
+              nodes: [taskInLoopId],
+              iterations: 3,
+              loopType: 'for',
+            } as SerializedLoop,
+          }
+        )
+
+        const dag = createMockDAG([
+          taskInLoopId,
+          regularBlockId,
+          loopSentinelStart,
+          loopSentinelEnd,
+        ])
+        dag.loopConfigs.set(loopId, {
+          id: loopId,
+          nodes: [taskInLoopId],
+          iterations: 3,
+          loopType: 'for',
+        } as SerializedLoop)
+
+        edgeConstructor.execute(
+          workflow,
+          dag,
+          new Set(),
+          new Set([taskInLoopId]),
+          new Set([taskInLoopId, regularBlockId, loopSentinelStart, loopSentinelEnd]),
+          new Map()
+        )
+
+        const loopEndNode = dag.nodes.get(loopSentinelEnd)!
+        const edgesToRegular = Array.from(loopEndNode.outgoingEdges.values()).filter(
+          (e) => e.target === regularBlockId
+        )
+        expect(edgesToRegular.length).toBe(1)
+        expect(edgesToRegular[0].sourceHandle).toBe('loop_exit')
+      })
+    })
+
+    describe('Regular block → Subflow', () => {
+      it('should wire regular block to parallel sentinel start', () => {
+        const regularBlockId = 'regular-block'
+        const parallelId = 'parallel-1'
+        const taskInParallelId = 'parallel-task'
+        const parallelSentinelStart = `parallel-${parallelId}-sentinel-start`
+        const parallelSentinelEnd = `parallel-${parallelId}-sentinel-end`
+
+        const workflow = createMockWorkflow(
+          [
+            createMockBlock(regularBlockId),
+            createMockBlock(parallelId, 'parallel'),
+            createMockBlock(taskInParallelId),
+          ],
+          [{ source: regularBlockId, target: parallelId }],
+          {},
+          {
+            [parallelId]: { id: parallelId, nodes: [taskInParallelId], count: 2 },
+          }
+        )
+
+        const dag = createMockDAG([
+          regularBlockId,
+          taskInParallelId,
+          parallelSentinelStart,
+          parallelSentinelEnd,
+        ])
+        dag.parallelConfigs.set(parallelId, {
+          id: parallelId,
+          nodes: [taskInParallelId],
+          count: 2,
+        })
+
+        edgeConstructor.execute(
+          workflow,
+          dag,
+          new Set([taskInParallelId]),
+          new Set(),
+          new Set([regularBlockId, taskInParallelId, parallelSentinelStart, parallelSentinelEnd]),
+          new Map()
+        )
+
+        const regularBlockNode = dag.nodes.get(regularBlockId)!
+        const edgesToParallel = Array.from(regularBlockNode.outgoingEdges.values()).filter(
+          (e) => e.target === parallelSentinelStart
+        )
+        expect(edgesToParallel.length).toBe(1)
+
+        const parallelStartNode = dag.nodes.get(parallelSentinelStart)!
+        expect(parallelStartNode.incomingEdges.has(regularBlockId)).toBe(true)
+      })
+
+      it('should wire regular block to loop sentinel start', () => {
+        const regularBlockId = 'regular-block'
+        const loopId = 'loop-1'
+        const taskInLoopId = 'loop-task'
+        const loopSentinelStart = `loop-${loopId}-sentinel-start`
+        const loopSentinelEnd = `loop-${loopId}-sentinel-end`
+
+        const workflow = createMockWorkflow(
+          [
+            createMockBlock(regularBlockId),
+            createMockBlock(loopId, 'loop'),
+            createMockBlock(taskInLoopId),
+          ],
+          [{ source: regularBlockId, target: loopId }],
+          {
+            [loopId]: {
+              id: loopId,
+              nodes: [taskInLoopId],
+              iterations: 3,
+              loopType: 'for',
+            } as SerializedLoop,
+          }
+        )
+
+        const dag = createMockDAG([
+          regularBlockId,
+          taskInLoopId,
+          loopSentinelStart,
+          loopSentinelEnd,
+        ])
+        dag.loopConfigs.set(loopId, {
+          id: loopId,
+          nodes: [taskInLoopId],
+          iterations: 3,
+          loopType: 'for',
+        } as SerializedLoop)
+
+        edgeConstructor.execute(
+          workflow,
+          dag,
+          new Set(),
+          new Set([taskInLoopId]),
+          new Set([regularBlockId, taskInLoopId, loopSentinelStart, loopSentinelEnd]),
+          new Map()
+        )
+
+        const regularBlockNode = dag.nodes.get(regularBlockId)!
+        const edgesToLoop = Array.from(regularBlockNode.outgoingEdges.values()).filter(
+          (e) => e.target === loopSentinelStart
+        )
+        expect(edgesToLoop.length).toBe(1)
+
+        const loopStartNode = dag.nodes.get(loopSentinelStart)!
+        expect(loopStartNode.incomingEdges.has(regularBlockId)).toBe(true)
+      })
+    })
+  })
 })
