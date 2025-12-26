@@ -11,6 +11,7 @@ import type {
 } from '@/stores/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { normalizeName } from '@/stores/workflows/utils'
 
 const logger = createLogger('VariablesModalStore')
 
@@ -303,8 +304,8 @@ export const useVariablesStore = create<VariablesStore>()(
                   Object.entries(workflowValues).forEach(([blockId, blockValues]) => {
                     Object.entries(blockValues as Record<string, any>).forEach(
                       ([subBlockId, value]) => {
-                        const oldVarName = oldVariableName.replace(/\s+/g, '').toLowerCase()
-                        const newVarName = newName.replace(/\s+/g, '').toLowerCase()
+                        const oldVarName = normalizeName(oldVariableName)
+                        const newVarName = normalizeName(newName)
                         const regex = new RegExp(`<variable\\.${oldVarName}>`, 'gi')
 
                         updatedWorkflowValues[blockId][subBlockId] = updateReferences(

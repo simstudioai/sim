@@ -128,6 +128,8 @@ export const DEFAULTS = {
   BLOCK_TITLE: 'Untitled Block',
   WORKFLOW_NAME: 'Workflow',
   MAX_LOOP_ITERATIONS: 1000,
+  MAX_FOREACH_ITEMS: 1000,
+  MAX_PARALLEL_BRANCHES: 20,
   MAX_WORKFLOW_DEPTH: 10,
   EXECUTION_TIME: 0,
   TOKENS: {
@@ -158,19 +160,31 @@ export const HTTP = {
 
 export const AGENT = {
   DEFAULT_MODEL: 'claude-sonnet-4-5',
-  DEFAULT_FUNCTION_TIMEOUT: 600000, // 10 minutes for custom tool code execution
-  REQUEST_TIMEOUT: 600000, // 10 minutes for LLM API requests
+  DEFAULT_FUNCTION_TIMEOUT: 600000,
+  REQUEST_TIMEOUT: 600000,
   CUSTOM_TOOL_PREFIX: 'custom_',
 } as const
 
+export const MCP = {
+  TOOL_PREFIX: 'mcp-',
+} as const
+
+export const MEMORY = {
+  DEFAULT_SLIDING_WINDOW_SIZE: 10,
+  DEFAULT_SLIDING_WINDOW_TOKENS: 4000,
+  CONTEXT_WINDOW_UTILIZATION: 0.9,
+  MAX_CONVERSATION_ID_LENGTH: 255,
+  MAX_MESSAGE_CONTENT_BYTES: 100 * 1024,
+} as const
+
 export const ROUTER = {
-  DEFAULT_MODEL: 'gpt-4o',
+  DEFAULT_MODEL: 'claude-sonnet-4-5',
   DEFAULT_TEMPERATURE: 0,
   INFERENCE_TEMPERATURE: 0.1,
 } as const
 
 export const EVALUATOR = {
-  DEFAULT_MODEL: 'gpt-4o',
+  DEFAULT_MODEL: 'claude-sonnet-4-5',
   DEFAULT_TEMPERATURE: 0.1,
   RESPONSE_SCHEMA_NAME: 'evaluation_response',
   JSON_INDENT: 2,
@@ -263,8 +277,8 @@ export function supportsHandles(blockType: string | undefined): boolean {
 
 export function getDefaultTokens() {
   return {
-    prompt: DEFAULTS.TOKENS.PROMPT,
-    completion: DEFAULTS.TOKENS.COMPLETION,
+    input: DEFAULTS.TOKENS.PROMPT,
+    output: DEFAULTS.TOKENS.COMPLETION,
     total: DEFAULTS.TOKENS.TOTAL,
   }
 }
@@ -327,4 +341,61 @@ export function extractReferenceContent(reference: string): string {
 export function parseReferencePath(reference: string): string[] {
   const content = extractReferenceContent(reference)
   return content.split(REFERENCE.PATH_DELIMITER)
+}
+
+export const PATTERNS = {
+  UUID: /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i,
+  UUID_V4: /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  UUID_PREFIX: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
+  ENV_VAR_NAME: /^[A-Za-z_][A-Za-z0-9_]*$/,
+} as const
+
+export function isUuid(value: string): boolean {
+  return PATTERNS.UUID.test(value)
+}
+
+export function isUuidV4(value: string): boolean {
+  return PATTERNS.UUID_V4.test(value)
+}
+
+export function startsWithUuid(value: string): boolean {
+  return PATTERNS.UUID_PREFIX.test(value)
+}
+
+export function isValidEnvVarName(name: string): boolean {
+  return PATTERNS.ENV_VAR_NAME.test(name)
+}
+
+export function sanitizeFileName(fileName: string): string {
+  return fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')
+}
+
+export function isCustomTool(toolId: string): boolean {
+  return toolId.startsWith(AGENT.CUSTOM_TOOL_PREFIX)
+}
+
+export function isMcpTool(toolId: string): boolean {
+  return toolId.startsWith(MCP.TOOL_PREFIX)
+}
+
+export function stripCustomToolPrefix(name: string): string {
+  return name.startsWith(AGENT.CUSTOM_TOOL_PREFIX)
+    ? name.slice(AGENT.CUSTOM_TOOL_PREFIX.length)
+    : name
+}
+
+export function stripMcpToolPrefix(name: string): string {
+  return name.startsWith(MCP.TOOL_PREFIX) ? name.slice(MCP.TOOL_PREFIX.length) : name
+}
+
+export function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Normalizes a name for comparison by converting to lowercase and removing spaces.
+ * Used for both block names and variable names to ensure consistent matching.
+ */
+export function normalizeName(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, '')
 }

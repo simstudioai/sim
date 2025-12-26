@@ -53,7 +53,7 @@ function buildTestPayload(subscription: typeof workspaceNotificationSubscription
       totalDurationMs: 5000,
       cost: {
         total: 0.00123,
-        tokens: { prompt: 100, completion: 50, total: 150 },
+        tokens: { input: 100, output: 50, total: 150 },
       },
     },
     links: {
@@ -89,7 +89,7 @@ function buildTestPayload(subscription: typeof workspaceNotificationSubscription
   }
 
   if (subscription.includeUsageData) {
-    data.usage = { currentPeriodCost: 2.45, limit: 10, plan: 'pro', isExceeded: false }
+    data.usage = { currentPeriodCost: 2.45, limit: 20, plan: 'pro', isExceeded: false }
   }
 
   return { payload, timestamp }

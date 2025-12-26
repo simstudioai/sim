@@ -1,16 +1,32 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   createPinnedUrl,
   validateAlphanumericId,
   validateEnum,
+  validateExternalUrl,
   validateFileExtension,
+  validateGoogleCalendarId,
   validateHostname,
+  validateImageUrl,
+  validateInteger,
+  validateJiraCloudId,
+  validateJiraIssueKey,
+  validateMicrosoftGraphId,
   validateNumericId,
   validatePathSegment,
+  validateProxyUrl,
   validateUrlWithDNS,
-  validateUUID,
 } from '@/lib/core/security/input-validation'
 import { sanitizeForLogging } from '@/lib/core/security/redaction'
+
+vi.mock('@/lib/logs/console/logger', () => ({
+  createLogger: () => ({
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  }),
+}))
 
 describe('validatePathSegment', () => {
   describe('valid inputs', () => {
@@ -189,54 +205,6 @@ describe('validatePathSegment', () => {
       const result = validatePathSegment('ABC123', {
         customPattern: /^[A-Z]{3}-\d{3}$/,
       })
-      expect(result.isValid).toBe(false)
-    })
-  })
-})
-
-describe('validateUUID', () => {
-  describe('valid UUIDs', () => {
-    it.concurrent('should accept valid UUID v4', () => {
-      const result = validateUUID('550e8400-e29b-41d4-a716-446655440000')
-      expect(result.isValid).toBe(true)
-    })
-
-    it.concurrent('should accept UUID with uppercase letters', () => {
-      const result = validateUUID('550E8400-E29B-41D4-A716-446655440000')
-      expect(result.isValid).toBe(true)
-      expect(result.sanitized).toBe('550e8400-e29b-41d4-a716-446655440000')
-    })
-
-    it.concurrent('should normalize UUID to lowercase', () => {
-      const result = validateUUID('550E8400-E29B-41D4-A716-446655440000')
-      expect(result.sanitized).toBe('550e8400-e29b-41d4-a716-446655440000')
-    })
-  })
-
-  describe('invalid UUIDs', () => {
-    it.concurrent('should reject non-UUID strings', () => {
-      const result = validateUUID('not-a-uuid')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('valid UUID')
-    })
-
-    it.concurrent('should reject UUID with wrong version', () => {
-      const result = validateUUID('550e8400-e29b-31d4-a716-446655440000') // version 3
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject UUID with wrong variant', () => {
-      const result = validateUUID('550e8400-e29b-41d4-1716-446655440000') // wrong variant
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject empty string', () => {
-      const result = validateUUID('')
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject null', () => {
-      const result = validateUUID(null)
       expect(result.isValid).toBe(false)
     })
   })
@@ -668,5 +636,505 @@ describe('createPinnedUrl', () => {
   it('should preserve path', () => {
     const result = createPinnedUrl('https://example.com/a/b/c/d', '93.184.216.34')
     expect(result).toBe('https://93.184.216.34/a/b/c/d')
+  })
+})
+
+describe('validateInteger', () => {
+  describe('valid integers', () => {
+    it.concurrent('should accept positive integers', () => {
+      const result = validateInteger(42, 'count')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept zero', () => {
+      const result = validateInteger(0, 'count')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept negative integers', () => {
+      const result = validateInteger(-10, 'offset')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('invalid integers', () => {
+    it.concurrent('should reject null', () => {
+      const result = validateInteger(null, 'value')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('required')
+    })
+
+    it.concurrent('should reject undefined', () => {
+      const result = validateInteger(undefined, 'value')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('required')
+    })
+
+    it.concurrent('should reject strings', () => {
+      const result = validateInteger('42' as any, 'value')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('must be a number')
+    })
+
+    it.concurrent('should reject floating point numbers', () => {
+      const result = validateInteger(3.14, 'value')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('must be an integer')
+    })
+
+    it.concurrent('should reject NaN', () => {
+      const result = validateInteger(Number.NaN, 'value')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('valid number')
+    })
+
+    it.concurrent('should reject Infinity', () => {
+      const result = validateInteger(Number.POSITIVE_INFINITY, 'value')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('valid number')
+    })
+
+    it.concurrent('should reject negative Infinity', () => {
+      const result = validateInteger(Number.NEGATIVE_INFINITY, 'value')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('valid number')
+    })
+  })
+
+  describe('min/max constraints', () => {
+    it.concurrent('should accept values within range', () => {
+      const result = validateInteger(50, 'value', { min: 0, max: 100 })
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should reject values below min', () => {
+      const result = validateInteger(-1, 'value', { min: 0 })
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('at least 0')
+    })
+
+    it.concurrent('should reject values above max', () => {
+      const result = validateInteger(101, 'value', { max: 100 })
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('at most 100')
+    })
+
+    it.concurrent('should accept value equal to min', () => {
+      const result = validateInteger(0, 'value', { min: 0 })
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept value equal to max', () => {
+      const result = validateInteger(100, 'value', { max: 100 })
+      expect(result.isValid).toBe(true)
+    })
+  })
+})
+
+describe('validateMicrosoftGraphId', () => {
+  describe('valid IDs', () => {
+    it.concurrent('should accept simple alphanumeric IDs', () => {
+      const result = validateMicrosoftGraphId('abc123')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept GUIDs', () => {
+      const result = validateMicrosoftGraphId('12345678-1234-1234-1234-123456789012')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept "root" literal', () => {
+      const result = validateMicrosoftGraphId('root')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept complex SharePoint paths', () => {
+      const result = validateMicrosoftGraphId('hostname:/sites/sitename')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept group paths', () => {
+      const result = validateMicrosoftGraphId('groups/abc123/sites/root')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('invalid IDs', () => {
+    it.concurrent('should reject null', () => {
+      const result = validateMicrosoftGraphId(null)
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('required')
+    })
+
+    it.concurrent('should reject empty string', () => {
+      const result = validateMicrosoftGraphId('')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('required')
+    })
+
+    it.concurrent('should reject path traversal ../)', () => {
+      const result = validateMicrosoftGraphId('../etc/passwd')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('path traversal')
+    })
+
+    it.concurrent('should reject URL-encoded path traversal', () => {
+      const result = validateMicrosoftGraphId('%2e%2e%2f')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('path traversal')
+    })
+
+    it.concurrent('should reject double-encoded path traversal', () => {
+      const result = validateMicrosoftGraphId('%252e%252e%252f')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('path traversal')
+    })
+
+    it.concurrent('should reject null bytes', () => {
+      const result = validateMicrosoftGraphId('test\0value')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('control characters')
+    })
+
+    it.concurrent('should reject URL-encoded null bytes', () => {
+      const result = validateMicrosoftGraphId('test%00value')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('control characters')
+    })
+
+    it.concurrent('should reject newline characters', () => {
+      const result = validateMicrosoftGraphId('test\nvalue')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('control characters')
+    })
+
+    it.concurrent('should reject carriage return characters', () => {
+      const result = validateMicrosoftGraphId('test\rvalue')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('control characters')
+    })
+  })
+})
+
+describe('validateJiraCloudId', () => {
+  describe('valid IDs', () => {
+    it.concurrent('should accept alphanumeric IDs', () => {
+      const result = validateJiraCloudId('abc123')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept IDs with hyphens', () => {
+      const result = validateJiraCloudId('12345678-1234-1234-1234-123456789012')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('invalid IDs', () => {
+    it.concurrent('should reject null', () => {
+      const result = validateJiraCloudId(null)
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject empty string', () => {
+      const result = validateJiraCloudId('')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject path traversal', () => {
+      const result = validateJiraCloudId('../etc')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject dots', () => {
+      const result = validateJiraCloudId('test.value')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject underscores', () => {
+      const result = validateJiraCloudId('test_value')
+      expect(result.isValid).toBe(false)
+    })
+  })
+})
+
+describe('validateJiraIssueKey', () => {
+  describe('valid issue keys', () => {
+    it.concurrent('should accept PROJECT-123 format', () => {
+      const result = validateJiraIssueKey('PROJECT-123')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept lowercase keys', () => {
+      const result = validateJiraIssueKey('proj-456')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept mixed case', () => {
+      const result = validateJiraIssueKey('MyProject-789')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('invalid issue keys', () => {
+    it.concurrent('should reject null', () => {
+      const result = validateJiraIssueKey(null)
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject empty string', () => {
+      const result = validateJiraIssueKey('')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject path traversal', () => {
+      const result = validateJiraIssueKey('../etc')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject dots', () => {
+      const result = validateJiraIssueKey('PROJECT.123')
+      expect(result.isValid).toBe(false)
+    })
+  })
+})
+
+describe('validateExternalUrl', () => {
+  describe('valid URLs', () => {
+    it.concurrent('should accept https URLs', () => {
+      const result = validateExternalUrl('https://example.com')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept URLs with paths', () => {
+      const result = validateExternalUrl('https://api.example.com/v1/data')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept URLs with query strings', () => {
+      const result = validateExternalUrl('https://example.com?foo=bar')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept URLs with standard ports', () => {
+      const result = validateExternalUrl('https://example.com:443/api')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('invalid URLs', () => {
+    it.concurrent('should reject null', () => {
+      const result = validateExternalUrl(null)
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('required')
+    })
+
+    it.concurrent('should reject empty string', () => {
+      const result = validateExternalUrl('')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject http URLs', () => {
+      const result = validateExternalUrl('http://example.com')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('https://')
+    })
+
+    it.concurrent('should reject invalid URLs', () => {
+      const result = validateExternalUrl('not-a-url')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('valid URL')
+    })
+
+    it.concurrent('should reject localhost', () => {
+      const result = validateExternalUrl('https://localhost/api')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('localhost')
+    })
+
+    it.concurrent('should reject 127.0.0.1', () => {
+      const result = validateExternalUrl('https://127.0.0.1/api')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('localhost')
+    })
+
+    it.concurrent('should reject 0.0.0.0', () => {
+      const result = validateExternalUrl('https://0.0.0.0/api')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('localhost')
+    })
+  })
+
+  describe('private IP ranges', () => {
+    it.concurrent('should reject 10.x.x.x', () => {
+      const result = validateExternalUrl('https://10.0.0.1/api')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('private IP')
+    })
+
+    it.concurrent('should reject 172.16.x.x', () => {
+      const result = validateExternalUrl('https://172.16.0.1/api')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('private IP')
+    })
+
+    it.concurrent('should reject 192.168.x.x', () => {
+      const result = validateExternalUrl('https://192.168.1.1/api')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('private IP')
+    })
+
+    it.concurrent('should reject link-local 169.254.x.x', () => {
+      const result = validateExternalUrl('https://169.254.169.254/api')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('private IP')
+    })
+  })
+
+  describe('blocked ports', () => {
+    it.concurrent('should reject SSH port 22', () => {
+      const result = validateExternalUrl('https://example.com:22/api')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('blocked port')
+    })
+
+    it.concurrent('should reject MySQL port 3306', () => {
+      const result = validateExternalUrl('https://example.com:3306/api')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('blocked port')
+    })
+
+    it.concurrent('should reject PostgreSQL port 5432', () => {
+      const result = validateExternalUrl('https://example.com:5432/api')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('blocked port')
+    })
+
+    it.concurrent('should reject Redis port 6379', () => {
+      const result = validateExternalUrl('https://example.com:6379/api')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('blocked port')
+    })
+
+    it.concurrent('should reject MongoDB port 27017', () => {
+      const result = validateExternalUrl('https://example.com:27017/api')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('blocked port')
+    })
+
+    it.concurrent('should reject Elasticsearch port 9200', () => {
+      const result = validateExternalUrl('https://example.com:9200/api')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('blocked port')
+    })
+  })
+})
+
+describe('validateImageUrl', () => {
+  it.concurrent('should accept valid image URLs', () => {
+    const result = validateImageUrl('https://example.com/image.png')
+    expect(result.isValid).toBe(true)
+  })
+
+  it.concurrent('should reject localhost URLs', () => {
+    const result = validateImageUrl('https://localhost/image.png')
+    expect(result.isValid).toBe(false)
+  })
+
+  it.concurrent('should use imageUrl as default param name', () => {
+    const result = validateImageUrl(null)
+    expect(result.error).toContain('imageUrl')
+  })
+})
+
+describe('validateProxyUrl', () => {
+  it.concurrent('should accept valid proxy URLs', () => {
+    const result = validateProxyUrl('https://proxy.example.com/api')
+    expect(result.isValid).toBe(true)
+  })
+
+  it.concurrent('should reject private IPs', () => {
+    const result = validateProxyUrl('https://192.168.1.1:8080')
+    expect(result.isValid).toBe(false)
+  })
+
+  it.concurrent('should use proxyUrl as default param name', () => {
+    const result = validateProxyUrl(null)
+    expect(result.error).toContain('proxyUrl')
+  })
+})
+
+describe('validateGoogleCalendarId', () => {
+  describe('valid calendar IDs', () => {
+    it.concurrent('should accept "primary"', () => {
+      const result = validateGoogleCalendarId('primary')
+      expect(result.isValid).toBe(true)
+      expect(result.sanitized).toBe('primary')
+    })
+
+    it.concurrent('should accept email addresses', () => {
+      const result = validateGoogleCalendarId('user@example.com')
+      expect(result.isValid).toBe(true)
+      expect(result.sanitized).toBe('user@example.com')
+    })
+
+    it.concurrent('should accept Google calendar format', () => {
+      const result = validateGoogleCalendarId('en.usa#holiday@group.v.calendar.google.com')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept alphanumeric IDs with allowed characters', () => {
+      const result = validateGoogleCalendarId('abc123_def-456')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('invalid calendar IDs', () => {
+    it.concurrent('should reject null', () => {
+      const result = validateGoogleCalendarId(null)
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('required')
+    })
+
+    it.concurrent('should reject empty string', () => {
+      const result = validateGoogleCalendarId('')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject path traversal', () => {
+      const result = validateGoogleCalendarId('../etc/passwd')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('path traversal')
+    })
+
+    it.concurrent('should reject URL-encoded path traversal', () => {
+      const result = validateGoogleCalendarId('%2e%2e%2f')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('path traversal')
+    })
+
+    it.concurrent('should reject null bytes', () => {
+      const result = validateGoogleCalendarId('test\0value')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('control characters')
+    })
+
+    it.concurrent('should reject newline characters', () => {
+      const result = validateGoogleCalendarId('test\nvalue')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('control characters')
+    })
+
+    it.concurrent('should reject IDs exceeding 255 characters', () => {
+      const longId = 'a'.repeat(256)
+      const result = validateGoogleCalendarId(longId)
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('maximum length')
+    })
+
+    it.concurrent('should reject invalid characters', () => {
+      const result = validateGoogleCalendarId('test<script>alert(1)</script>')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('format is invalid')
+    })
   })
 })

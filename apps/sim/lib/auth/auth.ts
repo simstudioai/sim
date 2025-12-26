@@ -580,6 +580,21 @@ export const auth = betterAuth({
         },
 
         {
+          providerId: 'vertex-ai',
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+          discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+          accessType: 'offline',
+          scopes: [
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'https://www.googleapis.com/auth/cloud-platform',
+          ],
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/vertex-ai`,
+        },
+
+        {
           providerId: 'microsoft-teams',
           clientId: env.MICROSOFT_CLIENT_ID as string,
           clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
@@ -1422,6 +1437,9 @@ export const auth = betterAuth({
           pkce: true,
           accessType: 'offline',
           prompt: 'consent',
+          authorizationUrlParams: {
+            token_access_type: 'offline',
+          },
           getUserInfo: async (tokens) => {
             try {
               const response = await fetch(

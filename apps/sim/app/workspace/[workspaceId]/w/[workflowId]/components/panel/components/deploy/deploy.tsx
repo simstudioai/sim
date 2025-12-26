@@ -45,8 +45,7 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
     isRegistryLoading,
   })
 
-  // Detect changes between current and deployed state
-  const { changeDetected, setChangeDetected } = useChangeDetection({
+  const { changeDetected } = useChangeDetection({
     workflowId: activeWorkflowId,
     deployedState,
     isLoadingDeployedState,
@@ -136,7 +135,6 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
         workflowId={activeWorkflowId}
         isDeployed={isDeployed}
         needsRedeployment={changeDetected}
-        setNeedsRedeployment={setChangeDetected}
         deployedState={deployedState!}
         isLoadingDeployedState={isLoadingDeployedState}
         refetchDeployedState={refetchWithErrorHandling}

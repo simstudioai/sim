@@ -1,37 +1,65 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { BlockType } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
-const logger = createLogger('WaitBlockHandler')
+const CANCELLATION_CHECK_INTERVAL_MS = 500
 
-/**
- * Helper function to sleep for a specified number of milliseconds
- * On client-side: checks for cancellation every 100ms (non-blocking for UI)
- * On server-side: simple sleep without polling (server execution can't be cancelled mid-flight)
- */
-const sleep = async (ms: number, checkCancelled?: () => boolean): Promise<boolean> => {
-  const isClientSide = typeof window !== 'undefined'
+interface SleepOptions {
+  signal?: AbortSignal
+  executionId?: string
+}
 
-  if (!isClientSide) {
-    await new Promise((resolve) => setTimeout(resolve, ms))
-    return true
+const sleep = async (ms: number, options: SleepOptions = {}): Promise<boolean> => {
+  const { signal, executionId } = options
+  const useRedis = isRedisCancellationEnabled() && !!executionId
+
+  if (!useRedis && signal?.aborted) {
+    return false
   }
 
-  const chunkMs = 100
-  let elapsed = 0
+  return new Promise((resolve) => {
+    // biome-ignore lint/style/useConst: needs to be declared before cleanup() but assigned later
+    let mainTimeoutId: NodeJS.Timeout | undefined
+    let checkIntervalId: NodeJS.Timeout | undefined
+    let resolved = false
 
-  while (elapsed < ms) {
-    if (checkCancelled?.()) {
-      return false
+    const cleanup = () => {
+      if (mainTimeoutId) clearTimeout(mainTimeoutId)
+      if (checkIntervalId) clearInterval(checkIntervalId)
+      if (!useRedis && signal) signal.removeEventListener('abort', onAbort)
     }
 
-    const sleepTime = Math.min(chunkMs, ms - elapsed)
-    await new Promise((resolve) => setTimeout(resolve, sleepTime))
-    elapsed += sleepTime
-  }
+    const onAbort = () => {
+      if (resolved) return
+      resolved = true
+      cleanup()
+      resolve(false)
+    }
 
-  return true
+    if (useRedis) {
+      checkIntervalId = setInterval(async () => {
+        if (resolved) return
+        try {
+          const cancelled = await isExecutionCancelled(executionId!)
+          if (cancelled) {
+            resolved = true
+            cleanup()
+            resolve(false)
+          }
+        } catch {}
+      }, CANCELLATION_CHECK_INTERVAL_MS)
+    } else if (signal) {
+      signal.addEventListener('abort', onAbort, { once: true })
+    }
+
+    mainTimeoutId = setTimeout(() => {
+      if (resolved) return
+      resolved = true
+      cleanup()
+      resolve(true)
+    }, ms)
+  })
 }
 
 /**
@@ -65,11 +93,10 @@ export class WaitBlockHandler implements BlockHandler {
       throw new Error(`Wait time exceeds maximum of ${maxDisplay}`)
     }
 
-    const checkCancelled = () => {
-      return (ctx as any).isCancelled === true
-    }
-
-    const completed = await sleep(waitMs, checkCancelled)
+    const completed = await sleep(waitMs, {
+      signal: ctx.abortSignal,
+      executionId: ctx.executionId,
+    })
 
     if (!completed) {
       return {

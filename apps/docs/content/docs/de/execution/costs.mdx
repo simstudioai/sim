@@ -49,40 +49,40 @@ Die Modellaufschlüsselung zeigt:
 
 <Tabs items={['Hosted Models', 'Bring Your Own API Key']}>
   <Tab>
-    **Gehostete Modelle** - Sim stellt API-Schlüssel mit einem 2,5-fachen Preismultiplikator bereit:
+    **Gehostete Modelle** - Sim stellt API-Schlüssel mit einem 2-fachen Preismultiplikator bereit:
 
     **OpenAI**
     | Modell | Basispreis (Eingabe/Ausgabe) | Gehosteter Preis (Eingabe/Ausgabe) |
     |-------|---------------------------|----------------------------|
-    | GPT-5.1 | $1,25 / $10,00 | $3,13 / $25,00 |
-    | GPT-5 | $1,25 / $10,00 | $3,13 / $25,00 |
-    | GPT-5 Mini | $0,25 / $2,00 | $0,63 / $5,00 |
-    | GPT-5 Nano | $0,05 / $0,40 | $0,13 / $1,00 |
-    | GPT-4o | $2,50 / $10,00 | $6,25 / $25,00 |
-    | GPT-4.1 | $2,00 / $8,00 | $5,00 / $20,00 |
-    | GPT-4.1 Mini | $0,40 / $1,60 | $1,00 / $4,00 |
-    | GPT-4.1 Nano | $0,10 / $0,40 | $0,25 / $1,00 |
-    | o1 | $15,00 / $60,00 | $37,50 / $150,00 |
-    | o3 | $2,00 / $8,00 | $5,00 / $20,00 |
-    | o4 Mini | $1,10 / $4,40 | $2,75 / $11,00 |
+    | GPT-5.1 | 1,25 $ / 10,00 $ | 2,50 $ / 20,00 $ |
+    | GPT-5 | 1,25 $ / 10,00 $ | 2,50 $ / 20,00 $ |
+    | GPT-5 Mini | 0,25 $ / 2,00 $ | 0,50 $ / 4,00 $ |
+    | GPT-5 Nano | 0,05 $ / 0,40 $ | 0,10 $ / 0,80 $ |
+    | GPT-4o | 2,50 $ / 10,00 $ | 5,00 $ / 20,00 $ |
+    | GPT-4.1 | 2,00 $ / 8,00 $ | 4,00 $ / 16,00 $ |
+    | GPT-4.1 Mini | 0,40 $ / 1,60 $ | 0,80 $ / 3,20 $ |
+    | GPT-4.1 Nano | 0,10 $ / 0,40 $ | 0,20 $ / 0,80 $ |
+    | o1 | 15,00 $ / 60,00 $ | 30,00 $ / 120,00 $ |
+    | o3 | 2,00 $ / 8,00 $ | 4,00 $ / 16,00 $ |
+    | o4 Mini | 1,10 $ / 4,40 $ | 2,20 $ / 8,80 $ |
 
     **Anthropic**
     | Modell | Basispreis (Eingabe/Ausgabe) | Gehosteter Preis (Eingabe/Ausgabe) |
     |-------|---------------------------|----------------------------|
-    | Claude Opus 4.5 | $5,00 / $25,00 | $12,50 / $62,50 |
-    | Claude Opus 4.1 | $15,00 / $75,00 | $37,50 / $187,50 |
-    | Claude Sonnet 4.5 | $3,00 / $15,00 | $7,50 / $37,50 |
-    | Claude Sonnet 4.0 | $3,00 / $15,00 | $7,50 / $37,50 |
-    | Claude Haiku 4.5 | $1,00 / $5,00 | $2,50 / $12,50 |
+    | Claude Opus 4.5 | 5,00 $ / 25,00 $ | 10,00 $ / 50,00 $ |
+    | Claude Opus 4.1 | 15,00 $ / 75,00 $ | 30,00 $ / 150,00 $ |
+    | Claude Sonnet 4.5 | 3,00 $ / 15,00 $ | 6,00 $ / 30,00 $ |
+    | Claude Sonnet 4.0 | 3,00 $ / 15,00 $ | 6,00 $ / 30,00 $ |
+    | Claude Haiku 4.5 | 1,00 $ / 5,00 $ | 2,00 $ / 10,00 $ |
 
     **Google**
     | Modell | Basispreis (Eingabe/Ausgabe) | Gehosteter Preis (Eingabe/Ausgabe) |
     |-------|---------------------------|----------------------------|
-    | Gemini 3 Pro Preview | $2,00 / $12,00 | $5,00 / $30,00 |
-    | Gemini 2.5 Pro | $0,15 / $0,60 | $0,38 / $1,50 |
-    | Gemini 2.5 Flash | $0,15 / $0,60 | $0,38 / $1,50 |
+    | Gemini 3 Pro Preview | 2,00 $ / 12,00 $ | 4,00 $ / 24,00 $ |
+    | Gemini 2.5 Pro | 1,25 $ / 10,00 $ | 2,50 $ / 20,00 $ |
+    | Gemini 2.5 Flash | 0,30 $ / 2,50 $ | 0,60 $ / 5,00 $ |
 
-    *Der 2,5-fache Multiplikator deckt Infrastruktur- und API-Verwaltungskosten ab.*
+    *Der 2x-Multiplikator deckt Infrastruktur- und API-Verwaltungskosten ab.*
   </Tab>
 
   <Tab>
@@ -105,28 +105,32 @@ Die Modellaufschlüsselung zeigt:
   Die angezeigten Preise entsprechen den Tarifen vom 10. September 2025. Überprüfen Sie die Dokumentation der Anbieter für aktuelle Preise.
 </Callout>
 
+## Bring Your Own Key (BYOK)
+
+Sie können Ihre eigenen API-Schlüssel für gehostete Modelle (OpenAI, Anthropic, Google, Mistral) unter **Einstellungen → BYOK** verwenden, um Basispreise zu zahlen. Schlüssel werden verschlüsselt und gelten arbeitsbereichsweit.
+
 ## Strategien zur Kostenoptimierung
 
-- **Modellauswahl**: Wählen Sie Modelle basierend auf der Komplexität der Aufgabe. Einfache Aufgaben können GPT-4.1-nano verwenden, während komplexes Denken möglicherweise o1 oder Claude Opus erfordert.
-- **Prompt-Engineering**: Gut strukturierte, präzise Prompts reduzieren den Token-Verbrauch ohne Qualitätseinbußen.
+- **Modellauswahl**: Wählen Sie Modelle basierend auf der Aufgabenkomplexität. Einfache Aufgaben können GPT-4.1-nano verwenden, während komplexes Reasoning o1 oder Claude Opus erfordern könnte.
+- **Prompt Engineering**: Gut strukturierte, prägnante Prompts reduzieren den Token-Verbrauch ohne Qualitätsverlust.
 - **Lokale Modelle**: Verwenden Sie Ollama oder VLLM für unkritische Aufgaben, um API-Kosten vollständig zu eliminieren.
-- **Caching und Wiederverwendung**: Speichern Sie häufig verwendete Ergebnisse in Variablen oder Dateien, um wiederholte KI-Modellaufrufe zu vermeiden.
-- **Batch-Verarbeitung**: Verarbeiten Sie mehrere Elemente in einer einzigen KI-Anfrage anstatt einzelne Aufrufe zu tätigen.
+- **Caching und Wiederverwendung**: Speichern Sie häufig verwendete Ergebnisse in Variablen oder Dateien, um wiederholte AI-Modellaufrufe zu vermeiden.
+- **Batch-Verarbeitung**: Verarbeiten Sie mehrere Elemente in einer einzigen AI-Anfrage, anstatt einzelne Aufrufe zu tätigen.
 
 ## Nutzungsüberwachung
 
 Überwachen Sie Ihre Nutzung und Abrechnung unter Einstellungen → Abonnement:
 
-- **Aktuelle Nutzung**: Echtzeit-Nutzung und -Kosten für den aktuellen Zeitraum
-- **Nutzungslimits**: Plangrenzen mit visuellen Fortschrittsanzeigen
+- **Aktuelle Nutzung**: Echtzeit-Nutzung und Kosten für den aktuellen Zeitraum
+- **Nutzungslimits**: Plan-Limits mit visuellen Fortschrittsindikatoren
 - **Abrechnungsdetails**: Prognostizierte Gebühren und Mindestverpflichtungen
-- **Planverwaltung**: Upgrade-Optionen und Abrechnungsverlauf
+- **Plan-Verwaltung**: Upgrade-Optionen und Abrechnungsverlauf
 
-### Programmatische Nutzungsverfolgung
+### Programmatisches Nutzungs-Tracking
 
 Sie können Ihre aktuelle Nutzung und Limits programmatisch über die API abfragen:
 
-**Endpunkt:**
+**Endpoint:**
 
 ```text
 GET /api/users/me/usage-limits
@@ -172,69 +176,69 @@ curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" htt
 ```
 
 **Rate-Limit-Felder:**
-- `requestsPerMinute`: Dauerhafte Rate-Begrenzung (Tokens werden mit dieser Rate aufgefüllt)
-- `maxBurst`: Maximale Tokens, die Sie ansammeln können (Burst-Kapazität)
-- `remaining`: Aktuell verfügbare Tokens (können bis zu `maxBurst` sein)
+- `requestsPerMinute`: Dauerhaftes Rate-Limit (Tokens werden mit dieser Rate aufgefüllt)
+- `maxBurst`: Maximale Tokens, die Sie akkumulieren können (Burst-Kapazität)
+- `remaining`: Aktuell verfügbare Tokens (kann bis zu `maxBurst` betragen)
 
 **Antwortfelder:**
-- `currentPeriodCost` spiegelt die Nutzung in der aktuellen Abrechnungsperiode wider
-- `limit` wird von individuellen Limits (Free/Pro) oder gepoolten Organisationslimits (Team/Enterprise) abgeleitet
-- `plan` ist der aktive Plan mit der höchsten Priorität, der mit Ihrem Benutzer verknüpft ist
+- `currentPeriodCost` spiegelt die Nutzung im aktuellen Abrechnungszeitraum wider
+- `limit` wird aus individuellen Limits (Free/Pro) oder gepoolten Organisationslimits (Team/Enterprise) abgeleitet
+- `plan` ist der Plan mit der höchsten Priorität, der Ihrem Benutzer zugeordnet ist
 
 ## Plan-Limits
 
-Verschiedene Abonnementpläne haben unterschiedliche Nutzungslimits:
+Verschiedene Abonnement-Pläne haben unterschiedliche Nutzungslimits:
 
-| Plan | Monatliches Nutzungslimit | Rate-Limits (pro Minute) |
+| Plan | Monatliches Nutzungslimit | Ratenlimits (pro Minute) |
 |------|-------------------|-------------------------|
-| **Free** | $10 | 5 sync, 10 async |
-| **Pro** | $100 | 10 sync, 50 async |
-| **Team** | $500 (gepoolt) | 50 sync, 100 async |
+| **Free** | 20 $ | 5 sync, 10 async |
+| **Pro** | 100 $ | 10 sync, 50 async |
+| **Team** | 500 $ (gemeinsam) | 50 sync, 100 async |
 | **Enterprise** | Individuell | Individuell |
 
 ## Abrechnungsmodell
 
-Sim verwendet ein **Basisabonnement + Mehrverbrauch**-Abrechnungsmodell:
+Sim verwendet ein **Basis-Abonnement + Mehrverbrauch**-Abrechnungsmodell:
 
-### Wie es funktioniert
+### So funktioniert es
 
-**Pro-Plan ($20/Monat):**
-- Monatliches Abonnement beinhaltet $20 Nutzung
-- Nutzung unter $20 → Keine zusätzlichen Kosten
-- Nutzung über $20 → Zahlen Sie den Mehrverbrauch am Monatsende
-- Beispiel: $35 Nutzung = $20 (Abonnement) + $15 (Mehrverbrauch)
+**Pro-Plan (20 $/Monat):**
+- Monatsabonnement beinhaltet 20 $ Nutzung
+- Nutzung unter 20 $ → Keine zusätzlichen Gebühren
+- Nutzung über 20 $ → Mehrverbrauch am Monatsende zahlen
+- Beispiel: 35 $ Nutzung = 20 $ (Abonnement) + 15 $ (Mehrverbrauch)
 
-**Team-Plan ($40/Benutzer/Monat):**
-- Gepoolte Nutzung für alle Teammitglieder
-- Mehrverbrauch wird aus der Gesamtnutzung des Teams berechnet
+**Team-Plan (40 $/Platz/Monat):**
+- Gemeinsame Nutzung über alle Teammitglieder
+- Mehrverbrauch wird aus der gesamten Team-Nutzung berechnet
 - Organisationsinhaber erhält eine Rechnung
 
 **Enterprise-Pläne:**
-- Fester monatlicher Preis, kein Mehrverbrauch
+- Fester Monatspreis, kein Mehrverbrauch
 - Individuelle Nutzungslimits gemäß Vereinbarung
 
 ### Schwellenwert-Abrechnung
 
-Wenn der nicht abgerechnete Mehrverbrauch $50 erreicht, berechnet Sim automatisch den gesamten nicht abgerechneten Betrag.
+Wenn der nicht abgerechnete Mehrverbrauch 50 $ erreicht, rechnet Sim automatisch den gesamten nicht abgerechneten Betrag ab.
 
 **Beispiel:**
-- Tag 10: $70 Mehrverbrauch → Sofortige Abrechnung von $70
-- Tag 15: Zusätzliche $35 Nutzung ($105 insgesamt) → Bereits abgerechnet, keine Aktion
-- Tag 20: Weitere $50 Nutzung ($155 insgesamt, $85 nicht abgerechnet) → Sofortige Abrechnung von $85
+- Tag 10: 70 $ Mehrverbrauch → 70 $ sofort abrechnen
+- Tag 15: Zusätzliche 35 $ Nutzung (105 $ gesamt) → Bereits abgerechnet, keine Aktion
+- Tag 20: Weitere 50 $ Nutzung (155 $ gesamt, 85 $ nicht abgerechnet) → 85 $ sofort abrechnen
 
-Dies verteilt große Überziehungsgebühren über den Monat, anstatt eine große Rechnung am Ende des Abrechnungszeitraums zu erhalten.
+Dies verteilt große Mehrverbrauchsgebühren über den Monat, anstatt einer großen Rechnung am Periodenende.
 
 ## Best Practices für Kostenmanagement
 
 1. **Regelmäßig überwachen**: Überprüfen Sie Ihr Nutzungs-Dashboard häufig, um Überraschungen zu vermeiden
-2. **Budgets festlegen**: Nutzen Sie Planlimits als Leitplanken für Ihre Ausgaben
+2. **Budgets festlegen**: Nutzen Sie Plan-Limits als Leitplanken für Ihre Ausgaben
 3. **Workflows optimieren**: Überprüfen Sie kostenintensive Ausführungen und optimieren Sie Prompts oder Modellauswahl
 4. **Passende Modelle verwenden**: Passen Sie die Modellkomplexität an die Aufgabenanforderungen an
-5. **Ähnliche Aufgaben bündeln**: Kombinieren Sie wenn möglich mehrere Anfragen, um den Overhead zu reduzieren
+5. **Ähnliche Aufgaben bündeln**: Kombinieren Sie mehrere Anfragen, wenn möglich, um Overhead zu reduzieren
 
 ## Nächste Schritte
 
 - Überprüfen Sie Ihre aktuelle Nutzung unter [Einstellungen → Abonnement](https://sim.ai/settings/subscription)
 - Erfahren Sie mehr über [Protokollierung](/execution/logging), um Ausführungsdetails zu verfolgen
-- Erkunden Sie die [Externe API](/execution/api) für programmatische Kostenüberwachung
+- Entdecken Sie die [externe API](/execution/api) für programmatische Kostenüberwachung
 - Sehen Sie sich [Workflow-Optimierungstechniken](/blocks) an, um Kosten zu reduzieren

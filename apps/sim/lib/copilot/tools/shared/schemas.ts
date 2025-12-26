@@ -35,6 +35,39 @@ export const GetTriggerBlocksResult = z.object({
 })
 export type GetTriggerBlocksResultType = z.infer<typeof GetTriggerBlocksResult>
 
+// get_block_options
+export const GetBlockOptionsInput = z.object({
+  blockId: z.string(),
+})
+export const GetBlockOptionsResult = z.object({
+  blockId: z.string(),
+  blockName: z.string(),
+  operations: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      description: z.string().optional(),
+    })
+  ),
+})
+export type GetBlockOptionsInputType = z.infer<typeof GetBlockOptionsInput>
+export type GetBlockOptionsResultType = z.infer<typeof GetBlockOptionsResult>
+
+// get_block_config
+export const GetBlockConfigInput = z.object({
+  blockType: z.string(),
+  operation: z.string().optional(),
+})
+export const GetBlockConfigResult = z.object({
+  blockType: z.string(),
+  blockName: z.string(),
+  operation: z.string().optional(),
+  inputs: z.record(z.any()),
+  outputs: z.record(z.any()),
+})
+export type GetBlockConfigInputType = z.infer<typeof GetBlockConfigInput>
+export type GetBlockConfigResultType = z.infer<typeof GetBlockConfigResult>
+
 // knowledge_base - shared schema used by client tool, server tool, and registry
 export const KnowledgeBaseArgsSchema = z.object({
   operation: z.enum(['create', 'list', 'get', 'query']),
@@ -71,3 +104,71 @@ export const KnowledgeBaseResultSchema = z.object({
   data: z.any().optional(),
 })
 export type KnowledgeBaseResult = z.infer<typeof KnowledgeBaseResultSchema>
+
+export const GetBlockOutputsInput = z.object({
+  blockIds: z.array(z.string()).optional(),
+})
+export const GetBlockOutputsResult = z.object({
+  blocks: z.array(
+    z.object({
+      blockId: z.string(),
+      blockName: z.string(),
+      blockType: z.string(),
+      outputs: z.array(z.string()),
+      insideSubflowOutputs: z.array(z.string()).optional(),
+      outsideSubflowOutputs: z.array(z.string()).optional(),
+    })
+  ),
+  variables: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        type: z.string(),
+        tag: z.string(),
+      })
+    )
+    .optional(),
+})
+export type GetBlockOutputsInputType = z.infer<typeof GetBlockOutputsInput>
+export type GetBlockOutputsResultType = z.infer<typeof GetBlockOutputsResult>
+
+export const GetBlockUpstreamReferencesInput = z.object({
+  blockIds: z.array(z.string()).min(1),
+})
+export const GetBlockUpstreamReferencesResult = z.object({
+  results: z.array(
+    z.object({
+      blockId: z.string(),
+      blockName: z.string(),
+      insideSubflows: z
+        .array(
+          z.object({
+            blockId: z.string(),
+            blockName: z.string(),
+            blockType: z.string(),
+          })
+        )
+        .optional(),
+      accessibleBlocks: z.array(
+        z.object({
+          blockId: z.string(),
+          blockName: z.string(),
+          blockType: z.string(),
+          outputs: z.array(z.string()),
+          accessContext: z.enum(['inside', 'outside']).optional(),
+        })
+      ),
+      variables: z.array(
+        z.object({
+          id: z.string(),
+          name: z.string(),
+          type: z.string(),
+          tag: z.string(),
+        })
+      ),
+    })
+  ),
+})
+export type GetBlockUpstreamReferencesInputType = z.infer<typeof GetBlockUpstreamReferencesInput>
+export type GetBlockUpstreamReferencesResultType = z.infer<typeof GetBlockUpstreamReferencesResult>

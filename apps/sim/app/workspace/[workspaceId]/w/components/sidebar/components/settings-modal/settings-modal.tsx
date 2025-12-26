@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
 import { useQueryClient } from '@tanstack/react-query'
-import { Files, LogIn, Server, Settings, User, Users, Wrench } from 'lucide-react'
+import { Files, KeySquare, LogIn, Server, Settings, User, Users, Wrench } from 'lucide-react'
 import {
   Card,
   Connections,
@@ -30,6 +30,7 @@ import { isHosted } from '@/lib/core/config/feature-flags'
 import { getUserRole } from '@/lib/workspaces/organization'
 import {
   ApiKeys,
+  BYOK,
   Copilot,
   CustomTools,
   EnvironmentVariables,
@@ -63,6 +64,7 @@ type SettingsSection =
   | 'template-profile'
   | 'integrations'
   | 'apikeys'
+  | 'byok'
   | 'files'
   | 'subscription'
   | 'team'
@@ -116,6 +118,13 @@ const allNavigationItems: NavigationItem[] = [
   { id: 'mcp', label: 'MCP Tools', icon: McpIcon, section: 'tools' },
   { id: 'environment', label: 'Environment', icon: FolderCode, section: 'system' },
   { id: 'apikeys', label: 'API Keys', icon: Key, section: 'system' },
+  {
+    id: 'byok',
+    label: 'BYOK',
+    icon: KeySquare,
+    section: 'system',
+    requiresHosted: true,
+  },
   {
     id: 'copilot',
     label: 'Copilot Keys',
@@ -459,6 +468,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             {isBillingEnabled && activeSection === 'subscription' && <Subscription />}
             {isBillingEnabled && activeSection === 'team' && <TeamManagement />}
             {activeSection === 'sso' && <SSO />}
+            {activeSection === 'byok' && <BYOK />}
             {activeSection === 'copilot' && <Copilot />}
             {activeSection === 'mcp' && <MCP initialServerId={pendingMcpServerId} />}
             {activeSection === 'custom-tools' && <CustomTools />}

@@ -8,10 +8,9 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { GmailAttachment } from '@/tools/gmail/types'
 import { downloadAttachments, extractAttachmentInfo } from '@/tools/gmail/utils'
+import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 const logger = createLogger('GmailPollingService')
-
-const MAX_CONSECUTIVE_FAILURES = 10
 
 interface GmailWebhookConfig {
   labelIds: string[]

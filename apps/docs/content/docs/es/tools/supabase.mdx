@@ -47,10 +47,11 @@ Consultar datos de una tabla de Supabase
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
-| `projectId` | string | Sí | Tu ID de proyecto de Supabase \(ej., jdrkgepadsdopsntdlom\) |
-| `table` | string | Sí | El nombre de la tabla de Supabase a consultar |
-| `filter` | string | No | Filtro de PostgREST \(ej., "id=eq.123"\) |
-| `orderBy` | string | No | Columna para ordenar \(añade DESC para orden descendente\) |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `table` | string | Sí | Nombre de la tabla Supabase a consultar |
+| `schema` | string | No | Esquema de base de datos desde donde consultar \(predeterminado: public\). Usa esto para acceder a tablas en otros esquemas. |
+| `filter` | string | No | Filtro PostgREST \(p. ej., "id=eq.123"\) |
+| `orderBy` | string | No | Columna para ordenar \(añade DESC para descendente\) |
 | `limit` | number | No | Número máximo de filas a devolver |
 | `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
 
@@ -68,9 +69,10 @@ Insertar datos en una tabla de Supabase
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ----------- | ----------- |
 | `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
 | `table` | string | Sí | Nombre de la tabla Supabase donde insertar datos |
+| `schema` | string | No | Esquema de base de datos donde insertar \(predeterminado: public\). Usa esto para acceder a tablas en otros esquemas. |
 | `data` | array | Sí | Los datos a insertar \(array de objetos o un solo objeto\) |
 | `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
 
@@ -88,9 +90,10 @@ Obtener una sola fila de una tabla de Supabase basada en criterios de filtro
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | -------- | ----------- |
-| `projectId` | string | Sí | ID de tu proyecto de Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
-| `table` | string | Sí | Nombre de la tabla de Supabase para consultar |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `table` | string | Sí | Nombre de la tabla Supabase a consultar |
+| `schema` | string | No | Esquema de base de datos desde donde consultar \(predeterminado: public\). Usa esto para acceder a tablas en otros esquemas. |
 | `filter` | string | Sí | Filtro PostgREST para encontrar la fila específica \(p. ej., "id=eq.123"\) |
 | `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
 
@@ -111,8 +114,9 @@ Actualizar filas en una tabla de Supabase según criterios de filtro
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
 | `table` | string | Sí | Nombre de la tabla Supabase a actualizar |
+| `schema` | string | No | Esquema de base de datos donde actualizar \(predeterminado: public\). Usa esto para acceder a tablas en otros esquemas. |
 | `filter` | string | Sí | Filtro PostgREST para identificar las filas a actualizar \(p. ej., "id=eq.123"\) |
-| `data` | object | Sí | Datos para actualizar en las filas coincidentes |
+| `data` | object | Sí | Datos a actualizar en las filas coincidentes |
 | `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
 
 #### Salida
@@ -132,6 +136,7 @@ Eliminar filas de una tabla de Supabase según criterios de filtro
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
 | `table` | string | Sí | Nombre de la tabla Supabase de la que eliminar |
+| `schema` | string | No | Esquema de base de datos del que eliminar \(predeterminado: public\). Usa esto para acceder a tablas en otros esquemas. |
 | `filter` | string | Sí | Filtro PostgREST para identificar las filas a eliminar \(p. ej., "id=eq.123"\) |
 | `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
 
@@ -152,7 +157,8 @@ Insertar o actualizar datos en una tabla de Supabase (operación upsert)
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
 | `table` | string | Sí | Nombre de la tabla Supabase donde hacer upsert de datos |
-| `data` | array | Sí | Los datos para upsert \(insertar o actualizar\) - array de objetos o un solo objeto |
+| `schema` | string | No | Esquema de base de datos donde hacer upsert \(predeterminado: public\). Usa esto para acceder a tablas en otros esquemas. |
+| `data` | array | Sí | Los datos para hacer upsert \(insertar o actualizar\) - array de objetos o un solo objeto |
 | `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
 
 #### Salida
@@ -171,7 +177,8 @@ Contar filas en una tabla de Supabase
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
-| `table` | string | Sí | Nombre de la tabla Supabase de la que contar filas |
+| `table` | string | Sí | El nombre de la tabla Supabase de la que contar filas |
+| `schema` | string | No | Esquema de base de datos desde el que contar \(predeterminado: public\). Usa esto para acceder a tablas en otros esquemas. |
 | `filter` | string | No | Filtro PostgREST \(p. ej., "status=eq.active"\) |
 | `countType` | string | No | Tipo de conteo: exact, planned o estimated \(predeterminado: exact\) |
 | `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
@@ -192,7 +199,8 @@ Realizar búsqueda de texto completo en una tabla de Supabase
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
-| `table` | string | Sí | Nombre de la tabla Supabase en la que buscar |
+| `table` | string | Sí | El nombre de la tabla Supabase donde buscar |
+| `schema` | string | No | Esquema de base de datos en el que buscar \(predeterminado: public\). Usa esto para acceder a tablas en otros esquemas. |
 | `column` | string | Sí | La columna en la que buscar |
 | `query` | string | Sí | La consulta de búsqueda |
 | `searchType` | string | No | Tipo de búsqueda: plain, phrase o websearch \(predeterminado: websearch\) |

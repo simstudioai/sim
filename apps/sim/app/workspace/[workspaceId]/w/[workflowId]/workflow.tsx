@@ -198,7 +198,7 @@ const WorkflowContent = React.memo(() => {
     return resizeLoopNodes(updateNodeDimensions)
   }, [resizeLoopNodes, updateNodeDimensions])
 
-  const { applyAutoLayoutAndUpdateStore } = useAutoLayout(activeWorkflowId || null)
+  const { handleAutoLayout: autoLayoutWithFitView } = useAutoLayout(activeWorkflowId || null)
 
   const isWorkflowEmpty = useMemo(() => Object.keys(blocks).length === 0, [blocks])
 
@@ -441,19 +441,8 @@ const WorkflowContent = React.memo(() => {
   /** Applies auto-layout to the workflow canvas. */
   const handleAutoLayout = useCallback(async () => {
     if (Object.keys(blocks).length === 0) return
-
-    try {
-      const result = await applyAutoLayoutAndUpdateStore()
-
-      if (result.success) {
-        logger.info('Auto layout completed successfully')
-      } else {
-        logger.error('Auto layout failed:', result.error)
-      }
-    } catch (error) {
-      logger.error('Auto layout error:', error)
-    }
-  }, [blocks, applyAutoLayoutAndUpdateStore])
+    await autoLayoutWithFitView()
+  }, [blocks, autoLayoutWithFitView])
 
   const debouncedAutoLayout = useCallback(() => {
     const debounceTimer = setTimeout(() => {
@@ -2236,27 +2225,6 @@ const WorkflowContent = React.memo(() => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedEdgeInfo, removeEdge, getNodes, removeBlock, effectivePermissions.canEdit])
 
-  /** Handles sub-block value updates from custom events. */
-  useEffect(() => {
-    const handleSubBlockValueUpdate = (event: CustomEvent) => {
-      const { blockId, subBlockId, value } = event.detail
-      if (blockId && subBlockId) {
-        // Use collaborative function to go through queue system
-        // This ensures 5-second timeout and error detection work
-        collaborativeSetSubblockValue(blockId, subBlockId, value)
-      }
-    }
-
-    window.addEventListener('update-subblock-value', handleSubBlockValueUpdate as EventListener)
-
-    return () => {
-      window.removeEventListener(
-        'update-subblock-value',
-        handleSubBlockValueUpdate as EventListener
-      )
-    }
-  }, [collaborativeSetSubblockValue])
-
   return (
     <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--bg)]'>
       <div className='relative h-full w-full flex-1 bg-[var(--bg)]'>
@@ -2265,7 +2233,14 @@ const WorkflowContent = React.memo(() => {
           className={`absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)] transition-opacity duration-150 ${isWorkflowReady ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
         >
           <div
-            className={`h-[18px] w-[18px] rounded-full border-[1.5px] border-muted-foreground border-t-transparent ${isWorkflowReady ? '' : 'animate-spin'}`}
+            className={`h-[18px] w-[18px] rounded-full ${isWorkflowReady ? '' : 'animate-spin'}`}
+            style={{
+              background:
+                'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
+              mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+              WebkitMask:
+                'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+            }}
           />
         </div>
 

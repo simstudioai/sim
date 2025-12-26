@@ -15,8 +15,8 @@ export interface PricingInfo {
 }
 
 export interface TokenUsage {
-  prompt: number
-  completion: number
+  input: number
+  output: number
   total: number
 }
 
@@ -102,6 +102,17 @@ export interface WorkflowExecutionLog {
     environment?: ExecutionEnvironment
     trigger?: ExecutionTrigger
     traceSpans?: TraceSpan[]
+    tokens?: { input?: number; output?: number; total?: number }
+    models?: Record<
+      string,
+      {
+        input?: number
+        output?: number
+        total?: number
+        tokens?: { input?: number; output?: number; total?: number }
+      }
+    >
+    finalOutput?: any
     errorDetails?: {
       blockId: string
       blockName: string
@@ -114,14 +125,14 @@ export interface WorkflowExecutionLog {
     input?: number
     output?: number
     total?: number
-    tokens?: { prompt?: number; completion?: number; total?: number }
+    tokens?: { input?: number; output?: number; total?: number }
     models?: Record<
       string,
       {
         input?: number
         output?: number
         total?: number
-        tokens?: { prompt?: number; completion?: number; total?: number }
+        tokens?: { input?: number; output?: number; total?: number }
       }
     >
   }

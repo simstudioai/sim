@@ -87,7 +87,7 @@ describe('RouterBlockHandler', () => {
           Promise.resolve({
             content: 'target-block-1',
             model: 'mock-model',
-            tokens: { prompt: 100, completion: 5, total: 105 },
+            tokens: { input: 100, output: 5, total: 105 },
             cost: 0.003,
             timing: { total: 300 },
           }),
@@ -105,6 +105,7 @@ describe('RouterBlockHandler', () => {
     const inputs = {
       prompt: 'Choose the best option.',
       model: 'gpt-4o',
+      apiKey: 'test-api-key',
       temperature: 0.1,
     }
 
@@ -160,7 +161,7 @@ describe('RouterBlockHandler', () => {
     expect(result).toEqual({
       prompt: 'Choose the best option.',
       model: 'mock-model',
-      tokens: { prompt: 100, completion: 5, total: 105 },
+      tokens: { input: 100, output: 5, total: 105 },
       cost: {
         input: 0,
         output: 0,
@@ -187,7 +188,7 @@ describe('RouterBlockHandler', () => {
   })
 
   it('should throw error if LLM response is not a valid target block ID', async () => {
-    const inputs = { prompt: 'Test' }
+    const inputs = { prompt: 'Test', apiKey: 'test-api-key' }
 
     // Override fetch mock to return an invalid block ID
     mockFetch.mockImplementationOnce(() => {
@@ -210,22 +211,22 @@ describe('RouterBlockHandler', () => {
   })
 
   it('should use default model and temperature if not provided', async () => {
-    const inputs = { prompt: 'Choose.' }
+    const inputs = { prompt: 'Choose.', apiKey: 'test-api-key' }
 
     await handler.execute(mockContext, mockBlock, inputs)
 
-    expect(mockGetProviderFromModel).toHaveBeenCalledWith('gpt-4o')
+    expect(mockGetProviderFromModel).toHaveBeenCalledWith('claude-sonnet-4-5')
 
     const fetchCallArgs = mockFetch.mock.calls[0]
     const requestBody = JSON.parse(fetchCallArgs[1].body)
     expect(requestBody).toMatchObject({
-      model: 'gpt-4o',
+      model: 'claude-sonnet-4-5',
       temperature: 0.1,
     })
   })
 
   it('should handle server error responses', async () => {
-    const inputs = { prompt: 'Test error handling.' }
+    const inputs = { prompt: 'Test error handling.', apiKey: 'test-api-key' }
 
     // Override fetch mock to return an error
     mockFetch.mockImplementationOnce(() => {
@@ -237,5 +238,65 @@ describe('RouterBlockHandler', () => {
     })
 
     await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow('Server error')
+  })
+
+  it('should handle Azure OpenAI models with endpoint and API version', async () => {
+    const inputs = {
+      prompt: 'Choose the best option.',
+      model: 'gpt-4o',
+      apiKey: 'test-azure-key',
+      azureEndpoint: 'https://test.openai.azure.com',
+      azureApiVersion: '2024-07-01-preview',
+    }
+
+    mockGetProviderFromModel.mockReturnValue('azure-openai')
+
+    await handler.execute(mockContext, mockBlock, inputs)
+
+    const fetchCallArgs = mockFetch.mock.calls[0]
+    const requestBody = JSON.parse(fetchCallArgs[1].body)
+
+    expect(requestBody).toMatchObject({
+      provider: 'azure-openai',
+      model: 'gpt-4o',
+      apiKey: 'test-azure-key',
+      azureEndpoint: 'https://test.openai.azure.com',
+      azureApiVersion: '2024-07-01-preview',
+    })
+  })
+
+  it('should handle Vertex AI models with OAuth credential', async () => {
+    const inputs = {
+      prompt: 'Choose the best option.',
+      model: 'gemini-2.0-flash-exp',
+      vertexCredential: 'test-vertex-credential-id',
+      vertexProject: 'test-gcp-project',
+      vertexLocation: 'us-central1',
+    }
+
+    mockGetProviderFromModel.mockReturnValue('vertex')
+
+    // Mock the database query for Vertex credential
+    const mockDb = await import('@sim/db')
+    const mockAccount = {
+      id: 'test-vertex-credential-id',
+      accessToken: 'mock-access-token',
+      refreshToken: 'mock-refresh-token',
+      expiresAt: new Date(Date.now() + 3600000), // 1 hour from now
+    }
+    vi.spyOn(mockDb.db.query.account, 'findFirst').mockResolvedValue(mockAccount as any)
+
+    await handler.execute(mockContext, mockBlock, inputs)
+
+    const fetchCallArgs = mockFetch.mock.calls[0]
+    const requestBody = JSON.parse(fetchCallArgs[1].body)
+
+    expect(requestBody).toMatchObject({
+      provider: 'vertex',
+      model: 'gemini-2.0-flash-exp',
+      vertexProject: 'test-gcp-project',
+      vertexLocation: 'us-central1',
+    })
+    expect(requestBody.apiKey).toBe('mock-access-token')
   })
 })

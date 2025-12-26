@@ -1,0 +1,59 @@
+---
+title: Circleback
+description: Notas de reuniones e ítems de acción impulsados por IA
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="circleback"
+  color="linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Circleback](https://circleback.ai/) es una plataforma impulsada por IA que automatiza las notas de reuniones, ítems de acción, transcripciones y grabaciones para tu equipo. Cuando se completa una reunión, Circleback procesa la conversación y proporciona notas detalladas e ítems de acción, junto con una transcripción y una grabación (cuando está disponible). Esto ayuda a los equipos a capturar información de manera eficiente, distribuir ítems de acción y asegurar que no se pierda nada, todo integrado sin problemas en tus flujos de trabajo.
+
+Con la integración de Sim Circleback, puedes:
+
+- **Recibir notas detalladas de reuniones e ítems de acción**: Recopila automáticamente resúmenes de reuniones bien formateados y realiza seguimiento de las tareas accionables discutidas durante tus llamadas.
+- **Acceder a grabaciones y transcripciones completas de reuniones**: Obtén la conversación completa y la grabación asociada, facilitando la revisión de momentos clave o compartir con colegas.
+- **Capturar información de asistentes y contexto de la reunión**: Las listas de asistentes, metadatos de reuniones y etiquetas ayudan a mantener tus datos organizados y accionables.
+- **Entregar información directamente en tus flujos de trabajo**: Activa automatizaciones o envía datos de Circleback a otros sistemas en el momento en que finaliza una reunión, usando los potentes activadores webhook de Sim.
+
+**Cómo funciona en Sim:**  
+Circleback utiliza activadores webhook: cada vez que se procesa una reunión, los datos se envían automáticamente a tu agente o automatización. Puedes crear más automatizaciones basadas en:
+
+- Reunión completada (todos los datos procesados disponibles)
+- Nuevas notas (notas listas incluso antes de que se procese la reunión completa)
+- Integración webhook sin procesar para casos de uso avanzados
+
+**La siguiente información está disponible en la carga útil del webhook de reunión de Circleback:**
+
+| Campo          | Tipo    | Descripción                                        |
+|----------------|---------|----------------------------------------------------|
+| `id`           | number  | ID de reunión de Circleback                        |
+| `name`         | string  | Título de la reunión                               |
+| `url`          | string  | URL de reunión virtual (Zoom, Meet, Teams, etc.)   |
+| `createdAt`    | string  | Marca de tiempo de creación de la reunión          |
+| `duration`     | number  | Duración en segundos                               |
+| `recordingUrl` | string  | URL de grabación (válida 24 horas)                 |
+| `tags`         | json    | Array de etiquetas                                 |
+| `icalUid`      | string  | ID de evento de calendario                         |
+| `attendees`    | json    | Array de objetos de asistentes                     |
+| `notes`        | string  | Notas de la reunión en Markdown                    |
+| `actionItems`  | json    | Array de elementos de acción                       |
+| `transcript`   | json    | Array de segmentos de transcripción                |
+| `insights`     | json    | Insights creados por el usuario                    |
+| `meeting`      | json    | Payload completo de la reunión                     |
+
+Ya sea que quieras distribuir resúmenes instantáneos, registrar elementos de acción o crear flujos de trabajo personalizados activados por nuevos datos de reuniones, Circleback y Sim hacen que sea sencillo manejar todo lo relacionado con tus reuniones, automáticamente.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Recibe notas de reuniones, elementos de acción, transcripciones y grabaciones cuando se procesen las reuniones. Circleback utiliza webhooks para enviar datos a tus flujos de trabajo.
+
+## Notas
+
+- Categoría: `triggers`
+- Tipo: `circleback`

@@ -10,8 +10,7 @@ export const MemoryBlock: BlockConfig = {
   bgColor: '#F64F9E',
   bestPractices: `
   - Do not use this block unless the user explicitly asks for it.
-  - Search up examples with memory blocks to understand YAML syntax. 
-  - Used in conjunction with agent blocks to persist messages between runs. User messages should be added with role 'user' and assistant messages should be added with role 'assistant' with the agent sandwiched between.
+  - Used in conjunction with agent blocks to inject artificial memory into the conversation. For natural conversations, use the agent block memories modes directly instead.
   `,
   icon: BrainIcon,
   category: 'blocks',
@@ -42,17 +41,6 @@ export const MemoryBlock: BlockConfig = {
       required: true,
     },
     {
-      id: 'blockId',
-      title: 'Block ID',
-      type: 'short-input',
-      placeholder: 'Enter block ID (optional, defaults to current block)',
-      condition: {
-        field: 'operation',
-        value: 'add',
-      },
-      required: false,
-    },
-    {
       id: 'id',
       title: 'Conversation ID',
       type: 'short-input',
@@ -61,29 +49,7 @@ export const MemoryBlock: BlockConfig = {
         field: 'operation',
         value: 'get',
       },
-      required: false,
-    },
-    {
-      id: 'blockId',
-      title: 'Block ID',
-      type: 'short-input',
-      placeholder: 'Enter block ID (optional)',
-      condition: {
-        field: 'operation',
-        value: 'get',
-      },
-      required: false,
-    },
-    {
-      id: 'blockName',
-      title: 'Block Name',
-      type: 'short-input',
-      placeholder: 'Enter block name (optional)',
-      condition: {
-        field: 'operation',
-        value: 'get',
-      },
-      required: false,
+      required: true,
     },
     {
       id: 'id',
@@ -94,29 +60,7 @@ export const MemoryBlock: BlockConfig = {
         field: 'operation',
         value: 'delete',
       },
-      required: false,
-    },
-    {
-      id: 'blockId',
-      title: 'Block ID',
-      type: 'short-input',
-      placeholder: 'Enter block ID (optional)',
-      condition: {
-        field: 'operation',
-        value: 'delete',
-      },
-      required: false,
-    },
-    {
-      id: 'blockName',
-      title: 'Block Name',
-      type: 'short-input',
-      placeholder: 'Enter block name (optional)',
-      condition: {
-        field: 'operation',
-        value: 'delete',
-      },
-      required: false,
+      required: true,
     },
     {
       id: 'role',
@@ -186,10 +130,8 @@ export const MemoryBlock: BlockConfig = {
         }
 
         if (params.operation === 'get' || params.operation === 'delete') {
-          if (!conversationId && !params.blockId && !params.blockName) {
-            errors.push(
-              `At least one of ID, blockId, or blockName is required for ${params.operation} operation`
-            )
+          if (!conversationId) {
+            errors.push(`Conversation ID is required for ${params.operation} operation`)
           }
         }
 
@@ -200,33 +142,26 @@ export const MemoryBlock: BlockConfig = {
         const baseResult: Record<string, any> = {}
 
         if (params.operation === 'add') {
-          const result: Record<string, any> = {
+          return {
             ...baseResult,
             conversationId: conversationId,
             role: params.role,
             content: params.content,
           }
-          if (params.blockId) {
-            result.blockId = params.blockId
-          }
-
-          return result
         }
 
         if (params.operation === 'get') {
-          const result: Record<string, any> = { ...baseResult }
-          if (conversationId) result.conversationId = conversationId
-          if (params.blockId) result.blockId = params.blockId
-          if (params.blockName) result.blockName = params.blockName
-          return result
+          return {
+            ...baseResult,
+            conversationId: conversationId,
+          }
         }
 
         if (params.operation === 'delete') {
-          const result: Record<string, any> = { ...baseResult }
-          if (conversationId) result.conversationId = conversationId
-          if (params.blockId) result.blockId = params.blockId
-          if (params.blockName) result.blockName = params.blockName
-          return result
+          return {
+            ...baseResult,
+            conversationId: conversationId,
+          }
         }
 
         return baseResult
@@ -235,10 +170,8 @@ export const MemoryBlock: BlockConfig = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    id: { type: 'string', description: 'Memory identifier (for add operation)' },
+    id: { type: 'string', description: 'Memory identifier (conversation ID)' },
     conversationId: { type: 'string', description: 'Conversation identifier' },
-    blockId: { type: 'string', description: 'Block identifier' },
-    blockName: { type: 'string', description: 'Block name' },
     role: { type: 'string', description: 'Agent role' },
     content: { type: 'string', description: 'Memory content' },
   },

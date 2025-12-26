@@ -39,8 +39,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validated = SearchRequestSchema.parse(body)
 
-    if (!env.EXA_API_KEY) {
-      logger.error(`[${requestId}] EXA_API_KEY not configured`)
+    const exaApiKey = env.EXA_API_KEY
+
+    if (!exaApiKey) {
+      logger.error(`[${requestId}] No Exa API key available`)
       return NextResponse.json(
         { success: false, error: 'Search service not configured' },
         { status: 503 }
@@ -56,8 +58,8 @@ export async function POST(request: NextRequest) {
       query: validated.query,
       type: 'auto',
       useAutoprompt: true,
-      text: true,
-      apiKey: env.EXA_API_KEY,
+      highlights: true,
+      apiKey: exaApiKey,
     })
 
     if (!result.success) {
@@ -77,7 +79,7 @@ export async function POST(request: NextRequest) {
     const results = (result.output.results || []).map((r: any, index: number) => ({
       title: r.title || '',
       link: r.url || '',
-      snippet: r.text || '',
+      snippet: Array.isArray(r.highlights) ? r.highlights.join(' ... ') : '',
       date: r.publishedDate || undefined,
       position: index + 1,
     }))
@@ -87,8 +89,8 @@ export async function POST(request: NextRequest) {
       output: 0,
       total: SEARCH_TOOL_COST,
       tokens: {
-        prompt: 0,
-        completion: 0,
+        input: 0,
+        output: 0,
         total: 0,
       },
       model: 'search-exa',

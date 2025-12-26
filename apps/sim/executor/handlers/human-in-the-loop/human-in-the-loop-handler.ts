@@ -7,7 +7,9 @@ import {
   buildResumeUiUrl,
   type FieldType,
   HTTP,
+  normalizeName,
   PAUSE_RESUME,
+  REFERENCE,
 } from '@/executor/constants'
 import {
   generatePauseContextId,
@@ -16,7 +18,6 @@ import {
 import type { BlockHandler, ExecutionContext, PauseMetadata } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
 import type { SerializedBlock } from '@/serializer/types'
-import { normalizeName } from '@/stores/workflows/utils'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('HumanInTheLoopBlockHandler')
@@ -477,7 +478,11 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
   }
 
   private isVariableReference(value: any): boolean {
-    return typeof value === 'string' && value.trim().startsWith('<') && value.trim().includes('>')
+    return (
+      typeof value === 'string' &&
+      value.trim().startsWith(REFERENCE.START) &&
+      value.trim().includes(REFERENCE.END)
+    )
   }
 
   private parseObjectStrings(data: any): any {
@@ -590,7 +595,6 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
     blockDataWithPause[pauseBlockId] = pauseOutput
 
     if (pauseBlockName) {
-      blockNameMappingWithPause[pauseBlockName] = pauseBlockId
       blockNameMappingWithPause[normalizeName(pauseBlockName)] = pauseBlockId
     }
 

@@ -13,7 +13,7 @@ interface UseFolderExpandProps {
  * @returns Expansion state and event handlers
  */
 export function useFolderExpand({ folderId }: UseFolderExpandProps) {
-  const { expandedFolders, toggleExpanded } = useFolderStore()
+  const { expandedFolders, toggleExpanded, setExpanded } = useFolderStore()
   const isExpanded = expandedFolders.has(folderId)
 
   /**
@@ -22,6 +22,13 @@ export function useFolderExpand({ folderId }: UseFolderExpandProps) {
   const handleToggleExpanded = useCallback(() => {
     toggleExpanded(folderId)
   }, [folderId, toggleExpanded])
+
+  /**
+   * Expand the folder (useful when creating items inside)
+   */
+  const expandFolder = useCallback(() => {
+    setExpanded(folderId, true)
+  }, [folderId, setExpanded])
 
   /**
    * Handle keyboard navigation (Enter/Space)
@@ -39,6 +46,7 @@ export function useFolderExpand({ folderId }: UseFolderExpandProps) {
   return {
     isExpanded,
     handleToggleExpanded,
+    expandFolder,
     handleKeyDown,
   }
 }

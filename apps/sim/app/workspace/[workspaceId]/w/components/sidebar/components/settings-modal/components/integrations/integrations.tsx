@@ -15,7 +15,7 @@ import {
 import { Input, Skeleton } from '@/components/ui'
 import { cn } from '@/lib/core/utils/cn'
 import { createLogger } from '@/lib/logs/console/logger'
-import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
+import { OAUTH_PROVIDERS } from '@/lib/oauth'
 import {
   type ServiceInfo,
   useConnectOAuthService,

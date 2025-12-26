@@ -24,5 +24,6 @@ export interface ScheduleInfo {
   timezone: string
   status?: string
   isDisabled?: boolean
+  failedCount?: number
   id?: string
 }

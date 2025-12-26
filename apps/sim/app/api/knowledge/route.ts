@@ -7,6 +7,14 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('KnowledgeBaseAPI')
 
+/**
+ * Schema for creating a knowledge base
+ *
+ * Chunking config units:
+ * - maxSize: tokens (1 token ≈ 4 characters)
+ * - minSize: characters
+ * - overlap: tokens (1 token ≈ 4 characters)
+ */
 const CreateKnowledgeBaseSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
@@ -15,18 +23,28 @@ const CreateKnowledgeBaseSchema = z.object({
   embeddingDimension: z.literal(1536).default(1536),
   chunkingConfig: z
     .object({
+      /** Maximum chunk size in tokens (1 token ≈ 4 characters) */
       maxSize: z.number().min(100).max(4000).default(1024),
-      minSize: z.number().min(1).max(2000).default(1),
+      /** Minimum chunk size in characters */
+      minSize: z.number().min(1).max(2000).default(100),
+      /** Overlap between chunks in tokens (1 token ≈ 4 characters) */
       overlap: z.number().min(0).max(500).default(200),
     })
     .default({
       maxSize: 1024,
-      minSize: 1,
+      minSize: 100,
       overlap: 200,
     })
-    .refine((data) => data.minSize < data.maxSize, {
-      message: 'Min chunk size must be less than max chunk size',
-    }),
+    .refine(
+      (data) => {
+        // Convert maxSize from tokens to characters for comparison (1 token ≈ 4 chars)
+        const maxSizeInChars = data.maxSize * 4
+        return data.minSize < maxSizeInChars
+      },
+      {
+        message: 'Min chunk size (characters) must be less than max chunk size (tokens × 4)',
+      }
+    ),
 })
 
 export async function GET(req: NextRequest) {

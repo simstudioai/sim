@@ -31,7 +31,7 @@ export async function GET(
 
     const payload = run.payload as any
     if (payload?.workflowId) {
-      const { verifyWorkflowAccess } = await import('@/socket-server/middleware/permissions')
+      const { verifyWorkflowAccess } = await import('@/socket/middleware/permissions')
       const accessCheck = await verifyWorkflowAccess(authenticatedUserId, payload.workflowId)
       if (!accessCheck.hasAccess) {
         logger.warn(`[${requestId}] User ${authenticatedUserId} denied access to task ${taskId}`, {

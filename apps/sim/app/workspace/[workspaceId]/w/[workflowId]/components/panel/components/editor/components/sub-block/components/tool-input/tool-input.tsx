@@ -24,7 +24,7 @@ import {
   getProviderIdFromServiceId,
   type OAuthProvider,
   type OAuthService,
-} from '@/lib/oauth/oauth'
+} from '@/lib/oauth'
 import {
   CheckboxList,
   Code,
@@ -909,7 +909,8 @@ export function ToolInput({
         block.type === 'knowledge' ||
         block.type === 'function') &&
       block.type !== 'evaluator' &&
-      block.type !== 'mcp'
+      block.type !== 'mcp' &&
+      block.type !== 'file'
   )
 
   const customFilter = useCallback((value: string, search: string) => {

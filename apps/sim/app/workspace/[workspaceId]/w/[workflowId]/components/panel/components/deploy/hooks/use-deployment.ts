@@ -1,6 +1,10 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { mergeSubblockState } from '@/stores/workflows/utils'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { runPreDeployChecks } from './use-predeploy-checks'
 
 const logger = createLogger('useDeployment')
 
@@ -20,54 +24,94 @@ export function useDeployment({
 }: UseDeploymentProps) {
   const [isDeploying, setIsDeploying] = useState(false)
   const setDeploymentStatus = useWorkflowRegistry((state) => state.setDeploymentStatus)
+  const addNotification = useNotificationStore((state) => state.addNotification)
+  const blocks = useWorkflowStore((state) => state.blocks)
+  const edges = useWorkflowStore((state) => state.edges)
+  const loops = useWorkflowStore((state) => state.loops)
+  const parallels = useWorkflowStore((state) => state.parallels)
 
   /**
-   * Handle initial deployment and open modal
+   * Handle deploy button click
+   * First deploy: calls API to deploy, then opens modal on success
+   * Redeploy: validates client-side, then opens modal if valid
    */
   const handleDeployClick = useCallback(async () => {
     if (!workflowId) return { success: false, shouldOpenModal: false }
 
-    // If undeployed, deploy first then open modal
-    if (!isDeployed) {
-      setIsDeploying(true)
-      try {
-        const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            deployChatEnabled: false,
-          }),
+    if (isDeployed) {
+      const liveBlocks = mergeSubblockState(blocks, workflowId)
+      const checkResult = runPreDeployChecks({
+        blocks: liveBlocks,
+        edges,
+        loops,
+        parallels,
+        workflowId,
+      })
+      if (!checkResult.passed) {
+        addNotification({
+          level: 'error',
+          message: checkResult.error || 'Pre-deploy validation failed',
+          workflowId,
         })
-
-        if (response.ok) {
-          const responseData = await response.json()
-          const isDeployedStatus = responseData.isDeployed ?? false
-          const deployedAtTime = responseData.deployedAt
-            ? new Date(responseData.deployedAt)
-            : undefined
-          setDeploymentStatus(
-            workflowId,
-            isDeployedStatus,
-            deployedAtTime,
-            responseData.apiKey || ''
-          )
-          await refetchDeployedState()
-          return { success: true, shouldOpenModal: true }
-        }
-        return { success: false, shouldOpenModal: true }
-      } catch (error) {
-        logger.error('Error deploying workflow:', error)
-        return { success: false, shouldOpenModal: true }
-      } finally {
-        setIsDeploying(false)
+        return { success: false, shouldOpenModal: false }
       }
+      return { success: true, shouldOpenModal: true }
     }
 
-    // If already deployed, just signal to open modal
-    return { success: true, shouldOpenModal: true }
-  }, [workflowId, isDeployed, refetchDeployedState, setDeploymentStatus])
+    setIsDeploying(true)
+    try {
+      const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          deployChatEnabled: false,
+        }),
+      })
+
+      if (response.ok) {
+        const responseData = await response.json()
+        const isDeployedStatus = responseData.isDeployed ?? false
+        const deployedAtTime = responseData.deployedAt
+          ? new Date(responseData.deployedAt)
+          : undefined
+        setDeploymentStatus(workflowId, isDeployedStatus, deployedAtTime, responseData.apiKey || '')
+        await refetchDeployedState()
+        return { success: true, shouldOpenModal: true }
+      }
+
+      const errorData = await response.json()
+      const errorMessage = errorData.error || 'Failed to deploy workflow'
+      addNotification({
+        level: 'error',
+        message: errorMessage,
+        workflowId,
+      })
+      return { success: false, shouldOpenModal: false }
+    } catch (error) {
+      logger.error('Error deploying workflow:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to deploy workflow'
+      addNotification({
+        level: 'error',
+        message: errorMessage,
+        workflowId,
+      })
+      return { success: false, shouldOpenModal: false }
+    } finally {
+      setIsDeploying(false)
+    }
+  }, [
+    workflowId,
+    isDeployed,
+    blocks,
+    edges,
+    loops,
+    parallels,
+    refetchDeployedState,
+    setDeploymentStatus,
+    addNotification,
+  ])
 
   return {
     isDeploying,

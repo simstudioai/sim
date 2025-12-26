@@ -5,7 +5,6 @@ title: Zeitplan
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
-import { Video } from '@/components/ui/video'
 
 Der Zeitplan-Block löst Workflows automatisch nach einem wiederkehrenden Zeitplan zu bestimmten Intervallen oder Zeiten aus.
 
@@ -21,67 +20,58 @@ Der Zeitplan-Block löst Workflows automatisch nach einem wiederkehrenden Zeitpl
 
 ## Zeitplan-Optionen
 
-Konfigurieren Sie, wann Ihr Workflow ausgeführt wird, mit den Dropdown-Optionen:
+Konfigurieren Sie, wann Ihr Workflow ausgeführt wird:
 
 <Tabs items={['Einfache Intervalle', 'Cron-Ausdrücke']}>
   <Tab>
     <ul className="list-disc space-y-1 pl-6">
-      <li><strong>Alle paar Minuten</strong>: 5, 15, 30 Minuten-Intervalle</li>
-      <li><strong>Stündlich</strong>: Jede Stunde oder alle paar Stunden</li>
-      <li><strong>Täglich</strong>: Einmal oder mehrmals pro Tag</li>
-      <li><strong>Wöchentlich</strong>: Bestimmte Wochentage</li>
-      <li><strong>Monatlich</strong>: Bestimmte Tage des Monats</li>
+      <li><strong>Alle X Minuten</strong>: Ausführung in Minutenintervallen (1-1440)</li>
+      <li><strong>Stündlich</strong>: Ausführung zu einer bestimmten Minute jeder Stunde</li>
+      <li><strong>Täglich</strong>: Ausführung zu einer bestimmten Uhrzeit jeden Tag</li>
+      <li><strong>Wöchentlich</strong>: Ausführung an einem bestimmten Tag und einer bestimmten Uhrzeit jede Woche</li>
+      <li><strong>Monatlich</strong>: Ausführung an einem bestimmten Tag und einer bestimmten Uhrzeit jeden Monat</li>
     </ul>
   </Tab>
   <Tab>
-    <p>Verwenden Sie Cron-Ausdrücke für erweiterte Zeitplanung:</p>
+    <p>Verwenden Sie Cron-Ausdrücke für erweiterte Planung:</p>
     <div className="text-sm space-y-1">
       <div><code>0 9 * * 1-5</code> - Jeden Wochentag um 9 Uhr</div>
       <div><code>*/15 * * * *</code> - Alle 15 Minuten</div>
-      <div><code>0 0 1 * *</code> - Am ersten Tag jedes Monats</div>
+      <div><code>0 0 1 * *</code> - Erster Tag jedes Monats</div>
     </div>
   </Tab>
 </Tabs>
 
-## Zeitpläne konfigurieren
+## Aktivierung
 
-Wenn ein Workflow geplant ist:
-- Der Zeitplan wird **aktiv** und zeigt die nächste Ausführungszeit an
-- Klicken Sie auf die Schaltfläche **"Geplant"**, um den Zeitplan zu deaktivieren
-- Zeitpläne werden nach **3 aufeinanderfolgenden Fehlern** automatisch deaktiviert
+Zeitpläne sind an die Workflow-Bereitstellung gebunden:
 
-<div className="flex justify-center">
-  <Image
-    src="/static/blocks/schedule-2.png"
-    alt="Aktiver Zeitplan-Block"
-    width={500}
-    height={400}
-    className="my-6"
-  />
-</div>
-
-<div className="flex justify-center">
-  <Image
-    src="/static/blocks/schedule-3.png"
-    alt="Deaktivierter Zeitplan"
-    width={500}
-    height={350}
-    className="my-6"
-  />
-</div>
-
-<div className="flex justify-center">
-  <Image
-    src="/static/blocks/schedule-3.png"
-    alt="Deaktivierter Zeitplan"
-    width={500}
-    height={400}
-    className="my-6"
-  />
-</div>
-
-Deaktivierte Zeitpläne zeigen an, wann sie zuletzt aktiv waren. Klicken Sie auf das **"Deaktiviert"**-Badge, um den Zeitplan wieder zu aktivieren.
+- **Workflow bereitstellen** → Zeitplan wird aktiv und beginnt mit der Ausführung
+- **Workflow-Bereitstellung aufheben** → Zeitplan wird entfernt
+- **Workflow erneut bereitstellen** → Zeitplan wird mit aktueller Konfiguration neu erstellt
 
 <Callout>
-Zeitplan-Blöcke können keine eingehenden Verbindungen empfangen und dienen ausschließlich als Workflow-Auslöser.
+Sie müssen Ihren Workflow bereitstellen, damit der Zeitplan mit der Ausführung beginnt. Konfigurieren Sie den Zeitplan-Block und stellen Sie ihn dann über die Symbolleiste bereit.
+</Callout>
+
+## Automatische Deaktivierung
+
+Zeitpläne werden nach **100 aufeinanderfolgenden Fehlern** automatisch deaktiviert, um unkontrollierte Fehler zu verhindern. Bei Deaktivierung:
+
+- Erscheint ein Warnhinweis auf dem Zeitplan-Block
+- Die Ausführung des Zeitplans wird gestoppt
+- Klicken Sie auf den Hinweis, um den Zeitplan zu reaktivieren
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule-3.png"
+    alt="Deaktivierter Zeitplan"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout>
+Zeitplan-Blöcke können keine eingehenden Verbindungen empfangen und dienen ausschließlich als Workflow-Einstiegspunkte.
 </Callout>

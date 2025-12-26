@@ -1,9 +1,9 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
-import { validateUUID } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { isUuidV4 } from '@/executor/constants'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GoogleCalendarAPI')
@@ -35,18 +35,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
-    const credentialValidation = validateUUID(credentialId, 'credentialId')
-    if (!credentialValidation.isValid) {
+    if (!isUuidV4(credentialId)) {
       logger.warn(`[${requestId}] Invalid credentialId format`, { credentialId })
-      return NextResponse.json({ error: credentialValidation.error }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid credential ID format' }, { status: 400 })
     }
 
-    if (workflowId) {
-      const workflowValidation = validateUUID(workflowId, 'workflowId')
-      if (!workflowValidation.isValid) {
-        logger.warn(`[${requestId}] Invalid workflowId format`, { workflowId })
-        return NextResponse.json({ error: workflowValidation.error }, { status: 400 })
-      }
+    if (workflowId && !isUuidV4(workflowId)) {
+      logger.warn(`[${requestId}] Invalid workflowId format`, { workflowId })
+      return NextResponse.json({ error: 'Invalid workflow ID format' }, { status: 400 })
     }
     const authz = await authorizeCredentialUse(request, { credentialId, workflowId })
     if (!authz.ok || !authz.credentialOwnerUserId) {

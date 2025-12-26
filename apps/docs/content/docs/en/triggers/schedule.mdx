@@ -5,7 +5,6 @@ title: Schedule
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
-import { Video } from '@/components/ui/video'
 
 The Schedule block automatically triggers workflows on a recurring schedule at specified intervals or times.
 
@@ -21,16 +20,16 @@ The Schedule block automatically triggers workflows on a recurring schedule at s
 
 ## Schedule Options
 
-Configure when your workflow runs using the dropdown options:
+Configure when your workflow runs:
 
 <Tabs items={['Simple Intervals', 'Cron Expressions']}>
   <Tab>
     <ul className="list-disc space-y-1 pl-6">
-      <li><strong>Every few minutes</strong>: 5, 15, 30 minute intervals</li>
-      <li><strong>Hourly</strong>: Every hour or every few hours</li>
-      <li><strong>Daily</strong>: Once or multiple times per day</li>
-      <li><strong>Weekly</strong>: Specific days of the week</li>
-      <li><strong>Monthly</strong>: Specific days of the month</li>
+      <li><strong>Every X Minutes</strong>: Run at minute intervals (1-1440)</li>
+      <li><strong>Hourly</strong>: Run at a specific minute each hour</li>
+      <li><strong>Daily</strong>: Run at a specific time each day</li>
+      <li><strong>Weekly</strong>: Run on a specific day and time each week</li>
+      <li><strong>Monthly</strong>: Run on a specific day and time each month</li>
     </ul>
   </Tab>
   <Tab>
@@ -43,24 +42,25 @@ Configure when your workflow runs using the dropdown options:
   </Tab>
 </Tabs>
 
-## Configuring Schedules
+## Activation
 
-When a workflow is scheduled:
-- The schedule becomes **active** and shows the next execution time
-- Click the **"Scheduled"** button to deactivate the schedule
-- Schedules automatically deactivate after **3 consecutive failures**
+Schedules are tied to workflow deployment:
 
-<div className="flex justify-center">
-  <Image
-    src="/static/blocks/schedule-2.png"
-    alt="Active Schedule Block"
-    width={500}
-    height={400}
-    className="my-6"
-  />
-</div>
+- **Deploy workflow** → Schedule becomes active and starts running
+- **Undeploy workflow** → Schedule is removed
+- **Redeploy workflow** → Schedule is recreated with current configuration
 
-## Disabled Schedules
+<Callout>
+You must deploy your workflow for the schedule to start running. Configure the schedule block, then deploy from the toolbar.
+</Callout>
+
+## Automatic Disabling
+
+Schedules automatically disable after **100 consecutive failures** to prevent runaway errors. When disabled:
+
+- A warning badge appears on the schedule block
+- The schedule stops executing
+- Click the badge to reactivate the schedule
 
 <div className="flex justify-center">
   <Image
@@ -72,8 +72,6 @@ When a workflow is scheduled:
   />
 </div>
 
-Disabled schedules show when they were last active. Click the **"Disabled"** badge to reactivate the schedule.
-
 <Callout>
-Schedule blocks cannot receive incoming connections and serve as pure workflow triggers.
+Schedule blocks cannot receive incoming connections and serve as workflow entry points only.
 </Callout>

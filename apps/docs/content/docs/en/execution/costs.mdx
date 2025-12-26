@@ -48,40 +48,40 @@ The model breakdown shows:
 
 <Tabs items={['Hosted Models', 'Bring Your Own API Key']}>
   <Tab>
-    **Hosted Models** - Sim provides API keys with a 2.5x pricing multiplier:
+    **Hosted Models** - Sim provides API keys with a 2x pricing multiplier:
 
     **OpenAI**
     | Model | Base Price (Input/Output) | Hosted Price (Input/Output) |
     |-------|---------------------------|----------------------------|
-    | GPT-5.1 | $1.25 / $10.00 | $3.13 / $25.00 |
-    | GPT-5 | $1.25 / $10.00 | $3.13 / $25.00 |
-    | GPT-5 Mini | $0.25 / $2.00 | $0.63 / $5.00 |
-    | GPT-5 Nano | $0.05 / $0.40 | $0.13 / $1.00 |
-    | GPT-4o | $2.50 / $10.00 | $6.25 / $25.00 |
-    | GPT-4.1 | $2.00 / $8.00 | $5.00 / $20.00 |
-    | GPT-4.1 Mini | $0.40 / $1.60 | $1.00 / $4.00 |
-    | GPT-4.1 Nano | $0.10 / $0.40 | $0.25 / $1.00 |
-    | o1 | $15.00 / $60.00 | $37.50 / $150.00 |
-    | o3 | $2.00 / $8.00 | $5.00 / $20.00 |
-    | o4 Mini | $1.10 / $4.40 | $2.75 / $11.00 |
+    | GPT-5.1 | $1.25 / $10.00 | $2.50 / $20.00 |
+    | GPT-5 | $1.25 / $10.00 | $2.50 / $20.00 |
+    | GPT-5 Mini | $0.25 / $2.00 | $0.50 / $4.00 |
+    | GPT-5 Nano | $0.05 / $0.40 | $0.10 / $0.80 |
+    | GPT-4o | $2.50 / $10.00 | $5.00 / $20.00 |
+    | GPT-4.1 | $2.00 / $8.00 | $4.00 / $16.00 |
+    | GPT-4.1 Mini | $0.40 / $1.60 | $0.80 / $3.20 |
+    | GPT-4.1 Nano | $0.10 / $0.40 | $0.20 / $0.80 |
+    | o1 | $15.00 / $60.00 | $30.00 / $120.00 |
+    | o3 | $2.00 / $8.00 | $4.00 / $16.00 |
+    | o4 Mini | $1.10 / $4.40 | $2.20 / $8.80 |
 
     **Anthropic**
     | Model | Base Price (Input/Output) | Hosted Price (Input/Output) |
     |-------|---------------------------|----------------------------|
-    | Claude Opus 4.5 | $5.00 / $25.00 | $12.50 / $62.50 |
-    | Claude Opus 4.1 | $15.00 / $75.00 | $37.50 / $187.50 |
-    | Claude Sonnet 4.5 | $3.00 / $15.00 | $7.50 / $37.50 |
-    | Claude Sonnet 4.0 | $3.00 / $15.00 | $7.50 / $37.50 |
-    | Claude Haiku 4.5 | $1.00 / $5.00 | $2.50 / $12.50 |
+    | Claude Opus 4.5 | $5.00 / $25.00 | $10.00 / $50.00 |
+    | Claude Opus 4.1 | $15.00 / $75.00 | $30.00 / $150.00 |
+    | Claude Sonnet 4.5 | $3.00 / $15.00 | $6.00 / $30.00 |
+    | Claude Sonnet 4.0 | $3.00 / $15.00 | $6.00 / $30.00 |
+    | Claude Haiku 4.5 | $1.00 / $5.00 | $2.00 / $10.00 |
 
     **Google**
     | Model | Base Price (Input/Output) | Hosted Price (Input/Output) |
     |-------|---------------------------|----------------------------|
-    | Gemini 3 Pro Preview | $2.00 / $12.00 | $5.00 / $30.00 |
-    | Gemini 2.5 Pro | $0.15 / $0.60 | $0.38 / $1.50 |
-    | Gemini 2.5 Flash | $0.15 / $0.60 | $0.38 / $1.50 |
+    | Gemini 3 Pro Preview | $2.00 / $12.00 | $4.00 / $24.00 |
+    | Gemini 2.5 Pro | $1.25 / $10.00 | $2.50 / $20.00 |
+    | Gemini 2.5 Flash | $0.30 / $2.50 | $0.60 / $5.00 |
 
-    *The 2.5x multiplier covers infrastructure and API management costs.*
+    *The 2x multiplier covers infrastructure and API management costs.*
   </Tab>
 
   <Tab>
@@ -103,6 +103,10 @@ The model breakdown shows:
 <Callout type="warning">
   Pricing shown reflects rates as of September 10, 2025. Check provider documentation for current pricing.
 </Callout>
+
+## Bring Your Own Key (BYOK)
+
+You can use your own API keys for hosted models (OpenAI, Anthropic, Google, Mistral) in **Settings → BYOK** to pay base prices. Keys are encrypted and apply workspace-wide.
 
 ## Cost Optimization Strategies
 
@@ -183,7 +187,7 @@ Different subscription plans have different usage limits:
 
 | Plan | Monthly Usage Limit | Rate Limits (per minute) |
 |------|-------------------|-------------------------|
-| **Free** | $10 | 5 sync, 10 async |
+| **Free** | $20 | 5 sync, 10 async |
 | **Pro** | $100 | 10 sync, 50 async |
 | **Team** | $500 (pooled) | 50 sync, 100 async |
 | **Enterprise** | Custom | Custom |

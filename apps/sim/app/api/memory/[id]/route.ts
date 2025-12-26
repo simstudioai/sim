@@ -1,54 +1,16 @@
 import { db } from '@sim/db'
-import { memory, workflowBlocks } from '@sim/db/schema'
+import { memory, permissions, workspace } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getWorkflowAccessContext } from '@/lib/workflows/utils'
 
 const logger = createLogger('MemoryByIdAPI')
 
-/**
- * Parse memory key into conversationId and blockId
- * Key format: conversationId:blockId
- */
-function parseMemoryKey(key: string): { conversationId: string; blockId: string } | null {
-  const parts = key.split(':')
-  if (parts.length !== 2) {
-    return null
-  }
-  return {
-    conversationId: parts[0],
-    blockId: parts[1],
-  }
-}
-
-/**
- * Lookup block name from block ID
- */
-async function getBlockName(blockId: string, workflowId: string): Promise<string | undefined> {
-  try {
-    const result = await db
-      .select({ name: workflowBlocks.name })
-      .from(workflowBlocks)
-      .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
-      .limit(1)
-
-    if (result.length === 0) {
-      return undefined
-    }
-
-    return result[0].name
-  } catch (error) {
-    logger.error('Error looking up block name', { error, blockId, workflowId })
-    return undefined
-  }
-}
-
 const memoryQuerySchema = z.object({
-  workflowId: z.string().uuid('Invalid workflow ID format'),
+  workspaceId: z.string().uuid('Invalid workspace ID format'),
 })
 
 const agentMemoryDataSchema = z.object({
@@ -64,26 +26,56 @@ const memoryPutBodySchema = z.object({
   data: z.union([agentMemoryDataSchema, genericMemoryDataSchema], {
     errorMap: () => ({ message: 'Invalid memory data structure' }),
   }),
-  workflowId: z.string().uuid('Invalid workflow ID format'),
+  workspaceId: z.string().uuid('Invalid workspace ID format'),
 })
 
-/**
- * Validates authentication and workflow access for memory operations
- * @param request - The incoming request
- * @param workflowId - The workflow ID to check access for
- * @param requestId - Request ID for logging
- * @param action - 'read' for GET, 'write' for PUT/DELETE
- * @returns Object with userId if successful, or error response if failed
- */
+async function checkWorkspaceAccess(
+  workspaceId: string,
+  userId: string
+): Promise<{ hasAccess: boolean; canWrite: boolean }> {
+  const [workspaceRow] = await db
+    .select({ ownerId: workspace.ownerId })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .limit(1)
+
+  if (!workspaceRow) {
+    return { hasAccess: false, canWrite: false }
+  }
+
+  if (workspaceRow.ownerId === userId) {
+    return { hasAccess: true, canWrite: true }
+  }
+
+  const [permissionRow] = await db
+    .select({ permissionType: permissions.permissionType })
+    .from(permissions)
+    .where(
+      and(
+        eq(permissions.userId, userId),
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityId, workspaceId)
+      )
+    )
+    .limit(1)
+
+  if (!permissionRow) {
+    return { hasAccess: false, canWrite: false }
+  }
+
+  return {
+    hasAccess: true,
+    canWrite: permissionRow.permissionType === 'write' || permissionRow.permissionType === 'admin',
+  }
+}
+
 async function validateMemoryAccess(
   request: NextRequest,
-  workflowId: string,
+  workspaceId: string,
   requestId: string,
   action: 'read' | 'write'
 ): Promise<{ userId: string } | { error: NextResponse }> {
-  const authResult = await checkHybridAuth(request, {
-    requireWorkflowId: false,
-  })
+  const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
   if (!authResult.success || !authResult.userId) {
     logger.warn(`[${requestId}] Unauthorized memory ${action} attempt`)
     return {
@@ -94,30 +86,20 @@ async function validateMemoryAccess(
     }
   }
 
-  const accessContext = await getWorkflowAccessContext(workflowId, authResult.userId)
-  if (!accessContext) {
-    logger.warn(`[${requestId}] Workflow ${workflowId} not found`)
+  const { hasAccess, canWrite } = await checkWorkspaceAccess(workspaceId, authResult.userId)
+  if (!hasAccess) {
     return {
       error: NextResponse.json(
-        { success: false, error: { message: 'Workflow not found' } },
+        { success: false, error: { message: 'Workspace not found' } },
         { status: 404 }
       ),
     }
   }
 
-  const { isOwner, workspacePermission } = accessContext
-  const hasAccess =
-    action === 'read'
-      ? isOwner || workspacePermission !== null
-      : isOwner || workspacePermission === 'write' || workspacePermission === 'admin'
-
-  if (!hasAccess) {
-    logger.warn(
-      `[${requestId}] User ${authResult.userId} denied ${action} access to workflow ${workflowId}`
-    )
+  if (action === 'write' && !canWrite) {
     return {
       error: NextResponse.json(
-        { success: false, error: { message: 'Access denied' } },
+        { success: false, error: { message: 'Write access denied' } },
         { status: 403 }
       ),
     }
@@ -129,40 +111,28 @@ async function validateMemoryAccess(
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-/**
- * GET handler for retrieving a specific memory by ID
- */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId()
   const { id } = await params
 
   try {
-    logger.info(`[${requestId}] Processing memory get request for ID: ${id}`)
-
     const url = new URL(request.url)
-    const workflowId = url.searchParams.get('workflowId')
+    const workspaceId = url.searchParams.get('workspaceId')
 
-    const validation = memoryQuerySchema.safeParse({ workflowId })
-
+    const validation = memoryQuerySchema.safeParse({ workspaceId })
     if (!validation.success) {
       const errorMessage = validation.error.errors
         .map((err) => `${err.path.join('.')}: ${err.message}`)
         .join(', ')
-      logger.warn(`[${requestId}] Validation error: ${errorMessage}`)
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            message: errorMessage,
-          },
-        },
+        { success: false, error: { message: errorMessage } },
         { status: 400 }
       )
     }
 
-    const { workflowId: validatedWorkflowId } = validation.data
+    const { workspaceId: validatedWorkspaceId } = validation.data
 
-    const accessCheck = await validateMemoryAccess(request, validatedWorkflowId, requestId, 'read')
+    const accessCheck = await validateMemoryAccess(request, validatedWorkspaceId, requestId, 'read')
     if ('error' in accessCheck) {
       return accessCheck.error
     }
@@ -170,72 +140,33 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const memories = await db
       .select()
       .from(memory)
-      .where(and(eq(memory.key, id), eq(memory.workflowId, validatedWorkflowId)))
+      .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
       .orderBy(memory.createdAt)
       .limit(1)
 
     if (memories.length === 0) {
-      logger.warn(`[${requestId}] Memory not found: ${id} for workflow: ${validatedWorkflowId}`)
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            message: 'Memory not found',
-          },
-        },
+        { success: false, error: { message: 'Memory not found' } },
         { status: 404 }
       )
     }
 
     const mem = memories[0]
-    const parsed = parseMemoryKey(mem.key)
 
-    let enrichedMemory
-    if (!parsed) {
-      enrichedMemory = {
-        conversationId: mem.key,
-        blockId: 'unknown',
-        blockName: 'unknown',
-        data: mem.data,
-      }
-    } else {
-      const { conversationId, blockId } = parsed
-      const blockName = (await getBlockName(blockId, validatedWorkflowId)) || 'unknown'
-
-      enrichedMemory = {
-        conversationId,
-        blockId,
-        blockName,
-        data: mem.data,
-      }
-    }
-
-    logger.info(
-      `[${requestId}] Memory retrieved successfully: ${id} for workflow: ${validatedWorkflowId}`
-    )
+    logger.info(`[${requestId}] Memory retrieved: ${id} for workspace: ${validatedWorkspaceId}`)
     return NextResponse.json(
-      {
-        success: true,
-        data: enrichedMemory,
-      },
+      { success: true, data: { conversationId: mem.key, data: mem.data } },
       { status: 200 }
     )
   } catch (error: any) {
+    logger.error(`[${requestId}] Error retrieving memory`, { error })
     return NextResponse.json(
-      {
-        success: false,
-        error: {
-          message: error.message || 'Failed to retrieve memory',
-        },
-      },
+      { success: false, error: { message: error.message || 'Failed to retrieve memory' } },
       { status: 500 }
     )
   }
 }
 
-/**
- * DELETE handler for removing a specific memory
- */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -244,32 +175,28 @@ export async function DELETE(
   const { id } = await params
 
   try {
-    logger.info(`[${requestId}] Processing memory delete request for ID: ${id}`)
-
     const url = new URL(request.url)
-    const workflowId = url.searchParams.get('workflowId')
+    const workspaceId = url.searchParams.get('workspaceId')
 
-    const validation = memoryQuerySchema.safeParse({ workflowId })
-
+    const validation = memoryQuerySchema.safeParse({ workspaceId })
     if (!validation.success) {
       const errorMessage = validation.error.errors
         .map((err) => `${err.path.join('.')}: ${err.message}`)
         .join(', ')
-      logger.warn(`[${requestId}] Validation error: ${errorMessage}`)
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            message: errorMessage,
-          },
-        },
+        { success: false, error: { message: errorMessage } },
         { status: 400 }
       )
     }
 
-    const { workflowId: validatedWorkflowId } = validation.data
+    const { workspaceId: validatedWorkspaceId } = validation.data
 
-    const accessCheck = await validateMemoryAccess(request, validatedWorkflowId, requestId, 'write')
+    const accessCheck = await validateMemoryAccess(
+      request,
+      validatedWorkspaceId,
+      requestId,
+      'write'
+    )
     if ('error' in accessCheck) {
       return accessCheck.error
     }
@@ -277,61 +204,41 @@ export async function DELETE(
     const existingMemory = await db
       .select({ id: memory.id })
       .from(memory)
-      .where(and(eq(memory.key, id), eq(memory.workflowId, validatedWorkflowId)))
+      .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
       .limit(1)
 
     if (existingMemory.length === 0) {
-      logger.warn(`[${requestId}] Memory not found: ${id} for workflow: ${validatedWorkflowId}`)
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            message: 'Memory not found',
-          },
-        },
+        { success: false, error: { message: 'Memory not found' } },
         { status: 404 }
       )
     }
 
     await db
       .delete(memory)
-      .where(and(eq(memory.key, id), eq(memory.workflowId, validatedWorkflowId)))
+      .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
 
-    logger.info(
-      `[${requestId}] Memory deleted successfully: ${id} for workflow: ${validatedWorkflowId}`
-    )
+    logger.info(`[${requestId}] Memory deleted: ${id} for workspace: ${validatedWorkspaceId}`)
     return NextResponse.json(
-      {
-        success: true,
-        data: { message: 'Memory deleted successfully' },
-      },
+      { success: true, data: { message: 'Memory deleted successfully' } },
       { status: 200 }
     )
   } catch (error: any) {
+    logger.error(`[${requestId}] Error deleting memory`, { error })
     return NextResponse.json(
-      {
-        success: false,
-        error: {
-          message: error.message || 'Failed to delete memory',
-        },
-      },
+      { success: false, error: { message: error.message || 'Failed to delete memory' } },
       { status: 500 }
     )
   }
 }
 
-/**
- * PUT handler for updating a specific memory
- */
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId()
   const { id } = await params
 
   try {
-    logger.info(`[${requestId}] Processing memory update request for ID: ${id}`)
-
     let validatedData
-    let validatedWorkflowId
+    let validatedWorkspaceId
     try {
       const body = await request.json()
       const validation = memoryPutBodySchema.safeParse(body)
@@ -340,34 +247,27 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         const errorMessage = validation.error.errors
           .map((err) => `${err.path.join('.')}: ${err.message}`)
           .join(', ')
-        logger.warn(`[${requestId}] Validation error: ${errorMessage}`)
         return NextResponse.json(
-          {
-            success: false,
-            error: {
-              message: `Invalid request body: ${errorMessage}`,
-            },
-          },
+          { success: false, error: { message: `Invalid request body: ${errorMessage}` } },
           { status: 400 }
         )
       }
 
       validatedData = validation.data.data
-      validatedWorkflowId = validation.data.workflowId
-    } catch (error: any) {
-      logger.warn(`[${requestId}] Failed to parse request body: ${error.message}`)
+      validatedWorkspaceId = validation.data.workspaceId
+    } catch {
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            message: 'Invalid JSON in request body',
-          },
-        },
+        { success: false, error: { message: 'Invalid JSON in request body' } },
         { status: 400 }
       )
     }
 
-    const accessCheck = await validateMemoryAccess(request, validatedWorkflowId, requestId, 'write')
+    const accessCheck = await validateMemoryAccess(
+      request,
+      validatedWorkspaceId,
+      requestId,
+      'write'
+    )
     if ('error' in accessCheck) {
       return accessCheck.error
     }
@@ -375,18 +275,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const existingMemories = await db
       .select()
       .from(memory)
-      .where(and(eq(memory.key, id), eq(memory.workflowId, validatedWorkflowId)))
+      .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
       .limit(1)
 
     if (existingMemories.length === 0) {
-      logger.warn(`[${requestId}] Memory not found: ${id} for workflow: ${validatedWorkflowId}`)
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            message: 'Memory not found',
-          },
-        },
+        { success: false, error: { message: 'Memory not found' } },
         { status: 404 }
       )
     }
@@ -396,14 +290,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       const errorMessage = agentValidation.error.errors
         .map((err) => `${err.path.join('.')}: ${err.message}`)
         .join(', ')
-      logger.warn(`[${requestId}] Agent memory validation error: ${errorMessage}`)
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            message: `Invalid agent memory data: ${errorMessage}`,
-          },
-        },
+        { success: false, error: { message: `Invalid agent memory data: ${errorMessage}` } },
         { status: 400 }
       )
     }
@@ -411,59 +299,26 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const now = new Date()
     await db
       .update(memory)
-      .set({
-        data: validatedData,
-        updatedAt: now,
-      })
-      .where(and(eq(memory.key, id), eq(memory.workflowId, validatedWorkflowId)))
+      .set({ data: validatedData, updatedAt: now })
+      .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
 
     const updatedMemories = await db
       .select()
       .from(memory)
-      .where(and(eq(memory.key, id), eq(memory.workflowId, validatedWorkflowId)))
+      .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
       .limit(1)
 
     const mem = updatedMemories[0]
-    const parsed = parseMemoryKey(mem.key)
 
-    let enrichedMemory
-    if (!parsed) {
-      enrichedMemory = {
-        conversationId: mem.key,
-        blockId: 'unknown',
-        blockName: 'unknown',
-        data: mem.data,
-      }
-    } else {
-      const { conversationId, blockId } = parsed
-      const blockName = (await getBlockName(blockId, validatedWorkflowId)) || 'unknown'
-
-      enrichedMemory = {
-        conversationId,
-        blockId,
-        blockName,
-        data: mem.data,
-      }
-    }
-
-    logger.info(
-      `[${requestId}] Memory updated successfully: ${id} for workflow: ${validatedWorkflowId}`
-    )
+    logger.info(`[${requestId}] Memory updated: ${id} for workspace: ${validatedWorkspaceId}`)
     return NextResponse.json(
-      {
-        success: true,
-        data: enrichedMemory,
-      },
+      { success: true, data: { conversationId: mem.key, data: mem.data } },
       { status: 200 }
     )
   } catch (error: any) {
+    logger.error(`[${requestId}] Error updating memory`, { error })
     return NextResponse.json(
-      {
-        success: false,
-        error: {
-          message: error.message || 'Failed to update memory',
-        },
-      },
+      { success: false, error: { message: error.message || 'Failed to update memory' } },
       { status: 500 }
     )
   }

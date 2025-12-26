@@ -66,7 +66,7 @@ export interface LogFixedUsageParams {
  * Log a model usage charge (token-based)
  */
 export async function logModelUsage(params: LogModelUsageParams): Promise<void> {
-  if (!isBillingEnabled) {
+  if (!isBillingEnabled || params.cost <= 0) {
     return
   }
 
@@ -108,7 +108,7 @@ export async function logModelUsage(params: LogModelUsageParams): Promise<void> 
  * Log a fixed charge (flat fee like base execution charge or search)
  */
 export async function logFixedUsage(params: LogFixedUsageParams): Promise<void> {
-  if (!isBillingEnabled) {
+  if (!isBillingEnabled || params.cost <= 0) {
     return
   }
 
@@ -154,7 +154,7 @@ export interface LogWorkflowUsageBatchParams {
     string,
     {
       total: number
-      tokens: { prompt: number; completion: number }
+      tokens: { input: number; output: number }
     }
   >
 }
@@ -205,8 +205,8 @@ export async function logWorkflowUsageBatch(params: LogWorkflowUsageBatchParams)
           source: 'workflow',
           description: modelName,
           metadata: {
-            inputTokens: modelData.tokens.prompt,
-            outputTokens: modelData.tokens.completion,
+            inputTokens: modelData.tokens.input,
+            outputTokens: modelData.tokens.output,
           },
           cost: modelData.total.toString(),
           workspaceId: params.workspaceId ?? null,

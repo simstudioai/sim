@@ -9,7 +9,6 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import { Serializer } from '@/serializer/index'
-import { validateRequiredParametersAfterMerge } from '@/tools/utils'
 
 vi.mock('@/blocks', () => ({
   getBlock: (type: string) => {
@@ -55,51 +54,72 @@ vi.mock('@/blocks', () => ({
   },
 }))
 
-vi.mock('@/tools/utils', async () => {
-  const actual = await vi.importActual('@/tools/utils')
-  return {
-    ...actual,
-    getTool: (toolId: string) => {
-      const mockTools: Record<string, any> = {
-        jina_read_url: {
-          name: 'Jina Reader',
-          params: {
-            url: {
-              type: 'string',
-              visibility: 'user-or-llm',
-              required: true,
-              description: 'URL to extract content from',
-            },
-            apiKey: {
-              type: 'string',
-              visibility: 'user-only',
-              required: true,
-              description: 'Your Jina API key',
-            },
-          },
-        },
-        reddit_get_posts: {
-          name: 'Reddit Posts',
-          params: {
-            subreddit: {
-              type: 'string',
-              visibility: 'user-or-llm',
-              required: true,
-              description: 'Subreddit name',
-            },
-            credential: {
-              type: 'string',
-              visibility: 'user-only',
-              required: true,
-              description: 'Reddit credentials',
-            },
-          },
-        },
+/**
+ * Validates required parameters after user and LLM parameter merge.
+ * This checks user-or-llm visibility fields that should have been provided by either source.
+ */
+function validateRequiredParametersAfterMerge(
+  toolId: string,
+  tool: any,
+  params: Record<string, any>
+): void {
+  if (!tool?.params) return
+
+  Object.entries(tool.params).forEach(([paramId, paramConfig]: [string, any]) => {
+    // Only validate user-or-llm visibility fields (user-only are validated earlier)
+    if (paramConfig.required && paramConfig.visibility === 'user-or-llm') {
+      const value = params[paramId]
+      if (value === undefined || value === null || value === '') {
+        // Capitalize first letter of paramId for display
+        const displayName = paramId.charAt(0).toUpperCase() + paramId.slice(1)
+        throw new Error(`${displayName} is required for ${tool.name}`)
       }
-      return mockTools[toolId] || null
-    },
-  }
-})
+    }
+  })
+}
+
+vi.mock('@/tools/utils', () => ({
+  getTool: (toolId: string) => {
+    const mockTools: Record<string, any> = {
+      jina_read_url: {
+        name: 'Jina Reader',
+        params: {
+          url: {
+            type: 'string',
+            visibility: 'user-or-llm',
+            required: true,
+            description: 'URL to extract content from',
+          },
+          apiKey: {
+            type: 'string',
+            visibility: 'user-only',
+            required: true,
+            description: 'Your Jina API key',
+          },
+        },
+      },
+      reddit_get_posts: {
+        name: 'Reddit Posts',
+        params: {
+          subreddit: {
+            type: 'string',
+            visibility: 'user-or-llm',
+            required: true,
+            description: 'Subreddit name',
+          },
+          credential: {
+            type: 'string',
+            visibility: 'user-only',
+            required: true,
+            description: 'Reddit credentials',
+          },
+        },
+      },
+    }
+    return mockTools[toolId] || null
+  },
+  validateRequiredParametersAfterMerge,
+}))
 
 describe('Validation Integration Tests', () => {
   it.concurrent('early validation should catch missing user-only fields', () => {

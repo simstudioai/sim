@@ -1,11 +1,19 @@
 import { db } from '@sim/db'
-import { mcpServers } from '@sim/db/schema'
+import { account, mcpServers } from '@sim/db/schema'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
-import { AGENT, BlockType, DEFAULTS, HTTP } from '@/executor/constants'
+import {
+  AGENT,
+  BlockType,
+  DEFAULTS,
+  HTTP,
+  REFERENCE,
+  stripCustomToolPrefix,
+} from '@/executor/constants'
 import { memoryService } from '@/executor/handlers/agent/memory'
 import type {
   AgentInputs,
@@ -18,7 +26,7 @@ import { collectBlockData } from '@/executor/utils/block-data'
 import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
 import { executeProviderRequest } from '@/providers'
-import { getApiKey, getProviderFromModel, transformBlockTool } from '@/providers/utils'
+import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { getTool, getToolAsync } from '@/tools/utils'
@@ -47,7 +55,7 @@ export class AgentBlockHandler implements BlockHandler {
     const providerId = getProviderFromModel(model)
     const formattedTools = await this.formatTools(ctx, filteredInputs.tools || [])
     const streamingConfig = this.getStreamingConfig(ctx, block)
-    const messages = await this.buildMessages(ctx, filteredInputs, block.id)
+    const messages = await this.buildMessages(ctx, filteredInputs)
 
     const providerRequest = this.buildProviderRequest({
       ctx,
@@ -68,7 +76,20 @@ export class AgentBlockHandler implements BlockHandler {
       filteredInputs
     )
 
-    await this.persistResponseToMemory(ctx, filteredInputs, result, block.id)
+    if (this.isStreamingExecution(result)) {
+      if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
+        return this.wrapStreamForMemoryPersistence(
+          ctx,
+          filteredInputs,
+          result as StreamingExecution
+        )
+      }
+      return result
+    }
+
+    if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
+      await this.persistResponseToMemory(ctx, filteredInputs, result as BlockOutput)
+    }
 
     return result
   }
@@ -91,7 +112,7 @@ export class AgentBlockHandler implements BlockHandler {
     if (typeof responseFormat === 'string') {
       const trimmedValue = responseFormat.trim()
 
-      if (trimmedValue.startsWith('<') && trimmedValue.includes('>')) {
+      if (trimmedValue.startsWith(REFERENCE.START) && trimmedValue.includes(REFERENCE.END)) {
         return undefined
       }
 
@@ -686,79 +707,100 @@ export class AgentBlockHandler implements BlockHandler {
 
   private async buildMessages(
     ctx: ExecutionContext,
-    inputs: AgentInputs,
-    blockId: string
+    inputs: AgentInputs
   ): Promise<Message[] | undefined> {
     const messages: Message[] = []
+    const memoryEnabled = inputs.memoryType && inputs.memoryType !== 'none'
 
-    // 1. Fetch memory history if configured (industry standard: chronological order)
-    if (inputs.memoryType && inputs.memoryType !== 'none') {
-      const memoryMessages = await memoryService.fetchMemoryMessages(ctx, inputs, blockId)
-      messages.push(...memoryMessages)
+    // 1. Extract and validate messages from messages-input subblock
+    const inputMessages = this.extractValidMessages(inputs.messages)
+    const systemMessages = inputMessages.filter((m) => m.role === 'system')
+    const conversationMessages = inputMessages.filter((m) => m.role !== 'system')
+
+    // 2. Handle native memory: seed on first run, then fetch and append new user input
+    if (memoryEnabled && ctx.workspaceId) {
+      const memoryMessages = await memoryService.fetchMemoryMessages(ctx, inputs)
+      const hasExisting = memoryMessages.length > 0
+
+      if (!hasExisting && conversationMessages.length > 0) {
+        const taggedMessages = conversationMessages.map((m) =>
+          m.role === 'user' ? { ...m, executionId: ctx.executionId } : m
+        )
+        await memoryService.seedMemory(ctx, inputs, taggedMessages)
+        messages.push(...taggedMessages)
+      } else {
+        messages.push(...memoryMessages)
+
+        if (hasExisting && conversationMessages.length > 0) {
+          const latestUserFromInput = conversationMessages.filter((m) => m.role === 'user').pop()
+          if (latestUserFromInput) {
+            const userMessageInThisRun = memoryMessages.some(
+              (m) => m.role === 'user' && m.executionId === ctx.executionId
+            )
+            if (!userMessageInThisRun) {
+              const taggedMessage = { ...latestUserFromInput, executionId: ctx.executionId }
+              messages.push(taggedMessage)
+              await memoryService.appendToMemory(ctx, inputs, taggedMessage)
+            }
+          }
+        }
+      }
     }
 
-    // 2. Process legacy memories (backward compatibility - from Memory block)
+    // 3. Process legacy memories (backward compatibility - from Memory block)
+    // These may include system messages which are preserved in their position
     if (inputs.memories) {
       messages.push(...this.processMemories(inputs.memories))
     }
 
-    // 3. Add messages array (new approach - from messages-input subblock)
-    if (inputs.messages && Array.isArray(inputs.messages)) {
-      const validMessages = inputs.messages.filter(
-        (msg) =>
-          msg &&
-          typeof msg === 'object' &&
-          'role' in msg &&
-          'content' in msg &&
-          ['system', 'user', 'assistant'].includes(msg.role)
-      )
-      messages.push(...validMessages)
+    // 4. Add conversation messages from inputs.messages (if not using native memory)
+    // When memory is enabled, these are already seeded/fetched above
+    if (!memoryEnabled && conversationMessages.length > 0) {
+      messages.push(...conversationMessages)
     }
 
-    // Warn if using both new and legacy input formats
-    if (
-      inputs.messages &&
-      inputs.messages.length > 0 &&
-      (inputs.systemPrompt || inputs.userPrompt)
-    ) {
-      logger.warn('Agent block using both messages array and legacy prompts', {
-        hasMessages: true,
-        hasSystemPrompt: !!inputs.systemPrompt,
-        hasUserPrompt: !!inputs.userPrompt,
-      })
-    }
-
-    // 4. Handle legacy systemPrompt (backward compatibility)
-    // Only add if no system message exists yet
-    if (inputs.systemPrompt && !messages.some((m) => m.role === 'system')) {
-      this.addSystemPrompt(messages, inputs.systemPrompt)
-    }
-
-    // 5. Handle legacy userPrompt (backward compatibility)
-    if (inputs.userPrompt) {
-      this.addUserPrompt(messages, inputs.userPrompt)
-    }
-
-    // 6. Persist user message(s) to memory if configured
-    // This ensures conversation history is complete before agent execution
-    if (inputs.memoryType && inputs.memoryType !== 'none' && messages.length > 0) {
-      // Find new user messages that need to be persisted
-      // (messages added via messages array or userPrompt)
-      const userMessages = messages.filter((m) => m.role === 'user')
-      const lastUserMessage = userMessages[userMessages.length - 1]
-
-      // Only persist if there's a user message AND it's from userPrompt or messages input
-      // (not from memory history which was already persisted)
-      if (
-        lastUserMessage &&
-        (inputs.userPrompt || (inputs.messages && inputs.messages.length > 0))
-      ) {
-        await memoryService.persistUserMessage(ctx, inputs, lastUserMessage, blockId)
+    // 5. Handle legacy systemPrompt (backward compatibility)
+    // Only add if no system message exists from any source
+    if (inputs.systemPrompt) {
+      const hasSystem = systemMessages.length > 0 || messages.some((m) => m.role === 'system')
+      if (!hasSystem) {
+        this.addSystemPrompt(messages, inputs.systemPrompt)
       }
     }
 
-    // Return messages or undefined if empty (maintains API compatibility)
+    // 6. Handle legacy userPrompt - this is NEW input each run
+    if (inputs.userPrompt) {
+      this.addUserPrompt(messages, inputs.userPrompt)
+
+      if (memoryEnabled) {
+        const userMessages = messages.filter((m) => m.role === 'user')
+        const lastUserMessage = userMessages[userMessages.length - 1]
+        if (lastUserMessage) {
+          await memoryService.appendToMemory(ctx, inputs, lastUserMessage)
+        }
+      }
+    }
+
+    // 7. Prefix system messages from inputs.messages at the start (runtime only)
+    // These are the agent's configured system prompts
+    if (systemMessages.length > 0) {
+      messages.unshift(...systemMessages)
+    }
+
     return messages.length > 0 ? messages : undefined
+  }
+
+  private extractValidMessages(messages?: Message[]): Message[] {
+    if (!messages || !Array.isArray(messages)) return []
+
+    return messages.filter(
+      (msg): msg is Message =>
+        msg &&
+        typeof msg === 'object' &&
+        'role' in msg &&
+        'content' in msg &&
+        ['system', 'user', 'assistant'].includes(msg.role)
+    )
   }
 
   private processMemories(memories: any): Message[] {
@@ -885,6 +927,7 @@ export class AgentBlockHandler implements BlockHandler {
       azureApiVersion: inputs.azureApiVersion,
       vertexProject: inputs.vertexProject,
       vertexLocation: inputs.vertexLocation,
+      vertexCredential: inputs.vertexCredential,
       responseFormat,
       workflowId: ctx.workflowId,
       workspaceId: ctx.workspaceId,
@@ -963,7 +1006,14 @@ export class AgentBlockHandler implements BlockHandler {
     responseFormat: any,
     providerStartTime: number
   ) {
-    const finalApiKey = this.getApiKey(providerId, model, providerRequest.apiKey)
+    let finalApiKey: string | undefined = providerRequest.apiKey
+
+    if (providerId === 'vertex' && providerRequest.vertexCredential) {
+      finalApiKey = await this.resolveVertexCredential(
+        providerRequest.vertexCredential,
+        ctx.workflowId
+      )
+    }
 
     const { blockData, blockNameMapping } = collectBlockData(ctx)
 
@@ -981,7 +1031,7 @@ export class AgentBlockHandler implements BlockHandler {
       vertexLocation: providerRequest.vertexLocation,
       responseFormat: providerRequest.responseFormat,
       workflowId: providerRequest.workflowId,
-      workspaceId: providerRequest.workspaceId,
+      workspaceId: ctx.workspaceId,
       stream: providerRequest.stream,
       messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
       environmentVariables: ctx.environmentVariables || {},
@@ -990,7 +1040,6 @@ export class AgentBlockHandler implements BlockHandler {
       blockNameMapping,
     })
 
-    this.logExecutionSuccess(providerId, model, ctx, block, providerStartTime, response)
     return this.processProviderResponse(response, block, responseFormat)
   }
 
@@ -1015,15 +1064,6 @@ export class AgentBlockHandler implements BlockHandler {
       throw new Error(errorMessage)
     }
 
-    this.logExecutionSuccess(
-      providerRequest.provider,
-      providerRequest.model,
-      ctx,
-      block,
-      providerStartTime,
-      'HTTP response'
-    )
-
     const contentType = response.headers.get('Content-Type')
     if (contentType?.includes(HTTP.CONTENT_TYPE.EVENT_STREAM)) {
       return this.handleStreamingResponse(response, block, ctx, inputs)
@@ -1036,29 +1076,14 @@ export class AgentBlockHandler implements BlockHandler {
   private async handleStreamingResponse(
     response: Response,
     block: SerializedBlock,
-    ctx?: ExecutionContext,
-    inputs?: AgentInputs
+    _ctx?: ExecutionContext,
+    _inputs?: AgentInputs
   ): Promise<StreamingExecution> {
     const executionDataHeader = response.headers.get('X-Execution-Data')
 
     if (executionDataHeader) {
       try {
         const executionData = JSON.parse(executionDataHeader)
-
-        // If execution data contains full content, persist to memory
-        if (ctx && inputs && executionData.output?.content) {
-          const assistantMessage: Message = {
-            role: 'assistant',
-            content: executionData.output.content,
-          }
-          // Fire and forget - don't await
-          memoryService
-            .persistMemoryMessage(ctx, inputs, assistantMessage, block.id)
-            .catch((error) =>
-              logger.error('Failed to persist streaming response to memory:', error)
-            )
-        }
-
         return {
           stream: response.body!,
           execution: {
@@ -1084,35 +1109,33 @@ export class AgentBlockHandler implements BlockHandler {
     return this.createMinimalStreamingExecution(response.body!)
   }
 
-  private getApiKey(providerId: string, model: string, inputApiKey: string): string {
-    try {
-      return getApiKey(providerId, model, inputApiKey)
-    } catch (error) {
-      logger.error('Failed to get API key:', {
-        provider: providerId,
-        model,
-        error: error instanceof Error ? error.message : String(error),
-        hasProvidedApiKey: !!inputApiKey,
-      })
-      throw new Error(error instanceof Error ? error.message : 'API key error')
-    }
-  }
+  /**
+   * Resolves a Vertex AI OAuth credential to an access token
+   */
+  private async resolveVertexCredential(credentialId: string, workflowId: string): Promise<string> {
+    const requestId = `vertex-${Date.now()}`
 
-  private logExecutionSuccess(
-    provider: string,
-    model: string,
-    ctx: ExecutionContext,
-    block: SerializedBlock,
-    startTime: number,
-    response: any
-  ) {
-    const executionTime = Date.now() - startTime
-    const responseType =
-      response instanceof ReadableStream
-        ? 'stream'
-        : response && typeof response === 'object' && 'stream' in response
-          ? 'streaming-execution'
-          : 'json'
+    logger.info(`[${requestId}] Resolving Vertex AI credential: ${credentialId}`)
+
+    // Get the credential - we need to find the owner
+    // Since we're in a workflow context, we can query the credential directly
+    const credential = await db.query.account.findFirst({
+      where: eq(account.id, credentialId),
+    })
+
+    if (!credential) {
+      throw new Error(`Vertex AI credential not found: ${credentialId}`)
+    }
+
+    // Refresh the token if needed
+    const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
+
+    if (!accessToken) {
+      throw new Error('Failed to get Vertex AI access token')
+    }
+
+    logger.info(`[${requestId}] Successfully resolved Vertex AI credential`)
+    return accessToken
   }
 
   private handleExecutionError(
@@ -1158,46 +1181,35 @@ export class AgentBlockHandler implements BlockHandler {
     }
   }
 
+  private wrapStreamForMemoryPersistence(
+    ctx: ExecutionContext,
+    inputs: AgentInputs,
+    streamingExec: StreamingExecution
+  ): StreamingExecution {
+    return {
+      stream: memoryService.wrapStreamForPersistence(streamingExec.stream, ctx, inputs),
+      execution: streamingExec.execution,
+    }
+  }
+
   private async persistResponseToMemory(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    result: BlockOutput | StreamingExecution,
-    blockId: string
+    result: BlockOutput
   ): Promise<void> {
-    // Only persist if memoryType is configured
-    if (!inputs.memoryType || inputs.memoryType === 'none') {
+    const content = (result as any)?.content
+    if (!content || typeof content !== 'string') {
       return
     }
 
     try {
-      // Don't persist streaming responses here - they're handled separately
-      if (this.isStreamingExecution(result)) {
-        return
-      }
-
-      // Extract content from regular response
-      const blockOutput = result as any
-      const content = blockOutput?.content
-
-      if (!content || typeof content !== 'string') {
-        return
-      }
-
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content,
-      }
-
-      await memoryService.persistMemoryMessage(ctx, inputs, assistantMessage, blockId)
-
+      await memoryService.appendToMemory(ctx, inputs, { role: 'assistant', content })
       logger.debug('Persisted assistant response to memory', {
         workflowId: ctx.workflowId,
-        memoryType: inputs.memoryType,
         conversationId: inputs.conversationId,
       })
     } catch (error) {
       logger.error('Failed to persist response to memory:', error)
-      // Don't throw - memory persistence failure shouldn't break workflow execution
     }
   }
 
@@ -1295,15 +1307,15 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   private createResponseMetadata(result: {
-    tokens?: { prompt?: number; completion?: number; total?: number }
+    tokens?: { input?: number; output?: number; total?: number }
     toolCalls?: Array<any>
     timing?: any
     cost?: any
   }) {
     return {
       tokens: result.tokens || {
-        prompt: DEFAULTS.TOKENS.PROMPT,
-        completion: DEFAULTS.TOKENS.COMPLETION,
+        input: DEFAULTS.TOKENS.PROMPT,
+        output: DEFAULTS.TOKENS.COMPLETION,
         total: DEFAULTS.TOKENS.TOTAL,
       },
       toolCalls: {
@@ -1316,7 +1328,7 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   private formatToolCall(tc: any) {
-    const toolName = this.stripCustomToolPrefix(tc.name)
+    const toolName = stripCustomToolPrefix(tc.name)
 
     return {
       ...tc,
@@ -1327,11 +1339,5 @@ export class AgentBlockHandler implements BlockHandler {
       arguments: tc.arguments || tc.input || {},
       result: tc.result || tc.output,
     }
-  }
-
-  private stripCustomToolPrefix(name: string): string {
-    return name.startsWith(AGENT.CUSTOM_TOOL_PREFIX)
-      ? name.replace(AGENT.CUSTOM_TOOL_PREFIX, '')
-      : name
   }
 }

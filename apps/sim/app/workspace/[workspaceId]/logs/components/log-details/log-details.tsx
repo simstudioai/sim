@@ -1,14 +1,18 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronUp, X } from 'lucide-react'
 import { Button, Eye } from '@/components/emcn'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { FileCards, FrozenCanvas, TraceSpans } from '@/app/workspace/[workspaceId]/logs/components'
 import { useLogDetailsResize } from '@/app/workspace/[workspaceId]/logs/hooks'
-import type { LogStatus } from '@/app/workspace/[workspaceId]/logs/utils'
-import { formatDate, StatusBadge, TriggerBadge } from '@/app/workspace/[workspaceId]/logs/utils'
+import {
+  formatDate,
+  getDisplayStatus,
+  StatusBadge,
+  TriggerBadge,
+} from '@/app/workspace/[workspaceId]/logs/utils'
 import { formatCost } from '@/providers/utils'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
@@ -36,7 +40,7 @@ interface LogDetailsProps {
  * @param props - Component props
  * @returns Log details sidebar component
  */
-export function LogDetails({
+export const LogDetails = memo(function LogDetails({
   log,
   isOpen,
   onClose,
@@ -95,16 +99,12 @@ export function LogDetails({
     navigateFunction()
   }
 
-  const formattedTimestamp = log ? formatDate(log.createdAt) : null
+  const formattedTimestamp = useMemo(
+    () => (log ? formatDate(log.createdAt) : null),
+    [log?.createdAt]
+  )
 
-  const logStatus: LogStatus = useMemo(() => {
-    if (!log) return 'info'
-    const baseLevel = (log.level || 'info').toLowerCase()
-    const isError = baseLevel === 'error'
-    const isPending = !isError && log.hasPendingPause === true
-    const isRunning = !isError && !isPending && log.duration === null
-    return isError ? 'error' : isPending ? 'pending' : isRunning ? 'running' : 'info'
-  }, [log])
+  const logStatus = useMemo(() => getDisplayStatus(log?.status), [log?.status])
 
   return (
     <>
@@ -140,7 +140,7 @@ export function LogDetails({
                   disabled={!hasPrev}
                   aria-label='Previous log'
                 >
-                  <ChevronUp className='h-[14px] w-[14px] rotate-180' />
+                  <ChevronUp className='h-[14px] w-[14px]' />
                 </Button>
                 <Button
                   variant='ghost'
@@ -149,7 +149,7 @@ export function LogDetails({
                   disabled={!hasNext}
                   aria-label='Next log'
                 >
-                  <ChevronUp className='h-[14px] w-[14px]' />
+                  <ChevronUp className='h-[14px] w-[14px] rotate-180' />
                 </Button>
                 <Button variant='ghost' className='!p-[4px]' onClick={onClose} aria-label='Close'>
                   <X className='h-[14px] w-[14px]' />
@@ -341,8 +341,8 @@ export function LogDetails({
                             Tokens:
                           </span>
                           <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-                            {log.cost?.tokens?.prompt || 0} in / {log.cost?.tokens?.completion || 0}{' '}
-                            out
+                            {log.cost?.tokens?.input || log.cost?.tokens?.prompt || 0} in /{' '}
+                            {log.cost?.tokens?.output || log.cost?.tokens?.completion || 0} out
                           </span>
                         </div>
                       </div>
@@ -374,4 +374,4 @@ export function LogDetails({
       </div>
     </>
   )
-}
+})

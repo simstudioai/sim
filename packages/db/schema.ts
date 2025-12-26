@@ -304,8 +304,9 @@ export const workflowExecutionLogs = pgTable(
       { onDelete: 'set null' }
     ),
 
-    level: text('level').notNull(), // 'info', 'error'
-    trigger: text('trigger').notNull(), // 'api', 'webhook', 'schedule', 'manual', 'chat'
+    level: text('level').notNull(), // 'info' | 'error'
+    status: text('status').notNull().default('running'), // 'running' | 'pending' | 'completed' | 'failed' | 'cancelled'
+    trigger: text('trigger').notNull(), // 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
 
     startedAt: timestamp('started_at').notNull(),
     endedAt: timestamp('ended_at'),
@@ -416,6 +417,28 @@ export const workspaceEnvironment = pgTable(
   },
   (table) => ({
     workspaceUnique: uniqueIndex('workspace_environment_workspace_unique').on(table.workspaceId),
+  })
+)
+
+export const workspaceBYOKKeys = pgTable(
+  'workspace_byok_keys',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id').notNull(),
+    encryptedApiKey: text('encrypted_api_key').notNull(),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceProviderUnique: uniqueIndex('workspace_byok_provider_unique').on(
+      table.workspaceId,
+      table.providerId
+    ),
+    workspaceIdx: index('workspace_byok_workspace_idx').on(table.workspaceId),
   })
 )
 
@@ -653,7 +676,7 @@ export const userStats = pgTable('user_stats', {
   totalChatExecutions: integer('total_chat_executions').notNull().default(0),
   totalTokensUsed: integer('total_tokens_used').notNull().default(0),
   totalCost: decimal('total_cost').notNull().default('0'),
-  currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $10 for free plan, null for team/enterprise
+  currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $20 for free plan, null for team/enterprise
   usageLimitUpdatedAt: timestamp('usage_limit_updated_at').defaultNow(),
   // Billing period tracking
   currentPeriodCost: decimal('current_period_cost').notNull().default('0'), // Usage in current billing period
@@ -962,24 +985,21 @@ export const memory = pgTable(
   'memory',
   {
     id: text('id').primaryKey(),
-    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'cascade' }),
-    key: text('key').notNull(), // Conversation ID provided by user with format: conversationId:blockId
-    data: jsonb('data').notNull(), // Stores agent messages as array of {role, content} objects
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    data: jsonb('data').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     deletedAt: timestamp('deleted_at'),
   },
   (table) => {
     return {
-      // Add index on key for faster lookups
       keyIdx: index('memory_key_idx').on(table.key),
-
-      // Add index on workflowId for faster filtering
-      workflowIdx: index('memory_workflow_idx').on(table.workflowId),
-
-      // Compound unique index to ensure keys are unique per workflow
-      uniqueKeyPerWorkflowIdx: uniqueIndex('memory_workflow_key_idx').on(
-        table.workflowId,
+      workspaceIdx: index('memory_workspace_idx').on(table.workspaceId),
+      uniqueKeyPerWorkspaceIdx: uniqueIndex('memory_workspace_key_idx').on(
+        table.workspaceId,
         table.key
       ),
     }

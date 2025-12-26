@@ -7,10 +7,9 @@ import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import { createPinnedUrl, validateUrlWithDNS } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
+import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 const logger = createLogger('RssPollingService')
-
-const MAX_CONSECUTIVE_FAILURES = 10
 const MAX_GUIDS_TO_TRACK = 100 // Track recent guids to prevent duplicates
 
 interface RssWebhookConfig {

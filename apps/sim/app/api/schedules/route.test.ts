@@ -1,43 +1,15 @@
 /**
- * Integration tests for schedule configuration API route
+ * Tests for schedule GET API route
  *
  * @vitest-environment node
  */
+import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockRequest, mockExecutionDependencies } from '@/app/api/__test-utils__/utils'
 
-const {
-  mockGetSession,
-  mockGetUserEntityPermissions,
-  mockSelectLimit,
-  mockInsertValues,
-  mockOnConflictDoUpdate,
-  mockInsert,
-  mockUpdate,
-  mockDelete,
-  mockTransaction,
-  mockRandomUUID,
-  mockGetScheduleTimeValues,
-  mockGetSubBlockValue,
-  mockGenerateCronExpression,
-  mockCalculateNextRunTime,
-  mockValidateCronExpression,
-} = vi.hoisted(() => ({
+const { mockGetSession, mockGetUserEntityPermissions, mockDbSelect } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockGetUserEntityPermissions: vi.fn(),
-  mockSelectLimit: vi.fn(),
-  mockInsertValues: vi.fn(),
-  mockOnConflictDoUpdate: vi.fn(),
-  mockInsert: vi.fn(),
-  mockUpdate: vi.fn(),
-  mockDelete: vi.fn(),
-  mockTransaction: vi.fn(),
-  mockRandomUUID: vi.fn(),
-  mockGetScheduleTimeValues: vi.fn(),
-  mockGetSubBlockValue: vi.fn(),
-  mockGenerateCronExpression: vi.fn(),
-  mockCalculateNextRunTime: vi.fn(),
-  mockValidateCronExpression: vi.fn(),
+  mockDbSelect: vi.fn(),
 }))
 
 vi.mock('@/lib/auth', () => ({
@@ -50,231 +22,136 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 
 vi.mock('@sim/db', () => ({
   db: {
-    select: vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: mockSelectLimit,
-        }),
-      }),
-    }),
-    insert: mockInsert,
-    update: mockUpdate,
-    delete: mockDelete,
+    select: mockDbSelect,
   },
 }))
 
 vi.mock('@sim/db/schema', () => ({
-  workflow: {
-    id: 'workflow_id',
-    userId: 'user_id',
-    workspaceId: 'workspace_id',
-  },
-  workflowSchedule: {
-    id: 'schedule_id',
-    workflowId: 'workflow_id',
-    blockId: 'block_id',
-    cronExpression: 'cron_expression',
-    nextRunAt: 'next_run_at',
-    status: 'status',
-  },
+  workflow: { id: 'id', userId: 'userId', workspaceId: 'workspaceId' },
+  workflowSchedule: { workflowId: 'workflowId', blockId: 'blockId' },
 }))
 
 vi.mock('drizzle-orm', () => ({
-  eq: vi.fn((...args) => ({ type: 'eq', args })),
-  and: vi.fn((...args) => ({ type: 'and', args })),
-}))
-
-vi.mock('crypto', () => ({
-  randomUUID: mockRandomUUID,
-  default: {
-    randomUUID: mockRandomUUID,
-  },
-}))
-
-vi.mock('@/lib/workflows/schedules/utils', () => ({
-  getScheduleTimeValues: mockGetScheduleTimeValues,
-  getSubBlockValue: mockGetSubBlockValue,
-  generateCronExpression: mockGenerateCronExpression,
-  calculateNextRunTime: mockCalculateNextRunTime,
-  validateCronExpression: mockValidateCronExpression,
-  BlockState: {},
+  eq: vi.fn(),
+  and: vi.fn(),
 }))
 
 vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn(() => 'test-request-id'),
+  generateRequestId: () => 'test-request-id',
 }))
 
 vi.mock('@/lib/logs/console/logger', () => ({
-  createLogger: vi.fn(() => ({
+  createLogger: () => ({
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
-    debug: vi.fn(),
-  })),
+  }),
 }))
 
-vi.mock('@/lib/core/telemetry', () => ({
-  trackPlatformEvent: vi.fn(),
-}))
+import { GET } from '@/app/api/schedules/route'
 
-import { db } from '@sim/db'
-import { POST } from '@/app/api/schedules/route'
+function createRequest(url: string): NextRequest {
+  return new NextRequest(new URL(url), { method: 'GET' })
+}
 
-describe('Schedule Configuration API Route', () => {
+function mockDbChain(results: any[]) {
+  let callIndex = 0
+  mockDbSelect.mockImplementation(() => ({
+    from: () => ({
+      where: () => ({
+        limit: () => results[callIndex++] || [],
+      }),
+    }),
+  }))
+}
+
+describe('Schedule GET API', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
-    ;(db as any).transaction = mockTransaction
-
-    mockExecutionDependencies()
-
-    mockGetSession.mockResolvedValue({
-      user: {
-        id: 'user-id',
-        email: 'test@example.com',
-      },
-    })
-
-    mockGetUserEntityPermissions.mockResolvedValue('admin')
-
-    mockSelectLimit.mockReturnValue([
-      {
-        id: 'workflow-id',
-        userId: 'user-id',
-        workspaceId: null,
-      },
-    ])
-
-    mockInsertValues.mockImplementation(() => ({
-      onConflictDoUpdate: mockOnConflictDoUpdate,
-    }))
-    mockOnConflictDoUpdate.mockResolvedValue({})
-
-    mockInsert.mockReturnValue({
-      values: mockInsertValues,
-    })
-
-    mockUpdate.mockImplementation(() => ({
-      set: vi.fn().mockImplementation(() => ({
-        where: vi.fn().mockResolvedValue([]),
-      })),
-    }))
-
-    mockDelete.mockImplementation(() => ({
-      where: vi.fn().mockResolvedValue([]),
-    }))
-
-    mockTransaction.mockImplementation(async (callback) => {
-      const tx = {
-        insert: vi.fn().mockReturnValue({
-          values: mockInsertValues,
-        }),
-      }
-      return callback(tx)
-    })
-
-    mockRandomUUID.mockReturnValue('test-uuid')
-
-    mockGetScheduleTimeValues.mockReturnValue({
-      scheduleTime: '09:30',
-      minutesInterval: 15,
-      hourlyMinute: 0,
-      dailyTime: [9, 30],
-      weeklyDay: 1,
-      weeklyTime: [9, 30],
-      monthlyDay: 1,
-      monthlyTime: [9, 30],
-    })
-
-    mockGetSubBlockValue.mockImplementation((block: any, id: string) => {
-      const subBlocks = {
-        startWorkflow: 'schedule',
-        scheduleType: 'daily',
-        scheduleTime: '09:30',
-        dailyTime: '09:30',
-      }
-      return subBlocks[id as keyof typeof subBlocks] || ''
-    })
-
-    mockGenerateCronExpression.mockReturnValue('0 9 * * *')
-    mockCalculateNextRunTime.mockReturnValue(new Date())
-    mockValidateCronExpression.mockReturnValue({ isValid: true })
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mockGetUserEntityPermissions.mockResolvedValue('read')
   })
 
   afterEach(() => {
     vi.clearAllMocks()
   })
 
-  it('should create a new schedule successfully', async () => {
-    const req = createMockRequest('POST', {
-      workflowId: 'workflow-id',
-      state: {
-        blocks: {
-          'starter-id': {
-            type: 'starter',
-            subBlocks: {
-              startWorkflow: { value: 'schedule' },
-              scheduleType: { value: 'daily' },
-              scheduleTime: { value: '09:30' },
-              dailyTime: { value: '09:30' },
-            },
-          },
-        },
-        edges: [],
-        loops: {},
-      },
-    })
+  it('returns schedule data for authorized user', async () => {
+    mockDbChain([
+      [{ userId: 'user-1', workspaceId: null }],
+      [{ id: 'sched-1', cronExpression: '0 9 * * *', status: 'active', failedCount: 0 }],
+    ])
 
-    const response = await POST(req)
+    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
+    const data = await res.json()
 
-    expect(response).toBeDefined()
-    expect(response.status).toBe(200)
-
-    const responseData = await response.json()
-    expect(responseData).toHaveProperty('message', 'Schedule updated')
-    expect(responseData).toHaveProperty('cronExpression', '0 9 * * *')
-    expect(responseData).toHaveProperty('nextRunAt')
+    expect(res.status).toBe(200)
+    expect(data.schedule.cronExpression).toBe('0 9 * * *')
+    expect(data.isDisabled).toBe(false)
   })
 
-  it('should handle errors gracefully', async () => {
-    mockSelectLimit.mockReturnValue([])
+  it('returns null when no schedule exists', async () => {
+    mockDbChain([[{ userId: 'user-1', workspaceId: null }], []])
 
-    const req = createMockRequest('POST', {
-      workflowId: 'workflow-id',
-      state: { blocks: {}, edges: [], loops: {} },
-    })
+    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
+    const data = await res.json()
 
-    const response = await POST(req)
-
-    expect(response.status).toBeGreaterThanOrEqual(400)
-    const data = await response.json()
-    expect(data).toHaveProperty('error')
+    expect(res.status).toBe(200)
+    expect(data.schedule).toBeNull()
   })
 
-  it('should require authentication', async () => {
+  it('requires authentication', async () => {
     mockGetSession.mockResolvedValue(null)
 
-    const req = createMockRequest('POST', {
-      workflowId: 'workflow-id',
-      state: { blocks: {}, edges: [], loops: {} },
-    })
+    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
 
-    const response = await POST(req)
-
-    expect(response.status).toBe(401)
-    const data = await response.json()
-    expect(data).toHaveProperty('error', 'Unauthorized')
+    expect(res.status).toBe(401)
   })
 
-  it('should validate input data', async () => {
-    const req = createMockRequest('POST', {
-      workflowId: 'workflow-id',
-    })
+  it('requires workflowId parameter', async () => {
+    const res = await GET(createRequest('http://test/api/schedules'))
 
-    const response = await POST(req)
+    expect(res.status).toBe(400)
+  })
 
-    expect(response.status).toBe(400)
-    const data = await response.json()
-    expect(data).toHaveProperty('error', 'Invalid request data')
+  it('returns 404 for non-existent workflow', async () => {
+    mockDbChain([[]])
+
+    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
+
+    expect(res.status).toBe(404)
+  })
+
+  it('denies access for unauthorized user', async () => {
+    mockDbChain([[{ userId: 'other-user', workspaceId: null }]])
+
+    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
+
+    expect(res.status).toBe(403)
+  })
+
+  it('allows workspace members to view', async () => {
+    mockDbChain([
+      [{ userId: 'other-user', workspaceId: 'ws-1' }],
+      [{ id: 'sched-1', status: 'active', failedCount: 0 }],
+    ])
+
+    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
+
+    expect(res.status).toBe(200)
+  })
+
+  it('indicates disabled schedule with failures', async () => {
+    mockDbChain([
+      [{ userId: 'user-1', workspaceId: null }],
+      [{ id: 'sched-1', status: 'disabled', failedCount: 100 }],
+    ])
+
+    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
+    const data = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(data.isDisabled).toBe(true)
+    expect(data.hasFailures).toBe(true)
   })
 })

@@ -6,6 +6,7 @@
 
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createMockLogger } from '@/app/api/__test-utils__/utils'
 
 describe('OAuth Credentials API Route', () => {
   const mockGetSession = vi.fn()
@@ -17,12 +18,7 @@ describe('OAuth Credentials API Route', () => {
     where: vi.fn().mockReturnThis(),
     limit: vi.fn(),
   }
-  const mockLogger = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }
+  const mockLogger = createMockLogger()
 
   const mockUUID = 'mock-uuid-12345678-90ab-cdef-1234-567890abcdef'
 
@@ -42,7 +38,7 @@ describe('OAuth Credentials API Route', () => {
       getSession: mockGetSession,
     }))
 
-    vi.doMock('@/lib/oauth/oauth', () => ({
+    vi.doMock('@/lib/oauth/utils', () => ({
       parseProvider: mockParseProvider,
       evaluateScopeCoverage: mockEvaluateScopeCoverage,
     }))

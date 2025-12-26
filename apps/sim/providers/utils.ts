@@ -1,13 +1,9 @@
+import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
+import type { CompletionUsage } from 'openai/resources/completions'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
-import { createLogger } from '@/lib/logs/console/logger'
-import { anthropicProvider } from '@/providers/anthropic'
-import { azureOpenAIProvider } from '@/providers/azure-openai'
-import { cerebrasProvider } from '@/providers/cerebras'
-import { deepseekProvider } from '@/providers/deepseek'
-import { googleProvider } from '@/providers/google'
-import { groqProvider } from '@/providers/groq'
-import { mistralProvider } from '@/providers/mistral'
+import { createLogger, type Logger } from '@/lib/logs/console/logger'
+import { isCustomTool } from '@/executor/constants'
 import {
   getComputerUseModels,
   getEmbeddingModelPricing,
@@ -18,119 +14,81 @@ import {
   getModelsWithTemperatureSupport,
   getModelsWithTempRange01,
   getModelsWithTempRange02,
+  getModelsWithThinking,
   getModelsWithVerbosity,
+  getProviderDefaultModel as getProviderDefaultModelFromDefinitions,
   getProviderModels as getProviderModelsFromDefinitions,
   getProvidersWithToolUsageControl,
   getReasoningEffortValuesForModel as getReasoningEffortValuesForModelFromDefinitions,
+  getThinkingLevelsForModel as getThinkingLevelsForModelFromDefinitions,
   getVerbosityValuesForModel as getVerbosityValuesForModelFromDefinitions,
   PROVIDER_DEFINITIONS,
   supportsTemperature as supportsTemperatureFromDefinitions,
   supportsToolUsageControl as supportsToolUsageControlFromDefinitions,
   updateOllamaModels as updateOllamaModelsInDefinitions,
 } from '@/providers/models'
-import { ollamaProvider } from '@/providers/ollama'
-import { openaiProvider } from '@/providers/openai'
-import { openRouterProvider } from '@/providers/openrouter'
-import type { ProviderConfig, ProviderId, ProviderToolConfig } from '@/providers/types'
-import { vertexProvider } from '@/providers/vertex'
-import { vllmProvider } from '@/providers/vllm'
-import { xAIProvider } from '@/providers/xai'
+import type { ProviderId, ProviderToolConfig } from '@/providers/types'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useProvidersStore } from '@/stores/providers/store'
 
 const logger = createLogger('ProviderUtils')
 
 /**
- * Provider configurations - built from the comprehensive definitions
+ * Client-safe provider metadata.
+ * This object contains only model lists and patterns - no executeRequest implementations.
+ * For server-side execution, use @/providers/registry.
  */
-export const providers: Record<
-  ProviderId,
-  ProviderConfig & {
-    models: string[]
-    computerUseModels?: string[]
-    modelPatterns?: RegExp[]
+export interface ProviderMetadata {
+  id: string
+  name: string
+  description: string
+  version: string
+  models: string[]
+  defaultModel: string
+  computerUseModels?: string[]
+  modelPatterns?: RegExp[]
+}
+
+/**
+ * Build provider metadata from PROVIDER_DEFINITIONS.
+ * This is client-safe as it doesn't import any provider implementations.
+ */
+function buildProviderMetadata(providerId: ProviderId): ProviderMetadata {
+  const def = PROVIDER_DEFINITIONS[providerId]
+  return {
+    id: providerId,
+    name: def?.name || providerId,
+    description: def?.description || '',
+    version: '1.0.0',
+    models: getProviderModelsFromDefinitions(providerId),
+    defaultModel: getProviderDefaultModelFromDefinitions(providerId),
+    modelPatterns: def?.modelPatterns,
   }
-> = {
+}
+
+export const providers: Record<ProviderId, ProviderMetadata> = {
   openai: {
-    ...openaiProvider,
-    models: getProviderModelsFromDefinitions('openai'),
+    ...buildProviderMetadata('openai'),
     computerUseModels: ['computer-use-preview'],
-    modelPatterns: PROVIDER_DEFINITIONS.openai.modelPatterns,
   },
   anthropic: {
-    ...anthropicProvider,
-    models: getProviderModelsFromDefinitions('anthropic'),
+    ...buildProviderMetadata('anthropic'),
     computerUseModels: getComputerUseModels().filter((model) =>
       getProviderModelsFromDefinitions('anthropic').includes(model)
     ),
-    modelPatterns: PROVIDER_DEFINITIONS.anthropic.modelPatterns,
   },
-  google: {
-    ...googleProvider,
-    models: getProviderModelsFromDefinitions('google'),
-    modelPatterns: PROVIDER_DEFINITIONS.google.modelPatterns,
-  },
-  vertex: {
-    ...vertexProvider,
-    models: getProviderModelsFromDefinitions('vertex'),
-    modelPatterns: PROVIDER_DEFINITIONS.vertex.modelPatterns,
-  },
-  deepseek: {
-    ...deepseekProvider,
-    models: getProviderModelsFromDefinitions('deepseek'),
-    modelPatterns: PROVIDER_DEFINITIONS.deepseek.modelPatterns,
-  },
-  xai: {
-    ...xAIProvider,
-    models: getProviderModelsFromDefinitions('xai'),
-    modelPatterns: PROVIDER_DEFINITIONS.xai.modelPatterns,
-  },
-  cerebras: {
-    ...cerebrasProvider,
-    models: getProviderModelsFromDefinitions('cerebras'),
-    modelPatterns: PROVIDER_DEFINITIONS.cerebras.modelPatterns,
-  },
-  groq: {
-    ...groqProvider,
-    models: getProviderModelsFromDefinitions('groq'),
-    modelPatterns: PROVIDER_DEFINITIONS.groq.modelPatterns,
-  },
-  vllm: {
-    ...vllmProvider,
-    models: getProviderModelsFromDefinitions('vllm'),
-    modelPatterns: PROVIDER_DEFINITIONS.vllm.modelPatterns,
-  },
-  mistral: {
-    ...mistralProvider,
-    models: getProviderModelsFromDefinitions('mistral'),
-    modelPatterns: PROVIDER_DEFINITIONS.mistral.modelPatterns,
-  },
-  'azure-openai': {
-    ...azureOpenAIProvider,
-    models: getProviderModelsFromDefinitions('azure-openai'),
-    modelPatterns: PROVIDER_DEFINITIONS['azure-openai'].modelPatterns,
-  },
-  openrouter: {
-    ...openRouterProvider,
-    models: getProviderModelsFromDefinitions('openrouter'),
-    modelPatterns: PROVIDER_DEFINITIONS.openrouter.modelPatterns,
-  },
-  ollama: {
-    ...ollamaProvider,
-    models: getProviderModelsFromDefinitions('ollama'),
-    modelPatterns: PROVIDER_DEFINITIONS.ollama.modelPatterns,
-  },
+  google: buildProviderMetadata('google'),
+  vertex: buildProviderMetadata('vertex'),
+  deepseek: buildProviderMetadata('deepseek'),
+  xai: buildProviderMetadata('xai'),
+  cerebras: buildProviderMetadata('cerebras'),
+  groq: buildProviderMetadata('groq'),
+  vllm: buildProviderMetadata('vllm'),
+  mistral: buildProviderMetadata('mistral'),
+  'azure-openai': buildProviderMetadata('azure-openai'),
+  openrouter: buildProviderMetadata('openrouter'),
+  ollama: buildProviderMetadata('ollama'),
 }
-
-Object.entries(providers).forEach(([id, provider]) => {
-  if (provider.initialize) {
-    provider.initialize().catch((error) => {
-      logger.error(`Failed to initialize ${id} provider`, {
-        error: error instanceof Error ? error.message : 'Unknown error',
-      })
-    })
-  }
-})
 
 export function updateOllamaProviderModels(models: string[]): void {
   updateOllamaModelsInDefinitions(models)
@@ -212,13 +170,12 @@ export function getProviderFromModel(model: string): ProviderId {
   return 'ollama'
 }
 
-export function getProvider(id: string): ProviderConfig | undefined {
-  // Handle both formats: 'openai' and 'openai/chat'
+export function getProvider(id: string): ProviderMetadata | undefined {
   const providerId = id.split('/')[0] as ProviderId
   return providers[providerId]
 }
 
-export function getProviderConfigFromModel(model: string): ProviderConfig | undefined {
+export function getProviderConfigFromModel(model: string): ProviderMetadata | undefined {
   const providerId = getProviderFromModel(model)
   return providers[providerId]
 }
@@ -273,12 +230,25 @@ export function filterBlacklistedModels(models: string[]): string[] {
   return models.filter((model) => !isModelBlacklisted(model))
 }
 
-/**
- * Get provider icon for a given model
- */
 export function getProviderIcon(model: string): React.ComponentType<{ className?: string }> | null {
   const providerId = getProviderFromModel(model)
   return PROVIDER_DEFINITIONS[providerId]?.icon || null
+}
+
+/**
+ * Generates prompt instructions for structured JSON output from a JSON schema.
+ * Used as a fallback when native structured outputs are not supported.
+ */
+export function generateSchemaInstructions(schema: any, schemaName?: string): string {
+  const name = schemaName || 'response'
+  return `IMPORTANT: You must respond with a valid JSON object that conforms to the following schema.
+Do not include any text before or after the JSON object. Only output the JSON.
+
+Schema name: ${name}
+JSON Schema:
+${JSON.stringify(schema, null, 2)}
+
+Your response must be valid JSON that exactly matches this schema structure.`
 }
 
 export function generateStructuredOutputInstructions(responseFormat: any): string {
@@ -462,7 +432,7 @@ export async function transformBlockTool(
 
   let toolConfig: any
 
-  if (toolId.startsWith('custom_') && getToolAsync) {
+  if (isCustomTool(toolId) && getToolAsync) {
     toolConfig = await getToolAsync(toolId)
   } else {
     toolConfig = getTool(toolId)
@@ -479,7 +449,6 @@ export async function transformBlockTool(
 
   const llmSchema = await createLLMToolSchema(toolConfig, userProvidedParams)
 
-  // Create unique tool ID by appending resource ID for multi-instance tools
   let uniqueToolId = toolConfig.id
   if (toolId === 'workflow_executor' && userProvidedParams.workflowId) {
     uniqueToolId = `${toolConfig.id}_${userProvidedParams.workflowId}`
@@ -554,9 +523,6 @@ export function calculateCost(
   }
 }
 
-/**
- * Get pricing information for a specific model (including embedding models)
- */
 export function getModelPricing(modelId: string): any {
   const embeddingPricing = getEmbeddingModelPricing(modelId)
   if (embeddingPricing) {
@@ -615,29 +581,25 @@ export function shouldBillModelUsage(model: string): boolean {
  * For use server-side only
  */
 export function getApiKey(provider: string, model: string, userProvidedKey?: string): string {
-  // If user provided a key, use it as a fallback
   const hasUserKey = !!userProvidedKey
 
-  // Ollama and vLLM models don't require API keys
   const isOllamaModel =
     provider === 'ollama' || useProvidersStore.getState().providers.ollama.models.includes(model)
   if (isOllamaModel) {
-    return 'empty' // Ollama uses 'empty' as a placeholder API key
+    return 'empty'
   }
 
   const isVllmModel =
     provider === 'vllm' || useProvidersStore.getState().providers.vllm.models.includes(model)
   if (isVllmModel) {
-    return userProvidedKey || 'empty' // vLLM uses 'empty' as a placeholder if no key provided
+    return userProvidedKey || 'empty'
   }
 
-  // Use server key rotation for all OpenAI models, Anthropic's Claude models, and Google's Gemini models on the hosted platform
   const isOpenAIModel = provider === 'openai'
   const isClaudeModel = provider === 'anthropic'
   const isGeminiModel = provider === 'google'
 
   if (isHosted && (isOpenAIModel || isClaudeModel || isGeminiModel)) {
-    // Only use server key if model is explicitly in our hosted list
     const hostedModels = getHostedModels()
     const isModelHosted = hostedModels.some((m) => m.toLowerCase() === model.toLowerCase())
 
@@ -656,7 +618,6 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
     }
   }
 
-  // For all other cases, require user-provided key
   if (!hasUserKey) {
     throw new Error(`API key is required for ${provider} ${model}`)
   }
@@ -688,16 +649,14 @@ export function prepareToolsWithUsageControl(
     | { type: 'any'; any: { model: string; name: string } }
     | undefined
   toolConfig?: {
-    // Add toolConfig for Google's format
     functionCallingConfig: {
       mode: 'AUTO' | 'ANY' | 'NONE'
       allowedFunctionNames?: string[]
     }
   }
   hasFilteredTools: boolean
-  forcedTools: string[] // Return all forced tool IDs
+  forcedTools: string[]
 } {
-  // If no tools, return early
   if (!tools || tools.length === 0) {
     return {
       tools: undefined,
@@ -707,14 +666,12 @@ export function prepareToolsWithUsageControl(
     }
   }
 
-  // Filter out tools marked with usageControl='none'
   const filteredTools = tools.filter((tool) => {
     const toolId = tool.function?.name || tool.name
     const toolConfig = providerTools?.find((t) => t.id === toolId)
     return toolConfig?.usageControl !== 'none'
   })
 
-  // Check if any tools were filtered out
   const hasFilteredTools = filteredTools.length < tools.length
   if (hasFilteredTools) {
     logger.info(
@@ -722,7 +679,6 @@ export function prepareToolsWithUsageControl(
     )
   }
 
-  // If all tools were filtered out, return empty
   if (filteredTools.length === 0) {
     logger.info('All tools were filtered out due to usageControl="none"')
     return {
@@ -733,11 +689,9 @@ export function prepareToolsWithUsageControl(
     }
   }
 
-  // Get all tools that should be forced
   const forcedTools = providerTools?.filter((tool) => tool.usageControl === 'force') || []
   const forcedToolIds = forcedTools.map((tool) => tool.id)
 
-  // Determine tool_choice setting
   let toolChoice:
     | 'auto'
     | 'none'
@@ -745,7 +699,6 @@ export function prepareToolsWithUsageControl(
     | { type: 'tool'; name: string }
     | { type: 'any'; any: { model: string; name: string } } = 'auto'
 
-  // For Google, we'll use a separate toolConfig object
   let toolConfig:
     | {
         functionCallingConfig: {
@@ -756,30 +709,22 @@ export function prepareToolsWithUsageControl(
     | undefined
 
   if (forcedTools.length > 0) {
-    // Force the first tool that has usageControl='force'
     const forcedTool = forcedTools[0]
 
-    // Adjust format based on provider
     if (provider === 'anthropic') {
       toolChoice = {
         type: 'tool',
         name: forcedTool.id,
       }
     } else if (provider === 'google') {
-      // Google Gemini format uses a separate toolConfig object
       toolConfig = {
         functionCallingConfig: {
           mode: 'ANY',
-          allowedFunctionNames:
-            forcedTools.length === 1
-              ? [forcedTool.id] // If only one tool, specify just that one
-              : forcedToolIds, // If multiple tools, include all of them
+          allowedFunctionNames: forcedTools.length === 1 ? [forcedTool.id] : forcedToolIds,
         },
       }
-      // Keep toolChoice as 'auto' since we use toolConfig instead
       toolChoice = 'auto'
     } else {
-      // Default OpenAI format
       toolChoice = {
         type: 'function',
         function: { name: forcedTool.id },
@@ -794,7 +739,6 @@ export function prepareToolsWithUsageControl(
       )
     }
   } else {
-    // Default to auto if no forced tools
     toolChoice = 'auto'
     if (provider === 'google') {
       toolConfig = { functionCallingConfig: { mode: 'AUTO' } }
@@ -845,7 +789,6 @@ export function trackForcedToolUsage(
     }
   }
 } {
-  // Default to keeping the original tool_choice
   let hasUsedForcedTool = false
   let nextToolChoice = originalToolChoice
   let nextToolConfig:
@@ -859,13 +802,10 @@ export function trackForcedToolUsage(
 
   const updatedUsedForcedTools = [...usedForcedTools]
 
-  // Special handling for Google format
   const isGoogleFormat = provider === 'google'
 
-  // Get the name of the current forced tool(s)
   let forcedToolNames: string[] = []
   if (isGoogleFormat && originalToolChoice?.functionCallingConfig?.allowedFunctionNames) {
-    // For Google format
     forcedToolNames = originalToolChoice.functionCallingConfig.allowedFunctionNames
   } else if (
     typeof originalToolChoice === 'object' &&
@@ -873,7 +813,6 @@ export function trackForcedToolUsage(
       (originalToolChoice?.type === 'tool' && originalToolChoice?.name) ||
       (originalToolChoice?.type === 'any' && originalToolChoice?.any?.name))
   ) {
-    // For other providers
     forcedToolNames = [
       originalToolChoice?.function?.name ||
         originalToolChoice?.name ||
@@ -881,27 +820,20 @@ export function trackForcedToolUsage(
     ].filter(Boolean)
   }
 
-  // If we're forcing specific tools and we have tool calls in the response
   if (forcedToolNames.length > 0 && toolCallsResponse && toolCallsResponse.length > 0) {
-    // Check if any of the tool calls used the forced tools
     const toolNames = toolCallsResponse.map((tc) => tc.function?.name || tc.name || tc.id)
 
-    // Find any forced tools that were used
     const usedTools = forcedToolNames.filter((toolName) => toolNames.includes(toolName))
 
     if (usedTools.length > 0) {
-      // At least one forced tool was used
       hasUsedForcedTool = true
       updatedUsedForcedTools.push(...usedTools)
 
-      // Find the next tools to force that haven't been used yet
       const remainingTools = forcedTools.filter((tool) => !updatedUsedForcedTools.includes(tool))
 
       if (remainingTools.length > 0) {
-        // There are still forced tools to use
         const nextToolToForce = remainingTools[0]
 
-        // Format based on provider
         if (provider === 'anthropic') {
           nextToolChoice = {
             type: 'tool',
@@ -912,13 +844,10 @@ export function trackForcedToolUsage(
             functionCallingConfig: {
               mode: 'ANY',
               allowedFunctionNames:
-                remainingTools.length === 1
-                  ? [nextToolToForce] // If only one tool left, specify just that one
-                  : remainingTools, // If multiple tools, include all remaining
+                remainingTools.length === 1 ? [nextToolToForce] : remainingTools,
             },
           }
         } else {
-          // Default OpenAI format
           nextToolChoice = {
             type: 'function',
             function: { name: nextToolToForce },
@@ -929,9 +858,7 @@ export function trackForcedToolUsage(
           `Forced tool(s) ${usedTools.join(', ')} used, switching to next forced tool(s): ${remainingTools.join(', ')}`
         )
       } else {
-        // All forced tools have been used, switch to auto mode
         if (provider === 'anthropic') {
-          // Anthropic: return null to signal the parameter should be deleted/omitted
           nextToolChoice = null
         } else if (provider === 'google') {
           nextToolConfig = { functionCallingConfig: { mode: 'AUTO' } }
@@ -961,11 +888,9 @@ export const MODELS_TEMP_RANGE_0_1 = getModelsWithTempRange01()
 export const MODELS_WITH_TEMPERATURE_SUPPORT = getModelsWithTemperatureSupport()
 export const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 export const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
+export const MODELS_WITH_THINKING = getModelsWithThinking()
 export const PROVIDERS_WITH_TOOL_USAGE_CONTROL = getProvidersWithToolUsageControl()
 
-/**
- * Check if a model supports temperature parameter
- */
 export function supportsTemperature(model: string): boolean {
   return supportsTemperatureFromDefinitions(model)
 }
@@ -978,9 +903,6 @@ export function getMaxTemperature(model: string): number | undefined {
   return getMaxTempFromDefinitions(model)
 }
 
-/**
- * Check if a provider supports tool usage control
- */
 export function supportsToolUsageControl(provider: string): boolean {
   return supportsToolUsageControlFromDefinitions(provider)
 }
@@ -999,6 +921,14 @@ export function getReasoningEffortValuesForModel(model: string): string[] | null
  */
 export function getVerbosityValuesForModel(model: string): string[] | null {
   return getVerbosityValuesForModelFromDefinitions(model)
+}
+
+/**
+ * Get thinking levels for a specific model
+ * Returns the valid levels for that model, or null if the model doesn't support thinking
+ */
+export function getThinkingLevelsForModel(model: string): string[] | null {
+  return getThinkingLevelsForModelFromDefinitions(model)
 }
 
 /**
@@ -1021,8 +951,6 @@ export function prepareToolExecution(
   toolParams: Record<string, any>
   executionParams: Record<string, any>
 } {
-  // Filter out empty/null/undefined values from user params
-  // so that cleared fields don't override LLM-generated values
   const filteredUserParams: Record<string, any> = {}
   if (tool.params) {
     for (const [key, value] of Object.entries(tool.params)) {
@@ -1032,13 +960,11 @@ export function prepareToolExecution(
     }
   }
 
-  // User-provided params take precedence over LLM-generated params
   const toolParams = {
     ...llmArgs,
     ...filteredUserParams,
   }
 
-  // Add system parameters for execution
   const executionParams = {
     ...toolParams,
     ...(request.workflowId
@@ -1055,9 +981,107 @@ export function prepareToolExecution(
     ...(request.workflowVariables ? { workflowVariables: request.workflowVariables } : {}),
     ...(request.blockData ? { blockData: request.blockData } : {}),
     ...(request.blockNameMapping ? { blockNameMapping: request.blockNameMapping } : {}),
-    // Pass tool schema for MCP tools to skip discovery
     ...(tool.parameters ? { _toolSchema: tool.parameters } : {}),
   }
 
   return { toolParams, executionParams }
+}
+
+/**
+ * Creates a ReadableStream from an OpenAI-compatible streaming response.
+ * This is a shared utility used by all OpenAI-compatible providers:
+ * OpenAI, Groq, DeepSeek, xAI, OpenRouter, Mistral, Ollama, vLLM, Azure OpenAI, Cerebras
+ *
+ * @param stream - The async iterable stream from the provider
+ * @param providerName - Name of the provider for logging purposes
+ * @param onComplete - Optional callback called when stream completes with full content and usage
+ * @returns A ReadableStream that can be used for streaming responses
+ */
+export function createOpenAICompatibleStream(
+  stream: AsyncIterable<ChatCompletionChunk>,
+  providerName: string,
+  onComplete?: (content: string, usage: CompletionUsage) => void
+): ReadableStream<Uint8Array> {
+  const streamLogger = createLogger(`${providerName}Utils`)
+  let fullContent = ''
+  let promptTokens = 0
+  let completionTokens = 0
+  let totalTokens = 0
+
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const chunk of stream) {
+          if (chunk.usage) {
+            promptTokens = chunk.usage.prompt_tokens ?? 0
+            completionTokens = chunk.usage.completion_tokens ?? 0
+            totalTokens = chunk.usage.total_tokens ?? 0
+          }
+
+          const content = chunk.choices?.[0]?.delta?.content || ''
+          if (content) {
+            fullContent += content
+            controller.enqueue(new TextEncoder().encode(content))
+          }
+        }
+
+        if (onComplete) {
+          if (promptTokens === 0 && completionTokens === 0) {
+            streamLogger.warn(`${providerName} stream completed without usage data`)
+          }
+          onComplete(fullContent, {
+            prompt_tokens: promptTokens,
+            completion_tokens: completionTokens,
+            total_tokens: totalTokens || promptTokens + completionTokens,
+          })
+        }
+
+        controller.close()
+      } catch (error) {
+        controller.error(error)
+      }
+    },
+  })
+}
+
+/**
+ * Checks if a forced tool was used in an OpenAI-compatible response and updates tracking.
+ * This is a shared utility used by OpenAI-compatible providers:
+ * OpenAI, Groq, DeepSeek, xAI, OpenRouter, Mistral, Ollama, vLLM, Azure OpenAI, Cerebras
+ *
+ * @param response - The API response containing tool calls
+ * @param toolChoice - The tool choice configuration (string or object)
+ * @param providerName - Name of the provider for logging purposes
+ * @param forcedTools - Array of forced tool names
+ * @param usedForcedTools - Array of already used forced tools
+ * @param customLogger - Optional custom logger instance
+ * @returns Object with hasUsedForcedTool flag and updated usedForcedTools array
+ */
+export function checkForForcedToolUsageOpenAI(
+  response: any,
+  toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any },
+  providerName: string,
+  forcedTools: string[],
+  usedForcedTools: string[],
+  customLogger?: Logger
+): { hasUsedForcedTool: boolean; usedForcedTools: string[] } {
+  const checkLogger = customLogger || createLogger(`${providerName}Utils`)
+  let hasUsedForcedTool = false
+  let updatedUsedForcedTools = [...usedForcedTools]
+
+  if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
+    const toolCallsResponse = response.choices[0].message.tool_calls
+    const result = trackForcedToolUsage(
+      toolCallsResponse,
+      toolChoice,
+      checkLogger,
+      providerName.toLowerCase().replace(/\s+/g, '-'),
+      forcedTools,
+      updatedUsedForcedTools
+    )
+    hasUsedForcedTool = result.hasUsedForcedTool
+    updatedUsedForcedTools = result.usedForcedTools
+  }
+
+  return { hasUsedForcedTool, usedForcedTools: updatedUsedForcedTools }
 }

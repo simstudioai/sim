@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { webhook, workflow, workflowSchedule } from '@sim/db/schema'
+import { webhook, workflow } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -10,12 +10,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
-import {
-  calculateNextRunTime,
-  generateCronExpression,
-  getScheduleTimeValues,
-  validateCronExpression,
-} from '@/lib/workflows/schedules/utils'
 import { getWorkflowAccessContext } from '@/lib/workflows/utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
@@ -210,7 +204,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     await syncWorkflowWebhooks(workflowId, workflowState.blocks)
-    await syncWorkflowSchedules(workflowId, workflowState.blocks)
 
     // Extract and persist custom tools to database
     try {
@@ -318,79 +311,6 @@ async function syncWorkflowWebhooks(
   })
 }
 
-type ScheduleBlockInput = Parameters<typeof getScheduleTimeValues>[0]
-
-async function syncWorkflowSchedules(
-  workflowId: string,
-  blocks: Record<string, any>
-): Promise<void> {
-  await syncBlockResources(workflowId, blocks, {
-    resourceName: 'schedule',
-    subBlockId: 'scheduleId',
-    buildMetadata: buildScheduleMetadata,
-    applyMetadata: upsertScheduleRecord,
-  })
-}
-
-interface ScheduleMetadata {
-  cronExpression: string | null
-  nextRunAt: Date | null
-  timezone: string
-}
-
-function buildScheduleMetadata(block: BlockState): ScheduleMetadata | null {
-  const scheduleType = getSubBlockValue<string>(block, 'scheduleType') || 'daily'
-  const scheduleBlock = convertToScheduleBlock(block)
-
-  const scheduleValues = getScheduleTimeValues(scheduleBlock)
-  const sanitizedValues =
-    scheduleType !== 'custom' ? { ...scheduleValues, cronExpression: null } : scheduleValues
-
-  try {
-    const cronExpression = generateCronExpression(scheduleType, sanitizedValues)
-    const timezone = scheduleValues.timezone || 'UTC'
-
-    if (cronExpression) {
-      const validation = validateCronExpression(cronExpression, timezone)
-      if (!validation.isValid) {
-        logger.warn('Invalid cron expression while syncing schedule', {
-          blockId: block.id,
-          cronExpression,
-          error: validation.error,
-        })
-        return null
-      }
-    }
-
-    const nextRunAt = calculateNextRunTime(scheduleType, sanitizedValues)
-
-    return {
-      cronExpression,
-      timezone,
-      nextRunAt,
-    }
-  } catch (error) {
-    logger.error('Failed to build schedule metadata during sync', {
-      blockId: block.id,
-      error,
-    })
-    return null
-  }
-}
-
-function convertToScheduleBlock(block: BlockState): ScheduleBlockInput {
-  const subBlocks: ScheduleBlockInput['subBlocks'] = {}
-
-  Object.entries(block.subBlocks || {}).forEach(([id, subBlock]) => {
-    subBlocks[id] = { value: stringifySubBlockValue(subBlock?.value) }
-  })
-
-  return {
-    type: block.type,
-    subBlocks,
-  }
-}
-
 interface WebhookMetadata {
   triggerPath: string
   provider: string | null
@@ -473,58 +393,6 @@ async function upsertWebhookRecord(
   })
 }
 
-async function upsertScheduleRecord(
-  workflowId: string,
-  block: BlockState,
-  scheduleId: string,
-  metadata: ScheduleMetadata
-): Promise<void> {
-  const now = new Date()
-  const [existing] = await db
-    .select({
-      id: workflowSchedule.id,
-      nextRunAt: workflowSchedule.nextRunAt,
-    })
-    .from(workflowSchedule)
-    .where(eq(workflowSchedule.id, scheduleId))
-    .limit(1)
-
-  if (existing) {
-    await db
-      .update(workflowSchedule)
-      .set({
-        workflowId,
-        blockId: block.id,
-        cronExpression: metadata.cronExpression,
-        nextRunAt: metadata.nextRunAt ?? existing.nextRunAt,
-        timezone: metadata.timezone,
-        updatedAt: now,
-      })
-      .where(eq(workflowSchedule.id, scheduleId))
-    return
-  }
-
-  await db.insert(workflowSchedule).values({
-    id: scheduleId,
-    workflowId,
-    blockId: block.id,
-    cronExpression: metadata.cronExpression,
-    nextRunAt: metadata.nextRunAt ?? null,
-    triggerType: 'schedule',
-    timezone: metadata.timezone,
-    status: 'active',
-    failedCount: 0,
-    createdAt: now,
-    updatedAt: now,
-  })
-
-  logger.info('Recreated missing schedule after workflow save', {
-    workflowId,
-    blockId: block.id,
-    scheduleId,
-  })
-}
-
 interface BlockResourceSyncConfig<T> {
   resourceName: string
   subBlockId: string
@@ -571,29 +439,5 @@ async function syncBlockResources<T>(
         error,
       })
     }
-  }
-}
-
-function stringifySubBlockValue(value: unknown): string {
-  if (value === undefined || value === null) {
-    return ''
-  }
-
-  if (typeof value === 'string') {
-    return value
-  }
-
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value)
-  }
-
-  if (value instanceof Date) {
-    return value.toISOString()
-  }
-
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return String(value)
   }
 }

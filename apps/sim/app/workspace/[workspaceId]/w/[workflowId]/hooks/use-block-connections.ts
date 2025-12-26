@@ -3,6 +3,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
+import { REFERENCE } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -44,7 +45,7 @@ function parseResponseFormatSafely(responseFormatValue: any, blockId: string): a
   if (typeof responseFormatValue === 'string') {
     const trimmedValue = responseFormatValue.trim()
 
-    if (trimmedValue.startsWith('<') && trimmedValue.includes('>')) {
+    if (trimmedValue.startsWith(REFERENCE.START) && trimmedValue.includes(REFERENCE.END)) {
       return trimmedValue
     }
 

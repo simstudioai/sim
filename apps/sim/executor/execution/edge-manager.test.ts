@@ -129,7 +129,7 @@ describe('EdgeManager', () => {
       const output = {
         result: { data: 'test' },
         content: 'Hello world',
-        tokens: { prompt: 10, completion: 20, total: 30 },
+        tokens: { input: 10, output: 20, total: 30 },
       }
 
       const readyNodes = edgeManager.processOutgoingEdges(sourceNode, output)

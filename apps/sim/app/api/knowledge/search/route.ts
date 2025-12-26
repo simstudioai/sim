@@ -183,11 +183,11 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Generate query embedding only if query is provided
+      const workspaceId = accessChecks.find((ac) => ac?.hasAccess)?.knowledgeBase?.workspaceId
+
       const hasQuery = validatedData.query && validatedData.query.trim().length > 0
-      // Start embedding generation early and await when needed
       const queryEmbeddingPromise = hasQuery
-        ? generateSearchEmbedding(validatedData.query!)
+        ? generateSearchEmbedding(validatedData.query!, undefined, workspaceId)
         : Promise.resolve(null)
 
       // Check if any requested knowledge bases were not accessible

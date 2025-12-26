@@ -8,6 +8,7 @@ import type {
 } from '@/lib/uploads/providers/blob/types'
 import type { FileInfo } from '@/lib/uploads/shared/types'
 import { sanitizeStorageMetadata } from '@/lib/uploads/utils/file-utils'
+import { sanitizeFileName } from '@/executor/constants'
 
 type BlobServiceClientInstance = Awaited<
   ReturnType<typeof import('@azure/storage-blob').BlobServiceClient.fromConnectionString>
@@ -79,7 +80,7 @@ export async function uploadToBlob(
     shouldPreserveKey = preserveKey ?? false
   }
 
-  const safeFileName = fileName.replace(/\s+/g, '-') // Replace spaces with hyphens
+  const safeFileName = sanitizeFileName(fileName)
   const uniqueKey = shouldPreserveKey ? fileName : `${Date.now()}-${safeFileName}`
 
   const blobServiceClient = await getBlobServiceClient()
@@ -357,7 +358,7 @@ export async function initiateMultipartUpload(
     containerName = BLOB_CONFIG.containerName
   }
 
-  const safeFileName = fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')
+  const safeFileName = sanitizeFileName(fileName)
   const { v4: uuidv4 } = await import('uuid')
   const uniqueKey = `kb/${uuidv4()}-${safeFileName}`
 

@@ -20,6 +20,13 @@ export const textSearchTool: ToolConfig<SupabaseTextSearchParams, SupabaseTextSe
       visibility: 'user-or-llm',
       description: 'The name of the Supabase table to search',
     },
+    schema: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Database schema to search in (default: public). Use this to access tables in other schemas.',
+    },
     column: {
       type: 'string',
       required: true,
@@ -86,10 +93,16 @@ export const textSearchTool: ToolConfig<SupabaseTextSearchParams, SupabaseTextSe
       return url
     },
     method: 'GET',
-    headers: (params) => ({
-      apikey: params.apiKey,
-      Authorization: `Bearer ${params.apiKey}`,
-    }),
+    headers: (params) => {
+      const headers: Record<string, string> = {
+        apikey: params.apiKey,
+        Authorization: `Bearer ${params.apiKey}`,
+      }
+      if (params.schema) {
+        headers['Accept-Profile'] = params.schema
+      }
+      return headers
+    },
   },
 
   transformResponse: async (response: Response) => {

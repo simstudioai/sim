@@ -66,56 +66,6 @@ export function useMessageFeedback(
   }, [messages, message.id])
 
   /**
-   * Extracts workflow YAML from workflow tool calls
-   */
-  const getWorkflowYaml = useCallback(() => {
-    const allToolCalls = [
-      ...(message.toolCalls || []),
-      ...(message.contentBlocks || [])
-        .filter((block) => block.type === 'tool_call')
-        .map((block) => (block as any).toolCall),
-    ]
-
-    const workflowTools = allToolCalls.filter((toolCall) =>
-      WORKFLOW_TOOL_NAMES.includes(toolCall?.name)
-    )
-
-    for (const toolCall of workflowTools) {
-      const yamlContent =
-        toolCall.result?.yamlContent ||
-        toolCall.result?.data?.yamlContent ||
-        toolCall.input?.yamlContent ||
-        toolCall.input?.data?.yamlContent
-
-      if (yamlContent && typeof yamlContent === 'string' && yamlContent.trim()) {
-        return yamlContent
-      }
-    }
-
-    if (currentChat?.previewYaml?.trim()) {
-      return currentChat.previewYaml
-    }
-
-    for (const toolCall of workflowTools) {
-      if (toolCall.id) {
-        const preview = getPreviewByToolCall(toolCall.id)
-        if (preview?.yamlContent?.trim()) {
-          return preview.yamlContent
-        }
-      }
-    }
-
-    if (workflowTools.length > 0 && workflowId) {
-      const latestPreview = getLatestPendingPreview(workflowId, currentChat?.id)
-      if (latestPreview?.yamlContent?.trim()) {
-        return latestPreview.yamlContent
-      }
-    }
-
-    return null
-  }, [message, currentChat, workflowId, getPreviewByToolCall, getLatestPendingPreview])
-
-  /**
    * Submits feedback to the API
    */
   const submitFeedback = useCallback(
@@ -137,18 +87,12 @@ export function useMessageFeedback(
         return
       }
 
-      const workflowYaml = getWorkflowYaml()
-
       try {
-        const requestBody: any = {
+        const requestBody = {
           chatId: currentChat.id,
           userQuery,
           agentResponse,
           isPositiveFeedback: isPositive,
-        }
-
-        if (workflowYaml) {
-          requestBody.workflowYaml = workflowYaml
         }
 
         const response = await fetch('/api/copilot/feedback', {
@@ -168,7 +112,7 @@ export function useMessageFeedback(
         logger.error('Error submitting feedback:', error)
       }
     },
-    [currentChat, getLastUserQuery, getFullAssistantContent, message, getWorkflowYaml]
+    [currentChat, getLastUserQuery, getFullAssistantContent, message]
   )
 
   /**

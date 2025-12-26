@@ -14,6 +14,7 @@ import type { StorageConfig } from '@/lib/uploads/core/storage-client'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { isUuid } from '@/executor/constants'
 
 const logger = createLogger('FileAuthorization')
 
@@ -85,9 +86,7 @@ function extractWorkspaceIdFromKey(key: string): string | null {
   const parts = key.split('/')
   const workspaceId = parts[0]
 
-  // Validate UUID format
-  const UUID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
-  if (workspaceId && UUID_PATTERN.test(workspaceId)) {
+  if (workspaceId && isUuid(workspaceId)) {
     return workspaceId
   }
 

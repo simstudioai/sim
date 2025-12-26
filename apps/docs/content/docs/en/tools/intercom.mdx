@@ -41,6 +41,7 @@ Create a new contact in Intercom with email, external_id, or role
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `role` | string | No | The role of the contact. Accepts 'user' or 'lead'. Defaults to 'lead' if not specified. |
 | `email` | string | No | The contact's email address |
 | `external_id` | string | No | A unique identifier for the contact provided by the client |
 | `phone` | string | No | The contact's phone number |
@@ -51,6 +52,7 @@ Create a new contact in Intercom with email, external_id, or role
 | `owner_id` | string | No | The id of an admin that has been assigned account ownership of the contact |
 | `unsubscribed_from_emails` | boolean | No | Whether the contact is unsubscribed from emails |
 | `custom_attributes` | string | No | Custom attributes as JSON object \(e.g., \{"attribute_name": "value"\}\) |
+| `company_id` | string | No | Company ID to associate the contact with during creation |
 
 #### Output
 
@@ -85,6 +87,8 @@ Update an existing contact in Intercom
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `contactId` | string | Yes | Contact ID to update |
+| `role` | string | No | The role of the contact. Accepts 'user' or 'lead'. |
+| `external_id` | string | No | A unique identifier for the contact provided by the client |
 | `email` | string | No | The contact's email address |
 | `phone` | string | No | The contact's phone number |
 | `name` | string | No | The contact's name |
@@ -94,6 +98,7 @@ Update an existing contact in Intercom
 | `owner_id` | string | No | The id of an admin that has been assigned account ownership of the contact |
 | `unsubscribed_from_emails` | boolean | No | Whether the contact is unsubscribed from emails |
 | `custom_attributes` | string | No | Custom attributes as JSON object \(e.g., \{"attribute_name": "value"\}\) |
+| `company_id` | string | No | Company ID to associate the contact with |
 
 #### Output
 
@@ -131,6 +136,8 @@ Search for contacts in Intercom using a query
 | `query` | string | Yes | Search query \(e.g., \{"field":"email","operator":"=","value":"user@example.com"\}\) |
 | `per_page` | number | No | Number of results per page \(max: 150\) |
 | `starting_after` | string | No | Cursor for pagination |
+| `sort_field` | string | No | Field to sort by \(e.g., "name", "created_at", "last_seen_at"\) |
+| `sort_order` | string | No | Sort order: "ascending" or "descending" |
 
 #### Output
 
@@ -172,6 +179,7 @@ Create or update a company in Intercom
 | `industry` | string | No | The industry the company operates in |
 | `monthly_spend` | number | No | How much revenue the company generates for your business. Note: This field truncates floats to whole integers \(e.g., 155.98 becomes 155\) |
 | `custom_attributes` | string | No | Custom attributes as JSON object |
+| `remote_created_at` | number | No | The time the company was created by you as a Unix timestamp |
 
 #### Output
 
@@ -207,6 +215,7 @@ List all companies from Intercom with pagination support. Note: This endpoint ha
 | --------- | ---- | -------- | ----------- |
 | `per_page` | number | No | Number of results per page |
 | `page` | number | No | Page number |
+| `starting_after` | string | No | Cursor for pagination \(preferred over page-based pagination\) |
 
 #### Output
 
@@ -225,6 +234,7 @@ Retrieve a single conversation by ID from Intercom
 | --------- | ---- | -------- | ----------- |
 | `conversationId` | string | Yes | Conversation ID to retrieve |
 | `display_as` | string | No | Set to "plaintext" to retrieve messages in plain text |
+| `include_translations` | boolean | No | When true, conversation parts will be translated to the detected language of the conversation |
 
 #### Output
 
@@ -243,6 +253,8 @@ List all conversations from Intercom with pagination support
 | --------- | ---- | -------- | ----------- |
 | `per_page` | number | No | Number of results per page \(max: 150\) |
 | `starting_after` | string | No | Cursor for pagination |
+| `sort` | string | No | Field to sort by \(e.g., "waiting_since", "updated_at", "created_at"\) |
+| `order` | string | No | Sort order: "asc" \(ascending\) or "desc" \(descending\) |
 
 #### Output
 
@@ -264,6 +276,7 @@ Reply to a conversation as an admin in Intercom
 | `body` | string | Yes | The text body of the reply |
 | `admin_id` | string | No | The ID of the admin authoring the reply. If not provided, a default admin \(Operator/Fin\) will be used. |
 | `attachment_urls` | string | No | Comma-separated list of image URLs \(max 10\) |
+| `created_at` | number | No | Unix timestamp for when the reply was created. If not provided, current time is used. |
 
 #### Output
 
@@ -283,6 +296,8 @@ Search for conversations in Intercom using a query
 | `query` | string | Yes | Search query as JSON object |
 | `per_page` | number | No | Number of results per page \(max: 150\) |
 | `starting_after` | string | No | Cursor for pagination |
+| `sort_field` | string | No | Field to sort by \(e.g., "created_at", "updated_at"\) |
+| `sort_order` | string | No | Sort order: "ascending" or "descending" |
 
 #### Output
 
@@ -302,6 +317,10 @@ Create a new ticket in Intercom
 | `ticket_type_id` | string | Yes | The ID of the ticket type |
 | `contacts` | string | Yes | JSON array of contact identifiers \(e.g., \[\{"id": "contact_id"\}\]\) |
 | `ticket_attributes` | string | Yes | JSON object with ticket attributes including _default_title_ and _default_description_ |
+| `company_id` | string | No | Company ID to associate the ticket with |
+| `created_at` | number | No | Unix timestamp for when the ticket was created. If not provided, current time is used. |
+| `conversation_to_link_id` | string | No | ID of an existing conversation to link to this ticket |
+| `disable_notifications` | boolean | No | When true, suppresses notifications when the ticket is created |
 
 #### Output
 
@@ -335,13 +354,15 @@ Create and send a new admin-initiated message in Intercom
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `message_type` | string | Yes | Message type: "inapp" or "email" |
+| `message_type` | string | Yes | Message type: "inapp" for in-app messages or "email" for email messages |
+| `template` | string | Yes | Message template style: "plain" for plain text or "personal" for personalized style |
 | `subject` | string | No | The subject of the message \(for email type\) |
 | `body` | string | Yes | The body of the message |
 | `from_type` | string | Yes | Sender type: "admin" |
 | `from_id` | string | Yes | The ID of the admin sending the message |
 | `to_type` | string | Yes | Recipient type: "contact" |
 | `to_id` | string | Yes | The ID of the contact receiving the message |
+| `created_at` | number | No | Unix timestamp for when the message was created. If not provided, current time is used. |
 
 #### Output
 

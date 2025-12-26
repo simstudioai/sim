@@ -14,6 +14,8 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { REFERENCE } from '@/executor/constants'
+import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 import { executeTool } from '@/tools'
 import { getTool } from '@/tools/utils'
 
@@ -33,14 +35,18 @@ const ExecuteToolSchema = z.object({
 function resolveEnvVarReferences(value: any, envVars: Record<string, string>): any {
   if (typeof value === 'string') {
     // Check for exact match: entire string is "{{VAR_NAME}}"
-    const exactMatch = /^\{\{([^}]+)\}\}$/.exec(value)
+    const exactMatchPattern = new RegExp(
+      `^\\${REFERENCE.ENV_VAR_START}([^}]+)\\${REFERENCE.ENV_VAR_END}$`
+    )
+    const exactMatch = exactMatchPattern.exec(value)
     if (exactMatch) {
       const envVarName = exactMatch[1].trim()
       return envVars[envVarName] ?? value
     }
 
     // Check for embedded references: "prefix {{VAR}} suffix"
-    return value.replace(/\{\{([^}]+)\}\}/g, (match, varName) => {
+    const envVarPattern = createEnvVarPattern()
+    return value.replace(envVarPattern, (match, varName) => {
       const trimmedName = varName.trim()
       return envVars[trimmedName] ?? match
     })

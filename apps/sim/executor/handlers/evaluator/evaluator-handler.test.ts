@@ -60,7 +60,7 @@ describe('EvaluatorBlockHandler', () => {
           Promise.resolve({
             content: JSON.stringify({ score1: 5, score2: 8 }),
             model: 'mock-model',
-            tokens: { prompt: 50, completion: 10, total: 60 },
+            tokens: { input: 50, output: 10, total: 60 },
             cost: 0.002,
             timing: { total: 200 },
           }),
@@ -82,6 +82,7 @@ describe('EvaluatorBlockHandler', () => {
         { name: 'score2', description: 'Second score', range: { min: 0, max: 10 } },
       ],
       model: 'gpt-4o',
+      apiKey: 'test-api-key',
       temperature: 0.1,
     }
 
@@ -97,7 +98,6 @@ describe('EvaluatorBlockHandler', () => {
       })
     )
 
-    // Verify the request body contains the expected data
     const fetchCallArgs = mockFetch.mock.calls[0]
     const requestBody = JSON.parse(fetchCallArgs[1].body)
     expect(requestBody).toMatchObject({
@@ -121,7 +121,7 @@ describe('EvaluatorBlockHandler', () => {
     expect(result).toEqual({
       content: 'This is the content to evaluate.',
       model: 'mock-model',
-      tokens: { prompt: 50, completion: 10, total: 60 },
+      tokens: { input: 50, output: 10, total: 60 },
       cost: {
         input: 0,
         output: 0,
@@ -137,6 +137,7 @@ describe('EvaluatorBlockHandler', () => {
     const inputs = {
       content: JSON.stringify(contentObj),
       metrics: [{ name: 'clarity', description: 'Clarity score', range: { min: 1, max: 5 } }],
+      apiKey: 'test-api-key',
     }
 
     mockFetch.mockImplementationOnce(() => {
@@ -169,6 +170,7 @@ describe('EvaluatorBlockHandler', () => {
       metrics: [
         { name: 'completeness', description: 'Data completeness', range: { min: 0, max: 1 } },
       ],
+      apiKey: 'test-api-key',
     }
 
     mockFetch.mockImplementationOnce(() => {
@@ -198,6 +200,7 @@ describe('EvaluatorBlockHandler', () => {
     const inputs = {
       content: 'Test content',
       metrics: [{ name: 'quality', description: 'Quality score', range: { min: 1, max: 10 } }],
+      apiKey: 'test-api-key',
     }
 
     mockFetch.mockImplementationOnce(() => {
@@ -223,6 +226,7 @@ describe('EvaluatorBlockHandler', () => {
     const inputs = {
       content: 'Test content',
       metrics: [{ name: 'score', description: 'Score', range: { min: 0, max: 5 } }],
+      apiKey: 'test-api-key',
     }
 
     mockFetch.mockImplementationOnce(() => {
@@ -251,6 +255,7 @@ describe('EvaluatorBlockHandler', () => {
         { name: 'accuracy', description: 'Acc', range: { min: 0, max: 1 } },
         { name: 'fluency', description: 'Flu', range: { min: 0, max: 1 } },
       ],
+      apiKey: 'test-api-key',
     }
 
     mockFetch.mockImplementationOnce(() => {
@@ -276,6 +281,7 @@ describe('EvaluatorBlockHandler', () => {
     const inputs = {
       content: 'Test',
       metrics: [{ name: 'CamelCaseScore', description: 'Desc', range: { min: 0, max: 10 } }],
+      apiKey: 'test-api-key',
     }
 
     mockFetch.mockImplementationOnce(() => {
@@ -304,6 +310,7 @@ describe('EvaluatorBlockHandler', () => {
         { name: 'presentScore', description: 'Desc1', range: { min: 0, max: 5 } },
         { name: 'missingScore', description: 'Desc2', range: { min: 0, max: 5 } },
       ],
+      apiKey: 'test-api-key',
     }
 
     mockFetch.mockImplementationOnce(() => {
@@ -327,7 +334,7 @@ describe('EvaluatorBlockHandler', () => {
   })
 
   it('should handle server error responses', async () => {
-    const inputs = { content: 'Test error handling.' }
+    const inputs = { content: 'Test error handling.', apiKey: 'test-api-key' }
 
     // Override fetch mock to return an error
     mockFetch.mockImplementationOnce(() => {
@@ -339,5 +346,125 @@ describe('EvaluatorBlockHandler', () => {
     })
 
     await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow('Server error')
+  })
+
+  it('should handle Azure OpenAI models with endpoint and API version', async () => {
+    const inputs = {
+      content: 'Test content to evaluate',
+      metrics: [{ name: 'quality', description: 'Quality score', range: { min: 1, max: 10 } }],
+      model: 'gpt-4o',
+      apiKey: 'test-azure-key',
+      azureEndpoint: 'https://test.openai.azure.com',
+      azureApiVersion: '2024-07-01-preview',
+    }
+
+    mockGetProviderFromModel.mockReturnValue('azure-openai')
+
+    mockFetch.mockImplementationOnce(() => {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: JSON.stringify({ quality: 8 }),
+            model: 'gpt-4o',
+            tokens: {},
+            cost: 0,
+            timing: {},
+          }),
+      })
+    })
+
+    await handler.execute(mockContext, mockBlock, inputs)
+
+    const fetchCallArgs = mockFetch.mock.calls[0]
+    const requestBody = JSON.parse(fetchCallArgs[1].body)
+
+    expect(requestBody).toMatchObject({
+      provider: 'azure-openai',
+      model: 'gpt-4o',
+      apiKey: 'test-azure-key',
+      azureEndpoint: 'https://test.openai.azure.com',
+      azureApiVersion: '2024-07-01-preview',
+    })
+  })
+
+  it('should handle Vertex AI models with OAuth credential', async () => {
+    const inputs = {
+      content: 'Test content to evaluate',
+      metrics: [{ name: 'quality', description: 'Quality score', range: { min: 1, max: 10 } }],
+      model: 'gemini-2.0-flash-exp',
+      vertexCredential: 'test-vertex-credential-id',
+      vertexProject: 'test-gcp-project',
+      vertexLocation: 'us-central1',
+    }
+
+    mockGetProviderFromModel.mockReturnValue('vertex')
+
+    // Mock the database query for Vertex credential
+    const mockDb = await import('@sim/db')
+    const mockAccount = {
+      id: 'test-vertex-credential-id',
+      accessToken: 'mock-access-token',
+      refreshToken: 'mock-refresh-token',
+      expiresAt: new Date(Date.now() + 3600000), // 1 hour from now
+    }
+    vi.spyOn(mockDb.db.query.account, 'findFirst').mockResolvedValue(mockAccount as any)
+
+    mockFetch.mockImplementationOnce(() => {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: JSON.stringify({ quality: 9 }),
+            model: 'gemini-2.0-flash-exp',
+            tokens: {},
+            cost: 0,
+            timing: {},
+          }),
+      })
+    })
+
+    await handler.execute(mockContext, mockBlock, inputs)
+
+    const fetchCallArgs = mockFetch.mock.calls[0]
+    const requestBody = JSON.parse(fetchCallArgs[1].body)
+
+    expect(requestBody).toMatchObject({
+      provider: 'vertex',
+      model: 'gemini-2.0-flash-exp',
+      vertexProject: 'test-gcp-project',
+      vertexLocation: 'us-central1',
+    })
+    expect(requestBody.apiKey).toBe('mock-access-token')
+  })
+
+  it('should use default model when not provided', async () => {
+    const inputs = {
+      content: 'Test content',
+      metrics: [{ name: 'score', description: 'Score', range: { min: 0, max: 10 } }],
+      apiKey: 'test-api-key',
+      // No model provided - should use default
+    }
+
+    mockFetch.mockImplementationOnce(() => {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: JSON.stringify({ score: 7 }),
+            model: 'claude-sonnet-4-5',
+            tokens: {},
+            cost: 0,
+            timing: {},
+          }),
+      })
+    })
+
+    await handler.execute(mockContext, mockBlock, inputs)
+
+    const fetchCallArgs = mockFetch.mock.calls[0]
+    const requestBody = JSON.parse(fetchCallArgs[1].body)
+
+    expect(requestBody.model).toBe('claude-sonnet-4-5')
   })
 })

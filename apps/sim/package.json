@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "next dev --port 3000",
     "dev:webpack": "next dev --webpack",
-    "dev:sockets": "bun run socket-server/index.ts",
+    "dev:sockets": "bun run socket/index.ts",
     "dev:full": "concurrently -n \"App,Realtime\" -c \"cyan,magenta\" \"bun run dev\" \"bun run dev:sockets\"",
     "build": "next build",
     "start": "next start",
@@ -37,6 +37,7 @@
     "@browserbasehq/stagehand": "^3.0.5",
     "@cerebras/cerebras_cloud_sdk": "^1.23.0",
     "@e2b/code-interpreter": "^2.0.0",
+    "@google/genai": "1.34.0",
     "@hookform/resolvers": "^4.1.3",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-jaeger": "2.1.0",
@@ -139,6 +140,7 @@
     "zustand": "^4.5.7"
   },
   "devDependencies": {
+    "@sim/testing": "workspace:*",
     "@testing-library/jest-dom": "^6.6.3",
     "@trigger.dev/build": "4.1.2",
     "@types/html-to-text": "9.0.4",

@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -11,6 +12,7 @@ import type {
   TimeSegment,
 } from '@/providers/types'
 import {
+  calculateCost,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   trackForcedToolUsage,
@@ -34,7 +36,7 @@ export const mistralProvider: ProviderConfig = {
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
     logger.info('Preparing Mistral request', {
-      model: request.model || 'mistral-large-latest',
+      model: request.model,
       hasSystemPrompt: !!request.systemPrompt,
       hasMessages: !!request.messages?.length,
       hasTools: !!request.tools?.length,
@@ -84,7 +86,7 @@ export const mistralProvider: ProviderConfig = {
       : undefined
 
     const payload: any = {
-      model: request.model || 'mistral-large-latest',
+      model: request.model,
       messages: allMessages,
     }
 
@@ -100,8 +102,6 @@ export const mistralProvider: ProviderConfig = {
           strict: request.responseFormat.strict !== false,
         },
       }
-
-      logger.info('Added JSON schema response format to request')
     }
 
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
@@ -126,7 +126,7 @@ export const mistralProvider: ProviderConfig = {
                   : toolChoice.type === 'any'
                     ? `force:${toolChoice.any?.name || 'unknown'}`
                     : 'unknown',
-          model: request.model || 'mistral-large-latest',
+          model: request.model,
         })
       }
     }
@@ -138,24 +138,32 @@ export const mistralProvider: ProviderConfig = {
       if (request.stream && (!tools || tools.length === 0)) {
         logger.info('Using streaming response for Mistral request')
 
-        const streamResponse = await mistral.chat.completions.create({
+        const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           stream: true,
           stream_options: { include_usage: true },
-        })
-
-        const tokenUsage = {
-          prompt: 0,
-          completion: 0,
-          total: 0,
         }
-
-        let _streamContent = ''
+        const streamResponse = await mistral.chat.completions.create(streamingParams)
 
         const streamingResult = {
           stream: createReadableStreamFromMistralStream(streamResponse, (content, usage) => {
-            _streamContent = content
             streamingResult.execution.output.content = content
+            streamingResult.execution.output.tokens = {
+              input: usage.prompt_tokens,
+              output: usage.completion_tokens,
+              total: usage.total_tokens,
+            }
+
+            const costResult = calculateCost(
+              request.model,
+              usage.prompt_tokens,
+              usage.completion_tokens
+            )
+            streamingResult.execution.output.cost = {
+              input: costResult.input,
+              output: costResult.output,
+              total: costResult.total,
+            }
 
             const streamEndTime = Date.now()
             const streamEndTimeISO = new Date(streamEndTime).toISOString()
@@ -172,23 +180,13 @@ export const mistralProvider: ProviderConfig = {
                   streamEndTime - providerStartTime
               }
             }
-
-            if (usage) {
-              const newTokens = {
-                prompt: usage.prompt_tokens || tokenUsage.prompt,
-                completion: usage.completion_tokens || tokenUsage.completion,
-                total: usage.total_tokens || tokenUsage.total,
-              }
-
-              streamingResult.execution.output.tokens = newTokens
-            }
           }),
           execution: {
             success: true,
             output: {
               content: '',
               model: request.model,
-              tokens: tokenUsage,
+              tokens: { input: 0, output: 0, total: 0 },
               toolCalls: undefined,
               providerTiming: {
                 startTime: providerStartTimeISO,
@@ -204,6 +202,7 @@ export const mistralProvider: ProviderConfig = {
                   },
                 ],
               },
+              cost: { input: 0, output: 0, total: 0 },
             },
             logs: [],
             metadata: {
@@ -248,8 +247,8 @@ export const mistralProvider: ProviderConfig = {
 
       let content = currentResponse.choices[0]?.message?.content || ''
       const tokens = {
-        prompt: currentResponse.usage?.prompt_tokens || 0,
-        completion: currentResponse.usage?.completion_tokens || 0,
+        input: currentResponse.usage?.prompt_tokens || 0,
+        output: currentResponse.usage?.completion_tokens || 0,
         total: currentResponse.usage?.total_tokens || 0,
       }
       const toolCalls = []
@@ -275,6 +274,10 @@ export const mistralProvider: ProviderConfig = {
       checkForForcedToolUsage(currentResponse, originalToolChoice)
 
       while (iterationCount < MAX_TOOL_ITERATIONS) {
+        if (currentResponse.choices[0]?.message?.content) {
+          content = currentResponse.choices[0].message.content
+        }
+
         const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
         if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
           break
@@ -285,78 +288,103 @@ export const mistralProvider: ProviderConfig = {
         )
 
         const toolsStartTime = Date.now()
+        const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
+          const toolCallStartTime = Date.now()
+          const toolName = toolCall.function.name
 
-        for (const toolCall of toolCallsInResponse) {
           try {
-            const toolName = toolCall.function.name
             const toolArgs = JSON.parse(toolCall.function.arguments)
-
             const tool = request.tools?.find((t) => t.id === toolName)
-            if (!tool) continue
 
-            const toolCallStartTime = Date.now()
+            if (!tool) return null
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
             const result = await executeTool(toolName, executionParams, true)
             const toolCallEndTime = Date.now()
-            const toolCallDuration = toolCallEndTime - toolCallStartTime
 
-            timeSegments.push({
-              type: 'tool',
-              name: toolName,
+            return {
+              toolCall,
+              toolName,
+              toolParams,
+              result,
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,
-              duration: toolCallDuration,
-            })
-
-            let resultContent: any
-            if (result.success) {
-              toolResults.push(result.output)
-              resultContent = result.output
-            } else {
-              resultContent = {
-                error: true,
-                message: result.error || 'Tool execution failed',
-                tool: toolName,
-              }
+              duration: toolCallEndTime - toolCallStartTime,
             }
-
-            toolCalls.push({
-              name: toolName,
-              arguments: toolParams,
-              startTime: new Date(toolCallStartTime).toISOString(),
-              endTime: new Date(toolCallEndTime).toISOString(),
-              duration: toolCallDuration,
-              result: resultContent,
-              success: result.success,
-            })
-
-            currentMessages.push({
-              role: 'assistant',
-              content: null,
-              tool_calls: [
-                {
-                  id: toolCall.id,
-                  type: 'function',
-                  function: {
-                    name: toolName,
-                    arguments: toolCall.function.arguments,
-                  },
-                },
-              ],
-            })
-
-            currentMessages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: JSON.stringify(resultContent),
-            })
           } catch (error) {
-            logger.error('Error processing tool call:', {
-              error,
-              toolName: toolCall?.function?.name,
-            })
+            const toolCallEndTime = Date.now()
+            logger.error('Error processing tool call:', { error, toolName })
+
+            return {
+              toolCall,
+              toolName,
+              toolParams: {},
+              result: {
+                success: false,
+                output: undefined,
+                error: error instanceof Error ? error.message : 'Tool execution failed',
+              },
+              startTime: toolCallStartTime,
+              endTime: toolCallEndTime,
+              duration: toolCallEndTime - toolCallStartTime,
+            }
           }
+        })
+
+        const executionResults = await Promise.allSettled(toolExecutionPromises)
+        currentMessages.push({
+          role: 'assistant',
+          content: null,
+          tool_calls: toolCallsInResponse.map((tc) => ({
+            id: tc.id,
+            type: 'function',
+            function: {
+              name: tc.function.name,
+              arguments: tc.function.arguments,
+            },
+          })),
+        })
+
+        for (const settledResult of executionResults) {
+          if (settledResult.status === 'rejected' || !settledResult.value) continue
+
+          const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
+            settledResult.value
+
+          timeSegments.push({
+            type: 'tool',
+            name: toolName,
+            startTime: startTime,
+            endTime: endTime,
+            duration: duration,
+          })
+
+          let resultContent: any
+          if (result.success) {
+            toolResults.push(result.output)
+            resultContent = result.output
+          } else {
+            resultContent = {
+              error: true,
+              message: result.error || 'Tool execution failed',
+              tool: toolName,
+            }
+          }
+
+          toolCalls.push({
+            name: toolName,
+            arguments: toolParams,
+            startTime: new Date(startTime).toISOString(),
+            endTime: new Date(endTime).toISOString(),
+            duration: duration,
+            result: resultContent,
+            success: result.success,
+          })
+          currentMessages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(resultContent),
+          })
         }
 
         const thisToolsTime = Date.now() - toolsStartTime
@@ -406,8 +434,8 @@ export const mistralProvider: ProviderConfig = {
         }
 
         if (currentResponse.usage) {
-          tokens.prompt += currentResponse.usage.prompt_tokens || 0
-          tokens.completion += currentResponse.usage.completion_tokens || 0
+          tokens.input += currentResponse.usage.prompt_tokens || 0
+          tokens.output += currentResponse.usage.completion_tokens || 0
           tokens.total += currentResponse.usage.total_tokens || 0
         }
 
@@ -417,31 +445,35 @@ export const mistralProvider: ProviderConfig = {
       if (request.stream) {
         logger.info('Using streaming for final response after tool processing')
 
-        const streamingPayload = {
+        const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
+
+        const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           messages: currentMessages,
           tool_choice: 'auto',
           stream: true,
           stream_options: { include_usage: true },
         }
-
-        const streamResponse = await mistral.chat.completions.create(streamingPayload)
-
-        let _streamContent = ''
+        const streamResponse = await mistral.chat.completions.create(streamingParams)
 
         const streamingResult = {
           stream: createReadableStreamFromMistralStream(streamResponse, (content, usage) => {
-            _streamContent = content
             streamingResult.execution.output.content = content
+            streamingResult.execution.output.tokens = {
+              input: tokens.input + usage.prompt_tokens,
+              output: tokens.output + usage.completion_tokens,
+              total: tokens.total + usage.total_tokens,
+            }
 
-            if (usage) {
-              const newTokens = {
-                prompt: usage.prompt_tokens || tokens.prompt,
-                completion: usage.completion_tokens || tokens.completion,
-                total: usage.total_tokens || tokens.total,
-              }
-
-              streamingResult.execution.output.tokens = newTokens
+            const streamCost = calculateCost(
+              request.model,
+              usage.prompt_tokens,
+              usage.completion_tokens
+            )
+            streamingResult.execution.output.cost = {
+              input: accumulatedCost.input + streamCost.input,
+              output: accumulatedCost.output + streamCost.output,
+              total: accumulatedCost.total + streamCost.total,
             }
           }),
           execution: {
@@ -450,8 +482,8 @@ export const mistralProvider: ProviderConfig = {
               content: '',
               model: request.model,
               tokens: {
-                prompt: tokens.prompt,
-                completion: tokens.completion,
+                input: tokens.input,
+                output: tokens.output,
                 total: tokens.total,
               },
               toolCalls:
@@ -470,6 +502,11 @@ export const mistralProvider: ProviderConfig = {
                 firstResponseTime: firstResponseTime,
                 iterations: iterationCount + 1,
                 timeSegments: timeSegments,
+              },
+              cost: {
+                input: accumulatedCost.input,
+                output: accumulatedCost.output,
+                total: accumulatedCost.total,
               },
             },
             logs: [],
@@ -516,7 +553,7 @@ export const mistralProvider: ProviderConfig = {
       })
 
       const enhancedError = new Error(error instanceof Error ? error.message : String(error))
-      // @ts-ignore - Adding timing property to the error
+      // @ts-ignore - Adding timing property to error for debugging
       enhancedError.timing = {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,

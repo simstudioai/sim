@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { McpApiResponse } from '@/lib/mcp/types'
+import { isMcpTool, MCP } from '@/executor/constants'
 
 /**
  * MCP-specific constants
@@ -124,7 +125,7 @@ export function categorizeError(error: unknown): { message: string; status: numb
  * Create standardized MCP tool ID from server ID and tool name
  */
 export function createMcpToolId(serverId: string, toolName: string): string {
-  const normalizedServerId = serverId.startsWith('mcp-') ? serverId : `mcp-${serverId}`
+  const normalizedServerId = isMcpTool(serverId) ? serverId : `${MCP.TOOL_PREFIX}${serverId}`
   return `${normalizedServerId}-${toolName}`
 }
 

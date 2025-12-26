@@ -1,0 +1,218 @@
+---
+title: Grain
+description: 会議の録画、文字起こし、AI要約にアクセス
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="grain"
+  color="#F6FAF9"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Grain](https://grain.com/)は、会議の録画、文字起こし、ハイライト、AI搭載の要約を記録、保存、共有するための最新プラットフォームです。Grainを使用すると、チームは会話を実用的なインサイトに変換し、会議の重要な瞬間について全員の認識を一致させることができます。
+
+Grainでできること:
+
+- **検索可能な録画と文字起こしへのアクセス**: キーワード、参加者、トピックで会議を検索して確認できます。
+- **ハイライトとクリップの共有**: 重要な瞬間を記録し、短い動画/音声のハイライトをチームやワークフロー全体で共有できます。
+- **AI生成の要約を取得**: Grainの高度なAIを使用して、会議の要約、アクションアイテム、主要なインサイトを自動的に作成します。
+- **チームやタイプ別に会議を整理**: 録画にタグを付けて分類し、簡単にアクセスしてレポートを作成できます。
+
+Sim Grain統合により、エージェントは次のことが可能になります:
+
+- 柔軟なフィルター(日時、参加者、チームなど)で会議の録画と詳細を一覧表示、検索、取得できます。
+- 会議のAI要約、参加者、ハイライト、その他のメタデータにアクセスして、自動化や分析を強化できます。
+- Grain Webhookを介して、新しい会議が処理されたとき、要約が生成されたとき、またはハイライトが作成されたときにワークフローをトリガーできます。
+- Grainのデータを他のツールに簡単に連携したり、会議で重要なことが発生した瞬間にチームメイトに通知したりできます。
+
+フォローアップアクションを自動化したり、重要な会話の記録を保持したり、組織全体でインサイトを表示したりする場合でも、GrainとSimを使用すると、会議のインテリジェンスをワークフローに簡単に接続できます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Grainをワークフローに統合します。会議の録画、文字起こし、ハイライト、AI生成の要約にアクセスできます。Grain Webhookイベントに基づいてワークフローをトリガーすることもできます。
+
+## ツール
+
+### `grain_list_recordings`
+
+オプションのフィルターとページネーションを使用してGrainから録画を一覧表示
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grain APIキー（個人アクセストークン） |
+| `cursor` | string | いいえ | 次のページのページネーションカーソル |
+| `beforeDatetime` | string | いいえ | このISO8601タイムスタンプより前の録画のみ |
+| `afterDatetime` | string | いいえ | このISO8601タイムスタンプより後の録画のみ |
+| `participantScope` | string | いいえ | フィルター：「internal」または「external」 |
+| `titleSearch` | string | いいえ | 録画タイトルでフィルタリングする検索語 |
+| `teamId` | string | いいえ | チームUUIDでフィルタリング |
+| `meetingTypeId` | string | いいえ | ミーティングタイプUUIDでフィルタリング |
+| `includeHighlights` | boolean | いいえ | レスポンスにハイライト/クリップを含める |
+| `includeParticipants` | boolean | いいえ | レスポンスに参加者リストを含める |
+| `includeAiSummary` | boolean | いいえ | AI生成サマリーを含める |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `recordings` | array | 録画オブジェクトの配列 |
+
+### `grain_get_recording`
+
+IDで単一の録画の詳細を取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grain APIキー（個人アクセストークン） |
+| `recordingId` | string | はい | 録画UUID |
+| `includeHighlights` | boolean | いいえ | ハイライト/クリップを含める |
+| `includeParticipants` | boolean | いいえ | 参加者リストを含める |
+| `includeAiSummary` | boolean | いいえ | AIサマリーを含める |
+| `includeCalendarEvent` | boolean | いいえ | カレンダーイベントデータを含める |
+| `includeHubspot` | boolean | いいえ | HubSpot関連付けを含める |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | 録画UUID |
+| `title` | string | 録画タイトル |
+| `start_datetime` | string | ISO8601形式の開始タイムスタンプ |
+| `end_datetime` | string | ISO8601形式の終了タイムスタンプ |
+| `duration_ms` | number | ミリ秒単位の長さ |
+| `media_type` | string | audio、transcript、またはvideo |
+| `source` | string | 録画ソース(zoom、meet、teamsなど) |
+| `url` | string | Grainで表示するためのURL |
+| `thumbnail_url` | string | サムネイル画像URL |
+| `tags` | array | タグ文字列の配列 |
+| `teams` | array | 録画が属するチーム |
+| `meeting_type` | object | ミーティングタイプ情報(id、name、scope) |
+| `highlights` | array | ハイライト(含まれる場合) |
+| `participants` | array | 参加者(含まれる場合) |
+| `ai_summary` | object | AI要約テキスト(含まれる場合) |
+| `calendar_event` | object | カレンダーイベントデータ(含まれる場合) |
+| `hubspot` | object | HubSpot関連付け(含まれる場合) |
+
+### `grain_get_transcript`
+
+録画の完全なトランスクリプトを取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grain APIキー(パーソナルアクセストークン) |
+| `recordingId` | string | はい | 録画UUID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `transcript` | array | トランスクリプトセクションの配列 |
+
+### `grain_list_teams`
+
+ワークスペース内のすべてのチームを一覧表示
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grain APIキー(パーソナルアクセストークン) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `teams` | array | チームオブジェクトの配列 |
+
+### `grain_list_meeting_types`
+
+ワークスペース内のすべてのミーティングタイプを一覧表示
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grain APIキー(パーソナルアクセストークン) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `meeting_types` | array | ミーティングタイプオブジェクトの配列 |
+
+### `grain_create_hook`
+
+録画イベントを受信するためのWebhookを作成
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grain APIキー(パーソナルアクセストークン) |
+| `hookUrl` | string | はい | WebhookエンドポイントURL(2xxを返す必要があります) |
+| `filterBeforeDatetime` | string | いいえ | フィルタ: この日付より前の録画 |
+| `filterAfterDatetime` | string | いいえ | フィルタ: この日付より後の録画 |
+| `filterParticipantScope` | string | いいえ | フィルタ: "internal"または"external" |
+| `filterTeamId` | string | いいえ | フィルタ: 特定のチームUUID |
+| `filterMeetingTypeId` | string | いいえ | フィルタ: 特定のミーティングタイプ |
+| `includeHighlights` | boolean | いいえ | Webhookペイロードにハイライトを含める |
+| `includeParticipants` | boolean | いいえ | Webhookペイロードに参加者を含める |
+| `includeAiSummary` | boolean | いいえ | WebhookペイロードにAIサマリーを含める |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | フックUUID |
+| `enabled` | boolean | フックがアクティブかどうか |
+| `hook_url` | string | WebフックURL |
+| `filter` | object | 適用されたフィルタ |
+| `include` | object | 含まれるフィールド |
+| `inserted_at` | string | ISO8601形式の作成タイムスタンプ |
+
+### `grain_list_hooks`
+
+アカウントのすべてのWebフックを一覧表示
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grain APIキー（個人アクセストークン） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `hooks` | array | フックオブジェクトの配列 |
+
+### `grain_delete_hook`
+
+IDでWebフックを削除
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Grain APIキー（個人アクセストークン） |
+| `hookId` | string | はい | 削除するフックUUID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | Webフックが正常に削除された場合はtrue |
+
+## 注記
+
+- カテゴリ: `tools`
+- タイプ: `grain`

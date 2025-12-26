@@ -3,15 +3,18 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('StructuredDataChunker')
 
-// Configuration for structured data chunking (CSV, XLSX, etc.)
-const STRUCTURED_CHUNKING_CONFIG = {
-  // Target 2000-3000 tokens per chunk for better semantic meaning
-  TARGET_CHUNK_SIZE: 2500,
-  MIN_CHUNK_SIZE: 500,
+/**
+ * Default configuration for structured data chunking (CSV, XLSX, etc.)
+ * These are used when user doesn't provide preferences
+ */
+const DEFAULT_CONFIG = {
+  // Target chunk size in tokens
+  TARGET_CHUNK_SIZE: 1024,
+  MIN_CHUNK_SIZE: 100,
   MAX_CHUNK_SIZE: 4000,
 
   // For spreadsheets, group rows together
-  ROWS_PER_CHUNK: 100, // Start with 100 rows per chunk
+  ROWS_PER_CHUNK: 100,
   MIN_ROWS_PER_CHUNK: 20,
   MAX_ROWS_PER_CHUNK: 500,
 
@@ -22,10 +25,12 @@ const STRUCTURED_CHUNKING_CONFIG = {
 
 /**
  * Smart chunker for structured data (CSV, XLSX) that preserves semantic meaning
+ * Preserves headers in each chunk for better semantic context
  */
 export class StructuredDataChunker {
   /**
    * Chunk structured data intelligently based on rows and semantic boundaries
+   * Respects user's chunkSize preference when provided
    */
   static async chunkStructuredData(
     content: string,
@@ -38,19 +43,24 @@ export class StructuredDataChunker {
       return chunks
     }
 
+    // Use user's chunk size or fall back to default
+    const targetChunkSize = options.chunkSize ?? DEFAULT_CONFIG.TARGET_CHUNK_SIZE
+
     // Detect headers (first line or provided)
     const headerLine = options.headers?.join('\t') || lines[0]
     const dataStartIndex = options.headers ? 0 : 1
 
-    // Calculate optimal rows per chunk based on content
+    // Calculate optimal rows per chunk based on content and user's target size
     const estimatedTokensPerRow = StructuredDataChunker.estimateTokensPerRow(
       lines.slice(dataStartIndex, Math.min(10, lines.length))
     )
-    const optimalRowsPerChunk =
-      StructuredDataChunker.calculateOptimalRowsPerChunk(estimatedTokensPerRow)
+    const optimalRowsPerChunk = StructuredDataChunker.calculateOptimalRowsPerChunk(
+      estimatedTokensPerRow,
+      targetChunkSize
+    )
 
     logger.info(
-      `Structured data chunking: ${lines.length} rows, ~${estimatedTokensPerRow} tokens/row, ${optimalRowsPerChunk} rows/chunk`
+      `Structured data chunking: ${lines.length} rows, ~${estimatedTokensPerRow} tokens/row, ${optimalRowsPerChunk} rows/chunk, target: ${targetChunkSize} tokens`
     )
 
     let currentChunkRows: string[] = []
@@ -66,11 +76,11 @@ export class StructuredDataChunker {
       const projectedTokens =
         currentTokenEstimate +
         rowTokens +
-        (STRUCTURED_CHUNKING_CONFIG.INCLUDE_HEADERS_IN_EACH_CHUNK ? headerTokens : 0)
+        (DEFAULT_CONFIG.INCLUDE_HEADERS_IN_EACH_CHUNK ? headerTokens : 0)
 
       const shouldCreateChunk =
-        (projectedTokens > STRUCTURED_CHUNKING_CONFIG.TARGET_CHUNK_SIZE &&
-          currentChunkRows.length >= STRUCTURED_CHUNKING_CONFIG.MIN_ROWS_PER_CHUNK) ||
+        (projectedTokens > targetChunkSize &&
+          currentChunkRows.length >= DEFAULT_CONFIG.MIN_ROWS_PER_CHUNK) ||
         currentChunkRows.length >= optimalRowsPerChunk
 
       if (shouldCreateChunk && currentChunkRows.length > 0) {
@@ -119,7 +129,7 @@ export class StructuredDataChunker {
     }
 
     // Add headers for context
-    if (STRUCTURED_CHUNKING_CONFIG.INCLUDE_HEADERS_IN_EACH_CHUNK) {
+    if (DEFAULT_CONFIG.INCLUDE_HEADERS_IN_EACH_CHUNK) {
       content += `Headers: ${headerLine}\n`
       content += `${'-'.repeat(Math.min(80, headerLine.length))}\n`
     }
@@ -151,10 +161,9 @@ export class StructuredDataChunker {
 
   /**
    * Estimate tokens in text (rough approximation)
+   * For structured data with numbers, uses 1 token per 3 characters
    */
   private static estimateTokens(text: string): number {
-    // Rough estimate: 1 token per 4 characters for English text
-    // For structured data with numbers, it's closer to 1 token per 3 characters
     return Math.ceil(text.length / 3)
   }
 
@@ -172,14 +181,17 @@ export class StructuredDataChunker {
   }
 
   /**
-   * Calculate optimal rows per chunk based on token estimates
+   * Calculate optimal rows per chunk based on token estimates and target size
    */
-  private static calculateOptimalRowsPerChunk(tokensPerRow: number): number {
-    const optimal = Math.floor(STRUCTURED_CHUNKING_CONFIG.TARGET_CHUNK_SIZE / tokensPerRow)
+  private static calculateOptimalRowsPerChunk(
+    tokensPerRow: number,
+    targetChunkSize: number
+  ): number {
+    const optimal = Math.floor(targetChunkSize / tokensPerRow)
 
     return Math.min(
-      Math.max(optimal, STRUCTURED_CHUNKING_CONFIG.MIN_ROWS_PER_CHUNK),
-      STRUCTURED_CHUNKING_CONFIG.MAX_ROWS_PER_CHUNK
+      Math.max(optimal, DEFAULT_CONFIG.MIN_ROWS_PER_CHUNK),
+      DEFAULT_CONFIG.MAX_ROWS_PER_CHUNK
     )
   }
 

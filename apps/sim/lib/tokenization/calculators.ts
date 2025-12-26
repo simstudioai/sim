@@ -57,8 +57,8 @@ export function calculateStreamingCost(
 
     // Create token usage object
     const tokens: TokenUsage = {
-      prompt: totalPromptTokens,
-      completion: completionTokens,
+      input: totalPromptTokens,
+      output: completionTokens,
       total: totalTokens,
     }
 

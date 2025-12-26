@@ -3,11 +3,16 @@ import type { Chunk, ChunkerOptions } from '@/lib/chunkers/types'
 /**
  * Lightweight text chunker optimized for RAG applications
  * Uses hierarchical splitting with simple character-based token estimation
+ *
+ * Parameters:
+ * - chunkSize: Maximum chunk size in TOKENS (default: 1024)
+ * - chunkOverlap: Overlap between chunks in TOKENS (default: 0)
+ * - minCharactersPerChunk: Minimum characters to keep a chunk (default: 100)
  */
 export class TextChunker {
-  private readonly chunkSize: number
-  private readonly minChunkSize: number
-  private readonly overlap: number
+  private readonly chunkSize: number // Max chunk size in tokens
+  private readonly chunkOverlap: number // Overlap in tokens
+  private readonly minCharactersPerChunk: number // Min characters per chunk
 
   // Hierarchical separators ordered from largest to smallest semantic units
   private readonly separators = [
@@ -32,20 +37,27 @@ export class TextChunker {
   ]
 
   constructor(options: ChunkerOptions = {}) {
-    this.chunkSize = options.chunkSize ?? 512
-    this.minChunkSize = options.minChunkSize ?? 1
-    this.overlap = options.overlap ?? 0
+    this.chunkSize = options.chunkSize ?? 1024
+    // Clamp overlap to prevent exceeding chunk size (max 50% of chunk size)
+    const maxOverlap = Math.floor(this.chunkSize * 0.5)
+    this.chunkOverlap = Math.min(options.chunkOverlap ?? 0, maxOverlap)
+    this.minCharactersPerChunk = options.minCharactersPerChunk ?? 100
   }
 
   /**
    * Simple token estimation using character count
+   * 1 token ≈ 4 characters for English text
    */
   private estimateTokens(text: string): number {
-    // Handle empty or whitespace-only text
     if (!text?.trim()) return 0
-
-    // Simple estimation: ~4 characters per token
     return Math.ceil(text.length / 4)
+  }
+
+  /**
+   * Convert tokens to approximate character count
+   */
+  private tokensToChars(tokens: number): number {
+    return tokens * 4
   }
 
   /**
@@ -54,9 +66,11 @@ export class TextChunker {
   private async splitRecursively(text: string, separatorIndex = 0): Promise<string[]> {
     const tokenCount = this.estimateTokens(text)
 
-    // If chunk is small enough, return it
+    // If chunk is small enough (within max token limit), return it
+    // Keep chunks even if below minCharactersPerChunk to avoid data loss
     if (tokenCount <= this.chunkSize) {
-      return text.length >= this.minChunkSize ? [text] : []
+      // Only filter out empty/whitespace-only text, not small chunks
+      return text.trim() ? [text] : []
     }
 
     // If we've run out of separators, force split by character count
@@ -66,7 +80,8 @@ export class TextChunker {
 
       for (let i = 0; i < text.length; i += targetLength) {
         const chunk = text.slice(i, i + targetLength).trim()
-        if (chunk.length >= this.minChunkSize) {
+        // Keep all non-empty chunks to avoid data loss
+        if (chunk) {
           chunks.push(chunk)
         }
       }
@@ -90,8 +105,8 @@ export class TextChunker {
       if (this.estimateTokens(testChunk) <= this.chunkSize) {
         currentChunk = testChunk
       } else {
-        // Save current chunk if it meets minimum size
-        if (currentChunk.trim() && currentChunk.length >= this.minChunkSize) {
+        // Save current chunk - keep even if below minCharactersPerChunk to avoid data loss
+        if (currentChunk.trim()) {
           chunks.push(currentChunk.trim())
         }
 
@@ -106,8 +121,8 @@ export class TextChunker {
       }
     }
 
-    // Add final chunk if it exists and meets minimum size
-    if (currentChunk.trim() && currentChunk.length >= this.minChunkSize) {
+    // Add final chunk if it exists - keep even if below minCharactersPerChunk to avoid data loss
+    if (currentChunk.trim()) {
       chunks.push(currentChunk.trim())
     }
 
@@ -115,26 +130,35 @@ export class TextChunker {
   }
 
   /**
-   * Add overlap between chunks if specified
+   * Add overlap between chunks (overlap is in tokens, converted to characters)
    */
   private addOverlap(chunks: string[]): string[] {
-    if (this.overlap <= 0 || chunks.length <= 1) {
+    if (this.chunkOverlap <= 0 || chunks.length <= 1) {
       return chunks
     }
 
     const overlappedChunks: string[] = []
+    // Convert token overlap to character overlap
+    const overlapChars = this.tokensToChars(this.chunkOverlap)
 
     for (let i = 0; i < chunks.length; i++) {
       let chunk = chunks[i]
 
-      // Add overlap from previous chunk
+      // Add overlap from previous chunk (converted from tokens to characters)
       if (i > 0) {
         const prevChunk = chunks[i - 1]
-        const words = prevChunk.split(/\s+/)
-        const overlapWords = words.slice(-Math.min(this.overlap, words.length))
+        // Take the last N characters from previous chunk (based on token overlap)
+        const overlapLength = Math.min(overlapChars, prevChunk.length)
+        const overlapText = prevChunk.slice(-overlapLength)
 
-        if (overlapWords.length > 0) {
-          chunk = `${overlapWords.join(' ')} ${chunk}`
+        // Try to start overlap at a word boundary for cleaner text
+        const wordBoundaryMatch = overlapText.match(/^\s*\S/)
+        const cleanOverlap = wordBoundaryMatch
+          ? overlapText.slice(overlapText.indexOf(wordBoundaryMatch[0].trim()))
+          : overlapText
+
+        if (cleanOverlap.trim()) {
+          chunk = `${cleanOverlap.trim()} ${chunk}`
         }
       }
 
@@ -180,26 +204,22 @@ export class TextChunker {
       let startIndex: number
       let actualContentLength: number
 
-      if (index === 0 || this.overlap <= 0) {
+      if (index === 0 || this.chunkOverlap <= 0) {
         // First chunk or no overlap - start from previous end
         startIndex = previousEndIndex
         actualContentLength = chunkText.length
       } else {
-        // Calculate overlap length in characters
+        // Calculate overlap length in characters (converted from tokens)
         const prevChunk = chunks[index - 1]
-        const prevWords = prevChunk.split(/\s+/)
-        const overlapWords = prevWords.slice(-Math.min(this.overlap, prevWords.length))
-        const overlapLength = Math.min(
-          chunkText.length,
-          overlapWords.length > 0 ? overlapWords.join(' ').length + 1 : 0 // +1 for space
-        )
+        const overlapChars = this.tokensToChars(this.chunkOverlap)
+        const overlapLength = Math.min(overlapChars, prevChunk.length, chunkText.length)
 
         startIndex = previousEndIndex - overlapLength
         actualContentLength = chunkText.length - overlapLength
       }
 
       const safeStart = Math.max(0, startIndex)
-      const endIndexSafe = safeStart + actualContentLength
+      const endIndexSafe = safeStart + Math.max(0, actualContentLength)
 
       const chunk: Chunk = {
         text: chunkText,

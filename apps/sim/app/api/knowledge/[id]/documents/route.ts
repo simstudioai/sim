@@ -34,13 +34,24 @@ const CreateDocumentSchema = z.object({
   documentTagsData: z.string().optional(),
 })
 
+/**
+ * Schema for bulk document creation with processing options
+ *
+ * Processing options units:
+ * - chunkSize: tokens (1 token ≈ 4 characters)
+ * - minCharactersPerChunk: characters
+ * - chunkOverlap: characters
+ */
 const BulkCreateDocumentsSchema = z.object({
   documents: z.array(CreateDocumentSchema),
   processingOptions: z.object({
+    /** Maximum chunk size in tokens (1 token ≈ 4 characters) */
     chunkSize: z.number().min(100).max(4000),
+    /** Minimum chunk size in characters */
     minCharactersPerChunk: z.number().min(1).max(2000),
     recipe: z.string(),
     lang: z.string(),
+    /** Overlap between chunks in characters */
     chunkOverlap: z.number().min(0).max(500),
   }),
   bulk: z.literal(true),

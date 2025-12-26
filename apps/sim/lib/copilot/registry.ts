@@ -9,6 +9,8 @@ export const ToolIds = z.enum([
   'get_workflow_console',
   'get_blocks_and_tools',
   'get_blocks_metadata',
+  'get_block_options',
+  'get_block_config',
   'get_trigger_examples',
   'get_examples_rag',
   'get_operations_examples',
@@ -34,10 +36,11 @@ export const ToolIds = z.enum([
   'manage_custom_tool',
   'manage_mcp_tool',
   'sleep',
+  'get_block_outputs',
+  'get_block_upstream_references',
 ])
 export type ToolId = z.infer<typeof ToolIds>
 
-// Base SSE wrapper for tool_call events emitted by the LLM
 const ToolCallSSEBase = z.object({
   type: z.literal('tool_call'),
   data: z.object({
@@ -49,18 +52,14 @@ const ToolCallSSEBase = z.object({
 })
 export type ToolCallSSE = z.infer<typeof ToolCallSSEBase>
 
-// Reusable small schemas
 const StringArray = z.array(z.string())
 const BooleanOptional = z.boolean().optional()
 const NumberOptional = z.number().optional()
 
-// Tool argument schemas (per SSE examples provided)
 export const ToolArgSchemas = {
   get_user_workflow: z.object({}),
-  // New tools
   list_user_workflows: z.object({}),
   get_workflow_from_name: z.object({ workflow_name: z.string() }),
-  // Workflow data tool (variables, custom tools, MCP tools, files)
   get_workflow_data: z.object({
     data_type: z.enum(['global_variables', 'custom_tools', 'mcp_tools', 'files']),
   }),
@@ -118,6 +117,20 @@ export const ToolArgSchemas = {
 
   get_blocks_metadata: z.object({
     blockIds: StringArray.min(1),
+  }),
+
+  get_block_options: z.object({
+    blockId: z.string().describe('The block type ID (e.g., "google_sheets", "slack", "gmail")'),
+  }),
+
+  get_block_config: z.object({
+    blockType: z.string().describe('The block type ID (e.g., "google_sheets", "slack", "gmail")'),
+    operation: z
+      .string()
+      .optional()
+      .describe(
+        'Optional operation ID (e.g., "read", "write"). If not provided, returns full block schema.'
+      ),
   }),
 
   get_trigger_blocks: z.object({}),
@@ -261,6 +274,24 @@ export const ToolArgSchemas = {
       .max(180)
       .describe('The number of seconds to sleep (0-180, max 3 minutes)'),
   }),
+
+  get_block_outputs: z.object({
+    blockIds: z
+      .array(z.string())
+      .optional()
+      .describe(
+        'Optional array of block UUIDs. If provided, returns outputs only for those blocks. If not provided, returns outputs for all blocks in the workflow.'
+      ),
+  }),
+
+  get_block_upstream_references: z.object({
+    blockIds: z
+      .array(z.string())
+      .min(1)
+      .describe(
+        'Array of block UUIDs. Returns all upstream references (block outputs and variables) accessible to each block based on workflow connections.'
+      ),
+  }),
 } as const
 export type ToolArgSchemaMap = typeof ToolArgSchemas
 
@@ -296,6 +327,8 @@ export const ToolSSESchemas = {
   get_workflow_console: toolCallSSEFor('get_workflow_console', ToolArgSchemas.get_workflow_console),
   get_blocks_and_tools: toolCallSSEFor('get_blocks_and_tools', ToolArgSchemas.get_blocks_and_tools),
   get_blocks_metadata: toolCallSSEFor('get_blocks_metadata', ToolArgSchemas.get_blocks_metadata),
+  get_block_options: toolCallSSEFor('get_block_options', ToolArgSchemas.get_block_options),
+  get_block_config: toolCallSSEFor('get_block_config', ToolArgSchemas.get_block_config),
   get_trigger_blocks: toolCallSSEFor('get_trigger_blocks', ToolArgSchemas.get_trigger_blocks),
 
   get_trigger_examples: toolCallSSEFor('get_trigger_examples', ToolArgSchemas.get_trigger_examples),
@@ -328,13 +361,17 @@ export const ToolSSESchemas = {
   manage_custom_tool: toolCallSSEFor('manage_custom_tool', ToolArgSchemas.manage_custom_tool),
   manage_mcp_tool: toolCallSSEFor('manage_mcp_tool', ToolArgSchemas.manage_mcp_tool),
   sleep: toolCallSSEFor('sleep', ToolArgSchemas.sleep),
+  get_block_outputs: toolCallSSEFor('get_block_outputs', ToolArgSchemas.get_block_outputs),
+  get_block_upstream_references: toolCallSSEFor(
+    'get_block_upstream_references',
+    ToolArgSchemas.get_block_upstream_references
+  ),
 } as const
 export type ToolSSESchemaMap = typeof ToolSSESchemas
 
 // Known result schemas per tool (what tool_result.result should conform to)
 // Note: Where legacy variability exists, schema captures the common/expected shape for new runtime.
 const BuildOrEditWorkflowResult = z.object({
-  yamlContent: z.string(),
   description: z.string().optional(),
   workflowState: z.unknown().optional(),
   data: z
@@ -368,14 +405,9 @@ const ExecutionEntry = z.object({
 })
 
 export const ToolResultSchemas = {
-  get_user_workflow: z.object({ yamlContent: z.string() }).or(z.string()),
-  // New tools
+  get_user_workflow: z.string(),
   list_user_workflows: z.object({ workflow_names: z.array(z.string()) }),
-  get_workflow_from_name: z
-    .object({ yamlContent: z.string() })
-    .or(z.object({ userWorkflow: z.string() }))
-    .or(z.string()),
-  // Workflow data tool results (variables, custom tools, MCP tools, files)
+  get_workflow_from_name: z.object({ userWorkflow: z.string() }).or(z.string()),
   get_workflow_data: z.union([
     z.object({
       variables: z.array(z.object({ id: z.string(), name: z.string(), value: z.any() })),
@@ -419,7 +451,6 @@ export const ToolResultSchemas = {
   set_global_workflow_variables: z
     .object({ variables: z.record(z.any()) })
     .or(z.object({ message: z.any().optional(), data: z.any().optional() })),
-  // New
   oauth_request_access: z.object({
     granted: z.boolean().optional(),
     message: z.string().optional(),
@@ -434,6 +465,24 @@ export const ToolResultSchemas = {
   get_workflow_console: z.object({ entries: z.array(ExecutionEntry) }),
   get_blocks_and_tools: z.object({ blocks: z.array(z.any()), tools: z.array(z.any()) }),
   get_blocks_metadata: z.object({ metadata: z.record(z.any()) }),
+  get_block_options: z.object({
+    blockId: z.string(),
+    blockName: z.string(),
+    operations: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        description: z.string().optional(),
+      })
+    ),
+  }),
+  get_block_config: z.object({
+    blockType: z.string(),
+    blockName: z.string(),
+    operation: z.string().optional(),
+    inputs: z.record(z.any()),
+    outputs: z.record(z.any()),
+  }),
   get_trigger_blocks: z.object({ triggerBlockIds: z.array(z.string()) }),
   get_block_best_practices: z.object({ bestPractices: z.array(z.any()) }),
   get_edit_workflow_examples: z.object({
@@ -567,10 +616,63 @@ export const ToolResultSchemas = {
     seconds: z.number(),
     message: z.string().optional(),
   }),
+  get_block_outputs: z.object({
+    blocks: z.array(
+      z.object({
+        blockId: z.string(),
+        blockName: z.string(),
+        blockType: z.string(),
+        outputs: z.array(z.string()),
+        insideSubflowOutputs: z.array(z.string()).optional(),
+        outsideSubflowOutputs: z.array(z.string()).optional(),
+      })
+    ),
+    variables: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        type: z.string(),
+        tag: z.string(),
+      })
+    ),
+  }),
+  get_block_upstream_references: z.object({
+    results: z.array(
+      z.object({
+        blockId: z.string(),
+        blockName: z.string(),
+        insideSubflows: z
+          .array(
+            z.object({
+              blockId: z.string(),
+              blockName: z.string(),
+              blockType: z.string(),
+            })
+          )
+          .optional(),
+        accessibleBlocks: z.array(
+          z.object({
+            blockId: z.string(),
+            blockName: z.string(),
+            blockType: z.string(),
+            outputs: z.array(z.string()),
+            accessContext: z.enum(['inside', 'outside']).optional(),
+          })
+        ),
+        variables: z.array(
+          z.object({
+            id: z.string(),
+            name: z.string(),
+            type: z.string(),
+            tag: z.string(),
+          })
+        ),
+      })
+    ),
+  }),
 } as const
 export type ToolResultSchemaMap = typeof ToolResultSchemas
 
-// Consolidated registry entry per tool
 export const ToolRegistry = Object.freeze(
   (Object.keys(ToolArgSchemas) as ToolId[]).reduce(
     (acc, toolId) => {
@@ -588,7 +690,6 @@ export const ToolRegistry = Object.freeze(
 )
 export type ToolRegistryMap = typeof ToolRegistry
 
-// Convenience helper types inferred from schemas
 export type InferArgs<T extends ToolId> = z.infer<(typeof ToolArgSchemas)[T]>
 export type InferResult<T extends ToolId> = z.infer<(typeof ToolResultSchemas)[T]>
 export type InferToolCallSSE<T extends ToolId> = z.infer<(typeof ToolSSESchemas)[T]>

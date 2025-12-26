@@ -18,6 +18,10 @@ const getCurrentOllamaModels = () => {
   return useProvidersStore.getState().providers.ollama.models
 }
 
+const getCurrentVLLMModels = () => {
+  return useProvidersStore.getState().providers.vllm.models
+}
+
 interface Metric {
   name: string
   description: string
@@ -183,17 +187,34 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
+      defaultValue: 'claude-sonnet-4-5',
       options: () => {
         const providersState = useProvidersStore.getState()
         const baseModels = providersState.providers.base.models
         const ollamaModels = providersState.providers.ollama.models
+        const vllmModels = providersState.providers.vllm.models
         const openrouterModels = providersState.providers.openrouter.models
-        const allModels = Array.from(new Set([...baseModels, ...ollamaModels, ...openrouterModels]))
+        const allModels = Array.from(
+          new Set([...baseModels, ...ollamaModels, ...vllmModels, ...openrouterModels])
+        )
 
         return allModels.map((model) => {
           const icon = getProviderIcon(model)
           return { label: model, id: model, ...(icon && { icon }) }
         })
+      },
+    },
+    {
+      id: 'vertexCredential',
+      title: 'Google Cloud Account',
+      type: 'oauth-input',
+      serviceId: 'vertex-ai',
+      requiredScopes: ['https://www.googleapis.com/auth/cloud-platform'],
+      placeholder: 'Select Google Cloud account',
+      required: true,
+      condition: {
+        field: 'model',
+        value: providers.vertex.models,
       },
     },
     {
@@ -204,16 +225,21 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       password: true,
       connectionDroppable: false,
       required: true,
+      // Hide API key for hosted models, Ollama models, vLLM models, and Vertex models (uses OAuth)
       condition: isHosted
         ? {
             field: 'model',
-            value: getHostedModels(),
+            value: [...getHostedModels(), ...providers.vertex.models],
             not: true, // Show for all models EXCEPT those listed
           }
         : () => ({
             field: 'model',
-            value: getCurrentOllamaModels(),
-            not: true, // Show for all models EXCEPT Ollama models
+            value: [
+              ...getCurrentOllamaModels(),
+              ...getCurrentVLLMModels(),
+              ...providers.vertex.models,
+            ],
+            not: true, // Show for all models EXCEPT Ollama, vLLM, and Vertex models
           }),
     },
     {
@@ -245,6 +271,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       type: 'short-input',
       placeholder: 'your-gcp-project-id',
       connectionDroppable: false,
+      required: true,
       condition: {
         field: 'model',
         value: providers.vertex.models,
@@ -256,6 +283,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       type: 'short-input',
       placeholder: 'us-central1',
       connectionDroppable: false,
+      required: true,
       condition: {
         field: 'model',
         value: providers.vertex.models,
@@ -385,6 +413,10 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
     vertexLocation: {
       type: 'string' as ParamType,
       description: 'Google Cloud location for Vertex AI',
+    },
+    vertexCredential: {
+      type: 'string' as ParamType,
+      description: 'Google Cloud OAuth credential ID for Vertex AI',
     },
     temperature: {
       type: 'number' as ParamType,
