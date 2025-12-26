@@ -6,7 +6,14 @@ import { createMcpToolId } from '@/lib/mcp/utils'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
-import { AGENT, BlockType, DEFAULTS, HTTP } from '@/executor/constants'
+import {
+  AGENT,
+  BlockType,
+  DEFAULTS,
+  HTTP,
+  REFERENCE,
+  stripCustomToolPrefix,
+} from '@/executor/constants'
 import { memoryService } from '@/executor/handlers/agent/memory'
 import type {
   AgentInputs,
@@ -105,7 +112,7 @@ export class AgentBlockHandler implements BlockHandler {
     if (typeof responseFormat === 'string') {
       const trimmedValue = responseFormat.trim()
 
-      if (trimmedValue.startsWith('<') && trimmedValue.includes('>')) {
+      if (trimmedValue.startsWith(REFERENCE.START) && trimmedValue.includes(REFERENCE.END)) {
         return undefined
       }
 
@@ -1001,7 +1008,6 @@ export class AgentBlockHandler implements BlockHandler {
   ) {
     let finalApiKey: string
 
-    // For Vertex AI, resolve OAuth credential to access token
     if (providerId === 'vertex' && providerRequest.vertexCredential) {
       finalApiKey = await this.resolveVertexCredential(
         providerRequest.vertexCredential,
@@ -1317,15 +1323,15 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   private createResponseMetadata(result: {
-    tokens?: { prompt?: number; completion?: number; total?: number }
+    tokens?: { input?: number; output?: number; total?: number }
     toolCalls?: Array<any>
     timing?: any
     cost?: any
   }) {
     return {
       tokens: result.tokens || {
-        prompt: DEFAULTS.TOKENS.PROMPT,
-        completion: DEFAULTS.TOKENS.COMPLETION,
+        input: DEFAULTS.TOKENS.PROMPT,
+        output: DEFAULTS.TOKENS.COMPLETION,
         total: DEFAULTS.TOKENS.TOTAL,
       },
       toolCalls: {
@@ -1338,7 +1344,7 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   private formatToolCall(tc: any) {
-    const toolName = this.stripCustomToolPrefix(tc.name)
+    const toolName = stripCustomToolPrefix(tc.name)
 
     return {
       ...tc,
@@ -1349,11 +1355,5 @@ export class AgentBlockHandler implements BlockHandler {
       arguments: tc.arguments || tc.input || {},
       result: tc.result || tc.output,
     }
-  }
-
-  private stripCustomToolPrefix(name: string): string {
-    return name.startsWith(AGENT.CUSTOM_TOOL_PREFIX)
-      ? name.replace(AGENT.CUSTOM_TOOL_PREFIX, '')
-      : name
   }
 }

@@ -53,6 +53,8 @@ import { ManageMcpToolClientTool } from '@/lib/copilot/tools/client/workflow/man
 import { RunWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/run-workflow'
 import { SetGlobalWorkflowVariablesClientTool } from '@/lib/copilot/tools/client/workflow/set-global-workflow-variables'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getQueryClient } from '@/app/_shell/providers/query-provider'
+import { subscriptionKeys } from '@/hooks/queries/subscription'
 import type {
   ChatContext,
   CopilotMessage,
@@ -2663,6 +2665,12 @@ export const useCopilotStore = create<CopilotStore>()(
         // Fetch context usage after response completes
         logger.info('[Context Usage] Stream completed, fetching usage')
         await get().fetchContextUsage()
+
+        // Invalidate subscription queries to update usage
+        setTimeout(() => {
+          const queryClient = getQueryClient()
+          queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+        }, 1000)
       } finally {
         clearTimeout(timeoutId)
       }

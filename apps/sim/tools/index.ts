@@ -3,6 +3,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createLogger } from '@/lib/logs/console/logger'
 import { parseMcpToolId } from '@/lib/mcp/utils'
+import { isCustomTool, isMcpTool } from '@/executor/constants'
 import type { ExecutionContext } from '@/executor/types'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
@@ -210,13 +211,13 @@ export async function executeTool(
     const normalizedToolId = normalizeToolId(toolId)
 
     // If it's a custom tool, use the async version with workflowId
-    if (normalizedToolId.startsWith('custom_')) {
+    if (isCustomTool(normalizedToolId)) {
       const workflowId = params._context?.workflowId
       tool = await getToolAsync(normalizedToolId, workflowId)
       if (!tool) {
         logger.error(`[${requestId}] Custom tool not found: ${normalizedToolId}`)
       }
-    } else if (normalizedToolId.startsWith('mcp-')) {
+    } else if (isMcpTool(normalizedToolId)) {
       return await executeMcpTool(
         normalizedToolId,
         params,
@@ -615,7 +616,7 @@ async function handleInternalRequest(
 
     const fullUrl = fullUrlObj.toString()
 
-    if (toolId.startsWith('custom_') && tool.request.body) {
+    if (isCustomTool(toolId) && tool.request.body) {
       const requestBody = tool.request.body(params)
       if (
         typeof requestBody === 'object' &&

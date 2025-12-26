@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -88,9 +88,9 @@ function extractExecutionResult(error: unknown): ExecutionResult | null {
 }
 
 export function useWorkflowExecution() {
+  const queryClient = useQueryClient()
   const currentWorkflow = useCurrentWorkflow()
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
-  const queryClient = useQueryClient()
   const { toggleConsole, addConsole } = useTerminalConsoleStore()
   const { getAllVariables } = useEnvironmentStore()
   const { getVariablesByWorkflowId, variables } = useVariablesStore()
@@ -111,6 +111,7 @@ export function useWorkflowExecution() {
   } = useExecutionStore()
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
   const executionStream = useExecutionStream()
+  const currentChatExecutionIdRef = useRef<string | null>(null)
   const isViewingDiff = useWorkflowDiffStore((state) => state.isShowingDiff)
 
   /**
@@ -312,12 +313,24 @@ export function useWorkflowExecution() {
 
       // For chat executions, we'll use a streaming approach
       if (isChatExecution) {
+        let isCancelled = false
+        const executionId = uuidv4()
+        currentChatExecutionIdRef.current = executionId
         const stream = new ReadableStream({
           async start(controller) {
             const { encodeSSE } = await import('@/lib/core/utils/sse')
-            const executionId = uuidv4()
             const streamedContent = new Map<string, string>()
             const streamReadingPromises: Promise<void>[] = []
+
+            const safeEnqueue = (data: Uint8Array) => {
+              if (!isCancelled) {
+                try {
+                  controller.enqueue(data)
+                } catch {
+                  isCancelled = true
+                }
+              }
+            }
 
             // Handle file uploads if present
             const uploadedFiles: any[] = []
@@ -432,7 +445,7 @@ export function useWorkflowExecution() {
                       }
                     }
 
-                    controller.enqueue(encodeSSE({ blockId, chunk: chunkToSend }))
+                    safeEnqueue(encodeSSE({ blockId, chunk: chunkToSend }))
                   }
                 } catch (error) {
                   logger.error('Error reading from stream:', error)
@@ -485,7 +498,7 @@ export function useWorkflowExecution() {
                   const separator = streamedContent.size > 0 ? '\n\n' : ''
 
                   // Send the non-streaming block output as a chunk
-                  controller.enqueue(encodeSSE({ blockId, chunk: separator + formattedOutput }))
+                  safeEnqueue(encodeSSE({ blockId, chunk: separator + formattedOutput }))
 
                   // Track that we've sent output for this block
                   streamedContent.set(blockId, formattedOutput)
@@ -503,13 +516,8 @@ export function useWorkflowExecution() {
               )
 
               // Check if execution was cancelled
-              if (
-                result &&
-                'success' in result &&
-                !result.success &&
-                result.error === 'Workflow execution was cancelled'
-              ) {
-                controller.enqueue(encodeSSE({ event: 'cancelled', data: result }))
+              if (result && 'status' in result && result.status === 'cancelled') {
+                safeEnqueue(encodeSSE({ event: 'cancelled', data: result }))
                 return
               }
 
@@ -563,12 +571,12 @@ export function useWorkflowExecution() {
                   logger.info(`Processed ${processedCount} blocks for streaming tokenization`)
                 }
 
-                // Invalidate subscription query to update usage
-                queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
-                queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() })
+                // Invalidate subscription queries to update usage
+                setTimeout(() => {
+                  queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+                }, 1000)
 
-                const { encodeSSE } = await import('@/lib/core/utils/sse')
-                controller.enqueue(encodeSSE({ event: 'final', data: result }))
+                safeEnqueue(encodeSSE({ event: 'final', data: result }))
                 // Note: Logs are already persisted server-side via execution-core.ts
               }
             } catch (error: any) {
@@ -586,16 +594,22 @@ export function useWorkflowExecution() {
               }
 
               // Send the error as final event so downstream handlers can treat it uniformly
-              const { encodeSSE } = await import('@/lib/core/utils/sse')
-              controller.enqueue(encodeSSE({ event: 'final', data: errorResult }))
+              safeEnqueue(encodeSSE({ event: 'final', data: errorResult }))
 
               // Do not error the controller to allow consumers to process the final event
             } finally {
-              controller.close()
-              setIsExecuting(false)
-              setIsDebugging(false)
-              setActiveBlocks(new Set())
+              if (!isCancelled) {
+                controller.close()
+              }
+              if (currentChatExecutionIdRef.current === executionId) {
+                setIsExecuting(false)
+                setIsDebugging(false)
+                setActiveBlocks(new Set())
+              }
             }
+          },
+          cancel() {
+            isCancelled = true
           },
         })
         return { success: true, stream }
@@ -630,9 +644,10 @@ export function useWorkflowExecution() {
             ;(result.metadata as any).source = 'chat'
           }
 
-          // Invalidate subscription query to update usage
-          queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
-          queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() })
+          // Invalidate subscription queries to update usage
+          setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+          }, 1000)
         }
         return result
       } catch (error: any) {
@@ -654,6 +669,7 @@ export function useWorkflowExecution() {
       setPendingBlocks,
       setActiveBlocks,
       workflows,
+      queryClient,
     ]
   )
 
@@ -1314,7 +1330,10 @@ export function useWorkflowExecution() {
     // Cancel the execution stream (server-side)
     executionStream.cancel()
 
-    // Reset execution state
+    // Mark current chat execution as superseded so its cleanup won't affect new executions
+    currentChatExecutionIdRef.current = null
+
+    // Reset execution state - this triggers chat stream cleanup via useEffect in chat.tsx
     setIsExecuting(false)
     setIsDebugging(false)
     setActiveBlocks(new Set())

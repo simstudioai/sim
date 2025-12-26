@@ -178,8 +178,8 @@ export const ollamaProvider: ProviderConfig = {
             }
 
             streamingResult.execution.output.tokens = {
-              prompt: usage.prompt_tokens,
-              completion: usage.completion_tokens,
+              input: usage.prompt_tokens,
+              output: usage.completion_tokens,
               total: usage.total_tokens,
             }
 
@@ -215,7 +215,7 @@ export const ollamaProvider: ProviderConfig = {
             output: {
               content: '',
               model: request.model,
-              tokens: { prompt: 0, completion: 0, total: 0 },
+              tokens: { input: 0, output: 0, total: 0 },
               toolCalls: undefined,
               providerTiming: {
                 startTime: providerStartTimeISO,
@@ -258,8 +258,8 @@ export const ollamaProvider: ProviderConfig = {
       }
 
       const tokens = {
-        prompt: currentResponse.usage?.prompt_tokens || 0,
-        completion: currentResponse.usage?.completion_tokens || 0,
+        input: currentResponse.usage?.prompt_tokens || 0,
+        output: currentResponse.usage?.completion_tokens || 0,
         total: currentResponse.usage?.total_tokens || 0,
       }
       const toolCalls = []
@@ -429,8 +429,8 @@ export const ollamaProvider: ProviderConfig = {
         }
 
         if (currentResponse.usage) {
-          tokens.prompt += currentResponse.usage.prompt_tokens || 0
-          tokens.completion += currentResponse.usage.completion_tokens || 0
+          tokens.input += currentResponse.usage.prompt_tokens || 0
+          tokens.output += currentResponse.usage.completion_tokens || 0
           tokens.total += currentResponse.usage.total_tokens || 0
         }
 
@@ -440,7 +440,7 @@ export const ollamaProvider: ProviderConfig = {
       if (request.stream) {
         logger.info('Using streaming for final response after tool processing')
 
-        const accumulatedCost = calculateCost(request.model, tokens.prompt, tokens.completion)
+        const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
 
         const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
@@ -462,8 +462,8 @@ export const ollamaProvider: ProviderConfig = {
             }
 
             streamingResult.execution.output.tokens = {
-              prompt: tokens.prompt + usage.prompt_tokens,
-              completion: tokens.completion + usage.completion_tokens,
+              input: tokens.input + usage.prompt_tokens,
+              output: tokens.output + usage.completion_tokens,
               total: tokens.total + usage.total_tokens,
             }
 
@@ -484,8 +484,8 @@ export const ollamaProvider: ProviderConfig = {
               content: '',
               model: request.model,
               tokens: {
-                prompt: tokens.prompt,
-                completion: tokens.completion,
+                input: tokens.input,
+                output: tokens.output,
                 total: tokens.total,
               },
               toolCalls:

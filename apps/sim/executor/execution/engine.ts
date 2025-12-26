@@ -39,6 +39,9 @@ export class ExecutionEngine {
       this.initializeQueue(triggerBlockId)
 
       while (this.hasWork()) {
+        if (this.context.isCancelled && this.executing.size === 0) {
+          break
+        }
         await this.processQueue()
       }
       await this.waitForAllExecutions()
@@ -51,6 +54,16 @@ export class ExecutionEngine {
       this.context.metadata.endTime = new Date(endTime).toISOString()
       this.context.metadata.duration = endTime - startTime
 
+      if (this.context.isCancelled) {
+        return {
+          success: false,
+          output: this.finalOutput,
+          logs: this.context.blockLogs,
+          metadata: this.context.metadata,
+          status: 'cancelled',
+        }
+      }
+
       return {
         success: true,
         output: this.finalOutput,
@@ -61,6 +74,16 @@ export class ExecutionEngine {
       const endTime = Date.now()
       this.context.metadata.endTime = new Date(endTime).toISOString()
       this.context.metadata.duration = endTime - startTime
+
+      if (this.context.isCancelled) {
+        return {
+          success: false,
+          output: this.finalOutput,
+          logs: this.context.blockLogs,
+          metadata: this.context.metadata,
+          status: 'cancelled',
+        }
+      }
 
       const errorMessage = normalizeError(error)
       logger.error('Execution failed', { error: errorMessage })
@@ -73,8 +96,6 @@ export class ExecutionEngine {
         metadata: this.context.metadata,
       }
 
-      // Attach executionResult to the original error instead of creating a new one
-      // This preserves block error metadata (blockId, blockName, blockType, etc.)
       if (error && typeof error === 'object') {
         ;(error as any).executionResult = executionResult
       }
@@ -213,6 +234,9 @@ export class ExecutionEngine {
 
   private async processQueue(): Promise<void> {
     while (this.readyQueue.length > 0) {
+      if (this.context.isCancelled) {
+        break
+      }
       const nodeId = this.dequeue()
       if (!nodeId) continue
       const promise = this.executeNodeAsync(nodeId)
@@ -227,8 +251,6 @@ export class ExecutionEngine {
   private async executeNodeAsync(nodeId: string): Promise<void> {
     try {
       const wasAlreadyExecuted = this.context.executedBlocks.has(nodeId)
-      const node = this.dag.nodes.get(nodeId)
-
       const result = await this.nodeOrchestrator.executeNode(this.context, nodeId)
 
       if (!wasAlreadyExecuted) {

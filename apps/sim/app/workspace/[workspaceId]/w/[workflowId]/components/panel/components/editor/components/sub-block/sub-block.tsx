@@ -29,7 +29,7 @@ import {
   MessagesInput,
   ProjectSelectorInput,
   ResponseFormat,
-  ScheduleSave,
+  ScheduleInfo,
   ShortInput,
   SlackSelectorInput,
   SliderInput,
@@ -592,8 +592,8 @@ function SubBlockComponent({
           />
         )
 
-      case 'schedule-save':
-        return <ScheduleSave blockId={blockId} isPreview={isPreview} disabled={disabled} />
+      case 'schedule-info':
+        return <ScheduleInfo blockId={blockId} isPreview={isPreview} />
 
       case 'oauth-input':
         return (

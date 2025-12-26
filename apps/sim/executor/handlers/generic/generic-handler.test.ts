@@ -186,8 +186,8 @@ describe('GenericBlockHandler', () => {
               output: 0,
               total: 0.00001042,
               tokens: {
-                prompt: 521,
-                completion: 0,
+                input: 521,
+                output: 0,
                 total: 521,
               },
               model: 'text-embedding-3-small',
@@ -215,8 +215,8 @@ describe('GenericBlockHandler', () => {
             total: 0.00001042,
           },
           tokens: {
-            prompt: 521,
-            completion: 0,
+            input: 521,
+            output: 0,
             total: 521,
           },
           model: 'text-embedding-3-small',
@@ -253,8 +253,8 @@ describe('GenericBlockHandler', () => {
             output: 0,
             total: 0.00000521,
             tokens: {
-              prompt: 260,
-              completion: 0,
+              input: 260,
+              output: 0,
               total: 260,
             },
             model: 'text-embedding-3-small',
@@ -286,8 +286,8 @@ describe('GenericBlockHandler', () => {
           total: 0.00000521,
         },
         tokens: {
-          prompt: 260,
-          completion: 0,
+          input: 260,
+          output: 0,
           total: 260,
         },
         model: 'text-embedding-3-small',
@@ -340,7 +340,7 @@ describe('GenericBlockHandler', () => {
               input: 0.001,
               output: 0.002,
               total: 0.003,
-              tokens: { prompt: 100, completion: 50, total: 150 },
+              tokens: { input: 100, output: 50, total: 150 },
               model: 'some-model',
             },
           },
@@ -357,7 +357,7 @@ describe('GenericBlockHandler', () => {
             output: 0.002,
             total: 0.003,
           },
-          tokens: { prompt: 100, completion: 50, total: 150 },
+          tokens: { input: 100, output: 50, total: 150 },
           model: 'some-model',
         })
       }

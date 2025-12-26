@@ -1,4 +1,4 @@
-import type { OAuthService } from '@/lib/oauth/oauth'
+import type { OAuthService } from '@/lib/oauth'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 

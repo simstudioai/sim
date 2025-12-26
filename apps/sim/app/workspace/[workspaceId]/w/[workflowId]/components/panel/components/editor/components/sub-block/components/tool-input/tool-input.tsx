@@ -24,7 +24,7 @@ import {
   getProviderIdFromServiceId,
   type OAuthProvider,
   type OAuthService,
-} from '@/lib/oauth/oauth'
+} from '@/lib/oauth'
 import {
   CheckboxList,
   Code,

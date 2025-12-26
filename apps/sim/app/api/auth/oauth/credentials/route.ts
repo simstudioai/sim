@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createLogger } from '@/lib/logs/console/logger'
-import { evaluateScopeCoverage, parseProvider } from '@/lib/oauth/oauth'
+import { evaluateScopeCoverage, type OAuthProvider, parseProvider } from '@/lib/oauth'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 export const dynamic = 'force-dynamic'
@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Parse the provider to get base provider and feature type (if provider is present)
-    const { baseProvider } = parseProvider(providerParam || 'google-default')
+    const { baseProvider } = parseProvider((providerParam || 'google') as OAuthProvider)
 
     let accountsData
 

@@ -6,8 +6,14 @@ import Link from 'next/link'
 import { List, type RowComponentProps, useListRef } from 'react-window'
 import { Badge, buttonVariants } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import {
+  formatDate,
+  formatDuration,
+  getDisplayStatus,
+  StatusBadge,
+  TriggerBadge,
+} from '@/app/workspace/[workspaceId]/logs/utils'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
-import { formatDate, formatDuration, StatusBadge, TriggerBadge } from '../../utils'
 
 const LOG_ROW_HEIGHT = 44 as const
 
@@ -25,10 +31,6 @@ interface LogRowProps {
 const LogRow = memo(
   function LogRow({ log, isSelected, onClick, selectedRowRef }: LogRowProps) {
     const formattedDate = useMemo(() => formatDate(log.createdAt), [log.createdAt])
-    const baseLevel = (log.level || 'info').toLowerCase()
-    const isError = baseLevel === 'error'
-    const isPending = !isError && log.hasPendingPause === true
-    const isRunning = !isError && !isPending && log.duration === null
 
     const handleClick = useCallback(() => onClick(log), [onClick, log])
 
@@ -54,9 +56,7 @@ const LogRow = memo(
 
           {/* Status */}
           <div className='w-[12%] min-w-[100px]'>
-            <StatusBadge
-              status={isError ? 'error' : isPending ? 'pending' : isRunning ? 'running' : 'info'}
-            />
+            <StatusBadge status={getDisplayStatus(log.status)} />
           </div>
 
           {/* Workflow */}
@@ -93,7 +93,7 @@ const LogRow = memo(
         </div>
 
         {/* Resume Link */}
-        {isPending && log.executionId && (log.workflow?.id || log.workflowId) && (
+        {log.status === 'pending' && log.executionId && (log.workflow?.id || log.workflowId) && (
           <Link
             href={`/resume/${log.workflow?.id || log.workflowId}/${log.executionId}`}
             target='_blank'
@@ -115,8 +115,7 @@ const LogRow = memo(
     return (
       prevProps.log.id === nextProps.log.id &&
       prevProps.log.duration === nextProps.log.duration &&
-      prevProps.log.level === nextProps.log.level &&
-      prevProps.log.hasPendingPause === nextProps.log.hasPendingPause &&
+      prevProps.log.status === nextProps.log.status &&
       prevProps.isSelected === nextProps.isSelected
     )
   }

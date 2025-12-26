@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, Loader2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
+import { getStartDateFromTimeRange } from '@/lib/logs/filters'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
 import { useFolders } from '@/hooks/queries/folders'
 import { useDashboardLogs, useLogDetail, useLogsList } from '@/hooks/queries/logs'
@@ -136,9 +137,7 @@ export default function Logs() {
 
     const hasStatusChange =
       prevLog?.id === updatedLog.id &&
-      (updatedLog.duration !== prevLog.duration ||
-        updatedLog.level !== prevLog.level ||
-        updatedLog.hasPendingPause !== prevLog.hasPendingPause)
+      (updatedLog.duration !== prevLog.duration || updatedLog.status !== prevLog.status)
 
     if (updatedLog !== selectedLog) {
       setSelectedLog(updatedLog)
@@ -261,6 +260,11 @@ export default function Logs() {
       if (triggers.length > 0) params.set('triggers', triggers.join(','))
       if (workflowIds.length > 0) params.set('workflowIds', workflowIds.join(','))
       if (folderIds.length > 0) params.set('folderIds', folderIds.join(','))
+
+      const startDate = getStartDateFromTimeRange(timeRange)
+      if (startDate) {
+        params.set('startDate', startDate.toISOString())
+      }
 
       const parsed = parseQuery(debouncedSearchQuery)
       const extra = queryToApiParams(parsed)

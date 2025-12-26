@@ -85,7 +85,7 @@ export async function executeProviderRequest(
   }
 
   if (response.tokens) {
-    const { prompt: promptTokens = 0, completion: completionTokens = 0 } = response.tokens
+    const { input: promptTokens = 0, output: completionTokens = 0 } = response.tokens
     const useCachedInput = !!request.context && request.context.length > 0
 
     if (shouldBillModelUsage(response.model)) {

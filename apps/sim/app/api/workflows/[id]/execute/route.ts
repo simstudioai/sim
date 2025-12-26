@@ -22,6 +22,7 @@ import {
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import type { WorkflowExecutionPayload } from '@/background/workflow-execution'
+import { normalizeName } from '@/executor/constants'
 import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { StreamingExecution } from '@/executor/types'
 import { Serializer } from '@/serializer'
@@ -86,10 +87,9 @@ function resolveOutputIds(
     const blockName = outputId.substring(0, dotIndex)
     const path = outputId.substring(dotIndex + 1)
 
-    const normalizedBlockName = blockName.toLowerCase().replace(/\s+/g, '')
+    const normalizedBlockName = normalizeName(blockName)
     const block = Object.values(blocks).find((b: any) => {
-      const normalized = (b.name || '').toLowerCase().replace(/\s+/g, '')
-      return normalized === normalizedBlockName
+      return normalizeName(b.name || '') === normalizedBlockName
     })
 
     if (!block) {
@@ -713,7 +713,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             await PauseResumeManager.processQueuedResumes(executionId)
           }
 
-          if (result.error === 'Workflow execution was cancelled') {
+          if (result.status === 'cancelled') {
             logger.info(`[${requestId}] Workflow execution was cancelled`)
             sendEvent({
               type: 'execution:cancelled',

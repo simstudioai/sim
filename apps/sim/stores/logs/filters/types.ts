@@ -29,6 +29,8 @@ export interface CostMetadata {
       output: number
       total: number
       tokens?: {
+        input?: number
+        output?: number
         prompt?: number
         completion?: number
         total?: number
@@ -39,6 +41,8 @@ export interface CostMetadata {
   output?: number
   total?: number
   tokens?: {
+    input?: number
+    output?: number
     prompt?: number
     completion?: number
     total?: number
@@ -103,6 +107,7 @@ export interface WorkflowLog {
   deploymentVersion?: number | null
   deploymentVersionName?: string | null
   level: string
+  status?: string | null
   duration: string | null
   trigger: string | null
   createdAt: string

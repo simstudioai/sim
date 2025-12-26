@@ -50,7 +50,6 @@ export const PerplexityBlock: BlockConfig<PerplexityResponse> = {
         { label: 'Sonar', id: 'sonar' },
         { label: 'Sonar Pro', id: 'sonar-pro' },
         { label: 'Sonar Deep Research', id: 'sonar-deep-research' },
-        { label: 'Sonar Reasoning', id: 'sonar-reasoning' },
         { label: 'Sonar Reasoning Pro', id: 'sonar-reasoning-pro' },
       ],
       value: () => 'sonar',

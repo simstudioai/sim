@@ -125,8 +125,8 @@ export const cerebrasProvider: ProviderConfig = {
           stream: createReadableStreamFromCerebrasStream(streamResponse, (content, usage) => {
             streamingResult.execution.output.content = content
             streamingResult.execution.output.tokens = {
-              prompt: usage.prompt_tokens,
-              completion: usage.completion_tokens,
+              input: usage.prompt_tokens,
+              output: usage.completion_tokens,
               total: usage.total_tokens,
             }
 
@@ -146,7 +146,7 @@ export const cerebrasProvider: ProviderConfig = {
             output: {
               content: '',
               model: request.model,
-              tokens: { prompt: 0, completion: 0, total: 0 },
+              tokens: { input: 0, output: 0, total: 0 },
               toolCalls: undefined,
               providerTiming: {
                 startTime: providerStartTimeISO,
@@ -183,8 +183,8 @@ export const cerebrasProvider: ProviderConfig = {
 
       let content = currentResponse.choices[0]?.message?.content || ''
       const tokens = {
-        prompt: currentResponse.usage?.prompt_tokens || 0,
-        completion: currentResponse.usage?.completion_tokens || 0,
+        input: currentResponse.usage?.prompt_tokens || 0,
+        output: currentResponse.usage?.completion_tokens || 0,
         total: currentResponse.usage?.total_tokens || 0,
       }
       const toolCalls = []
@@ -384,8 +384,8 @@ export const cerebrasProvider: ProviderConfig = {
               content = finalResponse.choices[0].message.content
             }
             if (finalResponse.usage) {
-              tokens.prompt += finalResponse.usage.prompt_tokens || 0
-              tokens.completion += finalResponse.usage.completion_tokens || 0
+              tokens.input += finalResponse.usage.prompt_tokens || 0
+              tokens.output += finalResponse.usage.completion_tokens || 0
               tokens.total += finalResponse.usage.total_tokens || 0
             }
 
@@ -416,8 +416,8 @@ export const cerebrasProvider: ProviderConfig = {
 
             modelTime += thisModelTime
             if (currentResponse.usage) {
-              tokens.prompt += currentResponse.usage.prompt_tokens || 0
-              tokens.completion += currentResponse.usage.completion_tokens || 0
+              tokens.input += currentResponse.usage.prompt_tokens || 0
+              tokens.output += currentResponse.usage.completion_tokens || 0
               tokens.total += currentResponse.usage.total_tokens || 0
             }
 
@@ -444,14 +444,14 @@ export const cerebrasProvider: ProviderConfig = {
 
         const streamResponse: any = await client.chat.completions.create(streamingPayload)
 
-        const accumulatedCost = calculateCost(request.model, tokens.prompt, tokens.completion)
+        const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
 
         const streamingResult = {
           stream: createReadableStreamFromCerebrasStream(streamResponse, (content, usage) => {
             streamingResult.execution.output.content = content
             streamingResult.execution.output.tokens = {
-              prompt: tokens.prompt + usage.prompt_tokens,
-              completion: tokens.completion + usage.completion_tokens,
+              input: tokens.input + usage.prompt_tokens,
+              output: tokens.output + usage.completion_tokens,
               total: tokens.total + usage.total_tokens,
             }
 
@@ -472,8 +472,8 @@ export const cerebrasProvider: ProviderConfig = {
               content: '',
               model: request.model,
               tokens: {
-                prompt: tokens.prompt,
-                completion: tokens.completion,
+                input: tokens.input,
+                output: tokens.output,
                 total: tokens.total,
               },
               toolCalls:
