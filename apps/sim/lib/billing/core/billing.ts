@@ -310,7 +310,7 @@ export async function getSimplifiedBillingSummary(
       const totalLastPeriodCopilotCost = toNumber(totalLastPeriodCopilotCostDecimal)
 
       // Calculate team-level overage: total usage beyond what was already paid to Stripe
-      const totalOverage = Math.max(0, totalCurrentUsage - totalBasePrice)
+      const totalOverage = toNumber(Decimal.max(0, totalCurrentUsageDecimal.minus(totalBasePrice)))
 
       // Get user's personal limits for warnings
       const percentUsed =
@@ -435,7 +435,7 @@ export async function getSimplifiedBillingSummary(
       totalLastPeriodCopilotCost = toNumber(totalTeamLastPeriodCopilotCostDecimal)
     }
 
-    const overageAmount = Math.max(0, currentUsage - basePrice)
+    const overageAmount = toNumber(Decimal.max(0, toDecimal(currentUsage).minus(basePrice)))
     const percentUsed = usageData.limit > 0 ? (currentUsage / usageData.limit) * 100 : 0
 
     // Calculate days remaining in billing period
