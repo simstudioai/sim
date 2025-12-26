@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import { v4 as uuidv4 } from 'uuid'
-import { createLogger } from '@/lib/logs/console/logger'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import type { WorkflowState } from '../workflow/types'
 

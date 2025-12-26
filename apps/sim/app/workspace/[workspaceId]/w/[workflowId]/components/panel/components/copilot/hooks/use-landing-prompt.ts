@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { createLogger } from '@sim/logger'
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('useLandingPrompt')
 

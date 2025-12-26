@@ -42,7 +42,7 @@ describe('OAuth Disconnect API Route', () => {
       or: vi.fn((...conditions) => ({ conditions, type: 'or' })),
     }))
 
-    vi.doMock('@/lib/logs/console/logger', () => ({
+    vi.doMock('@sim/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
   })

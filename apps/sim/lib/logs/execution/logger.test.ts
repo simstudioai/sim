@@ -73,7 +73,7 @@ vi.mock('@/lib/core/utils/display-filters', () => ({
   filterForDisplay: vi.fn((data) => data),
 }))
 
-vi.mock('@/lib/logs/console/logger', () => loggerMock)
+vi.mock('@sim/logger', () => loggerMock)
 
 // Mock events
 vi.mock('@/lib/logs/events', () => ({

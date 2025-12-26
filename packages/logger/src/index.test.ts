@@ -1,9 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-
-// Ensure we use the real logger module, not any mocks from other tests
-vi.unmock('@/lib/logs/console/logger')
-
-import { createLogger, Logger, LogLevel } from '@/lib/logs/console/logger'
+import { createLogger, Logger, LogLevel } from './index'
 
 /**
  * Tests for the console logger module.

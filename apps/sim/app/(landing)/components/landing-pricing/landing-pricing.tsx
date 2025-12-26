@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createLogger } from '@sim/logger'
 import type { LucideIcon } from 'lucide-react'
 import {
   ArrowRight,
@@ -13,7 +14,6 @@ import {
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
-import { createLogger } from '@/lib/logs/console/logger'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import {
   ENTERPRISE_PLAN_FEATURES,

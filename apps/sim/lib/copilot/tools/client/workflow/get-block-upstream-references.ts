@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { GitBranch, Loader2, X, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
@@ -15,7 +16,6 @@ import {
   GetBlockUpstreamReferencesResult,
   type GetBlockUpstreamReferencesResultType,
 } from '@/lib/copilot/tools/shared/schemas'
-import { createLogger } from '@/lib/logs/console/logger'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'

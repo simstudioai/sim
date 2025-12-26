@@ -1,12 +1,12 @@
 import { db } from '@sim/db'
 import { templates, workflow, workflowDeploymentVersion } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 import { regenerateWorkflowStateIds } from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('TemplateUseAPI')

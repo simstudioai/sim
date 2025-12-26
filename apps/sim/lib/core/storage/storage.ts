@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import { getRedisClient } from '@/lib/core/config/redis'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('Storage')
 

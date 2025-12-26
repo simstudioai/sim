@@ -1,8 +1,8 @@
 import { db, workflow, workflowDeploymentVersion } from '@sim/db'
+import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createLogger } from '@/lib/logs/console/logger'
 import { deployWorkflow, loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
   createSchedulesForDeploy,

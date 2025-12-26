@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import { EdgeConstructor } from '@/executor/dag/construction/edges'
 import { LoopConstructor } from '@/executor/dag/construction/loops'
 import { NodeConstructor } from '@/executor/dag/construction/nodes'

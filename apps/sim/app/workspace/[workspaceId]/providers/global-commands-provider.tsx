@@ -9,8 +9,8 @@ import {
   useMemo,
   useRef,
 } from 'react'
+import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('GlobalCommands')
 

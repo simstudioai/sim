@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createLogger } from '@/lib/logs/console/logger'
 import { filterBlacklistedModels } from '@/providers/utils'
 
 const logger = createLogger('OpenRouterModelsAPI')

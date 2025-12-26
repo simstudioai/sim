@@ -6,7 +6,7 @@
  * import { createMockLogger, setupGlobalFetchMock, databaseMock } from '@sim/testing/mocks'
  *
  * // Mock the logger
- * vi.mock('@/lib/logs/console/logger', () => ({ createLogger: () => createMockLogger() }))
+ * vi.mock('@sim/logger', () => ({ createLogger: () => createMockLogger() }))
  *
  * // Mock fetch globally
  * setupGlobalFetchMock({ json: { success: true } })

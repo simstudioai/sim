@@ -2,7 +2,7 @@
  * Utility functions for tokenization
  */
 
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import {
   LLM_BLOCK_TYPES,
   MAX_PREVIEW_LENGTH,

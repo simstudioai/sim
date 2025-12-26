@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import { toPng } from 'html-to-image'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('OGCapturePreview')
 

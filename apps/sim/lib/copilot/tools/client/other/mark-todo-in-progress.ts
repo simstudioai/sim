@@ -1,10 +1,10 @@
+import { createLogger } from '@sim/logger'
 import { Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import { createLogger } from '@/lib/logs/console/logger'
 
 interface MarkTodoInProgressArgs {
   id?: string

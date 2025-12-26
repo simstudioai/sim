@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { CanvasLayout } from '@/tools/sharepoint/types'
 
 const logger = createLogger('SharepointUtils')

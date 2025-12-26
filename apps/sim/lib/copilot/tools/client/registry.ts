@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import type { ClientToolDefinition, ToolExecutionContext } from '@/lib/copilot/tools/client/types'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('ClientToolRegistry')
 

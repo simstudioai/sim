@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import type { QueryClient } from '@tanstack/react-query'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('OptimisticMutation')
 

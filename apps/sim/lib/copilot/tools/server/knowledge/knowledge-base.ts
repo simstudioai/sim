@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import {
   type KnowledgeBaseArgs,
@@ -10,7 +11,6 @@ import {
   getKnowledgeBaseById,
   getKnowledgeBases,
 } from '@/lib/knowledge/service'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getQueryStrategy, handleVectorOnlySearch } from '@/app/api/knowledge/search/utils'
 
 const logger = createLogger('KnowledgeBaseServerTool')

@@ -1,5 +1,6 @@
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -18,7 +19,6 @@ import {
 import { McpIcon } from '@/components/icons'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/core/utils/cn'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,

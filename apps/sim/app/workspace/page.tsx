@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect } from 'react'
+import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { useSession } from '@/lib/auth/auth-client'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('WorkspacePage')
 

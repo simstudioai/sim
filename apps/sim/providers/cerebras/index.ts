@@ -1,5 +1,5 @@
 import { Cerebras } from '@cerebras/cerebras_cloud_sdk'
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import type { CerebrasResponse } from '@/providers/cerebras/types'

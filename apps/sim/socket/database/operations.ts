@@ -1,10 +1,10 @@
 import * as schema from '@sim/db'
 import { webhook, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db'
+import { createLogger } from '@sim/logger'
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { env } from '@/lib/core/config/env'
-import { createLogger } from '@/lib/logs/console/logger'
 import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 

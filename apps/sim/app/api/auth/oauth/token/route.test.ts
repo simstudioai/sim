@@ -31,7 +31,7 @@ describe('OAuth Token API Routes', () => {
       refreshTokenIfNeeded: mockRefreshTokenIfNeeded,
     }))
 
-    vi.doMock('@/lib/logs/console/logger', () => ({
+    vi.doMock('@sim/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
 

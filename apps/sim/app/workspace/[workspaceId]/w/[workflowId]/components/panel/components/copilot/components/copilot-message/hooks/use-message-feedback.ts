@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback } from 'react'
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import { usePreviewStore } from '@/stores/panel/copilot/preview-store'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 import type { CopilotMessage } from '@/stores/panel/copilot/types'

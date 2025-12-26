@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { Database, Loader2, MinusCircle, PlusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
@@ -8,7 +9,6 @@ import {
   ExecuteResponseSuccessSchema,
   type KnowledgeBaseArgs,
 } from '@/lib/copilot/tools/shared/schemas'
-import { createLogger } from '@/lib/logs/console/logger'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 
 /**

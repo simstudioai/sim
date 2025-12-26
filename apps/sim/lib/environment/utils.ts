@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import { environment, workspaceEnvironment } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('EnvironmentUtils')
 

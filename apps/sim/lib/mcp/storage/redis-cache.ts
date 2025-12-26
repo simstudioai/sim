@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import type Redis from 'ioredis'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { McpTool } from '@/lib/mcp/types'
 import type { McpCacheEntry, McpCacheStorageAdapter } from './adapter'
 

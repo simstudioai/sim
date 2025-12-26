@@ -1,7 +1,7 @@
+import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
-import { createLogger } from '@/lib/logs/console/logger'
 import type {
   MoveBlockOperation,
   Operation,

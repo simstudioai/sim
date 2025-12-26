@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Eye, EyeOff } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -14,7 +15,6 @@ import {
 } from '@/components/emcn'
 import { AnthropicIcon, GeminiIcon, MistralIcon, OpenAIIcon } from '@/components/icons'
 import { Skeleton } from '@/components/ui'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   type BYOKKey,
   type BYOKProviderId,

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Plus, Search, Share2, Undo2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -15,7 +16,6 @@ import {
 } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { Input, Skeleton } from '@/components/ui'
-import { createLogger } from '@/lib/logs/console/logger'
 import { isValidEnvVarName } from '@/executor/constants'
 import {
   usePersonalEnvironment,

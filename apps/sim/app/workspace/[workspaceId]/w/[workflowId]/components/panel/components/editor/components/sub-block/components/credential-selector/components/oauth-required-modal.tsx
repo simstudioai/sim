@@ -1,10 +1,10 @@
 'use client'
 
 import { useMemo } from 'react'
+import { createLogger } from '@sim/logger'
 import { Check } from 'lucide-react'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { client } from '@/lib/auth/auth-client'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   getProviderIdFromServiceId,
   OAUTH_PROVIDERS,

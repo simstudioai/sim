@@ -1,9 +1,9 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auth } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('SSO-Register')
 

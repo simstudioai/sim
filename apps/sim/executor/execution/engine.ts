@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
-import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'

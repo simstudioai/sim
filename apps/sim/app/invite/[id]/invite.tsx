@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { client, useSession } from '@/lib/auth/auth-client'
-import { createLogger } from '@/lib/logs/console/logger'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
 
 const logger = createLogger('InviteById')

@@ -1,7 +1,7 @@
+import type { Logger } from '@sim/logger'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import type { Stream } from 'openai/streaming'
-import type { Logger } from '@/lib/logs/console/logger'
 import { checkForForcedToolUsageOpenAI, createOpenAICompatibleStream } from '@/providers/utils'
 
 /**

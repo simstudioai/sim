@@ -3,8 +3,8 @@
  */
 
 import { DiagConsoleLogger, DiagLogLevel, diag } from '@opentelemetry/api'
+import { createLogger } from '@sim/logger'
 import { env } from './lib/core/config/env'
-import { createLogger } from './lib/logs/console/logger'
 
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.ERROR)
 

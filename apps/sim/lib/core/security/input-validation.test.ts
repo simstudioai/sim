@@ -19,7 +19,7 @@ import {
 } from '@/lib/core/security/input-validation'
 import { sanitizeForLogging } from '@/lib/core/security/redaction'
 
-vi.mock('@/lib/logs/console/logger', () => ({
+vi.mock('@sim/logger', () => ({
   createLogger: () => ({
     info: vi.fn(),
     warn: vi.fn(),

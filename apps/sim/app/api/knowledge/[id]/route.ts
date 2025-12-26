@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -7,7 +8,6 @@ import {
   getKnowledgeBaseById,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
-import { createLogger } from '@/lib/logs/console/logger'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('KnowledgeBaseByIdAPI')

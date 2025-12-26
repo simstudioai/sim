@@ -8,7 +8,7 @@ import { getFreeTierLimit, getPlanPricing } from '@/lib/billing/subscriptions/ut
 
 export { getPlanPricing }
 
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 
 const logger = createLogger('Billing')
 

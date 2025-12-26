@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
 import { templateCreators, templates } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import TemplateDetails from '@/app/templates/[id]/template'
 

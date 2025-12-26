@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { copilotFeedback } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import {
@@ -9,7 +10,6 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CopilotFeedbackAPI')
 

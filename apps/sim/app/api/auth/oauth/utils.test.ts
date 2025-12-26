@@ -31,7 +31,7 @@ vi.mock('@/lib/oauth/oauth', () => ({
   OAUTH_PROVIDERS: {},
 }))
 
-vi.mock('@/lib/logs/console/logger', () => loggerMock)
+vi.mock('@sim/logger', () => loggerMock)
 
 import { db } from '@sim/db'
 import { refreshOAuthToken } from '@/lib/oauth'

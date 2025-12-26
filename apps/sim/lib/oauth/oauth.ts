@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import {
   AirtableIcon,
   AsanaIcon,
@@ -39,7 +40,6 @@ import {
   ZoomIcon,
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { OAuthProviderConfig } from './types'
 
 const logger = createLogger('OAuth')

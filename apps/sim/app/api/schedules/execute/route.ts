@@ -1,11 +1,11 @@
 import { db, workflowSchedule } from '@sim/db'
+import { createLogger } from '@sim/logger'
 import { tasks } from '@trigger.dev/sdk'
 import { and, eq, isNull, lt, lte, not, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createLogger } from '@/lib/logs/console/logger'
 import { executeScheduleJob } from '@/background/schedule-execution'
 
 export const dynamic = 'force-dynamic'

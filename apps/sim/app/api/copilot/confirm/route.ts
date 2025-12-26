@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import {
@@ -9,7 +10,6 @@ import {
   type NotificationStatus,
 } from '@/lib/copilot/request-helpers'
 import { getRedisClient } from '@/lib/core/config/redis'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CopilotConfirmAPI')
 

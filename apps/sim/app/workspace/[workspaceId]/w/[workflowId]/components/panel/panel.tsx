@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { ArrowUp, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
@@ -22,7 +23,6 @@ import {
   Trash,
 } from '@/components/emcn'
 import { VariableIcon } from '@/components/icons'
-import { createLogger } from '@/lib/logs/console/logger'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'

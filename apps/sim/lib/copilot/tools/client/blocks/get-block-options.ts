@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { ListFilter, Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
@@ -9,7 +10,6 @@ import {
   GetBlockOptionsInput,
   GetBlockOptionsResult,
 } from '@/lib/copilot/tools/shared/schemas'
-import { createLogger } from '@/lib/logs/console/logger'
 
 interface GetBlockOptionsArgs {
   blockId: string

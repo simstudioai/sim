@@ -14,10 +14,10 @@ import {
   user,
   userStats,
 } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('OrganizationMembership')
 

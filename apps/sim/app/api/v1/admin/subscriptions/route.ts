@@ -14,8 +14,8 @@
 
 import { db } from '@sim/db'
 import { subscription } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, count, eq, type SQL } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console/logger'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import { internalErrorResponse, listResponse } from '@/app/api/v1/admin/responses'
 import {

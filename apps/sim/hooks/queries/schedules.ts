@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createLogger } from '@/lib/logs/console/logger'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 
 const logger = createLogger('ScheduleQueries')

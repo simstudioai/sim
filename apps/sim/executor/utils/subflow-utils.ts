@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import { LOOP, PARALLEL, PARSING, REFERENCE } from '@/executor/constants'
 import type { ContextExtensions } from '@/executor/execution/types'
 import type { BlockLog, ExecutionContext } from '@/executor/types'

@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { StructuredDataChunker } from './structured-data-chunker'
 
-vi.mock('@/lib/logs/console/logger', () => ({
+vi.mock('@sim/logger', () => ({
   createLogger: () => ({
     info: vi.fn(),
     warn: vi.fn(),

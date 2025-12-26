@@ -1,9 +1,9 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { SEARCH_TOOL_COST } from '@/lib/billing/constants'
 import { env } from '@/lib/core/config/env'
-import { createLogger } from '@/lib/logs/console/logger'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('search')

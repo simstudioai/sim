@@ -1,10 +1,10 @@
+import { createLogger } from '@sim/logger'
 import { CheckCircle, Loader2, MinusCircle, PlugZap, X, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import { createLogger } from '@/lib/logs/console/logger'
 import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth'
 
 const logger = createLogger('OAuthRequestAccessClientTool')

@@ -1,6 +1,6 @@
+import { createLogger } from '@sim/logger'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { env } from '@/lib/core/config/env'
-import { createLogger } from '@/lib/logs/console/logger'
 import { executeTool } from '@/tools'
 
 interface OnlineSearchParams {

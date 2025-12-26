@@ -1,6 +1,6 @@
+import { createLogger } from '@sim/logger'
 import OpenAI, { AzureOpenAI } from 'openai'
 import { env } from '@/lib/core/config/env'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('SimAgentUtils')
 

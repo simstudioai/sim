@@ -1,10 +1,10 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { isE2bEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { executeInE2B } from '@/lib/execution/e2b'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
-import { createLogger } from '@/lib/logs/console/logger'
 import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
 import {
   createEnvVarPattern,

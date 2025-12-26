@@ -3,6 +3,7 @@ import { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react
 import { Check, Copy, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import 'prismjs/components/prism-python'
+import { createLogger } from '@sim/logger'
 import Editor from 'react-simple-code-editor'
 import {
   CODE_LINE_HEIGHT_PX,
@@ -15,7 +16,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
 import { CodeLanguage } from '@/lib/execution/languages'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   isLikelyReferenceSegment,
   SYSTEM_REFERENCE_PREFIXES,

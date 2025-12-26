@@ -1,5 +1,6 @@
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import {
@@ -18,7 +19,6 @@ import {
   extractFieldsFromSchema,
   parseResponseFormatSafely,
 } from '@/lib/core/utils/response-format'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getBlockOutputPaths, getBlockOutputType } from '@/lib/workflows/blocks/block-outputs'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import { KeyboardNavigationHandler } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/components/keyboard-navigation-handler'

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console/logger'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType, DEFAULTS, EVALUATOR, HTTP } from '@/executor/constants'

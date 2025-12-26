@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import { member, organization, userStats } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CreditBalance')
 

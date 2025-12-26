@@ -1,26 +1,18 @@
 /**
- * logger.ts
+ * @sim/logger
  *
- * This module provides standardized console logging utilities for internal application logging.
- * It is separate from the user-facing logging system in logging.ts.
+ * Framework-agnostic logging utilities for the Sim platform.
+ * Provides standardized console logging with environment-aware configuration.
  */
 import chalk from 'chalk'
-import { env } from '@/lib/core/config/env'
 
 /**
  * LogLevel enum defines the severity levels for logging
  *
  * DEBUG: Detailed information, typically useful only for diagnosing problems
- *        These logs are only shown in development environment
- *
  * INFO: Confirmation that things are working as expected
- *       These logs are shown in both development and production environments
- *
- * WARN: Indication that something unexpected happened, or may happen in the near future
- *       The application can still continue working as expected
- *
+ * WARN: Indication that something unexpected happened
  * ERROR: Error events that might still allow the application to continue running
- *        These should be investigated and fixed
  */
 export enum LogLevel {
   DEBUG = 'DEBUG',
@@ -30,18 +22,47 @@ export enum LogLevel {
 }
 
 /**
+ * Logger configuration options
+ */
+export interface LoggerConfig {
+  /** Minimum log level to display */
+  logLevel?: LogLevel | string
+  /** Whether to colorize output */
+  colorize?: boolean
+  /** Whether logging is enabled */
+  enabled?: boolean
+}
+
+/**
+ * Get environment variable value
+ * Works in any JavaScript runtime (Node.js, Bun, etc.)
+ */
+const getEnvVar = (key: string): string | undefined => {
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env[key]
+  }
+  return undefined
+}
+
+/**
+ * Get the current environment (development, production, test)
+ */
+const getNodeEnv = (): string => getEnvVar('NODE_ENV') || 'development'
+
+/**
  * Get the minimum log level from environment variable or use defaults
  * - Development: DEBUG (show all logs)
  * - Production: ERROR (only show errors, but can be overridden by LOG_LEVEL env var)
  * - Test: ERROR (only show errors in tests)
  */
 const getMinLogLevel = (): LogLevel => {
-  if (env.LOG_LEVEL) {
-    return env.LOG_LEVEL as LogLevel
+  const logLevelEnv = getEnvVar('LOG_LEVEL')
+  if (logLevelEnv && Object.values(LogLevel).includes(logLevelEnv as LogLevel)) {
+    return logLevelEnv as LogLevel
   }
 
-  const ENV = (env.NODE_ENV || 'development') as string
-  switch (ENV) {
+  const nodeEnv = getNodeEnv()
+  switch (nodeEnv) {
     case 'development':
       return LogLevel.DEBUG
     case 'production':
@@ -55,50 +76,60 @@ const getMinLogLevel = (): LogLevel => {
 
 /**
  * Configuration for different environments
- *
- * enabled: Whether logging is enabled at all
- * minLevel: The minimum log level that will be displayed
- *          (e.g., INFO will show INFO, WARN, and ERROR, but not DEBUG)
- * colorize: Whether to apply color formatting to logs
  */
-const LOG_CONFIG = {
-  development: {
-    enabled: true,
-    minLevel: getMinLogLevel(),
-    colorize: true,
-  },
-  production: {
-    enabled: true, // Will be checked at runtime
-    minLevel: getMinLogLevel(),
-    colorize: false,
-  },
-  test: {
-    enabled: false, // Disable logs in test environment
-    minLevel: getMinLogLevel(),
-    colorize: false,
-  },
+const getLogConfig = () => {
+  const nodeEnv = getNodeEnv()
+  const minLevel = getMinLogLevel()
+
+  switch (nodeEnv) {
+    case 'development':
+      return {
+        enabled: true,
+        minLevel,
+        colorize: true,
+      }
+    case 'production':
+      return {
+        enabled: true,
+        minLevel,
+        colorize: false,
+      }
+    case 'test':
+      return {
+        enabled: false,
+        minLevel,
+        colorize: false,
+      }
+    default:
+      return {
+        enabled: true,
+        minLevel,
+        colorize: true,
+      }
+  }
 }
 
-// Get current environment
-const ENV = (env.NODE_ENV || 'development') as keyof typeof LOG_CONFIG
-const config = LOG_CONFIG[ENV] || LOG_CONFIG.development
-
-// Format objects for logging
-const formatObject = (obj: any): string => {
+/**
+ * Format objects for logging
+ */
+const formatObject = (obj: unknown, isDev: boolean): string => {
   try {
     if (obj instanceof Error) {
-      return JSON.stringify(
-        {
-          message: obj.message,
-          stack: ENV === 'development' ? obj.stack : undefined,
-          ...(obj as any),
-        },
-        null,
-        ENV === 'development' ? 2 : 0
-      )
+      const errorObj: Record<string, unknown> = {
+        message: obj.message,
+        stack: isDev ? obj.stack : undefined,
+        name: obj.name,
+      }
+      // Copy any additional enumerable properties from the error
+      for (const key of Object.keys(obj)) {
+        if (!(key in errorObj)) {
+          errorObj[key] = (obj as unknown as Record<string, unknown>)[key]
+        }
+      }
+      return JSON.stringify(errorObj, null, isDev ? 2 : 0)
     }
-    return JSON.stringify(obj, null, ENV === 'development' ? 2 : 0)
-  } catch (_error) {
+    return JSON.stringify(obj, null, isDev ? 2 : 0)
+  } catch {
     return '[Circular or Non-Serializable Object]'
   }
 }
@@ -106,37 +137,57 @@ const formatObject = (obj: any): string => {
 /**
  * Logger class for standardized console logging
  *
- * This class provides methods for logging at different severity levels
+ * Provides methods for logging at different severity levels
  * and handles formatting, colorization, and environment-specific behavior.
  */
 export class Logger {
   private module: string
+  private config: ReturnType<typeof getLogConfig>
+  private isDev: boolean
 
   /**
    * Create a new logger for a specific module
    * @param module The name of the module (e.g., 'OpenAIProvider', 'AgentBlockHandler')
+   * @param overrideConfig Optional configuration overrides
    */
-  constructor(module: string) {
+  constructor(module: string, overrideConfig?: LoggerConfig) {
     this.module = module
+    this.config = getLogConfig()
+    this.isDev = getNodeEnv() === 'development'
+
+    // Apply overrides if provided
+    if (overrideConfig) {
+      if (overrideConfig.logLevel !== undefined) {
+        const level =
+          typeof overrideConfig.logLevel === 'string'
+            ? (overrideConfig.logLevel as LogLevel)
+            : overrideConfig.logLevel
+        if (Object.values(LogLevel).includes(level)) {
+          this.config.minLevel = level
+        }
+      }
+      if (overrideConfig.colorize !== undefined) {
+        this.config.colorize = overrideConfig.colorize
+      }
+      if (overrideConfig.enabled !== undefined) {
+        this.config.enabled = overrideConfig.enabled
+      }
+    }
   }
 
   /**
    * Determines if a log at the given level should be displayed
-   * based on the current environment configuration
-   *
-   * @param level The log level to check
-   * @returns boolean indicating whether the log should be displayed
    */
   private shouldLog(level: LogLevel): boolean {
-    if (!config.enabled) return false
+    if (!this.config.enabled) return false
 
     // In production, only log on server-side (where window is undefined)
-    if (ENV === 'production' && typeof window !== 'undefined') {
+    if (getNodeEnv() === 'production' && typeof window !== 'undefined') {
       return false
     }
 
     const levels = [LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR]
-    const minLevelIndex = levels.indexOf(config.minLevel)
+    const minLevelIndex = levels.indexOf(this.config.minLevel)
     const currentLevelIndex = levels.indexOf(level)
 
     return currentLevelIndex >= minLevelIndex
@@ -144,34 +195,26 @@ export class Logger {
 
   /**
    * Format arguments for logging, converting objects to JSON strings
-   *
-   * @param args Arguments to format
-   * @returns Formatted arguments
    */
-  private formatArgs(args: any[]): any[] {
+  private formatArgs(args: unknown[]): unknown[] {
     return args.map((arg) => {
       if (arg === null || arg === undefined) return arg
-      if (typeof arg === 'object') return formatObject(arg)
+      if (typeof arg === 'object') return formatObject(arg, this.isDev)
       return arg
     })
   }
 
   /**
    * Internal method to log a message with the specified level
-   *
-   * @param level The severity level of the log
-   * @param message The main log message
-   * @param args Additional arguments to log
    */
-  private log(level: LogLevel, message: string, ...args: any[]) {
+  private log(level: LogLevel, message: string, ...args: unknown[]) {
     if (!this.shouldLog(level)) return
 
     const timestamp = new Date().toISOString()
     const formattedArgs = this.formatArgs(args)
 
-    // Color configuration
-    if (config.colorize) {
-      let levelColor
+    if (this.config.colorize) {
+      let levelColor: (text: string) => string
       const moduleColor = chalk.cyan
       const timestampColor = chalk.gray
 
@@ -198,7 +241,6 @@ export class Logger {
         console.log(coloredPrefix, message, ...formattedArgs)
       }
     } else {
-      // No colors in production
       const prefix = `[${timestamp}] [${level}] [${this.module}]`
 
       if (level === LogLevel.ERROR) {
@@ -213,17 +255,9 @@ export class Logger {
    * Log a debug message
    *
    * Use for detailed information useful during development and debugging.
-   * These logs are only shown in development environment.
-   *
-   * Examples:
-   * - Variable values during execution
-   * - Function entry/exit points
-   * - Detailed request/response data
-   *
-   * @param message The message to log
-   * @param args Additional arguments to log
+   * These logs are only shown in development environment by default.
    */
-  debug(message: string, ...args: any[]) {
+  debug(message: string, ...args: unknown[]) {
     this.log(LogLevel.DEBUG, message, ...args)
   }
 
@@ -231,17 +265,8 @@ export class Logger {
    * Log an info message
    *
    * Use for general information about application operation.
-   * These logs are shown in both development and production environments.
-   *
-   * Examples:
-   * - Application startup/shutdown
-   * - Configuration information
-   * - Successful operations
-   *
-   * @param message The message to log
-   * @param args Additional arguments to log
    */
-  info(message: string, ...args: any[]) {
+  info(message: string, ...args: unknown[]) {
     this.log(LogLevel.INFO, message, ...args)
   }
 
@@ -249,16 +274,8 @@ export class Logger {
    * Log a warning message
    *
    * Use for potentially problematic situations that don't cause operation failure.
-   *
-   * Examples:
-   * - Deprecated feature usage
-   * - Suboptimal configurations
-   * - Recoverable errors
-   *
-   * @param message The message to log
-   * @param args Additional arguments to log
    */
-  warn(message: string, ...args: any[]) {
+  warn(message: string, ...args: unknown[]) {
     this.log(LogLevel.WARN, message, ...args)
   }
 
@@ -266,16 +283,8 @@ export class Logger {
    * Log an error message
    *
    * Use for error events that might still allow the application to continue.
-   *
-   * Examples:
-   * - API call failures
-   * - Operation failures
-   * - Unexpected exceptions
-   *
-   * @param message The message to log
-   * @param args Additional arguments to log
    */
-  error(message: string, ...args: any[]) {
+  error(message: string, ...args: unknown[]) {
     this.log(LogLevel.ERROR, message, ...args)
   }
 }
@@ -283,9 +292,9 @@ export class Logger {
 /**
  * Create a logger for a specific module
  *
- * Usage example:
- * ```
- * import { createLogger } from '@/lib/logger'
+ * @example
+ * ```typescript
+ * import { createLogger } from '@sim/logger'
  *
  * const logger = createLogger('MyComponent')
  *
@@ -295,9 +304,10 @@ export class Logger {
  * logger.error('Failed to fetch data', error)
  * ```
  *
- * @param module The name of the module (e.g., 'OpenAIProvider', 'AgentBlockHandler')
+ * @param module The name of the module
+ * @param config Optional configuration overrides
  * @returns A Logger instance
  */
-export function createLogger(module: string): Logger {
-  return new Logger(module)
+export function createLogger(module: string, config?: LoggerConfig): Logger {
+  return new Logger(module, config)
 }

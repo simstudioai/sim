@@ -217,7 +217,7 @@ vi.mock('@/tools/utils', () => ({
   getTool: () => null,
 }))
 
-vi.mock('@/lib/logs/console/logger', () => ({
+vi.mock('@sim/logger', () => ({
   createLogger: () => ({
     error: vi.fn(),
     info: vi.fn(),

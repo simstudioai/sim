@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import {
   Button,
   Modal,
@@ -9,7 +10,6 @@ import {
 } from '@/components/emcn/components'
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/core/utils/cn'
-import { createLogger } from '@/lib/logs/console/logger'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useTriggerConfigAggregation } from '@/hooks/use-trigger-config-aggregation'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'

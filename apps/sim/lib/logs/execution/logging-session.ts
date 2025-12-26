@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
-import { createLogger } from '@/lib/logs/console/logger'
 import { executionLogger } from '@/lib/logs/execution/logger'
 import {
   calculateCostSummary,

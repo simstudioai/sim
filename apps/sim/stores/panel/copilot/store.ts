@@ -1,5 +1,6 @@
 'use client'
 
+import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { type CopilotChat, sendStreamingMessage } from '@/lib/copilot/api'
@@ -52,7 +53,6 @@ import { ManageCustomToolClientTool } from '@/lib/copilot/tools/client/workflow/
 import { ManageMcpToolClientTool } from '@/lib/copilot/tools/client/workflow/manage-mcp-tool'
 import { RunWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/run-workflow'
 import { SetGlobalWorkflowVariablesClientTool } from '@/lib/copilot/tools/client/workflow/set-global-workflow-variables'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import type {

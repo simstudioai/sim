@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { ChevronDown, ChevronUp, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import Editor from 'react-simple-code-editor'
@@ -15,7 +16,6 @@ import {
 } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/core/utils/cn'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   isLikelyReferenceSegment,
   SYSTEM_REFERENCE_PREFIXES,

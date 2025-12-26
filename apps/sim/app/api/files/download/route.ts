@@ -1,6 +1,6 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { StorageContext } from '@/lib/uploads/config'
 import { hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import { verifyFileAccess } from '@/app/api/files/authorization'

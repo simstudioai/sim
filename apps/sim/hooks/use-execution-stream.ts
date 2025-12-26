@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react'
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 

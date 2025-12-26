@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -7,7 +8,6 @@ import {
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CopilotChatsListAPI')
 

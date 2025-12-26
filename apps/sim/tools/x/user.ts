@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { XUserParams, XUserResponse } from '@/tools/x/types'
 import { transformUser } from '@/tools/x/types'

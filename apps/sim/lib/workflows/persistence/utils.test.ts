@@ -117,7 +117,7 @@ vi.mock('@sim/db', () => ({
 
 vi.mock('drizzle-orm', () => drizzleOrmMock)
 
-vi.mock('@/lib/logs/console/logger', () => loggerMock)
+vi.mock('@sim/logger', () => loggerMock)
 
 import * as dbHelpers from '@/lib/workflows/persistence/utils'
 
