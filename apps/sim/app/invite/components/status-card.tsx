@@ -162,14 +162,7 @@ export function InviteStatusCard({
               onClick={action.onClick}
               disabled={action.disabled || action.loading}
             >
-              {action.loading ? (
-                <>
-                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                  {action.label}...
-                </>
-              ) : (
-                action.label
-              )}
+              {action.loading ? `${action.label}...` : action.label}
             </Button>
           ))}
         </div>

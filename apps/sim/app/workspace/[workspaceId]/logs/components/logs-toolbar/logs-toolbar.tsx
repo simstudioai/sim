@@ -302,7 +302,7 @@ export function LogsToolbar({
         </div>
         <div className='flex items-center gap-[8px]'>
           {/* More options popover */}
-          <Popover>
+          <Popover size='sm'>
             <PopoverTrigger asChild>
               <Button variant='default' className='h-[32px] w-[32px] rounded-[6px] p-0'>
                 <MoreHorizontal className='h-[14px] w-[14px]' />
@@ -339,27 +339,36 @@ export function LogsToolbar({
 
           {/* Live button */}
           <Button
-            variant={isLive ? 'primary' : 'default'}
+            variant={isLive ? 'tertiary' : 'default'}
             onClick={onToggleLive}
-            className='h-[32px] rounded-[6px] px-[10px]'
+            className={cn(
+              'h-[32px] rounded-[6px] px-[10px]',
+              isLive && 'border border-[var(--brand-tertiary-2)]'
+            )}
           >
             Live
           </Button>
 
           {/* View mode toggle */}
           <div
-            className='flex h-[32px] cursor-pointer items-center rounded-[6px] border border-[var(--border)] bg-[var(--surface-elevated)] p-[2px]'
+            className='flex h-[32px] cursor-pointer items-center rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] p-[2px]'
             onClick={() => onViewModeChange(isDashboardView ? 'logs' : 'dashboard')}
           >
             <Button
               variant={!isDashboardView ? 'active' : 'ghost'}
-              className='h-[26px] rounded-[4px] px-[10px]'
+              className={cn(
+                'h-[26px] rounded-[4px] px-[10px]',
+                isDashboardView && 'border border-transparent'
+              )}
             >
               Logs
             </Button>
             <Button
               variant={isDashboardView ? 'active' : 'ghost'}
-              className='h-[26px] rounded-[4px] px-[10px]'
+              className={cn(
+                'h-[26px] rounded-[4px] px-[10px]',
+                !isDashboardView && 'border border-transparent'
+              )}
             >
               Dashboard
             </Button>

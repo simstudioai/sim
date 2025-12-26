@@ -619,7 +619,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         <div
           ref={setInputContainerRef}
           className={cn(
-            'relative w-full rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[6px] py-[6px] transition-colors dark:bg-[var(--surface-9)]',
+            'relative w-full rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[6px] py-[6px] transition-colors dark:bg-[var(--surface-5)]',
             fileAttachments.isDragging && 'ring-[1.75px] ring-[var(--brand-secondary)]'
           )}
           onDragEnter={fileAttachments.handleDragEnter}
@@ -679,7 +679,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             {/* Highlight overlay - must have identical flow as textarea */}
             <div
               ref={overlayRef}
-              className='pointer-events-none absolute top-0 left-0 z-[1] m-0 box-border h-auto max-h-[120px] min-h-[48px] w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-0 bg-transparent px-[2px] py-1 font-medium font-sans text-[#0D0D0D] text-sm leading-[1.25rem] outline-none [-ms-overflow-style:none] [scrollbar-width:none] [text-rendering:optimizeLegibility] dark:text-gray-100 [&::-webkit-scrollbar]:hidden'
+              className='pointer-events-none absolute top-0 left-0 z-[1] m-0 box-border h-auto max-h-[120px] min-h-[48px] w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-0 bg-transparent px-[2px] py-1 font-medium font-sans text-[var(--text-primary)] text-sm leading-[1.25rem] outline-none [-ms-overflow-style:none] [scrollbar-width:none] [text-rendering:optimizeLegibility] [&::-webkit-scrollbar]:hidden'
               aria-hidden='true'
             >
               {renderOverlayContent()}
@@ -760,8 +760,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   className={cn(
                     'h-[20px] w-[20px] rounded-full p-0 transition-colors',
                     !isAborting
-                      ? 'bg-[#C0C0C0] hover:bg-[#D0D0D0] dark:bg-[#C0C0C0] dark:hover:bg-[#D0D0D0]'
-                      : 'bg-[#C0C0C0] dark:bg-[#C0C0C0]'
+                      ? 'bg-[var(--c-C0C0C0)] hover:bg-[var(--c-D0D0D0)]'
+                      : 'bg-[var(--c-C0C0C0)]'
                   )}
                   title='Stop generation'
                 >
@@ -787,8 +787,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   className={cn(
                     'h-[22px] w-[22px] rounded-full p-0 transition-colors',
                     canSubmit
-                      ? 'bg-[#C0C0C0] hover:bg-[#D0D0D0] dark:bg-[#C0C0C0] dark:hover:bg-[#D0D0D0]'
-                      : 'bg-[#C0C0C0] dark:bg-[#C0C0C0]'
+                      ? 'bg-[var(--c-C0C0C0)] hover:bg-[var(--c-D0D0D0)]'
+                      : 'bg-[var(--c-C0C0C0)]'
                   )}
                 >
                   {isLoading ? (

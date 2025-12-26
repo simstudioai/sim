@@ -8,6 +8,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { AgentIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
+import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useSearchModalStore } from '@/stores/search-modal/store'
 
 const logger = createLogger('WorkflowCommandList')
@@ -58,6 +59,7 @@ export function CommandList() {
   const params = useParams()
   const router = useRouter()
   const { open: openSearchModal } = useSearchModalStore()
+  const preventZoomRef = usePreventZoom()
 
   const workspaceId = params.workspaceId as string | undefined
 
@@ -171,6 +173,7 @@ export function CommandList() {
 
   return (
     <div
+      ref={preventZoomRef}
       className={cn(
         'pointer-events-none absolute inset-0 mb-[50px] flex items-center justify-center'
       )}

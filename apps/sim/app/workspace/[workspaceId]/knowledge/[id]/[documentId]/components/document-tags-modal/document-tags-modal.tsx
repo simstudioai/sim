@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Loader2 } from 'lucide-react'
 import {
   Button,
   Combobox,
@@ -575,7 +574,7 @@ export function DocumentTagsModal({
                           Cancel
                         </Button>
                         <Button
-                          variant='primary'
+                          variant='tertiary'
                           onClick={saveDocumentTag}
                           className='flex-1'
                           disabled={!canSaveTag}
@@ -741,7 +740,7 @@ export function DocumentTagsModal({
                       </Button>
                     )}
                     <Button
-                      variant='primary'
+                      variant='tertiary'
                       onClick={saveDocumentTag}
                       className='flex-1'
                       disabled={
@@ -755,14 +754,7 @@ export function DocumentTagsModal({
                           ))
                       }
                     >
-                      {isSavingTag ? (
-                        <>
-                          <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                          Creating...
-                        </>
-                      ) : (
-                        'Create Tag'
-                      )}
+                      {isSavingTag ? 'Creating...' : 'Create Tag'}
                     </Button>
                   </div>
                 </div>

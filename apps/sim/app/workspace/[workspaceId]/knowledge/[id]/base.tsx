@@ -185,7 +185,7 @@ function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoadingProps) 
           </div>
 
           <div className='mt-[14px] flex items-center justify-between'>
-            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-5)] px-[8px]'>
+            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-4)] px-[8px]'>
               <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
               <Input
                 placeholder='Search documents...'
@@ -193,7 +193,7 @@ function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoadingProps) 
                 className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
               />
             </div>
-            <Button disabled variant='primary' className='h-[32px] rounded-[6px]'>
+            <Button disabled variant='tertiary' className='h-[32px] rounded-[6px]'>
               Add Documents
             </Button>
           </div>
@@ -973,7 +973,7 @@ export function KnowledgeBase({
           </div>
 
           <div className='mt-[14px] flex items-center justify-between'>
-            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-5)] px-[8px]'>
+            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-4)] px-[8px]'>
               <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
               <Input
                 placeholder='Search documents...'
@@ -999,7 +999,7 @@ export function KnowledgeBase({
                 <Button
                   onClick={handleAddDocuments}
                   disabled={userPermissions.canEdit !== true}
-                  variant='primary'
+                  variant='tertiary'
                   className='h-[32px] rounded-[6px]'
                 >
                   Add Documents
@@ -1253,18 +1253,17 @@ export function KnowledgeBase({
             )}
 
             {totalPages > 1 && (
-              <div className='flex items-center justify-center border-t bg-background px-6 py-4'>
+              <div className='flex items-center justify-center border-t bg-background px-4 pt-[10px]'>
                 <div className='flex items-center gap-1'>
                   <Button
                     variant='ghost'
                     onClick={prevPage}
                     disabled={!hasPrevPage || isLoadingDocuments}
-                    className='h-8 w-8 p-0'
                   >
-                    <ChevronLeft className='h-4 w-4' />
+                    <ChevronLeft className='h-3.5 w-3.5' />
                   </Button>
 
-                  <div className='mx-4 flex items-center gap-6'>
+                  <div className='mx-[12px] flex items-center gap-[16px]'>
                     {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
                       let page: number
                       if (totalPages <= 5) {
@@ -1298,9 +1297,8 @@ export function KnowledgeBase({
                     variant='ghost'
                     onClick={nextPage}
                     disabled={!hasNextPage || isLoadingDocuments}
-                    className='h-8 w-8 p-0'
                   >
-                    <ChevronRight className='h-4 w-4' />
+                    <ChevronRight className='h-3.5 w-3.5' />
                   </Button>
                 </div>
               </div>
@@ -1315,7 +1313,7 @@ export function KnowledgeBase({
         <ModalContent size='sm'>
           <ModalHeader>Delete Knowledge Base</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to delete "{knowledgeBaseName}"? This will permanently delete
               the knowledge base and all {pagination.total} document
               {pagination.total === 1 ? '' : 's'} within it.{' '}
@@ -1330,12 +1328,7 @@ export function KnowledgeBase({
             >
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={handleDeleteKnowledgeBase}
-              disabled={isDeleting}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={handleDeleteKnowledgeBase} disabled={isDeleting}>
               {isDeleting ? 'Deleting...' : 'Delete Knowledge Base'}
             </Button>
           </ModalFooter>
@@ -1346,7 +1339,7 @@ export function KnowledgeBase({
         <ModalContent size='sm'>
           <ModalHeader>Delete Document</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to delete "
               {documents.find((doc) => doc.id === documentToDelete)?.filename ?? 'this document'}"?{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
@@ -1362,11 +1355,7 @@ export function KnowledgeBase({
             >
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={confirmDeleteDocument}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={confirmDeleteDocument}>
               Delete Document
             </Button>
           </ModalFooter>
@@ -1377,7 +1366,7 @@ export function KnowledgeBase({
         <ModalContent size='sm'>
           <ModalHeader>Delete Documents</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to delete {selectedDocuments.size} document
               {selectedDocuments.size === 1 ? '' : 's'}?{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
@@ -1387,12 +1376,7 @@ export function KnowledgeBase({
             <Button variant='active' onClick={() => setShowBulkDeleteModal(false)}>
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={confirmBulkDelete}
-              disabled={isBulkOperating}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={confirmBulkDelete} disabled={isBulkOperating}>
               {isBulkOperating
                 ? 'Deleting...'
                 : `Delete ${selectedDocuments.size} Document${selectedDocuments.size === 1 ? '' : 's'}`}

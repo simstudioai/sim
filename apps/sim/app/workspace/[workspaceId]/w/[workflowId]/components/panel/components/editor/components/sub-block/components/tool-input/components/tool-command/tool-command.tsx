@@ -232,8 +232,8 @@ export function CommandItem({
     <button
       id={value}
       className={cn(
-        'flex h-[25px] w-full cursor-pointer select-none items-center gap-[8px] rounded-[6px] px-[6px] font-base text-[12px] text-[var(--text-primary)] outline-none transition-colors hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 data-[disabled=true]:pointer-events-none data-[selected=true]:bg-[var(--surface-9)] data-[selected=true]:text-[var(--text-primary)] data-[disabled=true]:opacity-50',
-        (isActive || isHovered) && 'bg-[var(--surface-9)] text-[var(--text-primary)]',
+        'flex h-[25px] w-full cursor-pointer select-none items-center gap-[8px] rounded-[6px] px-[6px] font-base text-[12px] text-[var(--text-primary)] outline-none transition-colors hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 data-[disabled=true]:pointer-events-none data-[selected=true]:bg-[var(--surface-5)] data-[selected=true]:text-[var(--text-primary)] data-[disabled=true]:opacity-50',
+        (isActive || isHovered) && 'bg-[var(--surface-5)] text-[var(--text-primary)]',
         className
       )}
       onClick={() => !disabled && onSelect?.()}

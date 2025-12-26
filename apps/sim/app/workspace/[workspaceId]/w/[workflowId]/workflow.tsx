@@ -92,6 +92,22 @@ const edgeTypes: EdgeTypes = {
 
 /** ReactFlow configuration constants. */
 const defaultEdgeOptions = { type: 'custom' }
+
+/** Tailwind classes for ReactFlow internal element styling */
+const reactFlowStyles = [
+  // Z-index layering
+  '[&_.react-flow__edges]:!z-0',
+  '[&_.react-flow__node]:!z-[21]',
+  '[&_.react-flow__handle]:!z-[30]',
+  '[&_.react-flow__edge-labels]:!z-[60]',
+  // Light mode: transparent pane to show dots
+  '[&_.react-flow__pane]:!bg-transparent',
+  '[&_.react-flow__renderer]:!bg-transparent',
+  // Dark mode: solid background, hide dots
+  'dark:[&_.react-flow__pane]:!bg-[var(--bg)]',
+  'dark:[&_.react-flow__renderer]:!bg-[var(--bg)]',
+  'dark:[&_.react-flow__background]:hidden',
+].join(' ')
 const reactFlowFitViewOptions = { padding: 0.6 } as const
 const reactFlowProOptions = { hideAttribution: true } as const
 
@@ -342,7 +358,7 @@ const WorkflowContent = React.memo(() => {
   /** Connection line style - red for error handles, default otherwise. */
   const connectionLineStyle = useMemo(
     () => ({
-      stroke: isErrorConnectionDrag ? 'var(--text-error)' : 'var(--surface-12)',
+      stroke: isErrorConnectionDrag ? 'var(--text-error)' : 'var(--surface-7)',
       strokeWidth: 2,
     }),
     [isErrorConnectionDrag]
@@ -1116,20 +1132,51 @@ const WorkflowContent = React.memo(() => {
   }, [screenToFlowPosition, handleToolbarDrop])
 
   /**
-   * Recenter canvas when diff appears
-   * Tracks when diff becomes ready to automatically fit the view with smooth animation
+   * Focus canvas on changed blocks when diff appears
+   * Focuses on new/edited blocks rather than fitting the entire workflow
    */
   const prevDiffReadyRef = useRef(false)
   useEffect(() => {
-    // Only recenter when diff transitions from not ready to ready
+    // Only focus when diff transitions from not ready to ready
     if (isDiffReady && !prevDiffReadyRef.current && diffAnalysis) {
-      logger.info('Diff ready - recentering canvas to show changes')
-      requestAnimationFrame(() => {
-        fitView({ padding: 0.3, duration: 600 })
-      })
+      const changedBlockIds = [
+        ...(diffAnalysis.new_blocks || []),
+        ...(diffAnalysis.edited_blocks || []),
+      ]
+
+      if (changedBlockIds.length > 0) {
+        const allNodes = getNodes()
+        const changedNodes = allNodes.filter((node) => changedBlockIds.includes(node.id))
+
+        if (changedNodes.length > 0) {
+          logger.info('Diff ready - focusing on changed blocks', {
+            changedBlockIds,
+            foundNodes: changedNodes.length,
+          })
+          requestAnimationFrame(() => {
+            fitView({
+              nodes: changedNodes,
+              duration: 600,
+              padding: 0.3,
+              minZoom: 0.5,
+              maxZoom: 1.0,
+            })
+          })
+        } else {
+          logger.info('Diff ready - no changed nodes found, fitting all')
+          requestAnimationFrame(() => {
+            fitView({ padding: 0.3, duration: 600 })
+          })
+        }
+      } else {
+        logger.info('Diff ready - no changed blocks, fitting all')
+        requestAnimationFrame(() => {
+          fitView({ padding: 0.3, duration: 600 })
+        })
+      }
     }
     prevDiffReadyRef.current = isDiffReady
-  }, [isDiffReady, diffAnalysis, fitView])
+  }, [isDiffReady, diffAnalysis, fitView, getNodes])
 
   /** Displays trigger warning notifications. */
   useEffect(() => {
@@ -2289,7 +2336,7 @@ const WorkflowContent = React.memo(() => {
               noWheelClassName='allow-scroll'
               edgesFocusable={true}
               edgesUpdatable={effectivePermissions.canEdit}
-              className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${isCanvasReady ? 'opacity-100' : 'opacity-0'}`}
+              className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'}`}
               onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
               onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
               onNodeDragStart={effectivePermissions.canEdit ? onNodeDragStart : undefined}

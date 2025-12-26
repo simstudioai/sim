@@ -1,5 +1,6 @@
 'use client'
 
+import type { ComponentType, SVGProps } from 'react'
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import type { LucideIcon } from 'lucide-react'
@@ -24,7 +25,7 @@ import {
 const logger = createLogger('LandingPricing')
 
 interface PricingFeature {
-  icon: LucideIcon
+  icon: LucideIcon | ComponentType<SVGProps<SVGSVGElement>>
   text: string
 }
 

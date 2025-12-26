@@ -379,11 +379,7 @@ export function TriggerSave({
             disabled={disabled || isProcessing}
             className='h-[32px] rounded-[8px] px-[12px]'
           >
-            {deleteStatus === 'deleting' ? (
-              <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
-            ) : (
-              <Trash className='h-[14px] w-[14px]' />
-            )}
+            <Trash className='h-[14px] w-[14px]' />
           </Button>
         )}
       </div>
@@ -439,7 +435,7 @@ export function TriggerSave({
         <ModalContent size='sm'>
           <ModalHeader>Delete Trigger</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to delete this trigger configuration? This will remove the
               webhook and stop all incoming triggers.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
@@ -449,11 +445,7 @@ export function TriggerSave({
             <Button variant='active' onClick={() => setShowDeleteDialog(false)}>
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={handleDeleteConfirm}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={handleDeleteConfirm}>
               Delete
             </Button>
           </ModalFooter>

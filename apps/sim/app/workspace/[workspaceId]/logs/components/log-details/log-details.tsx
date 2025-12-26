@@ -267,7 +267,7 @@ export const LogDetails = memo(function LogDetails({
                     </span>
                     <button
                       onClick={() => setIsFrozenCanvasOpen(true)}
-                      className='flex items-center justify-between rounded-[6px] bg-[var(--surface-1)] px-[10px] py-[8px] transition-colors hover:bg-[var(--c-2A2A2A)]'
+                      className='flex items-center justify-between rounded-[6px] bg-[var(--surface-1)] px-[10px] py-[8px] transition-colors hover:bg-[var(--surface-4)]'
                     >
                       <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
                         View Snapshot

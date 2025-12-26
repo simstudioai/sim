@@ -64,14 +64,10 @@ export function ServerListItem({
         </p>
       </div>
       <div className='flex flex-shrink-0 items-center gap-[4px]'>
-        <Button
-          variant='primary'
-          onClick={onViewDetails}
-          className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-        >
+        <Button variant='tertiary' onClick={onViewDetails}>
           Details
         </Button>
-        <Button variant='ghost' onClick={onRemove} disabled={isDeleting}>
+        <Button variant='destructive' onClick={onRemove} disabled={isDeleting}>
           {isDeleting ? 'Deleting...' : 'Delete'}
         </Button>
       </div>

@@ -294,14 +294,14 @@ function UnsubscribeContent() {
               variant='destructive'
               className='w-full'
             >
-              {processing ? (
-                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-              ) : data?.currentPreferences.unsubscribeAll ? (
+              {data?.currentPreferences.unsubscribeAll ? (
                 <CheckCircle className='mr-2 h-4 w-4' />
               ) : null}
-              {data?.currentPreferences.unsubscribeAll
-                ? 'Unsubscribed from All Emails'
-                : 'Unsubscribe from All Marketing Emails'}
+              {processing
+                ? 'Unsubscribing...'
+                : data?.currentPreferences.unsubscribeAll
+                  ? 'Unsubscribed from All Emails'
+                  : 'Unsubscribe from All Marketing Emails'}
             </Button>
 
             <div className='text-center text-muted-foreground text-sm'>

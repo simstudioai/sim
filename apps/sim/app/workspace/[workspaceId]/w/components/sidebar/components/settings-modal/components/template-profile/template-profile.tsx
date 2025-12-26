@@ -505,8 +505,7 @@ export function TemplateProfile() {
         <Button
           onClick={handleSubmit}
           disabled={saveStatus === 'saving' || !isFormValid}
-          variant='primary'
-          className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+          variant='tertiary'
         >
           {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Save'}
         </Button>

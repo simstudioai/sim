@@ -55,7 +55,7 @@ export function TagInput({
   return (
     <div
       className={cn(
-        'scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[6px] py-[4px] focus-within:outline-none dark:bg-[var(--surface-9)]',
+        'scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[6px] py-[4px] focus-within:outline-none',
         disabled && 'cursor-not-allowed opacity-50',
         className
       )}
@@ -92,7 +92,7 @@ interface TagProps {
 
 function Tag({ value, onRemove, disabled }: TagProps) {
   return (
-    <div className='flex w-auto items-center gap-[4px] rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-5)] px-[6px] py-[2px] text-[12px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'>
+    <div className='flex w-auto items-center gap-[4px] rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] px-[6px] py-[2px] text-[12px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'>
       <span className='max-w-[200px] truncate'>{value}</span>
       {!disabled && (
         <button

@@ -66,7 +66,7 @@ export const TodoList = memo(function TodoList({
   return (
     <div
       className={cn(
-        'w-full rounded-t-[4px] rounded-b-none border-[var(--surface-11)] border-x border-t bg-[var(--surface-6)] dark:bg-[var(--surface-9)]',
+        'w-full rounded-t-[4px] rounded-b-none border-[var(--border-1)] border-x border-t bg-[var(--surface-5)] dark:bg-[var(--surface-5)]',
         className
       )}
     >
@@ -92,7 +92,7 @@ export const TodoList = memo(function TodoList({
 
         <div className='flex flex-1 items-center gap-[8px] pl-[10px]'>
           {/* Progress bar */}
-          <div className='h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--surface-11)]'>
+          <div className='h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--border-1)]'>
             <div
               className='h-full bg-[var(--brand-400)] transition-all duration-300 ease-out'
               style={{ width: `${progress}%` }}
@@ -119,8 +119,8 @@ export const TodoList = memo(function TodoList({
             <div
               key={todo.id}
               className={cn(
-                'flex items-start gap-2 px-3 py-1.5 transition-colors hover:bg-[var(--surface-9)]/50 dark:hover:bg-[var(--surface-11)]/50',
-                index !== todos.length - 1 && 'border-[var(--surface-11)] border-b'
+                'flex items-start gap-2 px-3 py-1.5 transition-colors hover:bg-[var(--surface-5)]/50 dark:hover:bg-[var(--border-1)]/50',
+                index !== todos.length - 1 && 'border-[var(--border-1)] border-b'
               )}
             >
               {todo.executing ? (
@@ -133,7 +133,7 @@ export const TodoList = memo(function TodoList({
                     'mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-all',
                     todo.completed
                       ? 'border-[var(--brand-400)] bg-[var(--brand-400)]'
-                      : 'border-[#707070]'
+                      : 'border-[var(--text-muted)]'
                   )}
                 >
                   {todo.completed ? <Check className='h-3 w-3 text-white' strokeWidth={3} /> : null}
@@ -143,7 +143,9 @@ export const TodoList = memo(function TodoList({
               <span
                 className={cn(
                   'flex-1 font-base text-[12px] leading-relaxed',
-                  todo.completed ? 'text-[var(--text-muted)] line-through' : 'text-[var(--white)]'
+                  todo.completed
+                    ? 'text-[var(--text-muted)] line-through'
+                    : 'text-[var(--text-primary)]'
                 )}
               >
                 {todo.content}

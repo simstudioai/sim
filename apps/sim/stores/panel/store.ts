@@ -6,7 +6,7 @@ import type { PanelState, PanelTab } from '@/stores/panel/types'
  * Panel width constraints
  * Note: Maximum width is enforced dynamically at 40% of viewport width in the resize hook
  */
-const MIN_PANEL_WIDTH = 244
+const MIN_PANEL_WIDTH = 260
 
 /**
  * Default panel tab
