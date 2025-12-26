@@ -188,7 +188,7 @@ function SModalSidebarItem({
       className={cn(
         'w-full justify-start gap-[8px] rounded-[6px] border-0 text-[13px]',
         !active &&
-          'text-[var(--text-tertiary)] hover:bg-[var(--border)] hover:text-[var(--text-primary)]',
+          'text-[var(--text-tertiary)] hover:bg-[var(--surface-6)] hover:text-[var(--text-primary)] dark:hover:bg-[var(--border)]',
         className
       )}
       {...props}

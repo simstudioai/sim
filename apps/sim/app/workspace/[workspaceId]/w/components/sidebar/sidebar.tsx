@@ -496,7 +496,7 @@ export function Sidebar() {
 
               {/* Search */}
               <div
-                className='mx-[8px] mt-[10px] flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[6px] transition-colors duration-100 hover:border-[var(--border-1)] hover:bg-[var(--surface-5)] dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'
+                className='mx-[8px] mt-[10px] flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[6px] transition-colors duration-100 hover:border-[var(--border-1)] hover:bg-[var(--surface-6)] dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'
                 onClick={() => setIsSearchModalOpen(true)}
               >
                 <div className='flex items-center gap-[6px]'>
@@ -591,8 +591,10 @@ export function Sidebar() {
                   const Icon = item.icon
                   const active = item.href ? pathname?.startsWith(item.href) : false
                   const baseClasses =
-                    'group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-5)]'
-                  const activeClasses = active ? 'bg-[var(--surface-5)]' : ''
+                    'group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                  const activeClasses = active
+                    ? 'bg-[var(--surface-6)] dark:bg-[var(--surface-5)]'
+                    : ''
                   const textClasses = active
                     ? 'text-[var(--text-primary)]'
                     : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'

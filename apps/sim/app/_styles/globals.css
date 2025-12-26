@@ -47,24 +47,27 @@
 @layer base {
   :root,
   .light {
-    --bg: #fcfcf9; /* main canvas - warm off-white */
-    --surface-1: #f9faf7; /* sidebar, panels - very close to bg */
-    --surface-2: #fcfcf9; /* cards, modals - matches bg */
-    --surface-3: #f6f7f4; /* popovers, elevated */
-    --surface-4: #f2f3f0; /* buttons base */
-    --border: #e5e6e1; /* primary border */
-    --surface-5: #ecede8; /* inputs, hover states */
+    --bg: #f9faf8; /* main canvas - near white */
+    --surface-1: #f9faf8; /* sidebar, panels - light warm gray */
+    --surface-2: #fdfdfb; /* blocks, cards, modals - soft warm white */
+    --surface-3: #f4f5f1; /* popovers, headers - more contrast */
+    --surface-4: #f2f3ef; /* buttons base */
+    --border: #d7dcda; /* primary border */
+    --surface-5: #f0f1ed; /* inputs, form elements - subtle */
     --border-1: #d7dcda; /* stronger border - sage gray */
-    --surface-6: #d7dcda; /* scroll thumbs, active states */
+    --surface-6: #eceee9; /* popovers, elevated surfaces */
+    --surface-7: #e8e9e4;
+
+    --workflow-edge: #d7dcda; /* workflow handles/edges - matches border-1 */
 
     /* Text - warm neutrals */
-    --text-primary: #1a1a1a;
-    --text-secondary: #2d2d2d;
-    --text-tertiary: #525252;
+    --text-primary: #2d2d2d;
+    --text-secondary: #404040;
+    --text-tertiary: #5c5c5c;
     --text-muted: #737373;
     --text-subtle: #8c8c8c;
     --text-inverse: #f0fff6;
-    --text-error: #dc2626;
+    --text-error: #ef4444;
 
     /* Borders / dividers */
     --divider: #e8e9e4;
@@ -85,15 +88,6 @@
     --font-weight-base: 430;
     --font-weight-medium: 450;
     --font-weight-semibold: 500;
-
-    /* RGB for opacity usage */
-    --surface-4-rgb: 242 243 240;
-    --surface-5-rgb: 236 237 232;
-    --surface-7-rgb: 246 247 244;
-    --surface-9-rgb: 232 233 228;
-    --divider-rgb: 232 233 228;
-    --white-rgb: 255 255 255;
-    --black-rgb: 0 0 0;
 
     /* Extended palette */
     --c-0D0D0D: #0d0d0d;
@@ -178,6 +172,9 @@
     --surface-5: #363636;
     --border-1: #3d3d3d;
     --surface-6: #454545;
+    --surface-7: #454545;
+
+    --workflow-edge: #454545; /* workflow handles/edges - same as surface-6 in dark */
 
     /* Text */
     --text-primary: #e6e6e6;
@@ -207,15 +204,6 @@
     --font-weight-base: 440;
     --font-weight-medium: 480;
     --font-weight-semibold: 550;
-
-    /* RGB for opacity usage */
-    --surface-4-rgb: 41 41 41;
-    --surface-5-rgb: 39 39 39;
-    --surface-7-rgb: 44 44 44;
-    --surface-9-rgb: 54 54 54;
-    --divider-rgb: 57 57 57;
-    --white-rgb: 255 255 255;
-    --black-rgb: 0 0 0;
 
     /* Extended palette (exhaustive from code usage via -[#...]) */
     /* Neutral deep shades */
@@ -344,12 +332,12 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background-color: var(--surface-6);
+    background-color: var(--surface-7);
     border-radius: var(--radius);
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background-color: var(--surface-6);
+    background-color: var(--surface-7);
   }
 
   /* Dark Mode Global Scrollbar */
@@ -358,20 +346,20 @@
   }
 
   .dark ::-webkit-scrollbar-thumb {
-    background-color: var(--surface-6);
+    background-color: var(--surface-7);
   }
 
   .dark ::-webkit-scrollbar-thumb:hover {
-    background-color: var(--surface-6);
+    background-color: var(--surface-7);
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--surface-6) var(--surface-1);
+    scrollbar-color: var(--surface-7) var(--surface-1);
   }
 
   .dark * {
-    scrollbar-color: var(--surface-6) var(--surface-4);
+    scrollbar-color: var(--surface-7) var(--surface-4);
   }
 
   .copilot-scrollable {

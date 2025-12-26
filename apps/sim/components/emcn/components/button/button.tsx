@@ -8,14 +8,14 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          'bg-[var(--surface-4)] hover:bg-[var(--surface-5)] border border-[var(--border)] hover:border-[var(--border-1)]',
+          'bg-[var(--surface-4)] hover:bg-[var(--surface-6)] border border-[var(--border)] hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]',
         active:
-          'bg-[var(--surface-5)] hover:bg-[var(--border-1)] text-[var(--text-primary)] border border-[var(--border-1)]',
+          'bg-[var(--surface-5)] hover:bg-[var(--surface-7)] text-[var(--text-primary)] border border-[var(--border-1)] dark:hover:bg-[var(--border-1)]',
         '3d': 'text-[var(--text-tertiary)] border-t border-l border-r border-[var(--border-1)] shadow-[0_2px_0_0_var(--border-1)] hover:shadow-[0_4px_0_0_var(--border-1)] transition-all hover:-translate-y-0.5 hover:text-[var(--text-primary)]',
         outline:
-          'border border-[var(--text-muted)] bg-[var(--surface-4)] hover:bg-[var(--surface-5)]',
+          'border border-[var(--text-muted)] bg-[var(--surface-4)] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
         primary: 'bg-[var(--brand-400)] text-[var(--text-primary)] hover:brightness-110',
-        destructive: 'bg-[var(--text-error)] text-white hover:brightness-110',
+        destructive: 'bg-[var(--text-error)] text-white hover:text-white hover:brightness-110',
         secondary: 'bg-[var(--brand-secondary)] text-[var(--text-primary)]',
         tertiary:
           '!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:brightness-110 hover:!text-[var(--text-inverse)] ![transition-property:background-color,border-color,fill,stroke]',

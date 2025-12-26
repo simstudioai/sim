@@ -66,8 +66,8 @@ export function WorkflowsList({
                 <div
                   key={workflow.workflowId}
                   className={cn(
-                    'flex h-[44px] cursor-pointer items-center gap-[16px] px-[24px] hover:bg-[var(--surface-4)]',
-                    isSelected && 'bg-[var(--surface-4)]'
+                    'flex h-[44px] cursor-pointer items-center gap-[16px] px-[24px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-4)]',
+                    isSelected && 'bg-[var(--surface-6)] dark:bg-[var(--surface-4)]'
                   )}
                   onClick={() => onToggleWorkflow(workflow.workflowId)}
                 >

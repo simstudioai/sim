@@ -13,11 +13,11 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          'gap-[4px] rounded-[40px] border border-[var(--border)] text-[var(--text-secondary)] bg-[var(--surface-4)] hover:text-[var(--text-primary)] hover:border-[var(--border-1)] hover:bg-[var(--surface-5)]',
+          'gap-[4px] rounded-[40px] border border-[var(--border)] text-[var(--text-secondary)] bg-[var(--surface-4)] hover:text-[var(--text-primary)] hover:border-[var(--border-1)] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
         outline:
-          'gap-[4px] rounded-[40px] border border-[var(--border-1)] bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--surface-6)]',
+          'gap-[4px] rounded-[40px] border border-[var(--border-1)] bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-5)] dark:hover:bg-transparent dark:hover:border-[var(--surface-6)]',
         green: `${STATUS_BASE} bg-[#bbf7d0] text-[#15803d] dark:bg-[rgba(34,197,94,0.2)] dark:text-[#86efac]`,
-        red: `${STATUS_BASE} bg-[#fecaca] text-[#b91c1c] dark:bg-[#551a1a] dark:text-[var(--text-error)]`,
+        red: `${STATUS_BASE} bg-[#fecaca] text-[var(--text-error)] dark:bg-[#551a1a] dark:text-[var(--text-error)]`,
         gray: `${STATUS_BASE} bg-[#e7e5e4] text-[#57534e] dark:bg-[var(--terminal-status-info-bg)] dark:text-[var(--terminal-status-info-color)]`,
         blue: `${STATUS_BASE} bg-[#bfdbfe] text-[#1d4ed8] dark:bg-[rgba(59,130,246,0.2)] dark:text-[#93c5fd]`,
         'blue-secondary': `${STATUS_BASE} bg-[#bae6fd] text-[#0369a1] dark:bg-[rgba(51,180,255,0.2)] dark:text-[var(--brand-secondary)]`,

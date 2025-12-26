@@ -86,7 +86,8 @@ const POPOVER_ICON_SIZE_CLASSES: Record<PopoverSize, string> = {
  */
 const POPOVER_ITEM_ACTIVE_CLASSES = {
   secondary: 'bg-[var(--brand-secondary)] text-[var(--bg)] [&_svg]:text-[var(--bg)]',
-  default: 'bg-[var(--surface-5)] text-[var(--text-primary)] [&_svg]:text-[var(--text-primary)]',
+  default:
+    'bg-[var(--surface-7)] dark:bg-[var(--surface-5)] text-[var(--text-primary)] [&_svg]:text-[var(--text-primary)]',
 }
 
 /**
@@ -96,7 +97,7 @@ const POPOVER_ITEM_HOVER_CLASSES = {
   secondary:
     'hover:bg-[var(--brand-secondary)] hover:text-[var(--bg)] hover:[&_svg]:text-[var(--bg)]',
   default:
-    'hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)] hover:[&_svg]:text-[var(--text-primary)]',
+    'hover:bg-[var(--surface-7)] dark:hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)] hover:[&_svg]:text-[var(--text-primary)]',
 }
 
 type PopoverVariant = 'default' | 'secondary'
@@ -412,7 +413,7 @@ const PopoverContent = React.forwardRef<
         {...restProps}
         className={cn(
           // will-change-transform creates a new GPU compositing layer to prevent paint flickering
-          'z-[10000200] flex flex-col overflow-auto bg-[var(--surface-3)] text-foreground outline-none will-change-transform',
+          'z-[10000200] flex flex-col overflow-auto bg-[var(--surface-5)] text-foreground outline-none will-change-transform dark:bg-[var(--surface-3)]',
           POPOVER_CONTENT_CLASSES,
           // If width is constrained by the caller (prop or style), ensure inner flexible text truncates by default,
           // and also truncate section headers.

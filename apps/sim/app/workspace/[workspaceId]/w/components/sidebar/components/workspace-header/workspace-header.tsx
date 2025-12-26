@@ -278,7 +278,7 @@ export function WorkspaceHeader({
               <button
                 type='button'
                 aria-label='Switch workspace'
-                className='-mx-[6px] flex min-w-0 max-w-full cursor-pointer items-center gap-[8px] rounded-[6px] bg-transparent px-[6px] py-[4px] transition-colors hover:bg-[var(--surface-5)]'
+                className='-mx-[6px] flex min-w-0 max-w-full cursor-pointer items-center gap-[8px] rounded-[6px] bg-transparent px-[6px] py-[4px] transition-colors hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
                 title={activeWorkspace?.name || 'Loading...'}
               >
                 <span className='truncate font-base text-[14px] text-[var(--text-primary)]'>
@@ -421,7 +421,7 @@ export function WorkspaceHeader({
           <button
             type='button'
             aria-label='Switch workspace'
-            className='-mx-[6px] flex min-w-0 max-w-full cursor-pointer items-center gap-[8px] rounded-[6px] bg-transparent px-[6px] py-[4px] transition-colors hover:bg-[var(--surface-5)]'
+            className='-mx-[6px] flex min-w-0 max-w-full cursor-pointer items-center gap-[8px] rounded-[6px] bg-transparent px-[6px] py-[4px] transition-colors hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
             title={activeWorkspace?.name || 'Loading...'}
             disabled
           >

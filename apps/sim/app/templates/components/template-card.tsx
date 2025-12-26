@@ -243,7 +243,7 @@ function TemplateCardInner({
                 )
               })}
               <div
-                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[var(--surface-6)]'
+                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[var(--surface-7)]'
                 style={{ marginLeft: '-4px' }}
               >
                 <span className='font-medium text-[10px] text-[var(--text-primary)]'>
@@ -280,7 +280,7 @@ function TemplateCardInner({
               <img src={authorImageUrl} alt={author} className='h-full w-full object-cover' />
             </div>
           ) : (
-            <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-6)]'>
+            <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-7)]'>
               <User className='h-[12px] w-[12px] text-[var(--text-muted)]' />
             </div>
           )}

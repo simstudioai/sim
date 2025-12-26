@@ -77,7 +77,7 @@ export const ActionBar = memo(
           '-top-[46px] absolute right-0',
           'flex flex-row items-center',
           'opacity-0 transition-opacity duration-200 group-hover:opacity-100',
-          'gap-[5px] rounded-[10px] bg-[var(--surface-2)] p-[5px]'
+          'gap-[5px] rounded-[10px] bg-[var(--surface-4)] p-[5px]'
         )}
       >
         {!isNoteBlock && (
@@ -91,7 +91,7 @@ export const ActionBar = memo(
                     collaborativeToggleBlockEnabled(blockId)
                   }
                 }}
-                className='hover:!text-[var(--text-inverse)] h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
+                className='hover:!text-[var(--text-inverse)] h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-7)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
                 disabled={disabled}
               >
                 {isEnabled ? (
@@ -118,7 +118,7 @@ export const ActionBar = memo(
                     collaborativeDuplicateBlock(blockId)
                   }
                 }}
-                className='hover:!text-[var(--text-inverse)] h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
+                className='hover:!text-[var(--text-inverse)] h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-7)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
                 disabled={disabled}
               >
                 <Copy className='h-[11px] w-[11px]' />
@@ -141,7 +141,7 @@ export const ActionBar = memo(
                     )
                   }
                 }}
-                className='hover:!text-[var(--text-inverse)] h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
+                className='hover:!text-[var(--text-inverse)] h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-7)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
                 disabled={disabled || !userPermissions.canEdit}
               >
                 <LogOut className='h-[11px] w-[11px]' />
@@ -162,7 +162,7 @@ export const ActionBar = memo(
                     collaborativeToggleBlockHandles(blockId)
                   }
                 }}
-                className='hover:!text-[var(--text-inverse)] h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
+                className='hover:!text-[var(--text-inverse)] h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-7)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
                 disabled={disabled}
               >
                 {horizontalHandles ? (
@@ -188,7 +188,7 @@ export const ActionBar = memo(
                   collaborativeRemoveBlock(blockId)
                 }
               }}
-              className='hover:!text-[var(--text-inverse)] h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
+              className='hover:!text-[var(--text-inverse)] h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-7)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
               disabled={disabled}
             >
               <Trash2 className='h-[11px] w-[11px]' />

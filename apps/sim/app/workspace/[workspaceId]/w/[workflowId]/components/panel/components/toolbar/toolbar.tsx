@@ -555,8 +555,8 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                     onClick={() => handleItemClick(trigger.type, isTriggerCapable)}
                     className={clsx(
                       'group flex h-[28px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px]',
-                      'cursor-pointer hover:bg-[var(--surface-5)] active:cursor-grabbing',
-                      'focus-visible:bg-[var(--surface-5)] focus-visible:outline-none'
+                      'cursor-pointer hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover:bg-[var(--surface-5)]',
+                      'focus-visible:bg-[var(--surface-6)] focus-visible:outline-none dark:focus-visible:bg-[var(--surface-5)]'
                     )}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
@@ -644,8 +644,8 @@ export const Toolbar = forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
                     onClick={() => handleItemClick(block.type, false)}
                     className={clsx(
                       'group flex h-[28px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px]',
-                      'cursor-pointer hover:bg-[var(--surface-5)] active:cursor-grabbing',
-                      'focus-visible:bg-[var(--surface-5)] focus-visible:outline-none'
+                      'cursor-pointer hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover:bg-[var(--surface-5)]',
+                      'focus-visible:bg-[var(--surface-6)] focus-visible:outline-none dark:focus-visible:bg-[var(--surface-5)]'
                     )}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {

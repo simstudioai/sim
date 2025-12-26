@@ -786,7 +786,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
    */
   const getHandleClasses = (position: 'left' | 'right' | 'top' | 'bottom', isError = false) => {
     const baseClasses = '!z-[10] !cursor-crosshair !border-none !transition-[colors] !duration-150'
-    const colorClasses = isError ? '!bg-red-400 dark:!bg-red-500' : '!bg-[var(--surface-6)]'
+    const colorClasses = isError ? '!bg-[var(--text-error)]' : '!bg-[var(--workflow-edge)]'
 
     const positionClasses = {
       left: '!left-[-8px] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-none hover:!left-[-11px] hover:!w-[10px] hover:!rounded-l-full',
@@ -906,7 +906,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         ref={contentRef}
         onClick={handleClick}
         className={cn(
-          'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)]'
+          'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)]'
         )}
       >
         {isPending && (
@@ -941,7 +941,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         <div
           className={cn(
             'workflow-drag-handle flex cursor-grab items-center justify-between p-[8px] [&:active]:cursor-grabbing',
-            hasContentBelowHeader && 'border-[var(--divider)] border-b'
+            hasContentBelowHeader && 'border-[var(--border-1)] border-b'
           )}
           onMouseDown={(e) => {
             e.stopPropagation()

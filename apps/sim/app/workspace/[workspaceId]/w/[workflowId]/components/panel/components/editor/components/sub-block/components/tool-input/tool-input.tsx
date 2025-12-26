@@ -2125,7 +2125,7 @@ export function ToolInput({
             <div
               key={`${tool.customToolId || tool.toolId || toolIndex}-${toolIndex}`}
               className={cn(
-                'group relative flex flex-col overflow-hidden rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] transition-all duration-200 ease-in-out',
+                'group relative flex flex-col overflow-hidden rounded-[4px] border border-[var(--border-1)] transition-all duration-200 ease-in-out',
                 draggedIndex === toolIndex ? 'scale-95 opacity-40' : '',
                 dragOverIndex === toolIndex && draggedIndex !== toolIndex && draggedIndex !== null
                   ? 'translate-y-1 transform border-t-2 border-t-muted-foreground/40'
@@ -2140,7 +2140,7 @@ export function ToolInput({
             >
               <div
                 className={cn(
-                  'flex items-center justify-between gap-[8px] px-[8px] py-[6.5px]',
+                  'flex items-center justify-between gap-[8px] bg-[var(--surface-4)] px-[8px] py-[6.5px]',
                   (isCustomTool || hasToolBody) && 'cursor-pointer'
                 )}
                 onClick={() => {
@@ -2275,7 +2275,7 @@ export function ToolInput({
               </div>
 
               {!isCustomTool && isExpandedForDisplay && (
-                <div className='flex flex-col gap-[10px] overflow-visible rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-[8px] py-[8px]'>
+                <div className='flex flex-col gap-[10px] overflow-visible rounded-b-[4px] border-[var(--border-1)] border-t px-[8px] py-[8px]'>
                   {/* Operation dropdown for tools with multiple operations */}
                   {(() => {
                     const hasOperations = hasMultipleOperations(tool.type)

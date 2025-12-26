@@ -30,7 +30,7 @@ export const USAGE_THRESHOLDS = {
  */
 export const USAGE_PILL_COLORS = {
   /** Unfilled pill color (gray) */
-  UNFILLED: 'var(--surface-5)',
+  UNFILLED: 'var(--surface-7)',
   /** Normal filled pill color (blue) */
   FILLED: 'var(--brand-secondary)',
   /** Warning state pill color (yellow/orange) */

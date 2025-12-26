@@ -251,7 +251,7 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
         aria-expanded={isExpanded}
         aria-label={`${folder.name} folder, ${isExpanded ? 'expanded' : 'collapsed'}`}
         className={clsx(
-          'group flex h-[26px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-5)]',
+          'group flex h-[26px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
           isDragging ? 'opacity-50' : ''
         )}
         onClick={handleClick}

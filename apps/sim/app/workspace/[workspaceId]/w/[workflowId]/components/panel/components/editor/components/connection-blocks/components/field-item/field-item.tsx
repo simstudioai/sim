@@ -78,7 +78,7 @@ export function FieldItem({
       onDragStart={handleDragStart}
       onClick={handleClick}
       className={clsx(
-        'group flex h-[26px] cursor-grab items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-5)] active:cursor-grabbing',
+        'group flex h-[26px] cursor-grab items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover:bg-[var(--surface-5)]',
         hasChildren && 'cursor-pointer'
       )}
     >

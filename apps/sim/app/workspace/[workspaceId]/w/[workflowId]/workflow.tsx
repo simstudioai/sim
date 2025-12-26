@@ -4,8 +4,6 @@ import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useStat
 import { useParams, useRouter } from 'next/navigation'
 import ReactFlow, {
   applyNodeChanges,
-  Background,
-  BackgroundVariant,
   ConnectionLineType,
   type Edge,
   type EdgeTypes,
@@ -360,7 +358,7 @@ const WorkflowContent = React.memo(() => {
   /** Connection line style - red for error handles, default otherwise. */
   const connectionLineStyle = useMemo(
     () => ({
-      stroke: isErrorConnectionDrag ? 'var(--text-error)' : 'var(--surface-6)',
+      stroke: isErrorConnectionDrag ? 'var(--text-error)' : 'var(--surface-7)',
       strokeWidth: 2,
     }),
     [isErrorConnectionDrag]
@@ -2350,11 +2348,7 @@ const WorkflowContent = React.memo(() => {
               elevateNodesOnSelect={true}
               autoPanOnConnect={effectivePermissions.canEdit}
               autoPanOnNodeDrag={effectivePermissions.canEdit}
-            >
-              <div className='block dark:hidden'>
-                <Background variant={BackgroundVariant.Dots} gap={20} size={1.75} color='#D5CEE0' />
-              </div>
-            </ReactFlow>
+            />
 
             <Cursors />
 

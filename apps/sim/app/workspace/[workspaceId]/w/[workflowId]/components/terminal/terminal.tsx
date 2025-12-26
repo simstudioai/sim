@@ -1306,8 +1306,8 @@ export function Terminal() {
                     <div
                       key={entry.id}
                       className={clsx(
-                        'flex h-[36px] cursor-pointer items-center px-[24px] hover:bg-[var(--surface-4)]',
-                        isSelected && 'bg-[var(--surface-4)]'
+                        'flex h-[36px] cursor-pointer items-center px-[24px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-4)]',
+                        isSelected && 'bg-[var(--surface-6)] dark:bg-[var(--surface-4)]'
                       )}
                       onClick={() => handleRowClick(entry)}
                     >
