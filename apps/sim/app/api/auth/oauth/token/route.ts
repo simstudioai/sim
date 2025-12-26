@@ -10,6 +10,8 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OAuthTokenAPI')
 
+const SALESFORCE_INSTANCE_URL_REGEX = /__sf_instance__:([^\s]+)/
+
 const tokenRequestSchema = z.object({
   credentialId: z
     .string({ required_error: 'Credential ID is required' })
@@ -81,7 +83,7 @@ export async function POST(request: NextRequest) {
 
       let instanceUrl: string | undefined
       if (credential.providerId === 'salesforce' && credential.scope) {
-        const instanceMatch = credential.scope.match(/__sf_instance__:([^\s]+)/)
+        const instanceMatch = credential.scope.match(SALESFORCE_INSTANCE_URL_REGEX)
         if (instanceMatch) {
           instanceUrl = instanceMatch[1]
         }
@@ -161,7 +163,7 @@ export async function GET(request: NextRequest) {
       // For Salesforce, extract instanceUrl from the scope field
       let instanceUrl: string | undefined
       if (credential.providerId === 'salesforce' && credential.scope) {
-        const instanceMatch = credential.scope.match(/__sf_instance__:([^\s]+)/)
+        const instanceMatch = credential.scope.match(SALESFORCE_INSTANCE_URL_REGEX)
         if (instanceMatch) {
           instanceUrl = instanceMatch[1]
         }
