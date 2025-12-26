@@ -6,7 +6,11 @@ import type { BlockStateController } from '@/executor/execution/types'
 import type { LoopOrchestrator } from '@/executor/orchestrators/loop'
 import type { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
-import { extractBaseBlockId } from '@/executor/utils/subflow-utils'
+import {
+  calculateBranchCount,
+  extractBaseBlockId,
+  parseDistributionItems,
+} from '@/executor/utils/subflow-utils'
 
 const logger = createLogger('NodeExecutionOrchestrator')
 
@@ -92,6 +96,12 @@ export class NodeExecutionOrchestrator {
   ): Promise<NormalizedBlockOutput> {
     const sentinelType = node.metadata.sentinelType
     const loopId = node.metadata.loopId
+    const parallelId = node.metadata.parallelId
+    const isParallelSentinel = node.metadata.isParallelSentinel
+
+    if (isParallelSentinel) {
+      return this.handleParallelSentinel(ctx, node, sentinelType, parallelId)
+    }
 
     switch (sentinelType) {
       case 'start': {
@@ -138,6 +148,49 @@ export class NodeExecutionOrchestrator {
         logger.warn('Unknown sentinel type', { sentinelType })
         return {}
     }
+  }
+
+  private handleParallelSentinel(
+    ctx: ExecutionContext,
+    node: DAGNode,
+    sentinelType: string | undefined,
+    parallelId: string | undefined
+  ): NormalizedBlockOutput {
+    if (!parallelId) {
+      logger.warn('Parallel sentinel called without parallelId')
+      return {}
+    }
+
+    if (sentinelType === 'start') {
+      if (!this.parallelOrchestrator.getParallelScope(ctx, parallelId)) {
+        const parallelConfig = this.dag.parallelConfigs.get(parallelId)
+        if (parallelConfig) {
+          const distributionItems = parseDistributionItems(parallelConfig)
+          const branchCount = calculateBranchCount(parallelConfig, distributionItems)
+          const nodesInParallel = parallelConfig.nodes?.length || 1
+          this.parallelOrchestrator.initializeParallelScope(
+            ctx,
+            parallelId,
+            branchCount,
+            nodesInParallel
+          )
+        }
+      }
+      return { sentinelStart: true }
+    }
+
+    if (sentinelType === 'end') {
+      const result = this.parallelOrchestrator.aggregateParallelResults(ctx, parallelId)
+      return {
+        results: result.results || [],
+        sentinelEnd: true,
+        selectedRoute: EDGE.PARALLEL_EXIT,
+        totalBranches: result.totalBranches,
+      }
+    }
+
+    logger.warn('Unknown parallel sentinel type', { sentinelType })
+    return {}
   }
 
   async handleNodeCompletion(
