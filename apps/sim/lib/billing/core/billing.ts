@@ -9,7 +9,7 @@ import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 
 export { getPlanPricing }
 
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 
 const logger = createLogger('Billing')
 

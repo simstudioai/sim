@@ -6,10 +6,10 @@ import {
   workspaceNotificationDelivery,
   workspaceNotificationSubscription,
 } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, gte, inArray, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
-import { createLogger } from '@/lib/logs/console/logger'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import {
   executeNotificationDelivery,

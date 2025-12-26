@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { createLogger } from '@sim/logger'
 import { History, Plus } from 'lucide-react'
 import {
   Button,
@@ -21,7 +22,6 @@ import {
   PopoverTrigger,
 } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   CopilotMessage,
   PlanModeSection,

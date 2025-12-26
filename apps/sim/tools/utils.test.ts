@@ -11,7 +11,7 @@ import {
   validateRequiredParametersAfterMerge,
 } from '@/tools/utils'
 
-vi.mock('@/lib/logs/console/logger', () => loggerMock)
+vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/stores/settings/environment/store', () => {
   const mockStore = {

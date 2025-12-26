@@ -3,7 +3,7 @@
  * Provides clean error handling and type safety for browser storage operations
  */
 
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 
 const logger = createLogger('BrowserStorage')
 

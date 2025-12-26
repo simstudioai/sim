@@ -3,7 +3,7 @@ import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { SerializedBlock, SerializedLoop, SerializedWorkflow } from '@/serializer/types'
 import { EdgeConstructor } from './edges'
 
-vi.mock('@/lib/logs/console/logger', () => ({
+vi.mock('@sim/logger', () => ({
   createLogger: vi.fn(() => ({
     info: vi.fn(),
     error: vi.fn(),

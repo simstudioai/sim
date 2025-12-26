@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { Blocks, Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
@@ -8,7 +9,6 @@ import {
   ExecuteResponseSuccessSchema,
   GetBlocksAndToolsResult,
 } from '@/lib/copilot/tools/shared/schemas'
-import { createLogger } from '@/lib/logs/console/logger'
 
 export class GetBlocksAndToolsClientTool extends BaseClientTool {
   static readonly id = 'get_blocks_and_tools'

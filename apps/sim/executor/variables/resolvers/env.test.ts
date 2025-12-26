@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { EnvResolver } from './env'
 import type { ResolutionContext } from './reference'
 
-vi.mock('@/lib/logs/console/logger', () => loggerMock)
+vi.mock('@sim/logger', () => loggerMock)
 
 /**
  * Creates a minimal ResolutionContext for testing.

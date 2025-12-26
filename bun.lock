@@ -124,6 +124,7 @@
         "@radix-ui/react-visually-hidden": "1.2.4",
         "@react-email/components": "^0.0.34",
         "@react-email/render": "2.0.0",
+        "@sim/logger": "workspace:*",
         "@trigger.dev/sdk": "4.1.2",
         "@types/react-window": "2.0.0",
         "@types/three": "0.177.0",
@@ -251,6 +252,17 @@
       "peerDependencies": {
         "drizzle-orm": "^0.44.5",
         "postgres": "^3.4.5",
+      },
+    },
+    "packages/logger": {
+      "name": "@sim/logger",
+      "version": "0.1.0",
+      "dependencies": {
+        "chalk": "5.6.2",
+      },
+      "devDependencies": {
+        "typescript": "^5.7.3",
+        "vitest": "^3.0.8",
       },
     },
     "packages/testing": {
@@ -1167,6 +1179,8 @@
     "@shuding/opentype.js": ["@shuding/opentype.js@1.4.0-beta.0", "", { "dependencies": { "fflate": "^0.7.3", "string.prototype.codepointat": "^0.2.1" }, "bin": { "ot": "bin/ot" } }, "sha512-3NgmNyH3l/Hv6EvsWJbsvpcpUba6R8IREQ83nH83cyakCw7uM1arZKNfHwv1Wz6jgqrF/j4x5ELvR6PnK9nTcA=="],
 
     "@sim/db": ["@sim/db@workspace:packages/db"],
+
+    "@sim/logger": ["@sim/logger@workspace:packages/logger"],
 
     "@sim/testing": ["@sim/testing@workspace:packages/testing"],
 

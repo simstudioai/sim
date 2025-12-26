@@ -178,7 +178,7 @@ vi.mock('drizzle-orm/postgres-js', () => ({
 
 vi.mock('postgres', () => vi.fn().mockReturnValue({}))
 
-vi.mock('@/lib/logs/console/logger', () => loggerMock)
+vi.mock('@sim/logger', () => loggerMock)
 
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
 

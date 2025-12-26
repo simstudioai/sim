@@ -25,12 +25,12 @@ export function createMockLogger() {
 }
 
 /**
- * Mock module for @/lib/logs/console/logger.
+ * Mock module for @sim/logger.
  * Use with vi.mock() to replace the real logger.
  *
  * @example
  * ```ts
- * vi.mock('@/lib/logs/console/logger', () => loggerMock)
+ * vi.mock('@sim/logger', () => loggerMock)
  * ```
  */
 export const loggerMock = {

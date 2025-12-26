@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { ListFilter, Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
@@ -8,7 +9,6 @@ import {
   ExecuteResponseSuccessSchema,
   GetTriggerBlocksResult,
 } from '@/lib/copilot/tools/shared/schemas'
-import { createLogger } from '@/lib/logs/console/logger'
 
 export class GetTriggerBlocksClientTool extends BaseClientTool {
   static readonly id = 'get_trigger_blocks'

@@ -8,6 +8,7 @@ import {
   useImperativeHandle,
   useState,
 } from 'react'
+import { createLogger } from '@sim/logger'
 import { ArrowUp, AtSign, Image, Loader2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { createPortal } from 'react-dom'
@@ -15,7 +16,6 @@ import { Badge, Button } from '@/components/emcn'
 import { Textarea } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   AttachedFilesDisplay,
   ContextPills,

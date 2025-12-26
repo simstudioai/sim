@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createLogger } from '@sim/logger'
 import {
   Button,
   Input,
@@ -13,7 +14,6 @@ import {
   ModalHeader,
   ModalTrigger,
 } from '@/components/emcn'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CreditBalance')
 

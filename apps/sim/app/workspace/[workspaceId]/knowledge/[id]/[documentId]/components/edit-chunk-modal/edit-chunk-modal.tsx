@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
+import { createLogger } from '@sim/logger'
 import { AlertCircle, ChevronDown, ChevronUp, Loader2, X } from 'lucide-react'
 import {
   Button,
@@ -14,7 +15,6 @@ import {
   Textarea,
   Tooltip,
 } from '@/components/emcn'
-import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { ChunkData, DocumentData } from '@/stores/knowledge/store'
 

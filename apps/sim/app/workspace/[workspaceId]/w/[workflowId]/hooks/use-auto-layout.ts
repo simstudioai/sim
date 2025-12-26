@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
+import { createLogger } from '@sim/logger'
 import { useReactFlow } from 'reactflow'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { AutoLayoutOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/auto-layout-utils'
 import { applyAutoLayoutAndUpdateStore as applyAutoLayoutStandalone } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/auto-layout-utils'
 

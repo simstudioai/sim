@@ -1,9 +1,9 @@
 import { createHash } from 'crypto'
 import { db } from '@sim/db'
 import { workflowExecutionSnapshots } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, lt } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
-import { createLogger } from '@/lib/logs/console/logger'
 import type {
   SnapshotService as ISnapshotService,
   SnapshotCreationResult,

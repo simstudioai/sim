@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import { BLOB_CONFIG } from '@/lib/uploads/config'
 import type {
   AzureMultipartPart,

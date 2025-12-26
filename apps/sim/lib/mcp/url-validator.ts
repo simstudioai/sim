@@ -5,7 +5,7 @@
  * MCP server URLs against common attack patterns and dangerous destinations.
  */
 
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 
 const logger = createLogger('McpUrlValidator')
 

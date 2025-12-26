@@ -1,6 +1,7 @@
 'use client'
 
 import { startTransition, useCallback, useEffect, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   ChevronLeft,
@@ -36,7 +37,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   CreateChunkModal,
   DeleteChunkModal,

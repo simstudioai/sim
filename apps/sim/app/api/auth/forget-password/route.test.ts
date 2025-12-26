@@ -162,7 +162,7 @@ describe('Forget Password API Route', () => {
     expect(response.status).toBe(500)
     expect(data.message).toBe(errorMessage)
 
-    const logger = await import('@/lib/logs/console/logger')
+    const logger = await import('@sim/logger')
     const mockLogger = logger.createLogger('ForgetPasswordTest')
     expect(mockLogger.error).toHaveBeenCalledWith('Error requesting password reset:', {
       error: expect.any(Error),
@@ -192,7 +192,7 @@ describe('Forget Password API Route', () => {
     expect(response.status).toBe(500)
     expect(data.message).toBe('Failed to send password reset email. Please try again later.')
 
-    const logger = await import('@/lib/logs/console/logger')
+    const logger = await import('@sim/logger')
     const mockLogger = logger.createLogger('ForgetPasswordTest')
     expect(mockLogger.error).toHaveBeenCalled()
   })

@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import { usageLog, workflow } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('UsageLog')
 

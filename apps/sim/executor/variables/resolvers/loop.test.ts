@@ -4,7 +4,7 @@ import type { LoopScope } from '@/executor/execution/state'
 import { LoopResolver } from './loop'
 import type { ResolutionContext } from './reference'
 
-vi.mock('@/lib/logs/console/logger', () => loggerMock)
+vi.mock('@sim/logger', () => loggerMock)
 
 /**
  * Creates a minimal workflow for testing.

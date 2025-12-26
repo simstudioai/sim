@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console/logger'
 import { ANONYMOUS_USER, ANONYMOUS_USER_ID } from './constants'
 
 const logger = createLogger('AnonymousAuth')

@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import { SupabaseIcon } from '@/components/icons'
-import { createLogger } from '@/lib/logs/console/logger'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { SupabaseResponse } from '@/tools/supabase/types'
 

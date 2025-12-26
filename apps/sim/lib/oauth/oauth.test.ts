@@ -52,7 +52,7 @@ vi.mock('@/lib/core/config/env', () => ({
   },
 }))
 
-vi.mock('@/lib/logs/console/logger', () => loggerMock)
+vi.mock('@sim/logger', () => loggerMock)
 
 import { refreshOAuthToken } from '@/lib/oauth'
 
