@@ -1,7 +1,7 @@
 'use client'
 
-import { createLogger } from '@sim/logger'
 import { forwardRef, useEffect, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import {
   Button,
   Combobox,
