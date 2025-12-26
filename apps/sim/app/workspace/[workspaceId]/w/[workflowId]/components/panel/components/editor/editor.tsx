@@ -134,7 +134,11 @@ export function Editor() {
 
     const trimmedName = editedName.trim()
     if (trimmedName && trimmedName !== currentBlock?.name) {
-      collaborativeUpdateBlockName(currentBlockId, trimmedName)
+      const result = collaborativeUpdateBlockName(currentBlockId, trimmedName)
+      if (!result.success) {
+        // Keep rename mode open on error so user can correct the name
+        return
+      }
     }
     setIsRenaming(false)
   }, [currentBlockId, isRenaming, editedName, currentBlock?.name, collaborativeUpdateBlockName])
