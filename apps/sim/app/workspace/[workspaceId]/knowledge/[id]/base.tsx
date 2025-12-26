@@ -45,6 +45,7 @@ import {
   ActionBar,
   AddDocumentsModal,
   BaseTagsModal,
+  DocumentTagsCell,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -53,6 +54,7 @@ import {
   useKnowledgeBaseDocuments,
   useKnowledgeBasesList,
 } from '@/hooks/use-knowledge'
+import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
 import type { DocumentData } from '@/stores/knowledge/store'
 
 const logger = createLogger('KnowledgeBase')
@@ -83,17 +85,16 @@ function DocumentTableRowSkeleton() {
         <Skeleton className='h-[15px] w-[24px]' />
       </TableCell>
       <TableCell className='px-[12px] py-[8px]'>
-        <div className='flex flex-col justify-center'>
-          <div className='flex items-center font-medium text-[12px]'>
-            <Skeleton className='h-[15px] w-[50px]' />
-            <span className='mx-[6px] hidden text-[var(--text-muted)] xl:inline'>|</span>
-            <Skeleton className='hidden h-[15px] w-[70px] xl:inline-block' />
-          </div>
-          <Skeleton className='mt-[2px] h-[15px] w-[40px] lg:hidden' />
-        </div>
+        <Skeleton className='h-[15px] w-[60px]' />
       </TableCell>
       <TableCell className='px-[12px] py-[8px]'>
         <Skeleton className='h-[24px] w-[64px] rounded-md' />
+      </TableCell>
+      <TableCell className='px-[12px] py-[8px]'>
+        <div className='flex items-center gap-[4px]'>
+          <Skeleton className='h-[18px] w-[40px] rounded-full' />
+          <Skeleton className='h-[18px] w-[40px] rounded-full' />
+        </div>
       </TableCell>
       <TableCell className='py-[8px] pr-[4px] pl-[12px]'>
         <div className='flex items-center gap-[4px]'>
@@ -127,13 +128,16 @@ function DocumentTableSkeleton({ rowCount = 5 }: { rowCount?: number }) {
           <TableHead className='hidden w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)] lg:table-cell'>
             Chunks
           </TableHead>
-          <TableHead className='w-[16%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+          <TableHead className='w-[11%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
             Uploaded
           </TableHead>
-          <TableHead className='w-[12%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+          <TableHead className='w-[10%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
             Status
           </TableHead>
-          <TableHead className='w-[14%] py-[8px] pr-[4px] pl-[12px] text-[12px] text-[var(--text-secondary)]'>
+          <TableHead className='w-[12%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+            Tags
+          </TableHead>
+          <TableHead className='w-[11%] py-[8px] pr-[4px] pl-[12px] text-[12px] text-[var(--text-secondary)]'>
             Actions
           </TableHead>
         </TableRow>
@@ -378,6 +382,8 @@ export function KnowledgeBase({
     sortBy,
     sortOrder,
   })
+
+  const { tagDefinitions } = useKnowledgeBaseTagDefinitions(id)
 
   const router = useRouter()
 
@@ -1061,9 +1067,12 @@ export function KnowledgeBase({
                     {renderSortableHeader('fileSize', 'Size', 'w-[8%]')}
                     {renderSortableHeader('tokenCount', 'Tokens', 'w-[8%]')}
                     {renderSortableHeader('chunkCount', 'Chunks', 'hidden w-[8%] lg:table-cell')}
-                    {renderSortableHeader('uploadedAt', 'Uploaded', 'w-[16%]')}
-                    {renderSortableHeader('processingStatus', 'Status', 'w-[12%]')}
-                    <TableHead className='w-[14%] py-[8px] pr-[4px] pl-[12px] text-[12px] text-[var(--text-secondary)]'>
+                    {renderSortableHeader('uploadedAt', 'Uploaded', 'w-[11%]')}
+                    {renderSortableHeader('processingStatus', 'Status', 'w-[10%]')}
+                    <TableHead className='w-[12%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+                      Tags
+                    </TableHead>
+                    <TableHead className='w-[11%] py-[8px] pr-[4px] pl-[12px] text-[12px] text-[var(--text-secondary)]'>
                       Actions
                     </TableHead>
                   </TableRow>
@@ -1135,20 +1144,16 @@ export function KnowledgeBase({
                             : '—'}
                         </TableCell>
                         <TableCell className='px-[12px] py-[8px]'>
-                          <div className='flex flex-col justify-center'>
-                            <div className='flex items-center font-medium text-[12px]'>
-                              <span>{format(new Date(doc.uploadedAt), 'h:mm a')}</span>
-                              <span className='mx-[6px] hidden text-[var(--text-muted)] xl:inline'>
-                                |
+                          <Tooltip.Root>
+                            <Tooltip.Trigger asChild>
+                              <span className='text-[12px] text-[var(--text-muted)]'>
+                                {format(new Date(doc.uploadedAt), 'MMM d')}
                               </span>
-                              <span className='hidden text-[var(--text-muted)] xl:inline'>
-                                {format(new Date(doc.uploadedAt), 'MMM d, yyyy')}
-                              </span>
-                            </div>
-                            <div className='mt-[2px] text-[12px] text-[var(--text-muted)] lg:hidden'>
-                              {format(new Date(doc.uploadedAt), 'MMM d')}
-                            </div>
-                          </div>
+                            </Tooltip.Trigger>
+                            <Tooltip.Content side='top'>
+                              {format(new Date(doc.uploadedAt), 'MMM d, yyyy h:mm a')}
+                            </Tooltip.Content>
+                          </Tooltip.Root>
                         </TableCell>
                         <TableCell className='px-[12px] py-[8px]'>
                           {doc.processingStatus === 'failed' && doc.processingError ? (
@@ -1165,6 +1170,9 @@ export function KnowledgeBase({
                           ) : (
                             <div className={statusDisplay.className}>{statusDisplay.text}</div>
                           )}
+                        </TableCell>
+                        <TableCell className='px-[12px] py-[8px]'>
+                          <DocumentTagsCell document={doc} tagDefinitions={tagDefinitions} />
                         </TableCell>
                         <TableCell className='py-[8px] pr-[4px] pl-[12px]'>
                           <div className='flex items-center gap-[4px]'>
