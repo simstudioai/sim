@@ -26,13 +26,6 @@ export function toNumber(value: Decimal): number {
 }
 
 /**
- * Sum an array of values with decimal precision.
- */
-export function sumDecimals(values: Array<string | number | null | undefined>): Decimal {
-  return values.reduce((acc: Decimal, val) => acc.plus(toDecimal(val)), new Decimal(0))
-}
-
-/**
  * Format a Decimal to a fixed string for database storage.
  * Uses 6 decimal places which matches current DB precision.
  */
