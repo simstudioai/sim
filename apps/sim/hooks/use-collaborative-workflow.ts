@@ -1021,7 +1021,6 @@ export function useCollaborativeWorkflow() {
       const trimmedName = name.trim()
       const normalizedNewName = normalizeName(trimmedName)
 
-      // Check for empty name
       if (!normalizedNewName) {
         logger.error('Cannot rename block to empty name')
         useNotificationStore.getState().addNotification({
@@ -1032,7 +1031,6 @@ export function useCollaborativeWorkflow() {
         return { success: false, error: 'Block name cannot be empty' }
       }
 
-      // Check for duplicate block names before queueing the operation
       const currentBlocks = workflowStore.blocks
       const conflictingBlock = Object.entries(currentBlocks).find(
         ([blockId, block]) => blockId !== id && normalizeName(block.name) === normalizedNewName
@@ -1049,7 +1047,6 @@ export function useCollaborativeWorkflow() {
         return { success: false, error: `Block name "${trimmedName}" already exists` }
       }
 
-      // Name is valid, proceed with the operation
       executeQueuedOperation('update-name', 'block', { id, name: trimmedName }, () => {
         const result = workflowStore.updateBlockName(id, trimmedName)
 
