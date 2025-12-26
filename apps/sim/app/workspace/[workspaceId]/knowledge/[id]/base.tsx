@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
+  Badge,
   Breadcrumb,
   Button,
   Modal,
@@ -40,12 +41,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { cn } from '@/lib/core/utils/cn'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import {
   ActionBar,
   AddDocumentsModal,
   BaseTagsModal,
-  DocumentTagsCell,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -54,7 +55,10 @@ import {
   useKnowledgeBaseDocuments,
   useKnowledgeBasesList,
 } from '@/hooks/use-knowledge'
-import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
+import {
+  type TagDefinition,
+  useKnowledgeBaseTagDefinitions,
+} from '@/hooks/use-knowledge-base-tag-definitions'
 import type { DocumentData } from '@/stores/knowledge/store'
 
 const logger = createLogger('KnowledgeBase')
@@ -75,13 +79,13 @@ function DocumentTableRowSkeleton() {
           <Skeleton className='h-[17px] w-[120px]' />
         </div>
       </TableCell>
-      <TableCell className='px-[12px] py-[8px]'>
+      <TableCell className='hidden px-[12px] py-[8px] lg:table-cell'>
         <Skeleton className='h-[15px] w-[48px]' />
       </TableCell>
-      <TableCell className='px-[12px] py-[8px]'>
+      <TableCell className='hidden px-[12px] py-[8px] lg:table-cell'>
         <Skeleton className='h-[15px] w-[32px]' />
       </TableCell>
-      <TableCell className='hidden px-[12px] py-[8px] lg:table-cell'>
+      <TableCell className='px-[12px] py-[8px]'>
         <Skeleton className='h-[15px] w-[24px]' />
       </TableCell>
       <TableCell className='px-[12px] py-[8px]'>
@@ -119,13 +123,13 @@ function DocumentTableSkeleton({ rowCount = 5 }: { rowCount?: number }) {
           <TableHead className='w-[180px] max-w-[180px] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
             Name
           </TableHead>
-          <TableHead className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+          <TableHead className='hidden w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)] lg:table-cell'>
             Size
           </TableHead>
-          <TableHead className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
+          <TableHead className='hidden w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)] lg:table-cell'>
             Tokens
           </TableHead>
-          <TableHead className='hidden w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)] lg:table-cell'>
+          <TableHead className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
             Chunks
           </TableHead>
           <TableHead className='w-[11%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
@@ -278,56 +282,122 @@ function formatFileSize(bytes: number): string {
   return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`
 }
 
-const getStatusDisplay = (doc: DocumentData) => {
-  // Consolidated status: show processing status when not completed, otherwise show enabled/disabled
+const AnimatedLoader = ({ className }: { className?: string }) => (
+  <Loader2 className={cn(className, 'animate-spin')} />
+)
+
+const getStatusBadge = (doc: DocumentData) => {
   switch (doc.processingStatus) {
     case 'pending':
-      return {
-        text: 'Pending',
-        className:
-          'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-      }
+      return (
+        <Badge variant='gray' size='sm'>
+          Pending
+        </Badge>
+      )
     case 'processing':
-      return {
-        text: (
-          <>
-            <Loader2 className='mr-1.5 h-3 w-3 animate-spin' />
-            Processing
-          </>
-        ),
-        className:
-          'inline-flex items-center rounded-md bg-purple-100 px-2 py-1 text-xs font-medium text-[var(--brand-primary-hex)] dark:bg-purple-900/30 dark:text-[var(--brand-primary-hex)]',
-      }
+      return (
+        <Badge variant='purple' size='sm' icon={AnimatedLoader}>
+          Processing
+        </Badge>
+      )
     case 'failed':
-      return {
-        text: (
-          <>
-            Failed
-            {doc.processingError && <AlertCircle className='ml-1.5 h-3 w-3' />}
-          </>
-        ),
-        className:
-          'inline-flex items-center rounded-md bg-red-100 px-2 py-1 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300',
-      }
+      return doc.processingError ? (
+        <Badge variant='red' size='sm' icon={AlertCircle}>
+          Failed
+        </Badge>
+      ) : (
+        <Badge variant='red' size='sm'>
+          Failed
+        </Badge>
+      )
     case 'completed':
-      return doc.enabled
-        ? {
-            text: 'Enabled',
-            className:
-              'inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400',
-          }
-        : {
-            text: 'Disabled',
-            className:
-              'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-          }
+      return doc.enabled ? (
+        <Badge variant='green' size='sm'>
+          Enabled
+        </Badge>
+      ) : (
+        <Badge variant='gray' size='sm'>
+          Disabled
+        </Badge>
+      )
     default:
-      return {
-        text: 'Unknown',
-        className:
-          'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-      }
+      return (
+        <Badge variant='gray' size='sm'>
+          Unknown
+        </Badge>
+      )
   }
+}
+
+const TAG_SLOTS = [
+  'tag1',
+  'tag2',
+  'tag3',
+  'tag4',
+  'tag5',
+  'tag6',
+  'tag7',
+  'number1',
+  'number2',
+  'number3',
+  'number4',
+  'number5',
+  'date1',
+  'date2',
+  'boolean1',
+  'boolean2',
+  'boolean3',
+] as const
+
+type TagSlot = (typeof TAG_SLOTS)[number]
+
+interface TagValue {
+  slot: TagSlot
+  displayName: string
+  value: string
+}
+
+const TAG_FIELD_TYPES: Record<string, string> = {
+  tag: 'text',
+  number: 'number',
+  date: 'date',
+  boolean: 'boolean',
+}
+
+/**
+ * Computes tag values for a document
+ */
+function getDocumentTags(doc: DocumentData, definitions: TagDefinition[]): TagValue[] {
+  const result: TagValue[] = []
+
+  for (const slot of TAG_SLOTS) {
+    const raw = doc[slot]
+    if (raw == null) continue
+
+    const def = definitions.find((d) => d.tagSlot === slot)
+    const fieldType = def?.fieldType || TAG_FIELD_TYPES[slot.replace(/\d+$/, '')] || 'text'
+
+    let value: string
+    if (fieldType === 'date') {
+      try {
+        value = format(new Date(raw as string), 'MMM d, yyyy')
+      } catch {
+        value = String(raw)
+      }
+    } else if (fieldType === 'boolean') {
+      value = raw ? 'Yes' : 'No'
+    } else if (fieldType === 'number' && typeof raw === 'number') {
+      value = raw.toLocaleString()
+    } else {
+      value = String(raw)
+    }
+
+    if (value) {
+      result.push({ slot, displayName: def?.displayName || slot, value })
+    }
+  }
+
+  return result
 }
 
 export function KnowledgeBase({
@@ -1064,9 +1134,9 @@ export function KnowledgeBase({
                       </div>
                     </TableHead>
                     {renderSortableHeader('filename', 'Name', 'w-[180px] max-w-[180px]')}
-                    {renderSortableHeader('fileSize', 'Size', 'w-[8%]')}
-                    {renderSortableHeader('tokenCount', 'Tokens', 'w-[8%]')}
-                    {renderSortableHeader('chunkCount', 'Chunks', 'hidden w-[8%] lg:table-cell')}
+                    {renderSortableHeader('fileSize', 'Size', 'hidden w-[8%] lg:table-cell')}
+                    {renderSortableHeader('tokenCount', 'Tokens', 'hidden w-[8%] lg:table-cell')}
+                    {renderSortableHeader('chunkCount', 'Chunks', 'w-[8%]')}
                     {renderSortableHeader('uploadedAt', 'Uploaded', 'w-[11%]')}
                     {renderSortableHeader('processingStatus', 'Status', 'w-[10%]')}
                     <TableHead className='w-[12%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
@@ -1080,7 +1150,6 @@ export function KnowledgeBase({
                 <TableBody>
                   {documents.map((doc) => {
                     const isSelected = selectedDocuments.has(doc.id)
-                    const statusDisplay = getStatusDisplay(doc)
 
                     return (
                       <TableRow
@@ -1124,10 +1193,10 @@ export function KnowledgeBase({
                             </Tooltip.Root>
                           </div>
                         </TableCell>
-                        <TableCell className='px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
+                        <TableCell className='hidden px-[12px] py-[8px] text-[12px] text-[var(--text-muted)] lg:table-cell'>
                           {formatFileSize(doc.fileSize)}
                         </TableCell>
-                        <TableCell className='px-[12px] py-[8px] text-[12px]'>
+                        <TableCell className='hidden px-[12px] py-[8px] text-[12px] lg:table-cell'>
                           {doc.processingStatus === 'completed' ? (
                             doc.tokenCount > 1000 ? (
                               `${(doc.tokenCount / 1000).toFixed(1)}k`
@@ -1138,7 +1207,7 @@ export function KnowledgeBase({
                             <span className='text-[var(--text-muted)]'>—</span>
                           )}
                         </TableCell>
-                        <TableCell className='hidden px-[12px] py-[8px] text-[12px] text-[var(--text-muted)] lg:table-cell'>
+                        <TableCell className='px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
                           {doc.processingStatus === 'completed'
                             ? doc.chunkCount.toLocaleString()
                             : '—'}
@@ -1159,20 +1228,51 @@ export function KnowledgeBase({
                           {doc.processingStatus === 'failed' && doc.processingError ? (
                             <Tooltip.Root>
                               <Tooltip.Trigger asChild>
-                                <div className={statusDisplay.className} style={{ cursor: 'help' }}>
-                                  {statusDisplay.text}
-                                </div>
+                                <div style={{ cursor: 'help' }}>{getStatusBadge(doc)}</div>
                               </Tooltip.Trigger>
                               <Tooltip.Content side='top' className='max-w-xs'>
                                 {doc.processingError}
                               </Tooltip.Content>
                             </Tooltip.Root>
                           ) : (
-                            <div className={statusDisplay.className}>{statusDisplay.text}</div>
+                            getStatusBadge(doc)
                           )}
                         </TableCell>
                         <TableCell className='px-[12px] py-[8px]'>
-                          <DocumentTagsCell document={doc} tagDefinitions={tagDefinitions} />
+                          {(() => {
+                            const tags = getDocumentTags(doc, tagDefinitions)
+                            if (tags.length === 0) {
+                              return <span className='text-[12px] text-[var(--text-muted)]'>—</span>
+                            }
+                            const displayText = tags.map((t) => t.value).join(', ')
+                            return (
+                              <Tooltip.Root>
+                                <Tooltip.Trigger asChild>
+                                  <span
+                                    className='block max-w-full truncate text-[12px] text-[var(--text-secondary)]'
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {displayText}
+                                  </span>
+                                </Tooltip.Trigger>
+                                <Tooltip.Content
+                                  side='top'
+                                  className='max-h-[104px] max-w-[240px] overflow-y-auto'
+                                >
+                                  <div className='flex flex-col gap-[2px]'>
+                                    {tags.map((tag) => (
+                                      <div key={tag.slot} className='text-[11px]'>
+                                        <span className='text-[var(--text-muted)]'>
+                                          {tag.displayName}:
+                                        </span>{' '}
+                                        {tag.value}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </Tooltip.Content>
+                              </Tooltip.Root>
+                            )
+                          })()}
                         </TableCell>
                         <TableCell className='py-[8px] pr-[4px] pl-[12px]'>
                           <div className='flex items-center gap-[4px]'>
