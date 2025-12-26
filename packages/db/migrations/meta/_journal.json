@@ -904,13 +904,6 @@
       "when": 1766275541149,
       "tag": "0129_stormy_nightmare",
       "breakpoints": true
-    },
-    {
-      "idx": 130,
-      "version": "7",
-      "when": 1766310126807,
-      "tag": "0130_odd_kabuki",
-      "breakpoints": true
     }
   ]
 }
