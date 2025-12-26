@@ -55,7 +55,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 # Copy node_modules from builder (cached if dependencies don't change)
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 
-# Copy db package (needed by socket-server)
+# Copy db package (needed by socket)
 COPY --from=builder --chown=nextjs:nodejs /app/packages/db ./packages/db
 
 # Copy sim app (changes most frequently - placed last)
@@ -71,4 +71,4 @@ ENV PORT=3002 \
     HOSTNAME="0.0.0.0"
 
 # Run the socket server directly
-CMD ["bun", "apps/sim/socket-server/index.ts"]
+CMD ["bun", "apps/sim/socket/index.ts"]
