@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { format } from 'date-fns'
 import {
   AlertCircle,
@@ -40,7 +41,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   ActionBar,
   AddDocumentsModal,

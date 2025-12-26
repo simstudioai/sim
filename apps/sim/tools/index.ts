@@ -1,7 +1,7 @@
+import { createLogger } from '@sim/logger'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 import { parseMcpToolId } from '@/lib/mcp/utils'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
 import type { ExecutionContext } from '@/executor/types'

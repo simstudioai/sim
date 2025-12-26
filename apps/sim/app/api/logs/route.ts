@@ -6,12 +6,12 @@ import {
   workflowDeploymentVersion,
   workflowExecutionLogs,
 } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, desc, eq, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createLogger } from '@/lib/logs/console/logger'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
 
 const logger = createLogger('LogsAPI')

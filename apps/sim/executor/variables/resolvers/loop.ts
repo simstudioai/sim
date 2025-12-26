@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import { isReference, parseReferencePath, REFERENCE } from '@/executor/constants'
 import { extractBaseBlockId } from '@/executor/utils/subflow-utils'
 import {

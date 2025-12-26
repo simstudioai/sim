@@ -1,10 +1,10 @@
 import { render } from '@react-email/components'
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import CareersConfirmationEmail from '@/components/emails/careers/careers-confirmation-email'
 import CareersSubmissionEmail from '@/components/emails/careers/careers-submission-email'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createLogger } from '@/lib/logs/console/logger'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 
 export const dynamic = 'force-dynamic'

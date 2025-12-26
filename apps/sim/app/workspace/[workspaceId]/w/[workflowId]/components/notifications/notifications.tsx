@@ -1,9 +1,9 @@
 import { memo, useCallback } from 'react'
+import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
-import { createLogger } from '@/lib/logs/console/logger'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {

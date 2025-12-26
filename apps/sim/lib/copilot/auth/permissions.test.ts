@@ -36,7 +36,7 @@ describe('Copilot Auth Permissions', () => {
 
     vi.doMock('drizzle-orm', () => drizzleOrmMock)
 
-    vi.doMock('@/lib/logs/console/logger', () => loggerMock)
+    vi.doMock('@sim/logger', () => loggerMock)
 
     vi.doMock('@/lib/workspaces/permissions/utils', () => ({
       getUserEntityPermissions: vi.fn(),

@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { Loader2, MinusCircle, TerminalSquare, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
@@ -5,7 +6,6 @@ import {
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
 import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
-import { createLogger } from '@/lib/logs/console/logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface GetWorkflowConsoleArgs {

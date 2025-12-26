@@ -1,6 +1,6 @@
+import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
-import { createLogger } from '@/lib/logs/console/logger'
 import { McpClient } from '@/lib/mcp/client'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import type { McpServerConfig, McpTransport } from '@/lib/mcp/types'

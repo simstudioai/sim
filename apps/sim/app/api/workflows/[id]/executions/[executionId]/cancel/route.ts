@@ -1,7 +1,7 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CancelExecutionAPI')
 

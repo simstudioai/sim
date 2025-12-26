@@ -12,7 +12,7 @@ import {
   type ToolConfig,
   Type,
 } from '@google/genai'
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { ProviderRequest } from '@/providers/types'
 import { trackForcedToolUsage } from '@/providers/utils'
 

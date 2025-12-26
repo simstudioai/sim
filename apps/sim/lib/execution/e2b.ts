@@ -1,7 +1,7 @@
 import { Sandbox } from '@e2b/code-interpreter'
+import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
 import { CodeLanguage } from '@/lib/execution/languages'
-import { createLogger } from '@/lib/logs/console/logger'
 
 export interface E2BExecutionRequest {
   code: string

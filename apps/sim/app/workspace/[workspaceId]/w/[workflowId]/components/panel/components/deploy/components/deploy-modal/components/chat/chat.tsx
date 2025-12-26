@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { AlertTriangle, Check, Clipboard, Eye, EyeOff, Loader2, RefreshCw, X } from 'lucide-react'
 import {
   Button,
@@ -19,7 +20,6 @@ import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { generatePassword } from '@/lib/core/security/encryption'
 import { cn } from '@/lib/core/utils/cn'
 import { getEmailDomain } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
 import {

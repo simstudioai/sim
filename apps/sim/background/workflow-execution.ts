@@ -1,7 +1,7 @@
+import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { v4 as uuidv4 } from 'uuid'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
-import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'

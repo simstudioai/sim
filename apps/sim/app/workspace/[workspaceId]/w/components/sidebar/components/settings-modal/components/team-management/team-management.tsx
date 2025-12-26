@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   generateSlug,
   getUsedSeats,

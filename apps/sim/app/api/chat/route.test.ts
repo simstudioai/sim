@@ -42,7 +42,7 @@ describe('Chat API Route', () => {
       workflow: { id: 'id', userId: 'userId', isDeployed: 'isDeployed' },
     }))
 
-    vi.doMock('@/lib/logs/console/logger', () => ({
+    vi.doMock('@sim/logger', () => ({
       createLogger: vi.fn().mockReturnValue({
         info: vi.fn(),
         error: vi.fn(),

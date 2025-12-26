@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { SlackDownloadParams, SlackDownloadResponse } from '@/tools/slack/types'
 import type { ToolConfig } from '@/tools/types'
 

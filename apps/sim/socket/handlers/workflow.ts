@@ -1,6 +1,6 @@
 import { db, user } from '@sim/db'
+import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getWorkflowState } from '@/socket/database/operations'
 import type { AuthenticatedSocket } from '@/socket/middleware/auth'
 import { verifyWorkflowAccess } from '@/socket/middleware/permissions'

@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { ToolCall, TraceSpan } from '@/lib/logs/types'
 import { isWorkflowBlockType, stripCustomToolPrefix } from '@/executor/constants'
 import type { ExecutionResult } from '@/executor/types'

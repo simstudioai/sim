@@ -1,9 +1,9 @@
 import fs from 'fs/promises'
 import path from 'path'
+import { createLogger } from '@sim/logger'
 import { TextChunker } from '@/lib/chunkers/text-chunker'
 import type { DocChunk, DocsChunkerOptions } from '@/lib/chunkers/types'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
-import { createLogger } from '@/lib/logs/console/logger'
 
 interface HeaderInfo {
   level: number

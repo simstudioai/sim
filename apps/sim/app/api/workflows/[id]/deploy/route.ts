@@ -1,8 +1,8 @@
 import { db, workflow, workflowDeploymentVersion, workflowMcpTool } from '@sim/db'
+import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   extractInputFormatFromBlocks,
   generateToolInputSchema,

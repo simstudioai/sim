@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import { useShallow } from 'zustand/react/shallow'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'

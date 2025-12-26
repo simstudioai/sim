@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import { type Attributes, Client, type ConnectConfig } from 'ssh2'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('SSHUtils')
 

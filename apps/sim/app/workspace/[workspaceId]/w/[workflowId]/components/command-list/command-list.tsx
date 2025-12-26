@@ -1,13 +1,13 @@
 'use client'
 
 import { useCallback } from 'react'
+import { createLogger } from '@sim/logger'
 import { Layout, LibraryBig, Search } from 'lucide-react'
 import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { AgentIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
-import { createLogger } from '@/lib/logs/console/logger'
 import { useSearchModalStore } from '@/stores/search-modal/store'
 
 const logger = createLogger('WorkflowCommandList')

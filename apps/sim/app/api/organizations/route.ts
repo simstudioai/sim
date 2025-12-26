@@ -1,10 +1,10 @@
 import { db } from '@sim/db'
 import { member, organization } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, or } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createOrganizationForTeamPlan } from '@/lib/billing/organization'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('OrganizationsAPI')
 

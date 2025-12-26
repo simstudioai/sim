@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { SharepointAddListItemResponse, SharepointToolParams } from '@/tools/sharepoint/types'
 import type { ToolConfig } from '@/tools/types'
 

@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import { workspaceBYOKKeys } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('BYOKKeys')
 

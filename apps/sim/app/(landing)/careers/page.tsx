@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,7 +16,6 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
-import { createLogger } from '@/lib/logs/console/logger'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import Footer from '@/app/(landing)/components/footer/footer'

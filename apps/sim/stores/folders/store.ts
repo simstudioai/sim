@@ -1,6 +1,6 @@
+import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('FoldersStore')
 

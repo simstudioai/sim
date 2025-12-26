@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { quickValidateEmail, validateEmail } from '@/lib/messaging/email/validation'
 
-vi.mock('@/lib/logs/console/logger', () => ({
+vi.mock('@sim/logger', () => ({
   createLogger: () => ({
     info: vi.fn(),
     warn: vi.fn(),

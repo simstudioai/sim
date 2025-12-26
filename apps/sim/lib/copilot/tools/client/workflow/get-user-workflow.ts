@@ -1,10 +1,10 @@
+import { createLogger } from '@sim/logger'
 import { Loader2, Workflow as WorkflowIcon, X, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import { createLogger } from '@/lib/logs/console/logger'
 import { stripWorkflowDiffMarkers } from '@/lib/workflows/diff'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'

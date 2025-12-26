@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { MoreVertical, Pencil, RotateCcw, SendToBack } from 'lucide-react'
 import { Button, Popover, PopoverContent, PopoverItem, PopoverTrigger } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('Versions')
