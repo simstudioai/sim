@@ -9,9 +9,6 @@ const logger = createLogger('McpToolDiscoveryAPI')
 
 export const dynamic = 'force-dynamic'
 
-/**
- * GET - Discover all tools from user's MCP servers
- */
 export const GET = withMcpAuth('read')(
   async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
@@ -19,18 +16,11 @@ export const GET = withMcpAuth('read')(
       const serverId = searchParams.get('serverId')
       const forceRefresh = searchParams.get('refresh') === 'true'
 
-      logger.info(`[${requestId}] Discovering MCP tools for user ${userId}`, {
-        serverId,
-        workspaceId,
-        forceRefresh,
-      })
+      logger.info(`[${requestId}] Discovering MCP tools`, { serverId, workspaceId, forceRefresh })
 
-      let tools
-      if (serverId) {
-        tools = await mcpService.discoverServerTools(userId, serverId, workspaceId)
-      } else {
-        tools = await mcpService.discoverTools(userId, workspaceId, forceRefresh)
-      }
+      const tools = serverId
+        ? await mcpService.discoverServerTools(userId, serverId, workspaceId)
+        : await mcpService.discoverTools(userId, workspaceId, forceRefresh)
 
       const byServer: Record<string, number> = {}
       for (const tool of tools) {
@@ -55,9 +45,6 @@ export const GET = withMcpAuth('read')(
   }
 )
 
-/**
- * POST - Refresh tool discovery for specific servers
- */
 export const POST = withMcpAuth('read')(
   async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
@@ -72,10 +59,7 @@ export const POST = withMcpAuth('read')(
         )
       }
 
-      logger.info(
-        `[${requestId}] Refreshing tool discovery for user ${userId}, servers:`,
-        serverIds
-      )
+      logger.info(`[${requestId}] Refreshing tools for ${serverIds.length} servers`)
 
       const results = await Promise.allSettled(
         serverIds.map(async (serverId: string) => {
@@ -99,7 +83,8 @@ export const POST = withMcpAuth('read')(
         }
       })
 
-      const responseData = {
+      logger.info(`[${requestId}] Refresh completed: ${successes.length}/${serverIds.length}`)
+      return createMcpSuccessResponse({
         refreshed: successes,
         failed: failures,
         summary: {
@@ -107,12 +92,7 @@ export const POST = withMcpAuth('read')(
           successful: successes.length,
           failed: failures.length,
         },
-      }
-
-      logger.info(
-        `[${requestId}] Tool discovery refresh completed: ${successes.length}/${serverIds.length} successful`
-      )
-      return createMcpSuccessResponse(responseData)
+      })
     } catch (error) {
       logger.error(`[${requestId}] Error refreshing tool discovery:`, error)
       const { message, status } = categorizeError(error)

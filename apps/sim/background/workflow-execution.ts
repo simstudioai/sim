@@ -16,7 +16,7 @@ export type WorkflowExecutionPayload = {
   workflowId: string
   userId: string
   input?: any
-  triggerType?: 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
+  triggerType?: 'api' | 'webhook' | 'schedule' | 'manual' | 'chat' | 'mcp'
   metadata?: Record<string, any>
 }
 

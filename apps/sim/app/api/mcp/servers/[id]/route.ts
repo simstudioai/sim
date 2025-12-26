@@ -5,7 +5,6 @@ import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
-import { validateMcpServerUrl } from '@/lib/mcp/url-validator'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpServerAPI')
@@ -26,24 +25,6 @@ export const PATCH = withMcpAuth<{ id: string }>('write')(
         userId,
         updates: Object.keys(body).filter((k) => k !== 'workspaceId'),
       })
-
-      // Validate URL if being updated
-      if (
-        body.url &&
-        (body.transport === 'http' ||
-          body.transport === 'sse' ||
-          body.transport === 'streamable-http')
-      ) {
-        const urlValidation = validateMcpServerUrl(body.url)
-        if (!urlValidation.isValid) {
-          return createMcpErrorResponse(
-            new Error(`Invalid MCP server URL: ${urlValidation.error}`),
-            'Invalid server URL',
-            400
-          )
-        }
-        body.url = urlValidation.normalizedUrl
-      }
 
       // Remove workspaceId from body to prevent it from being updated
       const { workspaceId: _, ...updateData } = body

@@ -36,6 +36,7 @@ export function getTriggerOptions(): TriggerOption[] {
     { value: 'schedule', label: 'Schedule', color: '#059669' },
     { value: 'chat', label: 'Chat', color: '#7c3aed' },
     { value: 'webhook', label: 'Webhook', color: '#ea580c' },
+    { value: 'mcp', label: 'MCP', color: '#dc2626' },
   ]
 
   for (const trigger of triggers) {

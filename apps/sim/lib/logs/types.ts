@@ -51,7 +51,7 @@ export interface ExecutionEnvironment {
   workspaceId: string
 }
 
-export const ALL_TRIGGER_TYPES = ['api', 'webhook', 'schedule', 'manual', 'chat'] as const
+export const ALL_TRIGGER_TYPES = ['api', 'webhook', 'schedule', 'manual', 'chat', 'mcp'] as const
 export type TriggerType = (typeof ALL_TRIGGER_TYPES)[number]
 
 export interface ExecutionTrigger {

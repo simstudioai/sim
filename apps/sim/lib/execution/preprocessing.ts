@@ -108,7 +108,7 @@ export interface PreprocessExecutionOptions {
   // Required fields
   workflowId: string
   userId: string // The authenticated user ID
-  triggerType: 'manual' | 'api' | 'webhook' | 'schedule' | 'chat'
+  triggerType: 'manual' | 'api' | 'webhook' | 'schedule' | 'chat' | 'mcp'
   executionId: string
   requestId: string
 

@@ -1,15 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { McpServerStatusConfig } from '@/lib/mcp/types'
+import type { McpServerStatusConfig, McpTool, McpToolSchema } from '@/lib/mcp/types'
 
 const logger = createLogger('McpQueries')
 
-export type { McpServerStatusConfig }
+export type { McpServerStatusConfig, McpTool }
 
 export const mcpKeys = {
   all: ['mcp'] as const,
   servers: (workspaceId: string) => [...mcpKeys.all, 'servers', workspaceId] as const,
   tools: (workspaceId: string) => [...mcpKeys.all, 'tools', workspaceId] as const,
+  storedTools: (workspaceId: string) => [...mcpKeys.all, 'stored', workspaceId] as const,
 }
 
 export interface McpServer {
@@ -41,17 +42,6 @@ export interface McpServerConfig {
   enabled: boolean
 }
 
-export interface McpTool {
-  serverId: string
-  serverName: string
-  name: string
-  description?: string
-  inputSchema?: any
-}
-
-/**
- * Fetch MCP servers for a workspace
- */
 async function fetchMcpServers(workspaceId: string): Promise<McpServer[]> {
   const response = await fetch(`/api/mcp/servers?workspaceId=${workspaceId}`)
 
@@ -68,23 +58,17 @@ async function fetchMcpServers(workspaceId: string): Promise<McpServer[]> {
   return data.data?.servers || []
 }
 
-/**
- * Hook to fetch MCP servers
- */
 export function useMcpServers(workspaceId: string) {
   return useQuery({
     queryKey: mcpKeys.servers(workspaceId),
     queryFn: () => fetchMcpServers(workspaceId),
     enabled: !!workspaceId,
-    retry: false, // Don't retry on 404 (no servers configured)
-    staleTime: 60 * 1000, // 1 minute - servers don't change frequently
+    retry: false,
+    staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
   })
 }
 
-/**
- * Fetch MCP tools for a workspace
- */
 async function fetchMcpTools(workspaceId: string, forceRefresh = false): Promise<McpTool[]> {
   const params = new URLSearchParams({ workspaceId })
   if (forceRefresh) {
@@ -93,7 +77,6 @@ async function fetchMcpTools(workspaceId: string, forceRefresh = false): Promise
 
   const response = await fetch(`/api/mcp/tools/discover?${params.toString()}`)
 
-  // Treat 404 as "no tools available" - return empty array
   if (response.status === 404) {
     return []
   }
@@ -107,23 +90,17 @@ async function fetchMcpTools(workspaceId: string, forceRefresh = false): Promise
   return data.data?.tools || []
 }
 
-/**
- * Hook to fetch MCP tools
- */
 export function useMcpToolsQuery(workspaceId: string) {
   return useQuery({
     queryKey: mcpKeys.tools(workspaceId),
     queryFn: () => fetchMcpTools(workspaceId),
     enabled: !!workspaceId,
-    retry: false, // Don't retry on 404 (no tools available)
-    staleTime: 30 * 1000, // 30 seconds - tools can change when servers are added/removed
+    retry: false,
+    staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
   })
 }
 
-/**
- * Create MCP server mutation
- */
 interface CreateMcpServerParams {
   workspaceId: string
   config: McpServerConfig
@@ -204,9 +181,6 @@ export function useCreateMcpServer() {
   })
 }
 
-/**
- * Delete MCP server mutation
- */
 interface DeleteMcpServerParams {
   workspaceId: string
   serverId: string
@@ -240,9 +214,6 @@ export function useDeleteMcpServer() {
   })
 }
 
-/**
- * Update MCP server mutation
- */
 interface UpdateMcpServerParams {
   workspaceId: string
   serverId: string
@@ -299,9 +270,6 @@ export function useUpdateMcpServer() {
   })
 }
 
-/**
- * Refresh MCP server mutation - re-discovers tools from the server
- */
 interface RefreshMcpServerParams {
   workspaceId: string
   serverId: string
@@ -339,16 +307,14 @@ export function useRefreshMcpServer() {
       return data.data
     },
     onSuccess: async (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
       const freshTools = await fetchMcpTools(variables.workspaceId, true)
       queryClient.setQueryData(mcpKeys.tools(variables.workspaceId), freshTools)
+      queryClient.invalidateQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mcpKeys.storedTools(variables.workspaceId) })
     },
   })
 }
 
-/**
- * Test MCP server connection
- */
 export interface McpServerTestParams {
   name: string
   transport: 'streamable-http' | 'stdio'
@@ -397,21 +363,15 @@ export function useTestMcpServer() {
   })
 }
 
-/**
- * Stored MCP tool from workflow state
- */
 export interface StoredMcpTool {
   workflowId: string
   workflowName: string
   serverId: string
   serverUrl?: string
   toolName: string
-  schema?: Record<string, unknown>
+  schema?: McpToolSchema
 }
 
-/**
- * Fetch stored MCP tools from all workflows in the workspace
- */
 async function fetchStoredMcpTools(workspaceId: string): Promise<StoredMcpTool[]> {
   const response = await fetch(`/api/mcp/tools/stored?workspaceId=${workspaceId}`)
 
@@ -424,14 +384,11 @@ async function fetchStoredMcpTools(workspaceId: string): Promise<StoredMcpTool[]
   return data.data?.tools || []
 }
 
-/**
- * Hook to fetch stored MCP tools from all workflows
- */
 export function useStoredMcpTools(workspaceId: string) {
   return useQuery({
-    queryKey: [...mcpKeys.all, workspaceId, 'stored'],
+    queryKey: mcpKeys.storedTools(workspaceId),
     queryFn: () => fetchStoredMcpTools(workspaceId),
     enabled: !!workspaceId,
-    staleTime: 60 * 1000, // 1 minute - workflows don't change frequently
+    staleTime: 60 * 1000,
   })
 }

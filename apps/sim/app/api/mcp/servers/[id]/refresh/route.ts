@@ -12,20 +12,12 @@ const logger = createLogger('McpServerRefreshAPI')
 
 export const dynamic = 'force-dynamic'
 
-/**
- * POST - Refresh an MCP server connection (requires any workspace permission)
- */
 export const POST = withMcpAuth<{ id: string }>('read')(
   async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
     const { id: serverId } = await params
 
     try {
-      logger.info(
-        `[${requestId}] Refreshing MCP server: ${serverId} in workspace: ${workspaceId}`,
-        {
-          userId,
-        }
-      )
+      logger.info(`[${requestId}] Refreshing MCP server: ${serverId}`)
 
       const [server] = await db
         .select()
@@ -61,9 +53,7 @@ export const POST = withMcpAuth<{ id: string }>('read')(
         const tools = await mcpService.discoverServerTools(userId, serverId, workspaceId)
         connectionStatus = 'connected'
         toolCount = tools.length
-        logger.info(
-          `[${requestId}] Successfully connected to server ${serverId}, discovered ${toolCount} tools`
-        )
+        logger.info(`[${requestId}] Discovered ${toolCount} tools from server ${serverId}`)
       } catch (error) {
         connectionStatus = 'error'
         lastError = error instanceof Error ? error.message : 'Connection test failed'
@@ -94,14 +84,7 @@ export const POST = withMcpAuth<{ id: string }>('read')(
         .returning()
 
       if (connectionStatus === 'connected') {
-        logger.info(
-          `[${requestId}] Successfully refreshed MCP server: ${serverId} (${toolCount} tools)`
-        )
         await mcpService.clearCache(workspaceId)
-      } else {
-        logger.warn(
-          `[${requestId}] Refresh completed for MCP server ${serverId} but connection failed: ${lastError}`
-        )
       }
 
       return createMcpSuccessResponse({

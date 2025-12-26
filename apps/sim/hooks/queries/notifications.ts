@@ -18,7 +18,7 @@ export const notificationKeys = {
 
 type NotificationType = 'webhook' | 'email' | 'slack'
 type LogLevel = 'info' | 'error'
-type TriggerType = 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
+type TriggerType = 'api' | 'webhook' | 'schedule' | 'manual' | 'chat' | 'mcp'
 
 type AlertRuleType =
   | 'consecutive_failures'
