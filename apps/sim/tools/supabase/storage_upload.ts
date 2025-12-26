@@ -26,11 +26,17 @@ export const storageUploadTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'The name of the storage bucket',
     },
-    path: {
+    fileName: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The path where the file will be stored (e.g., "folder/file.jpg")',
+      description: 'The name of the file (e.g., "document.pdf", "image.jpg")',
+    },
+    path: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Optional folder path (e.g., "folder/subfolder/")',
     },
     fileContent: {
       type: 'string',
@@ -60,7 +66,14 @@ export const storageUploadTool: ToolConfig<
 
   request: {
     url: (params) => {
-      return `https://${params.projectId}.supabase.co/storage/v1/object/${params.bucket}/${params.path}`
+      // Combine folder path and fileName, ensuring proper formatting
+      let fullPath = params.fileName
+      if (params.path) {
+        // Ensure path ends with / and doesn't have double slashes
+        const folderPath = params.path.endsWith('/') ? params.path : `${params.path}/`
+        fullPath = `${folderPath}${params.fileName}`
+      }
+      return `https://${params.projectId}.supabase.co/storage/v1/object/${params.bucket}/${fullPath}`
     },
     method: 'POST',
     headers: (params) => {

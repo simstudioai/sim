@@ -596,12 +596,19 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     },
     // Storage Upload fields
     {
-      id: 'path',
-      title: 'File Path',
+      id: 'fileName',
+      title: 'File Name',
       type: 'short-input',
-      placeholder: 'folder/file.jpg',
+      placeholder: 'myfile.pdf',
       condition: { field: 'operation', value: 'storage_upload' },
       required: true,
+    },
+    {
+      id: 'path',
+      title: 'Folder Path (optional)',
+      type: 'short-input',
+      placeholder: 'folder/subfolder/',
+      condition: { field: 'operation', value: 'storage_upload' },
     },
     {
       id: 'fileContent',
@@ -1065,10 +1072,10 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     countType: { type: 'string', description: 'Count type: exact, planned, or estimated' },
     // Storage operation inputs
     bucket: { type: 'string', description: 'Storage bucket name' },
-    path: { type: 'string', description: 'File path in storage' },
+    path: { type: 'string', description: 'File or folder path in storage' },
     fileContent: { type: 'string', description: 'File content (base64 for binary)' },
     contentType: { type: 'string', description: 'MIME type of the file' },
-    fileName: { type: 'string', description: 'Optional filename override for downloaded file' },
+    fileName: { type: 'string', description: 'File name for upload or download override' },
     upsert: { type: 'boolean', description: 'Whether to overwrite existing file' },
     download: { type: 'boolean', description: 'Whether to force download' },
     paths: { type: 'array', description: 'Array of file paths' },

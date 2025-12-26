@@ -132,7 +132,8 @@ export interface SupabaseStorageUploadParams {
   apiKey: string
   projectId: string
   bucket: string
-  path: string
+  fileName: string
+  path?: string
   fileContent: string
   contentType?: string
   upsert?: boolean

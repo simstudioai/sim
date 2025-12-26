@@ -20,7 +20,33 @@ export interface IntercomCreateCompanyParams {
 export interface IntercomCreateCompanyResponse {
   success: boolean
   output: {
-    company: any
+    company: {
+      id: string
+      type: string
+      app_id: string
+      company_id: string
+      name?: string
+      website?: string
+      plan: Record<string, any>
+      size?: number
+      industry?: string
+      monthly_spend: number
+      session_count: number
+      user_count: number
+      created_at: number
+      updated_at: number
+      remote_created_at?: number
+      custom_attributes: Record<string, any>
+      tags: {
+        type: string
+        tags: any[]
+      }
+      segments: {
+        type: string
+        segments: any[]
+      }
+      [key: string]: any
+    }
     metadata: {
       operation: 'create_company'
       companyId: string
@@ -159,15 +185,55 @@ export const intercomCreateCompanyTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    company: {
       type: 'object',
-      description: 'Created or updated company data',
+      description: 'Created or updated company object',
       properties: {
-        company: { type: 'object', description: 'Company object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
+        id: { type: 'string', description: 'Unique identifier for the company' },
+        type: { type: 'string', description: 'Object type (company)' },
+        app_id: { type: 'string', description: 'Intercom app ID' },
+        company_id: { type: 'string', description: 'Your unique identifier for the company' },
+        name: { type: 'string', description: 'Name of the company' },
+        website: { type: 'string', description: 'Company website URL' },
+        plan: { type: 'object', description: 'Company plan information' },
+        size: { type: 'number', description: 'Number of employees' },
+        industry: { type: 'string', description: 'Industry the company operates in' },
+        monthly_spend: { type: 'number', description: 'Monthly revenue from this company' },
+        session_count: { type: 'number', description: 'Number of sessions' },
+        user_count: { type: 'number', description: 'Number of users in the company' },
+        created_at: { type: 'number', description: 'Unix timestamp when company was created' },
+        updated_at: { type: 'number', description: 'Unix timestamp when company was last updated' },
+        remote_created_at: {
+          type: 'number',
+          description: 'Unix timestamp when company was created by you',
+        },
+        custom_attributes: { type: 'object', description: 'Custom attributes set on the company' },
+        tags: {
+          type: 'object',
+          description: 'Tags associated with the company',
+          properties: {
+            type: { type: 'string', description: 'Tag list type' },
+            tags: { type: 'array', description: 'Array of tag objects' },
+          },
+        },
+        segments: {
+          type: 'object',
+          description: 'Segments the company belongs to',
+          properties: {
+            type: { type: 'string', description: 'Segment list type' },
+            segments: { type: 'array', description: 'Array of segment objects' },
+          },
+        },
       },
     },
+    metadata: {
+      type: 'object',
+      description: 'Operation metadata',
+      properties: {
+        operation: { type: 'string', description: 'The operation performed (create_company)' },
+        companyId: { type: 'string', description: 'ID of the created/updated company' },
+      },
+    },
+    success: { type: 'boolean', description: 'Operation success status' },
   },
 }

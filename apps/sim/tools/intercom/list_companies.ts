@@ -105,16 +105,54 @@ export const intercomListCompaniesTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'List of companies',
-      properties: {
-        companies: { type: 'array', description: 'Array of company objects' },
-        pages: { type: 'object', description: 'Pagination information' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
+    companies: {
+      type: 'array',
+      description: 'Array of company objects',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Unique identifier for the company' },
+          type: { type: 'string', description: 'Object type (company)' },
+          app_id: { type: 'string', description: 'Intercom app ID' },
+          company_id: { type: 'string', description: 'Your unique identifier for the company' },
+          name: { type: 'string', description: 'Name of the company' },
+          website: { type: 'string', description: 'Company website URL' },
+          plan: { type: 'object', description: 'Company plan information' },
+          monthly_spend: { type: 'number', description: 'Monthly revenue from this company' },
+          session_count: { type: 'number', description: 'Number of sessions' },
+          user_count: { type: 'number', description: 'Number of users in the company' },
+          created_at: { type: 'number', description: 'Unix timestamp when company was created' },
+          updated_at: {
+            type: 'number',
+            description: 'Unix timestamp when company was last updated',
+          },
+          custom_attributes: {
+            type: 'object',
+            description: 'Custom attributes set on the company',
+          },
+          tags: { type: 'object', description: 'Tags associated with the company' },
+          segments: { type: 'object', description: 'Segments the company belongs to' },
+        },
       },
     },
+    pages: {
+      type: 'object',
+      description: 'Pagination information',
+      properties: {
+        type: { type: 'string', description: 'Pages type identifier' },
+        page: { type: 'number', description: 'Current page number' },
+        per_page: { type: 'number', description: 'Number of results per page' },
+        total_pages: { type: 'number', description: 'Total number of pages' },
+      },
+    },
+    metadata: {
+      type: 'object',
+      description: 'Operation metadata',
+      properties: {
+        operation: { type: 'string', description: 'The operation performed (list_companies)' },
+        total_count: { type: 'number', description: 'Total number of companies' },
+      },
+    },
+    success: { type: 'boolean', description: 'Operation success status' },
   },
 }

@@ -16,11 +16,67 @@ export interface IntercomSearchContactsParams {
 export interface IntercomSearchContactsResponse {
   success: boolean
   output: {
-    contacts: any[]
-    pages?: any
+    contacts: Array<{
+      id: string
+      type: string
+      role: string
+      email: string | null
+      phone: string | null
+      name: string | null
+      avatar: string | null
+      owner_id: string | null
+      external_id: string | null
+      created_at: number
+      updated_at: number
+      signed_up_at: number | null
+      last_seen_at: number | null
+      workspace_id: string
+      custom_attributes: Record<string, any>
+      tags: {
+        type: string
+        url: string
+        data: any[]
+        has_more: boolean
+        total_count: number
+      }
+      notes: {
+        type: string
+        url: string
+        data: any[]
+        has_more: boolean
+        total_count: number
+      }
+      companies: {
+        type: string
+        url: string
+        data: any[]
+        has_more: boolean
+        total_count: number
+      }
+      location: {
+        type: string
+        city: string | null
+        region: string | null
+        country: string | null
+        country_code: string | null
+        continent_code: string | null
+      }
+      social_profiles: {
+        type: string
+        data: any[]
+      }
+      unsubscribed_from_emails: boolean
+      [key: string]: any
+    }>
+    pages: {
+      type: string
+      page: number
+      per_page: number
+      total_pages: number
+    }
     metadata: {
       operation: 'search_contacts'
-      total_count?: number
+      total_count: number
     }
     success: boolean
   }
@@ -137,16 +193,63 @@ export const intercomSearchContactsTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Search results',
-      properties: {
-        contacts: { type: 'array', description: 'Array of matching contact objects' },
-        pages: { type: 'object', description: 'Pagination information' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
+    contacts: {
+      type: 'array',
+      description: 'Array of matching contact objects',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Unique identifier for the contact' },
+          type: { type: 'string', description: 'Object type (contact)' },
+          role: { type: 'string', description: 'Role of the contact (user or lead)' },
+          email: { type: 'string', description: 'Email address of the contact' },
+          phone: { type: 'string', description: 'Phone number of the contact' },
+          name: { type: 'string', description: 'Name of the contact' },
+          avatar: { type: 'string', description: 'Avatar URL of the contact' },
+          owner_id: { type: 'string', description: 'ID of the admin assigned to this contact' },
+          external_id: { type: 'string', description: 'External identifier for the contact' },
+          created_at: { type: 'number', description: 'Unix timestamp when contact was created' },
+          updated_at: {
+            type: 'number',
+            description: 'Unix timestamp when contact was last updated',
+          },
+          signed_up_at: { type: 'number', description: 'Unix timestamp when user signed up' },
+          last_seen_at: { type: 'number', description: 'Unix timestamp when user was last seen' },
+          workspace_id: { type: 'string', description: 'Workspace ID the contact belongs to' },
+          custom_attributes: {
+            type: 'object',
+            description: 'Custom attributes set on the contact',
+          },
+          tags: { type: 'object', description: 'Tags associated with the contact' },
+          notes: { type: 'object', description: 'Notes associated with the contact' },
+          companies: { type: 'object', description: 'Companies associated with the contact' },
+          location: { type: 'object', description: 'Location information for the contact' },
+          social_profiles: { type: 'object', description: 'Social profiles of the contact' },
+          unsubscribed_from_emails: {
+            type: 'boolean',
+            description: 'Whether contact is unsubscribed from emails',
+          },
+        },
       },
     },
+    pages: {
+      type: 'object',
+      description: 'Pagination information',
+      properties: {
+        type: { type: 'string', description: 'Pages type identifier' },
+        page: { type: 'number', description: 'Current page number' },
+        per_page: { type: 'number', description: 'Number of results per page' },
+        total_pages: { type: 'number', description: 'Total number of pages' },
+      },
+    },
+    metadata: {
+      type: 'object',
+      description: 'Operation metadata',
+      properties: {
+        operation: { type: 'string', description: 'The operation performed (search_contacts)' },
+        total_count: { type: 'number', description: 'Total number of matching contacts' },
+      },
+    },
+    success: { type: 'boolean', description: 'Operation success status' },
   },
 }

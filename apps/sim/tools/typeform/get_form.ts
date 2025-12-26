@@ -37,7 +37,12 @@ export const getFormTool: ToolConfig<TypeformGetFormParams, TypeformGetFormRespo
 
     return {
       success: true,
-      output: data,
+      output: {
+        ...data,
+        welcome_screens: data.welcome_screens || [],
+        thankyou_screens: data.thankyou_screens || [],
+        fields: data.fields || [],
+      },
     }
   },
 
@@ -72,11 +77,23 @@ export const getFormTool: ToolConfig<TypeformGetFormParams, TypeformGetFormRespo
     },
     welcome_screens: {
       type: 'array',
-      description: 'Array of welcome screens',
+      description: 'Array of welcome screens (empty if none configured)',
     },
     thankyou_screens: {
       type: 'array',
       description: 'Array of thank you screens',
+    },
+    created_at: {
+      type: 'string',
+      description: 'Form creation timestamp (ISO 8601 format)',
+    },
+    last_updated_at: {
+      type: 'string',
+      description: 'Form last update timestamp (ISO 8601 format)',
+    },
+    published_at: {
+      type: 'string',
+      description: 'Form publication timestamp (ISO 8601 format)',
     },
     _links: {
       type: 'object',
