@@ -101,30 +101,80 @@ class AgentBlockHandler:
 
     def _get_native_file_tools(self) -> List[Dict]:
         """Get native file tool definitions if WORKSPACE_DIR is configured."""
-        from tools import is_native_tools_enabled, get_workspace_info
+        from tools import is_native_tools_enabled, is_command_execution_enabled, get_workspace_info
 
         if not is_native_tools_enabled():
             return []
 
         workspace_info = get_workspace_info()
         workspace_dir = workspace_info.get('workspace_dir', './workspace')
+        max_file_size = workspace_info.get('max_file_size', 100 * 1024 * 1024)
+        max_file_size_mb = max_file_size // (1024 * 1024)
 
-        return [
+        tools = [
             {
                 'name': 'local_write_file',
-                'description': f'Write content to a file in the local workspace ({workspace_dir}). Use this for saving outputs locally. Path is relative to workspace directory.',
+                'description': f'Write text content to a file in the local workspace ({workspace_dir}). Max size: {max_file_size_mb}MB. Path is relative to workspace directory.',
                 'input_schema': {
                     'type': 'object',
                     'properties': {
                         'path': {'type': 'string', 'description': 'File path relative to workspace directory'},
-                        'content': {'type': 'string', 'description': 'Content to write to the file'}
+                        'content': {'type': 'string', 'description': 'Text content to write to the file'}
+                    },
+                    'required': ['path', 'content']
+                }
+            },
+            {
+                'name': 'local_write_bytes',
+                'description': f'Write binary data (images, PDFs, etc.) to a file in the local workspace ({workspace_dir}). Data must be base64 encoded. Max size: {max_file_size_mb}MB.',
+                'input_schema': {
+                    'type': 'object',
+                    'properties': {
+                        'path': {'type': 'string', 'description': 'File path relative to workspace directory'},
+                        'data': {'type': 'string', 'description': 'Base64 encoded binary data'},
+                        'encoding': {'type': 'string', 'description': 'Data encoding (default: base64)', 'default': 'base64'}
+                    },
+                    'required': ['path', 'data']
+                }
+            },
+            {
+                'name': 'local_append_file',
+                'description': f'Append text content to a file in the local workspace ({workspace_dir}). Creates the file if it does not exist.',
+                'input_schema': {
+                    'type': 'object',
+                    'properties': {
+                        'path': {'type': 'string', 'description': 'File path relative to workspace directory'},
+                        'content': {'type': 'string', 'description': 'Text content to append'}
                     },
                     'required': ['path', 'content']
                 }
             },
             {
                 'name': 'local_read_file',
-                'description': f'Read content from a file in the local workspace ({workspace_dir}). Path is relative to workspace directory.',
+                'description': f'Read text content from a file in the local workspace ({workspace_dir}). For binary files, use local_read_bytes.',
+                'input_schema': {
+                    'type': 'object',
+                    'properties': {
+                        'path': {'type': 'string', 'description': 'File path relative to workspace directory'}
+                    },
+                    'required': ['path']
+                }
+            },
+            {
+                'name': 'local_read_bytes',
+                'description': f'Read binary data from a file in the local workspace ({workspace_dir}). Returns base64 encoded data.',
+                'input_schema': {
+                    'type': 'object',
+                    'properties': {
+                        'path': {'type': 'string', 'description': 'File path relative to workspace directory'},
+                        'encoding': {'type': 'string', 'description': 'Output encoding (default: base64)', 'default': 'base64'}
+                    },
+                    'required': ['path']
+                }
+            },
+            {
+                'name': 'local_delete_file',
+                'description': f'Delete a file in the local workspace ({workspace_dir}). Cannot delete directories.',
                 'input_schema': {
                     'type': 'object',
                     'properties': {
@@ -135,7 +185,7 @@ class AgentBlockHandler:
             },
             {
                 'name': 'local_list_directory',
-                'description': f'List files and directories in the local workspace ({workspace_dir}). Path is relative to workspace directory.',
+                'description': f'List files and directories in the local workspace ({workspace_dir}). Returns name, type, size, and modification time for each entry.',
                 'input_schema': {
                     'type': 'object',
                     'properties': {
@@ -145,6 +195,23 @@ class AgentBlockHandler:
                 }
             },
         ]
+
+        # Add command execution if enabled
+        if is_command_execution_enabled():
+            tools.append({
+                'name': 'local_execute_command',
+                'description': f'Execute a command in the local workspace ({workspace_dir}). Shell operators (|, >, &&, etc.) are not supported for security. Use for running scripts on generated files.',
+                'input_schema': {
+                    'type': 'object',
+                    'properties': {
+                        'command': {'type': 'string', 'description': 'Command to execute (e.g., "python script.py", "node process.js")'},
+                        'cwd': {'type': 'string', 'description': 'Working directory relative to workspace (default: workspace root)'}
+                    },
+                    'required': ['command']
+                }
+            })
+
+        return tools
 
     def _build_tools(self, tools_config: List[Dict]) -> List[Dict]:
         """Build Claude tools from config and register for execution.
@@ -268,19 +335,41 @@ class AgentBlockHandler:
 
     def _execute_native_tool(self, tool_info: Dict, tool_input: Dict) -> str:
         """Execute a native tool using local implementations."""
-        from tools import write_file, read_file, execute_command, list_directory
+        from tools import (
+            write_file, write_bytes, append_file,
+            read_file, read_bytes, delete_file,
+            execute_command, list_directory
+        )
 
         tool_name = tool_info['name']
 
         try:
             if tool_name == 'write_file':
                 result = write_file(tool_input.get('path', ''), tool_input.get('content', ''))
+            elif tool_name == 'write_bytes':
+                result = write_bytes(
+                    tool_input.get('path', ''),
+                    tool_input.get('data', ''),
+                    tool_input.get('encoding', 'base64')
+                )
+            elif tool_name == 'append_file':
+                result = append_file(tool_input.get('path', ''), tool_input.get('content', ''))
             elif tool_name in ('read_file', 'read_text_file'):
                 result = read_file(tool_input.get('path', ''))
+            elif tool_name == 'read_bytes':
+                result = read_bytes(
+                    tool_input.get('path', ''),
+                    tool_input.get('encoding', 'base64')
+                )
+            elif tool_name == 'delete_file':
+                result = delete_file(tool_input.get('path', ''))
             elif tool_name == 'list_directory':
                 result = list_directory(tool_input.get('path', '.'))
             elif tool_name == 'execute_command':
-                result = execute_command(tool_input.get('command', ''))
+                result = execute_command(
+                    tool_input.get('command', ''),
+                    tool_input.get('cwd')
+                )
             else:
                 result = {'error': f'Unknown native tool: {tool_name}'}
 

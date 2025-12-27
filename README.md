@@ -348,9 +348,36 @@ When enabled, agents automatically get access to these tools:
 
 | Tool | Description |
 |------|-------------|
-| `local_write_file` | Write content to a file in the workspace |
-| `local_read_file` | Read content from a file in the workspace |
-| `local_list_directory` | List files and directories in the workspace |
+| `local_write_file` | Write text content to a file |
+| `local_write_bytes` | Write binary data (images, PDFs) as base64 |
+| `local_append_file` | Append text to a file (creates if not exists) |
+| `local_read_file` | Read text content from a file |
+| `local_read_bytes` | Read binary data as base64 |
+| `local_delete_file` | Delete a file |
+| `local_list_directory` | List files with metadata (size, modified time) |
+
+**Enable Command Execution** (opt-in for security):
+
+```bash
+# In .env
+WORKSPACE_DIR=./workspace
+ENABLE_COMMAND_EXECUTION=true
+```
+
+When enabled, agents also get:
+
+| Tool | Description |
+|------|-------------|
+| `local_execute_command` | Run commands like `python script.py` or `node process.js` |
+
+Shell operators (`|`, `>`, `&&`, etc.) are blocked for security.
+
+**File Size Limits:**
+
+```bash
+# Default: 100MB. Set custom limit in bytes:
+MAX_FILE_SIZE=52428800  # 50MB
+```
 
 **Security:** All paths are sandboxed to `WORKSPACE_DIR`. Path traversal attacks (`../`) and symlink escapes are blocked. Agents cannot access files outside the workspace directory.
 
@@ -372,6 +399,22 @@ You can enable both options simultaneously. If `WORKSPACE_DIR` is set, agents wi
 - MCP tools for external filesystem servers
 
 The LLM chooses the appropriate tool based on the tool descriptions and context.
+
+#### Health Check with Workspace Status
+
+The `/health` endpoint returns workspace configuration status:
+
+```json
+{
+  "status": "healthy",
+  "workspace": {
+    "enabled": true,
+    "workspace_dir": "/app/workspace",
+    "command_execution_enabled": false,
+    "max_file_size": 104857600
+  }
+}
+```
 
 ### API Endpoints
 
@@ -421,7 +464,13 @@ docker run -p 8080:8080 --env-file .env my-workflow
 | `HOST` | `0.0.0.0` | Server bind address |
 | `PORT` | `8080` | Server port |
 | `WORKSPACE_DIR` | (disabled) | Enable local file tools with sandbox path |
+| `ENABLE_COMMAND_EXECUTION` | `false` | Allow agents to execute commands |
+| `MAX_FILE_SIZE` | `104857600` (100MB) | Maximum file size in bytes |
 | `WORKFLOW_PATH` | `workflow.json` | Path to workflow definition |
+| `RATE_LIMIT_REQUESTS` | `60` | Max requests per rate limit window |
+| `RATE_LIMIT_WINDOW` | `60` | Rate limit window in seconds |
+| `MAX_REQUEST_SIZE` | `10485760` (10MB) | Maximum HTTP request body size |
+| `LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
 
 ### Security
 
@@ -432,6 +481,7 @@ The exported service implements multiple security measures:
 - **Sandboxed file operations**: All paths restricted to `WORKSPACE_DIR`
 - **Shell operator rejection**: Pipes, redirects, and command chaining blocked
 - **Path traversal protection**: `..` and symlink escapes blocked
+- **File size limits**: Configurable max file size (default 100MB)
 - **Input validation**: Request size limits (default 10MB)
 - **Rate limiting**: Configurable request rate limits (default 60/min)
 

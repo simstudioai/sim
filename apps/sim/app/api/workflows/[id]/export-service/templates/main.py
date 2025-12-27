@@ -162,14 +162,20 @@ class ExecuteRequest(BaseModel):
 @app.get("/health")
 async def health():
     """Health check endpoint with detailed status."""
+    from tools import get_workspace_info
+
     now = datetime.now(timezone.utc)
     uptime_seconds = (now - startup_time).total_seconds() if startup_time else 0
+
+    # Get workspace configuration
+    workspace_info = get_workspace_info()
 
     return {
         'status': 'healthy' if workflow_data and not startup_warnings else 'degraded',
         'workflow_loaded': workflow_data is not None,
         'uptime_seconds': round(uptime_seconds, 2),
         'warnings': startup_warnings if startup_warnings else None,
+        'workspace': workspace_info,
         'timestamp': now.isoformat()
     }
 
