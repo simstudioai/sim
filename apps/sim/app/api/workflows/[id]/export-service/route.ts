@@ -45,38 +45,58 @@ interface ValidationResult {
   message: string
 }
 
+// Type for workflow block during validation
+interface WorkflowBlock {
+  type: string
+  name?: string
+  subBlocks?: {
+    model?: { value?: string }
+    [key: string]: unknown
+  }
+  inputs?: {
+    model?: string
+    [key: string]: unknown
+  }
+}
+
+// Type for workflow state
+interface WorkflowState {
+  blocks?: Record<string, WorkflowBlock>
+  edges?: Record<string, unknown>
+  [key: string]: unknown
+}
+
 /**
  * Validate workflow for export compatibility.
  * Checks for unsupported block types and providers.
  */
-function validateWorkflowForExport(state: any): ValidationResult {
+function validateWorkflowForExport(state: WorkflowState | null | undefined): ValidationResult {
   const unsupportedBlocks: Array<{ id: string; name: string; type: string }> = []
   const unsupportedProviders: Array<{ id: string; name: string; model: string; provider: string }> = []
 
-  const blocks = state?.blocks || {}
+  const blocks = state?.blocks ?? {}
 
   for (const [blockId, block] of Object.entries(blocks)) {
-    const b = block as any
-    const blockType = b.type
+    const blockType = block.type
 
     // Check if block type is supported
     if (!SUPPORTED_BLOCK_TYPES.has(blockType)) {
       unsupportedBlocks.push({
         id: blockId,
-        name: b.name || blockId,
+        name: block.name ?? blockId,
         type: blockType,
       })
     }
 
     // For agent blocks, check if the provider is supported
     if (blockType === 'agent') {
-      const model = b.subBlocks?.model?.value || b.inputs?.model || ''
+      const model = block.subBlocks?.model?.value ?? block.inputs?.model ?? ''
       const provider = detectProviderFromModel(model)
 
       if (!SUPPORTED_PROVIDERS.has(provider)) {
         unsupportedProviders.push({
           id: blockId,
-          name: b.name || blockId,
+          name: block.name ?? blockId,
           model: model,
           provider: provider,
         })
@@ -139,8 +159,10 @@ function transpileJsToPython(code: string): string {
   code = code.replace(/(len\([^)]+\))\s*\+\s*(['"][^'"]*['"])/g, 'str($1) + $2')
 
   // Transform property access (but not method calls)
+  // Note: This handles simple bracket notation like arr[0].prop but not deeply nested
+  // patterns like arr[obj["key"]].prop. For complex cases, use bracket notation in source.
   code = code.replace(
-    /\b([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])*)\.([a-zA-Z_][a-zA-Z0-9_]*)(?![a-zA-Z0-9_])(?!\s*\()/g,
+    /\b([a-zA-Z_][a-zA-Z0-9_]*(?:\["[^"]*"\]|\['[^']*'\]|\[\d+\])*)\.([a-zA-Z_][a-zA-Z0-9_]*)(?![a-zA-Z0-9_])(?!\s*\()/g,
     '$1["$2"]'
   )
 
@@ -197,11 +219,28 @@ function transpileJsToPython(code: string): string {
   return result.join('\n')
 }
 
+// Type for export workflow state structure
+interface ExportWorkflowState {
+  state?: {
+    blocks?: Record<string, {
+      type: string
+      subBlocks?: {
+        code?: { value?: string }
+        language?: { value?: string }
+        [key: string]: unknown
+      }
+      [key: string]: unknown
+    }>
+    [key: string]: unknown
+  }
+  [key: string]: unknown
+}
+
 /**
  * Pre-transpile all JavaScript function blocks in a workflow state to Python.
  * Handles the ExportWorkflowState structure: {version, exportedAt, state: {blocks, ...}}
  */
-function preTranspileWorkflow(exportState: any): any {
+function preTranspileWorkflow<T extends ExportWorkflowState>(exportState: T): T {
   // Handle ExportWorkflowState structure
   const blocks = exportState?.state?.blocks
   if (!blocks) return exportState
@@ -2341,10 +2380,16 @@ export async function GET(
       { headers: internalHeaders }
     )
 
-    let workflowVariables: any[] = []
+    interface WorkflowVariable {
+      id: string
+      name: string
+      type: string
+      value: unknown
+    }
+    let workflowVariables: WorkflowVariable[] = []
     if (variablesResponse.ok) {
-      const varsData = await variablesResponse.json()
-      workflowVariables = Object.values(varsData?.data || {}).map((v: any) => ({
+      const varsData = await variablesResponse.json() as { data?: Record<string, WorkflowVariable> }
+      workflowVariables = Object.values(varsData?.data ?? {}).map((v) => ({
         id: v.id,
         name: v.name,
         type: v.type,
