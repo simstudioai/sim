@@ -24,6 +24,7 @@ import {
   MicrosoftTeamsIcon,
   NotionIcon,
   OutlookIcon,
+  PinterestIcon,
   PipedriveIcon,
   RedditIcon,
   SalesforceIcon,
@@ -748,6 +749,21 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'spotify',
+  },
+  pinterest: {
+    name: 'Pinterest',
+    icon: PinterestIcon,
+    services: {
+      pinterest: {
+        name: 'Pinterest',
+        description: 'Create and manage pins on your Pinterest boards.',
+        providerId: 'pinterest',
+        icon: PinterestIcon,
+        baseProviderIcon: PinterestIcon,
+        scopes: ['boards:read', 'boards:write', 'pins:read', 'pins:write'],
+      },
+    },
+    defaultService: 'pinterest',
   },
 }
 

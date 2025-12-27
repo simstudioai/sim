@@ -27,6 +27,7 @@ export type SelectorKey =
   | 'webflow.sites'
   | 'webflow.collections'
   | 'webflow.items'
+  | 'pinterest.boards'
 
 export interface SelectorOption {
   id: string
