@@ -1,0 +1,11 @@
+# Workflow Runner Dependencies
+anthropic>=0.18.0
+openai>=1.0.0
+google-generativeai>=0.3.0
+fastapi>=0.109.0
+uvicorn>=0.27.0
+httpx>=0.26.0
+mcp>=1.0.0
+pydantic>=2.5.0
+python-dotenv>=1.0.0
+jsonschema>=4.20.0

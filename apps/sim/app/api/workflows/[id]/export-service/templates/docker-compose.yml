@@ -1,0 +1,19 @@
+# Docker Compose for local development
+version: '3.8'
+
+services:
+  workflow:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      # Enable local file tools with workspace mounted at /app/workspace
+      - WORKSPACE_DIR=/app/workspace
+    volumes:
+      # Mount local ./output directory to container workspace
+      # Files written by agents will appear in ./output on host
+      - ./output:/app/workspace
+    restart: unless-stopped

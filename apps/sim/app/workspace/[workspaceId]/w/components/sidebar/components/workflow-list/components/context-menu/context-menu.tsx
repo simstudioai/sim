@@ -44,6 +44,10 @@ interface ContextMenuProps {
    */
   onExport?: () => void
   /**
+   * Callback when export as service is clicked
+   */
+  onExportService?: () => void
+  /**
    * Callback when delete is clicked
    */
   onDelete: () => void
@@ -78,10 +82,20 @@ interface ContextMenuProps {
    */
   showExport?: boolean
   /**
+   * Whether to show the export as service option (default: false)
+   * Set to true for workflows that can be exported as standalone services
+   */
+  showExportService?: boolean
+  /**
    * Whether the export option is disabled (default: false)
    * Set to true when user lacks permissions
    */
   disableExport?: boolean
+  /**
+   * Whether the export as service option is disabled (default: false)
+   * Set to true when user lacks permissions
+   */
+  disableExportService?: boolean
   /**
    * Whether the rename option is disabled (default: false)
    * Set to true when user lacks permissions
@@ -127,6 +141,7 @@ export function ContextMenu({
   onCreateFolder,
   onDuplicate,
   onExport,
+  onExportService,
   onDelete,
   showOpenInNewTab = false,
   showRename = true,
@@ -134,7 +149,9 @@ export function ContextMenu({
   showCreateFolder = false,
   showDuplicate = true,
   showExport = false,
+  showExportService = false,
   disableExport = false,
+  disableExportService = false,
   disableRename = false,
   disableDuplicate = false,
   disableDelete = false,
@@ -216,6 +233,17 @@ export function ContextMenu({
             }}
           >
             Export
+          </PopoverItem>
+        )}
+        {showExportService && onExportService && (
+          <PopoverItem
+            disabled={disableExportService}
+            onClick={() => {
+              onExportService()
+              onClose()
+            }}
+          >
+            Export as Service
           </PopoverItem>
         )}
         <PopoverItem
