@@ -392,6 +392,17 @@
 }
 
 /**
+ * Subblock divider visibility
+ * Hides dividers when adjacent subblocks render empty content (e.g., schedule-info without data).
+ * Uses CSS :has() to detect empty .subblock-content elements and hide associated dividers.
+ * Selectors ordered by ascending specificity: (0,4,0) then (0,5,0)
+ */
+.subblock-row:has(> .subblock-content:empty) > .subblock-divider,
+.subblock-row:has(+ .subblock-row > .subblock-content:empty) > .subblock-divider {
+  display: none;
+}
+
+/**
  * Dark mode specific overrides
  */
 .dark .bg-red-500 {
