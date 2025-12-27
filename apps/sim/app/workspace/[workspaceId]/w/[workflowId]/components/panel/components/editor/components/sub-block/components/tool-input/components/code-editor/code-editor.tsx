@@ -176,8 +176,8 @@ export function CodeEditor({
       const escapedOriginal = type === 'variable' ? escapeHtml(original) : original
       const replacement =
         type === 'env' || type === 'variable'
-          ? `<span style="color: #34B5FF;">${escapedOriginal}</span>`
-          : `<span style="color: #34B5FF; font-weight: 500;">${original}</span>`
+          ? `<span style="color: var(--brand-secondary);">${escapedOriginal}</span>`
+          : `<span style="color: var(--brand-secondary); font-weight: 500;">${original}</span>`
 
       highlighted = highlighted.replace(placeholder, replacement)
     })

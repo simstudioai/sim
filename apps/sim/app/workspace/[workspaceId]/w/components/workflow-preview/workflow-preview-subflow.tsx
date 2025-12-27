@@ -36,7 +36,7 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
 
   return (
     <div
-      className='relative select-none rounded-[8px] border border-[var(--divider)]'
+      className='relative select-none rounded-[8px] border border-[var(--border)]'
       style={{
         width,
         height,
@@ -56,7 +56,7 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
       />
 
       {/* Header - matches actual subflow header */}
-      <div className='flex items-center gap-[10px] rounded-t-[8px] border-[var(--divider)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px]'>
+      <div className='flex items-center gap-[10px] rounded-t-[8px] border-[var(--border)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px]'>
         <div
           className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
           style={{ backgroundColor: blockIconBg }}

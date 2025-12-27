@@ -154,13 +154,9 @@ export function ConditionInput({
   const removeEdge = useWorkflowStore((state) => state.removeEdge)
   const edges = useWorkflowStore((state) => state.edges)
 
-  // Use a ref to track the previous store value for comparison
   const prevStoreValueRef = useRef<string | null>(null)
-  // Use a ref to track if we're currently syncing from store to prevent loops
   const isSyncingFromStoreRef = useRef(false)
-  // Use a ref to track if we've already initialized from store
   const hasInitializedRef = useRef(false)
-  // Track previous blockId to detect workflow changes
   const previousBlockIdRef = useRef<string>(blockId)
   const shouldPersistRef = useRef<boolean>(false)
 
@@ -869,7 +865,6 @@ export function ConditionInput({
                           }[] = []
                           let processedCode = codeToHighlight
 
-                          // Replace environment variables with placeholders
                           processedCode = processedCode.replace(createEnvVarPattern(), (match) => {
                             const placeholder = `__ENV_VAR_${placeholders.length}__`
                             placeholders.push({
@@ -881,8 +876,6 @@ export function ConditionInput({
                             return placeholder
                           })
 
-                          // Replace variable references with placeholders
-                          // Use [^<>]+ to prevent matching across nested brackets (e.g., "<3 <real.ref>" should match separately)
                           processedCode = processedCode.replace(
                             createReferencePattern(),
                             (match) => {
@@ -901,14 +894,12 @@ export function ConditionInput({
                             }
                           )
 
-                          // Apply Prism syntax highlighting
                           let highlightedCode = highlight(
                             processedCode,
                             languages.javascript,
                             'javascript'
                           )
 
-                          // Restore and highlight the placeholders
                           placeholders.forEach(
                             ({ placeholder, original, type, shouldHighlight }) => {
                               if (!shouldHighlight) return
@@ -916,14 +907,13 @@ export function ConditionInput({
                               if (type === 'env') {
                                 highlightedCode = highlightedCode.replace(
                                   placeholder,
-                                  `<span class="text-blue-500">${original}</span>`
+                                  `<span style="color: var(--brand-secondary);">${original}</span>`
                                 )
                               } else if (type === 'var') {
-                                // Escape the < and > for display
                                 const escaped = original.replace(/</g, '&lt;').replace(/>/g, '&gt;')
                                 highlightedCode = highlightedCode.replace(
                                   placeholder,
-                                  `<span class="text-blue-500">${escaped}</span>`
+                                  `<span style="color: var(--brand-secondary);">${escaped}</span>`
                                 )
                               }
                             }

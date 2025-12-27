@@ -1223,6 +1223,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         }
       })
 
+      directTags.forEach((directTag) => {
+        nestedTags.push(directTag)
+      })
+
       Object.entries(groupedTags).forEach(([parent, children]) => {
         const firstChildTag = children[0]?.fullTag
         if (firstChildTag) {
@@ -1243,10 +1247,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         }
       })
 
-      directTags.forEach((directTag) => {
-        nestedTags.push(directTag)
-      })
-
       return {
         ...group,
         nestedTags,
@@ -1262,7 +1262,17 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     })
 
     nestedBlockTagGroups.forEach((group) => {
+      const normalizedBlockName = normalizeName(group.blockName)
+      const rootTagFromTags = group.tags.find((tag) => tag === normalizedBlockName)
+      const rootTag = rootTagFromTags || normalizedBlockName
+
+      list.push({ tag: rootTag, group })
+
       group.nestedTags.forEach((nestedTag) => {
+        if (nestedTag.fullTag === rootTag) {
+          return
+        }
+
         if (nestedTag.parentTag) {
           list.push({ tag: nestedTag.parentTag, group })
         }
@@ -1280,7 +1290,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     return list
   }, [variableTags, nestedBlockTagGroups])
 
-  // Auto-scroll selected item into view
   useEffect(() => {
     if (!visible || selectedIndex < 0) return
 
@@ -1318,7 +1327,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
       const parts = tag.split('.')
       if (parts.length >= 3 && blockGroup) {
-        const arrayFieldName = parts[1] // e.g., "channels", "files", "users"
+        const arrayFieldName = parts[1]
         const block = useWorkflowStore.getState().blocks[blockGroup.blockId]
         const blockConfig = block ? (getBlock(block.type) ?? null) : null
         const mergedSubBlocks = getMergedSubBlocks(blockGroup.blockId)
@@ -1403,7 +1412,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
   if (!visible || tags.length === 0 || flatTagList.length === 0) return null
 
-  // Calculate caret position for proper anchoring
   const inputElement = inputRef?.current
   let caretViewport = { left: 0, top: 0 }
   let side: 'top' | 'bottom' = 'bottom'
@@ -1516,7 +1524,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                   blockColor = BLOCK_COLORS.PARALLEL
                 }
 
-                // Use actual block icon if available, otherwise fall back to special icons for loop/parallel or first letter
                 let tagIcon: string | React.ComponentType<{ className?: string }> = group.blockName
                   .charAt(0)
                   .toUpperCase()
@@ -1528,10 +1535,41 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                   tagIcon = SplitIcon
                 }
 
+                const normalizedBlockName = normalizeName(group.blockName)
+                const rootTagFromTags = group.tags.find((tag) => tag === normalizedBlockName)
+                const rootTag = rootTagFromTags || normalizedBlockName
+
+                const rootTagGlobalIndex = flatTagList.findIndex((item) => item.tag === rootTag)
+
                 return (
                   <div key={group.blockId}>
-                    <PopoverSection rootOnly>{group.blockName}</PopoverSection>
+                    <PopoverItem
+                      rootOnly
+                      active={rootTagGlobalIndex === selectedIndex && rootTagGlobalIndex >= 0}
+                      onMouseEnter={() => {
+                        if (rootTagGlobalIndex >= 0) setSelectedIndex(rootTagGlobalIndex)
+                      }}
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleTagSelect(rootTag, group)
+                      }}
+                      ref={(el) => {
+                        if (el && rootTagGlobalIndex >= 0) {
+                          itemRefs.current.set(rootTagGlobalIndex, el)
+                        }
+                      }}
+                    >
+                      <TagIcon icon={tagIcon} color={blockColor} />
+                      <span className='flex-1 truncate font-medium text-[var(--text-primary)]'>
+                        {group.blockName}
+                      </span>
+                    </PopoverItem>
                     {group.nestedTags.map((nestedTag) => {
+                      if (nestedTag.fullTag === rootTag) {
+                        return null
+                      }
+
                       const hasChildren = nestedTag.children && nestedTag.children.length > 0
 
                       if (hasChildren) {
@@ -1546,7 +1584,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                             key={folderId}
                             id={folderId}
                             title={nestedTag.display}
-                            icon={<TagIcon icon={tagIcon} color={blockColor} />}
                             active={parentGlobalIndex === selectedIndex && parentGlobalIndex >= 0}
                             onSelect={() => {
                               if (nestedTag.parentTag) {
@@ -1609,7 +1646,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                                     }
                                   }}
                                 >
-                                  <TagIcon icon={tagIcon} color={blockColor} />
                                   <span className='flex-1 truncate text-[var(--text-primary)]'>
                                     {child.display}
                                   </span>
@@ -1625,26 +1661,21 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                         )
                       }
 
-                      // Direct tag (no children)
                       const globalIndex = nestedTag.fullTag
                         ? flatTagList.findIndex((item) => item.tag === nestedTag.fullTag)
                         : -1
 
                       let tagDescription = ''
-                      let displayIcon = tagIcon
 
                       if (
                         (group.blockType === 'loop' || group.blockType === 'parallel') &&
                         !nestedTag.key.includes('.')
                       ) {
                         if (nestedTag.key === 'index') {
-                          displayIcon = '#'
                           tagDescription = 'number'
                         } else if (nestedTag.key === 'currentItem') {
-                          displayIcon = 'i'
                           tagDescription = 'any'
                         } else if (nestedTag.key === 'items') {
-                          displayIcon = 'I'
                           tagDescription = 'array'
                         }
                       } else if (nestedTag.fullTag) {
@@ -1687,7 +1718,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                             }
                           }}
                         >
-                          <TagIcon icon={displayIcon} color={blockColor} />
                           <span className='flex-1 truncate text-[var(--text-primary)]'>
                             {nestedTag.display}
                           </span>
