@@ -49,6 +49,30 @@ const MAX_REQUEST_BODY_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
 const BODY_SIZE_LIMIT_ERROR_MESSAGE =
   'Request body size limit exceeded (10MB). The workflow data is too large to process. Try reducing the size of variables, inputs, or data being passed between blocks.'
 
+/** Default timeout for HTTP requests in milliseconds (2 minutes) */
+const DEFAULT_TIMEOUT_MS = 120000
+
+/** Maximum allowed timeout for HTTP requests in milliseconds (10 minutes) */
+const MAX_TIMEOUT_MS = 600000
+
+/**
+ * Parses and validates a timeout value from params
+ * @param timeout - The timeout value (number or string) from params
+ * @returns The validated timeout in milliseconds, capped at MAX_TIMEOUT_MS
+ */
+function parseTimeout(timeout: number | string | undefined): number {
+  if (typeof timeout === 'number' && timeout > 0) {
+    return Math.min(timeout, MAX_TIMEOUT_MS)
+  }
+  if (typeof timeout === 'string') {
+    const parsed = Number.parseInt(timeout, 10)
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      return Math.min(parsed, MAX_TIMEOUT_MS)
+    }
+  }
+  return DEFAULT_TIMEOUT_MS
+}
+
 /**
  * Validates request body size and throws a user-friendly error if exceeded
  * @param body - The request body string to check
@@ -650,19 +674,7 @@ async function handleInternalRequest(
     // Check request body size before sending to detect potential size limit issues
     validateRequestBodySize(requestParams.body, requestId, toolId)
 
-    // Determine timeout: use params.timeout if provided, otherwise default to 120000ms (2 min)
-    // Max timeout is 600000ms (10 minutes) to prevent indefinite waits
-    const DEFAULT_TIMEOUT_MS = 120000
-    const MAX_TIMEOUT_MS = 600000
-    let timeoutMs = DEFAULT_TIMEOUT_MS
-    if (typeof params.timeout === 'number' && params.timeout > 0) {
-      timeoutMs = Math.min(params.timeout, MAX_TIMEOUT_MS)
-    } else if (typeof params.timeout === 'string') {
-      const parsed = Number.parseInt(params.timeout, 10)
-      if (!Number.isNaN(parsed) && parsed > 0) {
-        timeoutMs = Math.min(parsed, MAX_TIMEOUT_MS)
-      }
-    }
+    const timeoutMs = parseTimeout(params.timeout)
 
     // Prepare request options with timeout signal
     const requestOptions: RequestInit = {
@@ -897,19 +909,7 @@ async function handleProxyRequest(
     // Check request body size before sending
     validateRequestBodySize(body, requestId, `proxy:${toolId}`)
 
-    // Determine timeout for proxy request: use params.timeout if provided, otherwise default
-    // This ensures the proxy fetch itself doesn't timeout before the actual API request
-    const DEFAULT_TIMEOUT_MS = 120000
-    const MAX_TIMEOUT_MS = 600000
-    let timeoutMs = DEFAULT_TIMEOUT_MS
-    if (typeof params.timeout === 'number' && params.timeout > 0) {
-      timeoutMs = Math.min(params.timeout, MAX_TIMEOUT_MS)
-    } else if (typeof params.timeout === 'string') {
-      const parsed = Number.parseInt(params.timeout, 10)
-      if (!Number.isNaN(parsed) && parsed > 0) {
-        timeoutMs = Math.min(parsed, MAX_TIMEOUT_MS)
-      }
-    }
+    const timeoutMs = parseTimeout(params.timeout)
 
     let response: Response
     try {
