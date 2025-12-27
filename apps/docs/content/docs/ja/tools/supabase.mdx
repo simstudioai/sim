@@ -266,10 +266,11 @@ Supabaseストレージバケットにファイルをアップロードする
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
 | `bucket` | string | はい | ストレージバケットの名前 |
-| `path` | string | はい | ファイルが保存されるパス（例："folder/file.jpg"） |
+| `fileName` | string | はい | ファイルの名前（例："document.pdf"、"image.jpg"） |
+| `path` | string | いいえ | オプションのフォルダパス（例："folder/subfolder/"） |
 | `fileContent` | string | はい | ファイルの内容（バイナリファイルの場合はbase64エンコード、またはプレーンテキスト） |
 | `contentType` | string | いいえ | ファイルのMIMEタイプ（例："image/jpeg"、"text/plain"） |
-| `upsert` | boolean | いいえ | trueの場合、既存のファイルを上書きする（デフォルト：false） |
+| `upsert` | boolean | いいえ | trueの場合、既存のファイルを上書き（デフォルト：false） |
 | `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
 
 #### 出力

@@ -129,15 +129,18 @@ Vollständige Details und Struktur eines bestimmten Formulars abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `id` | string | Eindeutige Formular-ID |
+| `id` | string | Eindeutige Formularkennung |
 | `title` | string | Formulartitel |
 | `type` | string | Formulartyp \(form, quiz, etc.\) |
 | `settings` | object | Formulareinstellungen einschließlich Sprache, Fortschrittsbalken, etc. |
 | `theme` | object | Theme-Referenz |
 | `workspace` | object | Workspace-Referenz |
 | `fields` | array | Array von Formularfeldern/Fragen |
-| `welcome_screens` | array | Array von Begrüßungsbildschirmen |
-| `thankyou_screens` | array | Array von Dankesbildschirmen |
+| `welcome_screens` | array | Array von Willkommensbildschirmen \(leer, wenn keine konfiguriert\) |
+| `thankyou_screens` | array | Array von Danke-Bildschirmen |
+| `created_at` | string | Zeitstempel der Formularerstellung \(ISO-8601-Format\) |
+| `last_updated_at` | string | Zeitstempel der letzten Formularaktualisierung \(ISO-8601-Format\) |
+| `published_at` | string | Zeitstempel der Formularveröffentlichung \(ISO-8601-Format\) |
 | `_links` | object | Links zu verwandten Ressourcen einschließlich öffentlicher Formular-URL |
 
 ### `typeform_create_form`
@@ -163,7 +166,12 @@ Ein neues Formular mit Feldern und Einstellungen erstellen
 | `id` | string | Eindeutige Kennung des erstellten Formulars |
 | `title` | string | Formulartitel |
 | `type` | string | Formulartyp |
-| `fields` | array | Array der erstellten Formularfelder |
+| `settings` | object | Formulareinstellungsobjekt |
+| `theme` | object | Theme-Referenz |
+| `workspace` | object | Workspace-Referenz |
+| `fields` | array | Array von erstellten Formularfeldern \(leer, wenn keine hinzugefügt\) |
+| `welcome_screens` | array | Array von Willkommensbildschirmen \(leer, wenn keine konfiguriert\) |
+| `thankyou_screens` | array | Array von Danke-Bildschirmen |
 | `_links` | object | Links zu verwandten Ressourcen einschließlich öffentlicher Formular-URL |
 
 ### `typeform_update_form`
@@ -182,16 +190,7 @@ Ein bestehendes Formular mit JSON Patch-Operationen aktualisieren
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `id` | string | Eindeutige Kennung des aktualisierten Formulars |
-| `title` | string | Formulartitel |
-| `type` | string | Formulartyp |
-| `settings` | object | Formulareinstellungen |
-| `theme` | object | Theme-Referenz |
-| `workspace` | object | Workspace-Referenz |
-| `fields` | array | Array von Formularfeldern |
-| `welcome_screens` | array | Array von Begrüßungsbildschirmen |
-| `thankyou_screens` | array | Array von Dankesbildschirmen |
-| `_links` | object | Links zu verwandten Ressourcen |
+| `message` | string | Erfolgsbestätigungsnachricht |
 
 ### `typeform_delete_form`
 

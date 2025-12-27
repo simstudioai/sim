@@ -266,7 +266,8 @@ Téléverser un fichier vers un bucket de stockage Supabase
 | --------- | ---- | ----------- | ----------- |
 | `projectId` | string | Oui | L'ID de votre projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
 | `bucket` | string | Oui | Le nom du bucket de stockage |
-| `path` | string | Oui | Le chemin où le fichier sera stocké \(ex. : "dossier/fichier.jpg"\) |
+| `fileName` | string | Oui | Le nom du fichier \(ex. : "document.pdf", "image.jpg"\) |
+| `path` | string | Non | Chemin de dossier optionnel \(ex. : "dossier/sousdossier/"\) |
 | `fileContent` | string | Oui | Le contenu du fichier \(encodé en base64 pour les fichiers binaires, ou texte brut\) |
 | `contentType` | string | Non | Type MIME du fichier \(ex. : "image/jpeg", "text/plain"\) |
 | `upsert` | boolean | Non | Si vrai, écrase le fichier existant \(par défaut : false\) |

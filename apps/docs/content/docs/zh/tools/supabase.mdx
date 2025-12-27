@@ -266,10 +266,11 @@ Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Su
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
 | `bucket` | string | 是 | 存储桶的名称 |
-| `path` | string | 是 | 文件将存储的路径 \(例如："folder/file.jpg"\) |
-| `fileContent` | string | 是 | 文件内容 \(二进制文件为 base64 编码，或纯文本\) |
-| `contentType` | string | 否 | 文件的 MIME 类型 \(例如："image/jpeg", "text/plain"\) |
-| `upsert` | boolean | 否 | 如果为 true，则覆盖现有文件 \(默认值：false\) |
+| `fileName` | string | 是 | 文件名 \(例如："document.pdf"，"image.jpg"\) |
+| `path` | string | 否 | 可选的文件夹路径 \(例如："folder/subfolder/"\) |
+| `fileContent` | string | 是 | 文件内容（对于二进制文件为 base64 编码，或为纯文本）|
+| `contentType` | string | 否 | 文件的 MIME 类型 \(例如："image/jpeg"，"text/plain"\) |
+| `upsert` | boolean | 否 | 如果为 true，则覆盖已存在的文件（默认值：false）|
 | `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
 
 #### 输出

@@ -136,9 +136,12 @@ Recuperar detalles completos y estructura de un formulario específico
 | `theme` | object | Referencia del tema |
 | `workspace` | object | Referencia del espacio de trabajo |
 | `fields` | array | Array de campos/preguntas del formulario |
-| `welcome_screens` | array | Array de pantallas de bienvenida |
+| `welcome_screens` | array | Array de pantallas de bienvenida \(vacío si no hay ninguna configurada\) |
 | `thankyou_screens` | array | Array de pantallas de agradecimiento |
-| `_links` | object | Enlaces a recursos relacionados incluyendo URL pública del formulario |
+| `created_at` | string | Marca de tiempo de creación del formulario \(formato ISO 8601\) |
+| `last_updated_at` | string | Marca de tiempo de última actualización del formulario \(formato ISO 8601\) |
+| `published_at` | string | Marca de tiempo de publicación del formulario \(formato ISO 8601\) |
+| `_links` | object | Enlaces de recursos relacionados incluyendo URL pública del formulario |
 
 ### `typeform_create_form`
 
@@ -163,8 +166,13 @@ Crear un nuevo formulario con campos y configuraciones
 | `id` | string | Identificador único del formulario creado |
 | `title` | string | Título del formulario |
 | `type` | string | Tipo de formulario |
-| `fields` | array | Array de campos del formulario creado |
-| `_links` | object | Enlaces a recursos relacionados incluyendo URL pública del formulario |
+| `settings` | object | Objeto de configuración del formulario |
+| `theme` | object | Referencia del tema |
+| `workspace` | object | Referencia del espacio de trabajo |
+| `fields` | array | Array de campos del formulario creados \(vacío si no se agregó ninguno\) |
+| `welcome_screens` | array | Array de pantallas de bienvenida \(vacío si no hay ninguna configurada\) |
+| `thankyou_screens` | array | Array de pantallas de agradecimiento |
+| `_links` | object | Enlaces de recursos relacionados incluyendo URL pública del formulario |
 
 ### `typeform_update_form`
 
@@ -182,16 +190,7 @@ Actualizar un formulario existente usando operaciones JSON Patch
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `id` | string | Identificador único del formulario actualizado |
-| `title` | string | Título del formulario |
-| `type` | string | Tipo de formulario |
-| `settings` | object | Configuración del formulario |
-| `theme` | object | Referencia del tema |
-| `workspace` | object | Referencia del espacio de trabajo |
-| `fields` | array | Array de campos del formulario |
-| `welcome_screens` | array | Array de pantallas de bienvenida |
-| `thankyou_screens` | array | Array de pantallas de agradecimiento |
-| `_links` | object | Enlaces a recursos relacionados |
+| `message` | string | Mensaje de confirmación de éxito |
 
 ### `typeform_delete_form`
 
