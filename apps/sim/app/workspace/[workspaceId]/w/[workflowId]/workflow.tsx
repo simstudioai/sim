@@ -143,7 +143,7 @@ const WorkflowContent = React.memo(() => {
 
   const params = useParams()
   const router = useRouter()
-  const { screenToFlowPosition, getNodes, fitView } = useReactFlow()
+  const { screenToFlowPosition, getNodes, fitView, getIntersectingNodes } = useReactFlow()
   const { emitCursorUpdate } = useSocket()
 
   const workspaceId = params.workspaceId as string
@@ -200,7 +200,6 @@ const WorkflowContent = React.memo(() => {
 
   const {
     getNodeDepth,
-    getNodeHierarchy,
     getNodeAbsolutePosition,
     isPointInLoopNode,
     resizeLoopNodes,
@@ -343,7 +342,6 @@ const WorkflowContent = React.memo(() => {
     collaborativeRemoveEdge: removeEdge,
     collaborativeUpdateBlockPosition,
     collaborativeUpdateParentId: updateParentId,
-    collaborativeSetSubblockValue,
     undo,
     redo,
   } = useCollaborativeWorkflow()
@@ -407,7 +405,6 @@ const WorkflowContent = React.memo(() => {
       if (newParentId) {
         const nodeAbsPos = getNodeAbsolutePosition(nodeId)
         const parentAbsPos = getNodeAbsolutePosition(newParentId)
-        // Account for header (50px), left padding (16px), and top padding (16px)
         const headerHeight = 50
         const leftPadding = 16
         const topPadding = 16
@@ -448,7 +445,6 @@ const WorkflowContent = React.memo(() => {
       getNodes,
       collaborativeUpdateBlockPosition,
       updateParentId,
-      updateNodeDimensions,
       blocks,
       edgesForDisplay,
       getNodeAbsolutePosition,
@@ -1706,29 +1702,38 @@ const WorkflowContent = React.memo(() => {
   )
 
   /**
-   * Finds a node at a given flow position for drop-on-block connection.
+   * Finds the best node at a given flow position for drop-on-block connection.
    * Skips subflow containers as they have their own connection logic.
    */
   const findNodeAtPosition = useCallback(
     (position: { x: number; y: number }) => {
-      const nodes = getNodes()
+      const cursorRect = {
+        x: position.x - 1,
+        y: position.y - 1,
+        width: 2,
+        height: 2,
+      }
 
-      return nodes.find((node) => {
-        // Skip subflow containers for drop targets
-        if (node.type === 'subflowNode') return false
+      const intersecting = getIntersectingNodes(cursorRect, true).filter(
+        (node) => node.type !== 'subflowNode'
+      )
 
-        const absPos = getNodeAbsolutePosition(node.id)
-        const dims = getBlockDimensions(node.id)
+      if (intersecting.length === 0) return undefined
+      if (intersecting.length === 1) return intersecting[0]
 
-        return (
-          position.x >= absPos.x &&
-          position.x <= absPos.x + dims.width &&
-          position.y >= absPos.y &&
-          position.y <= absPos.y + dims.height
-        )
+      return intersecting.reduce((closest, node) => {
+        const getDistance = (n: Node) => {
+          const absPos = getNodeAbsolutePosition(n.id)
+          const dims = getBlockDimensions(n.id)
+          const centerX = absPos.x + dims.width / 2
+          const centerY = absPos.y + dims.height / 2
+          return Math.hypot(position.x - centerX, position.y - centerY)
+        }
+
+        return getDistance(node) < getDistance(closest) ? node : closest
       })
     },
-    [getNodes, getNodeAbsolutePosition, getBlockDimensions]
+    [getIntersectingNodes, getNodeAbsolutePosition, getBlockDimensions]
   )
 
   /**
@@ -1736,7 +1741,6 @@ const WorkflowContent = React.memo(() => {
    */
   const onConnectStart = useCallback((_event: any, params: any) => {
     const handleId: string | undefined = params?.handleId
-    // Treat explicit error handle (id === 'error') as error connection
     setIsErrorConnectionDrag(handleId === 'error')
     connectionSourceRef.current = {
       nodeId: params?.nodeId,
