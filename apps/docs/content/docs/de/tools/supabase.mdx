@@ -266,10 +266,11 @@ Eine Datei in einen Supabase-Speicher-Bucket hochladen
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
 | `bucket` | string | Ja | Der Name des Speicher-Buckets |
-| `path` | string | Ja | Der Pfad, unter dem die Datei gespeichert wird \(z.B. "ordner/datei.jpg"\) |
+| `fileName` | string | Ja | Der Name der Datei \(z.B. "dokument.pdf", "bild.jpg"\) |
+| `path` | string | Nein | Optionaler Ordnerpfad \(z.B. "ordner/unterordner/"\) |
 | `fileContent` | string | Ja | Der Dateiinhalt \(base64-kodiert für Binärdateien oder Klartext\) |
 | `contentType` | string | Nein | MIME-Typ der Datei \(z.B. "image/jpeg", "text/plain"\) |
-| `upsert` | boolean | Nein | Wenn true, überschreibt vorhandene Datei \(Standard: false\) |
+| `upsert` | boolean | Nein | Wenn true, wird die vorhandene Datei überschrieben \(Standard: false\) |
 | `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
 
 #### Ausgabe

@@ -36,7 +36,7 @@ const SKELETON_BAR_HEIGHTS = [
 
 function GraphCardSkeleton({ title }: { title: string }) {
   return (
-    <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-elevated)]'>
+    <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)]'>
       <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px]'>
         <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
           {title}
@@ -570,7 +570,7 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
     <div className='mt-[24px] flex min-h-0 flex-1 flex-col pb-[24px]'>
       <div className='mb-[16px] flex-shrink-0'>
         <div className='grid grid-cols-1 gap-[16px] md:grid-cols-3'>
-          <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-elevated)]'>
+          <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)]'>
             <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px]'>
               <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
                 Runs
@@ -597,7 +597,7 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
             </div>
           </div>
 
-          <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-elevated)]'>
+          <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)]'>
             <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px]'>
               <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
                 Errors
@@ -624,7 +624,7 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
             </div>
           </div>
 
-          <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-elevated)]'>
+          <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)]'>
             <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px]'>
               <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
                 Latency

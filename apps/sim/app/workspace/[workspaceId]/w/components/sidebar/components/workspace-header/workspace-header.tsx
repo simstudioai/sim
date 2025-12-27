@@ -259,22 +259,9 @@ export function WorkspaceHeader({
   }
 
   return (
-    <div className='flex min-w-0 items-center justify-between gap-[8px]'>
-      {/* Workspace Name */}
-      <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
-        <h2
-          className='max-w-full truncate font-base text-[14px] dark:text-[var(--white)]'
-          title={activeWorkspace?.name || 'Loading...'}
-        >
-          {activeWorkspace?.name || 'Loading...'}
-        </h2>
-      </div>
-      {/* Workspace Actions */}
-      <div className='flex items-center gap-[10px]'>
-        {/* Invite */}
-        <Badge className='cursor-pointer' onClick={() => setIsInviteModalOpen(true)}>
-          Invite
-        </Badge>
+    <div className='flex min-w-0 items-center justify-between gap-[2px]'>
+      {/* Workspace Name with Switcher */}
+      <div className='min-w-0 flex-1'>
         {/* Workspace Switcher Popover - only render after mount to avoid Radix ID hydration mismatch */}
         {isMounted ? (
           <Popover
@@ -288,21 +275,24 @@ export function WorkspaceHeader({
             }}
           >
             <PopoverTrigger asChild>
-              <Button
-                variant='ghost-secondary'
+              <button
                 type='button'
                 aria-label='Switch workspace'
-                className='group !p-[3px] -m-[3px]'
+                className='-mx-[6px] flex min-w-0 max-w-full cursor-pointer items-center gap-[8px] rounded-[6px] bg-transparent px-[6px] py-[4px] transition-colors hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                title={activeWorkspace?.name || 'Loading...'}
               >
+                <span className='truncate font-base text-[14px] text-[var(--text-primary)]'>
+                  {activeWorkspace?.name || 'Loading...'}
+                </span>
                 <ChevronDown
-                  className={`h-[8px] w-[12px] transition-transform duration-100 ${
+                  className={`h-[8px] w-[12px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100 ${
                     isWorkspaceMenuOpen ? 'rotate-180' : ''
                   }`}
                 />
-              </Button>
+              </button>
             </PopoverTrigger>
             <PopoverContent
-              align='end'
+              align='start'
               side='bottom'
               sideOffset={8}
               style={{ maxWidth: '160px', minWidth: '160px' }}
@@ -316,7 +306,7 @@ export function WorkspaceHeader({
                 <>
                   <div className='relative flex items-center justify-between'>
                     <PopoverSection>Workspaces</PopoverSection>
-                    <div className='flex items-center gap-[6px]'>
+                    <div className='flex translate-y-[-2px] items-center gap-[6px]'>
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
@@ -368,7 +358,7 @@ export function WorkspaceHeader({
                     {workspaces.map((workspace, index) => (
                       <div key={workspace.id} className={index > 0 ? 'mt-[2px]' : ''}>
                         {editingWorkspaceId === workspace.id ? (
-                          <div className='flex h-[25px] items-center gap-[8px] rounded-[6px] bg-[var(--surface-9)] px-[6px]'>
+                          <div className='flex h-[26px] items-center gap-[8px] rounded-[8px] bg-[var(--surface-5)] px-[6px]'>
                             <input
                               ref={listRenameInputRef}
                               value={editingName}
@@ -398,7 +388,7 @@ export function WorkspaceHeader({
                                   setIsListRenaming(false)
                                 }
                               }}
-                              className='w-full border-0 bg-transparent p-0 font-base text-[12px] text-[var(--text-primary)] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                              className='w-full border-0 bg-transparent p-0 font-base text-[13px] text-[var(--text-primary)] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
                               maxLength={100}
                               autoComplete='off'
                               autoCorrect='off'
@@ -428,16 +418,26 @@ export function WorkspaceHeader({
             </PopoverContent>
           </Popover>
         ) : (
-          <Button
-            variant='ghost-secondary'
+          <button
             type='button'
             aria-label='Switch workspace'
-            className='group !p-[3px] -m-[3px]'
+            className='-mx-[6px] flex min-w-0 max-w-full cursor-pointer items-center gap-[8px] rounded-[6px] bg-transparent px-[6px] py-[4px] transition-colors hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+            title={activeWorkspace?.name || 'Loading...'}
             disabled
           >
-            <ChevronDown className='h-[8px] w-[12px]' />
-          </Button>
+            <span className='truncate font-base text-[14px] text-[var(--text-primary)] dark:text-[var(--white)]'>
+              {activeWorkspace?.name || 'Loading...'}
+            </span>
+            <ChevronDown className='h-[8px] w-[12px] flex-shrink-0 text-[var(--text-muted)]' />
+          </button>
         )}
+      </div>
+      {/* Workspace Actions */}
+      <div className='flex flex-shrink-0 items-center gap-[10px]'>
+        {/* Invite */}
+        <Badge className='cursor-pointer' onClick={() => setIsInviteModalOpen(true)}>
+          Invite
+        </Badge>
         {/* Sidebar Collapse Toggle */}
         {showCollapseButton && (
           <Button

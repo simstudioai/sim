@@ -29,7 +29,7 @@ function formatTimestamp(iso: string): string {
 /**
  * Common text styling for loading and empty states
  */
-const STATE_TEXT_CLASSES = 'px-[8px] py-[8px] text-[#868686] text-[12px] dark:text-[#868686]'
+const STATE_TEXT_CLASSES = 'px-[8px] py-[8px] text-[12px] text-[var(--text-muted)]'
 
 /**
  * Loading state component for mention folders
@@ -541,9 +541,7 @@ export function MentionMenu({
                         active={index === submenuActiveIndex}
                       >
                         <span className='flex-1 truncate'>{tpl.name}</span>
-                        <span className='text-[#868686] text-[10px] dark:text-[#868686]'>
-                          {tpl.stars}
-                        </span>
+                        <span className='text-[10px] text-[var(--text-muted)]'>{tpl.stars}</span>
                       </PopoverItem>
                     ))
                   )}
@@ -745,9 +743,7 @@ export function MentionMenu({
                   mentionData.templatesList.map((tpl) => (
                     <PopoverItem key={tpl.id} onClick={() => insertTemplateMention(tpl)}>
                       <span className='flex-1 truncate'>{tpl.name}</span>
-                      <span className='text-[#868686] text-[10px] dark:text-[#868686]'>
-                        {tpl.stars}
-                      </span>
+                      <span className='text-[10px] text-[var(--text-muted)]'>{tpl.stars}</span>
                     </PopoverItem>
                   ))
                 )}

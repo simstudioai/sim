@@ -16,15 +16,27 @@
 export const USAGE_PILL_COUNT = 8
 
 /**
- * Color values for usage pill states
+ * Usage percentage thresholds for visual states.
+ */
+export const USAGE_THRESHOLDS = {
+  /** Warning threshold (yellow/orange state) */
+  WARNING: 75,
+  /** Critical threshold (red state) */
+  CRITICAL: 90,
+} as const
+
+/**
+ * Color values for usage pill states using CSS variables
  */
 export const USAGE_PILL_COLORS = {
   /** Unfilled pill color (gray) */
-  UNFILLED: '#414141',
+  UNFILLED: 'var(--surface-7)',
   /** Normal filled pill color (blue) */
-  FILLED: '#34B5FF',
-  /** Warning/limit reached pill color (red) */
-  AT_LIMIT: '#ef4444',
+  FILLED: 'var(--brand-secondary)',
+  /** Warning state pill color (yellow/orange) */
+  WARNING: 'var(--warning)',
+  /** Critical/limit reached pill color (red) */
+  AT_LIMIT: 'var(--text-error)',
 } as const
 
 /**
@@ -65,7 +77,7 @@ export function isUsageAtLimit(percentUsed: number): boolean {
  *
  * @param isFilled - Whether this pill should be filled
  * @param isAtLimit - Whether usage has reached the limit
- * @returns Hex color string
+ * @returns CSS color value
  */
 export function getPillColor(isFilled: boolean, isAtLimit: boolean): string {
   if (!isFilled) return USAGE_PILL_COLORS.UNFILLED
@@ -74,9 +86,39 @@ export function getPillColor(isFilled: boolean, isAtLimit: boolean): string {
 }
 
 /**
+ * Get the appropriate filled pill color based on usage thresholds.
+ *
+ * @param isCritical - Whether usage is at critical level (blocked or >= 90%)
+ * @param isWarning - Whether usage is at warning level (>= 75% but < critical)
+ * @returns CSS color value for filled pills
+ */
+export function getFilledPillColor(isCritical: boolean, isWarning: boolean): string {
+  if (isCritical) return USAGE_PILL_COLORS.AT_LIMIT
+  if (isWarning) return USAGE_PILL_COLORS.WARNING
+  return USAGE_PILL_COLORS.FILLED
+}
+
+/**
+ * Determine usage state based on percentage and blocked status.
+ *
+ * @param percentUsed - The usage percentage (0-100)
+ * @param isBlocked - Whether the account is blocked
+ * @returns Object containing isCritical and isWarning flags
+ */
+export function getUsageState(
+  percentUsed: number,
+  isBlocked = false
+): { isCritical: boolean; isWarning: boolean } {
+  const isCritical = isBlocked || percentUsed >= USAGE_THRESHOLDS.CRITICAL
+  const isWarning = !isCritical && percentUsed >= USAGE_THRESHOLDS.WARNING
+  return { isCritical, isWarning }
+}
+
+/**
  * Generate an array of pill states for rendering.
  *
  * @param percentUsed - The usage percentage (0-100)
+ * @param isBlocked - Whether the account is blocked
  * @returns Array of pill states with colors
  *
  * @example
@@ -85,19 +127,23 @@ export function getPillColor(isFilled: boolean, isAtLimit: boolean): string {
  *   <Pill key={index} color={pill.color} filled={pill.filled} />
  * ))
  */
-export function generatePillStates(percentUsed: number): Array<{
+export function generatePillStates(
+  percentUsed: number,
+  isBlocked = false
+): Array<{
   filled: boolean
   color: string
   index: number
 }> {
   const filledCount = calculateFilledPills(percentUsed)
-  const atLimit = isUsageAtLimit(percentUsed)
+  const { isCritical, isWarning } = getUsageState(percentUsed, isBlocked)
+  const filledColor = getFilledPillColor(isCritical, isWarning)
 
   return Array.from({ length: USAGE_PILL_COUNT }, (_, index) => {
     const filled = index < filledCount
     return {
       filled,
-      color: getPillColor(filled, atLimit),
+      color: filled ? filledColor : USAGE_PILL_COLORS.UNFILLED,
       index,
     }
   })

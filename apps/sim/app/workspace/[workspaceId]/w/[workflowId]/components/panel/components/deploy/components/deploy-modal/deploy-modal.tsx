@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import clsx from 'clsx'
 import {
+  Badge,
   Button,
   Modal,
   ModalBody,
@@ -650,7 +650,7 @@ export function DeployModal({
                 {chatExists && (
                   <Button
                     type='button'
-                    variant='default'
+                    variant='destructive'
                     onClick={handleChatDelete}
                     disabled={chatSubmitting}
                   >
@@ -659,7 +659,7 @@ export function DeployModal({
                 )}
                 <Button
                   type='button'
-                  variant='primary'
+                  variant='tertiary'
                   onClick={handleChatFormSubmit}
                   disabled={chatSubmitting || !isChatFormValid}
                 >
@@ -701,7 +701,7 @@ export function DeployModal({
                 {hasExistingTemplate && (
                   <Button
                     type='button'
-                    variant='default'
+                    variant='destructive'
                     onClick={handleTemplateDelete}
                     disabled={templateSubmitting}
                   >
@@ -710,7 +710,7 @@ export function DeployModal({
                 )}
                 <Button
                   type='button'
-                  variant='primary'
+                  variant='tertiary'
                   onClick={handleTemplateFormSubmit}
                   disabled={templateSubmitting || !templateFormValid}
                 >
@@ -732,7 +732,7 @@ export function DeployModal({
         <ModalContent size='sm'>
           <ModalHeader>Undeploy API</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to undeploy this workflow?{' '}
               <span className='text-[var(--text-error)]'>
                 This will remove the API endpoint and make it unavailable to external users.
@@ -747,12 +747,7 @@ export function DeployModal({
             >
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={handleUndeploy}
-              disabled={isUndeploying}
-              className='bg-[var(--text-error)] text-[13px] text-white hover:bg-[var(--text-error)]'
-            >
+            <Button variant='destructive' onClick={handleUndeploy} disabled={isUndeploying}>
               {isUndeploying ? 'Undeploying...' : 'Undeploy'}
             </Button>
           </ModalFooter>
@@ -768,29 +763,10 @@ interface StatusBadgeProps {
 
 function StatusBadge({ isWarning }: StatusBadgeProps) {
   const label = isWarning ? 'Update deployment' : 'Live'
-
   return (
-    <div
-      className={clsx(
-        'flex h-[24px] items-center justify-start gap-[8px] rounded-[6px] border px-[9px]',
-        isWarning ? 'border-[#A16207] bg-[#452C0F]' : 'border-[#22703D] bg-[#14291B]'
-      )}
-    >
-      <div
-        className='h-[6px] w-[6px] rounded-[2px]'
-        style={{
-          backgroundColor: isWarning ? '#EAB308' : '#4ADE80',
-        }}
-      />
-      <span
-        className='font-medium text-[11.5px]'
-        style={{
-          color: isWarning ? '#EAB308' : '#86EFAC',
-        }}
-      >
-        {label}
-      </span>
-    </div>
+    <Badge variant={isWarning ? 'amber' : 'green'} size='lg' dot>
+      {label}
+    </Badge>
   )
 }
 
@@ -810,35 +786,10 @@ function TemplateStatusBadge({ status, views, stars }: TemplateStatusBadgeProps)
       : null
 
   return (
-    <div
-      className={clsx(
-        'flex h-[24px] items-center justify-start gap-[8px] rounded-[6px] border px-[9px]',
-        isPending ? 'border-[#A16207] bg-[#452C0F]' : 'border-[#22703D] bg-[#14291B]'
-      )}
-    >
-      <div
-        className='h-[6px] w-[6px] rounded-[2px]'
-        style={{
-          backgroundColor: isPending ? '#EAB308' : '#4ADE80',
-        }}
-      />
-      <span
-        className='font-medium text-[11.5px]'
-        style={{
-          color: isPending ? '#EAB308' : '#86EFAC',
-        }}
-      >
-        {label}
-      </span>
-      {statsText && (
-        <span
-          className='font-medium text-[11.5px]'
-          style={{ color: isPending ? '#EAB308' : '#86EFAC' }}
-        >
-          • {statsText}
-        </span>
-      )}
-    </div>
+    <Badge variant={isPending ? 'amber' : 'green'} size='lg' dot>
+      {label}
+      {statsText && <span>• {statsText}</span>}
+    </Badge>
   )
 }
 
@@ -864,8 +815,8 @@ function GeneralFooter({
   if (!isDeployed) {
     return (
       <ModalFooter>
-        <Button variant='primary' onClick={onDeploy} disabled={isSubmitting}>
-          {isSubmitting ? 'Deploying...' : 'Deploy API'}
+        <Button variant='tertiary' onClick={onDeploy} disabled={isSubmitting}>
+          {isSubmitting ? 'Deploying...' : 'Deploy'}
         </Button>
       </ModalFooter>
     )
@@ -879,7 +830,7 @@ function GeneralFooter({
           {isUndeploying ? 'Undeploying...' : 'Undeploy'}
         </Button>
         {needsRedeployment && (
-          <Button variant='primary' onClick={onRedeploy} disabled={isSubmitting || isUndeploying}>
+          <Button variant='tertiary' onClick={onRedeploy} disabled={isSubmitting || isUndeploying}>
             {isSubmitting ? 'Updating...' : 'Update'}
           </Button>
         )}

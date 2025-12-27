@@ -15,6 +15,7 @@ import {
   getPlanPricing,
 } from '@/lib/billing/subscriptions/utils'
 import type { BillingData, UsageData, UsageLimitInfo } from '@/lib/billing/types'
+import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -45,7 +46,7 @@ export async function getOrgUsageLimit(
 
   const configured =
     orgData.length > 0 && orgData[0].orgUsageLimit
-      ? Number.parseFloat(orgData[0].orgUsageLimit)
+      ? toNumber(toDecimal(orgData[0].orgUsageLimit))
       : null
 
   if (plan === 'enterprise') {
@@ -111,22 +112,23 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
     }
 
     const stats = userStatsData[0]
-    let currentUsage = Number.parseFloat(stats.currentPeriodCost?.toString() ?? '0')
+    let currentUsageDecimal = toDecimal(stats.currentPeriodCost)
 
     // For Pro users, include any snapshotted usage (from when they joined a team)
     // This ensures they see their total Pro usage in the UI
     if (subscription && subscription.plan === 'pro' && subscription.referenceId === userId) {
-      const snapshotUsage = Number.parseFloat(stats.proPeriodCostSnapshot?.toString() ?? '0')
-      if (snapshotUsage > 0) {
-        currentUsage += snapshotUsage
+      const snapshotUsageDecimal = toDecimal(stats.proPeriodCostSnapshot)
+      if (snapshotUsageDecimal.greaterThan(0)) {
+        currentUsageDecimal = currentUsageDecimal.plus(snapshotUsageDecimal)
         logger.info('Including Pro snapshot in usage display', {
           userId,
           currentPeriodCost: stats.currentPeriodCost,
-          proPeriodCostSnapshot: snapshotUsage,
-          totalUsage: currentUsage,
+          proPeriodCostSnapshot: toNumber(snapshotUsageDecimal),
+          totalUsage: toNumber(currentUsageDecimal),
         })
       }
     }
+    const currentUsage = toNumber(currentUsageDecimal)
 
     // Determine usage limit based on plan type
     let limit: number
@@ -134,7 +136,7 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
     if (!subscription || subscription.plan === 'free' || subscription.plan === 'pro') {
       // Free/Pro: Use individual user limit from userStats
       limit = stats.currentUsageLimit
-        ? Number.parseFloat(stats.currentUsageLimit)
+        ? toNumber(toDecimal(stats.currentUsageLimit))
         : getFreeTierLimit()
     } else {
       // Team/Enterprise: Use organization limit
@@ -163,7 +165,7 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
       isExceeded,
       billingPeriodStart,
       billingPeriodEnd,
-      lastPeriodCost: Number.parseFloat(stats.lastPeriodCost?.toString() || '0'),
+      lastPeriodCost: toNumber(toDecimal(stats.lastPeriodCost)),
     }
   } catch (error) {
     logger.error('Failed to get user usage data', { userId, error })
@@ -195,7 +197,7 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
     if (!subscription || subscription.plan === 'free' || subscription.plan === 'pro') {
       // Free/Pro: Use individual limits
       currentLimit = stats.currentUsageLimit
-        ? Number.parseFloat(stats.currentUsageLimit)
+        ? toNumber(toDecimal(stats.currentUsageLimit))
         : getFreeTierLimit()
       minimumLimit = getPerUserMinimumLimit(subscription)
       canEdit = canEditUsageLimit(subscription)
@@ -353,7 +355,7 @@ export async function getUserUsageLimit(userId: string): Promise<number> {
       )
     }
 
-    return Number.parseFloat(userStatsQuery[0].currentUsageLimit)
+    return toNumber(toDecimal(userStatsQuery[0].currentUsageLimit))
   }
   // Team/Enterprise: Verify org exists then use organization limit
   const orgExists = await db
@@ -438,7 +440,7 @@ export async function syncUsageLimitsFromSubscription(userId: string): Promise<v
   // Free/Pro: Handle individual limits
   const defaultLimit = getPerUserMinimumLimit(subscription)
   const currentLimit = currentStats.currentUsageLimit
-    ? Number.parseFloat(currentStats.currentUsageLimit)
+    ? toNumber(toDecimal(currentStats.currentUsageLimit))
     : 0
 
   if (!subscription || subscription.status !== 'active') {
@@ -503,9 +505,9 @@ export async function getTeamUsageLimits(organizationId: string): Promise<
       userId: memberData.userId,
       userName: memberData.userName,
       userEmail: memberData.userEmail,
-      currentLimit: Number.parseFloat(memberData.currentLimit || getFreeTierLimit().toString()),
-      currentUsage: Number.parseFloat(memberData.currentPeriodCost || '0'),
-      totalCost: Number.parseFloat(memberData.totalCost || '0'),
+      currentLimit: toNumber(toDecimal(memberData.currentLimit || getFreeTierLimit().toString())),
+      currentUsage: toNumber(toDecimal(memberData.currentPeriodCost)),
+      totalCost: toNumber(toDecimal(memberData.totalCost)),
       lastActive: memberData.lastActive,
     }))
   } catch (error) {
@@ -531,7 +533,7 @@ export async function getEffectiveCurrentPeriodCost(userId: string): Promise<num
       .limit(1)
 
     if (rows.length === 0) return 0
-    return rows[0].current ? Number.parseFloat(rows[0].current.toString()) : 0
+    return toNumber(toDecimal(rows[0].current))
   }
 
   // Team/Enterprise: pooled usage across org members
@@ -548,11 +550,11 @@ export async function getEffectiveCurrentPeriodCost(userId: string): Promise<num
     .from(userStats)
     .where(inArray(userStats.userId, memberIds))
 
-  let pooled = 0
+  let pooled = new Decimal(0)
   for (const r of rows) {
-    pooled += r.current ? Number.parseFloat(r.current.toString()) : 0
+    pooled = pooled.plus(toDecimal(r.current))
   }
-  return pooled
+  return toNumber(pooled)
 }
 
 /**

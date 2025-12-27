@@ -26,24 +26,20 @@ interface TeamSeatsOverviewProps {
 
 function TeamSeatsSkeleton() {
   return (
-    <div className='rounded-[8px] border bg-[var(--surface-3)] p-3 shadow-xs'>
-      <div className='space-y-2'>
+    <div className='overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
+      <div className='flex flex-col gap-[8px] px-[14px] py-[12px]'>
         <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-2'>
-            <Skeleton className='h-5 w-16' />
-            <Skeleton className='h-4 w-20' />
+          <div className='flex items-center gap-[8px]'>
+            <Skeleton className='h-5 w-16 rounded-[4px]' />
+            <Skeleton className='h-4 w-20 rounded-[4px]' />
           </div>
-          <div className='flex items-center gap-1 text-xs'>
-            <Skeleton className='h-4 w-8' />
+          <div className='flex items-center gap-[4px] text-[12px]'>
+            <Skeleton className='h-4 w-8 rounded-[4px]' />
             <span className='text-[var(--text-muted)]'>/</span>
-            <Skeleton className='h-4 w-8' />
+            <Skeleton className='h-4 w-8 rounded-[4px]' />
           </div>
         </div>
-        <Skeleton className='h-2 w-full rounded' />
-        <div className='flex gap-2 pt-1'>
-          <Skeleton className='h-8 flex-1 rounded-[8px]' />
-          <Skeleton className='h-8 flex-1 rounded-[8px]' />
-        </div>
+        <Skeleton className='h-[6px] w-full rounded-full' />
       </div>
     </div>
   )
@@ -65,16 +61,18 @@ export function TeamSeatsOverview({
 
   if (!subscriptionData) {
     return (
-      <div className='rounded-[8px] border bg-[var(--surface-3)] p-3 shadow-xs'>
-        <div className='space-y-3 text-center'>
-          <div className='space-y-2'>
-            <p className='font-medium text-sm'>No Team Subscription Found</p>
-            <p className='text-[var(--text-muted)] text-xs'>
+      <div className='overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
+        <div className='flex flex-col items-center gap-[12px] px-[14px] py-[16px] text-center'>
+          <div className='flex flex-col gap-[4px]'>
+            <p className='font-medium text-[14px] text-[var(--text-primary)]'>
+              No Team Subscription Found
+            </p>
+            <p className='text-[12px] text-[var(--text-muted)]'>
               Your subscription may need to be transferred to this organization.
             </p>
           </div>
           <Button
-            variant='primary'
+            variant='tertiary'
             onClick={() => {
               onConfirmTeamUpgrade(2)
             }}
@@ -90,27 +88,29 @@ export function TeamSeatsOverview({
   const isEnterprise = checkEnterprisePlan(subscriptionData)
 
   return (
-    <div className='rounded-[8px] border bg-[var(--surface-3)] p-3 shadow-xs'>
-      <div className='space-y-2'>
+    <div className='overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
+      <div className='flex flex-col gap-[8px] px-[14px] py-[12px]'>
         {/* Top row - matching UsageHeader */}
         <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-2'>
-            <span className='font-medium text-[12px] text-[var(--text-primary)]'>Seats</span>
+          <div className='flex items-center gap-[8px]'>
+            <span className='font-medium text-[14px] text-[var(--text-primary)]'>Seats</span>
             {!isEnterprise && (
               <Badge
-                className='gradient-text h-[1.125rem] cursor-pointer rounded-[6px] border-gradient-primary/20 bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary px-2 py-0 font-medium text-xs'
+                variant='blue-secondary'
+                size='sm'
+                className='cursor-pointer'
                 onClick={onAddSeatDialog}
               >
                 Add Seats
               </Badge>
             )}
           </div>
-          <div className='flex items-center gap-[4px] text-xs tabular-nums'>
-            <span className='font-medium text-[12px] text-[var(--text-secondary)] tabular-nums'>
+          <div className='flex items-center gap-[4px] text-[12px] tabular-nums'>
+            <span className='font-medium text-[var(--text-secondary)] tabular-nums'>
               {usedSeats} used
             </span>
-            <span className='font-medium text-[12px] text-[var(--text-secondary)]'>/</span>
-            <span className='font-medium text-[12px] text-[var(--text-secondary)] tabular-nums'>
+            <span className='font-medium text-[var(--text-secondary)]'>/</span>
+            <span className='font-medium text-[var(--text-secondary)] tabular-nums'>
               {totalSeats} total
             </span>
           </div>
@@ -134,8 +134,8 @@ export function TeamSeatsOverview({
 
         {/* Enterprise message */}
         {isEnterprise && (
-          <div className='pt-1 text-center'>
-            <p className='text-[var(--text-muted)] text-xs'>
+          <div className='pt-[4px] text-center'>
+            <p className='text-[12px] text-[var(--text-muted)]'>
               Contact support for enterprise usage limit changes
             </p>
           </div>

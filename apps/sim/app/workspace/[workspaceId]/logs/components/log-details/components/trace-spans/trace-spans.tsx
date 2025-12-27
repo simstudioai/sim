@@ -277,10 +277,10 @@ function ExpandableRowHeader({
       aria-expanded={hasChildren ? isExpanded : undefined}
       aria-label={hasChildren ? (isExpanded ? 'Collapse' : 'Expand') : undefined}
     >
-      <div className='flex items-center gap-[6px]'>
+      <div className='flex items-center gap-[8px]'>
         {hasChildren && (
           <ChevronDown
-            className='h-[10px] w-[10px] text-[var(--text-subtle)] transition-transform group-hover:text-[var(--text-tertiary)]'
+            className='h-[10px] w-[10px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]'
             style={{ transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}
           />
         )}
@@ -418,14 +418,14 @@ function InputOutputSection({
             'font-medium text-[12px] transition-colors',
             isError
               ? 'text-[var(--text-error)]'
-              : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]'
+              : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
           )}
         >
           {label}
         </span>
         <ChevronDown
           className={clsx(
-            'h-[10px] w-[10px] text-[var(--text-subtle)] transition-colors transition-transform group-hover:text-[var(--text-tertiary)]'
+            'h-[10px] w-[10px] text-[var(--text-tertiary)] transition-colors transition-transform group-hover:text-[var(--text-primary)]'
           )}
           style={{
             transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
@@ -502,7 +502,7 @@ function NestedBlockItem({
 
       {/* Nested children */}
       {hasChildren && isChildrenExpanded && (
-        <div className='mt-[2px] flex min-w-0 flex-col gap-[10px] overflow-hidden border-[var(--border)] border-l-2 pl-[10px]'>
+        <div className='mt-[2px] flex min-w-0 flex-col gap-[10px] overflow-hidden border-[var(--border)] border-l pl-[10px]'>
           {span.children!.map((child, childIndex) => (
             <NestedBlockItem
               key={child.id || `${spanId}-child-${childIndex}`}
@@ -643,7 +643,7 @@ const TraceSpanItem = memo(function TraceSpanItem({
 
         {/* For workflow blocks, keep children nested within the card (not as separate cards) */}
         {!isFirstSpan && isWorkflowBlock && inlineChildren.length > 0 && isCardExpanded && (
-          <div className='mt-[2px] flex min-w-0 flex-col gap-[10px] overflow-hidden border-[var(--border)] border-l-2 pl-[10px]'>
+          <div className='mt-[2px] flex min-w-0 flex-col gap-[10px] overflow-hidden border-[var(--border)] border-l pl-[10px]'>
             {inlineChildren.map((childSpan, index) => (
               <NestedBlockItem
                 key={childSpan.id || `${spanId}-nested-${index}`}
@@ -663,7 +663,7 @@ const TraceSpanItem = memo(function TraceSpanItem({
 
         {/* For non-workflow blocks, render inline children/tool calls */}
         {!isFirstSpan && !isWorkflowBlock && isCardExpanded && (
-          <div className='mt-[2px] flex min-w-0 flex-col gap-[10px] overflow-hidden border-[var(--border)] border-l-2 pl-[10px]'>
+          <div className='mt-[2px] flex min-w-0 flex-col gap-[10px] overflow-hidden border-[var(--border)] border-l pl-[10px]'>
             {[...toolCallSpans, ...inlineChildren].map((childSpan, index) => {
               const childId = childSpan.id || `${spanId}-inline-${index}`
               const childIsError = childSpan.status === 'error'
@@ -731,7 +731,7 @@ const TraceSpanItem = memo(function TraceSpanItem({
 
                   {/* Nested children */}
                   {showChildrenInProgressBar && hasNestedChildren && isNestedExpanded && (
-                    <div className='mt-[2px] flex min-w-0 flex-col gap-[10px] overflow-hidden border-[var(--border)] border-l-2 pl-[10px]'>
+                    <div className='mt-[2px] flex min-w-0 flex-col gap-[10px] overflow-hidden border-[var(--border)] border-l pl-[10px]'>
                       {childSpan.children!.map((nestedChild, nestedIndex) => (
                         <NestedBlockItem
                           key={nestedChild.id || `${childId}-nested-${nestedIndex}`}

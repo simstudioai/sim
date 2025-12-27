@@ -129,6 +129,10 @@ export class EdgeManager {
       return handle === EDGE.LOOP_CONTINUE || handle === EDGE.LOOP_CONTINUE_ALT
     }
 
+    if (output.selectedRoute === EDGE.PARALLEL_EXIT) {
+      return handle === EDGE.PARALLEL_EXIT
+    }
+
     if (!handle) {
       return true
     }

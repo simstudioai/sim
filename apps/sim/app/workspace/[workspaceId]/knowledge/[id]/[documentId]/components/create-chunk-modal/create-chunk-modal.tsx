@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import {
   Button,
   Label,
@@ -157,19 +157,12 @@ export function CreateChunkModal({
                 Cancel
               </Button>
               <Button
-                variant='primary'
+                variant='tertiary'
                 onClick={handleCreateChunk}
                 type='button'
                 disabled={!isFormValid || isCreating}
               >
-                {isCreating ? (
-                  <>
-                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                    Creating...
-                  </>
-                ) : (
-                  'Create Chunk'
-                )}
+                {isCreating ? 'Creating...' : 'Create Chunk'}
               </Button>
             </ModalFooter>
           </form>
@@ -181,7 +174,7 @@ export function CreateChunkModal({
         <ModalContent size='sm'>
           <ModalHeader>Discard Changes</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               You have unsaved changes. Are you sure you want to close without saving?
             </p>
           </ModalBody>
@@ -193,12 +186,7 @@ export function CreateChunkModal({
             >
               Keep Editing
             </Button>
-            <Button
-              variant='primary'
-              onClick={handleConfirmDiscard}
-              type='button'
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={handleConfirmDiscard} type='button'>
               Discard Changes
             </Button>
           </ModalFooter>

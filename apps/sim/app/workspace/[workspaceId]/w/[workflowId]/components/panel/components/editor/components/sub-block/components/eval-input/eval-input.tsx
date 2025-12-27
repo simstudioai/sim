@@ -127,7 +127,7 @@ export function EvalInput({
   }
 
   const renderMetricHeader = (metric: EvalMetric, index: number) => (
-    <div className='flex items-center justify-between overflow-hidden rounded-t-[4px] border-[var(--border-strong)] border-b bg-transparent px-[10px] py-[5px]'>
+    <div className='flex items-center justify-between overflow-hidden rounded-t-[4px] border-[var(--border-1)] border-b bg-transparent px-[10px] py-[5px]'>
       <span className='font-medium text-[14px] text-[var(--text-tertiary)]'>
         Metric {index + 1}
       </span>
@@ -171,11 +171,11 @@ export function EvalInput({
         <div
           key={metric.id}
           data-metric-id={metric.id}
-          className='group relative overflow-visible rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]'
+          className='group relative overflow-visible rounded-[4px] border border-[var(--border-1)] bg-[#1F1F1F]'
         >
           {renderMetricHeader(metric, index)}
 
-          <div className='flex flex-col gap-[6px] border-[var(--border-strong)] px-[10px] pt-[6px] pb-[10px]'>
+          <div className='flex flex-col gap-[6px] border-[var(--border-1)] px-[10px] pt-[6px] pb-[10px]'>
             <div key={`name-${metric.id}`} className='space-y-[4px]'>
               <Label className='text-[13px]'>Name</Label>
               <Input

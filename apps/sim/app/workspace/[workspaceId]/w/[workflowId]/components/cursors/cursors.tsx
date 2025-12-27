@@ -3,6 +3,7 @@
 import { memo, useMemo } from 'react'
 import { useViewport } from 'reactflow'
 import { useSession } from '@/lib/auth/auth-client'
+import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { getUserColor } from '@/app/workspace/[workspaceId]/w/utils/get-user-color'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 
@@ -23,6 +24,7 @@ const CursorsComponent = () => {
   const viewport = useViewport()
   const session = useSession()
   const currentUserId = session.data?.user?.id
+  const preventZoomRef = usePreventZoom()
 
   const cursors = useMemo<CursorRenderData[]>(() => {
     return presenceUsers
@@ -41,7 +43,7 @@ const CursorsComponent = () => {
   }
 
   return (
-    <div className='pointer-events-none absolute inset-0 z-30 select-none'>
+    <div ref={preventZoomRef} className='pointer-events-none absolute inset-0 z-30 select-none'>
       {cursors.map(({ id, name, cursor, color }) => {
         const x = cursor.x * viewport.zoom + viewport.x
         const y = cursor.y * viewport.zoom + viewport.y

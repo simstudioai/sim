@@ -19,13 +19,6 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
  */
 const TREE_SPACING = {
   INDENT_PER_LEVEL: 20,
-  VERTICAL_LINE_LEFT_OFFSET: 4,
-  ITEM_GAP: 4,
-  ITEM_HEIGHT: 25,
-} as const
-
-const TREE_STYLES = {
-  LINE_COLOR: 'hsl(var(--muted-foreground) / 0.2)',
 } as const
 
 interface WorkflowListProps {
@@ -183,32 +176,6 @@ export function WorkflowList({
     [isWorkflowActive, createItemDragHandlers, handleWorkflowClick]
   )
 
-  /**
-   * Calculate the height of the vertical line for folder trees
-   *
-   * @param workflowCount - Number of workflows in the folder
-   * @param folderCount - Number of child folders
-   * @returns Height string in pixels
-   */
-  const calculateVerticalLineHeight = useCallback((workflowCount: number, folderCount: number) => {
-    // If there are workflows, line extends only to the bottom of the last workflow
-    if (workflowCount > 0) {
-      // Account for: all workflows + gaps between workflows (no extra margin)
-      const totalHeight =
-        workflowCount * TREE_SPACING.ITEM_HEIGHT + (workflowCount - 1) * TREE_SPACING.ITEM_GAP
-      return `${totalHeight}px`
-    }
-
-    // If no workflows but there are child folders, extend to folders
-    if (folderCount > 0) {
-      const totalHeight =
-        folderCount * TREE_SPACING.ITEM_HEIGHT + (folderCount - 1) * TREE_SPACING.ITEM_GAP
-      return `${totalHeight}px`
-    }
-
-    return '0px'
-  }, [])
-
   const renderFolderSection = useCallback(
     (
       folder: FolderTreeNode,
@@ -243,42 +210,21 @@ export function WorkflowList({
 
           {isExpanded && hasChildren && (
             <div className='relative' {...createItemDragHandlers(folder.id)}>
-              {/* Vertical line from folder bottom extending through all children - only shown if folder has workflows */}
-              {workflowsInFolder.length > 0 && (
-                <div
-                  className='pointer-events-none absolute'
-                  style={{
-                    left: `${level * TREE_SPACING.INDENT_PER_LEVEL + TREE_SPACING.VERTICAL_LINE_LEFT_OFFSET}px`,
-                    top: '0px', // Start immediately after folder item
-                    width: '1px',
-                    height: calculateVerticalLineHeight(
-                      workflowsInFolder.length,
-                      folder.children.length
-                    ),
-                    background: TREE_STYLES.LINE_COLOR,
-                  }}
-                />
-              )}
-
-              {workflowsInFolder.length > 0 && (
-                <div className='mt-[2px] space-y-[4px]'>
-                  {workflowsInFolder.map((workflow: WorkflowMetadata) =>
-                    renderWorkflowItem(workflow, level + 1, folder.id)
-                  )}
-                </div>
-              )}
-
-              {folder.children.length > 0 && (
-                <div
-                  className={clsx('space-y-[4px]', workflowsInFolder.length > 0 ? 'mt-[2px]' : '')}
-                >
-                  {folder.children.map((childFolder) => (
-                    <div key={childFolder.id} className='relative'>
-                      {renderFolderSection(childFolder, level + 1, folder.id)}
-                    </div>
-                  ))}
-                </div>
-              )}
+              {/* Vertical line - positioned to align under folder chevron */}
+              <div
+                className='pointer-events-none absolute top-0 bottom-0 w-px bg-[var(--border)]'
+                style={{ left: `${level * TREE_SPACING.INDENT_PER_LEVEL + 12}px` }}
+              />
+              <div className='mt-[2px] space-y-[2px] pl-[2px]'>
+                {workflowsInFolder.map((workflow: WorkflowMetadata) =>
+                  renderWorkflowItem(workflow, level + 1, folder.id)
+                )}
+                {folder.children.map((childFolder) => (
+                  <div key={childFolder.id} className='relative'>
+                    {renderFolderSection(childFolder, level + 1, folder.id)}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -292,7 +238,6 @@ export function WorkflowList({
       createFolderDragHandlers,
       createItemDragHandlers,
       createFolderHeaderHoverHandlers,
-      calculateVerticalLineHeight,
       renderWorkflowItem,
     ]
   )
@@ -321,14 +266,14 @@ export function WorkflowList({
     <div className='flex min-h-full flex-col pb-[8px]' onClick={handleContainerClick}>
       {/* Folders Section */}
       {hasFolders && (
-        <div className='mb-[4px] space-y-[4px]'>
+        <div className='mb-[2px] space-y-[2px]'>
           {folderTree.map((folder) => renderFolderSection(folder, 0))}
         </div>
       )}
 
       {/* Root Workflows Section - Expands to fill remaining space */}
       <div
-        className={clsx('relative flex-1', !hasRootWorkflows && 'min-h-[25px]')}
+        className={clsx('relative flex-1', !hasRootWorkflows && 'min-h-[26px]')}
         {...handleRootDragEvents}
       >
         {/* Root drop target highlight overlay - always rendered for stable DOM */}
@@ -339,7 +284,7 @@ export function WorkflowList({
           )}
         />
 
-        <div className='space-y-[4px]'>
+        <div className='space-y-[2px]'>
           {rootWorkflows.map((workflow: WorkflowMetadata) => (
             <WorkflowItem
               key={workflow.id}

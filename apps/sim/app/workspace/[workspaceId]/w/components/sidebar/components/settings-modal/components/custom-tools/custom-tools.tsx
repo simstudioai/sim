@@ -105,7 +105,7 @@ export function CustomTools() {
         <div className='flex items-center gap-[8px]'>
           <div
             className={cn(
-              'flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]',
+              'flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]',
               isLoading && 'opacity-50'
             )}
           >
@@ -121,12 +121,7 @@ export function CustomTools() {
               className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-100'
             />
           </div>
-          <Button
-            onClick={() => setShowAddForm(true)}
-            disabled={isLoading}
-            variant='primary'
-            className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-          >
+          <Button onClick={() => setShowAddForm(true)} disabled={isLoading} variant='tertiary'>
             <Plus className='mr-[6px] h-[13px] w-[13px]' />
             Add
           </Button>
@@ -214,7 +209,7 @@ export function CustomTools() {
         <ModalContent className='w-[400px]'>
           <ModalHeader>Delete Custom Tool</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{toolToDelete?.name}</span>?{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
@@ -224,11 +219,7 @@ export function CustomTools() {
             <Button variant='default' onClick={() => setShowDeleteDialog(false)}>
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={handleDeleteTool}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={handleDeleteTool}>
               Delete
             </Button>
           </ModalFooter>

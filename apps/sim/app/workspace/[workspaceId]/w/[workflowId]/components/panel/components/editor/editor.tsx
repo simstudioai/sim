@@ -134,7 +134,11 @@ export function Editor() {
 
     const trimmedName = editedName.trim()
     if (trimmedName && trimmedName !== currentBlock?.name) {
-      collaborativeUpdateBlockName(currentBlockId, trimmedName)
+      const result = collaborativeUpdateBlockName(currentBlockId, trimmedName)
+      if (!result.success) {
+        // Keep rename mode open on error so user can correct the name
+        return
+      }
     }
     setIsRenaming(false)
   }, [currentBlockId, isRenaming, editedName, currentBlock?.name, collaborativeUpdateBlockName])
@@ -172,9 +176,9 @@ export function Editor() {
   return (
     <div className='flex h-full flex-col'>
       {/* Header */}
-      <div className='flex flex-shrink-0 items-center justify-between rounded-[4px] bg-[var(--surface-5)] px-[12px] py-[8px]'>
+      <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between rounded-[4px] border border-[var(--border)] bg-[var(--surface-4)] px-[12px] py-[6px]'>
         <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
-          {(blockConfig || isSubflow) && (
+          {(blockConfig || isSubflow) && currentBlock?.type !== 'note' && (
             <div
               className='flex h-[18px] w-[18px] items-center justify-center rounded-[4px]'
               style={{ background: isSubflow ? subflowBgColor : blockConfig?.bgColor }}

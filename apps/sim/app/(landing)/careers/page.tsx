@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Loader2, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -499,16 +499,11 @@ export default function CareersPage() {
                   className='min-w-[200px] rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] text-white shadow-[inset_0_2px_4px_0_#9B77FF] transition-all duration-300 hover:opacity-90 disabled:opacity-50'
                   size='lg'
                 >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                      Submitting...
-                    </>
-                  ) : submitStatus === 'success' ? (
-                    'Submitted'
-                  ) : (
-                    'Submit Application'
-                  )}
+                  {isSubmitting
+                    ? 'Submitting...'
+                    : submitStatus === 'success'
+                      ? 'Submitted'
+                      : 'Submit Application'}
                 </Button>
               </div>
             </form>

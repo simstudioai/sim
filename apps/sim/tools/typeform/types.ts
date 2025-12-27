@@ -221,20 +221,7 @@ export interface TypeformUpdateFormParams {
 
 export interface TypeformUpdateFormResponse extends ToolResponse {
   output: {
-    id: string
-    title: string
-    type: string
-    created_at: string
-    last_updated_at: string
-    settings: Record<string, any>
-    theme: Record<string, any>
-    workspace?: {
-      href: string
-    }
-    fields: Array<Record<string, any>>
-    thankyou_screens?: Array<Record<string, any>>
-    _links: Record<string, any>
-    [key: string]: any
+    message: string
   }
 }
 

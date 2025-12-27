@@ -54,7 +54,11 @@ export interface WandControlHandlers {
 }
 
 /**
- * Props for the `SubBlock` UI element. Renders a single configurable input within a workflow block.
+ * Props for the SubBlock component.
+ *
+ * @remarks
+ * SubBlock renders a single configurable input within a workflow block,
+ * supporting various input types, preview mode, and conditional requirements.
  */
 interface SubBlockProps {
   blockId: string
@@ -68,10 +72,14 @@ interface SubBlockProps {
 
 /**
  * Returns whether the field is required for validation.
+ *
+ * @remarks
  * Evaluates conditional requirements based on current field values.
- * @param config - The sub-block configuration
- * @param subBlockValues - Current values of all subblocks
- * @returns True if the field is required
+ * Supports boolean, condition objects, and functions that return conditions.
+ *
+ * @param config - The sub-block configuration containing requirement rules
+ * @param subBlockValues - Current values of all subblocks for condition evaluation
+ * @returns `true` if the field is required based on current context
  */
 const isFieldRequired = (config: SubBlockConfig, subBlockValues?: Record<string, any>): boolean => {
   if (!config.required) return false
@@ -126,10 +134,15 @@ const isFieldRequired = (config: SubBlockConfig, subBlockValues?: Record<string,
 
 /**
  * Retrieves the preview value for a specific sub-block.
+ *
+ * @remarks
+ * Only returns a value when in preview mode and subBlockValues are provided.
+ * Returns `null` if the value is not found in the subblock values.
+ *
  * @param config - The sub-block configuration
  * @param isPreview - Whether the component is in preview mode
  * @param subBlockValues - Optional record of sub-block values
- * @returns The preview value or undefined
+ * @returns The preview value, `null` if not found, or `undefined` if not in preview
  */
 const getPreviewValue = (
   config: SubBlockConfig,
@@ -142,11 +155,16 @@ const getPreviewValue = (
 
 /**
  * Renders the label with optional validation, description tooltips, and inline wand control.
- * @param config - The sub-block configuration
- * @param isValidJson - Whether the JSON is valid
- * @param wandState - Wand interaction state
+ *
+ * @remarks
+ * Handles JSON validation indicators for code blocks, required field markers,
+ * and AI generation (wand) input interface.
+ *
+ * @param config - The sub-block configuration defining the label content
+ * @param isValidJson - Whether the JSON content is valid (for code blocks)
+ * @param wandState - State and handlers for the AI wand feature
  * @param subBlockValues - Current values of all subblocks for evaluating conditional requirements
- * @returns The label JSX element or null if no title or for switch types
+ * @returns The label JSX element, or `null` for switch types or when no title is defined
  */
 const renderLabel = (
   config: SubBlockConfig,
@@ -251,9 +269,14 @@ const renderLabel = (
 
 /**
  * Compares props to prevent unnecessary re-renders.
+ *
+ * @remarks
+ * Used with React.memo to optimize performance by skipping re-renders
+ * when props haven't meaningfully changed.
+ *
  * @param prevProps - Previous component props
  * @param nextProps - Next component props
- * @returns True if props are equal (skip re-render)
+ * @returns `true` if props are equal and re-render should be skipped
  */
 const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): boolean => {
   return (
@@ -268,7 +291,21 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
 }
 
 /**
- * Renders a single workflow sub-block input based on `config.type`, supporting preview and disabled states.
+ * Renders a single workflow sub-block input based on config.type.
+ *
+ * @remarks
+ * Supports multiple input types including short-input, long-input, dropdown,
+ * combobox, slider, table, code, switch, tool-input, and many more.
+ * Handles preview mode, disabled states, and AI wand generation.
+ *
+ * @param blockId - The parent block identifier
+ * @param config - Configuration defining the input type and properties
+ * @param isPreview - Whether to render in preview mode
+ * @param subBlockValues - Current values of all subblocks
+ * @param disabled - Whether the input is disabled
+ * @param fieldDiffStatus - Optional diff status for visual indicators
+ * @param allowExpandInPreview - Whether to allow expanding in preview mode
+ * @returns The rendered sub-block input component
  */
 function SubBlockComponent({
   blockId,
@@ -297,7 +334,8 @@ function SubBlockComponent({
   const isWandEnabled = config.wandConfig?.enabled ?? false
 
   /**
-   * Handle wand icon click to activate inline prompt mode
+   * Handles wand icon click to activate inline prompt mode.
+   * Focuses the input after a brief delay to ensure DOM is ready.
    */
   const handleSearchClick = (): void => {
     setIsSearchActive(true)
@@ -307,7 +345,8 @@ function SubBlockComponent({
   }
 
   /**
-   * Handle search input blur - deactivate if empty and not streaming
+   * Handles search input blur event.
+   * Deactivates the search mode if the query is empty and not currently streaming.
    */
   const handleSearchBlur = (): void => {
     if (!searchQuery.trim() && !wandControlRef.current?.isWandStreaming) {
@@ -316,14 +355,17 @@ function SubBlockComponent({
   }
 
   /**
-   * Handle search query change
+   * Handles search query change.
+   *
+   * @param value - The new search query value
    */
   const handleSearchChange = (value: string): void => {
     setSearchQuery(value)
   }
 
   /**
-   * Handle search submit - trigger generation
+   * Handles search submit to trigger AI generation.
+   * Clears the query and deactivates search mode after submission.
    */
   const handleSearchSubmit = (): void => {
     if (searchQuery.trim() && wandControlRef.current) {
@@ -334,7 +376,8 @@ function SubBlockComponent({
   }
 
   /**
-   * Handle search cancel
+   * Handles search cancel to exit AI prompt mode.
+   * Clears the query and deactivates search mode.
    */
   const handleSearchCancel = (): void => {
     setSearchQuery('')
@@ -358,7 +401,13 @@ function SubBlockComponent({
   const isDisabled = gatedDisabled
 
   /**
-   * Selects and renders the appropriate input component for the current sub-block `config.type`.
+   * Selects and renders the appropriate input component based on config.type.
+   *
+   * @remarks
+   * Maps the config type to the corresponding input component with all
+   * necessary props. Falls back to an error message for unknown types.
+   *
+   * @returns The appropriate input component JSX element
    */
   const renderInput = (): JSX.Element => {
     switch (config.type) {

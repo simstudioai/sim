@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/emcn'
+import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { useTerminalStore } from '@/stores/terminal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
@@ -295,6 +296,8 @@ export const DiffControls = memo(function DiffControls() {
     })
   }, [updatePreviewToolCallState, rejectChanges])
 
+  const preventZoomRef = usePreventZoom()
+
   // Don't show anything if no diff is available or diff is not ready
   if (!hasActiveDiff || !isDiffReady) {
     return null
@@ -302,6 +305,7 @@ export const DiffControls = memo(function DiffControls() {
 
   return (
     <div
+      ref={preventZoomRef}
       className={clsx(
         '-translate-x-1/2 fixed left-1/2 z-30',
         !isTerminalResizing && 'transition-[bottom] duration-100 ease-out'
@@ -335,9 +339,9 @@ export const DiffControls = memo(function DiffControls() {
 
         {/* Accept */}
         <Button
-          variant='ghost'
+          variant='tertiary'
           onClick={handleAccept}
-          className='!text-[var(--bg)] h-[30px] rounded-[8px] bg-[var(--brand-tertiary)] px-3'
+          className='h-[30px] rounded-[8px] px-3'
           title='Accept changes'
         >
           Accept

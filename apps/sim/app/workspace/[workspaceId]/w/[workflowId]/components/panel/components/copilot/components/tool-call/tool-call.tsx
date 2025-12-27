@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Loader2 } from 'lucide-react'
 import { Button, Code } from '@/components/emcn'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
@@ -141,13 +140,11 @@ function ShimmerOverlayText({
 }: ShimmerOverlayTextProps) {
   const [actionVerb, remainder] = splitActionVerb(text)
 
-  // Special tools: use gradient for entire text
+  // Special tools: use tertiary-2 color for entire text with shimmer
   if (isSpecial) {
     return (
       <span className={`relative inline-block ${className || ''}`}>
-        <span className='bg-gradient-to-r from-[#7c3aed] to-[#9061f9] bg-clip-text text-transparent dark:from-[#B99FFD] dark:to-[#D1BFFF]'>
-          {text}
-        </span>
+        <span className='text-[var(--brand-tertiary-2)]'>{text}</span>
         {active ? (
           <span
             aria-hidden='true'
@@ -157,7 +154,7 @@ function ShimmerOverlayText({
               className='block text-transparent'
               style={{
                 backgroundImage:
-                  'linear-gradient(90deg, rgba(142,76,251,0) 0%, rgba(255,255,255,0.6) 50%, rgba(142,76,251,0) 100%)',
+                  'linear-gradient(90deg, rgba(51,196,129,0) 0%, rgba(255,255,255,0.6) 50%, rgba(51,196,129,0) 100%)',
                 backgroundSize: '200% 100%',
                 backgroundRepeat: 'no-repeat',
                 WebkitBackgroundClip: 'text',
@@ -186,8 +183,12 @@ function ShimmerOverlayText({
     <span className={`relative inline-block ${className || ''}`}>
       {actionVerb ? (
         <>
-          <span className='text-[#1f2124] dark:text-[#B8B8B8]'>{actionVerb}</span>
-          <span className='text-[#6b7075] dark:text-[var(--text-muted)]'>{remainder}</span>
+          <span className='text-[var(--text-primary)] dark:text-[var(--text-tertiary)]'>
+            {actionVerb}
+          </span>
+          <span className='text-[var(--text-secondary)] dark:text-[var(--text-muted)]'>
+            {remainder}
+          </span>
         </>
       ) : (
         <span>{text}</span>
@@ -504,13 +505,11 @@ function RunSkipButtons({
   // Standardized buttons for all interrupt tools: Allow, Always Allow, Skip
   return (
     <div className='mt-[12px] flex gap-[6px]'>
-      <Button onClick={onRun} disabled={isProcessing} variant='primary'>
-        {isProcessing ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
-        Allow
+      <Button onClick={onRun} disabled={isProcessing} variant='tertiary'>
+        {isProcessing ? 'Allowing...' : 'Allow'}
       </Button>
       <Button onClick={onAlwaysAllow} disabled={isProcessing} variant='default'>
-        {isProcessing ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
-        Always Allow
+        {isProcessing ? 'Allowing...' : 'Always Allow'}
       </Button>
       <Button onClick={onSkip} disabled={isProcessing} variant='default'>
         Skip
@@ -606,11 +605,11 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
       const url = editedParams.url || ''
       const method = (editedParams.method || '').toUpperCase()
       return (
-        <div className='w-full overflow-hidden rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]'>
+        <div className='w-full overflow-hidden rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-1)]'>
           <table className='w-full table-fixed bg-transparent'>
             <thead className='bg-transparent'>
-              <tr className='border-[var(--border-strong)] border-b bg-transparent'>
-                <th className='w-[26%] border-[var(--border-strong)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
+              <tr className='border-[var(--border-1)] border-b bg-transparent'>
+                <th className='w-[26%] border-[var(--border-1)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
                   Method
                 </th>
                 <th className='w-[74%] bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
@@ -619,8 +618,8 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
               </tr>
             </thead>
             <tbody className='bg-transparent'>
-              <tr className='group relative border-[var(--border-strong)] border-t bg-transparent'>
-                <td className='relative w-[26%] border-[var(--border-strong)] border-r bg-transparent p-0'>
+              <tr className='group relative border-[var(--border-1)] border-t bg-transparent'>
+                <td className='relative w-[26%] border-[var(--border-1)] border-r bg-transparent p-0'>
                   <div className='px-[10px] py-[8px]'>
                     <input
                       type='text'
@@ -668,11 +667,11 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
       })
 
       return (
-        <div className='w-full overflow-hidden rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]'>
+        <div className='w-full overflow-hidden rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-1)]'>
           <table className='w-full table-fixed bg-transparent'>
             <thead className='bg-transparent'>
-              <tr className='border-[var(--border-strong)] border-b bg-transparent'>
-                <th className='w-[36%] border-[var(--border-strong)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
+              <tr className='border-[var(--border-1)] border-b bg-transparent'>
+                <th className='w-[36%] border-[var(--border-1)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
                   Name
                 </th>
                 <th className='w-[64%] bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
@@ -682,8 +681,8 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
             </thead>
             <tbody className='bg-transparent'>
               {normalizedEntries.length === 0 ? (
-                <tr className='border-[var(--border-strong)] border-t bg-transparent'>
-                  <td colSpan={2} className='px-[10px] py-[8px] text-muted-foreground text-xs'>
+                <tr className='border-[var(--border-1)] border-t bg-transparent'>
+                  <td colSpan={2} className='px-[10px] py-[8px] text-[var(--text-muted)] text-xs'>
                     No variables provided
                   </td>
                 </tr>
@@ -691,9 +690,9 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
                 normalizedEntries.map(([originalKey, name, value]) => (
                   <tr
                     key={originalKey}
-                    className='group relative border-[var(--border-strong)] border-t bg-transparent'
+                    className='group relative border-[var(--border-1)] border-t bg-transparent'
                   >
-                    <td className='relative w-[36%] border-[var(--border-strong)] border-r bg-transparent p-0'>
+                    <td className='relative w-[36%] border-[var(--border-1)] border-r bg-transparent p-0'>
                       <div className='px-[10px] py-[8px]'>
                         <input
                           type='text'
@@ -720,7 +719,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
                             }
                             setEditedParams({ ...editedParams, variables: newVariables })
                           }}
-                          className='w-full bg-transparent font-medium text-foreground text-xs outline-none'
+                          className='w-full bg-transparent font-medium text-[var(--text-primary)] text-xs outline-none'
                         />
                       </div>
                     </td>
@@ -755,7 +754,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
                             }
                             setEditedParams({ ...editedParams, variables: newVariables })
                           }}
-                          className='w-full bg-transparent font-mono text-muted-foreground text-xs outline-none focus:text-foreground'
+                          className='w-full bg-transparent font-mono text-[var(--text-muted)] text-xs outline-none focus:text-[var(--text-primary)]'
                         />
                       </div>
                     </td>
@@ -771,24 +770,24 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
     if (toolCall.name === 'set_global_workflow_variables') {
       const ops = Array.isArray(editedParams.operations) ? (editedParams.operations as any[]) : []
       return (
-        <div className='w-full overflow-hidden rounded border border-muted bg-card'>
-          <div className='grid grid-cols-3 gap-0 border-muted/60 border-b bg-muted/40 py-1.5'>
-            <div className='self-start px-2 font-medium font-season text-[#3a3d41] text-[10px] uppercase tracking-wide dark:text-[#E0E0E0]'>
+        <div className='w-full overflow-hidden rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-1)]'>
+          <div className='grid grid-cols-3 gap-0 border-[var(--border-1)] border-b bg-[var(--surface-4)] py-1.5'>
+            <div className='self-start px-2 font-medium font-season text-[10px] text-[var(--text-secondary)] uppercase tracking-wide'>
               Name
             </div>
-            <div className='self-start px-2 font-medium font-season text-[#3a3d41] text-[10px] uppercase tracking-wide dark:text-[#E0E0E0]'>
+            <div className='self-start px-2 font-medium font-season text-[10px] text-[var(--text-secondary)] uppercase tracking-wide'>
               Type
             </div>
-            <div className='self-start px-2 font-medium font-season text-[#3a3d41] text-[10px] uppercase tracking-wide dark:text-[#E0E0E0]'>
+            <div className='self-start px-2 font-medium font-season text-[10px] text-[var(--text-secondary)] uppercase tracking-wide'>
               Value
             </div>
           </div>
           {ops.length === 0 ? (
-            <div className='px-2 py-2 font-[470] font-season text-[#1f2124] text-xs dark:text-[#E8E8E8]'>
+            <div className='px-2 py-2 font-[470] font-season text-[var(--text-primary)] text-xs'>
               No operations provided
             </div>
           ) : (
-            <div className='divide-y divide-amber-200 dark:divide-amber-800'>
+            <div className='divide-y divide-[var(--border-1)]'>
               {ops.map((op, idx) => (
                 <div key={idx} className='grid grid-cols-3 gap-0 py-1.5'>
                   <div className='min-w-0 self-start px-2'>
@@ -800,11 +799,11 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
                         newOps[idx] = { ...op, name: e.target.value }
                         setEditedParams({ ...editedParams, operations: newOps })
                       }}
-                      className='w-full bg-transparent font-season text-amber-800 text-xs outline-none dark:text-amber-200'
+                      className='w-full bg-transparent font-season text-[var(--text-primary)] text-xs outline-none'
                     />
                   </div>
                   <div className='self-start px-2'>
-                    <span className='rounded border px-1 py-0.5 font-[470] font-season text-[#1f2124] text-[10px] dark:text-[#E8E8E8]'>
+                    <span className='rounded border border-[var(--border-1)] px-1 py-0.5 font-[470] font-season text-[10px] text-[var(--text-primary)]'>
                       {String(op.type || '')}
                     </span>
                   </div>
@@ -818,10 +817,10 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
                           newOps[idx] = { ...op, value: e.target.value }
                           setEditedParams({ ...editedParams, operations: newOps })
                         }}
-                        className='w-full bg-transparent font-[470] font-mono text-amber-700 text-xs outline-none focus:text-amber-800 dark:text-amber-300 dark:focus:text-amber-200'
+                        className='w-full bg-transparent font-[470] font-mono text-[var(--text-muted)] text-xs outline-none focus:text-[var(--text-primary)]'
                       />
                     ) : (
-                      <span className='font-[470] font-season text-[#1f2124] text-xs dark:text-[#E8E8E8]'>
+                      <span className='font-[470] font-season text-[var(--text-primary)] text-xs'>
                         —
                       </span>
                     )}
@@ -864,11 +863,11 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
       const inputEntries = Object.entries(safeInputs)
 
       return (
-        <div className='w-full overflow-hidden rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]'>
+        <div className='w-full overflow-hidden rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-1)]'>
           <table className='w-full table-fixed bg-transparent'>
             <thead className='bg-transparent'>
-              <tr className='border-[var(--border-strong)] border-b bg-transparent'>
-                <th className='w-[36%] border-[var(--border-strong)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
+              <tr className='border-[var(--border-1)] border-b bg-transparent'>
+                <th className='w-[36%] border-[var(--border-1)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
                   Input
                 </th>
                 <th className='w-[64%] bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
@@ -878,8 +877,8 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
             </thead>
             <tbody className='bg-transparent'>
               {inputEntries.length === 0 ? (
-                <tr className='border-[var(--border-strong)] border-t bg-transparent'>
-                  <td colSpan={2} className='px-[10px] py-[8px] text-muted-foreground text-xs'>
+                <tr className='border-[var(--border-1)] border-t bg-transparent'>
+                  <td colSpan={2} className='px-[10px] py-[8px] text-[var(--text-muted)] text-xs'>
                     No inputs provided
                   </td>
                 </tr>
@@ -887,11 +886,13 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
                 inputEntries.map(([key, value]) => (
                   <tr
                     key={key}
-                    className='group relative border-[var(--border-strong)] border-t bg-transparent'
+                    className='group relative border-[var(--border-1)] border-t bg-transparent'
                   >
-                    <td className='relative w-[36%] border-[var(--border-strong)] border-r bg-transparent p-0'>
+                    <td className='relative w-[36%] border-[var(--border-1)] border-r bg-transparent p-0'>
                       <div className='px-[10px] py-[8px]'>
-                        <span className='truncate font-medium text-foreground text-xs'>{key}</span>
+                        <span className='truncate font-medium text-[var(--text-primary)] text-xs'>
+                          {key}
+                        </span>
                       </div>
                     </td>
                     <td className='relative w-[64%] bg-transparent p-0'>
@@ -926,7 +927,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
                               setEditedParams({ ...editedParams, [key]: e.target.value })
                             }
                           }}
-                          className='w-full bg-transparent font-mono text-muted-foreground text-xs outline-none focus:text-foreground'
+                          className='w-full bg-transparent font-mono text-[var(--text-muted)] text-xs outline-none focus:text-[var(--text-primary)]'
                         />
                       </div>
                     </td>
@@ -959,7 +960,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
             text={displayName}
             active={isLoadingState}
             isSpecial={isSpecial}
-            className='font-[470] font-season text-[#3a3d41] text-sm dark:text-[#939393]'
+            className='font-[470] font-season text-[var(--text-secondary)] text-sm dark:text-[var(--text-muted)]'
           />
         </div>
         <div className='mt-[8px]'>{renderPendingDetails()}</div>
@@ -1010,7 +1011,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
             text={displayName}
             active={isLoadingState}
             isSpecial={false}
-            className='font-[470] font-season text-[#939393] text-sm dark:text-[#939393]'
+            className='font-[470] font-season text-[var(--text-muted)] text-sm'
           />
         </div>
         {code && (
@@ -1062,7 +1063,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
           text={displayName}
           active={isLoadingState}
           isSpecial={isSpecial}
-          className='font-[470] font-season text-[#3a3d41] text-sm dark:text-[#939393]'
+          className='font-[470] font-season text-[var(--text-secondary)] text-sm dark:text-[var(--text-muted)]'
         />
       </div>
       {isExpandableTool && expanded && <div>{renderPendingDetails()}</div>}
@@ -1104,7 +1105,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
                 onStateChange?.('background')
               } catch {}
             }}
-            variant='primary'
+            variant='tertiary'
             title='Move to Background'
           >
             Move to Background
@@ -1135,7 +1136,7 @@ export function ToolCall({ toolCall: toolCallProp, toolCallId, onStateChange }: 
                 onStateChange?.('background')
               } catch {}
             }}
-            variant='primary'
+            variant='tertiary'
             title='Wake'
           >
             Wake
