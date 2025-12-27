@@ -67,27 +67,140 @@ function buildEnvContent(
     `# ${workflowName} - Environment Variables`,
     '# Auto-generated with decrypted values',
     '',
-    '# API Keys',
+    '# =============================================================================',
+    '# LLM Provider API Keys',
+    '# =============================================================================',
+    '# Only configure the providers you use. The service auto-detects providers',
+    '# based on model names (e.g., claude-* -> Anthropic, gpt-* -> OpenAI)',
+    '',
+    '# --- Primary Providers ---',
   ]
 
-  // Add API keys from environment
-  const apiKeyPatterns = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GOOGLE_API_KEY']
-  for (const key of apiKeyPatterns) {
+  // All supported API key patterns
+  const allApiKeyPatterns = [
+    'ANTHROPIC_API_KEY',
+    'OPENAI_API_KEY',
+    'GOOGLE_API_KEY',
+    'DEEPSEEK_API_KEY',
+    'XAI_API_KEY',
+    'CEREBRAS_API_KEY',
+    'GROQ_API_KEY',
+    'MISTRAL_API_KEY',
+    'OPENROUTER_API_KEY',
+    'AZURE_OPENAI_API_KEY',
+    'AZURE_OPENAI_ENDPOINT',
+    'AZURE_OPENAI_API_VERSION',
+    'VLLM_BASE_URL',
+    'VLLM_API_KEY',
+    'OLLAMA_URL',
+    'OLLAMA_API_KEY',
+  ]
+
+  // Add API keys from environment (primary providers first)
+  const primaryKeys = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GOOGLE_API_KEY']
+  for (const key of primaryKeys) {
     if (decryptedEnv[key]) {
       lines.push(`${key}=${decryptedEnv[key]}`)
     }
   }
 
-  // Add any other environment variables
-  for (const [key, value] of Object.entries(decryptedEnv)) {
-    if (!apiKeyPatterns.includes(key)) {
+  // Add secondary providers section
+  lines.push('')
+  lines.push('# --- Additional Providers (uncomment as needed) ---')
+
+  // DeepSeek
+  if (decryptedEnv['DEEPSEEK_API_KEY']) {
+    lines.push(`DEEPSEEK_API_KEY=${decryptedEnv['DEEPSEEK_API_KEY']}`)
+  } else {
+    lines.push('# DEEPSEEK_API_KEY=your-deepseek-key')
+  }
+
+  // xAI (Grok)
+  if (decryptedEnv['XAI_API_KEY']) {
+    lines.push(`XAI_API_KEY=${decryptedEnv['XAI_API_KEY']}`)
+  } else {
+    lines.push('# XAI_API_KEY=your-xai-key')
+  }
+
+  // Cerebras
+  if (decryptedEnv['CEREBRAS_API_KEY']) {
+    lines.push(`CEREBRAS_API_KEY=${decryptedEnv['CEREBRAS_API_KEY']}`)
+  } else {
+    lines.push('# CEREBRAS_API_KEY=your-cerebras-key')
+  }
+
+  // Groq
+  if (decryptedEnv['GROQ_API_KEY']) {
+    lines.push(`GROQ_API_KEY=${decryptedEnv['GROQ_API_KEY']}`)
+  } else {
+    lines.push('# GROQ_API_KEY=your-groq-key')
+  }
+
+  // Mistral
+  if (decryptedEnv['MISTRAL_API_KEY']) {
+    lines.push(`MISTRAL_API_KEY=${decryptedEnv['MISTRAL_API_KEY']}`)
+  } else {
+    lines.push('# MISTRAL_API_KEY=your-mistral-key')
+  }
+
+  // OpenRouter
+  if (decryptedEnv['OPENROUTER_API_KEY']) {
+    lines.push(`OPENROUTER_API_KEY=${decryptedEnv['OPENROUTER_API_KEY']}`)
+  } else {
+    lines.push('# OPENROUTER_API_KEY=your-openrouter-key')
+  }
+
+  // Azure OpenAI section
+  lines.push('')
+  lines.push('# --- Azure OpenAI (for azure/* models) ---')
+  if (decryptedEnv['AZURE_OPENAI_API_KEY']) {
+    lines.push(`AZURE_OPENAI_API_KEY=${decryptedEnv['AZURE_OPENAI_API_KEY']}`)
+  } else {
+    lines.push('# AZURE_OPENAI_API_KEY=your-azure-key')
+  }
+  if (decryptedEnv['AZURE_OPENAI_ENDPOINT']) {
+    lines.push(`AZURE_OPENAI_ENDPOINT=${decryptedEnv['AZURE_OPENAI_ENDPOINT']}`)
+  } else {
+    lines.push('# AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com')
+  }
+  lines.push('# AZURE_OPENAI_API_VERSION=2024-02-01')
+
+  // Self-hosted section
+  lines.push('')
+  lines.push('# --- Self-Hosted Providers ---')
+  lines.push('# Ollama (for ollama/* models)')
+  if (decryptedEnv['OLLAMA_URL']) {
+    lines.push(`OLLAMA_URL=${decryptedEnv['OLLAMA_URL']}`)
+  } else {
+    lines.push('# OLLAMA_URL=http://localhost:11434')
+  }
+  lines.push('# OLLAMA_API_KEY=optional-if-auth-enabled')
+  lines.push('')
+  lines.push('# vLLM (for vllm/* models)')
+  if (decryptedEnv['VLLM_BASE_URL']) {
+    lines.push(`VLLM_BASE_URL=${decryptedEnv['VLLM_BASE_URL']}`)
+  } else {
+    lines.push('# VLLM_BASE_URL=http://localhost:8000')
+  }
+  lines.push('# VLLM_API_KEY=optional-if-auth-enabled')
+
+  // Add any other environment variables not in our patterns
+  const otherEnvVars = Object.entries(decryptedEnv).filter(
+    ([key]) => !allApiKeyPatterns.includes(key)
+  )
+  if (otherEnvVars.length > 0) {
+    lines.push('')
+    lines.push('# --- Other Environment Variables ---')
+    for (const [key, value] of otherEnvVars) {
       lines.push(`${key}=${value}`)
     }
   }
 
   // Add workflow variables
   lines.push('')
+  lines.push('# =============================================================================')
   lines.push('# Workflow Variables (initial values)')
+  lines.push('# =============================================================================')
   for (const variable of workflowVariables) {
     const value =
       typeof variable.value === 'object' ? JSON.stringify(variable.value) : variable.value
@@ -95,12 +208,16 @@ function buildEnvContent(
   }
 
   lines.push('')
+  lines.push('# =============================================================================')
   lines.push('# Server Configuration')
+  lines.push('# =============================================================================')
   lines.push('# HOST=0.0.0.0')
   lines.push('# PORT=8080')
   lines.push('# WORKFLOW_PATH=workflow.json')
   lines.push('')
+  lines.push('# =============================================================================')
   lines.push('# Local File Tools')
+  lines.push('# =============================================================================')
   lines.push('# Set WORKSPACE_DIR to enable local file operations')
   lines.push('# All file paths are sandboxed to this directory')
   lines.push('# WORKSPACE_DIR=./workspace')

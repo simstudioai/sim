@@ -17,20 +17,64 @@ export const SUPPORTED_BLOCK_TYPES = new Set([
   'loop_block',
 ])
 
-// Supported providers for agent blocks
-export const SUPPORTED_PROVIDERS = new Set(['anthropic', 'openai', 'google'])
+// Supported providers for agent blocks (all Sim Studio providers)
+export const SUPPORTED_PROVIDERS = new Set([
+  'anthropic',
+  'openai',
+  'google',
+  'vertex',
+  'deepseek',
+  'xai',
+  'cerebras',
+  'groq',
+  'mistral',
+  'azure-openai',
+  'openrouter',
+  'vllm',
+  'ollama',
+])
 
 /**
  * Detect LLM provider from model name.
+ *
+ * Supports all Sim Studio providers:
+ * - anthropic: claude-*
+ * - openai: gpt-*, o1-*, o3-*, o4-*
+ * - google: gemini-*
+ * - vertex: vertex/*
+ * - deepseek: deepseek-*
+ * - xai: grok-*
+ * - cerebras: cerebras/*
+ * - groq: groq/*
+ * - mistral: mistral-*, magistral-*, open-mistral-*, codestral-*, ministral-*, devstral-*
+ * - azure-openai: azure/*
+ * - openrouter: openrouter/*
+ * - vllm: vllm/*
+ * - ollama: ollama/*
  */
 export function detectProviderFromModel(model: string): string {
   const modelLower = model.toLowerCase()
+
+  // Check prefix-based providers first (most specific)
+  if (modelLower.startsWith('azure/')) return 'azure-openai'
+  if (modelLower.startsWith('vertex/')) return 'vertex'
+  if (modelLower.startsWith('openrouter/')) return 'openrouter'
+  if (modelLower.startsWith('cerebras/')) return 'cerebras'
+  if (modelLower.startsWith('groq/')) return 'groq'
+  if (modelLower.startsWith('vllm/')) return 'vllm'
+  if (modelLower.startsWith('ollama/')) return 'ollama'
+
+  // Check pattern-based providers
   if (modelLower.includes('claude')) return 'anthropic'
-  // Match gpt-*, o1-*, o3-* but not o10, o11, etc. using regex word boundary
-  if (modelLower.includes('gpt') || /\bo1-/.test(modelLower) || /\bo3-/.test(modelLower))
-    return 'openai'
+  if (modelLower.includes('gpt') || /\bo[134]-/.test(modelLower)) return 'openai'
   if (modelLower.includes('gemini')) return 'google'
-  return 'unknown'
+  if (modelLower.includes('grok')) return 'xai'
+  if (modelLower.includes('deepseek')) return 'deepseek'
+  if (['mistral', 'magistral', 'codestral', 'ministral', 'devstral'].some((p) => modelLower.includes(p)))
+    return 'mistral'
+
+  // Default to openai for unknown models (most compatible)
+  return 'openai'
 }
 
 export interface ValidationResult {

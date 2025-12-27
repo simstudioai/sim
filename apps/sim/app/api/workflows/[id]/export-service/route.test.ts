@@ -157,7 +157,8 @@ describe('Export Service API Route', () => {
       expect(data.unsupportedBlocks.map((b: any) => b.type)).toContain('code_interpreter')
     })
 
-    it('should reject workflow with unsupported providers', async () => {
+    it('should accept workflow with unknown model (defaults to OpenAI)', async () => {
+      // Unknown models now default to OpenAI-compatible API, so they should be accepted
       setupMocksForWorkflow({
         blocks: {
           'block-1': { id: 'block-1', type: 'start', name: 'Start' },
@@ -169,6 +170,7 @@ describe('Export Service API Route', () => {
               model: { value: 'llama-3-70b' },
             },
           },
+          'block-3': { id: 'block-3', type: 'response', name: 'Response' },
         },
         edges: {},
       })
@@ -178,11 +180,9 @@ describe('Export Service API Route', () => {
 
       const response = await GET(req, { params })
 
-      expect(response.status).toBe(400)
-      const data = await response.json()
-      expect(data.error).toBe('Workflow contains unsupported features for export')
-      expect(data.unsupportedProviders).toHaveLength(1)
-      expect(data.unsupportedProviders[0].provider).toBe('unknown')
+      // Should be accepted - unknown models default to OpenAI-compatible API
+      expect(response.status).toBe(200)
+      expect(response.headers.get('content-type')).toBe('application/zip')
     })
 
     it('should accept workflow with supported Anthropic model', async () => {
@@ -369,10 +369,45 @@ describe('Export Service API Route', () => {
       expect(await testProviderDetection('gemini-pro', true)).toBe(true)
     })
 
-    it('should reject unknown providers', async () => {
-      // When shouldPass is false, we expect status 400 (not 200)
-      // testProviderDetection returns (status === 200), so false means it was rejected as expected
-      expect(await testProviderDetection('llama-3-70b', false)).toBe(false)
+    it('should detect Grok models as xAI', async () => {
+      expect(await testProviderDetection('grok-4-latest', true)).toBe(true)
+    })
+
+    it('should detect DeepSeek models', async () => {
+      expect(await testProviderDetection('deepseek-chat', true)).toBe(true)
+    })
+
+    it('should detect Mistral models', async () => {
+      expect(await testProviderDetection('mistral-large-latest', true)).toBe(true)
+    })
+
+    it('should detect Groq models', async () => {
+      expect(await testProviderDetection('groq/llama-3.3-70b-versatile', true)).toBe(true)
+    })
+
+    it('should detect Cerebras models', async () => {
+      expect(await testProviderDetection('cerebras/llama-3.3-70b', true)).toBe(true)
+    })
+
+    it('should detect OpenRouter models', async () => {
+      expect(await testProviderDetection('openrouter/anthropic/claude-3.5-sonnet', true)).toBe(true)
+    })
+
+    it('should detect Azure OpenAI models', async () => {
+      expect(await testProviderDetection('azure/gpt-4o', true)).toBe(true)
+    })
+
+    it('should detect Ollama models', async () => {
+      expect(await testProviderDetection('ollama/llama3.1', true)).toBe(true)
+    })
+
+    it('should detect vLLM models', async () => {
+      expect(await testProviderDetection('vllm/meta-llama/Llama-3-70b', true)).toBe(true)
+    })
+
+    it('should accept unknown models (defaults to OpenAI)', async () => {
+      // Unknown models now default to OpenAI-compatible API, so they should be accepted
+      expect(await testProviderDetection('llama-3-70b', true)).toBe(true)
     })
   })
 

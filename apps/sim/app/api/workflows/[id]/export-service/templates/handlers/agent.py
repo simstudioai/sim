@@ -17,10 +17,28 @@ MAX_TOOL_ITERATIONS = 50  # Prevent infinite loops
 MAX_MESSAGE_HISTORY = 30  # Max conversation turns to keep
 MAX_TOOL_RESULT_SIZE = 50000  # Truncate large tool results (chars)
 
-# Provider detection patterns
-ANTHROPIC_MODELS = ['claude-']
-OPENAI_MODELS = ['gpt-', 'o1-', 'o3-']
-GOOGLE_MODELS = ['gemini-']
+# Provider configuration
+# Maps provider name to (base_url, env_var_for_api_key)
+# None base_url means use default OpenAI URL
+OPENAI_COMPATIBLE_PROVIDERS = {
+    'openai': (None, 'OPENAI_API_KEY'),
+    'deepseek': ('https://api.deepseek.com/v1', 'DEEPSEEK_API_KEY'),
+    'xai': ('https://api.x.ai/v1', 'XAI_API_KEY'),
+    'cerebras': ('https://api.cerebras.ai/v1', 'CEREBRAS_API_KEY'),
+    'groq': ('https://api.groq.com/openai/v1', 'GROQ_API_KEY'),
+    'mistral': ('https://api.mistral.ai/v1', 'MISTRAL_API_KEY'),
+    'openrouter': ('https://openrouter.ai/api/v1', 'OPENROUTER_API_KEY'),
+    'ollama': (os.environ.get('OLLAMA_URL', 'http://localhost:11434') + '/v1', 'OLLAMA_API_KEY'),
+    'vllm': (os.environ.get('VLLM_BASE_URL', 'http://localhost:8000') + '/v1', 'VLLM_API_KEY'),
+}
+
+# Azure OpenAI requires special handling
+AZURE_CONFIG = {
+    'api_key_env': 'AZURE_OPENAI_API_KEY',
+    'endpoint_env': 'AZURE_OPENAI_ENDPOINT',
+    'api_version_env': 'AZURE_OPENAI_API_VERSION',
+    'default_api_version': '2024-02-01',
+}
 
 def resolve_env_reference(value: str) -> Optional[str]:
     if not isinstance(value, str):
@@ -31,19 +49,57 @@ def resolve_env_reference(value: str) -> Optional[str]:
     return value
 
 def detect_provider(model: str) -> str:
-    """Detect which provider to use based on model name."""
+    """Detect which provider to use based on model name.
+
+    Supports all Sim Studio providers:
+    - anthropic: claude-*
+    - openai: gpt-*, o1-*, o3-*, o4-*
+    - google: gemini-*
+    - vertex: vertex/*
+    - deepseek: deepseek-*
+    - xai: grok-*
+    - cerebras: cerebras/*
+    - groq: groq/*
+    - mistral: mistral-*, magistral-*, open-mistral-*, codestral-*, ministral-*, devstral-*
+    - azure-openai: azure/*
+    - openrouter: openrouter/*
+    - vllm: vllm/*
+    - ollama: ollama/* or models without prefix from Ollama instance
+    """
     model_lower = model.lower()
-    for prefix in ANTHROPIC_MODELS:
-        if prefix in model_lower:
-            return 'anthropic'
-    for prefix in OPENAI_MODELS:
-        if prefix in model_lower:
-            return 'openai'
-    for prefix in GOOGLE_MODELS:
-        if prefix in model_lower:
-            return 'google'
-    # Default to anthropic
-    return 'anthropic'
+
+    # Check prefix-based providers first (most specific)
+    if model_lower.startswith('azure/'):
+        return 'azure-openai'
+    if model_lower.startswith('vertex/'):
+        return 'vertex'
+    if model_lower.startswith('openrouter/'):
+        return 'openrouter'
+    if model_lower.startswith('cerebras/'):
+        return 'cerebras'
+    if model_lower.startswith('groq/'):
+        return 'groq'
+    if model_lower.startswith('vllm/'):
+        return 'vllm'
+    if model_lower.startswith('ollama/'):
+        return 'ollama'
+
+    # Check pattern-based providers
+    if 'claude' in model_lower:
+        return 'anthropic'
+    if 'gpt' in model_lower or re.match(r'^o[134]-', model_lower):
+        return 'openai'
+    if 'gemini' in model_lower:
+        return 'google'
+    if 'grok' in model_lower:
+        return 'xai'
+    if 'deepseek' in model_lower:
+        return 'deepseek'
+    if any(p in model_lower for p in ['mistral', 'magistral', 'codestral', 'ministral', 'devstral']):
+        return 'mistral'
+
+    # Default to openai for unknown models (most compatible)
+    return 'openai'
 
 class AgentBlockHandler:
     def __init__(self):
@@ -95,8 +151,18 @@ class AgentBlockHandler:
             'anthropic': 'ANTHROPIC_API_KEY',
             'openai': 'OPENAI_API_KEY',
             'google': 'GOOGLE_API_KEY',
+            'vertex': 'GOOGLE_API_KEY',  # Vertex uses Google credentials
+            'deepseek': 'DEEPSEEK_API_KEY',
+            'xai': 'XAI_API_KEY',
+            'cerebras': 'CEREBRAS_API_KEY',
+            'groq': 'GROQ_API_KEY',
+            'mistral': 'MISTRAL_API_KEY',
+            'azure-openai': 'AZURE_OPENAI_API_KEY',
+            'openrouter': 'OPENROUTER_API_KEY',
+            'vllm': 'VLLM_API_KEY',
+            'ollama': 'OLLAMA_API_KEY',  # Optional for Ollama
         }
-        env_key = env_keys.get(provider, 'ANTHROPIC_API_KEY')
+        env_key = env_keys.get(provider, 'OPENAI_API_KEY')
         return os.environ.get(env_key)
 
     def _get_native_file_tools(self) -> List[Dict]:
@@ -407,9 +473,11 @@ class AgentBlockHandler:
         model = inputs.get('model', 'claude-sonnet-4-20250514')
         provider = detect_provider(model)
 
+        # Ollama and vLLM don't require API keys (self-hosted)
         api_key = self._get_api_key(inputs, provider)
-        if not api_key:
-            return {'error': f'No API key configured for {provider}. Set {provider.upper()}_API_KEY environment variable.'}
+        if not api_key and provider not in ('ollama', 'vllm'):
+            env_var = provider.upper().replace('-', '_') + '_API_KEY'
+            return {'error': f'No API key configured for {provider}. Set {env_var} environment variable.'}
 
         # Build tools from config
         tools_config = inputs.get('tools', [])
@@ -418,10 +486,15 @@ class AgentBlockHandler:
         # Route to provider-specific implementation
         if provider == 'anthropic':
             return await self._execute_anthropic(inputs, model, api_key, tools)
-        elif provider == 'openai':
-            return await self._execute_openai(inputs, model, api_key, tools)
         elif provider == 'google':
             return await self._execute_google(inputs, model, api_key, tools)
+        elif provider == 'vertex':
+            return await self._execute_vertex(inputs, model, api_key, tools)
+        elif provider == 'azure-openai':
+            return await self._execute_azure_openai(inputs, model, tools)
+        elif provider in OPENAI_COMPATIBLE_PROVIDERS:
+            # All OpenAI-compatible providers (openai, deepseek, xai, cerebras, groq, mistral, openrouter, ollama, vllm)
+            return await self._execute_openai_compatible(inputs, model, api_key, tools, provider)
         else:
             return {'error': f'Unsupported provider: {provider}'}
 
@@ -491,8 +564,11 @@ class AgentBlockHandler:
         except Exception as e:
             return {'error': str(e)}
 
-    async def _execute_openai(self, inputs: Dict[str, Any], model: str, api_key: str, tools: List[Dict]) -> Dict[str, Any]:
-        """Execute using OpenAI API."""
+    async def _execute_openai_compatible(self, inputs: Dict[str, Any], model: str, api_key: str, tools: List[Dict], provider: str) -> Dict[str, Any]:
+        """Execute using any OpenAI-compatible API.
+
+        Supports: openai, deepseek, xai, cerebras, groq, mistral, openrouter, ollama, vllm
+        """
         messages_text = inputs.get('messages', '')
         temperature = inputs.get('temperature', 0.7)
         response_format = inputs.get('responseFormat')
@@ -502,10 +578,39 @@ class AgentBlockHandler:
         all_tool_calls = []
 
         try:
-            client = openai.OpenAI(api_key=api_key)
+            # Get provider-specific configuration
+            base_url, _ = OPENAI_COMPATIBLE_PROVIDERS.get(provider, (None, None))
+
+            # Strip provider prefix from model name if present
+            actual_model = model
+            prefixes_to_strip = ['openrouter/', 'cerebras/', 'groq/', 'vllm/', 'ollama/']
+            for prefix in prefixes_to_strip:
+                if actual_model.lower().startswith(prefix):
+                    actual_model = actual_model[len(prefix):]
+                    break
+
+            # Create client with provider-specific base URL
+            client_kwargs = {}
+            if api_key:
+                client_kwargs['api_key'] = api_key
+            else:
+                # For Ollama/vLLM without auth, use a dummy key
+                client_kwargs['api_key'] = 'not-needed'
+
+            if base_url:
+                client_kwargs['base_url'] = base_url
+
+            # OpenRouter requires additional headers
+            if provider == 'openrouter':
+                client_kwargs['default_headers'] = {
+                    'HTTP-Referer': os.environ.get('OPENROUTER_REFERER', 'https://sim.ai'),
+                    'X-Title': os.environ.get('OPENROUTER_TITLE', 'Sim Studio Export'),
+                }
+
+            client = openai.OpenAI(**client_kwargs)
 
             for iteration in range(MAX_TOOL_ITERATIONS):
-                kwargs = {'model': model, 'messages': messages, 'temperature': temperature}
+                kwargs = {'model': actual_model, 'messages': messages, 'temperature': temperature}
                 if openai_tools:
                     kwargs['tools'] = openai_tools
 
@@ -531,12 +636,96 @@ class AgentBlockHandler:
 
                 messages = self._prune_messages(messages)
 
-            result = {'content': final_text, 'model': model, 'toolCalls': {'list': all_tool_calls, 'count': len(all_tool_calls)}}
+            result = {'content': final_text, 'model': model, 'provider': provider, 'toolCalls': {'list': all_tool_calls, 'count': len(all_tool_calls)}}
             result = self._parse_json_response(result, final_text, response_format)
             return result
 
         except Exception as e:
-            return {'error': str(e)}
+            return {'error': str(e), 'provider': provider}
+
+    async def _execute_azure_openai(self, inputs: Dict[str, Any], model: str, tools: List[Dict]) -> Dict[str, Any]:
+        """Execute using Azure OpenAI API."""
+        messages_text = inputs.get('messages', '')
+        temperature = inputs.get('temperature', 0.7)
+        response_format = inputs.get('responseFormat')
+
+        messages = [{'role': 'user', 'content': messages_text}]
+        openai_tools = self._build_openai_tools(tools) if tools else None
+        all_tool_calls = []
+
+        try:
+            # Get Azure configuration from environment
+            api_key = os.environ.get(AZURE_CONFIG['api_key_env'])
+            endpoint = os.environ.get(AZURE_CONFIG['endpoint_env'])
+            api_version = os.environ.get(AZURE_CONFIG['api_version_env'], AZURE_CONFIG['default_api_version'])
+
+            if not api_key or not endpoint:
+                return {'error': 'Azure OpenAI requires AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT environment variables.'}
+
+            # Strip azure/ prefix from model name to get deployment name
+            deployment = model
+            if deployment.lower().startswith('azure/'):
+                deployment = deployment[6:]
+
+            # Use AzureOpenAI client
+            from openai import AzureOpenAI
+            client = AzureOpenAI(
+                api_key=api_key,
+                api_version=api_version,
+                azure_endpoint=endpoint
+            )
+
+            for iteration in range(MAX_TOOL_ITERATIONS):
+                kwargs = {'model': deployment, 'messages': messages, 'temperature': temperature}
+                if openai_tools:
+                    kwargs['tools'] = openai_tools
+
+                response = client.chat.completions.create(**kwargs)
+                choice = response.choices[0]
+                message = choice.message
+
+                final_text = message.content or ''
+                messages.append({'role': 'assistant', 'content': final_text, 'tool_calls': message.tool_calls})
+
+                if not message.tool_calls or choice.finish_reason == 'stop':
+                    break
+
+                # Execute tool calls
+                for tool_call in message.tool_calls:
+                    func = tool_call.function
+                    tool_input = json.loads(func.arguments) if func.arguments else {}
+                    result = await self._execute_tool(func.name, tool_input)
+                    truncated = self._truncate_tool_result(result)
+
+                    all_tool_calls.append({'id': tool_call.id, 'name': func.name, 'input': tool_input, 'result': result})
+                    messages.append({'role': 'tool', 'tool_call_id': tool_call.id, 'content': truncated})
+
+                messages = self._prune_messages(messages)
+
+            result = {'content': final_text, 'model': model, 'provider': 'azure-openai', 'toolCalls': {'list': all_tool_calls, 'count': len(all_tool_calls)}}
+            result = self._parse_json_response(result, final_text, response_format)
+            return result
+
+        except Exception as e:
+            return {'error': str(e), 'provider': 'azure-openai'}
+
+    async def _execute_vertex(self, inputs: Dict[str, Any], model: str, api_key: str, tools: List[Dict]) -> Dict[str, Any]:
+        """Execute using Google Vertex AI.
+
+        Vertex AI uses the same Gemini models but with Google Cloud authentication.
+        For simplicity in exported services, we use the same Google Generative AI SDK
+        but note that production Vertex usage typically requires service account credentials.
+        """
+        # Strip vertex/ prefix and use Google implementation
+        actual_model = model
+        if actual_model.lower().startswith('vertex/'):
+            actual_model = actual_model[7:]
+
+        # Use the Google implementation with the stripped model name
+        result = await self._execute_google(inputs, actual_model, api_key, tools)
+        if 'provider' not in result or result.get('error'):
+            result['provider'] = 'vertex'
+        return result
 
     async def _execute_google(self, inputs: Dict[str, Any], model: str, api_key: str, tools: List[Dict]) -> Dict[str, Any]:
         """Execute using Google Gemini API."""
