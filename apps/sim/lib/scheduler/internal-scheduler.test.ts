@@ -35,9 +35,7 @@ describe('Internal Scheduler', () => {
   })
 
   it('should poll schedules endpoint with correct authentication', async () => {
-    const { startInternalScheduler, stopInternalScheduler } = await import(
-      './internal-scheduler'
-    )
+    const { startInternalScheduler, stopInternalScheduler } = await import('./internal-scheduler')
 
     startInternalScheduler()
 
@@ -61,9 +59,7 @@ describe('Internal Scheduler', () => {
   it('should handle fetch errors gracefully', async () => {
     mockFetch.mockRejectedValueOnce(new Error('Network error'))
 
-    const { startInternalScheduler, stopInternalScheduler } = await import(
-      './internal-scheduler'
-    )
+    const { startInternalScheduler, stopInternalScheduler } = await import('./internal-scheduler')
 
     // Should not throw
     startInternalScheduler()
@@ -78,9 +74,7 @@ describe('Internal Scheduler', () => {
       text: async () => 'Unauthorized',
     })
 
-    const { startInternalScheduler, stopInternalScheduler } = await import(
-      './internal-scheduler'
-    )
+    const { startInternalScheduler, stopInternalScheduler } = await import('./internal-scheduler')
 
     // Should not throw
     startInternalScheduler()
