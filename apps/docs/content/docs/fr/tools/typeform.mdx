@@ -132,13 +132,16 @@ Récupérer les détails complets et la structure d'un formulaire spécifique
 | `id` | chaîne | Identifiant unique du formulaire |
 | `title` | chaîne | Titre du formulaire |
 | `type` | chaîne | Type de formulaire \(form, quiz, etc.\) |
-| `settings` | objet | Paramètres du formulaire incluant langue, barre de progression, etc. |
+| `settings` | objet | Paramètres du formulaire incluant la langue, la barre de progression, etc. |
 | `theme` | objet | Référence du thème |
 | `workspace` | objet | Référence de l'espace de travail |
 | `fields` | tableau | Tableau des champs/questions du formulaire |
-| `welcome_screens` | tableau | Tableau des écrans d'accueil |
+| `welcome_screens` | tableau | Tableau des écrans d'accueil \(vide si aucun n'est configuré\) |
 | `thankyou_screens` | tableau | Tableau des écrans de remerciement |
-| `_links` | objet | Liens vers les ressources associées, y compris l'URL publique du formulaire |
+| `created_at` | chaîne | Horodatage de création du formulaire \(format ISO 8601\) |
+| `last_updated_at` | chaîne | Horodatage de dernière mise à jour du formulaire \(format ISO 8601\) |
+| `published_at` | chaîne | Horodatage de publication du formulaire \(format ISO 8601\) |
+| `_links` | objet | Liens vers les ressources associées incluant l'URL publique du formulaire |
 
 ### `typeform_create_form`
 
@@ -163,8 +166,13 @@ Créer un nouveau formulaire avec champs et paramètres
 | `id` | chaîne | Identifiant unique du formulaire créé |
 | `title` | chaîne | Titre du formulaire |
 | `type` | chaîne | Type de formulaire |
-| `fields` | tableau | Tableau des champs du formulaire créé |
-| `_links` | objet | Liens vers les ressources associées, y compris l'URL publique du formulaire |
+| `settings` | objet | Objet de paramètres du formulaire |
+| `theme` | objet | Référence du thème |
+| `workspace` | objet | Référence de l'espace de travail |
+| `fields` | tableau | Tableau des champs du formulaire créés \(vide si aucun n'a été ajouté\) |
+| `welcome_screens` | tableau | Tableau des écrans d'accueil \(vide si aucun n'est configuré\) |
+| `thankyou_screens` | tableau | Tableau des écrans de remerciement |
+| `_links` | objet | Liens vers les ressources associées incluant l'URL publique du formulaire |
 
 ### `typeform_update_form`
 
@@ -182,16 +190,7 @@ Mettre à jour un formulaire existant à l'aide d'opérations JSON Patch
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | chaîne | Identifiant unique du formulaire mis à jour |
-| `title` | chaîne | Titre du formulaire |
-| `type` | chaîne | Type de formulaire |
-| `settings` | objet | Paramètres du formulaire |
-| `theme` | objet | Référence du thème |
-| `workspace` | objet | Référence de l'espace de travail |
-| `fields` | tableau | Tableau des champs du formulaire |
-| `welcome_screens` | tableau | Tableau des écrans d'accueil |
-| `thankyou_screens` | tableau | Tableau des écrans de remerciement |
-| `_links` | objet | Liens vers les ressources associées |
+| `message` | chaîne | Message de confirmation de succès |
 
 ### `typeform_delete_form`
 

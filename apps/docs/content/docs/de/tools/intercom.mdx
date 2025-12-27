@@ -55,8 +55,7 @@ Erstellen Sie einen neuen Kontakt in Intercom mit E-Mail, external_id oder Rolle
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Erstellte Kontaktdaten |
+| `contact` | object | Erstelltes Kontaktobjekt |
 
 ### `intercom_get_contact`
 
@@ -72,8 +71,7 @@ Einen einzelnen Kontakt anhand der ID von Intercom abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Kontaktdaten |
+| `contact` | object | Kontaktobjekt |
 
 ### `intercom_update_contact`
 
@@ -101,8 +99,7 @@ Einen bestehenden Kontakt in Intercom aktualisieren
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Aktualisierte Kontaktdaten |
+| `contact` | object | Aktualisiertes Kontaktobjekt |
 
 ### `intercom_list_contacts`
 
@@ -119,8 +116,7 @@ Alle Kontakte von Intercom mit Paginierungsunterstützung auflisten
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Liste der Kontakte |
+| `contacts` | array | Array von Kontaktobjekten |
 
 ### `intercom_search_contacts`
 
@@ -140,8 +136,7 @@ Suche nach Kontakten in Intercom mit einer Abfrage
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Suchergebnisse |
+| `contacts` | array | Array von übereinstimmenden Kontaktobjekten |
 
 ### `intercom_delete_contact`
 
@@ -157,8 +152,9 @@ Einen Kontakt aus Intercom nach ID löschen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Löschergebnis |
+| `id` | string | ID des gelöschten Kontakts |
+| `deleted` | boolean | Ob der Kontakt gelöscht wurde |
+| `metadata` | object | Metadaten der Operation |
 
 ### `intercom_create_company`
 
@@ -182,8 +178,7 @@ Ein Unternehmen in Intercom erstellen oder aktualisieren
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Erstellte oder aktualisierte Unternehmensdaten |
+| `company` | object | Erstelltes oder aktualisiertes Unternehmensobjekt |
 
 ### `intercom_get_company`
 
@@ -199,8 +194,7 @@ Ein einzelnes Unternehmen anhand der ID von Intercom abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Unternehmensdaten |
+| `company` | object | Unternehmensobjekt |
 
 ### `intercom_list_companies`
 
@@ -218,8 +212,7 @@ Listet alle Unternehmen von Intercom mit Paginierungsunterstützung auf. Hinweis
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Liste der Unternehmen |
+| `companies` | array | Array von Unternehmensobjekten |
 
 ### `intercom_get_conversation`
 
@@ -237,8 +230,7 @@ Eine einzelne Konversation anhand der ID von Intercom abrufen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Konversationsdaten |
+| `conversation` | object | Konversationsobjekt |
 
 ### `intercom_list_conversations`
 
@@ -257,8 +249,7 @@ Alle Konversationen von Intercom mit Paginierungsunterstützung auflisten
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Liste der Konversationen |
+| `conversations` | array | Array von Konversationsobjekten |
 
 ### `intercom_reply_conversation`
 
@@ -279,8 +270,7 @@ Als Administrator auf eine Konversation in Intercom antworten
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Aktualisierte Konversation mit Antwort |
+| `conversation` | object | Aktualisiertes Konversationsobjekt |
 
 ### `intercom_search_conversations`
 
@@ -300,8 +290,7 @@ Nach Konversationen in Intercom mit einer Abfrage suchen
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Status des Operationserfolgs |
-| `output` | object | Suchergebnisse |
+| `conversations` | array | Array von übereinstimmenden Konversationsobjekten |
 
 ### `intercom_create_ticket`
 
@@ -321,10 +310,9 @@ Ein neues Ticket in Intercom erstellen
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Erstellte Ticket-Daten |
+| `ticket` | object | Erstelltes Ticket-Objekt |
 
 ### `intercom_get_ticket`
 
@@ -338,10 +326,9 @@ Ein einzelnes Ticket anhand der ID von Intercom abrufen
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Ticket-Daten |
+| `ticket` | object | Ticket-Objekt |
 
 ### `intercom_create_message`
 
@@ -363,10 +350,9 @@ Eine neue vom Administrator initiierte Nachricht in Intercom erstellen und sende
 
 #### Output
 
-| Parameter | Type | Beschreibung |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus der Operation |
-| `output` | object | Erstellte Nachrichtendaten |
+| `message` | object | Erstelltes Nachrichtenobjekt |
 
 ## Notizen
 
