@@ -33,7 +33,8 @@ const SUPPORTED_PROVIDERS = new Set(['anthropic', 'openai', 'google'])
 function detectProviderFromModel(model: string): string {
   const modelLower = model.toLowerCase()
   if (modelLower.includes('claude')) return 'anthropic'
-  if (modelLower.includes('gpt') || modelLower.includes('o1-') || modelLower.includes('o3-')) return 'openai'
+  // Match gpt-*, o1-*, o3-* but not o10, o11, etc. using regex word boundary
+  if (modelLower.includes('gpt') || /\bo1-/.test(modelLower) || /\bo3-/.test(modelLower)) return 'openai'
   if (modelLower.includes('gemini')) return 'google'
   return 'unknown'
 }
@@ -823,10 +824,101 @@ class WorkflowExecutor:
 
             cond = self.resolver.resolve(cond, ctx)
 
-            safe_globals = {'__builtins__': {'len': len, 'str': str, 'int': int, 'True': True, 'False': False, 'None': None}}
-            return bool(eval(cond, safe_globals, {}))
+            # Safe expression evaluation using ast instead of eval
+            return self._safe_eval_condition(cond)
         except:
             return state.iteration < state.max_iterations
+
+    def _safe_eval_condition(self, expr: str) -> bool:
+        \"\"\"Safely evaluate a simple boolean expression without using eval().
+
+        Supports: comparisons (<, >, <=, >=, ==, !=), boolean operators (and, or, not),
+        literals (numbers, strings, True, False, None), and len() function.
+        \"\"\"
+        import ast
+        import operator
+
+        # Allowed operators
+        ops = {
+            ast.Eq: operator.eq,
+            ast.NotEq: operator.ne,
+            ast.Lt: operator.lt,
+            ast.LtE: operator.le,
+            ast.Gt: operator.gt,
+            ast.GtE: operator.ge,
+            ast.And: lambda a, b: a and b,
+            ast.Or: lambda a, b: a or b,
+            ast.Not: operator.not_,
+            ast.Add: operator.add,
+            ast.Sub: operator.sub,
+        }
+
+        def safe_eval_node(node):
+            if isinstance(node, ast.Expression):
+                return safe_eval_node(node.body)
+            elif isinstance(node, ast.Constant):
+                return node.value
+            elif isinstance(node, ast.Num):  # Python 3.7 compatibility
+                return node.n
+            elif isinstance(node, ast.Str):  # Python 3.7 compatibility
+                return node.s
+            elif isinstance(node, ast.NameConstant):  # Python 3.7 compatibility
+                return node.value
+            elif isinstance(node, ast.Name):
+                # Only allow True, False, None as names
+                if node.id == 'True':
+                    return True
+                elif node.id == 'False':
+                    return False
+                elif node.id == 'None':
+                    return None
+                raise ValueError(f'Unsafe name: {node.id}')
+            elif isinstance(node, ast.Compare):
+                left = safe_eval_node(node.left)
+                for op, comparator in zip(node.ops, node.comparators):
+                    right = safe_eval_node(comparator)
+                    if type(op) not in ops:
+                        raise ValueError(f'Unsafe operator: {type(op).__name__}')
+                    if not ops[type(op)](left, right):
+                        return False
+                    left = right
+                return True
+            elif isinstance(node, ast.BoolOp):
+                values = [safe_eval_node(v) for v in node.values]
+                if isinstance(node.op, ast.And):
+                    return all(values)
+                elif isinstance(node.op, ast.Or):
+                    return any(values)
+            elif isinstance(node, ast.UnaryOp):
+                operand = safe_eval_node(node.operand)
+                if isinstance(node.op, ast.Not):
+                    return not operand
+                elif isinstance(node.op, ast.USub):
+                    return -operand
+                raise ValueError(f'Unsafe unary operator: {type(node.op).__name__}')
+            elif isinstance(node, ast.BinOp):
+                left = safe_eval_node(node.left)
+                right = safe_eval_node(node.right)
+                if type(node.op) not in ops:
+                    raise ValueError(f'Unsafe binary operator: {type(node.op).__name__}')
+                return ops[type(node.op)](left, right)
+            elif isinstance(node, ast.Call):
+                # Only allow len() function
+                if isinstance(node.func, ast.Name) and node.func.id == 'len':
+                    if len(node.args) == 1:
+                        arg = safe_eval_node(node.args[0])
+                        return len(arg)
+                raise ValueError(f'Unsafe function call')
+            elif isinstance(node, ast.List):
+                return [safe_eval_node(e) for e in node.elts]
+            raise ValueError(f'Unsafe node type: {type(node).__name__}')
+
+        try:
+            tree = ast.parse(expr, mode='eval')
+            return bool(safe_eval_node(tree))
+        except Exception:
+            # If parsing fails, default to False for safety
+            return False
 
     async def run(
         self,
@@ -1054,15 +1146,17 @@ def read_file(path: str) -> Dict[str, Any]:
     except Exception as e:
         return {'success': False, 'error': str(e)}
 
-def execute_command(command: str, cwd: Optional[str] = None, use_shell: bool = False) -> Dict[str, Any]:
+def execute_command(command: str, cwd: Optional[str] = None) -> Dict[str, Any]:
     \"\"\"
-    Execute a shell command within the workspace sandbox.
+    Execute a command within the workspace sandbox.
+
+    For security, shell=True is never used. Commands are parsed with shlex
+    and executed directly. Shell features (pipes, redirects, etc.) are not
+    supported to prevent command injection.
 
     Args:
-        command: The command to execute
+        command: The command to execute (simple command with arguments only)
         cwd: Working directory (must be within workspace, defaults to workspace root)
-        use_shell: If True, use shell=True (allows pipes/redirects but less secure).
-                   If False, parse command with shlex for safer execution.
     \"\"\"
     try:
         _ensure_workspace()
@@ -1073,30 +1167,30 @@ def execute_command(command: str, cwd: Optional[str] = None, use_shell: bool = F
         else:
             work_dir = WORKSPACE_DIR
 
-        # Detect if command needs shell features (pipes, redirects, etc.)
-        shell_chars = ['|', '>', '<', '&&', '||', ';', '$', '\`']
-        needs_shell = use_shell or any(c in command for c in shell_chars)
+        # Detect shell features that indicate potential injection attempts
+        # These are not supported for security reasons
+        dangerous_chars = ['|', '>', '<', '&&', '||', ';', '$', '\`', '$(', '\${']
+        for char in dangerous_chars:
+            if char in command:
+                return {
+                    'success': False,
+                    'error': f'Shell operators not supported for security. Found: {char}'
+                }
 
-        if needs_shell:
-            # Use shell mode for complex commands
-            result = subprocess.run(
-                command,
-                shell=True,
-                capture_output=True,
-                text=True,
-                cwd=str(work_dir),
-                timeout=300
-            )
-        else:
-            # Use safer non-shell mode with shlex parsing
-            args = shlex.split(command)
-            result = subprocess.run(
-                args,
-                capture_output=True,
-                text=True,
-                cwd=str(work_dir),
-                timeout=300
-            )
+        # Use safer non-shell mode with shlex parsing
+        args = shlex.split(command)
+
+        # Additional validation: reject empty commands
+        if not args:
+            return {'success': False, 'error': 'Empty command'}
+
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            cwd=str(work_dir),
+            timeout=300
+        )
 
         return {
             'success': result.returncode == 0,
@@ -1825,22 +1919,75 @@ class LoopBlockHandler:
         resolver = ReferenceResolver()
         eval_condition = resolver.resolve(eval_condition, ctx)
 
-        # Safely evaluate the condition
+        # Safely evaluate the condition using AST instead of eval
         try:
-            # Create a safe evaluation context
-            safe_globals = {
-                '__builtins__': {
-                    'len': len, 'str': str, 'int': int, 'float': float,
-                    'bool': bool, 'list': list, 'dict': dict,
-                    'True': True, 'False': False, 'None': None,
-                    'abs': abs, 'min': min, 'max': max,
-                }
-            }
-            result = eval(eval_condition, safe_globals, {})
-            return bool(result)
+            return self._safe_eval_condition(eval_condition)
         except Exception as e:
             # On error, check iteration limit
             return scope.iteration < scope.max_iterations
+
+    def _safe_eval_condition(self, expr: str) -> bool:
+        \"\"\"Safely evaluate a simple boolean expression without using eval().\"\"\"
+        import ast
+        import operator
+
+        ops = {
+            ast.Eq: operator.eq, ast.NotEq: operator.ne,
+            ast.Lt: operator.lt, ast.LtE: operator.le,
+            ast.Gt: operator.gt, ast.GtE: operator.ge,
+            ast.Add: operator.add, ast.Sub: operator.sub,
+        }
+
+        def safe_eval_node(node):
+            if isinstance(node, ast.Expression):
+                return safe_eval_node(node.body)
+            elif isinstance(node, ast.Constant):
+                return node.value
+            elif isinstance(node, ast.Num):
+                return node.n
+            elif isinstance(node, ast.Str):
+                return node.s
+            elif isinstance(node, ast.NameConstant):
+                return node.value
+            elif isinstance(node, ast.Name):
+                if node.id in ('True', 'False', 'None'):
+                    return {'True': True, 'False': False, 'None': None}[node.id]
+                raise ValueError(f'Unsafe name: {node.id}')
+            elif isinstance(node, ast.Compare):
+                left = safe_eval_node(node.left)
+                for op, comp in zip(node.ops, node.comparators):
+                    right = safe_eval_node(comp)
+                    if type(op) not in ops:
+                        raise ValueError(f'Unsafe operator')
+                    if not ops[type(op)](left, right):
+                        return False
+                    left = right
+                return True
+            elif isinstance(node, ast.BoolOp):
+                values = [safe_eval_node(v) for v in node.values]
+                return all(values) if isinstance(node.op, ast.And) else any(values)
+            elif isinstance(node, ast.UnaryOp):
+                operand = safe_eval_node(node.operand)
+                if isinstance(node.op, ast.Not):
+                    return not operand
+                if isinstance(node.op, ast.USub):
+                    return -operand
+                raise ValueError(f'Unsafe unary operator')
+            elif isinstance(node, ast.BinOp):
+                left, right = safe_eval_node(node.left), safe_eval_node(node.right)
+                if type(node.op) not in ops:
+                    raise ValueError(f'Unsafe binary operator')
+                return ops[type(node.op)](left, right)
+            elif isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name) and node.func.id == 'len' and len(node.args) == 1:
+                    return len(safe_eval_node(node.args[0]))
+                raise ValueError(f'Unsafe function call')
+            elif isinstance(node, ast.List):
+                return [safe_eval_node(e) for e in node.elts]
+            raise ValueError(f'Unsafe node type: {type(node).__name__}')
+
+        tree = ast.parse(expr, mode='eval')
+        return bool(safe_eval_node(tree))
 
     def should_continue(self, scope: LoopScope, ctx) -> bool:
         \"\"\"Check if loop should continue to next iteration.\"\"\"
@@ -2066,7 +2213,7 @@ class ConditionBlockHandler:
         if not isinstance(condition, str):
             return bool(condition)
 
-        # String conditions - evaluate as Python expression
+        # String conditions - evaluate safely using AST
         try:
             # Build evaluation context with block outputs
             eval_context = {
@@ -2075,21 +2222,103 @@ class ConditionBlockHandler:
                 **ctx.block_outputs
             }
 
-            safe_globals = {
-                '__builtins__': {
-                    'len': len, 'str': str, 'int': int, 'float': float,
-                    'bool': bool, 'list': list, 'dict': dict,
-                    'True': True, 'False': False, 'None': None,
-                    'abs': abs, 'min': min, 'max': max,
-                    'isinstance': isinstance, 'type': type,
-                }
-            }
-
-            result = eval(condition, safe_globals, eval_context)
-            return bool(result)
+            return self._safe_eval_with_context(condition, eval_context)
         except Exception as e:
             # On error, treat as false
             return False
+
+    def _safe_eval_with_context(self, expr: str, context: Dict[str, Any]) -> bool:
+        \"\"\"Safely evaluate expression with variable context using AST.\"\"\"
+        import ast
+        import operator
+
+        ops = {
+            ast.Eq: operator.eq, ast.NotEq: operator.ne,
+            ast.Lt: operator.lt, ast.LtE: operator.le,
+            ast.Gt: operator.gt, ast.GtE: operator.ge,
+            ast.Add: operator.add, ast.Sub: operator.sub,
+            ast.In: lambda a, b: a in b, ast.NotIn: lambda a, b: a not in b,
+        }
+
+        def safe_eval_node(node):
+            if isinstance(node, ast.Expression):
+                return safe_eval_node(node.body)
+            elif isinstance(node, ast.Constant):
+                return node.value
+            elif isinstance(node, ast.Num):
+                return node.n
+            elif isinstance(node, ast.Str):
+                return node.s
+            elif isinstance(node, ast.NameConstant):
+                return node.value
+            elif isinstance(node, ast.Name):
+                # Allow True/False/None and context variables
+                if node.id == 'True':
+                    return True
+                elif node.id == 'False':
+                    return False
+                elif node.id == 'None':
+                    return None
+                elif node.id in context:
+                    return context[node.id]
+                raise ValueError(f'Unknown variable: {node.id}')
+            elif isinstance(node, ast.Subscript):
+                # Handle dict/list access like start['field'] or arr[0]
+                value = safe_eval_node(node.value)
+                if isinstance(node.slice, ast.Index):  # Python 3.8
+                    key = safe_eval_node(node.slice.value)
+                else:
+                    key = safe_eval_node(node.slice)
+                if isinstance(value, dict):
+                    return value.get(key)
+                elif isinstance(value, (list, tuple)) and isinstance(key, int):
+                    return value[key] if 0 <= key < len(value) else None
+                return None
+            elif isinstance(node, ast.Attribute):
+                # Handle attribute access like obj.field
+                value = safe_eval_node(node.value)
+                if isinstance(value, dict):
+                    return value.get(node.attr)
+                return getattr(value, node.attr, None)
+            elif isinstance(node, ast.Compare):
+                left = safe_eval_node(node.left)
+                for op, comp in zip(node.ops, node.comparators):
+                    right = safe_eval_node(comp)
+                    if type(op) not in ops:
+                        raise ValueError(f'Unsafe operator: {type(op).__name__}')
+                    if not ops[type(op)](left, right):
+                        return False
+                    left = right
+                return True
+            elif isinstance(node, ast.BoolOp):
+                values = [safe_eval_node(v) for v in node.values]
+                return all(values) if isinstance(node.op, ast.And) else any(values)
+            elif isinstance(node, ast.UnaryOp):
+                operand = safe_eval_node(node.operand)
+                if isinstance(node.op, ast.Not):
+                    return not operand
+                if isinstance(node.op, ast.USub):
+                    return -operand
+                raise ValueError(f'Unsafe unary operator')
+            elif isinstance(node, ast.BinOp):
+                left, right = safe_eval_node(node.left), safe_eval_node(node.right)
+                if type(node.op) not in ops:
+                    raise ValueError(f'Unsafe binary operator')
+                return ops[type(node.op)](left, right)
+            elif isinstance(node, ast.Call):
+                # Only allow len(), str(), int(), bool()
+                if isinstance(node.func, ast.Name) and node.func.id in ('len', 'str', 'int', 'bool') and len(node.args) == 1:
+                    arg = safe_eval_node(node.args[0])
+                    return {'len': len, 'str': str, 'int': int, 'bool': bool}[node.func.id](arg)
+                raise ValueError(f'Unsafe function call')
+            elif isinstance(node, ast.List):
+                return [safe_eval_node(e) for e in node.elts]
+            elif isinstance(node, ast.Dict):
+                return {safe_eval_node(k): safe_eval_node(v) for k, v in zip(node.keys, node.values)}
+            raise ValueError(f'Unsafe node type: {type(node).__name__}')
+
+        tree = ast.parse(expr, mode='eval')
+        return bool(safe_eval_node(tree))
 `,
 
   'handlers/api.py': `"""API block handler - makes HTTP requests."""
