@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useNotificationStore } from '@/stores/notifications'
 
@@ -30,10 +30,11 @@ interface UseExportServiceProps {
  */
 export function useExportService({ getWorkflowId, onSuccess }: UseExportServiceProps) {
   const [isExporting, setIsExporting] = useState(false)
+  const isExportingRef = useRef(false)
   const addNotification = useNotificationStore((state) => state.addNotification)
 
   const handleExportService = useCallback(async () => {
-    if (isExporting) {
+    if (isExportingRef.current) {
       return
     }
 
@@ -43,6 +44,7 @@ export function useExportService({ getWorkflowId, onSuccess }: UseExportServiceP
       return
     }
 
+    isExportingRef.current = true
     setIsExporting(true)
     try {
       logger.info('Starting service export', { workflowId })
@@ -96,9 +98,10 @@ export function useExportService({ getWorkflowId, onSuccess }: UseExportServiceP
       logger.error('Error exporting service:', { error, workflowId })
       throw error
     } finally {
+      isExportingRef.current = false
       setIsExporting(false)
     }
-  }, [addNotification, getWorkflowId, isExporting, onSuccess])
+  }, [addNotification, getWorkflowId, onSuccess])
 
   return {
     isExporting,
