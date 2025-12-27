@@ -248,6 +248,9 @@ const WorkflowContent = React.memo(() => {
       }))
     )
 
+  /** Stores source node/handle info when a connection drag starts for drop-on-block detection. */
+  const connectionSourceRef = useRef<{ nodeId: string; handleId: string } | null>(null)
+
   /** Re-applies diff markers when blocks change after socket rehydration. */
   const blocksRef = useRef(blocks)
   useEffect(() => {
@@ -1703,19 +1706,42 @@ const WorkflowContent = React.memo(() => {
   )
 
   /**
+   * Finds a node at a given flow position for drop-on-block connection.
+   * Skips subflow containers as they have their own connection logic.
+   */
+  const findNodeAtPosition = useCallback(
+    (position: { x: number; y: number }) => {
+      const nodes = getNodes()
+
+      return nodes.find((node) => {
+        // Skip subflow containers for drop targets
+        if (node.type === 'subflowNode') return false
+
+        const absPos = getNodeAbsolutePosition(node.id)
+        const dims = getBlockDimensions(node.id)
+
+        return (
+          position.x >= absPos.x &&
+          position.x <= absPos.x + dims.width &&
+          position.y >= absPos.y &&
+          position.y <= absPos.y + dims.height
+        )
+      })
+    },
+    [getNodes, getNodeAbsolutePosition, getBlockDimensions]
+  )
+
+  /**
    * Captures the source handle when a connection drag starts
    */
   const onConnectStart = useCallback((_event: any, params: any) => {
     const handleId: string | undefined = params?.handleId
     // Treat explicit error handle (id === 'error') as error connection
     setIsErrorConnectionDrag(handleId === 'error')
-  }, [])
-
-  /**
-   * Resets the source handle when connection drag ends
-   */
-  const onConnectEnd = useCallback(() => {
-    setIsErrorConnectionDrag(false)
+    connectionSourceRef.current = {
+      nodeId: params?.nodeId,
+      handleId: params?.handleId,
+    }
   }, [])
 
   /** Handles new edge connections with container boundary validation. */
@@ -1807,6 +1833,45 @@ const WorkflowContent = React.memo(() => {
       }
     },
     [addEdge, getNodes]
+  )
+
+  /**
+   * Handles connection drag end. Detects if the edge was dropped over a block
+   * and automatically creates a connection to that block's target handle.
+   */
+  const onConnectEnd = useCallback(
+    (event: MouseEvent | TouchEvent) => {
+      setIsErrorConnectionDrag(false)
+
+      const source = connectionSourceRef.current
+      if (!source?.nodeId) {
+        connectionSourceRef.current = null
+        return
+      }
+
+      // Get cursor position in flow coordinates
+      const clientPos = 'changedTouches' in event ? event.changedTouches[0] : event
+      const flowPosition = screenToFlowPosition({
+        x: clientPos.clientX,
+        y: clientPos.clientY,
+      })
+
+      // Find node under cursor
+      const targetNode = findNodeAtPosition(flowPosition)
+
+      // Create connection if valid target found
+      if (targetNode && targetNode.id !== source.nodeId) {
+        onConnect({
+          source: source.nodeId,
+          sourceHandle: source.handleId,
+          target: targetNode.id,
+          targetHandle: 'target',
+        })
+      }
+
+      connectionSourceRef.current = null
+    },
+    [screenToFlowPosition, findNodeAtPosition, onConnect]
   )
 
   /** Handles node drag to detect container intersections and update highlighting. */
