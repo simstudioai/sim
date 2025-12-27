@@ -144,7 +144,7 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
           ref={blockRef}
           onClick={() => setCurrentBlockId(id)}
           className={cn(
-            'relative cursor-pointer select-none rounded-[8px] border border-[var(--divider)]',
+            'relative cursor-pointer select-none rounded-[8px] border border-[var(--border)]',
             'transition-block-bg transition-ring',
             'z-[20]'
           )}
@@ -162,7 +162,7 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
           {/* Header Section */}
           <div
             className={cn(
-              'workflow-drag-handle flex cursor-grab items-center justify-between rounded-t-[8px] border-[var(--divider)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px] [&:active]:cursor-grabbing'
+              'workflow-drag-handle flex cursor-grab items-center justify-between rounded-t-[8px] border-[var(--border)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px] [&:active]:cursor-grabbing'
             )}
             onMouseDown={(e) => {
               e.stopPropagation()

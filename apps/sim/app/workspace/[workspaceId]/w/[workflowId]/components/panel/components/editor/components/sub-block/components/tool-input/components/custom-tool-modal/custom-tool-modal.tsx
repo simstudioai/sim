@@ -237,8 +237,8 @@ try {
     },
     currentValue: functionCode,
     onGeneratedContent: (content) => {
-      handleFunctionCodeChange(content) // Use existing handler to also trigger dropdown checks
-      setCodeError(null) // Clear error on successful generation
+      handleFunctionCodeChange(content)
+      setCodeError(null)
     },
     onStreamChunk: (chunk) => {
       setFunctionCode((prev) => {
@@ -288,7 +288,6 @@ try {
     }
   }, [open])
 
-  // Auto-scroll selected parameter into view
   useEffect(() => {
     if (!showSchemaParams || schemaParamSelectedIndex < 0) return
 
@@ -356,7 +355,6 @@ try {
     }
   }
 
-  /** Extracts parameters from JSON schema for autocomplete */
   const schemaParameters = useMemo(() => {
     try {
       if (!jsonSchema) return []
@@ -375,7 +373,6 @@ try {
     }
   }, [jsonSchema])
 
-  /** Memoized schema validation result */
   const isSchemaValid = useMemo(() => validateJsonSchema(jsonSchema), [jsonSchema])
 
   const handleSave = async () => {
@@ -469,7 +466,6 @@ try {
             code: functionCode || '',
           },
         })
-        // Get the ID from the created tool
         savedToolId = result?.[0]?.id
       }
 

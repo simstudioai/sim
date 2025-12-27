@@ -350,7 +350,6 @@ export function OutputSelect({
           e.preventDefault()
           e.stopPropagation()
           setHighlightedIndex((prev) => {
-            // If no selection or at end, go to start. Otherwise increment
             if (prev === -1 || prev >= flattenedOutputs.length - 1) {
               return 0
             }
@@ -362,7 +361,6 @@ export function OutputSelect({
           e.preventDefault()
           e.stopPropagation()
           setHighlightedIndex((prev) => {
-            // If no selection or at start, go to end. Otherwise decrement
             if (prev <= 0) {
               return flattenedOutputs.length - 1
             }
@@ -471,14 +469,12 @@ export function OutputSelect({
       >
         <div className='space-y-[2px]'>
           {Object.entries(groupedOutputs).map(([blockName, outputs]) => {
-            // Calculate the starting index for this group
             const startIndex = flattenedOutputs.findIndex((o) => o.blockName === blockName)
 
             const firstOutput = outputs[0]
             const blockConfig = getBlock(firstOutput.blockType)
             const blockColor = getOutputColor(firstOutput.blockId, firstOutput.blockType)
 
-            // Determine the icon to use
             let blockIcon: string | React.ComponentType<{ className?: string }> = blockName
               .charAt(0)
               .toUpperCase()

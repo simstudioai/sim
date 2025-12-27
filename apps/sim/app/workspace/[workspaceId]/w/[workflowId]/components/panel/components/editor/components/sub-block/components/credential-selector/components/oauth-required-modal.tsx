@@ -407,7 +407,7 @@ export function OAuthRequiredModal({
                       <div className='flex flex-1 items-center gap-[8px] text-[12px] text-[var(--text-primary)]'>
                         <span>{getScopeDescription(scope)}</span>
                         {newScopesSet.has(scope) && (
-                          <span className='inline-flex items-center gap-[6px] rounded-[6px] bg-[rgba(245,158,11,0.2)] px-[7px] py-[1px] font-medium text-[#fcd34d] text-[11px]'>
+                          <span className='inline-flex items-center gap-[6px] rounded-[6px] bg-[#fde68a] px-[7px] py-[1px] font-medium text-[#a16207] text-[11px] dark:bg-[rgba(245,158,11,0.2)] dark:text-[#fcd34d]'>
                             New
                           </span>
                         )}

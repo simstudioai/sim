@@ -45,7 +45,11 @@ const PermissionSelector = React.memo<PermissionSelectorProps>(
             onClick={() => !disabled && onChange(option.value)}
             disabled={disabled}
             title={option.description}
-            className='h-[22px] min-w-[38px] px-[6px] py-0 text-[11px]'
+            className={cn(
+              'h-[22px] min-w-[38px] px-[6px] py-0 text-[11px]',
+              value === option.value &&
+                'bg-[var(--border-1)] hover:bg-[var(--border-1)] dark:bg-[var(--surface-5)] dark:hover:bg-[var(--border-1)]'
+            )}
           >
             {option.label}
           </Button>

@@ -1327,7 +1327,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
       const parts = tag.split('.')
       if (parts.length >= 3 && blockGroup) {
-        const arrayFieldName = parts[1] // e.g., "channels", "files", "users"
+        const arrayFieldName = parts[1]
         const block = useWorkflowStore.getState().blocks[blockGroup.blockId]
         const blockConfig = block ? (getBlock(block.type) ?? null) : null
         const mergedSubBlocks = getMergedSubBlocks(blockGroup.blockId)
@@ -1566,7 +1566,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                       </span>
                     </PopoverItem>
                     {group.nestedTags.map((nestedTag) => {
-                      // Skip the root tag since it's now shown as the clickable header
                       if (nestedTag.fullTag === rootTag) {
                         return null
                       }
@@ -1662,7 +1661,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                         )
                       }
 
-                      // Direct tag (no children)
                       const globalIndex = nestedTag.fullTag
                         ? flatTagList.findIndex((item) => item.tag === nestedTag.fullTag)
                         : -1

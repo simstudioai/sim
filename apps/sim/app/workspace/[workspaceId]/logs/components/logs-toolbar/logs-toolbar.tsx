@@ -295,8 +295,8 @@ export function LogsToolbar({
       {/* Header Section */}
       <div className='flex items-start justify-between'>
         <div className='flex items-start gap-[12px]'>
-          <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#7A5F11] bg-[#514215]'>
-            <Library className='h-[14px] w-[14px] text-[#FBBC04]' />
+          <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#D4A843] bg-[#FDF6E3] dark:border-[#7A5F11] dark:bg-[#514215]'>
+            <Library className='h-[14px] w-[14px] text-[#D4A843] dark:text-[#FBBC04]' />
           </div>
           <h1 className='font-medium text-[18px]'>Logs</h1>
         </div>
