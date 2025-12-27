@@ -1473,7 +1473,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             <>
               {variableTags.length > 0 && (
                 <>
-                  <PopoverSection>Variables</PopoverSection>
+                  <PopoverSection rootOnly>
+                    <div className='flex items-center gap-[6px]'>
+                      <TagIcon icon='V' color={BLOCK_COLORS.VARIABLE} />
+                      Variables
+                    </div>
+                  </PopoverSection>
                   {variableTags.map((tag: string) => {
                     const variableInfo = variableInfoMap?.[tag] || null
                     const globalIndex = flatTagList.findIndex((item) => item.tag === tag)
@@ -1497,7 +1502,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                           }
                         }}
                       >
-                        <TagIcon icon='V' color={BLOCK_COLORS.VARIABLE} />
                         <span className='flex-1 truncate text-[var(--text-primary)]'>
                           {tag.startsWith(TAG_PREFIXES.VARIABLE)
                             ? tag.substring(TAG_PREFIXES.VARIABLE.length)
