@@ -538,25 +538,25 @@ input[type="search"]::-ms-clear {
   }
 
   .auth-button-gradient {
-    background: linear-gradient(to bottom, var(--brand-500), var(--brand-400)) !important;
+    background: linear-gradient(to bottom, var(--brand-primary-hex), var(--brand-400)) !important;
     border-color: var(--brand-400) !important;
     box-shadow: inset 0 2px 4px 0 var(--brand-400) !important;
   }
 
   .auth-button-gradient:hover {
-    background: linear-gradient(to bottom, var(--brand-500), var(--brand-400)) !important;
+    background: linear-gradient(to bottom, var(--brand-primary-hex), var(--brand-400)) !important;
     opacity: 0.9;
   }
 
   .auth-button-custom {
-    background: var(--brand-500) !important;
-    border-color: var(--brand-500) !important;
+    background: var(--brand-primary-hex) !important;
+    border-color: var(--brand-primary-hex) !important;
     box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.1) !important;
   }
 
   .auth-button-custom:hover {
-    background: var(--brand-500) !important;
-    border-color: var(--brand-500) !important;
+    background: var(--brand-primary-hover-hex) !important;
+    border-color: var(--brand-primary-hover-hex) !important;
     opacity: 1;
   }
 
