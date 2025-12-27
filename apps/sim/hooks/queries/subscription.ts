@@ -144,8 +144,7 @@ export function useUpdateUsageLimit() {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
-      queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() })
+      queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
     },
   })
 }
