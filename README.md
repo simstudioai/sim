@@ -262,6 +262,195 @@ If ports 3000, 3002, or 5432 are in use, configure alternatives:
 NEXT_PUBLIC_APP_URL=http://localhost:3100 POSTGRES_PORT=5433 docker compose up -d
 ```
 
+## Export Workflows as Standalone Services
+
+Export any workflow as a self-contained Python/FastAPI service that can be deployed independently via Docker, Railway, or any container platform.
+
+### Quick Start
+
+1. Right-click a workflow in the sidebar
+2. Select **"Export as Service"**
+3. Extract the ZIP file
+4. Configure `.env` with your API keys
+5. Run the service:
+
+```bash
+# With Docker (recommended)
+docker compose up -d
+
+# Or run directly
+pip install -r requirements.txt
+uvicorn main:app --port 8080
+
+# Execute the workflow
+curl -X POST http://localhost:8080/execute \
+  -H "Content-Type: application/json" \
+  -d '{"your": "input"}'
+```
+
+### Exported Files
+
+| File | Description |
+|------|-------------|
+| `workflow.json` | Workflow definition (blocks, connections, configuration) |
+| `.env` | Environment variables with your decrypted API keys |
+| `.env.example` | Template without sensitive values (safe to commit) |
+| `main.py` | FastAPI server with /execute, /health, /ready endpoints |
+| `executor.py` | DAG execution engine |
+| `handlers/` | Block type handlers (agent, function, condition, etc.) |
+| `tools.py` | Native file operation tools |
+| `resolver.py` | Variable and input resolution |
+| `Dockerfile` | Container configuration |
+| `docker-compose.yml` | Docker Compose setup with volume mounts |
+| `requirements.txt` | Python dependencies |
+| `README.md` | Usage instructions |
+
+### Multi-Provider LLM Support
+
+The exported service automatically detects and routes to the correct provider based on model name:
+
+| Provider | Models | Environment Variable |
+|----------|--------|---------------------|
+| **Anthropic** | Claude 4 (Opus, Sonnet), Claude 3.5, Claude 3 | `ANTHROPIC_API_KEY` |
+| **OpenAI** | GPT-4, GPT-4o, o1, o3 | `OPENAI_API_KEY` |
+| **Google** | Gemini Pro, Gemini Flash | `GOOGLE_API_KEY` |
+
+Provider is detected from the model name (e.g., `claude-sonnet-4-20250514` → Anthropic, `gpt-4o` → OpenAI).
+
+### Supported Block Types
+
+| Block Type | Description |
+|------------|-------------|
+| **Start/Trigger** | Entry point for workflow execution |
+| **Agent** | LLM calls with tool support (MCP and native) |
+| **Function** | Custom code (JavaScript auto-transpiled to Python) |
+| **Condition** | Branching logic with safe expression evaluation |
+| **Router** | Multi-path routing based on conditions |
+| **API** | HTTP requests to external services |
+| **Loop** | Iteration (for, forEach, while, doWhile) |
+| **Variables** | State management across blocks |
+| **Response** | Final output formatting |
+
+### File Operations
+
+Agents can perform file operations in two ways:
+
+#### Option 1: Local File Tools (WORKSPACE_DIR)
+
+Set `WORKSPACE_DIR` in `.env` to enable sandboxed local file operations:
+
+```bash
+# In .env
+WORKSPACE_DIR=./workspace
+```
+
+When enabled, agents automatically get access to these tools:
+
+| Tool | Description |
+|------|-------------|
+| `local_write_file` | Write content to a file in the workspace |
+| `local_read_file` | Read content from a file in the workspace |
+| `local_list_directory` | List files and directories in the workspace |
+
+**Security:** All paths are sandboxed to `WORKSPACE_DIR`. Path traversal attacks (`../`) and symlink escapes are blocked. Agents cannot access files outside the workspace directory.
+
+**With Docker:** The `docker-compose.yml` mounts `./output` on your host to `/app/workspace` in the container:
+
+```bash
+docker compose up -d
+# Files written by agents appear in ./output/ on your host machine
+```
+
+#### Option 2: MCP Filesystem Tools
+
+If your workflow uses MCP filesystem servers, those tools work as configured. MCP servers handle file operations on their own systems—paths and permissions are determined by the MCP server's configuration.
+
+#### Using Both Together
+
+You can enable both options simultaneously. If `WORKSPACE_DIR` is set, agents will have access to:
+- Local file tools (`local_write_file`, etc.) for the sandboxed workspace
+- MCP tools for external filesystem servers
+
+The LLM chooses the appropriate tool based on the tool descriptions and context.
+
+### API Endpoints
+
+The exported service provides these endpoints:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/execute` | POST | Execute the workflow with input data |
+| `/health` | GET | Health check (returns `{"status": "healthy"}`) |
+| `/ready` | GET | Readiness check |
+
+**Example execution:**
+
+```bash
+curl -X POST http://localhost:8080/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Analyze this data",
+    "data": {"key": "value"}
+  }'
+```
+
+### Docker Deployment
+
+```bash
+# Build and run with Docker Compose
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
+```
+
+**Manual Docker build:**
+
+```bash
+docker build -t my-workflow .
+docker run -p 8080:8080 --env-file .env my-workflow
+```
+
+### Production Configuration
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `HOST` | `0.0.0.0` | Server bind address |
+| `PORT` | `8080` | Server port |
+| `WORKSPACE_DIR` | (disabled) | Enable local file tools with sandbox path |
+| `WORKFLOW_PATH` | `workflow.json` | Path to workflow definition |
+
+### Security
+
+The exported service implements multiple security measures:
+
+- **No `eval()`**: All condition evaluation uses safe AST-based parsing
+- **No `shell=True`**: Commands executed without shell to prevent injection
+- **Sandboxed file operations**: All paths restricted to `WORKSPACE_DIR`
+- **Shell operator rejection**: Pipes, redirects, and command chaining blocked
+- **Path traversal protection**: `..` and symlink escapes blocked
+- **Input validation**: Request size limits (default 10MB)
+- **Rate limiting**: Configurable request rate limits (default 60/min)
+
+### MCP Tool Support
+
+The exported service supports MCP (Model Context Protocol) tools via the official Python SDK. MCP servers must be running and accessible at their configured URLs.
+
+MCP tools configured in your workflow are automatically available to agent blocks. The service connects to MCP servers via Streamable HTTP transport.
+
+### Export Validation
+
+Before export, the service validates your workflow for compatibility:
+
+- **Unsupported block types**: Shows which blocks cannot be exported
+- **Unsupported providers**: Shows which LLM providers are not yet supported
+- **Clear error messages**: Displayed via notification system with actionable feedback
+
+If validation fails, you'll see a notification explaining what needs to be changed.
+
 ## Tech Stack
 
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
