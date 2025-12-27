@@ -1832,7 +1832,7 @@ const WorkflowContent = React.memo(() => {
         })
       }
     },
-    [addEdge, getNodes]
+    [addEdge, getNodes, blocks]
   )
 
   /**
