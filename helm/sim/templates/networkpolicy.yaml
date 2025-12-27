@@ -141,6 +141,10 @@ spec:
     ports:
     - protocol: TCP
       port: 443
+  # Allow custom egress rules
+  {{- with .Values.networkPolicy.egress }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
 {{- end }}
 
 {{- if .Values.postgresql.enabled }}
