@@ -58,8 +58,7 @@ Create a new contact in Intercom with email, external_id, or role
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Created contact data |
+| `contact` | object | Created contact object |
 
 ### `intercom_get_contact`
 
@@ -75,8 +74,7 @@ Get a single contact by ID from Intercom
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Contact data |
+| `contact` | object | Contact object |
 
 ### `intercom_update_contact`
 
@@ -104,8 +102,7 @@ Update an existing contact in Intercom
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Updated contact data |
+| `contact` | object | Updated contact object |
 
 ### `intercom_list_contacts`
 
@@ -122,8 +119,7 @@ List all contacts from Intercom with pagination support
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | List of contacts |
+| `contacts` | array | Array of contact objects |
 
 ### `intercom_search_contacts`
 
@@ -143,8 +139,7 @@ Search for contacts in Intercom using a query
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Search results |
+| `contacts` | array | Array of matching contact objects |
 
 ### `intercom_delete_contact`
 
@@ -160,8 +155,9 @@ Delete a contact from Intercom by ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion result |
+| `id` | string | ID of deleted contact |
+| `deleted` | boolean | Whether the contact was deleted |
+| `metadata` | object | Operation metadata |
 
 ### `intercom_create_company`
 
@@ -185,8 +181,7 @@ Create or update a company in Intercom
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Created or updated company data |
+| `company` | object | Created or updated company object |
 
 ### `intercom_get_company`
 
@@ -202,8 +197,7 @@ Retrieve a single company by ID from Intercom
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Company data |
+| `company` | object | Company object |
 
 ### `intercom_list_companies`
 
@@ -221,8 +215,7 @@ List all companies from Intercom with pagination support. Note: This endpoint ha
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | List of companies |
+| `companies` | array | Array of company objects |
 
 ### `intercom_get_conversation`
 
@@ -240,8 +233,7 @@ Retrieve a single conversation by ID from Intercom
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Conversation data |
+| `conversation` | object | Conversation object |
 
 ### `intercom_list_conversations`
 
@@ -260,8 +252,7 @@ List all conversations from Intercom with pagination support
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | List of conversations |
+| `conversations` | array | Array of conversation objects |
 
 ### `intercom_reply_conversation`
 
@@ -282,8 +273,7 @@ Reply to a conversation as an admin in Intercom
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Updated conversation with reply |
+| `conversation` | object | Updated conversation object |
 
 ### `intercom_search_conversations`
 
@@ -303,8 +293,7 @@ Search for conversations in Intercom using a query
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Search results |
+| `conversations` | array | Array of matching conversation objects |
 
 ### `intercom_create_ticket`
 
@@ -326,8 +315,7 @@ Create a new ticket in Intercom
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Created ticket data |
+| `ticket` | object | Created ticket object |
 
 ### `intercom_get_ticket`
 
@@ -343,8 +331,7 @@ Retrieve a single ticket by ID from Intercom
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Ticket data |
+| `ticket` | object | Ticket object |
 
 ### `intercom_create_message`
 
@@ -368,8 +355,7 @@ Create and send a new admin-initiated message in Intercom
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Created message data |
+| `message` | object | Created message object |
 
 
 

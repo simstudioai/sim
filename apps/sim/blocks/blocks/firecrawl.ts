@@ -25,6 +25,7 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
         { label: 'Crawl', id: 'crawl' },
         { label: 'Map', id: 'map' },
         { label: 'Extract', id: 'extract' },
+        { label: 'Agent', id: 'agent' },
       ],
       value: () => 'scrape',
     },
@@ -59,6 +60,116 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       condition: {
         field: 'operation',
         value: 'extract',
+      },
+    },
+    {
+      id: 'agentPrompt',
+      title: 'Agent Prompt',
+      type: 'long-input',
+      placeholder:
+        'Describe what data to find and extract (e.g., "Find the founders of Firecrawl and their backgrounds")',
+      condition: {
+        field: 'operation',
+        value: 'agent',
+      },
+      required: true,
+    },
+    {
+      id: 'agentUrls',
+      title: 'Focus URLs',
+      type: 'long-input',
+      placeholder: '["https://example.com/page1", "https://example.com/page2"]',
+      condition: {
+        field: 'operation',
+        value: 'agent',
+      },
+    },
+    {
+      id: 'schema',
+      title: 'Output Schema',
+      type: 'code',
+      placeholder: 'Enter JSON schema...',
+      language: 'json',
+      condition: {
+        field: 'operation',
+        value: 'agent',
+      },
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert programmer specializing in creating JSON schemas for web data extraction.
+Generate ONLY the JSON schema based on the user's request.
+The output MUST be a single, valid JSON object, starting with { and ending with }.
+The JSON object should define the structure of data to extract from web pages.
+Use standard JSON Schema properties (type, description, enum, items for arrays, etc.).
+
+Current schema: {context}
+
+Do not include any explanations, markdown formatting, or other text outside the JSON object.
+
+Valid Schema Examples:
+
+Example 1 - Company Information:
+{
+    "type": "object",
+    "properties": {
+        "company_name": {
+            "type": "string",
+            "description": "The name of the company"
+        },
+        "founders": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string" },
+                    "role": { "type": "string" }
+                }
+            }
+        }
+    },
+    "required": ["company_name"]
+}
+
+Example 2 - Product Data:
+{
+    "type": "object",
+    "properties": {
+        "products": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string" },
+                    "price": { "type": "number" },
+                    "description": { "type": "string" }
+                }
+            }
+        }
+    }
+}
+`,
+        placeholder: 'Describe the data structure you want to extract...',
+        generationType: 'json-schema',
+      },
+    },
+    {
+      id: 'maxCredits',
+      title: 'Max Credits',
+      type: 'short-input',
+      placeholder: 'Maximum credits to spend',
+      condition: {
+        field: 'operation',
+        value: 'agent',
+      },
+    },
+    {
+      id: 'strictConstrainToURLs',
+      title: 'Strict URL Constraint',
+      type: 'switch',
+      condition: {
+        field: 'operation',
+        value: 'agent',
       },
     },
     {
@@ -146,6 +257,7 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       'firecrawl_crawl',
       'firecrawl_map',
       'firecrawl_extract',
+      'firecrawl_agent',
     ],
     config: {
       tool: (params) => {
@@ -160,6 +272,8 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
             return 'firecrawl_map'
           case 'extract':
             return 'firecrawl_extract'
+          case 'agent':
+            return 'firecrawl_agent'
           default:
             return 'firecrawl_scrape'
         }
@@ -178,6 +292,11 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
           mobile,
           prompt,
           apiKey,
+          agentPrompt,
+          agentUrls,
+          schema,
+          maxCredits,
+          strictConstrainToURLs,
         } = params
 
         const result: Record<string, any> = { apiKey }
@@ -235,6 +354,35 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
             }
             if (prompt) result.prompt = prompt
             break
+
+          case 'agent':
+            if (agentPrompt) result.prompt = agentPrompt
+            if (agentUrls) {
+              if (Array.isArray(agentUrls)) {
+                result.urls = agentUrls
+              } else if (typeof agentUrls === 'string') {
+                try {
+                  const parsed = JSON.parse(agentUrls)
+                  result.urls = Array.isArray(parsed) ? parsed : [parsed]
+                } catch {
+                  result.urls = [agentUrls]
+                }
+              }
+            }
+            if (schema) {
+              if (typeof schema === 'object') {
+                result.schema = schema
+              } else if (typeof schema === 'string') {
+                try {
+                  result.schema = JSON.parse(schema)
+                } catch {
+                  // Skip invalid schema
+                }
+              }
+            }
+            if (maxCredits) result.maxCredits = Number.parseInt(maxCredits)
+            if (strictConstrainToURLs != null) result.strictConstrainToURLs = strictConstrainToURLs
+            break
         }
 
         return result
@@ -255,6 +403,34 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
     mobile: { type: 'boolean', description: 'Use mobile emulation' },
     onlyMainContent: { type: 'boolean', description: 'Extract only main content' },
     scrapeOptions: { type: 'json', description: 'Advanced scraping options' },
+    agentPrompt: { type: 'string', description: 'Agent prompt describing data to extract' },
+    agentUrls: { type: 'json', description: 'Optional URLs to focus the agent on' },
+    schema: {
+      type: 'json',
+      description: 'JSON schema for structured output',
+      schema: {
+        type: 'object',
+        properties: {
+          type: {
+            type: 'string',
+            enum: ['object'],
+            description: 'Must be "object" for a valid JSON Schema',
+          },
+          properties: {
+            type: 'object',
+            description: 'Object containing property definitions',
+          },
+          required: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of required property names',
+          },
+        },
+        required: ['type', 'properties'],
+      },
+    },
+    maxCredits: { type: 'number', description: 'Maximum credits to spend' },
+    strictConstrainToURLs: { type: 'boolean', description: 'Limit agent to provided URLs only' },
   },
   outputs: {
     // Scrape output
@@ -273,5 +449,8 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
     links: { type: 'json', description: 'Discovered URLs array' },
     // Extract output
     sources: { type: 'json', description: 'Data sources array' },
+    // Agent output
+    status: { type: 'string', description: 'Agent job status' },
+    expiresAt: { type: 'string', description: 'Result expiration timestamp' },
   },
 }

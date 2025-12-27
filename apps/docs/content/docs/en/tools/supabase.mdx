@@ -269,7 +269,8 @@ Upload a file to a Supabase storage bucket
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `bucket` | string | Yes | The name of the storage bucket |
-| `path` | string | Yes | The path where the file will be stored \(e.g., "folder/file.jpg"\) |
+| `fileName` | string | Yes | The name of the file \(e.g., "document.pdf", "image.jpg"\) |
+| `path` | string | No | Optional folder path \(e.g., "folder/subfolder/"\) |
 | `fileContent` | string | Yes | The file content \(base64 encoded for binary files, or plain text\) |
 | `contentType` | string | No | MIME type of the file \(e.g., "image/jpeg", "text/plain"\) |
 | `upsert` | boolean | No | If true, overwrites existing file \(default: false\) |

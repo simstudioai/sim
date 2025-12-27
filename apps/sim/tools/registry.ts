@@ -187,6 +187,7 @@ import {
 } from '@/tools/exa'
 import { fileParseTool } from '@/tools/file'
 import {
+  firecrawlAgentTool,
   firecrawlCrawlTool,
   firecrawlExtractTool,
   firecrawlMapTool,
@@ -1396,6 +1397,7 @@ export const tools: Record<string, ToolConfig> = {
   firecrawl_crawl: firecrawlCrawlTool,
   firecrawl_map: firecrawlMapTool,
   firecrawl_extract: firecrawlExtractTool,
+  firecrawl_agent: firecrawlAgentTool,
   grafana_get_dashboard: grafanaGetDashboardTool,
   grafana_list_dashboards: grafanaListDashboardsTool,
   grafana_create_dashboard: grafanaCreateDashboardTool,
