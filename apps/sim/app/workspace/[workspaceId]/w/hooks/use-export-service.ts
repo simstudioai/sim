@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import { useNotificationStore } from '@/stores/notifications'
 
 const logger = createLogger('useExportService')
