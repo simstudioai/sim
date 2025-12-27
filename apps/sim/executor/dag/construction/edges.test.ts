@@ -572,6 +572,8 @@ describe('EdgeConstructor', () => {
         const parallel2Id = 'parallel-2'
         const task1Id = 'task-1'
         const task2Id = 'task-2'
+        const task1TemplateId = `${task1Id}__branch-0`
+        const task2TemplateId = `${task2Id}__branch-0`
         const parallel1SentinelStart = `parallel-${parallel1Id}-sentinel-start`
         const parallel1SentinelEnd = `parallel-${parallel1Id}-sentinel-end`
         const parallel2SentinelStart = `parallel-${parallel2Id}-sentinel-start`
@@ -593,8 +595,8 @@ describe('EdgeConstructor', () => {
         )
 
         const dag = createMockDAG([
-          task1Id,
-          task2Id,
+          task1TemplateId,
+          task2TemplateId,
           parallel1SentinelStart,
           parallel1SentinelEnd,
           parallel2SentinelStart,
@@ -609,8 +611,8 @@ describe('EdgeConstructor', () => {
           new Set([task1Id, task2Id]),
           new Set(),
           new Set([
-            task1Id,
-            task2Id,
+            task1TemplateId,
+            task2TemplateId,
             parallel1SentinelStart,
             parallel1SentinelEnd,
             parallel2SentinelStart,
@@ -720,6 +722,7 @@ describe('EdgeConstructor', () => {
         const parallelId = 'parallel-1'
         const loopId = 'loop-1'
         const taskInParallelId = 'parallel-task'
+        const taskInParallelTemplateId = `${taskInParallelId}__branch-0`
         const taskInLoopId = 'loop-task'
         const parallelSentinelStart = `parallel-${parallelId}-sentinel-start`
         const parallelSentinelEnd = `parallel-${parallelId}-sentinel-end`
@@ -748,7 +751,7 @@ describe('EdgeConstructor', () => {
         )
 
         const dag = createMockDAG([
-          taskInParallelId,
+          taskInParallelTemplateId,
           taskInLoopId,
           parallelSentinelStart,
           parallelSentinelEnd,
@@ -773,7 +776,7 @@ describe('EdgeConstructor', () => {
           new Set([taskInParallelId]),
           new Set([taskInLoopId]),
           new Set([
-            taskInParallelId,
+            taskInParallelTemplateId,
             taskInLoopId,
             parallelSentinelStart,
             parallelSentinelEnd,
@@ -798,6 +801,7 @@ describe('EdgeConstructor', () => {
         const parallelId = 'parallel-1'
         const taskInLoopId = 'loop-task'
         const taskInParallelId = 'parallel-task'
+        const taskInParallelTemplateId = `${taskInParallelId}__branch-0`
         const loopSentinelStart = `loop-${loopId}-sentinel-start`
         const loopSentinelEnd = `loop-${loopId}-sentinel-end`
         const parallelSentinelStart = `parallel-${parallelId}-sentinel-start`
@@ -826,7 +830,7 @@ describe('EdgeConstructor', () => {
 
         const dag = createMockDAG([
           taskInLoopId,
-          taskInParallelId,
+          taskInParallelTemplateId,
           loopSentinelStart,
           loopSentinelEnd,
           parallelSentinelStart,
@@ -851,7 +855,7 @@ describe('EdgeConstructor', () => {
           new Set([taskInLoopId]),
           new Set([
             taskInLoopId,
-            taskInParallelId,
+            taskInParallelTemplateId,
             loopSentinelStart,
             loopSentinelEnd,
             parallelSentinelStart,
@@ -879,6 +883,7 @@ describe('EdgeConstructor', () => {
       it('should wire parallel sentinel end to regular block', () => {
         const parallelId = 'parallel-1'
         const taskInParallelId = 'parallel-task'
+        const taskInParallelTemplateId = `${taskInParallelId}__branch-0`
         const regularBlockId = 'regular-block'
         const parallelSentinelStart = `parallel-${parallelId}-sentinel-start`
         const parallelSentinelEnd = `parallel-${parallelId}-sentinel-end`
@@ -897,7 +902,7 @@ describe('EdgeConstructor', () => {
         )
 
         const dag = createMockDAG([
-          taskInParallelId,
+          taskInParallelTemplateId,
           regularBlockId,
           parallelSentinelStart,
           parallelSentinelEnd,
@@ -913,7 +918,12 @@ describe('EdgeConstructor', () => {
           dag,
           new Set([taskInParallelId]),
           new Set(),
-          new Set([taskInParallelId, regularBlockId, parallelSentinelStart, parallelSentinelEnd]),
+          new Set([
+            taskInParallelTemplateId,
+            regularBlockId,
+            parallelSentinelStart,
+            parallelSentinelEnd,
+          ]),
           new Map()
         )
 
@@ -988,6 +998,7 @@ describe('EdgeConstructor', () => {
         const regularBlockId = 'regular-block'
         const parallelId = 'parallel-1'
         const taskInParallelId = 'parallel-task'
+        const taskInParallelTemplateId = `${taskInParallelId}__branch-0`
         const parallelSentinelStart = `parallel-${parallelId}-sentinel-start`
         const parallelSentinelEnd = `parallel-${parallelId}-sentinel-end`
 
@@ -1006,7 +1017,7 @@ describe('EdgeConstructor', () => {
 
         const dag = createMockDAG([
           regularBlockId,
-          taskInParallelId,
+          taskInParallelTemplateId,
           parallelSentinelStart,
           parallelSentinelEnd,
         ])
@@ -1021,7 +1032,12 @@ describe('EdgeConstructor', () => {
           dag,
           new Set([taskInParallelId]),
           new Set(),
-          new Set([regularBlockId, taskInParallelId, parallelSentinelStart, parallelSentinelEnd]),
+          new Set([
+            regularBlockId,
+            taskInParallelTemplateId,
+            parallelSentinelStart,
+            parallelSentinelEnd,
+          ]),
           new Map()
         )
 

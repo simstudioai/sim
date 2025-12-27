@@ -3,7 +3,6 @@ import { LOOP, PARALLEL, PARSING, REFERENCE } from '@/executor/constants'
 import type { ContextExtensions } from '@/executor/execution/types'
 import type { BlockLog, ExecutionContext } from '@/executor/types'
 import type { VariableResolver } from '@/executor/variables/resolver'
-import type { SerializedParallel } from '@/serializer/types'
 
 const logger = createLogger('SubflowUtils')
 
@@ -68,65 +67,6 @@ export function extractParallelIdFromSentinel(sentinelId: string): string | null
   return null
 }
 
-/**
- * Parse distribution items from parallel config
- * Handles: arrays, JSON strings, objects, and references
- * Note: References (starting with '<') cannot be resolved at DAG construction time,
- * they must be resolved at runtime. This function returns [] for references.
- */
-export function parseDistributionItems(config: SerializedParallel): any[] {
-  const rawItems = config.distribution ?? []
-
-  // Already an array - return as-is
-  if (Array.isArray(rawItems)) {
-    return rawItems
-  }
-
-  // Object - convert to entries array (consistent with loop forEach behavior)
-  if (typeof rawItems === 'object' && rawItems !== null) {
-    return Object.entries(rawItems)
-  }
-
-  // String handling
-  if (typeof rawItems === 'string') {
-    // References cannot be resolved at DAG construction time
-    if (rawItems.startsWith(REFERENCE.START) && rawItems.endsWith(REFERENCE.END)) {
-      return []
-    }
-
-    // Try to parse as JSON
-    try {
-      const normalizedJSON = rawItems.replace(/'/g, '"')
-      const parsed = JSON.parse(normalizedJSON)
-      if (Array.isArray(parsed)) {
-        return parsed
-      }
-      // Parsed to non-array (e.g. object) - convert to entries
-      if (typeof parsed === 'object' && parsed !== null) {
-        return Object.entries(parsed)
-      }
-      return []
-    } catch (error) {
-      logger.error('Failed to parse distribution items', {
-        rawItems,
-        error: error instanceof Error ? error.message : String(error),
-      })
-      return []
-    }
-  }
-
-  return []
-}
-/**
- * Calculate branch count from parallel config
- */
-export function calculateBranchCount(config: SerializedParallel, distributionItems: any[]): number {
-  const explicitCount = config.count ?? PARALLEL.DEFAULT_COUNT
-  if (config.parallelType === PARALLEL.TYPE.COLLECTION && distributionItems.length > 0) {
-    return distributionItems.length
-  }
-  return explicitCount
-}
 /**
  * Build branch node ID with subscript notation
  * Example: ("blockId", 2) → "blockId₍2₎"
