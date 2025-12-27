@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useNotificationStore } from '@/stores/notifications'
 
 const logger = createLogger('useExportService')
 
@@ -29,6 +30,7 @@ interface UseExportServiceProps {
  */
 export function useExportService({ getWorkflowId, onSuccess }: UseExportServiceProps) {
   const [isExporting, setIsExporting] = useState(false)
+  const addNotification = useNotificationStore((state) => state.addNotification)
 
   const handleExportService = useCallback(async () => {
     if (isExporting) {
@@ -64,8 +66,10 @@ export function useExportService({ getWorkflowId, onSuccess }: UseExportServiceP
           unsupportedProviders: errorData.unsupportedProviders,
         })
 
-        // Use alert for now - could be replaced with toast system
-        alert(errorMessage)
+        addNotification({
+          level: 'error',
+          message: errorMessage,
+        })
         return
       }
 
@@ -94,7 +98,7 @@ export function useExportService({ getWorkflowId, onSuccess }: UseExportServiceP
     } finally {
       setIsExporting(false)
     }
-  }, [getWorkflowId, isExporting, onSuccess])
+  }, [addNotification, getWorkflowId, isExporting, onSuccess])
 
   return {
     isExporting,
