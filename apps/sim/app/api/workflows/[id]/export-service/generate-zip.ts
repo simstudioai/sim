@@ -100,6 +100,11 @@ function buildEnvContent(
   lines.push('# PORT=8080')
   lines.push('# WORKFLOW_PATH=workflow.json')
   lines.push('')
+  lines.push('# Local File Tools (optional)')
+  lines.push('# Set WORKSPACE_DIR to enable local file operations (read, write, list)')
+  lines.push('# If not set, only MCP filesystem tools will be available')
+  lines.push('# WORKSPACE_DIR=./workspace')
+  lines.push('')
 
   return lines.join('\n')
 }
@@ -178,6 +183,44 @@ docker run -p 8080:8080 --env-file .env ${serviceName}
 - Use \`.env.example\` as a template for team members
 - In production, use secure environment variable management (e.g., AWS Secrets Manager, Docker secrets, Kubernetes secrets)
 - Consider using environment-specific configurations for different deployments
+
+## File Operations
+
+Agents can perform file operations in two ways:
+
+### Option 1: Local File Tools (WORKSPACE_DIR)
+
+Set the \`WORKSPACE_DIR\` environment variable to enable local file operations:
+
+\`\`\`bash
+# In .env
+WORKSPACE_DIR=./workspace
+\`\`\`
+
+When enabled, agents automatically get access to:
+- \`local_write_file\` - Write files to the workspace directory
+- \`local_read_file\` - Read files from the workspace directory
+- \`local_list_directory\` - List workspace contents
+
+All paths are sandboxed to \`WORKSPACE_DIR\` - agents cannot access files outside this directory.
+
+**With Docker:** The docker-compose.yml mounts \`./output\` to the container workspace:
+\`\`\`bash
+docker compose up -d
+# Files written by agents appear in ./output/
+\`\`\`
+
+### Option 2: MCP Filesystem Tools
+
+If your workflow uses MCP filesystem servers, those tools work as configured.
+MCP servers handle file operations on their own systems - paths and permissions
+are determined by the MCP server's configuration.
+
+### Using Both
+
+You can use both options together. If \`WORKSPACE_DIR\` is set, agents will have
+access to both local file tools AND any MCP tools configured in the workflow.
+Tool descriptions help the LLM choose the appropriate tool for each operation.
 
 ## MCP Tool Support
 

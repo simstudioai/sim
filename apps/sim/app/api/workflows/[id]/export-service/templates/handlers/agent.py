@@ -99,10 +99,69 @@ class AgentBlockHandler:
         env_key = env_keys.get(provider, 'ANTHROPIC_API_KEY')
         return os.environ.get(env_key)
 
+    def _get_native_file_tools(self) -> List[Dict]:
+        """Get native file tool definitions if WORKSPACE_DIR is configured."""
+        from tools import is_native_tools_enabled, get_workspace_info
+
+        if not is_native_tools_enabled():
+            return []
+
+        workspace_info = get_workspace_info()
+        workspace_dir = workspace_info.get('workspace_dir', './workspace')
+
+        return [
+            {
+                'name': 'local_write_file',
+                'description': f'Write content to a file in the local workspace ({workspace_dir}). Use this for saving outputs locally. Path is relative to workspace directory.',
+                'input_schema': {
+                    'type': 'object',
+                    'properties': {
+                        'path': {'type': 'string', 'description': 'File path relative to workspace directory'},
+                        'content': {'type': 'string', 'description': 'Content to write to the file'}
+                    },
+                    'required': ['path', 'content']
+                }
+            },
+            {
+                'name': 'local_read_file',
+                'description': f'Read content from a file in the local workspace ({workspace_dir}). Path is relative to workspace directory.',
+                'input_schema': {
+                    'type': 'object',
+                    'properties': {
+                        'path': {'type': 'string', 'description': 'File path relative to workspace directory'}
+                    },
+                    'required': ['path']
+                }
+            },
+            {
+                'name': 'local_list_directory',
+                'description': f'List files and directories in the local workspace ({workspace_dir}). Path is relative to workspace directory.',
+                'input_schema': {
+                    'type': 'object',
+                    'properties': {
+                        'path': {'type': 'string', 'description': 'Directory path relative to workspace (default: root)', 'default': '.'}
+                    },
+                    'required': []
+                }
+            },
+        ]
+
     def _build_tools(self, tools_config: List[Dict]) -> List[Dict]:
-        """Build Claude tools from config and register for execution."""
+        """Build Claude tools from config and register for execution.
+
+        Automatically includes native file tools if WORKSPACE_DIR is configured.
+        """
         tools = []
         self.tool_registry = {}
+
+        # Auto-register native file tools if WORKSPACE_DIR is set
+        native_file_tools = self._get_native_file_tools()
+        for tool in native_file_tools:
+            tools.append(tool)
+            self.tool_registry[tool['name']] = {
+                'type': 'native',
+                'name': tool['name'].replace('local_', '')  # Map local_write_file -> write_file
+            }
 
         for tool in tools_config:
             tool_type = tool.get('type')
@@ -209,7 +268,7 @@ class AgentBlockHandler:
 
     def _execute_native_tool(self, tool_info: Dict, tool_input: Dict) -> str:
         """Execute a native tool using local implementations."""
-        from tools import write_file, read_file, execute_command
+        from tools import write_file, read_file, execute_command, list_directory
 
         tool_name = tool_info['name']
 
@@ -218,6 +277,8 @@ class AgentBlockHandler:
                 result = write_file(tool_input.get('path', ''), tool_input.get('content', ''))
             elif tool_name in ('read_file', 'read_text_file'):
                 result = read_file(tool_input.get('path', ''))
+            elif tool_name == 'list_directory':
+                result = list_directory(tool_input.get('path', '.'))
             elif tool_name == 'execute_command':
                 result = execute_command(tool_input.get('command', ''))
             else:

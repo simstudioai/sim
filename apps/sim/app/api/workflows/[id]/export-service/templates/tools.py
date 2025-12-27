@@ -1,4 +1,13 @@
-"""Native file and shell tools for workflow execution."""
+"""Native file and shell tools for workflow execution.
+
+These tools provide local filesystem access when WORKSPACE_DIR is configured.
+If WORKSPACE_DIR is not set, these tools are disabled and return errors
+directing users to use MCP filesystem tools instead.
+
+Environment Variables:
+    WORKSPACE_DIR: Path to sandbox directory for file operations.
+                   If not set, native file tools are disabled.
+"""
 import os
 import shlex
 import subprocess
@@ -6,11 +15,44 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 # Sandbox configuration - all file operations restricted to this directory
-WORKSPACE_DIR = Path(os.environ.get('WORKSPACE_DIR', './workspace')).resolve()
+# None if not configured (native tools disabled)
+_workspace_env = os.environ.get('WORKSPACE_DIR')
+WORKSPACE_DIR: Optional[Path] = Path(_workspace_env).resolve() if _workspace_env else None
+
+
+def is_native_tools_enabled() -> bool:
+    """Check if native file tools are enabled (WORKSPACE_DIR is set)."""
+    return WORKSPACE_DIR is not None
+
+
+def get_workspace_info() -> Dict[str, Any]:
+    """Get information about the workspace configuration."""
+    if WORKSPACE_DIR:
+        return {
+            'enabled': True,
+            'workspace_dir': str(WORKSPACE_DIR),
+            'exists': WORKSPACE_DIR.exists(),
+        }
+    return {
+        'enabled': False,
+        'message': 'WORKSPACE_DIR not set. Use MCP filesystem tools or set WORKSPACE_DIR in .env',
+    }
+
+
+def _check_enabled() -> Optional[Dict[str, Any]]:
+    """Check if native tools are enabled. Returns error dict if disabled."""
+    if not WORKSPACE_DIR:
+        return {
+            'success': False,
+            'error': 'Native file tools disabled. Set WORKSPACE_DIR environment variable or use MCP filesystem tools.',
+        }
+    return None
+
 
 def _ensure_workspace():
     """Ensure workspace directory exists."""
-    WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
+    if WORKSPACE_DIR:
+        WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
 
 def _safe_path(path: str) -> Path:
     """
@@ -36,6 +78,10 @@ def _safe_path(path: str) -> Path:
     return resolved
 
 def write_file(path: str, content: str) -> Dict[str, Any]:
+    """Write content to a file within the workspace sandbox."""
+    disabled_error = _check_enabled()
+    if disabled_error:
+        return disabled_error
     try:
         p = _safe_path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -49,6 +95,10 @@ def write_file(path: str, content: str) -> Dict[str, Any]:
         return {'success': False, 'error': str(e)}
 
 def read_file(path: str) -> Dict[str, Any]:
+    """Read content from a file within the workspace sandbox."""
+    disabled_error = _check_enabled()
+    if disabled_error:
+        return disabled_error
     try:
         p = _safe_path(path)
         content = p.read_text()
@@ -72,6 +122,9 @@ def execute_command(command: str, cwd: Optional[str] = None) -> Dict[str, Any]:
         command: The command to execute (simple command with arguments only)
         cwd: Working directory (must be within workspace, defaults to workspace root)
     """
+    disabled_error = _check_enabled()
+    if disabled_error:
+        return disabled_error
     try:
         _ensure_workspace()
 
@@ -121,6 +174,10 @@ def execute_command(command: str, cwd: Optional[str] = None) -> Dict[str, Any]:
         return {'success': False, 'error': str(e)}
 
 def list_directory(path: str = '.') -> Dict[str, Any]:
+    """List contents of a directory within the workspace sandbox."""
+    disabled_error = _check_enabled()
+    if disabled_error:
+        return disabled_error
     try:
         p = _safe_path(path)
         entries = []

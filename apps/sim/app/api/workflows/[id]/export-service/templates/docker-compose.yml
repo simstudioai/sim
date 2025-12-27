@@ -10,4 +10,10 @@ services:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
+      # Enable local file tools with workspace mounted at /app/workspace
+      - WORKSPACE_DIR=/app/workspace
+    volumes:
+      # Mount local ./output directory to container workspace
+      # Files written by agents will appear in ./output on host
+      - ./output:/app/workspace
     restart: unless-stopped
