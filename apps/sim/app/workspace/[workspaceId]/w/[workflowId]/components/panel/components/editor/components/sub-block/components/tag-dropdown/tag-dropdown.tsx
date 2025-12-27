@@ -1223,6 +1223,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         }
       })
 
+      directTags.forEach((directTag) => {
+        nestedTags.push(directTag)
+      })
+
       Object.entries(groupedTags).forEach(([parent, children]) => {
         const firstChildTag = children[0]?.fullTag
         if (firstChildTag) {
@@ -1241,10 +1245,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             children: children,
           })
         }
-      })
-
-      directTags.forEach((directTag) => {
-        nestedTags.push(directTag)
       })
 
       return {
