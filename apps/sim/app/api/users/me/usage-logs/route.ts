@@ -1,8 +1,8 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getUserUsageLogs, type UsageLogSource } from '@/lib/billing/core/usage-log'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('UsageLogsAPI')
 

@@ -1,6 +1,7 @@
+import { createLogger } from '@sim/logger'
+import { getBYOKKey } from '@/lib/api-key/byok'
 import { env } from '@/lib/core/config/env'
 import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
-import { createLogger } from '@/lib/logs/console/logger'
 import { batchByTokenLimit, getTotalTokenCount } from '@/lib/tokenization'
 
 const logger = createLogger('EmbeddingUtils')
@@ -24,40 +25,53 @@ interface EmbeddingConfig {
   modelName: string
 }
 
-function getEmbeddingConfig(embeddingModel = 'text-embedding-3-small'): EmbeddingConfig {
+async function getEmbeddingConfig(
+  embeddingModel = 'text-embedding-3-small',
+  workspaceId?: string | null
+): Promise<EmbeddingConfig> {
   const azureApiKey = env.AZURE_OPENAI_API_KEY
   const azureEndpoint = env.AZURE_OPENAI_ENDPOINT
   const azureApiVersion = env.AZURE_OPENAI_API_VERSION
   const kbModelName = env.KB_OPENAI_MODEL_NAME || embeddingModel
-  const openaiApiKey = env.OPENAI_API_KEY
 
   const useAzure = !!(azureApiKey && azureEndpoint)
 
-  if (!useAzure && !openaiApiKey) {
+  if (useAzure) {
+    return {
+      useAzure: true,
+      apiUrl: `${azureEndpoint}/openai/deployments/${kbModelName}/embeddings?api-version=${azureApiVersion}`,
+      headers: {
+        'api-key': azureApiKey!,
+        'Content-Type': 'application/json',
+      },
+      modelName: kbModelName,
+    }
+  }
+
+  let openaiApiKey = env.OPENAI_API_KEY
+
+  if (workspaceId) {
+    const byokResult = await getBYOKKey(workspaceId, 'openai')
+    if (byokResult) {
+      logger.info('Using workspace BYOK key for OpenAI embeddings')
+      openaiApiKey = byokResult.apiKey
+    }
+  }
+
+  if (!openaiApiKey) {
     throw new Error(
       'Either OPENAI_API_KEY or Azure OpenAI configuration (AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT) must be configured'
     )
   }
 
-  const apiUrl = useAzure
-    ? `${azureEndpoint}/openai/deployments/${kbModelName}/embeddings?api-version=${azureApiVersion}`
-    : 'https://api.openai.com/v1/embeddings'
-
-  const headers: Record<string, string> = useAzure
-    ? {
-        'api-key': azureApiKey!,
-        'Content-Type': 'application/json',
-      }
-    : {
-        Authorization: `Bearer ${openaiApiKey!}`,
-        'Content-Type': 'application/json',
-      }
-
   return {
-    useAzure,
-    apiUrl,
-    headers,
-    modelName: useAzure ? kbModelName : embeddingModel,
+    useAzure: false,
+    apiUrl: 'https://api.openai.com/v1/embeddings',
+    headers: {
+      Authorization: `Bearer ${openaiApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    modelName: embeddingModel,
   }
 }
 
@@ -112,9 +126,10 @@ async function callEmbeddingAPI(inputs: string[], config: EmbeddingConfig): Prom
  */
 export async function generateEmbeddings(
   texts: string[],
-  embeddingModel = 'text-embedding-3-small'
+  embeddingModel = 'text-embedding-3-small',
+  workspaceId?: string | null
 ): Promise<number[][]> {
-  const config = getEmbeddingConfig(embeddingModel)
+  const config = await getEmbeddingConfig(embeddingModel, workspaceId)
 
   logger.info(
     `Using ${config.useAzure ? 'Azure OpenAI' : 'OpenAI'} for embeddings generation (${texts.length} texts)`
@@ -163,9 +178,10 @@ export async function generateEmbeddings(
  */
 export async function generateSearchEmbedding(
   query: string,
-  embeddingModel = 'text-embedding-3-small'
+  embeddingModel = 'text-embedding-3-small',
+  workspaceId?: string | null
 ): Promise<number[]> {
-  const config = getEmbeddingConfig(embeddingModel)
+  const config = await getEmbeddingConfig(embeddingModel, workspaceId)
 
   logger.info(
     `Using ${config.useAzure ? 'Azure OpenAI' : 'OpenAI'} for search embedding generation`

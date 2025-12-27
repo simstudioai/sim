@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createLogger } from '@/lib/logs/console/logger'
 import { createSSHConnection, executeSSHCommand } from '@/app/api/tools/ssh/utils'
 
 const logger = createLogger('SSHGetSystemInfoAPI')

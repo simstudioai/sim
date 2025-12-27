@@ -1,4 +1,5 @@
 import { db, workflow, workflowSchedule } from '@sim/db'
+import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { Cron } from 'croner'
 import { eq } from 'drizzle-orm'
@@ -7,7 +8,6 @@ import type { ZodRecord, ZodString } from 'zod'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
-import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -27,10 +27,9 @@ import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/
 import type { ExecutionResult } from '@/executor/types'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
+import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 const logger = createLogger('TriggerScheduleExecution')
-
-const MAX_CONSECUTIVE_FAILURES = 10
 
 type WorkflowRecord = typeof workflow.$inferSelect
 type WorkflowScheduleUpdate = Partial<typeof workflowSchedule.$inferInsert>

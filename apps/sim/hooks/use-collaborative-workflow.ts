@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef } from 'react'
+import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
 import { useSession } from '@/lib/auth/auth-client'
-import { createLogger } from '@/lib/logs/console/logger'
+import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
+import { useNotificationStore } from '@/stores/notifications'
 import { registerEmitFunctions, useOperationQueue } from '@/stores/operation-queue/store'
 import { usePanelEditorStore } from '@/stores/panel/editor/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
@@ -14,7 +16,7 @@ import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { getUniqueBlockName, mergeSubblockState } from '@/stores/workflows/utils'
+import { getUniqueBlockName, mergeSubblockState, normalizeName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState, Position } from '@/stores/workflows/workflow/types'
 
@@ -1015,14 +1017,43 @@ export function useCollaborativeWorkflow() {
   )
 
   const collaborativeUpdateBlockName = useCallback(
-    (id: string, name: string) => {
-      executeQueuedOperation('update-name', 'block', { id, name }, () => {
-        const result = workflowStore.updateBlockName(id, name)
+    (id: string, name: string): { success: boolean; error?: string } => {
+      const trimmedName = name.trim()
+      const normalizedNewName = normalizeName(trimmedName)
+
+      if (!normalizedNewName) {
+        logger.error('Cannot rename block to empty name')
+        useNotificationStore.getState().addNotification({
+          level: 'error',
+          message: 'Block name cannot be empty',
+          workflowId: activeWorkflowId || undefined,
+        })
+        return { success: false, error: 'Block name cannot be empty' }
+      }
+
+      const currentBlocks = workflowStore.blocks
+      const conflictingBlock = Object.entries(currentBlocks).find(
+        ([blockId, block]) => blockId !== id && normalizeName(block.name) === normalizedNewName
+      )
+
+      if (conflictingBlock) {
+        const conflictName = conflictingBlock[1].name
+        logger.error(`Cannot rename block to "${trimmedName}" - conflicts with "${conflictName}"`)
+        useNotificationStore.getState().addNotification({
+          level: 'error',
+          message: `Block name "${trimmedName}" already exists`,
+          workflowId: activeWorkflowId || undefined,
+        })
+        return { success: false, error: `Block name "${trimmedName}" already exists` }
+      }
+
+      executeQueuedOperation('update-name', 'block', { id, name: trimmedName }, () => {
+        const result = workflowStore.updateBlockName(id, trimmedName)
 
         if (result.success && result.changedSubblocks.length > 0) {
           logger.info('Emitting cascaded subblock updates from block rename', {
             blockId: id,
-            newName: name,
+            newName: trimmedName,
             updateCount: result.changedSubblocks.length,
           })
 
@@ -1042,7 +1073,7 @@ export function useCollaborativeWorkflow() {
                 operation: {
                   operation: 'subblock-update',
                   target: 'subblock',
-                  payload: { blockId, subBlockId, value: newValue },
+                  payload: { blockId, subblockId: subBlockId, value: newValue },
                 },
                 workflowId: activeWorkflowId || '',
                 userId: session?.user?.id || 'unknown',
@@ -1051,6 +1082,8 @@ export function useCollaborativeWorkflow() {
           )
         }
       })
+
+      return { success: true }
     },
     [executeQueuedOperation, workflowStore, addToQueue, activeWorkflowId, session?.user?.id]
   )
@@ -1326,8 +1359,8 @@ export function useCollaborativeWorkflow() {
       // Generate new ID and calculate position
       const newId = crypto.randomUUID()
       const offsetPosition = {
-        x: sourceBlock.position.x + 250,
-        y: sourceBlock.position.y + 20,
+        x: sourceBlock.position.x + DEFAULT_DUPLICATE_OFFSET.x,
+        y: sourceBlock.position.y + DEFAULT_DUPLICATE_OFFSET.y,
       }
 
       const newName = getUniqueBlockName(sourceBlock.name, workflowStore.blocks)

@@ -6,28 +6,40 @@ import { organizationKeys } from '@/hooks/queries/organization'
  */
 export const subscriptionKeys = {
   all: ['subscription'] as const,
-  user: () => [...subscriptionKeys.all, 'user'] as const,
+  user: (includeOrg?: boolean) => [...subscriptionKeys.all, 'user', { includeOrg }] as const,
   usage: () => [...subscriptionKeys.all, 'usage'] as const,
 }
 
 /**
  * Fetch user subscription data
+ * @param includeOrg - Whether to include organization role data
  */
-async function fetchSubscriptionData() {
-  const response = await fetch('/api/billing?context=user')
+async function fetchSubscriptionData(includeOrg = false) {
+  const params = new URLSearchParams({ context: 'user' })
+  if (includeOrg) params.set('includeOrg', 'true')
+
+  const response = await fetch(`/api/billing?${params}`)
   if (!response.ok) {
     throw new Error('Failed to fetch subscription data')
   }
   return response.json()
 }
 
+interface UseSubscriptionDataOptions {
+  /** Include organization membership and role data */
+  includeOrg?: boolean
+}
+
 /**
  * Hook to fetch user subscription data
+ * @param options - Optional configuration
  */
-export function useSubscriptionData() {
+export function useSubscriptionData(options: UseSubscriptionDataOptions = {}) {
+  const { includeOrg = false } = options
+
   return useQuery({
-    queryKey: subscriptionKeys.user(),
-    queryFn: fetchSubscriptionData,
+    queryKey: subscriptionKeys.user(includeOrg),
+    queryFn: () => fetchSubscriptionData(includeOrg),
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
   })

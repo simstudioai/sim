@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console/logger'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType, DEFAULTS, EVALUATOR, HTTP } from '@/executor/constants'
@@ -35,7 +35,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
     }
     const providerId = getProviderFromModel(evaluatorConfig.model)
 
-    let finalApiKey = evaluatorConfig.apiKey
+    let finalApiKey: string | undefined = evaluatorConfig.apiKey
     if (providerId === 'vertex' && evaluatorConfig.vertexCredential) {
       finalApiKey = await this.resolveVertexCredential(evaluatorConfig.vertexCredential)
     }
@@ -115,11 +115,17 @@ export class EvaluatorBlockHandler implements BlockHandler {
         temperature: EVALUATOR.DEFAULT_TEMPERATURE,
         apiKey: finalApiKey,
         workflowId: ctx.workflowId,
+        workspaceId: ctx.workspaceId,
       }
 
       if (providerId === 'vertex') {
         providerRequest.vertexProject = evaluatorConfig.vertexProject
         providerRequest.vertexLocation = evaluatorConfig.vertexLocation
+      }
+
+      if (providerId === 'azure-openai') {
+        providerRequest.azureEndpoint = inputs.azureEndpoint
+        providerRequest.azureApiVersion = inputs.azureApiVersion
       }
 
       const response = await fetch(url.toString(), {

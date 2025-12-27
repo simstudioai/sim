@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { ParallelDeepResearchParams } from '@/tools/parallel/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 

@@ -516,7 +516,7 @@ export function SearchModal({
           </VisuallyHidden.Root>
 
           {/* Search input container */}
-          <div className='flex items-center gap-[8px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-5)] px-[12px] py-[8px] shadow-sm'>
+          <div className='flex items-center gap-[8px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-4)] px-[12px] py-[8px] shadow-sm'>
             <Search className='h-[15px] w-[15px] flex-shrink-0 text-[var(--text-subtle)]' />
             <input
               type='text'
@@ -624,7 +624,7 @@ export function SearchModal({
               })}
             </div>
           ) : searchQuery ? (
-            <div className='flex items-center justify-center rounded-[10px] bg-[var(--surface-5)] px-[16px] py-[24px] shadow-sm'>
+            <div className='flex items-center justify-center rounded-[10px] bg-[var(--surface-4)] px-[16px] py-[24px] shadow-sm'>
               <p className='text-[15px] text-[var(--text-subtle)]'>
                 No results found for "{searchQuery}"
               </p>

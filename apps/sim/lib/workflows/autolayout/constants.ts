@@ -11,12 +11,20 @@ export { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/b
 /**
  * Horizontal spacing between layers (columns)
  */
-export const DEFAULT_HORIZONTAL_SPACING = 250
+export const DEFAULT_HORIZONTAL_SPACING = 180
 
 /**
  * Vertical spacing between blocks in the same layer
  */
 export const DEFAULT_VERTICAL_SPACING = 200
+
+/**
+ * Default offset when duplicating blocks
+ */
+export const DEFAULT_DUPLICATE_OFFSET = {
+  x: 180,
+  y: 20,
+} as const
 
 /**
  * General container padding for layout calculations
@@ -78,15 +86,10 @@ export const DEFAULT_LAYOUT_OPTIONS = {
 }
 
 /**
- * Default horizontal spacing for containers (tighter than root level)
- */
-export const DEFAULT_CONTAINER_HORIZONTAL_SPACING = 250
-
-/**
- * Container-specific layout options (tighter spacing for nested layouts)
+ * Container-specific layout options (same spacing as root level for consistency)
  */
 export const CONTAINER_LAYOUT_OPTIONS = {
-  horizontalSpacing: DEFAULT_CONTAINER_HORIZONTAL_SPACING,
+  horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
   verticalSpacing: DEFAULT_VERTICAL_SPACING,
   padding: { x: CONTAINER_PADDING_X, y: CONTAINER_PADDING_Y },
 }

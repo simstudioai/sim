@@ -294,7 +294,7 @@ export function VariablesInput({
                 key={assignment.id}
                 data-assignment-id={assignment.id}
                 className={cn(
-                  'rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-3)] dark:bg-[#1F1F1F]',
+                  'rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-3)] dark:bg-[#1F1F1F]',
                   collapsed ? 'overflow-hidden' : 'overflow-visible'
                 )}
               >
@@ -336,7 +336,7 @@ export function VariablesInput({
                 </div>
 
                 {!collapsed && (
-                  <div className='flex flex-col gap-[6px] border-[var(--border-strong)] border-t px-[10px] pt-[6px] pb-[10px]'>
+                  <div className='flex flex-col gap-[6px] border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>
                     <div className='flex flex-col gap-[4px]'>
                       <Label className='text-[13px]'>Variable</Label>
                       <Combobox

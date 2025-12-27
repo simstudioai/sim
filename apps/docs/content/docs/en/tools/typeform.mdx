@@ -139,8 +139,11 @@ Retrieve complete details and structure of a specific form
 | `theme` | object | Theme reference |
 | `workspace` | object | Workspace reference |
 | `fields` | array | Array of form fields/questions |
-| `welcome_screens` | array | Array of welcome screens |
+| `welcome_screens` | array | Array of welcome screens \(empty if none configured\) |
 | `thankyou_screens` | array | Array of thank you screens |
+| `created_at` | string | Form creation timestamp \(ISO 8601 format\) |
+| `last_updated_at` | string | Form last update timestamp \(ISO 8601 format\) |
+| `published_at` | string | Form publication timestamp \(ISO 8601 format\) |
 | `_links` | object | Related resource links including public form URL |
 
 ### `typeform_create_form`
@@ -166,7 +169,12 @@ Create a new form with fields and settings
 | `id` | string | Created form unique identifier |
 | `title` | string | Form title |
 | `type` | string | Form type |
-| `fields` | array | Array of created form fields |
+| `settings` | object | Form settings object |
+| `theme` | object | Theme reference |
+| `workspace` | object | Workspace reference |
+| `fields` | array | Array of created form fields \(empty if none added\) |
+| `welcome_screens` | array | Array of welcome screens \(empty if none configured\) |
+| `thankyou_screens` | array | Array of thank you screens |
 | `_links` | object | Related resource links including public form URL |
 
 ### `typeform_update_form`
@@ -185,16 +193,7 @@ Update an existing form using JSON Patch operations
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | string | Updated form unique identifier |
-| `title` | string | Form title |
-| `type` | string | Form type |
-| `settings` | object | Form settings |
-| `theme` | object | Theme reference |
-| `workspace` | object | Workspace reference |
-| `fields` | array | Array of form fields |
-| `welcome_screens` | array | Array of welcome screens |
-| `thankyou_screens` | array | Array of thank you screens |
-| `_links` | object | Related resource links |
+| `message` | string | Success confirmation message |
 
 ### `typeform_delete_form`
 

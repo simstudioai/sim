@@ -129,15 +129,18 @@ Typeformアカウント内のすべてのフォームのリストを取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `id` | string | フォームの一意の識別子 |
+| `id` | string | フォームの一意識別子 |
 | `title` | string | フォームのタイトル |
 | `type` | string | フォームのタイプ（form、quizなど） |
 | `settings` | object | 言語、プログレスバーなどを含むフォーム設定 |
 | `theme` | object | テーマ参照 |
 | `workspace` | object | ワークスペース参照 |
 | `fields` | array | フォームフィールド/質問の配列 |
-| `welcome_screens` | array | ウェルカム画面の配列 |
+| `welcome_screens` | array | ウェルカム画面の配列（設定されていない場合は空） |
 | `thankyou_screens` | array | サンキュー画面の配列 |
+| `created_at` | string | フォーム作成タイムスタンプ（ISO 8601形式） |
+| `last_updated_at` | string | フォーム最終更新タイムスタンプ（ISO 8601形式） |
+| `published_at` | string | フォーム公開タイムスタンプ（ISO 8601形式） |
 | `_links` | object | 公開フォームURLを含む関連リソースリンク |
 
 ### `typeform_create_form`
@@ -160,10 +163,15 @@ Typeformアカウント内のすべてのフォームのリストを取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `id` | string | 作成されたフォームの一意の識別子 |
+| `id` | string | 作成されたフォームの一意識別子 |
 | `title` | string | フォームのタイトル |
 | `type` | string | フォームのタイプ |
-| `fields` | array | 作成されたフォームフィールドの配列 |
+| `settings` | object | フォーム設定オブジェクト |
+| `theme` | object | テーマ参照 |
+| `workspace` | object | ワークスペース参照 |
+| `fields` | array | 作成されたフォームフィールドの配列（追加されていない場合は空） |
+| `welcome_screens` | array | ウェルカム画面の配列（設定されていない場合は空） |
+| `thankyou_screens` | array | サンキュー画面の配列 |
 | `_links` | object | 公開フォームURLを含む関連リソースリンク |
 
 ### `typeform_update_form`
@@ -182,16 +190,7 @@ JSON Patchオペレーションを使用して既存のフォームを更新す�
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `id` | string | 更新されたフォームの一意の識別子 |
-| `title` | string | フォームのタイトル |
-| `type` | string | フォームのタイプ |
-| `settings` | object | フォーム設定 |
-| `theme` | object | テーマ参照 |
-| `workspace` | object | ワークスペース参照 |
-| `fields` | array | フォームフィールドの配列 |
-| `welcome_screens` | array | ウェルカム画面の配列 |
-| `thankyou_screens` | array | サンクスページの配列 |
-| `_links` | object | 関連リソースリンク |
+| `message` | string | 成功確認メッセージ |
 
 ### `typeform_delete_form`
 

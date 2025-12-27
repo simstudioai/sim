@@ -105,28 +105,32 @@ Die Modellaufschlüsselung zeigt:
   Die angezeigten Preise entsprechen den Tarifen vom 10. September 2025. Überprüfen Sie die Dokumentation der Anbieter für aktuelle Preise.
 </Callout>
 
+## Bring Your Own Key (BYOK)
+
+Sie können Ihre eigenen API-Schlüssel für gehostete Modelle (OpenAI, Anthropic, Google, Mistral) unter **Einstellungen → BYOK** verwenden, um Basispreise zu zahlen. Schlüssel werden verschlüsselt und gelten arbeitsbereichsweit.
+
 ## Strategien zur Kostenoptimierung
 
-- **Modellauswahl**: Wählen Sie Modelle basierend auf der Komplexität der Aufgabe. Einfache Aufgaben können GPT-4.1-nano verwenden, während komplexes Denken möglicherweise o1 oder Claude Opus erfordert.
-- **Prompt-Engineering**: Gut strukturierte, präzise Prompts reduzieren den Token-Verbrauch ohne Qualitätseinbußen.
+- **Modellauswahl**: Wählen Sie Modelle basierend auf der Aufgabenkomplexität. Einfache Aufgaben können GPT-4.1-nano verwenden, während komplexes Reasoning o1 oder Claude Opus erfordern könnte.
+- **Prompt Engineering**: Gut strukturierte, prägnante Prompts reduzieren den Token-Verbrauch ohne Qualitätsverlust.
 - **Lokale Modelle**: Verwenden Sie Ollama oder VLLM für unkritische Aufgaben, um API-Kosten vollständig zu eliminieren.
-- **Caching und Wiederverwendung**: Speichern Sie häufig verwendete Ergebnisse in Variablen oder Dateien, um wiederholte KI-Modellaufrufe zu vermeiden.
-- **Batch-Verarbeitung**: Verarbeiten Sie mehrere Elemente in einer einzigen KI-Anfrage anstatt einzelne Aufrufe zu tätigen.
+- **Caching und Wiederverwendung**: Speichern Sie häufig verwendete Ergebnisse in Variablen oder Dateien, um wiederholte AI-Modellaufrufe zu vermeiden.
+- **Batch-Verarbeitung**: Verarbeiten Sie mehrere Elemente in einer einzigen AI-Anfrage, anstatt einzelne Aufrufe zu tätigen.
 
 ## Nutzungsüberwachung
 
 Überwachen Sie Ihre Nutzung und Abrechnung unter Einstellungen → Abonnement:
 
-- **Aktuelle Nutzung**: Echtzeit-Nutzung und -Kosten für den aktuellen Zeitraum
-- **Nutzungslimits**: Plangrenzen mit visuellen Fortschrittsanzeigen
+- **Aktuelle Nutzung**: Echtzeit-Nutzung und Kosten für den aktuellen Zeitraum
+- **Nutzungslimits**: Plan-Limits mit visuellen Fortschrittsindikatoren
 - **Abrechnungsdetails**: Prognostizierte Gebühren und Mindestverpflichtungen
-- **Planverwaltung**: Upgrade-Optionen und Abrechnungsverlauf
+- **Plan-Verwaltung**: Upgrade-Optionen und Abrechnungsverlauf
 
-### Programmatische Nutzungsverfolgung
+### Programmatisches Nutzungs-Tracking
 
 Sie können Ihre aktuelle Nutzung und Limits programmatisch über die API abfragen:
 
-**Endpunkt:**
+**Endpoint:**
 
 ```text
 GET /api/users/me/usage-limits
@@ -172,69 +176,69 @@ curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" htt
 ```
 
 **Rate-Limit-Felder:**
-- `requestsPerMinute`: Dauerhafte Rate-Begrenzung (Tokens werden mit dieser Rate aufgefüllt)
-- `maxBurst`: Maximale Tokens, die Sie ansammeln können (Burst-Kapazität)
-- `remaining`: Aktuell verfügbare Tokens (können bis zu `maxBurst` sein)
+- `requestsPerMinute`: Dauerhaftes Rate-Limit (Tokens werden mit dieser Rate aufgefüllt)
+- `maxBurst`: Maximale Tokens, die Sie akkumulieren können (Burst-Kapazität)
+- `remaining`: Aktuell verfügbare Tokens (kann bis zu `maxBurst` betragen)
 
 **Antwortfelder:**
-- `currentPeriodCost` spiegelt die Nutzung in der aktuellen Abrechnungsperiode wider
-- `limit` wird von individuellen Limits (Free/Pro) oder gepoolten Organisationslimits (Team/Enterprise) abgeleitet
-- `plan` ist der aktive Plan mit der höchsten Priorität, der mit Ihrem Benutzer verknüpft ist
+- `currentPeriodCost` spiegelt die Nutzung im aktuellen Abrechnungszeitraum wider
+- `limit` wird aus individuellen Limits (Free/Pro) oder gepoolten Organisationslimits (Team/Enterprise) abgeleitet
+- `plan` ist der Plan mit der höchsten Priorität, der Ihrem Benutzer zugeordnet ist
 
 ## Plan-Limits
 
-Verschiedene Abonnementpläne haben unterschiedliche Nutzungslimits:
+Verschiedene Abonnement-Pläne haben unterschiedliche Nutzungslimits:
 
 | Plan | Monatliches Nutzungslimit | Ratenlimits (pro Minute) |
 |------|-------------------|-------------------------|
-| **Free** | 20 $ | 5 synchron, 10 asynchron |
-| **Pro** | 100 $ | 10 synchron, 50 asynchron |
-| **Team** | 500 $ (gepoolt) | 50 synchron, 100 asynchron |
+| **Free** | 20 $ | 5 sync, 10 async |
+| **Pro** | 100 $ | 10 sync, 50 async |
+| **Team** | 500 $ (gemeinsam) | 50 sync, 100 async |
 | **Enterprise** | Individuell | Individuell |
 
 ## Abrechnungsmodell
 
-Sim verwendet ein **Basisabonnement + Mehrverbrauch**-Abrechnungsmodell:
+Sim verwendet ein **Basis-Abonnement + Mehrverbrauch**-Abrechnungsmodell:
 
-### Wie es funktioniert
+### So funktioniert es
 
-**Pro-Plan ($20/Monat):**
-- Monatliches Abonnement beinhaltet $20 Nutzung
-- Nutzung unter $20 → Keine zusätzlichen Kosten
-- Nutzung über $20 → Zahlen Sie den Mehrverbrauch am Monatsende
-- Beispiel: $35 Nutzung = $20 (Abonnement) + $15 (Mehrverbrauch)
+**Pro-Plan (20 $/Monat):**
+- Monatsabonnement beinhaltet 20 $ Nutzung
+- Nutzung unter 20 $ → Keine zusätzlichen Gebühren
+- Nutzung über 20 $ → Mehrverbrauch am Monatsende zahlen
+- Beispiel: 35 $ Nutzung = 20 $ (Abonnement) + 15 $ (Mehrverbrauch)
 
-**Team-Plan ($40/Benutzer/Monat):**
-- Gepoolte Nutzung für alle Teammitglieder
-- Mehrverbrauch wird aus der Gesamtnutzung des Teams berechnet
+**Team-Plan (40 $/Platz/Monat):**
+- Gemeinsame Nutzung über alle Teammitglieder
+- Mehrverbrauch wird aus der gesamten Team-Nutzung berechnet
 - Organisationsinhaber erhält eine Rechnung
 
 **Enterprise-Pläne:**
-- Fester monatlicher Preis, kein Mehrverbrauch
+- Fester Monatspreis, kein Mehrverbrauch
 - Individuelle Nutzungslimits gemäß Vereinbarung
 
 ### Schwellenwert-Abrechnung
 
-Wenn der nicht abgerechnete Mehrverbrauch $50 erreicht, berechnet Sim automatisch den gesamten nicht abgerechneten Betrag.
+Wenn der nicht abgerechnete Mehrverbrauch 50 $ erreicht, rechnet Sim automatisch den gesamten nicht abgerechneten Betrag ab.
 
 **Beispiel:**
-- Tag 10: $70 Mehrverbrauch → Sofortige Abrechnung von $70
-- Tag 15: Zusätzliche $35 Nutzung ($105 insgesamt) → Bereits abgerechnet, keine Aktion
-- Tag 20: Weitere $50 Nutzung ($155 insgesamt, $85 nicht abgerechnet) → Sofortige Abrechnung von $85
+- Tag 10: 70 $ Mehrverbrauch → 70 $ sofort abrechnen
+- Tag 15: Zusätzliche 35 $ Nutzung (105 $ gesamt) → Bereits abgerechnet, keine Aktion
+- Tag 20: Weitere 50 $ Nutzung (155 $ gesamt, 85 $ nicht abgerechnet) → 85 $ sofort abrechnen
 
-Dies verteilt große Überziehungsgebühren über den Monat, anstatt eine große Rechnung am Ende des Abrechnungszeitraums zu erhalten.
+Dies verteilt große Mehrverbrauchsgebühren über den Monat, anstatt einer großen Rechnung am Periodenende.
 
 ## Best Practices für Kostenmanagement
 
 1. **Regelmäßig überwachen**: Überprüfen Sie Ihr Nutzungs-Dashboard häufig, um Überraschungen zu vermeiden
-2. **Budgets festlegen**: Nutzen Sie Planlimits als Leitplanken für Ihre Ausgaben
+2. **Budgets festlegen**: Nutzen Sie Plan-Limits als Leitplanken für Ihre Ausgaben
 3. **Workflows optimieren**: Überprüfen Sie kostenintensive Ausführungen und optimieren Sie Prompts oder Modellauswahl
 4. **Passende Modelle verwenden**: Passen Sie die Modellkomplexität an die Aufgabenanforderungen an
-5. **Ähnliche Aufgaben bündeln**: Kombinieren Sie wenn möglich mehrere Anfragen, um den Overhead zu reduzieren
+5. **Ähnliche Aufgaben bündeln**: Kombinieren Sie mehrere Anfragen, wenn möglich, um Overhead zu reduzieren
 
 ## Nächste Schritte
 
 - Überprüfen Sie Ihre aktuelle Nutzung unter [Einstellungen → Abonnement](https://sim.ai/settings/subscription)
 - Erfahren Sie mehr über [Protokollierung](/execution/logging), um Ausführungsdetails zu verfolgen
-- Erkunden Sie die [Externe API](/execution/api) für programmatische Kostenüberwachung
+- Entdecken Sie die [externe API](/execution/api) für programmatische Kostenüberwachung
 - Sehen Sie sich [Workflow-Optimierungstechniken](/blocks) an, um Kosten zu reduzieren

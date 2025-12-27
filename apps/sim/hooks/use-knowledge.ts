@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import Fuse from 'fuse.js'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   fetchKnowledgeChunks,
   knowledgeKeys,

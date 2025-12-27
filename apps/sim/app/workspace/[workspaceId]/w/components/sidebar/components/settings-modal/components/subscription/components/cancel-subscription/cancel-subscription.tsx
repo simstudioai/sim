@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   Button,
@@ -15,11 +16,21 @@ import { useSession, useSubscription } from '@/lib/auth/auth-client'
 import { getSubscriptionStatus } from '@/lib/billing/client/utils'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 import { organizationKeys, useOrganizations } from '@/hooks/queries/organization'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
 
 const logger = createLogger('CancelSubscription')
+
+interface SubscriptionCancelParams {
+  returnUrl: string
+  referenceId: string
+  subscriptionId?: string
+}
+
+interface SubscriptionRestoreParams {
+  referenceId: string
+  subscriptionId?: string
+}
 
 interface CancelSubscriptionProps {
   subscription: {
@@ -33,6 +44,9 @@ interface CancelSubscriptionProps {
   }
 }
 
+/**
+ * Manages subscription cancellation and restoration.
+ */
 export function CancelSubscription({ subscription, subscriptionData }: CancelSubscriptionProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -46,7 +60,6 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
   const activeOrganization = orgsData?.activeOrganization
   const currentSubscriptionStatus = getSubscriptionStatus(subData?.data)
 
-  // Clear error after 3 seconds
   useEffect(() => {
     if (error) {
       const timer = setTimeout(() => {
@@ -56,7 +69,6 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
     }
   }, [error])
 
-  // Don't show for free plans
   if (!subscription.isPaid) {
     return null
   }
@@ -92,13 +104,10 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
 
       const returnUrl = getBaseUrl() + window.location.pathname.split('/w/')[0]
 
-      const cancelParams: any = {
+      const cancelParams: SubscriptionCancelParams = {
         returnUrl,
         referenceId,
-      }
-
-      if (subscriptionId) {
-        cancelParams.subscriptionId = subscriptionId
+        ...(subscriptionId && { subscriptionId }),
       }
 
       const result = await betterAuthSubscription.cancel(cancelParams)
@@ -109,14 +118,15 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
       } else {
         logger.info('Redirecting to Stripe Billing Portal for cancellation')
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to cancel subscription'
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to cancel subscription'
       setError(errorMessage)
-      logger.error('Failed to cancel subscription', { error })
+      logger.error('Failed to cancel subscription', { error: err })
     } finally {
       setIsLoading(false)
     }
   }
+
   const handleKeep = async () => {
     if (!session?.user?.id) return
 
@@ -145,9 +155,9 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
 
         logger.info('Restoring subscription', { referenceId, subscriptionId })
 
-        const restoreParams: any = { referenceId }
-        if (subscriptionId) {
-          restoreParams.subscriptionId = subscriptionId
+        const restoreParams: SubscriptionRestoreParams = {
+          referenceId,
+          ...(subscriptionId && { subscriptionId }),
         }
 
         const result = await betterAuthSubscription.restore(restoreParams)
@@ -163,14 +173,15 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
       }
 
       setIsDialogOpen(false)
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to restore subscription'
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to restore subscription'
       setError(errorMessage)
-      logger.error('Failed to restore subscription', { error })
+      logger.error('Failed to restore subscription', { error: err })
     } finally {
       setIsLoading(false)
     }
   }
+
   const getPeriodEndDate = () => {
     return subscriptionData?.periodEnd || null
   }
@@ -190,14 +201,13 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
         month: 'long',
         day: 'numeric',
       }).format(dateObj)
-    } catch (error) {
-      console.warn('Invalid date in cancel subscription:', date, error)
+    } catch (err) {
+      logger.warn('Invalid date in cancel subscription', { date, error: err })
       return 'end of current billing period'
     }
   }
 
   const periodEndDate = getPeriodEndDate()
-
   const isCancelAtPeriodEnd = subscriptionData?.cancelAtPeriodEnd === true
 
   return (
@@ -212,11 +222,11 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
           )}
         </div>
         <Button
-          variant='outline'
+          variant='active'
           onClick={() => setIsDialogOpen(true)}
           disabled={isLoading}
           className={cn(
-            'h-8 rounded-[8px] text-[13px]',
+            'h-[32px] rounded-[6px] text-[12px]',
             error && 'border-[var(--text-error)] text-[var(--text-error)]'
           )}
         >
@@ -225,12 +235,12 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
       </div>
 
       <Modal open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>
             {isCancelAtPeriodEnd ? 'Restore' : 'Cancel'} {subscription.plan} Subscription
           </ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-muted)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               {isCancelAtPeriodEnd
                 ? 'Your subscription is set to cancel at the end of the billing period. Would you like to keep your subscription active?'
                 : `You'll be redirected to Stripe to manage your subscription. You'll keep access until ${formatDate(
@@ -242,13 +252,13 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
             </p>
 
             {!isCancelAtPeriodEnd && (
-              <div className='mt-3'>
-                <div className='rounded-[8px] bg-[var(--surface-5)] p-3'>
-                  <ul className='space-y-1 text-[12px] text-[var(--text-muted)]'>
-                    <li>• Keep all features until {formatDate(periodEndDate)}</li>
-                    <li>• No more charges</li>
-                    <li>• Data preserved</li>
-                    <li>• Can reactivate anytime</li>
+              <div className='mt-[12px]'>
+                <div className='rounded-[6px] bg-[var(--surface-4)] p-[12px]'>
+                  <ul className='space-y-[4px] text-[12px] text-[var(--text-secondary)]'>
+                    <li>- Keep all features until {formatDate(periodEndDate)}</li>
+                    <li>- No more charges</li>
+                    <li>- Data preserved</li>
+                    <li>- Can reactivate anytime</li>
                   </ul>
                 </div>
               </div>
@@ -263,29 +273,15 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
               {isCancelAtPeriodEnd ? 'Cancel' : 'Keep Subscription'}
             </Button>
 
-            {(() => {
-              const subscriptionStatus = currentSubscriptionStatus
-              if (subscriptionStatus.isPaid && isCancelAtPeriodEnd) {
-                return (
-                  <Button
-                    onClick={handleKeep}
-                    className='h-[32px] bg-green-500 px-[12px] text-white hover:bg-green-600 dark:bg-green-500 dark:hover:bg-green-600'
-                    disabled={isLoading}
-                  >
-                    {isLoading ? 'Restoring...' : 'Restore Subscription'}
-                  </Button>
-                )
-              }
-              return (
-                <Button
-                  onClick={handleCancel}
-                  className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
-                  disabled={isLoading}
-                >
-                  {isLoading ? 'Redirecting...' : 'Continue'}
-                </Button>
-              )
-            })()}
+            {currentSubscriptionStatus.isPaid && isCancelAtPeriodEnd ? (
+              <Button variant='tertiary' onClick={handleKeep} disabled={isLoading}>
+                {isLoading ? 'Restoring...' : 'Restore Subscription'}
+              </Button>
+            ) : (
+              <Button variant='destructive' onClick={handleCancel} disabled={isLoading}>
+                {isLoading ? 'Redirecting...' : 'Continue'}
+              </Button>
+            )}
           </ModalFooter>
         </ModalContent>
       </Modal>

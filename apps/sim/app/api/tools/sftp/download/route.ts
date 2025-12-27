@@ -1,9 +1,9 @@
 import path from 'path'
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createLogger } from '@/lib/logs/console/logger'
 import { createSftpConnection, getSftp, isPathSafe, sanitizePath } from '@/app/api/tools/sftp/utils'
 
 export const dynamic = 'force-dynamic'

@@ -1,7 +1,7 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 

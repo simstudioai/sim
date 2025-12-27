@@ -17,7 +17,7 @@
  */
 
 import { context, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { TraceSpan } from '@/lib/logs/types'
 
 /**

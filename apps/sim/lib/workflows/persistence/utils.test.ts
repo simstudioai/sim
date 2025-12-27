@@ -6,8 +6,51 @@
  * Tests for normalized table operations including loading, saving, and migrating
  * workflow data between JSON blob format and normalized database tables.
  */
+
+import {
+  createAgentBlock,
+  createApiBlock,
+  createBlock,
+  createEdge,
+  createLoopBlock,
+  createParallelBlock,
+  createStarterBlock,
+  createWorkflowState,
+  loggerMock,
+} from '@sim/testing'
+import { drizzleOrmMock } from '@sim/testing/mocks'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import type {
+  BlockState as AppBlockState,
+  WorkflowState as AppWorkflowState,
+} from '@/stores/workflows/workflow/types'
+
+/**
+ * Type helper for converting test workflow state to app workflow state.
+ * This is needed because the testing package has slightly different types
+ * for migration testing purposes.
+ */
+function asAppState<T>(state: T): AppWorkflowState {
+  return state as unknown as AppWorkflowState
+}
+
+/**
+ * Type helper for converting test blocks to app block state record.
+ */
+function asAppBlocks<T>(blocks: T): Record<string, AppBlockState> {
+  return blocks as unknown as Record<string, AppBlockState>
+}
+
+/**
+ * Type helper for creating subBlocks with legacy types for migration tests.
+ * These tests intentionally use old SubBlockTypes (textarea, select, messages-input, input)
+ * to verify the migration logic converts them to new types.
+ */
+function legacySubBlocks<T>(
+  subBlocks: T
+): Record<string, { id: string; type: string; value: any }> {
+  return subBlocks as Record<string, { id: string; type: string; value: any }>
+}
 
 const { mockDb, mockWorkflowBlocks, mockWorkflowEdges, mockWorkflowSubflows } = vi.hoisted(() => {
   const mockDb = {
@@ -72,118 +115,91 @@ vi.mock('@sim/db', () => ({
   webhook: {},
 }))
 
-vi.mock('drizzle-orm', () => ({
-  eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
-  and: vi.fn((...conditions) => ({ type: 'and', conditions })),
-  desc: vi.fn((field) => ({ field, type: 'desc' })),
-  sql: vi.fn((strings, ...values) => ({
-    strings,
-    values,
-    type: 'sql',
-    _: { brand: 'SQL' },
-  })),
-}))
+vi.mock('drizzle-orm', () => drizzleOrmMock)
 
-vi.mock('@/lib/logs/console/logger', () => ({
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  })),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
 import * as dbHelpers from '@/lib/workflows/persistence/utils'
 
 const mockWorkflowId = 'test-workflow-123'
 
+/**
+ * Converts a BlockState to a mock database block row format.
+ */
+function toDbBlock(block: ReturnType<typeof createBlock>, workflowId: string) {
+  return {
+    id: block.id,
+    workflowId,
+    type: block.type,
+    name: block.name,
+    positionX: block.position.x,
+    positionY: block.position.y,
+    enabled: block.enabled,
+    horizontalHandles: block.horizontalHandles,
+    advancedMode: block.advancedMode ?? false,
+    triggerMode: block.triggerMode ?? false,
+    height: block.height ?? 150,
+    subBlocks: block.subBlocks ?? {},
+    outputs: block.outputs ?? {},
+    data: block.data ?? {},
+    parentId: block.data?.parentId ?? null,
+    extent: block.data?.extent ?? null,
+  }
+}
+
 const mockBlocksFromDb = [
-  {
-    id: 'block-1',
-    workflowId: mockWorkflowId,
-    type: 'starter',
-    name: 'Start Block',
-    positionX: 100,
-    positionY: 100,
-    enabled: true,
-    horizontalHandles: true,
-    advancedMode: false,
-    triggerMode: false,
-    height: 150,
-    subBlocks: { input: { id: 'input', type: 'short-input' as const, value: 'test' } },
-    outputs: { result: { type: 'string' } },
-    data: { parentId: null, extent: null, width: 350 },
-    parentId: null,
-    extent: null,
-  },
-  {
-    id: 'block-2',
-    workflowId: mockWorkflowId,
-    type: 'api',
-    name: 'API Block',
-    positionX: 300,
-    positionY: 100,
-    enabled: true,
-    horizontalHandles: true,
-    height: 200,
-    subBlocks: {},
-    outputs: {},
-    data: { parentId: 'loop-1', extent: 'parent' },
-    parentId: 'loop-1',
-    extent: 'parent',
-  },
-  {
-    id: 'loop-1',
-    workflowId: mockWorkflowId,
-    type: 'loop',
-    name: 'Loop Container',
-    positionX: 50,
-    positionY: 50,
-    enabled: true,
-    horizontalHandles: true,
-    advancedMode: false,
-    triggerMode: false,
-    height: 250,
-    subBlocks: {},
-    outputs: {},
-    data: { width: 500, height: 300, loopType: 'for', count: 5 },
-    parentId: null,
-    extent: null,
-  },
-  {
-    id: 'parallel-1',
-    workflowId: mockWorkflowId,
-    type: 'parallel',
-    name: 'Parallel Container',
-    positionX: 600,
-    positionY: 50,
-    enabled: true,
-    horizontalHandles: true,
-    advancedMode: false,
-    triggerMode: false,
-    height: 250,
-    subBlocks: {},
-    outputs: {},
-    data: { width: 500, height: 300, parallelType: 'count', count: 3 },
-    parentId: null,
-    extent: null,
-  },
-  {
-    id: 'block-3',
-    workflowId: mockWorkflowId,
-    type: 'api',
-    name: 'Parallel Child',
-    positionX: 650,
-    positionY: 150,
-    enabled: true,
-    horizontalHandles: true,
-    height: 200,
-    subBlocks: {},
-    outputs: {},
-    data: { parentId: 'parallel-1', extent: 'parent' },
-    parentId: 'parallel-1',
-    extent: 'parent',
-  },
+  toDbBlock(
+    createStarterBlock({
+      id: 'block-1',
+      name: 'Start Block',
+      position: { x: 100, y: 100 },
+      height: 150,
+      subBlocks: { input: { id: 'input', type: 'short-input' as const, value: 'test' } },
+      outputs: { result: { type: 'string' } },
+      data: { parentId: undefined, extent: undefined, width: 350 },
+    }),
+    mockWorkflowId
+  ),
+  toDbBlock(
+    createApiBlock({
+      id: 'block-2',
+      name: 'API Block',
+      position: { x: 300, y: 100 },
+      height: 200,
+      parentId: 'loop-1',
+    }),
+    mockWorkflowId
+  ),
+  toDbBlock(
+    createLoopBlock({
+      id: 'loop-1',
+      name: 'Loop Container',
+      position: { x: 50, y: 50 },
+      height: 250,
+      data: { width: 500, height: 300, loopType: 'for', count: 5 },
+    }),
+    mockWorkflowId
+  ),
+  toDbBlock(
+    createParallelBlock({
+      id: 'parallel-1',
+      name: 'Parallel Container',
+      position: { x: 600, y: 50 },
+      height: 250,
+      data: { width: 500, height: 300, parallelType: 'count', count: 3 },
+    }),
+    mockWorkflowId
+  ),
+  toDbBlock(
+    createApiBlock({
+      id: 'block-3',
+      name: 'Parallel Child',
+      position: { x: 650, y: 150 },
+      height: 200,
+      parentId: 'parallel-1',
+    }),
+    mockWorkflowId
+  ),
 ]
 
 const mockEdgesFromDb = [
@@ -221,77 +237,54 @@ const mockSubflowsFromDb = [
   },
 ]
 
-const mockWorkflowState: WorkflowState = {
+const mockWorkflowState = createWorkflowState({
   blocks: {
-    'block-1': {
+    'block-1': createStarterBlock({
       id: 'block-1',
-      type: 'starter',
       name: 'Start Block',
       position: { x: 100, y: 100 },
+      height: 150,
       subBlocks: { input: { id: 'input', type: 'short-input' as const, value: 'test' } },
       outputs: { result: { type: 'string' } },
-      enabled: true,
-      horizontalHandles: true,
-      height: 150,
       data: { width: 350 },
-    },
-    'block-2': {
+    }),
+    'block-2': createApiBlock({
       id: 'block-2',
-      type: 'api',
       name: 'API Block',
       position: { x: 300, y: 100 },
-      subBlocks: {},
-      outputs: {},
-      enabled: true,
-      horizontalHandles: true,
       height: 200,
       data: { parentId: 'loop-1', extent: 'parent' },
-    },
-    'loop-1': {
+    }),
+    'loop-1': createLoopBlock({
       id: 'loop-1',
-      type: 'loop',
       name: 'Loop Container',
       position: { x: 200, y: 50 },
-      subBlocks: {},
-      outputs: {},
-      enabled: true,
-      horizontalHandles: true,
       height: 250,
       data: { width: 500, height: 300, count: 5, loopType: 'for' },
-    },
-    'parallel-1': {
+    }),
+    'parallel-1': createParallelBlock({
       id: 'parallel-1',
-      type: 'parallel',
       name: 'Parallel Container',
       position: { x: 600, y: 50 },
-      subBlocks: {},
-      outputs: {},
-      enabled: true,
-      horizontalHandles: true,
       height: 250,
       data: { width: 500, height: 300, parallelType: 'count', count: 3 },
-    },
-    'block-3': {
+    }),
+    'block-3': createApiBlock({
       id: 'block-3',
-      type: 'api',
       name: 'Parallel Child',
       position: { x: 650, y: 150 },
-      subBlocks: {},
-      outputs: {},
-      enabled: true,
-      horizontalHandles: true,
       height: 180,
       data: { parentId: 'parallel-1', extent: 'parent' },
-    },
+    }),
   },
   edges: [
-    {
+    createEdge({
       id: 'edge-1',
       source: 'block-1',
       target: 'block-2',
       sourceHandle: 'output',
       targetHandle: 'input',
-    },
+    }),
   ],
   loops: {
     'loop-1': {
@@ -308,10 +301,7 @@ const mockWorkflowState: WorkflowState = {
       distribution: ['item1', 'item2'],
     },
   },
-  lastSaved: Date.now(),
-  isDeployed: false,
-  deploymentStatuses: {},
-}
+})
 
 describe('Database Helpers', () => {
   beforeEach(() => {
@@ -354,7 +344,6 @@ describe('Database Helpers', () => {
       expect(result?.loops).toBeDefined()
       expect(result?.parallels).toBeDefined()
 
-      // Verify blocks are transformed correctly
       expect(result?.blocks['block-1']).toEqual({
         id: 'block-1',
         type: 'starter',
@@ -365,12 +354,11 @@ describe('Database Helpers', () => {
         height: 150,
         subBlocks: { input: { id: 'input', type: 'short-input' as const, value: 'test' } },
         outputs: { result: { type: 'string' } },
-        data: { parentId: null, extent: null, width: 350 },
+        data: { parentId: undefined, extent: undefined, width: 350 },
         advancedMode: false,
         triggerMode: false,
       })
 
-      // Verify edges are transformed correctly
       expect(result?.edges[0]).toEqual({
         id: 'edge-1',
         source: 'block-1',
@@ -381,7 +369,6 @@ describe('Database Helpers', () => {
         data: {},
       })
 
-      // Verify loops are transformed correctly
       expect(result?.loops['loop-1']).toEqual({
         id: 'loop-1',
         nodes: ['block-2'],
@@ -392,7 +379,6 @@ describe('Database Helpers', () => {
         whileCondition: '',
       })
 
-      // Verify parallels are transformed correctly
       expect(result?.parallels['parallel-1']).toEqual({
         id: 'parallel-1',
         nodes: ['block-3'],
@@ -403,7 +389,6 @@ describe('Database Helpers', () => {
     })
 
     it('should return null when no blocks are found', async () => {
-      // Mock empty results from all queries
       mockDb.select.mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue([]),
@@ -416,7 +401,6 @@ describe('Database Helpers', () => {
     })
 
     it('should return null when database query fails', async () => {
-      // Mock database error
       mockDb.select.mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockRejectedValue(new Error('Database connection failed')),
@@ -438,15 +422,14 @@ describe('Database Helpers', () => {
         },
       ]
 
-      // Mock the database queries properly
       let callCount = 0
       mockDb.select.mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockImplementation(() => {
             callCount++
-            if (callCount === 1) return Promise.resolve(mockBlocksFromDb) // blocks query
-            if (callCount === 2) return Promise.resolve(mockEdgesFromDb) // edges query
-            if (callCount === 3) return Promise.resolve(subflowsWithUnknownType) // subflows query
+            if (callCount === 1) return Promise.resolve(mockBlocksFromDb)
+            if (callCount === 2) return Promise.resolve(mockEdgesFromDb)
+            if (callCount === 3) return Promise.resolve(subflowsWithUnknownType)
             return Promise.resolve([])
           }),
         }),
@@ -455,44 +438,36 @@ describe('Database Helpers', () => {
       const result = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
 
       expect(result).toBeDefined()
-      // The function should still return a result but with empty loops and parallels
       expect(result?.loops).toEqual({})
       expect(result?.parallels).toEqual({})
-      // Verify blocks and edges are still processed correctly
       expect(result?.blocks).toBeDefined()
       expect(result?.edges).toBeDefined()
     })
 
     it('should handle malformed database responses', async () => {
       const malformedBlocks = [
-        {
-          id: 'block-1',
-          workflowId: mockWorkflowId,
-          // Missing required fields
-          type: null,
-          name: null,
-          positionX: 0,
-          positionY: 0,
-          enabled: true,
-          horizontalHandles: true,
-          height: 0,
-          subBlocks: {},
-          outputs: {},
-          data: {},
-          parentId: null,
-          extent: null,
-        },
+        toDbBlock(
+          createBlock({
+            id: 'block-1',
+            type: null as any,
+            name: null as any,
+            position: { x: 0, y: 0 },
+            height: 0,
+          }),
+          mockWorkflowId
+        ),
       ]
+      malformedBlocks[0].type = null as any
+      malformedBlocks[0].name = null as any
 
-      // Mock the database queries properly
       let callCount = 0
       mockDb.select.mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockImplementation(() => {
             callCount++
-            if (callCount === 1) return Promise.resolve(malformedBlocks) // blocks query
-            if (callCount === 2) return Promise.resolve([]) // edges query
-            if (callCount === 3) return Promise.resolve([]) // subflows query
+            if (callCount === 1) return Promise.resolve(malformedBlocks)
+            if (callCount === 2) return Promise.resolve([])
+            if (callCount === 3) return Promise.resolve([])
             return Promise.resolve([])
           }),
         }),
@@ -502,7 +477,6 @@ describe('Database Helpers', () => {
 
       expect(result).toBeDefined()
       expect(result?.blocks['block-1']).toBeDefined()
-      // The function should handle null type and name gracefully
       expect(result?.blocks['block-1'].type).toBeNull()
       expect(result?.blocks['block-1'].name).toBeNull()
     })
@@ -511,7 +485,6 @@ describe('Database Helpers', () => {
       const connectionError = new Error('Connection refused')
       ;(connectionError as any).code = 'ECONNREFUSED'
 
-      // Mock database connection error
       mockDb.select.mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockRejectedValue(connectionError),
@@ -547,25 +520,16 @@ describe('Database Helpers', () => {
 
       const result = await dbHelpers.saveWorkflowToNormalizedTables(
         mockWorkflowId,
-        mockWorkflowState
+        asAppState(mockWorkflowState)
       )
 
       expect(result.success).toBe(true)
 
-      // Verify transaction was called
       expect(mockTransaction).toHaveBeenCalledTimes(1)
     })
 
     it('should handle empty workflow state gracefully', async () => {
-      const emptyWorkflowState: WorkflowState = {
-        blocks: {},
-        edges: [],
-        loops: {},
-        parallels: {},
-        lastSaved: Date.now(),
-        isDeployed: false,
-        deploymentStatuses: {},
-      }
+      const emptyWorkflowState = createWorkflowState()
 
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {
         const tx = {
@@ -588,7 +552,7 @@ describe('Database Helpers', () => {
 
       const result = await dbHelpers.saveWorkflowToNormalizedTables(
         mockWorkflowId,
-        emptyWorkflowState
+        asAppState(emptyWorkflowState)
       )
 
       expect(result.success).toBe(true)
@@ -600,7 +564,7 @@ describe('Database Helpers', () => {
 
       const result = await dbHelpers.saveWorkflowToNormalizedTables(
         mockWorkflowId,
-        mockWorkflowState
+        asAppState(mockWorkflowState)
       )
 
       expect(result.success).toBe(false)
@@ -616,7 +580,7 @@ describe('Database Helpers', () => {
 
       const result = await dbHelpers.saveWorkflowToNormalizedTables(
         mockWorkflowId,
-        mockWorkflowState
+        asAppState(mockWorkflowState)
       )
 
       expect(result.success).toBe(false)
@@ -640,7 +604,6 @@ describe('Database Helpers', () => {
           }),
           insert: vi.fn().mockReturnValue({
             values: vi.fn().mockImplementation((data) => {
-              // Capture the data based on which insert call it is
               if (data.length > 0) {
                 if (data[0].positionX !== undefined) {
                   capturedBlockInserts = data
@@ -659,7 +622,7 @@ describe('Database Helpers', () => {
 
       mockDb.transaction = mockTransaction
 
-      await dbHelpers.saveWorkflowToNormalizedTables(mockWorkflowId, mockWorkflowState)
+      await dbHelpers.saveWorkflowToNormalizedTables(mockWorkflowId, asAppState(mockWorkflowState))
 
       expect(capturedBlockInserts).toHaveLength(5)
       expect(capturedBlockInserts).toEqual(
@@ -737,11 +700,11 @@ describe('Database Helpers', () => {
 
       mockDb.transaction = mockTransaction
 
-      const staleWorkflowState = JSON.parse(JSON.stringify(mockWorkflowState)) as WorkflowState
+      const staleWorkflowState = JSON.parse(JSON.stringify(mockWorkflowState))
       staleWorkflowState.loops = {}
       staleWorkflowState.parallels = {}
 
-      await dbHelpers.saveWorkflowToNormalizedTables(mockWorkflowId, staleWorkflowState)
+      await dbHelpers.saveWorkflowToNormalizedTables(mockWorkflowId, asAppState(staleWorkflowState))
 
       expect(capturedSubflowInserts).toHaveLength(2)
       expect(capturedSubflowInserts).toEqual(
@@ -799,37 +762,28 @@ describe('Database Helpers', () => {
 
   describe('error handling and edge cases', () => {
     it('should handle very large workflow data', async () => {
-      const largeWorkflowState: WorkflowState = {
-        blocks: {},
-        edges: [],
-        loops: {},
-        parallels: {},
-        lastSaved: Date.now(),
-        isDeployed: false,
-        deploymentStatuses: {},
-      }
+      const blocks: Record<string, ReturnType<typeof createBlock>> = {}
+      const edges: ReturnType<typeof createEdge>[] = []
 
-      // Create 1000 blocks
       for (let i = 0; i < 1000; i++) {
-        largeWorkflowState.blocks[`block-${i}`] = {
+        blocks[`block-${i}`] = createApiBlock({
           id: `block-${i}`,
-          type: 'api',
           name: `Block ${i}`,
           position: { x: i * 100, y: i * 100 },
-          subBlocks: {},
-          outputs: {},
-          enabled: true,
-        }
-      }
-
-      // Create 999 edges to connect them
-      for (let i = 0; i < 999; i++) {
-        largeWorkflowState.edges.push({
-          id: `edge-${i}`,
-          source: `block-${i}`,
-          target: `block-${i + 1}`,
         })
       }
+
+      for (let i = 0; i < 999; i++) {
+        edges.push(
+          createEdge({
+            id: `edge-${i}`,
+            source: `block-${i}`,
+            target: `block-${i + 1}`,
+          })
+        )
+      }
+
+      const largeWorkflowState = createWorkflowState({ blocks, edges })
 
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {
         const tx = {
@@ -852,7 +806,7 @@ describe('Database Helpers', () => {
 
       const result = await dbHelpers.saveWorkflowToNormalizedTables(
         mockWorkflowId,
-        largeWorkflowState
+        asAppState(largeWorkflowState)
       )
 
       expect(result.success).toBe(true)
@@ -862,41 +816,29 @@ describe('Database Helpers', () => {
   describe('advancedMode persistence', () => {
     it('should load advancedMode property from database', async () => {
       const testBlocks = [
-        {
-          id: 'block-advanced',
-          workflowId: mockWorkflowId,
-          type: 'agent',
-          name: 'Advanced Block',
-          positionX: 100,
-          positionY: 100,
-          enabled: true,
-          horizontalHandles: true,
-          advancedMode: true,
-          height: 200,
-          subBlocks: {},
-          outputs: {},
-          data: {},
-          parentId: null,
-          extent: null,
-        },
-        {
-          id: 'block-basic',
-          workflowId: mockWorkflowId,
-          type: 'agent',
-          name: 'Basic Block',
-          positionX: 200,
-          positionY: 100,
-          enabled: true,
-          horizontalHandles: true,
-          advancedMode: false,
-          height: 150,
-          subBlocks: {},
-          outputs: {},
-          data: {},
-          parentId: null,
-          extent: null,
-        },
+        toDbBlock(
+          createAgentBlock({
+            id: 'block-advanced',
+            name: 'Advanced Block',
+            position: { x: 100, y: 100 },
+            height: 200,
+            advancedMode: true,
+          }),
+          mockWorkflowId
+        ),
+        toDbBlock(
+          createAgentBlock({
+            id: 'block-basic',
+            name: 'Basic Block',
+            position: { x: 200, y: 100 },
+            height: 150,
+            advancedMode: false,
+          }),
+          mockWorkflowId
+        ),
       ]
+      testBlocks[0].advancedMode = true
+      testBlocks[1].advancedMode = false
 
       vi.clearAllMocks()
 
@@ -917,7 +859,6 @@ describe('Database Helpers', () => {
 
       expect(result).toBeDefined()
 
-      // Test advancedMode persistence
       const advancedBlock = result?.blocks['block-advanced']
       expect(advancedBlock?.advancedMode).toBe(true)
 
@@ -927,24 +868,15 @@ describe('Database Helpers', () => {
 
     it('should handle default values for boolean fields consistently', async () => {
       const blocksWithDefaultValues = [
-        {
-          id: 'block-with-defaults',
-          workflowId: mockWorkflowId,
-          type: 'agent',
-          name: 'Block with default values',
-          positionX: 100,
-          positionY: 100,
-          enabled: true,
-          horizontalHandles: true,
-          advancedMode: false, // Database default
-          triggerMode: false, // Database default
-          height: 150,
-          subBlocks: {},
-          outputs: {},
-          data: {},
-          parentId: null,
-          extent: null,
-        },
+        toDbBlock(
+          createAgentBlock({
+            id: 'block-with-defaults',
+            name: 'Block with default values',
+            position: { x: 100, y: 100 },
+            height: 150,
+          }),
+          mockWorkflowId
+        ),
       ]
 
       vi.clearAllMocks()
@@ -964,7 +896,6 @@ describe('Database Helpers', () => {
 
       expect(result).toBeDefined()
 
-      // All boolean fields should have their database default values
       const defaultsBlock = result?.blocks['block-with-defaults']
       expect(defaultsBlock?.advancedMode).toBe(false)
       expect(defaultsBlock?.triggerMode).toBe(false)
@@ -973,66 +904,48 @@ describe('Database Helpers', () => {
 
   describe('end-to-end advancedMode persistence verification', () => {
     it('should persist advancedMode through complete duplication and save cycle', async () => {
-      // Simulate the exact user workflow:
-      // 1. Create a block with advancedMode: true
-      // 2. Duplicate the block
-      // 3. Save workflow state (this was causing the bug)
-      // 4. Reload from database (simulate refresh)
-      // 5. Verify advancedMode is still true
-
-      const originalBlock = {
-        id: 'agent-original',
-        workflowId: mockWorkflowId,
-        type: 'agent',
-        name: 'Agent 1',
-        positionX: 100,
-        positionY: 100,
-        enabled: true,
-        horizontalHandles: true,
-        advancedMode: true, // User sets this to advanced mode
-        height: 200,
-        subBlocks: {
-          systemPrompt: {
-            id: 'systemPrompt',
-            type: 'textarea',
-            value: 'You are a helpful assistant',
+      const originalBlock = toDbBlock(
+        createAgentBlock({
+          id: 'agent-original',
+          name: 'Agent 1',
+          position: { x: 100, y: 100 },
+          height: 200,
+          advancedMode: true,
+          subBlocks: {
+            systemPrompt: {
+              id: 'systemPrompt',
+              type: 'long-input',
+              value: 'You are a helpful assistant',
+            },
+            userPrompt: { id: 'userPrompt', type: 'long-input', value: 'Help the user' },
+            model: { id: 'model', type: 'dropdown', value: 'gpt-4o' },
           },
-          userPrompt: { id: 'userPrompt', type: 'textarea', value: 'Help the user' },
-          model: { id: 'model', type: 'select', value: 'gpt-4o' },
-        },
-        outputs: {},
-        data: {},
-        parentId: null,
-        extent: null,
-      }
+        }),
+        mockWorkflowId
+      )
+      originalBlock.advancedMode = true
 
-      const duplicatedBlock = {
-        id: 'agent-duplicate',
-        workflowId: mockWorkflowId,
-        type: 'agent',
-        name: 'Agent 2',
-        positionX: 200,
-        positionY: 100,
-        enabled: true,
-        horizontalHandles: true,
-        advancedMode: true, // Should be copied from original
-        height: 200,
-        subBlocks: {
-          systemPrompt: {
-            id: 'systemPrompt',
-            type: 'textarea',
-            value: 'You are a helpful assistant',
+      const duplicatedBlock = toDbBlock(
+        createAgentBlock({
+          id: 'agent-duplicate',
+          name: 'Agent 2',
+          position: { x: 200, y: 100 },
+          height: 200,
+          advancedMode: true,
+          subBlocks: {
+            systemPrompt: {
+              id: 'systemPrompt',
+              type: 'long-input',
+              value: 'You are a helpful assistant',
+            },
+            userPrompt: { id: 'userPrompt', type: 'long-input', value: 'Help the user' },
+            model: { id: 'model', type: 'dropdown', value: 'gpt-4o' },
           },
-          userPrompt: { id: 'userPrompt', type: 'textarea', value: 'Help the user' },
-          model: { id: 'model', type: 'select', value: 'gpt-4o' },
-        },
-        outputs: {},
-        data: {},
-        parentId: null,
-        extent: null,
-      }
+        }),
+        mockWorkflowId
+      )
+      duplicatedBlock.advancedMode = true
 
-      // Step 1 & 2: Mock loading both original and duplicated blocks from database
       vi.clearAllMocks()
 
       let callCount = 0
@@ -1041,21 +954,18 @@ describe('Database Helpers', () => {
           where: vi.fn().mockImplementation(() => {
             callCount++
             if (callCount === 1) return Promise.resolve([originalBlock, duplicatedBlock])
-            if (callCount === 2) return Promise.resolve([]) // edges
-            if (callCount === 3) return Promise.resolve([]) // subflows
+            if (callCount === 2) return Promise.resolve([])
+            if (callCount === 3) return Promise.resolve([])
             return Promise.resolve([])
           }),
         }),
       }))
 
-      // Step 3: Load workflow state (simulates app loading after duplication)
       const loadedState = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
       expect(loadedState).toBeDefined()
       expect(loadedState?.blocks['agent-original'].advancedMode).toBe(true)
       expect(loadedState?.blocks['agent-duplicate'].advancedMode).toBe(true)
 
-      // Step 4: Test the critical saveWorkflowToNormalizedTables function
-      // This was the function that was dropping advancedMode!
       const workflowState = {
         blocks: loadedState!.blocks,
         edges: loadedState!.edges,
@@ -1064,7 +974,6 @@ describe('Database Helpers', () => {
         deploymentStatuses: {},
       }
 
-      // Mock the transaction for save operation
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {
         const mockTx = {
           select: vi.fn().mockReturnValue({
@@ -1077,7 +986,6 @@ describe('Database Helpers', () => {
           }),
           insert: vi.fn().mockImplementation((_table) => ({
             values: vi.fn().mockImplementation((values) => {
-              // Verify that advancedMode is included in the insert values
               if (Array.isArray(values)) {
                 values.forEach((blockInsert) => {
                   if (blockInsert.id === 'agent-original') {
@@ -1097,58 +1005,44 @@ describe('Database Helpers', () => {
 
       mockDb.transaction = mockTransaction
 
-      // Step 5: Save workflow state (this should preserve advancedMode)
       const saveResult = await dbHelpers.saveWorkflowToNormalizedTables(
         mockWorkflowId,
         workflowState
       )
       expect(saveResult.success).toBe(true)
 
-      // Verify the database insert was called with the correct values
       expect(mockTransaction).toHaveBeenCalled()
     })
 
     it('should handle mixed advancedMode states correctly', async () => {
-      // Test scenario: one block in advanced mode, one in basic mode
-      const basicBlock = {
-        id: 'agent-basic',
-        workflowId: mockWorkflowId,
-        type: 'agent',
-        name: 'Basic Agent',
-        positionX: 100,
-        positionY: 100,
-        enabled: true,
-        horizontalHandles: true,
-        advancedMode: false, // Basic mode
-        height: 150,
-        subBlocks: { model: { id: 'model', type: 'select', value: 'gpt-4o' } },
-        outputs: {},
-        data: {},
-        parentId: null,
-        extent: null,
-      }
+      const basicBlock = toDbBlock(
+        createAgentBlock({
+          id: 'agent-basic',
+          name: 'Basic Agent',
+          position: { x: 100, y: 100 },
+          height: 150,
+          advancedMode: false,
+          subBlocks: { model: { id: 'model', type: 'select', value: 'gpt-4o' } },
+        }),
+        mockWorkflowId
+      )
 
-      const advancedBlock = {
-        id: 'agent-advanced',
-        workflowId: mockWorkflowId,
-        type: 'agent',
-        name: 'Advanced Agent',
-        positionX: 200,
-        positionY: 100,
-        enabled: true,
-        horizontalHandles: true,
-        advancedMode: true, // Advanced mode
-        height: 200,
-        subBlocks: {
-          systemPrompt: { id: 'systemPrompt', type: 'textarea', value: 'System prompt' },
-          userPrompt: { id: 'userPrompt', type: 'textarea', value: 'User prompt' },
-          model: { id: 'model', type: 'select', value: 'gpt-4o' },
-        },
-        outputs: {},
-        data: {},
-        parentId: null,
-        extent: null,
-      }
+      const advancedBlock = toDbBlock(
+        createAgentBlock({
+          id: 'agent-advanced',
+          name: 'Advanced Agent',
+          position: { x: 200, y: 100 },
+          height: 200,
+          advancedMode: true,
+          subBlocks: {
+            systemPrompt: { id: 'systemPrompt', type: 'textarea', value: 'System prompt' },
+            userPrompt: { id: 'userPrompt', type: 'textarea', value: 'User prompt' },
+            model: { id: 'model', type: 'select', value: 'gpt-4o' },
+          },
+        }),
+        mockWorkflowId
+      )
+      advancedBlock.advancedMode = true
 
       vi.clearAllMocks()
 
@@ -1166,41 +1060,27 @@ describe('Database Helpers', () => {
       const loadedState = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
       expect(loadedState).toBeDefined()
 
-      // Verify mixed states are preserved
       expect(loadedState?.blocks['agent-basic'].advancedMode).toBe(false)
       expect(loadedState?.blocks['agent-advanced'].advancedMode).toBe(true)
-
-      // Verify other properties are also preserved correctly
     })
 
     it('should preserve advancedMode during workflow state round-trip', async () => {
-      // Test the complete round-trip: save to DB → load from DB
-      const testWorkflowState = {
+      const testWorkflowState = createWorkflowState({
         blocks: {
-          'block-1': {
+          'block-1': createAgentBlock({
             id: 'block-1',
-            type: 'agent',
             name: 'Test Agent',
             position: { x: 100, y: 100 },
+            height: 200,
+            advancedMode: true,
             subBlocks: {
               systemPrompt: { id: 'systemPrompt', type: 'long-input' as const, value: 'System' },
               model: { id: 'model', type: 'dropdown' as const, value: 'gpt-4o' },
             },
-            outputs: {},
-            enabled: true,
-            horizontalHandles: true,
-            advancedMode: true,
-            height: 200,
-            data: {},
-          },
+          }),
         },
-        edges: [],
-        loops: {},
-        parallels: {},
-        deploymentStatuses: {},
-      }
+      })
 
-      // Mock successful save
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {
         const mockTx = {
           select: vi.fn().mockReturnValue({
@@ -1220,14 +1100,12 @@ describe('Database Helpers', () => {
 
       mockDb.transaction = mockTransaction
 
-      // Save the state
       const saveResult = await dbHelpers.saveWorkflowToNormalizedTables(
         mockWorkflowId,
-        testWorkflowState
+        asAppState(testWorkflowState)
       )
       expect(saveResult.success).toBe(true)
 
-      // Mock loading the saved state back
       vi.clearAllMocks()
       let callCount = 0
       mockDb.select.mockImplementation(() => ({
@@ -1245,7 +1123,7 @@ describe('Database Helpers', () => {
                   positionY: 100,
                   enabled: true,
                   horizontalHandles: true,
-                  advancedMode: true, // This should be preserved
+                  advancedMode: true,
                   height: 200,
                   subBlocks: {
                     systemPrompt: { id: 'systemPrompt', type: 'textarea', value: 'System' },
@@ -1263,7 +1141,6 @@ describe('Database Helpers', () => {
         }),
       }))
 
-      // Load the state back
       const loadedState = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
       expect(loadedState).toBeDefined()
       expect(loadedState?.blocks['block-1'].advancedMode).toBe(true)
@@ -1273,11 +1150,9 @@ describe('Database Helpers', () => {
   describe('migrateAgentBlocksToMessagesFormat', () => {
     it('should migrate agent block with both systemPrompt and userPrompt', () => {
       const blocks = {
-        'agent-1': {
+        'agent-1': createAgentBlock({
           id: 'agent-1',
-          type: 'agent',
           name: 'Test Agent',
-          position: { x: 0, y: 0 },
           subBlocks: {
             systemPrompt: {
               id: 'systemPrompt',
@@ -1290,27 +1165,24 @@ describe('Database Helpers', () => {
               value: 'Hello world',
             },
           },
-          outputs: {},
-        } as any,
+        }),
       }
 
-      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(asAppBlocks(blocks))
 
       expect(migrated['agent-1'].subBlocks.messages).toBeDefined()
       expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
         { role: 'system', content: 'You are a helpful assistant' },
         { role: 'user', content: 'Hello world' },
       ])
-      // Old format should be preserved
       expect(migrated['agent-1'].subBlocks.systemPrompt).toBeDefined()
       expect(migrated['agent-1'].subBlocks.userPrompt).toBeDefined()
     })
 
     it('should migrate agent block with only systemPrompt', () => {
       const blocks = {
-        'agent-1': {
+        'agent-1': createAgentBlock({
           id: 'agent-1',
-          type: 'agent',
           subBlocks: {
             systemPrompt: {
               id: 'systemPrompt',
@@ -1318,11 +1190,10 @@ describe('Database Helpers', () => {
               value: 'You are helpful',
             },
           },
-          outputs: {},
-        } as any,
+        }),
       }
 
-      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(asAppBlocks(blocks))
 
       expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
         { role: 'system', content: 'You are helpful' },
@@ -1331,9 +1202,8 @@ describe('Database Helpers', () => {
 
     it('should migrate agent block with only userPrompt', () => {
       const blocks = {
-        'agent-1': {
+        'agent-1': createAgentBlock({
           id: 'agent-1',
-          type: 'agent',
           subBlocks: {
             userPrompt: {
               id: 'userPrompt',
@@ -1341,11 +1211,10 @@ describe('Database Helpers', () => {
               value: 'Hello',
             },
           },
-          outputs: {},
-        } as any,
+        }),
       }
 
-      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(asAppBlocks(blocks))
 
       expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
         { role: 'user', content: 'Hello' },
@@ -1354,9 +1223,8 @@ describe('Database Helpers', () => {
 
     it('should handle userPrompt as object with input field', () => {
       const blocks = {
-        'agent-1': {
+        'agent-1': createAgentBlock({
           id: 'agent-1',
-          type: 'agent',
           subBlocks: {
             userPrompt: {
               id: 'userPrompt',
@@ -1364,11 +1232,10 @@ describe('Database Helpers', () => {
               value: { input: 'Hello from object' },
             },
           },
-          outputs: {},
-        } as any,
+        }),
       }
 
-      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(asAppBlocks(blocks))
 
       expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
         { role: 'user', content: 'Hello from object' },
@@ -1377,9 +1244,8 @@ describe('Database Helpers', () => {
 
     it('should stringify userPrompt object without input field', () => {
       const blocks = {
-        'agent-1': {
+        'agent-1': createAgentBlock({
           id: 'agent-1',
-          type: 'agent',
           subBlocks: {
             userPrompt: {
               id: 'userPrompt',
@@ -1387,11 +1253,10 @@ describe('Database Helpers', () => {
               value: { foo: 'bar', baz: 123 },
             },
           },
-          outputs: {},
-        } as any,
+        }),
       }
 
-      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(asAppBlocks(blocks))
 
       expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
         { role: 'user', content: '{"foo":"bar","baz":123}' },
@@ -1401,9 +1266,8 @@ describe('Database Helpers', () => {
     it('should not migrate if messages array already exists', () => {
       const existingMessages = [{ role: 'user', content: 'Existing message' }]
       const blocks = {
-        'agent-1': {
+        'agent-1': createAgentBlock({
           id: 'agent-1',
-          type: 'agent',
           subBlocks: {
             systemPrompt: {
               id: 'systemPrompt',
@@ -1421,21 +1285,18 @@ describe('Database Helpers', () => {
               value: existingMessages,
             },
           },
-          outputs: {},
-        } as any,
+        }),
       }
 
-      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(asAppBlocks(blocks))
 
-      // Should not change existing messages
       expect(migrated['agent-1'].subBlocks.messages?.value).toEqual(existingMessages)
     })
 
     it('should not migrate if no old format prompts exist', () => {
       const blocks = {
-        'agent-1': {
+        'agent-1': createAgentBlock({
           id: 'agent-1',
-          type: 'agent',
           subBlocks: {
             model: {
               id: 'model',
@@ -1443,21 +1304,18 @@ describe('Database Helpers', () => {
               value: 'gpt-4o',
             },
           },
-          outputs: {},
-        } as any,
+        }),
       }
 
-      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(asAppBlocks(blocks))
 
-      // Should not add messages if no old format
       expect(migrated['agent-1'].subBlocks.messages).toBeUndefined()
     })
 
     it('should handle non-agent blocks without modification', () => {
       const blocks = {
-        'api-1': {
+        'api-1': createApiBlock({
           id: 'api-1',
-          type: 'api',
           subBlocks: {
             url: {
               id: 'url',
@@ -1465,54 +1323,42 @@ describe('Database Helpers', () => {
               value: 'https://example.com',
             },
           },
-          outputs: {},
-        } as any,
+        }),
       }
 
-      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(asAppBlocks(blocks))
 
-      // Non-agent block should remain unchanged
       expect(migrated['api-1']).toEqual(blocks['api-1'])
       expect(migrated['api-1'].subBlocks.messages).toBeUndefined()
     })
 
     it('should handle multiple blocks with mixed types', () => {
       const blocks = {
-        'agent-1': {
+        'agent-1': createAgentBlock({
           id: 'agent-1',
-          type: 'agent',
           subBlocks: {
             systemPrompt: { id: 'systemPrompt', type: 'textarea', value: 'System 1' },
           },
-          outputs: {},
-        } as any,
-        'api-1': {
+        }),
+        'api-1': createApiBlock({
           id: 'api-1',
-          type: 'api',
-          subBlocks: {},
-          outputs: {},
-        } as any,
-        'agent-2': {
+        }),
+        'agent-2': createAgentBlock({
           id: 'agent-2',
-          type: 'agent',
           subBlocks: {
             userPrompt: { id: 'userPrompt', type: 'textarea', value: 'User 2' },
           },
-          outputs: {},
-        } as any,
+        }),
       }
 
-      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(asAppBlocks(blocks))
 
-      // First agent should be migrated
       expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
         { role: 'system', content: 'System 1' },
       ])
 
-      // API block unchanged
       expect(migrated['api-1']).toEqual(blocks['api-1'])
 
-      // Second agent should be migrated
       expect(migrated['agent-2'].subBlocks.messages?.value).toEqual([
         { role: 'user', content: 'User 2' },
       ])
@@ -1520,36 +1366,31 @@ describe('Database Helpers', () => {
 
     it('should handle empty string prompts by not migrating', () => {
       const blocks = {
-        'agent-1': {
+        'agent-1': createAgentBlock({
           id: 'agent-1',
-          type: 'agent',
           subBlocks: {
             systemPrompt: { id: 'systemPrompt', type: 'textarea', value: '' },
             userPrompt: { id: 'userPrompt', type: 'textarea', value: '' },
           },
-          outputs: {},
-        } as any,
+        }),
       }
 
-      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(asAppBlocks(blocks))
 
-      // Empty strings are falsy, so migration should not occur
       expect(migrated['agent-1'].subBlocks.messages).toBeUndefined()
     })
 
     it('should handle numeric prompt values by converting to string', () => {
       const blocks = {
-        'agent-1': {
+        'agent-1': createAgentBlock({
           id: 'agent-1',
-          type: 'agent',
           subBlocks: {
             systemPrompt: { id: 'systemPrompt', type: 'textarea', value: 123 },
           },
-          outputs: {},
-        } as any,
+        }),
       }
 
-      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(asAppBlocks(blocks))
 
       expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
         { role: 'system', content: '123' },
@@ -1558,25 +1399,20 @@ describe('Database Helpers', () => {
 
     it('should be idempotent - running twice should not double migrate', () => {
       const blocks = {
-        'agent-1': {
+        'agent-1': createAgentBlock({
           id: 'agent-1',
-          type: 'agent',
           subBlocks: {
             systemPrompt: { id: 'systemPrompt', type: 'textarea', value: 'System' },
           },
-          outputs: {},
-        } as any,
+        }),
       }
 
-      // First migration
-      const migrated1 = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+      const migrated1 = dbHelpers.migrateAgentBlocksToMessagesFormat(asAppBlocks(blocks))
       const messages1 = migrated1['agent-1'].subBlocks.messages?.value
 
-      // Second migration on already migrated blocks
       const migrated2 = dbHelpers.migrateAgentBlocksToMessagesFormat(migrated1)
       const messages2 = migrated2['agent-1'].subBlocks.messages?.value
 
-      // Should be identical - no double migration
       expect(messages2).toEqual(messages1)
       expect(messages2).toEqual([{ role: 'system', content: 'System' }])
     })

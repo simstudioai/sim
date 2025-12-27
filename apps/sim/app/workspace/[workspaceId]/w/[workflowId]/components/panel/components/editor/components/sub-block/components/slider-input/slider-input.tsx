@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Slider } from '@/components/ui/slider'
+import { Slider } from '@/components/emcn/components/slider/slider'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 
 interface SliderInputProps {
@@ -67,7 +67,6 @@ export function SliderInput({
         step={integer ? 1 : step}
         onValueChange={handleValueChange}
         disabled={isPreview || disabled}
-        className='[&_[class*=SliderTrack]]:h-1 [&_[role=slider]]:h-4 [&_[role=slider]]:w-4 [&_[role=slider]]:cursor-pointer'
       />
       <div
         className='absolute top-6 text-muted-foreground text-sm'

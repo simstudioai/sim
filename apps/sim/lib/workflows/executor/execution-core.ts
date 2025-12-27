@@ -3,10 +3,11 @@
  * This is the SINGLE source of truth for workflow execution
  */
 
+import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
 import { z } from 'zod'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
-import { createLogger } from '@/lib/logs/console/logger'
+import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
@@ -32,6 +33,11 @@ export interface ExecuteWorkflowCoreOptions {
   callbacks: ExecutionCallbacks
   loggingSession: LoggingSession
   skipLogCreation?: boolean // For resume executions - reuse existing log entry
+  /**
+   * AbortSignal for cancellation support.
+   * When aborted (e.g., client disconnects from SSE), execution stops gracefully.
+   */
+  abortSignal?: AbortSignal
 }
 
 function parseVariableValueByType(value: any, type: string): any {
@@ -98,11 +104,11 @@ function parseVariableValueByType(value: any, type: string): any {
 export async function executeWorkflowCore(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
-  const { snapshot, callbacks, loggingSession, skipLogCreation } = options
+  const { snapshot, callbacks, loggingSession, skipLogCreation, abortSignal } = options
   const { metadata, workflow, input, workflowVariables, selectedOutputs } = snapshot
   const { requestId, workflowId, userId, triggerType, executionId, triggerBlockId, useDraftState } =
     metadata
-  const { onBlockStart, onBlockComplete, onStream, onExecutorCreated } = callbacks
+  const { onBlockStart, onBlockComplete, onStream } = callbacks
 
   const providedWorkspaceId = metadata.workspaceId
   if (!providedWorkspaceId) {
@@ -326,6 +332,7 @@ export async function executeWorkflowCore(
       dagIncomingEdges: snapshot.state?.dagIncomingEdges,
       snapshotState: snapshot.state,
       metadata,
+      abortSignal,
     }
 
     const executorInstance = new Executor({
@@ -349,10 +356,6 @@ export async function executeWorkflowCore(
       }
     }
 
-    if (onExecutorCreated) {
-      onExecutorCreated(executorInstance)
-    }
-
     const result = (await executorInstance.execute(
       workflowId,
       resolvedTriggerBlockId
@@ -373,6 +376,8 @@ export async function executeWorkflowCore(
         traceSpans: traceSpans || [],
       })
 
+      await clearExecutionCancellation(executionId)
+
       logger.info(`[${requestId}] Workflow execution cancelled`, {
         duration: result.metadata?.duration,
       })
@@ -381,6 +386,8 @@ export async function executeWorkflowCore(
     }
 
     if (result.status === 'paused') {
+      await clearExecutionCancellation(executionId)
+
       logger.info(`[${requestId}] Workflow execution paused`, {
         duration: result.metadata?.duration,
       })
@@ -396,6 +403,8 @@ export async function executeWorkflowCore(
       workflowInput: processedInput,
     })
 
+    await clearExecutionCancellation(executionId)
+
     logger.info(`[${requestId}] Workflow execution completed`, {
       success: result.success,
       duration: result.metadata?.duration,
@@ -405,7 +414,6 @@ export async function executeWorkflowCore(
   } catch (error: any) {
     logger.error(`[${requestId}] Execution failed:`, error)
 
-    // Extract execution result from error if available
     const executionResult = (error as any)?.executionResult
     const { traceSpans } = executionResult ? buildTraceSpans(executionResult) : { traceSpans: [] }
 
@@ -418,6 +426,8 @@ export async function executeWorkflowCore(
       },
       traceSpans,
     })
+
+    await clearExecutionCancellation(executionId)
 
     throw error
   }

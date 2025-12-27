@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import { buildIntercomUrl, handleIntercomError } from './types'
 
@@ -74,15 +74,43 @@ export const intercomGetTicketTool: ToolConfig<IntercomGetTicketParams, Intercom
     },
 
     outputs: {
-      success: { type: 'boolean', description: 'Operation success status' },
-      output: {
+      ticket: {
         type: 'object',
-        description: 'Ticket data',
+        description: 'Ticket object',
         properties: {
-          ticket: { type: 'object', description: 'Ticket object' },
-          metadata: { type: 'object', description: 'Operation metadata' },
-          success: { type: 'boolean', description: 'Operation success' },
+          id: { type: 'string', description: 'Unique identifier for the ticket' },
+          type: { type: 'string', description: 'Object type (ticket)' },
+          ticket_id: { type: 'string', description: 'Ticket ID' },
+          ticket_type: { type: 'object', description: 'Type of the ticket' },
+          ticket_attributes: { type: 'object', description: 'Attributes of the ticket' },
+          ticket_state: { type: 'string', description: 'State of the ticket' },
+          ticket_state_internal_label: {
+            type: 'string',
+            description: 'Internal label for ticket state',
+          },
+          ticket_state_external_label: {
+            type: 'string',
+            description: 'External label for ticket state',
+          },
+          created_at: { type: 'number', description: 'Unix timestamp when ticket was created' },
+          updated_at: {
+            type: 'number',
+            description: 'Unix timestamp when ticket was last updated',
+          },
+          contacts: { type: 'object', description: 'Contacts associated with the ticket' },
+          admin_assignee_id: { type: 'string', description: 'ID of assigned admin' },
+          team_assignee_id: { type: 'string', description: 'ID of assigned team' },
+          is_shared: { type: 'boolean', description: 'Whether the ticket is shared' },
+          open: { type: 'boolean', description: 'Whether the ticket is open' },
         },
       },
+      metadata: {
+        type: 'object',
+        description: 'Operation metadata',
+        properties: {
+          operation: { type: 'string', description: 'The operation performed (get_ticket)' },
+        },
+      },
+      success: { type: 'boolean', description: 'Operation success status' },
     },
   }

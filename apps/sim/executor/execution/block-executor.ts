@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   BlockType,
   buildResumeApiUrl,

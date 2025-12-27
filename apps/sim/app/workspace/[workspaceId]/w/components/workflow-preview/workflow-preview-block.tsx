@@ -49,8 +49,8 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
   const showErrorRow = !isStarterOrTrigger
 
   // Handle styles based on orientation
-  const horizontalHandleClass = '!border-none !bg-[var(--surface-12)] !h-5 !w-[7px] !rounded-[2px]'
-  const verticalHandleClass = '!border-none !bg-[var(--surface-12)] !h-[7px] !w-5 !rounded-[2px]'
+  const horizontalHandleClass = '!border-none !bg-[var(--surface-7)] !h-5 !w-[7px] !rounded-[2px]'
+  const verticalHandleClass = '!border-none !bg-[var(--surface-7)] !h-[7px] !w-5 !rounded-[2px]'
 
   return (
     <div className='relative w-[250px] select-none rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)]'>

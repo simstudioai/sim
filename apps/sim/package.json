@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "next dev --port 3000",
     "dev:webpack": "next dev --webpack",
-    "dev:sockets": "bun run socket-server/index.ts",
+    "dev:sockets": "bun run socket/index.ts",
     "dev:full": "concurrently -n \"App,Realtime\" -c \"cyan,magenta\" \"bun run dev\" \"bun run dev:sockets\"",
     "build": "next build",
     "start": "next start",
@@ -23,6 +23,7 @@
     "generate-docs": "bun run ../../scripts/generate-docs.ts"
   },
   "dependencies": {
+    "@sim/logger": "workspace:*",
     "@anthropic-ai/sdk": "^0.39.0",
     "@aws-sdk/client-dynamodb": "3.940.0",
     "@aws-sdk/client-rds-data": "3.940.0",
@@ -140,6 +141,7 @@
     "zustand": "^4.5.7"
   },
   "devDependencies": {
+    "@sim/testing": "workspace:*",
     "@testing-library/jest-dom": "^6.6.3",
     "@trigger.dev/build": "4.1.2",
     "@types/html-to-text": "9.0.4",

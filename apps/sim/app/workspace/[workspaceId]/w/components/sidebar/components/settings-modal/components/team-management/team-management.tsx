@@ -1,14 +1,17 @@
+'use client'
+
 import { useCallback, useEffect, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   generateSlug,
   getUsedSeats,
   getUserRole,
   isAdminOrOwner,
+  type Member,
 } from '@/lib/workspaces/organization'
 import {
   MemberInvitationCard,
@@ -171,7 +174,7 @@ export function TeamManagement() {
   }, [])
 
   const handleRemoveMember = useCallback(
-    async (member: any) => {
+    async (member: Member) => {
       if (!session?.user || !activeOrganization?.id) return
 
       if (!member.user?.id) {
@@ -365,7 +368,7 @@ export function TeamManagement() {
   }
 
   return (
-    <div className='flex h-full flex-col gap-[16px]'>
+    <div className='flex h-full flex-col gap-[20px]'>
       {/* Seats Overview - Full Width */}
       {adminOrOwner && (
         <div>
@@ -416,11 +419,11 @@ export function TeamManagement() {
       </div>
 
       {/* Additional Info - Subtle and collapsed */}
-      <div className='space-y-[12px]'>
+      <div className='flex flex-col gap-[10px]'>
         {/* Single Organization Notice */}
         {adminOrOwner && (
-          <div className='rounded-[8px] border border-[var(--border-muted)] bg-[var(--surface-3)] p-3'>
-            <p className='text-[var(--text-muted)] text-xs'>
+          <div className='rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[14px] py-[10px]'>
+            <p className='text-[12px] text-[var(--text-muted)]'>
               <span className='font-medium'>Note:</span> Users can only be part of one organization
               at a time.
             </p>
@@ -428,8 +431,8 @@ export function TeamManagement() {
         )}
 
         {/* Team Information */}
-        <details className='group rounded-[8px] border border-[var(--border-muted)] bg-[var(--surface-3)]'>
-          <summary className='flex cursor-pointer items-center justify-between rounded-[8px] p-3 font-medium text-[13px] hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
+        <details className='group overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
+          <summary className='flex cursor-pointer items-center justify-between px-[14px] py-[10px] font-medium text-[14px] text-[var(--text-primary)] hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
             <span>Team Information</span>
             <svg
               className='h-4 w-4 transition-transform group-open:rotate-180'
@@ -445,26 +448,30 @@ export function TeamManagement() {
               />
             </svg>
           </summary>
-          <div className='space-y-[8px] border-[var(--border-muted)] border-t p-3 text-xs'>
+          <div className='flex flex-col gap-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[12px] text-[12px]'>
             <div className='flex justify-between'>
               <span className='text-[var(--text-muted)]'>Team ID:</span>
-              <span className='font-mono text-[10px]'>{displayOrganization.id}</span>
+              <span className='font-mono text-[10px] text-[var(--text-primary)]'>
+                {displayOrganization.id}
+              </span>
             </div>
             <div className='flex justify-between'>
               <span className='text-[var(--text-muted)]'>Created:</span>
-              <span>{new Date(displayOrganization.createdAt).toLocaleDateString()}</span>
+              <span className='text-[var(--text-primary)]'>
+                {new Date(displayOrganization.createdAt).toLocaleDateString()}
+              </span>
             </div>
             <div className='flex justify-between'>
               <span className='text-[var(--text-muted)]'>Your Role:</span>
-              <span className='font-medium capitalize'>{userRole}</span>
+              <span className='font-medium text-[var(--text-primary)] capitalize'>{userRole}</span>
             </div>
           </div>
         </details>
 
         {/* Team Billing Information (only show for Team Plan, not Enterprise) */}
         {hasTeamPlan && !hasEnterprisePlan && (
-          <details className='group rounded-[8px] border border-[var(--border-muted)] bg-[var(--surface-3)]'>
-            <summary className='flex cursor-pointer items-center justify-between rounded-[8px] p-3 font-medium text-[13px] hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
+          <details className='group overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
+            <summary className='flex cursor-pointer items-center justify-between px-[14px] py-[10px] font-medium text-[14px] text-[var(--text-primary)] hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
               <span>Billing Information</span>
               <svg
                 className='h-4 w-4 transition-transform group-open:rotate-180'
@@ -480,8 +487,8 @@ export function TeamManagement() {
                 />
               </svg>
             </summary>
-            <div className='border-[var(--border-muted)] border-t p-3'>
-              <ul className='ml-4 list-disc space-y-[8px] text-[var(--text-muted)] text-xs'>
+            <div className='border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[12px]'>
+              <ul className='ml-4 flex list-disc flex-col gap-[8px] text-[12px] text-[var(--text-muted)]'>
                 <li>
                   Your team is billed a minimum of $
                   {(subscriptionData?.seats ?? 0) * DEFAULT_TEAM_TIER_COST_LIMIT}

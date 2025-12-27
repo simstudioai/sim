@@ -7,7 +7,14 @@ export interface LabelProps extends React.ComponentPropsWithoutRef<typeof LabelP
 
 /**
  * EMCN Label component built on Radix UI Label primitive.
+ *
+ * @remarks
  * Provides consistent typography and styling for form labels.
+ * Automatically handles disabled states through peer-disabled CSS.
+ *
+ * @param className - Additional CSS classes to apply
+ * @param props - Additional props passed to the Radix Label primitive
+ * @returns The styled label element
  *
  * @example
  * ```tsx

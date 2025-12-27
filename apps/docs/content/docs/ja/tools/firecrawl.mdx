@@ -146,7 +146,33 @@ Firecrawlを使用してウェブ上の情報を検索します
 | `success` | boolean | 抽出操作が成功したかどうか |
 | `data` | object | スキーマまたはプロンプトに従って抽出された構造化データ |
 
-## 注意事項
+### `firecrawl_agent`
 
-- カテゴリー: `tools`
-- タイプ: `firecrawl`
+自律型ウェブデータ抽出エージェント。特定のURLを必要とせず、自然言語プロンプトに基づいて情報を検索・収集します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `prompt` | string | はい | 抽出するデータの自然言語による説明（最大10,000文字） |
+| `urls` | json | いいえ | エージェントが焦点を当てるURLの配列（オプション） |
+| `schema` | json | いいえ | 抽出するデータの構造を定義するJSONスキーマ |
+| `maxCredits` | number | いいえ | このエージェントタスクに使用する最大クレジット数 |
+| `strictConstrainToURLs` | boolean | いいえ | trueの場合、エージェントはurls配列で提供されたURLのみを訪問します |
+| `apiKey` | string | はい | Firecrawl APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | エージェント操作が成功したかどうか |
+| `status` | string | エージェントジョブの現在のステータス（processing、completed、failed） |
+| `data` | object | エージェントから抽出されたデータ |
+| `creditsUsed` | number | このエージェントタスクで消費されたクレジット数 |
+| `expiresAt` | string | 結果の有効期限のタイムスタンプ（24時間） |
+| `sources` | object | エージェントが使用したソースURLの配列 |
+
+## 注記
+
+- カテゴリ：`tools`
+- タイプ：`firecrawl`

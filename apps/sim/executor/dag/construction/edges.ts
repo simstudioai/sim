@@ -1,13 +1,13 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import { EDGE, isConditionBlockType, isRouterBlockType } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import {
   buildBranchNodeId,
+  buildParallelSentinelEndId,
+  buildParallelSentinelStartId,
   buildSentinelEndId,
   buildSentinelStartId,
-  calculateBranchCount,
   extractBaseBlockId,
-  parseDistributionItems,
 } from '@/executor/utils/subflow-utils'
 import type { SerializedWorkflow } from '@/serializer/types'
 
@@ -51,7 +51,7 @@ export class EdgeConstructor {
     )
 
     this.wireLoopSentinels(dag, reachableBlocks)
-    this.wireParallelBlocks(workflow, dag, loopBlockIds, parallelBlockIds, pauseTriggerMapping)
+    this.wireParallelSentinels(dag)
   }
 
   private buildMetadataMaps(workflow: SerializedWorkflow): EdgeMetadata {
@@ -157,43 +157,45 @@ export class EdgeConstructor {
       const sourceIsParallelBlock = parallelBlockIds.has(source)
       const targetIsParallelBlock = parallelBlockIds.has(target)
 
-      if (
-        sourceIsLoopBlock ||
-        targetIsLoopBlock ||
-        sourceIsParallelBlock ||
-        targetIsParallelBlock
-      ) {
-        let loopSentinelStartId: string | undefined
+      let loopSentinelStartId: string | undefined
 
-        if (sourceIsLoopBlock) {
-          const sentinelEndId = buildSentinelEndId(originalSource)
-          loopSentinelStartId = buildSentinelStartId(originalSource)
-
-          if (!dag.nodes.has(sentinelEndId) || !dag.nodes.has(loopSentinelStartId)) {
-            continue
-          }
-
-          source = sentinelEndId
-          sourceHandle = EDGE.LOOP_EXIT
-        }
-
-        if (targetIsLoopBlock) {
-          const sentinelStartId = buildSentinelStartId(target)
-
-          if (!dag.nodes.has(sentinelStartId)) {
-            continue
-          }
-
-          target = sentinelStartId
-        }
-
-        if (loopSentinelStartId) {
-          this.addEdge(dag, loopSentinelStartId, target, EDGE.LOOP_EXIT, targetHandle)
-        }
-
-        if (sourceIsParallelBlock || targetIsParallelBlock) {
+      if (sourceIsLoopBlock) {
+        const sentinelEndId = buildSentinelEndId(originalSource)
+        loopSentinelStartId = buildSentinelStartId(originalSource)
+        if (!dag.nodes.has(sentinelEndId) || !dag.nodes.has(loopSentinelStartId)) {
           continue
         }
+        source = sentinelEndId
+        sourceHandle = EDGE.LOOP_EXIT
+      }
+
+      if (targetIsLoopBlock) {
+        const sentinelStartId = buildSentinelStartId(target)
+        if (!dag.nodes.has(sentinelStartId)) {
+          continue
+        }
+        target = sentinelStartId
+      }
+
+      if (sourceIsParallelBlock) {
+        const sentinelEndId = buildParallelSentinelEndId(originalSource)
+        if (!dag.nodes.has(sentinelEndId)) {
+          continue
+        }
+        source = sentinelEndId
+        sourceHandle = EDGE.PARALLEL_EXIT
+      }
+
+      if (targetIsParallelBlock) {
+        const sentinelStartId = buildParallelSentinelStartId(target)
+        if (!dag.nodes.has(sentinelStartId)) {
+          continue
+        }
+        target = sentinelStartId
+      }
+
+      if (loopSentinelStartId) {
+        this.addEdge(dag, loopSentinelStartId, target, EDGE.LOOP_EXIT, targetHandle)
       }
 
       if (this.edgeCrossesLoopBoundary(source, target, blocksInLoops, dag)) {
@@ -209,19 +211,12 @@ export class EdgeConstructor {
         const targetParallelId = this.getParallelId(target, dag)
 
         if (sourceParallelId === targetParallelId) {
-          this.wireParallelInternalEdge(
-            source,
-            target,
-            sourceParallelId!,
-            dag,
-            sourceHandle,
-            targetHandle,
-            pauseTriggerMapping
-          )
+          this.wireParallelTemplateEdge(source, target, dag, sourceHandle, targetHandle)
         } else {
           logger.warn('Edge between different parallels - invalid workflow', { source, target })
         }
       } else if (blocksInParallels.has(source) || blocksInParallels.has(target)) {
+        // Skip - will be handled by sentinel wiring
       } else {
         const resolvedSource = pauseTriggerMapping.get(originalSource) ?? source
         this.addEdge(dag, resolvedSource, target, sourceHandle, targetHandle)
@@ -256,81 +251,32 @@ export class EdgeConstructor {
     }
   }
 
-  private wireParallelBlocks(
-    workflow: SerializedWorkflow,
-    dag: DAG,
-    loopBlockIds: Set<string>,
-    parallelBlockIds: Set<string>,
-    pauseTriggerMapping: Map<string, string>
-  ): void {
+  private wireParallelSentinels(dag: DAG): void {
     for (const [parallelId, parallelConfig] of dag.parallelConfigs) {
       const nodes = parallelConfig.nodes
 
       if (nodes.length === 0) continue
 
-      const { entryNodes, terminalNodes, branchCount } = this.findParallelBoundaryNodes(
-        nodes,
-        parallelId,
-        dag
-      )
+      const sentinelStartId = buildParallelSentinelStartId(parallelId)
+      const sentinelEndId = buildParallelSentinelEndId(parallelId)
 
-      logger.info('Wiring parallel block edges', {
-        parallelId,
-        entryNodes,
-        terminalNodes,
-        branchCount,
-      })
+      if (!dag.nodes.has(sentinelStartId) || !dag.nodes.has(sentinelEndId)) {
+        continue
+      }
 
-      for (const connection of workflow.connections) {
-        const { source, target, sourceHandle, targetHandle } = connection
+      const { entryNodes, terminalNodes } = this.findParallelBoundaryNodes(nodes, dag)
 
-        if (target === parallelId) {
-          if (loopBlockIds.has(source) || parallelBlockIds.has(source)) continue
-
-          if (nodes.includes(source)) {
-            logger.warn('Invalid: parallel block connected from its own internal node', {
-              parallelId,
-              source,
-            })
-            continue
-          }
-
-          logger.info('Wiring edge to parallel block', { source, parallelId, entryNodes })
-
-          for (const entryNodeId of entryNodes) {
-            for (let i = 0; i < branchCount; i++) {
-              const branchNodeId = buildBranchNodeId(entryNodeId, i)
-
-              if (dag.nodes.has(branchNodeId)) {
-                this.addEdge(dag, source, branchNodeId, sourceHandle, targetHandle)
-              }
-            }
-          }
+      for (const entryNodeId of entryNodes) {
+        const templateNodeId = buildBranchNodeId(entryNodeId, 0)
+        if (dag.nodes.has(templateNodeId)) {
+          this.addEdge(dag, sentinelStartId, templateNodeId)
         }
+      }
 
-        if (source === parallelId) {
-          if (loopBlockIds.has(target) || parallelBlockIds.has(target)) continue
-
-          if (nodes.includes(target)) {
-            logger.warn('Invalid: parallel block connected to its own internal node', {
-              parallelId,
-              target,
-            })
-            continue
-          }
-
-          logger.info('Wiring edge from parallel block', { parallelId, target, terminalNodes })
-
-          for (const terminalNodeId of terminalNodes) {
-            for (let i = 0; i < branchCount; i++) {
-              const branchNodeId = buildBranchNodeId(terminalNodeId, i)
-
-              if (dag.nodes.has(branchNodeId)) {
-                const resolvedSourceId = pauseTriggerMapping.get(branchNodeId) ?? branchNodeId
-                this.addEdge(dag, resolvedSourceId, target, sourceHandle, targetHandle)
-              }
-            }
-          }
+      for (const terminalNodeId of terminalNodes) {
+        const templateNodeId = buildBranchNodeId(terminalNodeId, 0)
+        if (dag.nodes.has(templateNodeId)) {
+          this.addEdge(dag, templateNodeId, sentinelEndId)
         }
       }
     }
@@ -384,30 +330,16 @@ export class EdgeConstructor {
     return true
   }
 
-  private wireParallelInternalEdge(
+  private wireParallelTemplateEdge(
     source: string,
     target: string,
-    parallelId: string,
     dag: DAG,
     sourceHandle?: string,
-    targetHandle?: string,
-    pauseTriggerMapping?: Map<string, string>
+    targetHandle?: string
   ): void {
-    const parallelConfig = dag.parallelConfigs.get(parallelId)
-
-    if (!parallelConfig) {
-      throw new Error(`Parallel config not found: ${parallelId}`)
-    }
-
-    const distributionItems = parseDistributionItems(parallelConfig)
-    const count = calculateBranchCount(parallelConfig, distributionItems)
-
-    for (let i = 0; i < count; i++) {
-      const sourceNodeId = buildBranchNodeId(source, i)
-      const targetNodeId = buildBranchNodeId(target, i)
-      const resolvedSourceId = pauseTriggerMapping?.get(sourceNodeId) ?? sourceNodeId
-      this.addEdge(dag, resolvedSourceId, targetNodeId, sourceHandle, targetHandle)
-    }
+    const sourceNodeId = buildBranchNodeId(source, 0)
+    const targetNodeId = buildBranchNodeId(target, 0)
+    this.addEdge(dag, sourceNodeId, targetNodeId, sourceHandle, targetHandle)
   }
 
   private findLoopBoundaryNodes(
@@ -465,92 +397,44 @@ export class EdgeConstructor {
 
   private findParallelBoundaryNodes(
     nodes: string[],
-    parallelId: string,
     dag: DAG
-  ): { entryNodes: string[]; terminalNodes: string[]; branchCount: number } {
+  ): { entryNodes: string[]; terminalNodes: string[] } {
     const nodesSet = new Set(nodes)
-    const entryNodesSet = new Set<string>()
-    const terminalNodesSet = new Set<string>()
-    const parallelConfig = dag.parallelConfigs.get(parallelId)
-
-    if (!parallelConfig) {
-      throw new Error(`Parallel config not found: ${parallelId}`)
-    }
-
-    const distributionItems = parseDistributionItems(parallelConfig)
-    const branchCount = calculateBranchCount(parallelConfig, distributionItems)
+    const entryNodes: string[] = []
+    const terminalNodes: string[] = []
 
     for (const nodeId of nodes) {
-      let hasAnyBranch = false
+      const templateId = buildBranchNodeId(nodeId, 0)
+      const templateNode = dag.nodes.get(templateId)
 
-      for (let i = 0; i < branchCount; i++) {
-        if (dag.nodes.has(buildBranchNodeId(nodeId, i))) {
-          hasAnyBranch = true
-          break
-        }
-      }
-
-      if (!hasAnyBranch) continue
-
-      const firstBranchId = buildBranchNodeId(nodeId, 0)
-      const firstBranchNode = dag.nodes.get(firstBranchId)
-
-      if (!firstBranchNode) continue
+      if (!templateNode) continue
 
       let hasIncomingFromParallel = false
-
-      for (const incomingNodeId of firstBranchNode.incomingEdges) {
+      for (const incomingNodeId of templateNode.incomingEdges) {
         const originalNodeId = extractBaseBlockId(incomingNodeId)
-
         if (nodesSet.has(originalNodeId)) {
           hasIncomingFromParallel = true
           break
         }
       }
-
       if (!hasIncomingFromParallel) {
-        entryNodesSet.add(nodeId)
+        entryNodes.push(nodeId)
       }
-    }
-
-    for (const nodeId of nodes) {
-      let hasAnyBranch = false
-
-      for (let i = 0; i < branchCount; i++) {
-        if (dag.nodes.has(buildBranchNodeId(nodeId, i))) {
-          hasAnyBranch = true
-          break
-        }
-      }
-
-      if (!hasAnyBranch) continue
-
-      const firstBranchId = buildBranchNodeId(nodeId, 0)
-      const firstBranchNode = dag.nodes.get(firstBranchId)
-
-      if (!firstBranchNode) continue
 
       let hasOutgoingToParallel = false
-
-      for (const [_, edge] of firstBranchNode.outgoingEdges) {
+      for (const [, edge] of templateNode.outgoingEdges) {
         const originalTargetId = extractBaseBlockId(edge.target)
-
         if (nodesSet.has(originalTargetId)) {
           hasOutgoingToParallel = true
           break
         }
       }
-
       if (!hasOutgoingToParallel) {
-        terminalNodesSet.add(nodeId)
+        terminalNodes.push(nodeId)
       }
     }
 
-    return {
-      entryNodes: Array.from(entryNodesSet),
-      terminalNodes: Array.from(terminalNodesSet),
-      branchCount,
-    }
+    return { entryNodes, terminalNodes }
   }
 
   private getParallelId(blockId: string, dag: DAG): string | null {

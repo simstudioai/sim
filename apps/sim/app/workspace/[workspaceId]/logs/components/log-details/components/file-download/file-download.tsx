@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { ArrowDown, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/emcn'
-import { createLogger } from '@/lib/logs/console/logger'
 import { extractWorkspaceIdFromExecutionKey, getViewerUrl } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FileCards')

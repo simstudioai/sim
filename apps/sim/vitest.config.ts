@@ -44,8 +44,8 @@ export default defineConfig({
         replacement: path.resolve(__dirname, '../../packages/db'),
       },
       {
-        find: '@/lib/logs/console/logger',
-        replacement: path.resolve(__dirname, 'lib/logs/console/logger.ts'),
+        find: '@sim/logger',
+        replacement: path.resolve(__dirname, '../../packages/logger/src'),
       },
       {
         find: '@/stores/console/store',

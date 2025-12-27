@@ -105,7 +105,7 @@ export function DeleteModal({
       <ModalContent className='w-[400px]'>
         <ModalHeader>{title}</ModalHeader>
         <ModalBody>
-          <p className='text-[12px] text-[var(--text-tertiary)]'>
+          <p className='text-[12px] text-[var(--text-secondary)]'>
             {renderDescription()}{' '}
             <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
           </p>
@@ -114,12 +114,7 @@ export function DeleteModal({
           <Button variant='active' onClick={onClose} disabled={isDeleting}>
             Cancel
           </Button>
-          <Button
-            variant='primary'
-            onClick={onConfirm}
-            disabled={isDeleting}
-            className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-          >
+          <Button variant='destructive' onClick={onConfirm} disabled={isDeleting}>
             {isDeleting ? 'Deleting...' : 'Delete'}
           </Button>
         </ModalFooter>

@@ -1,10 +1,10 @@
+import { createLogger } from '@sim/logger'
 import { Loader2, Rocket, X, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import { createLogger } from '@/lib/logs/console/logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface CheckDeploymentStatusArgs {

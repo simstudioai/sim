@@ -1,10 +1,10 @@
 import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { idempotencyKey } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
-import { createLogger } from '@/lib/logs/console/logger'
 import { extractProviderIdentifierFromBody } from '@/lib/webhooks/provider-utils'
 
 const logger = createLogger('IdempotencyService')

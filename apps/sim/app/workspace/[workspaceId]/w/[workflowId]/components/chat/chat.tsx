@@ -1,6 +1,7 @@
 'use client'
 
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import {
   AlertCircle,
   ArrowDownToLine,
@@ -28,7 +29,6 @@ import {
   extractPathFromOutputId,
   parseOutputContentSafely,
 } from '@/lib/core/utils/response-format'
-import { createLogger } from '@/lib/logs/console/logger'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
 import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { START_BLOCK_RESERVED_FIELDS } from '@/lib/workflows/types'
@@ -37,7 +37,10 @@ import {
   OutputSelect,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components'
 import { useChatFileUpload } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/hooks'
-import { useScrollManagement } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import {
+  usePreventZoom,
+  useScrollManagement,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import {
   useFloatBoundarySync,
   useFloatDrag,
@@ -233,6 +236,7 @@ export function Chat() {
   const inputRef = useRef<HTMLInputElement>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
+  const preventZoomRef = usePreventZoom()
 
   // File upload hook
   const {
@@ -814,7 +818,8 @@ export function Chat() {
 
   return (
     <div
-      className='fixed z-30 flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--surface-1)] px-[10px] pt-[2px] pb-[8px]'
+      ref={preventZoomRef}
+      className='fixed z-30 flex flex-col overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] px-[10px] pt-[2px] pb-[8px]'
       style={{
         left: `${actualPosition.x}px`,
         top: `${actualPosition.y}px`,
@@ -968,8 +973,8 @@ export function Chat() {
 
           {/* Combined input container */}
           <div
-            className={`rounded-[4px] border bg-[var(--surface-9)] py-0 pr-[6px] pl-[4px] transition-colors ${
-              isDragOver ? 'border-[var(--brand-secondary)]' : 'border-[var(--surface-11)]'
+            className={`rounded-[4px] border bg-[var(--surface-5)] py-0 pr-[6px] pl-[4px] transition-colors ${
+              isDragOver ? 'border-[var(--brand-secondary)]' : 'border-[var(--border-1)]'
             }`}
           >
             {/* File thumbnails */}
@@ -1055,7 +1060,7 @@ export function Chat() {
                 {isStreaming ? (
                   <Button
                     onClick={handleStopStreaming}
-                    className='h-[22px] w-[22px] rounded-full p-0 transition-colors !bg-[var(--c-C0C0C0)] hover:!bg-[var(--c-D0D0D0)]'
+                    className='!bg-[var(--c-C0C0C0)] hover:!bg-[var(--c-D0D0D0)] h-[22px] w-[22px] rounded-full p-0 transition-colors'
                   >
                     <Square className='h-2.5 w-2.5 fill-black text-black' />
                   </Button>

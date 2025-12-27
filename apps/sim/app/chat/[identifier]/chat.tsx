@@ -1,9 +1,9 @@
 'use client'
 
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { v4 as uuidv4 } from 'uuid'
 import { noop } from '@/lib/core/utils/request'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
 import {
   ChatErrorState,
@@ -117,7 +117,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const [starCount, setStarCount] = useState('24k')
+  const [starCount, setStarCount] = useState('24.4k')
   const [conversationId, setConversationId] = useState('')
 
   const [showScrollButton, setShowScrollButton] = useState(false)
@@ -553,7 +553,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
 
   // Standard text-based chat interface
   return (
-    <div className='fixed inset-0 z-[100] flex flex-col bg-background text-foreground'>
+    <div className='fixed inset-0 z-[100] flex flex-col bg-white text-foreground'>
       {/* Header component */}
       <ChatHeader chatConfig={chatConfig} starCount={starCount} />
 

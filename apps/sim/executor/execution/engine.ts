@@ -1,4 +1,5 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
+import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { BlockType } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
@@ -23,6 +24,10 @@ export class ExecutionEngine {
   private finalOutput: NormalizedBlockOutput = {}
   private pausedBlocks: Map<string, PauseMetadata> = new Map()
   private allowResumeTriggers: boolean
+  private cancelledFlag = false
+  private lastCancellationCheck = 0
+  private readonly useRedisCancellation: boolean
+  private readonly CANCELLATION_CHECK_INTERVAL_MS = 500
 
   constructor(
     private context: ExecutionContext,
@@ -31,6 +36,35 @@ export class ExecutionEngine {
     private nodeOrchestrator: NodeExecutionOrchestrator
   ) {
     this.allowResumeTriggers = this.context.metadata.resumeFromSnapshot === true
+    this.useRedisCancellation = isRedisCancellationEnabled() && !!this.context.executionId
+  }
+
+  private async checkCancellation(): Promise<boolean> {
+    if (this.cancelledFlag) {
+      return true
+    }
+
+    if (this.useRedisCancellation) {
+      const now = Date.now()
+      if (now - this.lastCancellationCheck < this.CANCELLATION_CHECK_INTERVAL_MS) {
+        return false
+      }
+      this.lastCancellationCheck = now
+
+      const cancelled = await isExecutionCancelled(this.context.executionId!)
+      if (cancelled) {
+        this.cancelledFlag = true
+        logger.info('Execution cancelled via Redis', { executionId: this.context.executionId })
+      }
+      return cancelled
+    }
+
+    if (this.context.abortSignal?.aborted) {
+      this.cancelledFlag = true
+      return true
+    }
+
+    return false
   }
 
   async run(triggerBlockId?: string): Promise<ExecutionResult> {
@@ -39,7 +73,7 @@ export class ExecutionEngine {
       this.initializeQueue(triggerBlockId)
 
       while (this.hasWork()) {
-        if (this.context.isCancelled && this.executing.size === 0) {
+        if ((await this.checkCancellation()) && this.executing.size === 0) {
           break
         }
         await this.processQueue()
@@ -54,7 +88,7 @@ export class ExecutionEngine {
       this.context.metadata.endTime = new Date(endTime).toISOString()
       this.context.metadata.duration = endTime - startTime
 
-      if (this.context.isCancelled) {
+      if (this.cancelledFlag) {
         return {
           success: false,
           output: this.finalOutput,
@@ -75,7 +109,7 @@ export class ExecutionEngine {
       this.context.metadata.endTime = new Date(endTime).toISOString()
       this.context.metadata.duration = endTime - startTime
 
-      if (this.context.isCancelled) {
+      if (this.cancelledFlag) {
         return {
           success: false,
           output: this.finalOutput,
@@ -234,7 +268,7 @@ export class ExecutionEngine {
 
   private async processQueue(): Promise<void> {
     while (this.readyQueue.length > 0) {
-      if (this.context.isCancelled) {
+      if (await this.checkCancellation()) {
         break
       }
       const nodeId = this.dequeue()

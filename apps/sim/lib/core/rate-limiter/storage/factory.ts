@@ -1,6 +1,6 @@
+import { createLogger } from '@sim/logger'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { RateLimitStorageAdapter } from './adapter'
 import { DbTokenBucket } from './db-token-bucket'
 import { RedisTokenBucket } from './redis-token-bucket'

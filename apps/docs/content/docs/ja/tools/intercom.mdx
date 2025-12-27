@@ -55,8 +55,7 @@ Intercomをワークフローに統合します。連絡先の作成、取得、
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作の成功ステータス |
-| `output` | object | 作成された連絡先データ |
+| `contact` | object | 作成された連絡先オブジェクト |
 
 ### `intercom_get_contact`
 
@@ -72,8 +71,7 @@ IDからIntercomの単一の連絡先を取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 連絡先データ |
+| `contact` | object | 連絡先オブジェクト |
 
 ### `intercom_update_contact`
 
@@ -101,8 +99,7 @@ Intercomの既存の連絡先を更新する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 更新された連絡先データ |
+| `contact` | object | 更新された連絡先オブジェクト |
 
 ### `intercom_list_contacts`
 
@@ -119,8 +116,7 @@ Intercomの既存の連絡先を更新する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 連絡先リスト |
+| `contacts` | array | 連絡先オブジェクトの配列 |
 
 ### `intercom_search_contacts`
 
@@ -140,8 +136,7 @@ Intercomの既存の連絡先を更新する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 検索結果 |
+| `contacts` | array | 一致する連絡先オブジェクトの配列 |
 
 ### `intercom_delete_contact`
 
@@ -157,8 +152,9 @@ IDでIntercomから連絡先を削除する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 削除結果 |
+| `id` | string | 削除された連絡先のID |
+| `deleted` | boolean | 連絡先が削除されたかどうか |
+| `metadata` | object | 操作メタデータ |
 
 ### `intercom_create_company`
 
@@ -182,8 +178,7 @@ Intercomで企業を作成または更新する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作の成功ステータス |
-| `output` | object | 作成または更新された企業データ |
+| `company` | object | 作成または更新された企業オブジェクト |
 
 ### `intercom_get_company`
 
@@ -199,8 +194,7 @@ IDによってIntercomから単一の企業を取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作の成功ステータス |
-| `output` | object | 企業データ |
+| `company` | object | 企業オブジェクト |
 
 ### `intercom_list_companies`
 
@@ -218,8 +212,7 @@ IDによってIntercomから単一の企業を取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 企業のリスト |
+| `companies` | array | 企業オブジェクトの配列 |
 
 ### `intercom_get_conversation`
 
@@ -237,8 +230,7 @@ IDによりIntercomから単一の会話を取得
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 会話データ |
+| `conversation` | object | 会話オブジェクト |
 
 ### `intercom_list_conversations`
 
@@ -257,8 +249,7 @@ IDによりIntercomから単一の会話を取得
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 会話のリスト |
+| `conversations` | array | 会話オブジェクトの配列 |
 
 ### `intercom_reply_conversation`
 
@@ -279,8 +270,7 @@ IDによりIntercomから単一の会話を取得
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 返信を含む更新された会話 |
+| `conversation` | object | 更新された会話オブジェクト |
 
 ### `intercom_search_conversations`
 
@@ -300,8 +290,7 @@ IDによりIntercomから単一の会話を取得
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 検索結果 |
+| `conversations` | array | 一致する会話オブジェクトの配列 |
 
 ### `intercom_create_ticket`
 
@@ -323,8 +312,7 @@ Intercomで新しいチケットを作成する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 作成されたチケットデータ |
+| `ticket` | object | 作成されたチケットオブジェクト |
 
 ### `intercom_get_ticket`
 
@@ -340,8 +328,7 @@ IDによりIntercomから単一のチケットを取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | チケットデータ |
+| `ticket` | object | チケットオブジェクト |
 
 ### `intercom_create_message`
 
@@ -365,8 +352,7 @@ Intercomで管理者が開始した新しいメッセージを作成して送信
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功ステータス |
-| `output` | object | 作成されたメッセージデータ |
+| `message` | object | 作成されたメッセージオブジェクト |
 
 ## メモ
 

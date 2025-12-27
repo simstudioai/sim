@@ -1,6 +1,6 @@
+import { createLogger } from '@sim/logger'
 import { Twilio } from 'twilio'
 import { env } from '@/lib/core/config/env'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('SMSService')
 

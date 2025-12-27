@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check } from 'lucide-react'
+import type React from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Check, RepeatIcon, SplitIcon } from 'lucide-react'
 import {
   Badge,
   Popover,
@@ -18,6 +19,32 @@ import { getBlock } from '@/blocks'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+
+/**
+ * Renders a tag icon with background color.
+ *
+ * @param icon - Either a letter string or a Lucide icon component
+ * @param color - Background color for the icon container
+ * @returns A styled icon element
+ */
+const TagIcon: React.FC<{
+  icon: string | React.ComponentType<{ className?: string }>
+  color: string
+}> = ({ icon, color }) => (
+  <div
+    className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded'
+    style={{ background: color }}
+  >
+    {typeof icon === 'string' ? (
+      <span className='!text-white font-bold text-[10px]'>{icon}</span>
+    ) : (
+      (() => {
+        const IconComponent = icon
+        return <IconComponent className='!text-white size-[9px]' />
+      })()
+    )}
+  </div>
+)
 
 /**
  * Props for the OutputSelect component
@@ -71,7 +98,6 @@ export function OutputSelect({
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const triggerRef = useRef<HTMLDivElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
   const blocks = useWorkflowStore((state) => state.blocks)
   const { isShowingDiff, isDiffReady, hasActiveDiff, baselineWorkflow } = useWorkflowDiffStore()
   const subBlockValues = useSubBlockStore((state) =>
@@ -185,8 +211,11 @@ export function OutputSelect({
    * @param o - The output object to check
    * @returns True if the output is selected, false otherwise
    */
-  const isSelectedValue = (o: { id: string; label: string }) =>
-    selectedOutputs.includes(o.id) || selectedOutputs.includes(o.label)
+  const isSelectedValue = useCallback(
+    (o: { id: string; label: string }) =>
+      selectedOutputs.includes(o.id) || selectedOutputs.includes(o.label),
+    [selectedOutputs]
+  )
 
   /**
    * Gets display text for selected outputs
@@ -292,82 +321,94 @@ export function OutputSelect({
    * Handles output selection by toggling the selected state
    * @param value - The output label to toggle
    */
-  const handleOutputSelection = (value: string) => {
-    const emittedValue =
-      valueMode === 'label' ? value : workflowOutputs.find((o) => o.label === value)?.id || value
-    const index = selectedOutputs.indexOf(emittedValue)
+  const handleOutputSelection = useCallback(
+    (value: string) => {
+      const emittedValue =
+        valueMode === 'label' ? value : workflowOutputs.find((o) => o.label === value)?.id || value
+      const index = selectedOutputs.indexOf(emittedValue)
 
-    const newSelectedOutputs =
-      index === -1
-        ? [...new Set([...selectedOutputs, emittedValue])]
-        : selectedOutputs.filter((id) => id !== emittedValue)
+      const newSelectedOutputs =
+        index === -1
+          ? [...new Set([...selectedOutputs, emittedValue])]
+          : selectedOutputs.filter((id) => id !== emittedValue)
 
-    onOutputSelect(newSelectedOutputs)
-  }
+      onOutputSelect(newSelectedOutputs)
+    },
+    [valueMode, workflowOutputs, selectedOutputs, onOutputSelect]
+  )
 
   /**
    * Handles keyboard navigation within the output list
    * Supports ArrowUp, ArrowDown, Enter, and Escape keys
-   * @param e - Keyboard event
    */
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (flattenedOutputs.length === 0) return
+  useEffect(() => {
+    if (!open || flattenedOutputs.length === 0) return
 
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault()
-        setHighlightedIndex((prev) => {
-          const next = prev < flattenedOutputs.length - 1 ? prev + 1 : 0
-          return next
-        })
-        break
+    const handleKeyboardEvent = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault()
+          e.stopPropagation()
+          setHighlightedIndex((prev) => {
+            if (prev === -1 || prev >= flattenedOutputs.length - 1) {
+              return 0
+            }
+            return prev + 1
+          })
+          break
 
-      case 'ArrowUp':
-        e.preventDefault()
-        setHighlightedIndex((prev) => {
-          const next = prev > 0 ? prev - 1 : flattenedOutputs.length - 1
-          return next
-        })
-        break
+        case 'ArrowUp':
+          e.preventDefault()
+          e.stopPropagation()
+          setHighlightedIndex((prev) => {
+            if (prev <= 0) {
+              return flattenedOutputs.length - 1
+            }
+            return prev - 1
+          })
+          break
 
-      case 'Enter':
-        e.preventDefault()
-        if (highlightedIndex >= 0 && highlightedIndex < flattenedOutputs.length) {
-          handleOutputSelection(flattenedOutputs[highlightedIndex].label)
-        }
-        break
+        case 'Enter':
+          e.preventDefault()
+          e.stopPropagation()
+          setHighlightedIndex((currentIndex) => {
+            if (currentIndex >= 0 && currentIndex < flattenedOutputs.length) {
+              handleOutputSelection(flattenedOutputs[currentIndex].label)
+            }
+            return currentIndex
+          })
+          break
 
-      case 'Escape':
-        e.preventDefault()
-        setOpen(false)
-        break
+        case 'Escape':
+          e.preventDefault()
+          e.stopPropagation()
+          setOpen(false)
+          break
+      }
     }
-  }
+
+    window.addEventListener('keydown', handleKeyboardEvent, true)
+    return () => window.removeEventListener('keydown', handleKeyboardEvent, true)
+  }, [open, flattenedOutputs, handleOutputSelection])
 
   /**
    * Reset highlighted index when popover opens/closes
    */
   useEffect(() => {
     if (open) {
-      // Find first selected item, or start at -1
       const firstSelectedIndex = flattenedOutputs.findIndex((output) => isSelectedValue(output))
       setHighlightedIndex(firstSelectedIndex >= 0 ? firstSelectedIndex : -1)
-
-      // Focus the content for keyboard navigation
-      setTimeout(() => {
-        contentRef.current?.focus()
-      }, 0)
     } else {
       setHighlightedIndex(-1)
     }
-  }, [open, flattenedOutputs])
+  }, [open, flattenedOutputs, isSelectedValue])
 
   /**
    * Scroll highlighted item into view
    */
   useEffect(() => {
-    if (highlightedIndex >= 0 && contentRef.current) {
-      const highlightedElement = contentRef.current.querySelector(
+    if (highlightedIndex >= 0 && popoverRef.current) {
+      const highlightedElement = popoverRef.current.querySelector(
         `[data-option-index="${highlightedIndex}"]`
       )
       if (highlightedElement) {
@@ -425,18 +466,35 @@ export function OutputSelect({
         minWidth={160}
         border
         disablePortal={disablePopoverPortal}
-        onKeyDown={handleKeyDown}
-        tabIndex={0}
-        style={{ outline: 'none' }}
       >
-        <div ref={contentRef} className='space-y-[2px]'>
+        <div className='space-y-[2px]'>
           {Object.entries(groupedOutputs).map(([blockName, outputs]) => {
-            // Calculate the starting index for this group
             const startIndex = flattenedOutputs.findIndex((o) => o.blockName === blockName)
+
+            const firstOutput = outputs[0]
+            const blockConfig = getBlock(firstOutput.blockType)
+            const blockColor = getOutputColor(firstOutput.blockId, firstOutput.blockType)
+
+            let blockIcon: string | React.ComponentType<{ className?: string }> = blockName
+              .charAt(0)
+              .toUpperCase()
+
+            if (blockConfig?.icon) {
+              blockIcon = blockConfig.icon
+            } else if (firstOutput.blockType === 'loop') {
+              blockIcon = RepeatIcon
+            } else if (firstOutput.blockType === 'parallel') {
+              blockIcon = SplitIcon
+            }
 
             return (
               <div key={blockName}>
-                <PopoverSection>{blockName}</PopoverSection>
+                <PopoverSection>
+                  <div className='flex items-center gap-1.5'>
+                    <TagIcon icon={blockIcon} color={blockColor} />
+                    <span>{blockName}</span>
+                  </div>
+                </PopoverSection>
 
                 <div className='flex flex-col gap-[2px]'>
                   {outputs.map((output, localIndex) => {
@@ -451,17 +509,9 @@ export function OutputSelect({
                         onClick={() => handleOutputSelection(output.label)}
                         onMouseEnter={() => setHighlightedIndex(globalIndex)}
                       >
-                        <div
-                          className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded'
-                          style={{
-                            backgroundColor: getOutputColor(output.blockId, output.blockType),
-                          }}
-                        >
-                          <span className='font-bold text-[10px] text-white'>
-                            {blockName.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <span className='min-w-0 flex-1 truncate'>{output.path}</span>
+                        <span className='min-w-0 flex-1 truncate text-[var(--text-primary)]'>
+                          {output.path}
+                        </span>
                         {isSelectedValue(output) && <Check className='h-3 w-3 flex-shrink-0' />}
                       </PopoverItem>
                     )

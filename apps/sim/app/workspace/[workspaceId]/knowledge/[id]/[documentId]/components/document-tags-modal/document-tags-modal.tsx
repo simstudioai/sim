@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { createLogger } from '@sim/logger'
 import {
   Button,
   Combobox,
@@ -18,7 +18,6 @@ import {
 import { cn } from '@/lib/core/utils/cn'
 import { ALL_TAG_SLOTS, type AllTagSlot, MAX_TAG_SLOTS } from '@/lib/knowledge/constants'
 import type { DocumentTag } from '@/lib/knowledge/tags/types'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
@@ -575,7 +574,7 @@ export function DocumentTagsModal({
                           Cancel
                         </Button>
                         <Button
-                          variant='primary'
+                          variant='tertiary'
                           onClick={saveDocumentTag}
                           className='flex-1'
                           disabled={!canSaveTag}
@@ -741,7 +740,7 @@ export function DocumentTagsModal({
                       </Button>
                     )}
                     <Button
-                      variant='primary'
+                      variant='tertiary'
                       onClick={saveDocumentTag}
                       className='flex-1'
                       disabled={
@@ -755,14 +754,7 @@ export function DocumentTagsModal({
                           ))
                       }
                     >
-                      {isSavingTag ? (
-                        <>
-                          <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                          Creating...
-                        </>
-                      ) : (
-                        'Create Tag'
-                      )}
+                      {isSavingTag ? 'Creating...' : 'Create Tag'}
                     </Button>
                   </div>
                 </div>

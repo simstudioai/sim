@@ -29,9 +29,9 @@ export function ContextUsageIndicator({
   const offset = circumference - (percentage / 100) * circumference
 
   const color = useMemo(() => {
-    if (percentage >= 90) return '#dc2626'
-    if (percentage >= 75) return '#d97706'
-    return '#6b7280'
+    if (percentage >= 90) return 'var(--text-error)'
+    if (percentage >= 75) return 'var(--warning)'
+    return 'var(--text-muted)'
   }, [percentage])
 
   const displayPercentage = useMemo(() => {

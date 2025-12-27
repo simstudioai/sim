@@ -1,8 +1,8 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { isUserFile } from '@/lib/core/utils/display-filters'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { ChatFile, ChatMessage } from '@/app/chat/components/message/message'
 import { CHAT_ERROR_MESSAGES } from '@/app/chat/constants'
 

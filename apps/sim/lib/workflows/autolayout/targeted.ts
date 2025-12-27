@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import {
   CONTAINER_PADDING,
   DEFAULT_HORIZONTAL_SPACING,

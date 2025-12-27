@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import { buildIntercomUrl, handleIntercomError } from './types'
 
@@ -76,15 +76,36 @@ export const intercomGetCompanyTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    company: {
       type: 'object',
-      description: 'Company data',
+      description: 'Company object',
       properties: {
-        company: { type: 'object', description: 'Company object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
+        id: { type: 'string', description: 'Unique identifier for the company' },
+        type: { type: 'string', description: 'Object type (company)' },
+        app_id: { type: 'string', description: 'Intercom app ID' },
+        company_id: { type: 'string', description: 'Your unique identifier for the company' },
+        name: { type: 'string', description: 'Name of the company' },
+        website: { type: 'string', description: 'Company website URL' },
+        plan: { type: 'object', description: 'Company plan information' },
+        size: { type: 'number', description: 'Number of employees' },
+        industry: { type: 'string', description: 'Industry the company operates in' },
+        monthly_spend: { type: 'number', description: 'Monthly revenue from this company' },
+        session_count: { type: 'number', description: 'Number of sessions' },
+        user_count: { type: 'number', description: 'Number of users in the company' },
+        created_at: { type: 'number', description: 'Unix timestamp when company was created' },
+        updated_at: { type: 'number', description: 'Unix timestamp when company was last updated' },
+        custom_attributes: { type: 'object', description: 'Custom attributes set on the company' },
+        tags: { type: 'object', description: 'Tags associated with the company' },
+        segments: { type: 'object', description: 'Segments the company belongs to' },
       },
     },
+    metadata: {
+      type: 'object',
+      description: 'Operation metadata',
+      properties: {
+        operation: { type: 'string', description: 'The operation performed (get_company)' },
+      },
+    },
+    success: { type: 'boolean', description: 'Operation success status' },
   },
 }

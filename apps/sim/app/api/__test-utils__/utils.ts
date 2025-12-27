@@ -1,5 +1,8 @@
+import { createMockLogger as createSimTestingMockLogger } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { vi } from 'vitest'
+
+export { createMockLogger } from '@sim/testing'
 
 export interface MockUser {
   id: string
@@ -214,12 +217,11 @@ export const mockDb = {
   })),
 }
 
-export const mockLogger = {
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-  debug: vi.fn(),
-}
+/**
+ * Mock logger using @sim/testing createMockLogger.
+ * This provides a consistent mock logger across all API tests.
+ */
+export const mockLogger = createSimTestingMockLogger()
 
 export const mockUser = {
   id: 'user-123',
@@ -729,10 +731,11 @@ export function mockKnowledgeSchemas() {
 }
 
 /**
- * Mock console logger
+ * Mock console logger using the shared mockLogger instance.
+ * This ensures tests can assert on the same mockLogger instance exported from this module.
  */
 export function mockConsoleLogger() {
-  vi.doMock('@/lib/logs/console/logger', () => ({
+  vi.doMock('@sim/logger', () => ({
     createLogger: vi.fn().mockReturnValue(mockLogger),
   }))
 }

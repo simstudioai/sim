@@ -1,12 +1,12 @@
 import { db } from '@sim/db'
 import { member, templateCreators } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { CreatorProfileDetails } from '@/app/_types/creator-profile'
 
 const logger = createLogger('CreatorProfilesAPI')

@@ -1,8 +1,8 @@
+import { createLogger } from '@sim/logger'
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
-import { createLogger } from '@/lib/logs/console/logger'
 import { pollRssWebhooks } from '@/lib/webhooks/rss-polling-service'
 
 const logger = createLogger('RssPollingAPI')

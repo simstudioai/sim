@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { createLogger } from '@sim/logger'
 import { Loader2, RotateCcw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -18,7 +19,6 @@ import {
   Textarea,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { createLogger } from '@/lib/logs/console/logger'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
@@ -388,7 +388,7 @@ export function CreateBaseModal({
                   />
                 </div>
 
-                <div className='space-y-[12px] rounded-[6px] bg-[var(--surface-6)] px-[12px] py-[14px]'>
+                <div className='space-y-[12px] rounded-[6px] bg-[var(--surface-5)] px-[12px] py-[14px]'>
                   <div className='grid grid-cols-2 gap-[12px]'>
                     <div className='flex flex-col gap-[8px]'>
                       <Label htmlFor='minChunkSize'>Min Chunk Size (characters)</Label>
@@ -562,7 +562,7 @@ export function CreateBaseModal({
                   Cancel
                 </Button>
                 <Button
-                  variant='primary'
+                  variant='tertiary'
                   type='submit'
                   disabled={isSubmitting || !nameValue?.trim()}
                 >

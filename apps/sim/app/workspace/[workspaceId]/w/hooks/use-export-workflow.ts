@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import JSZip from 'jszip'
-import { createLogger } from '@/lib/logs/console/logger'
 import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'

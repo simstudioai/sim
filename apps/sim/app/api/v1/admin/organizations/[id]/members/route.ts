@@ -30,10 +30,10 @@
 
 import { db } from '@sim/db'
 import { member, organization, user, userStats } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { count, eq } from 'drizzle-orm'
 import { addUserToOrganization } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
-import { createLogger } from '@/lib/logs/console/logger'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,

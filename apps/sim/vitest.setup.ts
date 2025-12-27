@@ -37,7 +37,7 @@ vi.mock('drizzle-orm', () => ({
   InferInsertModel: {},
 }))
 
-vi.mock('@/lib/logs/console/logger', () => {
+vi.mock('@sim/logger', () => {
   const createLogger = vi.fn(() => ({
     debug: vi.fn(),
     info: vi.fn(),

@@ -5,13 +5,13 @@
 
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import {
   checkStorageQuota,
   decrementStorageUsage,
   incrementStorageUsage,
 } from '@/lib/billing/storage'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   deleteFile,
   downloadFile,

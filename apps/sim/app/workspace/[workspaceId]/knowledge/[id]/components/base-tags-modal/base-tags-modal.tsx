@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { createLogger } from '@sim/logger'
 import {
   Button,
   Combobox,
@@ -17,7 +17,6 @@ import {
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { SUPPORTED_FIELD_TYPES, TAG_SLOT_CONFIG } from '@/lib/knowledge/constants'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import {
   type TagDefinition,
@@ -429,7 +428,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                         Cancel
                       </Button>
                       <Button
-                        variant='primary'
+                        variant='tertiary'
                         onClick={saveTagDefinition}
                         className='flex-1'
                         disabled={
@@ -438,14 +437,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                           !hasAvailableSlots(createTagForm.fieldType)
                         }
                       >
-                        {isSavingTag ? (
-                          <>
-                            <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                            Creating...
-                          </>
-                        ) : (
-                          'Create Tag'
-                        )}
+                        {isSavingTag ? 'Creating...' : 'Create Tag'}
                       </Button>
                     </div>
                   </div>
@@ -468,7 +460,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
           <ModalHeader>Delete Tag</ModalHeader>
           <ModalBody className='!pb-[16px]'>
             <div className='space-y-[8px]'>
-              <p className='text-[12px] text-[var(--text-tertiary)]'>
+              <p className='text-[12px] text-[var(--text-secondary)]'>
                 Are you sure you want to delete the "{selectedTag?.displayName}" tag? This will
                 remove this tag from {selectedTagUsage?.documentCount || 0} document
                 {selectedTagUsage?.documentCount !== 1 ? 's' : ''}.{' '}
@@ -494,12 +486,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
             >
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={confirmDeleteTag}
-              disabled={isDeletingTag}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={confirmDeleteTag} disabled={isDeletingTag}>
               {isDeletingTag ? <>Deleting...</> : 'Delete Tag'}
             </Button>
           </ModalFooter>
