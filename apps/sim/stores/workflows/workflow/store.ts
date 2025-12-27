@@ -1,7 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { createLogger } from '@/lib/logs/console/logger'
+import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks'
@@ -591,8 +592,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         const newId = crypto.randomUUID()
         const offsetPosition = {
-          x: block.position.x + 250,
-          y: block.position.y + 20,
+          x: block.position.x + DEFAULT_DUPLICATE_OFFSET.x,
+          y: block.position.y + DEFAULT_DUPLICATE_OFFSET.y,
         }
 
         const newName = getUniqueBlockName(block.name, get().blocks)
@@ -715,54 +716,62 @@ export const useWorkflowStore = create<WorkflowStore>()(
           const workflowValues = subBlockStore.workflowValues[activeWorkflowId] || {}
           const updatedWorkflowValues = { ...workflowValues }
 
+          // Helper function to recursively update references in any data structure
+          function updateReferences(value: any, regex: RegExp, replacement: string): any {
+            // Handle string values
+            if (typeof value === 'string') {
+              return regex.test(value) ? value.replace(regex, replacement) : value
+            }
+
+            // Handle arrays
+            if (Array.isArray(value)) {
+              return value.map((item) => updateReferences(item, regex, replacement))
+            }
+
+            // Handle objects
+            if (value !== null && typeof value === 'object') {
+              const result = { ...value }
+              for (const key in result) {
+                result[key] = updateReferences(result[key], regex, replacement)
+              }
+              return result
+            }
+
+            // Return unchanged for other types
+            return value
+          }
+
+          const oldBlockName = normalizeName(oldBlock.name)
+          const newBlockName = normalizeName(name)
+          const regex = new RegExp(`<${oldBlockName}\\.`, 'g')
+
           // Loop through blocks
           Object.entries(workflowValues).forEach(([blockId, blockValues]) => {
             if (blockId === id) return // Skip the block being renamed
 
+            let blockHasChanges = false
+            const updatedBlockValues = { ...blockValues }
+
             // Loop through subblocks and update references
             Object.entries(blockValues).forEach(([subBlockId, value]) => {
-              const oldBlockName = normalizeName(oldBlock.name)
-              const newBlockName = normalizeName(name)
-              const regex = new RegExp(`<${oldBlockName}\\.`, 'g')
-
               // Use a recursive function to handle all object types
               const updatedValue = updateReferences(value, regex, `<${newBlockName}.`)
 
               // Check if the value actually changed
               if (JSON.stringify(updatedValue) !== JSON.stringify(value)) {
-                updatedWorkflowValues[blockId][subBlockId] = updatedValue
+                updatedBlockValues[subBlockId] = updatedValue
+                blockHasChanges = true
                 changedSubblocks.push({
                   blockId,
                   subBlockId,
                   newValue: updatedValue,
                 })
               }
-
-              // Helper function to recursively update references in any data structure
-              function updateReferences(value: any, regex: RegExp, replacement: string): any {
-                // Handle string values
-                if (typeof value === 'string') {
-                  return regex.test(value) ? value.replace(regex, replacement) : value
-                }
-
-                // Handle arrays
-                if (Array.isArray(value)) {
-                  return value.map((item) => updateReferences(item, regex, replacement))
-                }
-
-                // Handle objects
-                if (value !== null && typeof value === 'object') {
-                  const result = { ...value }
-                  for (const key in result) {
-                    result[key] = updateReferences(result[key], regex, replacement)
-                  }
-                  return result
-                }
-
-                // Return unchanged for other types
-                return value
-              }
             })
+
+            if (blockHasChanges) {
+              updatedWorkflowValues[blockId] = updatedBlockValues
+            }
           })
 
           // Update the subblock store with the new values

@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import { getBlock } from '@/blocks/index'
 import { isMcpTool } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'

@@ -4,7 +4,9 @@
  * This file contains mock data samples to be used in tool unit tests.
  */
 
-// HTTP Request Mock Data
+/**
+ * HTTP Request mock responses for different scenarios.
+ */
 export const mockHttpResponses = {
   simple: {
     data: { message: 'Success', status: 'ok' },
@@ -168,7 +170,7 @@ export const mockPineconeResponses = {
 
   // Upsert response
   upsertResponse: {
-    upsertedCount: 5,
+    statusText: 'Created',
   },
 }
 

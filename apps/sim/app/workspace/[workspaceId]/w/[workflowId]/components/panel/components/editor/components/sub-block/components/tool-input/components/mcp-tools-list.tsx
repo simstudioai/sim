@@ -98,10 +98,10 @@ export function McpToolsList({
             }}
           >
             <div
-              className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded'
+              className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded-[4px]'
               style={{ background: mcpTool.bgColor }}
             >
-              <IconComponent icon={mcpTool.icon} className='h-[11px] w-[11px] text-white' />
+              <IconComponent icon={mcpTool.icon} className='h-[9px] w-[9px] text-white' />
             </div>
             <span className='truncate' title={`${mcpTool.name} (${mcpTool.serverName})`}>
               {mcpTool.name}

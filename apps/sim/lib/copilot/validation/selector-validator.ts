@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { account, document, knowledgeBase, mcpServers, workflow } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('SelectorValidator')
 

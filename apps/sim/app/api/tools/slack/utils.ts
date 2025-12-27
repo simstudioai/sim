@@ -1,4 +1,4 @@
-import type { Logger } from '@/lib/logs/console/logger'
+import type { Logger } from '@sim/logger'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 

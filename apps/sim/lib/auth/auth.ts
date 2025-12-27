@@ -2,6 +2,7 @@ import { sso } from '@better-auth/sso'
 import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
@@ -49,7 +50,6 @@ import {
   isRegistrationDisabled,
 } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -120,6 +120,35 @@ export const auth = betterAuth({
           })
 
           if (existing) {
+            let scopeToStore = account.scope
+
+            if (account.providerId === 'salesforce' && account.accessToken) {
+              try {
+                const response = await fetch(
+                  'https://login.salesforce.com/services/oauth2/userinfo',
+                  {
+                    headers: {
+                      Authorization: `Bearer ${account.accessToken}`,
+                    },
+                  }
+                )
+
+                if (response.ok) {
+                  const data = await response.json()
+
+                  if (data.profile) {
+                    const match = data.profile.match(/^(https:\/\/[^/]+)/)
+                    if (match && match[1] !== 'https://login.salesforce.com') {
+                      const instanceUrl = match[1]
+                      scopeToStore = `__sf_instance__:${instanceUrl} ${account.scope}`
+                    }
+                  }
+                }
+              } catch (error) {
+                logger.error('Failed to fetch Salesforce instance URL', { error })
+              }
+            }
+
             await db
               .update(schema.account)
               .set({
@@ -129,7 +158,7 @@ export const auth = betterAuth({
                 idToken: account.idToken,
                 accessTokenExpiresAt: account.accessTokenExpiresAt,
                 refreshTokenExpiresAt: account.refreshTokenExpiresAt,
-                scope: account.scope,
+                scope: scopeToStore,
                 updatedAt: new Date(),
               })
               .where(eq(schema.account.id, existing.id))
@@ -140,24 +169,45 @@ export const auth = betterAuth({
           return { data: account }
         },
         after: async (account) => {
-          // Salesforce doesn't return expires_in in its token response (unlike other OAuth providers).
-          // We set a default 2-hour expiration so token refresh logic works correctly.
-          if (account.providerId === 'salesforce' && !account.accessTokenExpiresAt) {
-            const twoHoursFromNow = new Date(Date.now() + 2 * 60 * 60 * 1000)
-            try {
-              await db
-                .update(schema.account)
-                .set({ accessTokenExpiresAt: twoHoursFromNow })
-                .where(eq(schema.account.id, account.id))
-              logger.info(
-                '[databaseHooks.account.create.after] Set default expiration for Salesforce token',
-                { accountId: account.id, expiresAt: twoHoursFromNow }
-              )
-            } catch (error) {
-              logger.error(
-                '[databaseHooks.account.create.after] Failed to set Salesforce token expiration',
-                { accountId: account.id, error }
-              )
+          if (account.providerId === 'salesforce') {
+            const updates: {
+              accessTokenExpiresAt?: Date
+              scope?: string
+            } = {}
+
+            if (!account.accessTokenExpiresAt) {
+              updates.accessTokenExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000)
+            }
+
+            if (account.accessToken) {
+              try {
+                const response = await fetch(
+                  'https://login.salesforce.com/services/oauth2/userinfo',
+                  {
+                    headers: {
+                      Authorization: `Bearer ${account.accessToken}`,
+                    },
+                  }
+                )
+
+                if (response.ok) {
+                  const data = await response.json()
+
+                  if (data.profile) {
+                    const match = data.profile.match(/^(https:\/\/[^/]+)/)
+                    if (match && match[1] !== 'https://login.salesforce.com') {
+                      const instanceUrl = match[1]
+                      updates.scope = `__sf_instance__:${instanceUrl} ${account.scope}`
+                    }
+                  }
+                }
+              } catch (error) {
+                logger.error('Failed to fetch Salesforce instance URL', { error })
+              }
+            }
+
+            if (Object.keys(updates).length > 0) {
+              await db.update(schema.account).set(updates).where(eq(schema.account.id, account.id))
             }
           }
         },
@@ -928,8 +978,6 @@ export const auth = betterAuth({
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/salesforce`,
           getUserInfo: async (tokens) => {
             try {
-              logger.info('Fetching Salesforce user profile')
-
               const response = await fetch(
                 'https://login.salesforce.com/services/oauth2/userinfo',
                 {

@@ -1,10 +1,10 @@
 import { type db, workflowSchedule } from '@sim/db'
 import type * as schema from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import type { ExtractTablesWithRelations } from 'drizzle-orm'
 import { eq } from 'drizzle-orm'
 import type { PgTransaction } from 'drizzle-orm/pg-core'
 import type { PostgresJsQueryResultHKT } from 'drizzle-orm/postgres-js'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockState } from '@/lib/workflows/schedules/utils'
 import { findScheduleBlocks, validateScheduleBlock } from '@/lib/workflows/schedules/validation'
 

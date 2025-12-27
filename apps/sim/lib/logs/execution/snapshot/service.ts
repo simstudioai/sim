@@ -1,9 +1,9 @@
 import { createHash } from 'crypto'
 import { db } from '@sim/db'
 import { workflowExecutionSnapshots } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, lt } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
-import { createLogger } from '@/lib/logs/console/logger'
 import type {
   SnapshotService as ISnapshotService,
   SnapshotCreationResult,
@@ -11,6 +11,12 @@ import type {
   WorkflowExecutionSnapshotInsert,
   WorkflowState,
 } from '@/lib/logs/types'
+import {
+  normalizedStringify,
+  normalizeEdge,
+  normalizeValue,
+  sortEdges,
+} from '@/lib/workflows/comparison'
 
 const logger = createLogger('SnapshotService')
 
@@ -45,7 +51,7 @@ export class SnapshotService implements ISnapshotService {
       id: uuidv4(),
       workflowId,
       stateHash,
-      stateData: state, // Full state with positions, subblock values, etc.
+      stateData: state,
     }
 
     const [newSnapshot] = await db
@@ -107,7 +113,7 @@ export class SnapshotService implements ISnapshotService {
 
   computeStateHash(state: WorkflowState): string {
     const normalizedState = this.normalizeStateForHashing(state)
-    const stateString = this.normalizedStringify(normalizedState)
+    const stateString = normalizedStringify(normalizedState)
     return createHash('sha256').update(stateString).digest('hex')
   }
 
@@ -126,23 +132,10 @@ export class SnapshotService implements ISnapshotService {
   }
 
   private normalizeStateForHashing(state: WorkflowState): any {
-    // Use the same normalization logic as hasWorkflowChanged for consistency
+    // 1. Normalize and sort edges
+    const normalizedEdges = sortEdges((state.edges || []).map(normalizeEdge))
 
-    // 1. Normalize edges (same as hasWorkflowChanged)
-    const normalizedEdges = (state.edges || [])
-      .map((edge) => ({
-        source: edge.source,
-        sourceHandle: edge.sourceHandle,
-        target: edge.target,
-        targetHandle: edge.targetHandle,
-      }))
-      .sort((a, b) =>
-        `${a.source}-${a.sourceHandle}-${a.target}-${a.targetHandle}`.localeCompare(
-          `${b.source}-${b.sourceHandle}-${b.target}-${b.targetHandle}`
-        )
-      )
-
-    // 2. Normalize blocks (same as hasWorkflowChanged)
+    // 2. Normalize blocks
     const normalizedBlocks: Record<string, any> = {}
 
     for (const [blockId, block] of Object.entries(state.blocks || {})) {
@@ -155,18 +148,16 @@ export class SnapshotService implements ISnapshotService {
         ...dataRest
       } = blockWithoutLayoutFields.data || {}
 
-      // Handle subBlocks with detailed comparison (same as hasWorkflowChanged)
+      // Normalize subBlocks
       const subBlocks = blockWithoutLayoutFields.subBlocks || {}
       const normalizedSubBlocks: Record<string, any> = {}
 
       for (const [subBlockId, subBlock] of Object.entries(subBlocks)) {
-        // Normalize value with special handling for null/undefined
         const value = subBlock.value ?? null
 
         normalizedSubBlocks[subBlockId] = {
           type: subBlock.type,
-          value: this.normalizeValue(value),
-          // Include other properties except value
+          value: normalizeValue(value),
           ...Object.fromEntries(
             Object.entries(subBlock).filter(([key]) => key !== 'value' && key !== 'type')
           ),
@@ -183,12 +174,12 @@ export class SnapshotService implements ISnapshotService {
     // 3. Normalize loops and parallels
     const normalizedLoops: Record<string, any> = {}
     for (const [loopId, loop] of Object.entries(state.loops || {})) {
-      normalizedLoops[loopId] = this.normalizeValue(loop)
+      normalizedLoops[loopId] = normalizeValue(loop)
     }
 
     const normalizedParallels: Record<string, any> = {}
     for (const [parallelId, parallel] of Object.entries(state.parallels || {})) {
-      normalizedParallels[parallelId] = this.normalizeValue(parallel)
+      normalizedParallels[parallelId] = normalizeValue(parallel)
     }
 
     return {
@@ -197,46 +188,6 @@ export class SnapshotService implements ISnapshotService {
       loops: normalizedLoops,
       parallels: normalizedParallels,
     }
-  }
-
-  private normalizeValue(value: any): any {
-    // Handle null/undefined consistently
-    if (value === null || value === undefined) return null
-
-    // Handle arrays
-    if (Array.isArray(value)) {
-      return value.map((item) => this.normalizeValue(item))
-    }
-
-    // Handle objects
-    if (typeof value === 'object') {
-      const normalized: Record<string, any> = {}
-      for (const [key, val] of Object.entries(value)) {
-        normalized[key] = this.normalizeValue(val)
-      }
-      return normalized
-    }
-
-    // Handle primitives
-    return value
-  }
-
-  private normalizedStringify(obj: any): string {
-    if (obj === null || obj === undefined) return 'null'
-    if (typeof obj === 'string') return `"${obj}"`
-    if (typeof obj === 'number' || typeof obj === 'boolean') return String(obj)
-
-    if (Array.isArray(obj)) {
-      return `[${obj.map((item) => this.normalizedStringify(item)).join(',')}]`
-    }
-
-    if (typeof obj === 'object') {
-      const keys = Object.keys(obj).sort()
-      const pairs = keys.map((key) => `"${key}":${this.normalizedStringify(obj[key])}`)
-      return `{${pairs.join(',')}}`
-    }
-
-    return String(obj)
   }
 }
 

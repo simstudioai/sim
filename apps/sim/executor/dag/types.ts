@@ -7,6 +7,7 @@ export interface DAGEdge {
 
 export interface NodeMetadata {
   isParallelBranch?: boolean
+  isParallelSentinel?: boolean
   parallelId?: string
   branchIndex?: number
   branchTotal?: number

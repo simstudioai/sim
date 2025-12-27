@@ -18,7 +18,7 @@ export interface PineconeMatchResponse {
 export interface PineconeResponse extends ToolResponse {
   output: {
     matches?: PineconeMatchResponse[]
-    upsertedCount?: number
+    statusText?: string
     data?: Array<{
       values: number[]
       vector_type: 'dense' | 'sparse'

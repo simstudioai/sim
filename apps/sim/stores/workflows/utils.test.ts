@@ -1,5 +1,12 @@
+import {
+  createAgentBlock,
+  createBlock,
+  createFunctionBlock,
+  createLoopBlock,
+  createStarterBlock,
+} from '@sim/testing'
 import { describe, expect, it } from 'vitest'
-import { normalizeName } from './utils'
+import { getUniqueBlockName, normalizeName } from './utils'
 
 describe('normalizeName', () => {
   it.concurrent('should convert to lowercase', () => {
@@ -89,5 +96,129 @@ describe('normalizeName', () => {
     for (const { input, expected } of realWorldNames) {
       expect(normalizeName(input)).toBe(expected)
     }
+  })
+})
+
+describe('getUniqueBlockName', () => {
+  it('should return "Start" for starter blocks', () => {
+    expect(getUniqueBlockName('Start', {})).toBe('Start')
+    expect(getUniqueBlockName('Starter', {})).toBe('Start')
+    expect(getUniqueBlockName('start', {})).toBe('Start')
+  })
+
+  it('should return name with number 1 when no existing blocks', () => {
+    expect(getUniqueBlockName('Agent', {})).toBe('Agent 1')
+    expect(getUniqueBlockName('Function', {})).toBe('Function 1')
+    expect(getUniqueBlockName('Loop', {})).toBe('Loop 1')
+  })
+
+  it('should increment number when existing blocks have same base name', () => {
+    const existingBlocks = {
+      'block-1': createAgentBlock({ id: 'block-1', name: 'Agent 1' }),
+    }
+
+    expect(getUniqueBlockName('Agent', existingBlocks)).toBe('Agent 2')
+  })
+
+  it('should find highest number and increment', () => {
+    const existingBlocks = {
+      'block-1': createAgentBlock({ id: 'block-1', name: 'Agent 1' }),
+      'block-2': createAgentBlock({ id: 'block-2', name: 'Agent 3' }),
+      'block-3': createAgentBlock({ id: 'block-3', name: 'Agent 2' }),
+    }
+
+    expect(getUniqueBlockName('Agent', existingBlocks)).toBe('Agent 4')
+  })
+
+  it('should handle base name with existing number suffix', () => {
+    const existingBlocks = {
+      'block-1': createFunctionBlock({ id: 'block-1', name: 'Function 1' }),
+      'block-2': createFunctionBlock({ id: 'block-2', name: 'Function 2' }),
+    }
+
+    expect(getUniqueBlockName('Function 1', existingBlocks)).toBe('Function 3')
+    expect(getUniqueBlockName('Function 5', existingBlocks)).toBe('Function 3')
+  })
+
+  it('should be case insensitive when matching base names', () => {
+    const existingBlocks = {
+      'block-1': createBlock({ id: 'block-1', name: 'API 1' }),
+      'block-2': createBlock({ id: 'block-2', name: 'api 2' }),
+    }
+
+    expect(getUniqueBlockName('API', existingBlocks)).toBe('API 3')
+    expect(getUniqueBlockName('api', existingBlocks)).toBe('api 3')
+  })
+
+  it('should handle different block types independently', () => {
+    const existingBlocks = {
+      'block-1': createAgentBlock({ id: 'block-1', name: 'Agent 1' }),
+      'block-2': createFunctionBlock({ id: 'block-2', name: 'Function 1' }),
+      'block-3': createLoopBlock({ id: 'block-3', name: 'Loop 1' }),
+    }
+
+    expect(getUniqueBlockName('Agent', existingBlocks)).toBe('Agent 2')
+    expect(getUniqueBlockName('Function', existingBlocks)).toBe('Function 2')
+    expect(getUniqueBlockName('Loop', existingBlocks)).toBe('Loop 2')
+    expect(getUniqueBlockName('Router', existingBlocks)).toBe('Router 1')
+  })
+
+  it('should handle blocks without numbers as having number 0', () => {
+    const existingBlocks = {
+      'block-1': createBlock({ id: 'block-1', name: 'Custom' }),
+    }
+
+    expect(getUniqueBlockName('Custom', existingBlocks)).toBe('Custom 1')
+  })
+
+  it('should handle multi-word base names', () => {
+    const existingBlocks = {
+      'block-1': createBlock({ id: 'block-1', name: 'API Block 1' }),
+      'block-2': createBlock({ id: 'block-2', name: 'API Block 2' }),
+    }
+
+    expect(getUniqueBlockName('API Block', existingBlocks)).toBe('API Block 3')
+  })
+
+  it('should handle starter blocks even with existing starters', () => {
+    const existingBlocks = {
+      'block-1': createStarterBlock({ id: 'block-1', name: 'Start' }),
+    }
+
+    expect(getUniqueBlockName('Start', existingBlocks)).toBe('Start')
+    expect(getUniqueBlockName('Starter', existingBlocks)).toBe('Start')
+  })
+
+  it('should handle empty string base name', () => {
+    const existingBlocks = {
+      'block-1': createBlock({ id: 'block-1', name: ' 1' }),
+    }
+
+    expect(getUniqueBlockName('', existingBlocks)).toBe(' 1')
+  })
+
+  it('should handle complex real-world scenarios', () => {
+    const existingBlocks = {
+      starter: createStarterBlock({ id: 'starter', name: 'Start' }),
+      agent1: createAgentBlock({ id: 'agent1', name: 'Agent 1' }),
+      agent2: createAgentBlock({ id: 'agent2', name: 'Agent 2' }),
+      func1: createFunctionBlock({ id: 'func1', name: 'Function 1' }),
+      loop1: createLoopBlock({ id: 'loop1', name: 'Loop 1' }),
+    }
+
+    expect(getUniqueBlockName('Agent', existingBlocks)).toBe('Agent 3')
+    expect(getUniqueBlockName('Function', existingBlocks)).toBe('Function 2')
+    expect(getUniqueBlockName('Start', existingBlocks)).toBe('Start')
+    expect(getUniqueBlockName('Condition', existingBlocks)).toBe('Condition 1')
+  })
+
+  it('should preserve original base name casing in result', () => {
+    const existingBlocks = {
+      'block-1': createBlock({ id: 'block-1', name: 'MyBlock 1' }),
+    }
+
+    expect(getUniqueBlockName('MyBlock', existingBlocks)).toBe('MyBlock 2')
+    expect(getUniqueBlockName('MYBLOCK', existingBlocks)).toBe('MYBLOCK 2')
+    expect(getUniqueBlockName('myblock', existingBlocks)).toBe('myblock 2')
   })
 })

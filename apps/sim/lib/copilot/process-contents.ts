@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { copilotChats, document, knowledgeBase, templates } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console/logger'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { escapeRegExp } from '@/executor/constants'

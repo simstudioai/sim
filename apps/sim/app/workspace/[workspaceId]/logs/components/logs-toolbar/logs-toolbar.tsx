@@ -295,14 +295,14 @@ export function LogsToolbar({
       {/* Header Section */}
       <div className='flex items-start justify-between'>
         <div className='flex items-start gap-[12px]'>
-          <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#7A5F11] bg-[#514215]'>
-            <Library className='h-[14px] w-[14px] text-[#FBBC04]' />
+          <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#D4A843] bg-[#FDF6E3] dark:border-[#7A5F11] dark:bg-[#514215]'>
+            <Library className='h-[14px] w-[14px] text-[#D4A843] dark:text-[#FBBC04]' />
           </div>
           <h1 className='font-medium text-[18px]'>Logs</h1>
         </div>
         <div className='flex items-center gap-[8px]'>
           {/* More options popover */}
-          <Popover>
+          <Popover size='sm'>
             <PopoverTrigger asChild>
               <Button variant='default' className='h-[32px] w-[32px] rounded-[6px] p-0'>
                 <MoreHorizontal className='h-[14px] w-[14px]' />
@@ -339,27 +339,36 @@ export function LogsToolbar({
 
           {/* Live button */}
           <Button
-            variant={isLive ? 'primary' : 'default'}
+            variant={isLive ? 'tertiary' : 'default'}
             onClick={onToggleLive}
-            className='h-[32px] rounded-[6px] px-[10px]'
+            className={cn(
+              'h-[32px] rounded-[6px] px-[10px]',
+              isLive && 'border border-[var(--brand-tertiary-2)]'
+            )}
           >
             Live
           </Button>
 
           {/* View mode toggle */}
           <div
-            className='flex h-[32px] cursor-pointer items-center rounded-[6px] border border-[var(--border)] bg-[var(--surface-elevated)] p-[2px]'
+            className='flex h-[32px] cursor-pointer items-center rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] p-[2px]'
             onClick={() => onViewModeChange(isDashboardView ? 'logs' : 'dashboard')}
           >
             <Button
               variant={!isDashboardView ? 'active' : 'ghost'}
-              className='h-[26px] rounded-[4px] px-[10px]'
+              className={cn(
+                'h-[26px] rounded-[4px] px-[10px]',
+                isDashboardView && 'border border-transparent'
+              )}
             >
               Logs
             </Button>
             <Button
               variant={isDashboardView ? 'active' : 'ghost'}
-              className='h-[26px] rounded-[4px] px-[10px]'
+              className={cn(
+                'h-[26px] rounded-[4px] px-[10px]',
+                !isDashboardView && 'border border-transparent'
+              )}
             >
               Dashboard
             </Button>

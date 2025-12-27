@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
+import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   createOptimisticMutationHandlers,
   generateTempId,

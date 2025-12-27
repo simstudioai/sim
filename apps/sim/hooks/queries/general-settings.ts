@@ -1,6 +1,6 @@
+import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { syncThemeToNextThemes } from '@/lib/core/utils/theme'
-import { createLogger } from '@/lib/logs/console/logger'
 import { useGeneralStore } from '@/stores/settings/general/store'
 
 const logger = createLogger('GeneralSettingsQuery')
@@ -43,9 +43,7 @@ async function fetchGeneralSettings(): Promise<GeneralSettings> {
     autoConnect: data.autoConnect ?? true,
     showTrainingControls: data.showTrainingControls ?? false,
     superUserModeEnabled: data.superUserModeEnabled ?? true,
-    // theme: data.theme || 'system',
-    // Force dark mode - light mode is temporarily disabled (TODO: Remove this)
-    theme: 'dark' as const,
+    theme: data.theme || 'system',
     telemetryEnabled: data.telemetryEnabled ?? true,
     billingUsageNotificationsEnabled: data.billingUsageNotificationsEnabled ?? true,
     errorNotificationsEnabled: data.errorNotificationsEnabled ?? true,

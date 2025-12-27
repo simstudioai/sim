@@ -1,6 +1,6 @@
+import { createLogger } from '@sim/logger'
 import { AgentIcon } from '@/components/icons'
 import { isHosted } from '@/lib/core/config/feature-flags'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import {
@@ -94,6 +94,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       placeholder: 'Type or select a model...',
       required: true,
       defaultValue: 'claude-sonnet-4-5',
+      searchable: true,
       options: () => {
         const providersState = useProvidersStore.getState()
         const baseModels = providersState.providers.base.models

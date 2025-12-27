@@ -1,6 +1,7 @@
+import { createLogger } from '@sim/logger'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
-import { createLogger } from '@/lib/logs/console/logger'
 import { buildLoopIndexCondition, DEFAULTS, EDGE } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
@@ -229,7 +230,14 @@ export class LoopOrchestrator {
       }
     }
 
-    if (ctx.isCancelled) {
+    const useRedis = isRedisCancellationEnabled() && !!ctx.executionId
+    let isCancelled = false
+    if (useRedis) {
+      isCancelled = await isExecutionCancelled(ctx.executionId!)
+    } else {
+      isCancelled = ctx.abortSignal?.aborted ?? false
+    }
+    if (isCancelled) {
       logger.info('Loop execution cancelled', { loopId, iteration: scope.iteration })
       return this.createExitResult(ctx, loopId, scope)
     }

@@ -4,16 +4,19 @@
  * This file contains utility functions and classes for testing tools
  * in a controlled environment without external dependencies.
  */
+import { createMockFetch as createBaseMockFetch, type MockFetchResponse } from '@sim/testing'
 import { type Mock, vi } from 'vitest'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
-// Define a type that combines Mock with fetch properties
+/**
+ * Type that combines Mock with fetch properties including Next.js preconnect.
+ */
 type MockFetch = Mock & {
   preconnect: Mock
 }
 
 /**
- * Create standard mock headers for HTTP testing
+ * Create standard mock headers for HTTP testing.
  */
 const createMockHeaders = (customHeaders: Record<string, string> = {}) => {
   return {
@@ -32,7 +35,8 @@ const createMockHeaders = (customHeaders: Record<string, string> = {}) => {
 }
 
 /**
- * Create a mock fetch function that returns a specified response
+ * Creates a mock fetch function with Next.js preconnect support.
+ * Wraps the @sim/testing createMockFetch with tool-specific additions.
  */
 export function createMockFetch(
   responseData: any,
@@ -40,68 +44,44 @@ export function createMockFetch(
 ) {
   const { ok = true, status = 200, headers = { 'Content-Type': 'application/json' } } = options
 
-  const mockFn = vi.fn().mockResolvedValue({
-    ok,
+  const mockFetchConfig: MockFetchResponse = {
+    json: responseData,
     status,
-    headers: {
-      get: (key: string) => headers[key.toLowerCase()],
-      forEach: (callback: (value: string, key: string) => void) => {
-        Object.entries(headers).forEach(([key, value]) => callback(value, key))
-      },
-    },
-    json: vi.fn().mockResolvedValue(responseData),
-    text: vi
-      .fn()
-      .mockResolvedValue(
-        typeof responseData === 'string' ? responseData : JSON.stringify(responseData)
-      ),
-  })
+    ok,
+    headers,
+    text: typeof responseData === 'string' ? responseData : JSON.stringify(responseData),
+  }
 
-  // Add preconnect property to satisfy TypeScript
+  const baseMockFetch = createBaseMockFetch(mockFetchConfig)
+  ;(baseMockFetch as any).preconnect = vi.fn()
 
-  ;(mockFn as any).preconnect = vi.fn()
-
-  return mockFn as MockFetch
+  return baseMockFetch as MockFetch
 }
 
 /**
- * Create a mock error fetch function
+ * Creates a mock error fetch function.
  */
 export function createErrorFetch(errorMessage: string, status = 400) {
-  // Instead of rejecting, create a proper response with an error status
   const error = new Error(errorMessage)
   ;(error as any).status = status
 
-  // Return both a network error version and a response error version
-  // This better mimics different kinds of errors that can happen
   if (status < 0) {
-    // Network error that causes the fetch to reject
     const mockFn = vi.fn().mockRejectedValue(error)
     ;(mockFn as any).preconnect = vi.fn()
     return mockFn as MockFetch
   }
-  // HTTP error with status code
-  const mockFn = vi.fn().mockResolvedValue({
+
+  const mockFetchConfig: MockFetchResponse = {
     ok: false,
     status,
     statusText: errorMessage,
-    headers: {
-      get: () => 'application/json',
-      forEach: () => {},
-    },
-    json: vi.fn().mockResolvedValue({
-      error: errorMessage,
-      message: errorMessage,
-    }),
-    text: vi.fn().mockResolvedValue(
-      JSON.stringify({
-        error: errorMessage,
-        message: errorMessage,
-      })
-    ),
-  })
-  ;(mockFn as any).preconnect = vi.fn()
-  return mockFn as MockFetch
+    json: { error: errorMessage, message: errorMessage },
+  }
+
+  const baseMockFetch = createBaseMockFetch(mockFetchConfig)
+  ;(baseMockFetch as any).preconnect = vi.fn()
+
+  return baseMockFetch as MockFetch
 }
 
 /**
@@ -448,64 +428,5 @@ export class ToolTester<P = any, R = any> {
    */
   getRequestBody(params: P): any {
     return this.tool.request.body ? this.tool.request.body(params) : undefined
-  }
-}
-
-/**
- * Mock environment variables for testing tools that use environment variables
- */
-export function mockEnvironmentVariables(variables: Record<string, string>) {
-  const originalEnv = { ...process.env }
-
-  // Add the variables to process.env
-  Object.entries(variables).forEach(([key, value]) => {
-    process.env[key] = value
-  })
-
-  // Return a cleanup function
-  return () => {
-    // Remove the added variables
-    Object.keys(variables).forEach((key) => {
-      delete process.env[key]
-    })
-
-    // Restore original values
-    Object.entries(originalEnv).forEach(([key, value]) => {
-      if (value !== undefined) {
-        process.env[key] = value
-      }
-    })
-  }
-}
-
-/**
- * Create mock OAuth store for testing tools that require OAuth
- */
-export function mockOAuthTokenRequest(accessToken = 'mock-access-token') {
-  // Mock the fetch call to /api/auth/oauth/token
-  const originalFetch = global.fetch
-
-  const mockFn = vi.fn().mockImplementation((url, options) => {
-    if (url.toString().includes('/api/auth/oauth/token')) {
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({ accessToken }),
-      })
-    }
-    return originalFetch(url, options)
-  })
-
-  // Add preconnect property
-
-  ;(mockFn as any).preconnect = vi.fn()
-
-  const mockTokenFetch = mockFn as MockFetch
-
-  global.fetch = mockTokenFetch as unknown as typeof fetch
-
-  // Return a cleanup function
-  return () => {
-    global.fetch = originalFetch
   }
 }

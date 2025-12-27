@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { createLogger } from '@sim/logger'
 import imageCompression from 'browser-image-compression'
 import { X } from 'lucide-react'
 import Image from 'next/image'
@@ -20,7 +21,6 @@ import {
   Textarea,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('HelpModal')
 
@@ -536,7 +536,7 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
             <Button variant='default' onClick={handleClose} type='button' disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type='submit' variant='primary' disabled={isSubmitting || isProcessing}>
+            <Button type='submit' variant='tertiary' disabled={isSubmitting || isProcessing}>
               {isSubmitting
                 ? 'Submitting...'
                 : submitStatus === 'error'

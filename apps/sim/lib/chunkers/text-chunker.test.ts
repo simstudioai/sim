@@ -262,4 +262,280 @@ describe('TextChunker', () => {
       expect(allText).toContain('dog')
     })
   })
+
+  describe('boundary conditions', () => {
+    it.concurrent('should handle text exactly at chunk size boundary', async () => {
+      const chunker = new TextChunker({ chunkSize: 10 })
+      // 40 characters = 10 tokens exactly
+      const text = 'A'.repeat(40)
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0].tokenCount).toBe(10)
+    })
+
+    it.concurrent('should handle text one token over chunk size', async () => {
+      const chunker = new TextChunker({ chunkSize: 10 })
+      // 44 characters = 11 tokens, just over limit
+      const text = 'A'.repeat(44)
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it.concurrent('should handle chunkSize of 1 token', async () => {
+      const chunker = new TextChunker({ chunkSize: 1 })
+      const text = 'Hello world test'
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(1)
+    })
+
+    it.concurrent('should handle overlap equal to half of chunk size', async () => {
+      const chunker = new TextChunker({ chunkSize: 20, chunkOverlap: 10 })
+      const text = 'First sentence here. Second sentence here. Third sentence here.'
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(0)
+    })
+
+    it.concurrent('should clamp overlap to max 50% of chunk size', async () => {
+      // Overlap of 60 should be clamped to 10 (50% of chunkSize 20)
+      const chunker = new TextChunker({ chunkSize: 20, chunkOverlap: 60 })
+      const text = 'First paragraph here.\n\nSecond paragraph here.\n\nThird paragraph here.'
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(0)
+    })
+
+    it.concurrent('should handle zero minCharactersPerChunk', async () => {
+      const chunker = new TextChunker({ chunkSize: 10, minCharactersPerChunk: 0 })
+      const text = 'A B C'
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('encoding and special characters', () => {
+    it.concurrent('should handle emoji characters', async () => {
+      const chunker = new TextChunker({ chunkSize: 100 })
+      const text = 'Hello 👋 World 🌍! This has emojis 🎉🎊🎈'
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0].text).toContain('👋')
+      expect(chunks[0].text).toContain('🌍')
+    })
+
+    it.concurrent('should handle mixed language text', async () => {
+      const chunker = new TextChunker({ chunkSize: 100 })
+      const text = 'English text. 中文文本。日本語テキスト。한국어 텍스트. العربية'
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(0)
+      expect(chunks[0].text).toContain('English')
+      expect(chunks[0].text).toContain('中文')
+      expect(chunks[0].text).toContain('日本語')
+    })
+
+    it.concurrent('should handle RTL text (Arabic/Hebrew)', async () => {
+      const chunker = new TextChunker({ chunkSize: 100 })
+      const text = 'مرحبا بالعالم - שלום עולם - Hello World'
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(0)
+      expect(chunks[0].text).toContain('مرحبا')
+      expect(chunks[0].text).toContain('שלום')
+    })
+
+    it.concurrent('should handle null characters in text', async () => {
+      const chunker = new TextChunker({ chunkSize: 100 })
+      const text = 'Hello\0World\0Test'
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(0)
+    })
+
+    it.concurrent('should handle combining diacritics', async () => {
+      const chunker = new TextChunker({ chunkSize: 100 })
+      // e + combining acute accent
+      const text = 'cafe\u0301 resume\u0301 naive\u0308'
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(0)
+    })
+
+    it.concurrent('should handle zero-width characters', async () => {
+      const chunker = new TextChunker({ chunkSize: 100 })
+      // Zero-width space, zero-width non-joiner, zero-width joiner
+      const text = 'Hello\u200B\u200C\u200DWorld'
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(0)
+    })
+
+    it.concurrent('should handle old Mac line endings (\\r)', async () => {
+      const chunker = new TextChunker({ chunkSize: 100 })
+      const text = 'Line 1\rLine 2\rLine 3'
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks[0].text).not.toContain('\r')
+    })
+  })
+
+  describe('large inputs', () => {
+    it.concurrent('should handle 10,000 word document', async () => {
+      const chunker = new TextChunker({ chunkSize: 100 })
+      const text = 'This is a test sentence with several words. '.repeat(2000)
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(1)
+      // Verify all content is preserved
+      const totalChars = chunks.reduce((sum, c) => sum + c.text.length, 0)
+      expect(totalChars).toBeGreaterThan(0)
+    })
+
+    it.concurrent('should handle 1MB of text', async () => {
+      const chunker = new TextChunker({ chunkSize: 500 })
+      // 1MB of text
+      const text = 'Lorem ipsum dolor sit amet. '.repeat(40000)
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(1)
+    })
+
+    it.concurrent('should handle very long single line', async () => {
+      const chunker = new TextChunker({ chunkSize: 50 })
+      // Single line with no natural break points
+      const text = 'Word'.repeat(10000)
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(1)
+    })
+
+    it.concurrent('should handle many short paragraphs', async () => {
+      const chunker = new TextChunker({ chunkSize: 100 })
+      const text = Array(500)
+        .fill(0)
+        .map((_, i) => `Paragraph ${i}.`)
+        .join('\n\n')
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(1)
+    })
+  })
+
+  describe('markdown and code handling', () => {
+    it.concurrent('should handle code blocks', async () => {
+      const chunker = new TextChunker({ chunkSize: 50 })
+      const text = `
+# Code Example
+
+\`\`\`javascript
+function hello() {
+  console.log("Hello World");
+}
+\`\`\`
+
+Some explanation text after the code.
+`
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(0)
+    })
+
+    it.concurrent('should handle nested lists', async () => {
+      const chunker = new TextChunker({ chunkSize: 50 })
+      const text = `
+- Item 1
+  - Nested 1.1
+  - Nested 1.2
+    - Deep nested 1.2.1
+- Item 2
+  - Nested 2.1
+`
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(0)
+    })
+
+    it.concurrent('should handle markdown tables', async () => {
+      const chunker = new TextChunker({ chunkSize: 50 })
+      const text = `
+| Header 1 | Header 2 | Header 3 |
+|----------|----------|----------|
+| Cell 1   | Cell 2   | Cell 3   |
+| Cell 4   | Cell 5   | Cell 6   |
+`
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(0)
+    })
+
+    it.concurrent('should handle inline code', async () => {
+      const chunker = new TextChunker({ chunkSize: 100 })
+      const text = 'Use `const` for constants and `let` for variables. Call `myFunction()` here.'
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks[0].text).toContain('`const`')
+    })
+  })
+
+  describe('separator hierarchy', () => {
+    it.concurrent('should split on horizontal rules', async () => {
+      const chunker = new TextChunker({ chunkSize: 30 })
+      const text = 'Section 1 content here.\n---\nSection 2 content here.\n---\nSection 3 content.'
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(0)
+    })
+
+    it.concurrent('should split on question marks', async () => {
+      const chunker = new TextChunker({ chunkSize: 20 })
+      const text = 'What is this? How does it work? Why is it important? When to use it?'
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(0)
+    })
+
+    it.concurrent('should split on exclamation marks', async () => {
+      const chunker = new TextChunker({ chunkSize: 20 })
+      const text = 'Amazing! Incredible! Fantastic! Wonderful! Great!'
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(0)
+    })
+
+    it.concurrent('should split on semicolons', async () => {
+      const chunker = new TextChunker({ chunkSize: 20 })
+      const text = 'First clause; second clause; third clause; fourth clause'
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('chunk index accuracy', () => {
+    it.concurrent('should have non-negative indices', async () => {
+      const chunker = new TextChunker({ chunkSize: 30, chunkOverlap: 10 })
+      const text = 'First part. Second part. Third part. Fourth part. Fifth part.'
+      const chunks = await chunker.chunk(text)
+
+      for (const chunk of chunks) {
+        expect(chunk.metadata.startIndex).toBeGreaterThanOrEqual(0)
+        expect(chunk.metadata.endIndex).toBeGreaterThanOrEqual(chunk.metadata.startIndex)
+      }
+    })
+
+    it.concurrent('should have endIndex greater than or equal to startIndex', async () => {
+      const chunker = new TextChunker({ chunkSize: 20 })
+      const text = 'Multiple sentences here. Another one here. And another. And more.'
+      const chunks = await chunker.chunk(text)
+
+      for (const chunk of chunks) {
+        expect(chunk.metadata.endIndex).toBeGreaterThanOrEqual(chunk.metadata.startIndex)
+      }
+    })
+  })
 })

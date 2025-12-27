@@ -1,8 +1,8 @@
 import { existsSync } from 'fs'
+import { createLogger } from '@sim/logger'
 import * as XLSX from 'xlsx'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('XlsxParser')
 

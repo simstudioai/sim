@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import { EDGE } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { DAGEdge } from '@/executor/dag/types'
@@ -127,6 +127,10 @@ export class EdgeManager {
 
     if (output.selectedRoute === EDGE.LOOP_CONTINUE) {
       return handle === EDGE.LOOP_CONTINUE || handle === EDGE.LOOP_CONTINUE_ALT
+    }
+
+    if (output.selectedRoute === EDGE.PARALLEL_EXIT) {
+      return handle === EDGE.PARALLEL_EXIT
     }
 
     if (!handle) {

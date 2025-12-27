@@ -1,7 +1,7 @@
+import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluenceCommentAPI')

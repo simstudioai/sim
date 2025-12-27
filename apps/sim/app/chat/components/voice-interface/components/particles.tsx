@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef } from 'react'
+import { createLogger } from '@sim/logger'
 import * as THREE from 'three'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('Particles')
 

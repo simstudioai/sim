@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createLogger } from '@/lib/logs/console/logger'
 import { createNeo4jDriver, validateCypherQuery } from '@/app/api/tools/neo4j/utils'
 
 const logger = createLogger('Neo4jDeleteAPI')

@@ -98,7 +98,12 @@ export const createFormTool: ToolConfig<TypeformCreateFormParams, TypeformCreate
 
     return {
       success: true,
-      output: data,
+      output: {
+        ...data,
+        welcome_screens: data.welcome_screens || [],
+        thankyou_screens: data.thankyou_screens || [],
+        fields: data.fields || [],
+      },
     }
   },
 
@@ -115,9 +120,29 @@ export const createFormTool: ToolConfig<TypeformCreateFormParams, TypeformCreate
       type: 'string',
       description: 'Form type',
     },
+    settings: {
+      type: 'object',
+      description: 'Form settings object',
+    },
+    theme: {
+      type: 'object',
+      description: 'Theme reference',
+    },
+    workspace: {
+      type: 'object',
+      description: 'Workspace reference',
+    },
     fields: {
       type: 'array',
-      description: 'Array of created form fields',
+      description: 'Array of created form fields (empty if none added)',
+    },
+    welcome_screens: {
+      type: 'array',
+      description: 'Array of welcome screens (empty if none configured)',
+    },
+    thankyou_screens: {
+      type: 'array',
+      description: 'Array of thank you screens',
     },
     _links: {
       type: 'object',

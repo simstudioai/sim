@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import { buildIntercomUrl, handleIntercomError } from './types'
 
@@ -77,16 +77,15 @@ export const intercomDeleteContactTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    id: { type: 'string', description: 'ID of deleted contact' },
+    deleted: { type: 'boolean', description: 'Whether the contact was deleted' },
+    metadata: {
       type: 'object',
-      description: 'Deletion result',
+      description: 'Operation metadata',
       properties: {
-        id: { type: 'string', description: 'ID of deleted contact' },
-        deleted: { type: 'boolean', description: 'Deletion status' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
+        operation: { type: 'string', description: 'The operation performed (delete_contact)' },
       },
     },
+    success: { type: 'boolean', description: 'Operation success status' },
   },
 }

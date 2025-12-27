@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { Grid2x2, Grid2x2Check, Grid2x2X, Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
@@ -5,7 +6,6 @@ import {
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
 import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
-import { createLogger } from '@/lib/logs/console/logger'
 import { stripWorkflowDiffMarkers } from '@/lib/workflows/diff'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'

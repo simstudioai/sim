@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { tasks } from '@trigger.dev/sdk'
 import { type NextRequest, NextResponse } from 'next/server'
 import { validate as uuidValidate, v4 as uuidv4 } from 'uuid'
@@ -7,9 +8,9 @@ import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { processInputFileFields } from '@/lib/execution/files'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
-import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { ALL_TRIGGER_TYPES } from '@/lib/logs/types'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -317,6 +318,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       loops: Record<string, any>
       parallels: Record<string, any>
       deploymentVersionId?: string
+      variables?: Record<string, any>
     } | null = null
 
     let processedInput = input
@@ -326,6 +328,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         : await loadDeployedWorkflowState(workflowId)
 
       if (workflowData) {
+        const deployedVariables =
+          !shouldUseDraftState && 'variables' in workflowData
+            ? (workflowData as any).variables
+            : undefined
+
         cachedWorkflowData = {
           blocks: workflowData.blocks,
           edges: workflowData.edges,
@@ -335,6 +342,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             !shouldUseDraftState && 'deploymentVersionId' in workflowData
               ? (workflowData.deploymentVersionId as string)
               : undefined,
+          variables: deployedVariables,
         }
 
         const serializedWorkflow = new Serializer().serializeWorkflow(
@@ -404,11 +412,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           workflowStateOverride: effectiveWorkflowStateOverride,
         }
 
+        const executionVariables = cachedWorkflowData?.variables ?? workflow.variables ?? {}
+
         const snapshot = new ExecutionSnapshot(
           metadata,
           workflow,
           processedInput,
-          workflow.variables || {},
+          executionVariables,
           selectedOutputs
         )
 
@@ -470,6 +480,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         selectedOutputs,
         cachedWorkflowData?.blocks || {}
       )
+      const streamVariables = cachedWorkflowData?.variables ?? (workflow as any).variables
+
       const stream = await createStreamingResponse({
         requestId,
         workflow: {
@@ -477,7 +489,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           userId: actorUserId,
           workspaceId,
           isDeployed: workflow.isDeployed,
-          variables: (workflow as any).variables,
+          variables: streamVariables,
         },
         input: processedInput,
         executingUserId: actorUserId,
@@ -496,7 +508,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const encoder = new TextEncoder()
-    let executorInstance: any = null
+    const abortController = new AbortController()
     let isStreamClosed = false
 
     const stream = new ReadableStream<Uint8Array>({
@@ -674,11 +686,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             workflowStateOverride: effectiveWorkflowStateOverride,
           }
 
+          const sseExecutionVariables = cachedWorkflowData?.variables ?? workflow.variables ?? {}
+
           const snapshot = new ExecutionSnapshot(
             metadata,
             workflow,
             processedInput,
-            workflow.variables || {},
+            sseExecutionVariables,
             selectedOutputs
           )
 
@@ -688,11 +702,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               onBlockStart,
               onBlockComplete,
               onStream,
-              onExecutorCreated: (executor) => {
-                executorInstance = executor
-              },
             },
             loggingSession,
+            abortSignal: abortController.signal,
           })
 
           if (result.status === 'paused') {
@@ -769,11 +781,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       },
       cancel() {
         isStreamClosed = true
-        logger.info(`[${requestId}] Client aborted SSE stream, cancelling executor`)
-
-        if (executorInstance && typeof executorInstance.cancel === 'function') {
-          executorInstance.cancel()
-        }
+        logger.info(`[${requestId}] Client aborted SSE stream, signalling cancellation`)
+        abortController.abort()
+        markExecutionCancelled(executionId).catch(() => {})
       },
     })
 

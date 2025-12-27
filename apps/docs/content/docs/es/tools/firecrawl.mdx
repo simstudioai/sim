@@ -146,6 +146,32 @@ Extrae datos estructurados de páginas web completas utilizando instrucciones en
 | `success` | boolean | Si la operación de extracción fue exitosa |
 | `data` | object | Datos estructurados extraídos según el esquema o indicación |
 
+### `firecrawl_agent`
+
+Agente autónomo de extracción de datos web. Busca y recopila información basándose en instrucciones en lenguaje natural sin requerir URLs específicas.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `prompt` | string | Sí | Descripción en lenguaje natural de los datos a extraer (máx. 10.000 caracteres) |
+| `urls` | json | No | Array opcional de URLs en las que enfocar al agente |
+| `schema` | json | No | Esquema JSON que define la estructura de los datos a extraer |
+| `maxCredits` | number | No | Créditos máximos a gastar en esta tarea del agente |
+| `strictConstrainToURLs` | boolean | No | Si es true, el agente solo visitará las URLs proporcionadas en el array urls |
+| `apiKey` | string | Sí | Clave API de Firecrawl |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si la operación del agente fue exitosa |
+| `status` | string | Estado actual del trabajo del agente (processing, completed, failed) |
+| `data` | object | Datos extraídos por el agente |
+| `creditsUsed` | number | Número de créditos consumidos por esta tarea del agente |
+| `expiresAt` | string | Marca de tiempo de cuándo expiran los resultados (24 horas) |
+| `sources` | object | Array de URLs fuente utilizadas por el agente |
+
 ## Notas
 
 - Categoría: `tools`

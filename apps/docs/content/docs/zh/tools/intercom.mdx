@@ -55,8 +55,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 创建的联系人数据 |
+| `contact` | object | 创建的联系人对象 |
 
 ### `intercom_get_contact`
 
@@ -72,8 +71,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 联系人数据 |
+| `contact` | object | 联系人对象 |
 
 ### `intercom_update_contact`
 
@@ -101,8 +99,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 更新后的联系人数据 |
+| `contact` | object | 更新后的联系人对象 |
 
 ### `intercom_list_contacts`
 
@@ -119,8 +116,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 联系人列表 |
+| `contacts` | array | 联系人对象数组 |
 
 ### `intercom_search_contacts`
 
@@ -140,8 +136,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 搜索结果 |
+| `contacts` | array | 匹配的联系人对象数组 |
 
 ### `intercom_delete_contact`
 
@@ -157,8 +152,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 删除结果 |
+| `id` | string | 已删除联系人的 ID |
+| `deleted` | boolean | 联系人是否已被删除 |
+| `metadata` | object | 操作元数据 |
 
 ### `intercom_create_company`
 
@@ -182,8 +178,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 创建或更新的公司数据 |
+| `company` | object | 新建或更新的公司对象 |
 
 ### `intercom_get_company`
 
@@ -199,8 +194,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 公司数据 |
+| `company` | object | 公司对象 |
 
 ### `intercom_list_companies`
 
@@ -218,8 +212,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 公司列表 |
+| `companies` | array | 公司对象数组 |
 
 ### `intercom_get_conversation`
 
@@ -237,8 +230,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 会话数据 |
+| `conversation` | object | 会话对象 |
 
 ### `intercom_list_conversations`
 
@@ -257,8 +249,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | 布尔值 | 操作成功状态 |
-| `output` | 对象 | 会话列表 |
+| `conversations` | array | 会话对象数组 |
 
 ### `intercom_reply_conversation`
 
@@ -279,8 +270,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 包含回复的更新对话 |
+| `conversation` | object | 更新后的会话对象 |
 
 ### `intercom_search_conversations`
 
@@ -300,8 +290,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 搜索结果 |
+| `conversations` | array | 匹配的会话对象数组 |
 
 ### `intercom_create_ticket`
 
@@ -323,8 +312,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 创建的工单数据 |
+| `ticket` | object | 创建的工单对象 |
 
 ### `intercom_get_ticket`
 
@@ -340,8 +328,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 工单数据 |
+| `ticket` | object | 工单对象 |
 
 ### `intercom_create_message`
 
@@ -365,8 +352,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | object | 创建的消息数据 |
+| `message` | object | 创建的消息对象 |
 
 ## 注意事项
 

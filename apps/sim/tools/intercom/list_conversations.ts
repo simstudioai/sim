@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import { buildIntercomUrl, handleIntercomError } from './types'
 
@@ -112,16 +112,54 @@ export const intercomListConversationsTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'List of conversations',
-      properties: {
-        conversations: { type: 'array', description: 'Array of conversation objects' },
-        pages: { type: 'object', description: 'Pagination information' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
+    conversations: {
+      type: 'array',
+      description: 'Array of conversation objects',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Unique identifier for the conversation' },
+          type: { type: 'string', description: 'Object type (conversation)' },
+          title: { type: 'string', description: 'Title of the conversation' },
+          created_at: {
+            type: 'number',
+            description: 'Unix timestamp when conversation was created',
+          },
+          updated_at: {
+            type: 'number',
+            description: 'Unix timestamp when conversation was last updated',
+          },
+          waiting_since: { type: 'number', description: 'Unix timestamp when waiting for reply' },
+          open: { type: 'boolean', description: 'Whether the conversation is open' },
+          state: { type: 'string', description: 'State of the conversation' },
+          read: { type: 'boolean', description: 'Whether the conversation has been read' },
+          priority: { type: 'string', description: 'Priority of the conversation' },
+          admin_assignee_id: { type: 'number', description: 'ID of assigned admin' },
+          team_assignee_id: { type: 'string', description: 'ID of assigned team' },
+          tags: { type: 'object', description: 'Tags on the conversation' },
+          source: { type: 'object', description: 'Source of the conversation' },
+          contacts: { type: 'object', description: 'Contacts in the conversation' },
+        },
       },
     },
+    pages: {
+      type: 'object',
+      description: 'Pagination information',
+      properties: {
+        type: { type: 'string', description: 'Pages type identifier' },
+        page: { type: 'number', description: 'Current page number' },
+        per_page: { type: 'number', description: 'Number of results per page' },
+        total_pages: { type: 'number', description: 'Total number of pages' },
+      },
+    },
+    metadata: {
+      type: 'object',
+      description: 'Operation metadata',
+      properties: {
+        operation: { type: 'string', description: 'The operation performed (list_conversations)' },
+        total_count: { type: 'number', description: 'Total number of conversations' },
+      },
+    },
+    success: { type: 'boolean', description: 'Operation success status' },
   },
 }

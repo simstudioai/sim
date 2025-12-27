@@ -40,3 +40,9 @@ export const TRIGGER_RUNTIME_SUBBLOCK_IDS: string[] = [
   'testUrl',
   'testUrlExpiresAt',
 ]
+
+/**
+ * Maximum number of consecutive failures before a trigger (schedule/webhook) is auto-disabled.
+ * This prevents runaway errors from continuously executing failing workflows.
+ */
+export const MAX_CONSECUTIVE_FAILURES = 100

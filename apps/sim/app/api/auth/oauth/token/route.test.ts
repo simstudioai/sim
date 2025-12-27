@@ -4,7 +4,7 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockRequest } from '@/app/api/__test-utils__/utils'
+import { createMockLogger, createMockRequest } from '@/app/api/__test-utils__/utils'
 
 describe('OAuth Token API Routes', () => {
   const mockGetUserId = vi.fn()
@@ -13,12 +13,7 @@ describe('OAuth Token API Routes', () => {
   const mockAuthorizeCredentialUse = vi.fn()
   const mockCheckHybridAuth = vi.fn()
 
-  const mockLogger = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }
+  const mockLogger = createMockLogger()
 
   const mockUUID = 'mock-uuid-12345678-90ab-cdef-1234-567890abcdef'
   const mockRequestId = mockUUID.slice(0, 8)
@@ -36,7 +31,7 @@ describe('OAuth Token API Routes', () => {
       refreshTokenIfNeeded: mockRefreshTokenIfNeeded,
     }))
 
-    vi.doMock('@/lib/logs/console/logger', () => ({
+    vi.doMock('@sim/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
 

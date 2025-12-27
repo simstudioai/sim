@@ -149,6 +149,32 @@ Extract structured data from entire webpages using natural language prompts and 
 | `success` | boolean | Whether the extraction operation was successful |
 | `data` | object | Extracted structured data according to the schema or prompt |
 
+### `firecrawl_agent`
+
+Autonomous web data extraction agent. Searches and gathers information based on natural language prompts without requiring specific URLs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `prompt` | string | Yes | Natural language description of the data to extract \(max 10,000 characters\) |
+| `urls` | json | No | Optional array of URLs to focus the agent on |
+| `schema` | json | No | JSON Schema defining the structure of data to extract |
+| `maxCredits` | number | No | Maximum credits to spend on this agent task |
+| `strictConstrainToURLs` | boolean | No | If true, agent will only visit URLs provided in the urls array |
+| `apiKey` | string | Yes | Firecrawl API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the agent operation was successful |
+| `status` | string | Current status of the agent job \(processing, completed, failed\) |
+| `data` | object | Extracted data from the agent |
+| `creditsUsed` | number | Number of credits consumed by this agent task |
+| `expiresAt` | string | Timestamp when the results expire \(24 hours\) |
+| `sources` | object | Array of source URLs used by the agent |
+
 
 
 ## Notes

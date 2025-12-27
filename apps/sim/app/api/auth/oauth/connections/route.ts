@@ -1,10 +1,10 @@
 import { account, db, user } from '@sim/db'
+import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { OAuthProvider } from '@/lib/oauth'
 import { evaluateScopeCoverage, parseProvider } from '@/lib/oauth'
 

@@ -1,6 +1,6 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
-import { createLogger } from '@/lib/logs/console/logger'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'

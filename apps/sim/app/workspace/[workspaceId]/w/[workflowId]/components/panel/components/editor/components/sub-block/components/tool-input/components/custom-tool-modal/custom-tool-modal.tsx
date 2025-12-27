@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { AlertCircle, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
+  Badge,
   Button,
   Modal,
   ModalBody,
@@ -21,7 +23,6 @@ import {
 } from '@/components/emcn'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   checkEnvVarTrigger,
   EnvVarDropdown,
@@ -236,8 +237,8 @@ try {
     },
     currentValue: functionCode,
     onGeneratedContent: (content) => {
-      handleFunctionCodeChange(content) // Use existing handler to also trigger dropdown checks
-      setCodeError(null) // Clear error on successful generation
+      handleFunctionCodeChange(content)
+      setCodeError(null)
     },
     onStreamChunk: (chunk) => {
       setFunctionCode((prev) => {
@@ -258,6 +259,7 @@ try {
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 })
   const [schemaParamSelectedIndex, setSchemaParamSelectedIndex] = useState(0)
+  const schemaParamItemRefs = useRef<Map<number, HTMLElement>>(new Map())
 
   const createToolMutation = useCreateCustomTool()
   const updateToolMutation = useUpdateCustomTool()
@@ -285,6 +287,18 @@ try {
       resetForm()
     }
   }, [open])
+
+  useEffect(() => {
+    if (!showSchemaParams || schemaParamSelectedIndex < 0) return
+
+    const element = schemaParamItemRefs.current.get(schemaParamSelectedIndex)
+    if (element) {
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      })
+    }
+  }, [schemaParamSelectedIndex, showSchemaParams])
 
   const resetForm = () => {
     setJsonSchema('')
@@ -341,7 +355,6 @@ try {
     }
   }
 
-  /** Extracts parameters from JSON schema for autocomplete */
   const schemaParameters = useMemo(() => {
     try {
       if (!jsonSchema) return []
@@ -360,7 +373,6 @@ try {
     }
   }, [jsonSchema])
 
-  /** Memoized schema validation result */
   const isSchemaValid = useMemo(() => validateJsonSchema(jsonSchema), [jsonSchema])
 
   const handleSave = async () => {
@@ -454,7 +466,6 @@ try {
             code: functionCode || '',
           },
         })
-        // Get the ID from the created tool
         savedToolId = result?.[0]?.id
       }
 
@@ -874,11 +885,6 @@ try {
                     )}
                   </div>
                   <div className='flex min-w-0 flex-1 items-center justify-end gap-1 pr-[4px]'>
-                    {!isSchemaPromptActive && schemaPromptSummary && (
-                      <span className='text-[var(--text-tertiary)] text-xs italic'>
-                        with {schemaPromptSummary}
-                      </span>
-                    )}
                     {!isSchemaPromptActive ? (
                       <button
                         type='button'
@@ -953,11 +959,6 @@ try {
                     )}
                   </div>
                   <div className='flex min-w-0 flex-1 items-center justify-end gap-1 pr-[4px]'>
-                    {!isCodePromptActive && codePromptSummary && (
-                      <span className='text-[var(--text-tertiary)] text-xs italic'>
-                        with {codePromptSummary}
-                      </span>
-                    )}
                     {!isCodePromptActive ? (
                       <button
                         type='button'
@@ -985,18 +986,19 @@ try {
                 </div>
                 {schemaParameters.length > 0 && (
                   <div className='mb-2 rounded-[6px] border bg-[var(--surface-2)] p-2'>
-                    <p className='text-[var(--text-tertiary)] text-xs'>
-                      <span className='font-medium'>Available parameters:</span>{' '}
-                      {schemaParameters.map((param, index) => (
-                        <span key={param.name}>
-                          <code className='rounded bg-[var(--bg)] px-1 py-0.5 text-[var(--text-primary)]'>
-                            {param.name}
-                          </code>
-                          {index < schemaParameters.length - 1 && ', '}
-                        </span>
+                    <div className='flex flex-wrap items-center gap-1.5 text-xs'>
+                      <span className='font-medium text-[var(--text-tertiary)]'>
+                        Available parameters:
+                      </span>
+                      {schemaParameters.map((param) => (
+                        <Badge key={param.name} variant='blue-secondary' size='sm'>
+                          {param.name}
+                        </Badge>
                       ))}
-                      {'. '}Start typing a parameter name for autocomplete.
-                    </p>
+                      <span className='text-[var(--text-tertiary)]'>
+                        Start typing a parameter name for autocomplete.
+                      </span>
+                    </div>
                   </div>
                 )}
                 <div ref={codeEditorRef} className='relative'>
@@ -1085,7 +1087,7 @@ try {
                       </PopoverAnchor>
                       <PopoverContent
                         maxHeight={240}
-                        className='min-w-[260px] max-w-[260px]'
+                        className='min-w-[280px]'
                         side='bottom'
                         align='start'
                         collisionPadding={6}
@@ -1105,18 +1107,20 @@ try {
                                 e.stopPropagation()
                                 handleSchemaParamSelect(param.name)
                               }}
-                              className='flex items-center gap-2'
+                              ref={(el) => {
+                                if (el) {
+                                  schemaParamItemRefs.current.set(index, el)
+                                }
+                              }}
                             >
-                              <div
-                                className='flex h-5 w-5 items-center justify-center rounded'
-                                style={{ backgroundColor: '#2F8BFF' }}
-                              >
-                                <span className='h-3 w-3 font-bold text-white text-xs'>P</span>
-                              </div>
-                              <span className='flex-1 truncate'>{param.name}</span>
-                              <span className='text-[var(--text-tertiary)] text-xs'>
-                                {param.type}
+                              <span className='flex-1 truncate text-[var(--text-primary)]'>
+                                {param.name}
                               </span>
+                              {param.type && param.type !== 'any' && (
+                                <span className='ml-auto text-[10px] text-[var(--text-secondary)]'>
+                                  {param.type}
+                                </span>
+                              )}
                             </PopoverItem>
                           ))}
                         </PopoverScrollArea>
@@ -1131,11 +1135,7 @@ try {
           {activeSection === 'schema' && (
             <ModalFooter className='items-center justify-between'>
               {isEditing ? (
-                <Button
-                  variant='default'
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className='bg-[var(--text-error)] text-white hover:bg-[var(--text-error)]'
-                >
+                <Button variant='destructive' onClick={() => setShowDeleteConfirm(true)}>
                   Delete
                 </Button>
               ) : (
@@ -1146,7 +1146,7 @@ try {
                   Cancel
                 </Button>
                 <Button
-                  variant='primary'
+                  variant='tertiary'
                   onClick={() => setActiveSection('code')}
                   disabled={!isSchemaValid || !!schemaError}
                 >
@@ -1159,11 +1159,7 @@ try {
           {activeSection === 'code' && (
             <ModalFooter className='items-center justify-between'>
               {isEditing ? (
-                <Button
-                  variant='default'
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className='bg-[var(--text-error)] text-white hover:bg-[var(--text-error)]'
-                >
+                <Button variant='destructive' onClick={() => setShowDeleteConfirm(true)}>
                   Delete
                 </Button>
               ) : (
@@ -1176,7 +1172,7 @@ try {
                   Cancel
                 </Button>
                 <Button
-                  variant='primary'
+                  variant='tertiary'
                   onClick={handleSave}
                   disabled={!isSchemaValid || !!schemaError}
                 >
@@ -1192,7 +1188,7 @@ try {
         <ModalContent size='sm'>
           <ModalHeader>Delete Custom Tool</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               This will permanently delete the tool and remove it from any workflows that are using
               it. <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
@@ -1206,10 +1202,9 @@ try {
               Cancel
             </Button>
             <Button
-              variant='primary'
+              variant='destructive'
               onClick={handleDelete}
               disabled={deleteToolMutation.isPending}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {deleteToolMutation.isPending ? 'Deleting...' : 'Delete'}
             </Button>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 import type { CopilotMessage } from '@/stores/panel/copilot/types'
 
@@ -26,6 +26,8 @@ export function useCheckpointManagement(
 ) {
   const [showRestoreConfirmation, setShowRestoreConfirmation] = useState(false)
   const [showCheckpointDiscardModal, setShowCheckpointDiscardModal] = useState(false)
+  const [isReverting, setIsReverting] = useState(false)
+  const [isProcessingDiscard, setIsProcessingDiscard] = useState(false)
   const pendingEditRef = useRef<{
     message: string
     fileAttachments?: any[]
@@ -48,6 +50,7 @@ export function useCheckpointManagement(
   const handleConfirmRevert = useCallback(async () => {
     if (messageCheckpoints.length > 0) {
       const latestCheckpoint = messageCheckpoints[0]
+      setIsReverting(true)
       try {
         await revertToCheckpoint(latestCheckpoint.id)
 
@@ -100,6 +103,8 @@ export function useCheckpointManagement(
         logger.error('Failed to revert to checkpoint:', error)
         setShowRestoreConfirmation(false)
         onRevertModeChange?.(false)
+      } finally {
+        setIsReverting(false)
       }
     }
   }, [
@@ -125,50 +130,55 @@ export function useCheckpointManagement(
    * Reverts to checkpoint then proceeds with pending edit
    */
   const handleContinueAndRevert = useCallback(async () => {
-    if (messageCheckpoints.length > 0) {
-      const latestCheckpoint = messageCheckpoints[0]
-      try {
-        await revertToCheckpoint(latestCheckpoint.id)
+    setIsProcessingDiscard(true)
+    try {
+      if (messageCheckpoints.length > 0) {
+        const latestCheckpoint = messageCheckpoints[0]
+        try {
+          await revertToCheckpoint(latestCheckpoint.id)
 
-        const { messageCheckpoints: currentCheckpoints } = useCopilotStore.getState()
-        const updatedCheckpoints = {
-          ...currentCheckpoints,
-          [message.id]: messageCheckpoints.slice(1),
+          const { messageCheckpoints: currentCheckpoints } = useCopilotStore.getState()
+          const updatedCheckpoints = {
+            ...currentCheckpoints,
+            [message.id]: messageCheckpoints.slice(1),
+          }
+          useCopilotStore.setState({ messageCheckpoints: updatedCheckpoints })
+
+          logger.info('Reverted to checkpoint before editing message', {
+            messageId: message.id,
+            checkpointId: latestCheckpoint.id,
+          })
+        } catch (error) {
+          logger.error('Failed to revert to checkpoint:', error)
         }
-        useCopilotStore.setState({ messageCheckpoints: updatedCheckpoints })
-
-        logger.info('Reverted to checkpoint before editing message', {
-          messageId: message.id,
-          checkpointId: latestCheckpoint.id,
-        })
-      } catch (error) {
-        logger.error('Failed to revert to checkpoint:', error)
       }
-    }
 
-    setShowCheckpointDiscardModal(false)
+      setShowCheckpointDiscardModal(false)
 
-    const { sendMessage } = useCopilotStore.getState()
-    if (pendingEditRef.current) {
-      const { message: msg, fileAttachments, contexts } = pendingEditRef.current
-      const editIndex = messages.findIndex((m) => m.id === message.id)
-      if (editIndex !== -1) {
-        const truncatedMessages = messages.slice(0, editIndex)
-        const updatedMessage = {
-          ...message,
-          content: msg,
-          fileAttachments: fileAttachments || message.fileAttachments,
-          contexts: contexts || (message as any).contexts,
+      const { sendMessage } = useCopilotStore.getState()
+      if (pendingEditRef.current) {
+        const { message: msg, fileAttachments, contexts } = pendingEditRef.current
+        const editIndex = messages.findIndex((m) => m.id === message.id)
+        if (editIndex !== -1) {
+          const truncatedMessages = messages.slice(0, editIndex)
+          const updatedMessage = {
+            ...message,
+            content: msg,
+            fileAttachments: fileAttachments || message.fileAttachments,
+            contexts: contexts || (message as any).contexts,
+          }
+          useCopilotStore.setState({ messages: [...truncatedMessages, updatedMessage] })
+
+          await sendMessage(msg, {
+            fileAttachments: fileAttachments || message.fileAttachments,
+            contexts: contexts || (message as any).contexts,
+            messageId: message.id,
+          })
         }
-        useCopilotStore.setState({ messages: [...truncatedMessages, updatedMessage] })
-
-        await sendMessage(msg, {
-          fileAttachments: fileAttachments || message.fileAttachments,
-          contexts: contexts || (message as any).contexts,
-          messageId: message.id,
-        })
+        pendingEditRef.current = null
       }
-      pendingEditRef.current = null
+    } finally {
+      setIsProcessingDiscard(false)
     }
   }, [messageCheckpoints, revertToCheckpoint, message, messages])
 
@@ -252,6 +262,8 @@ export function useCheckpointManagement(
     // State
     showRestoreConfirmation,
     showCheckpointDiscardModal,
+    isReverting,
+    isProcessingDiscard,
     pendingEditRef,
 
     // Operations

@@ -163,7 +163,7 @@ export function AutocompleteSearch({
         }}
       >
         <PopoverAnchor asChild>
-          <div className='relative flex h-[32px] w-full items-center rounded-[8px] bg-[var(--surface-5)]'>
+          <div className='relative flex h-[32px] w-[400px] items-center rounded-[8px] bg-[var(--surface-4)]'>
             {/* Search Icon */}
             <Search className='mr-[6px] ml-[8px] h-[14px] w-[14px] flex-shrink-0 text-[var(--text-subtle)]' />
 
@@ -266,8 +266,8 @@ export function AutocompleteSearch({
                     data-index={0}
                     className={cn(
                       'w-full rounded-[6px] px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
-                      'hover:bg-[var(--surface-9)]',
-                      highlightedIndex === 0 && 'bg-[var(--surface-9)]'
+                      'hover:bg-[var(--surface-5)]',
+                      highlightedIndex === 0 && 'bg-[var(--surface-5)]'
                     )}
                     onMouseEnter={() => setHighlightedIndex(0)}
                     onMouseDown={(e) => {
@@ -296,8 +296,8 @@ export function AutocompleteSearch({
                           data-index={index}
                           className={cn(
                             'w-full rounded-[6px] px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
-                            'hover:bg-[var(--surface-9)]',
-                            isHighlighted && 'bg-[var(--surface-9)]'
+                            'hover:bg-[var(--surface-5)]',
+                            isHighlighted && 'bg-[var(--surface-5)]'
                           )}
                           onMouseEnter={() => setHighlightedIndex(index)}
                           onMouseDown={(e) => {
@@ -339,8 +339,8 @@ export function AutocompleteSearch({
                     data-index={index}
                     className={cn(
                       'w-full rounded-[6px] px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
-                      'hover:bg-[var(--surface-9)]',
-                      index === highlightedIndex && 'bg-[var(--surface-9)]'
+                      'hover:bg-[var(--surface-5)]',
+                      index === highlightedIndex && 'bg-[var(--surface-5)]'
                     )}
                     onMouseEnter={() => setHighlightedIndex(index)}
                     onMouseDown={(e) => {

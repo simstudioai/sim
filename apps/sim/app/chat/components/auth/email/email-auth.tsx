@@ -1,13 +1,12 @@
 'use client'
 
 import { type KeyboardEvent, useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { createLogger } from '@sim/logger'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
-import { createLogger } from '@/lib/logs/console/logger'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
@@ -299,14 +298,7 @@ export default function EmailAuth({
                     className={`${buttonClass} flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200`}
                     disabled={isSendingOtp}
                   >
-                    {isSendingOtp ? (
-                      <>
-                        <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                        Sending Code...
-                      </>
-                    ) : (
-                      'Continue'
-                    )}
+                    {isSendingOtp ? 'Sending Code...' : 'Continue'}
                   </Button>
                 </form>
               ) : (

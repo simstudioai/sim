@@ -264,7 +264,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
 
   outputs: {
     matches: { type: 'json', description: 'Search matches' },
-    upsertedCount: { type: 'number', description: 'Upserted count' },
+    statusText: { type: 'string', description: 'Status of the upsert operation' },
     data: { type: 'json', description: 'Response data' },
     model: { type: 'string', description: 'Model information' },
     vector_type: { type: 'string', description: 'Vector type' },

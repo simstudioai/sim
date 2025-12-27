@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import { getProviderFromModel } from '@/providers/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 

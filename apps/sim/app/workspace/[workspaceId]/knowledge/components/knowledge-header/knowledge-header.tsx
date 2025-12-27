@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { AlertTriangle, ChevronDown, LibraryBig, MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -12,7 +13,6 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
-import { createLogger } from '@/lib/logs/console/logger'
 import { filterButtonClass } from '@/app/workspace/[workspaceId]/knowledge/components/constants'
 import { useKnowledgeStore } from '@/stores/knowledge/store'
 

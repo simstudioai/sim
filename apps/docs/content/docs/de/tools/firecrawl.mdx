@@ -146,6 +146,32 @@ Extrahieren Sie strukturierte Daten aus vollständigen Webseiten mithilfe von na
 | `success` | boolean | Ob der Extraktionsvorgang erfolgreich war |
 | `data` | object | Extrahierte strukturierte Daten gemäß dem Schema oder der Eingabeaufforderung |
 
+### `firecrawl_agent`
+
+Autonomer Web-Datenextraktions-Agent. Sucht und sammelt Informationen basierend auf natürlichsprachlichen Anweisungen, ohne dass spezifische URLs erforderlich sind.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `prompt` | string | Ja | Natürlichsprachliche Beschreibung der zu extrahierenden Daten \(max. 10.000 Zeichen\) |
+| `urls` | json | Nein | Optionales Array von URLs, auf die sich der Agent konzentrieren soll |
+| `schema` | json | Nein | JSON-Schema, das die Struktur der zu extrahierenden Daten definiert |
+| `maxCredits` | number | Nein | Maximale Credits, die für diese Agent-Aufgabe verwendet werden sollen |
+| `strictConstrainToURLs` | boolean | Nein | Wenn true, besucht der Agent nur URLs, die im urls-Array angegeben sind |
+| `apiKey` | string | Ja | Firecrawl API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Agent-Operation erfolgreich war |
+| `status` | string | Aktueller Status des Agent-Jobs \(processing, completed, failed\) |
+| `data` | object | Vom Agent extrahierte Daten |
+| `creditsUsed` | number | Anzahl der von dieser Agent-Aufgabe verbrauchten Credits |
+| `expiresAt` | string | Zeitstempel, wann die Ergebnisse ablaufen \(24 Stunden\) |
+| `sources` | object | Array der vom Agent verwendeten Quell-URLs |
+
 ## Hinweise
 
 - Kategorie: `tools`

@@ -1,8 +1,10 @@
 'use client'
 
 import { Component, type ReactNode, useEffect } from 'react'
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
+import { ReactFlowProvider } from 'reactflow'
 import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
+import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 
 const logger = createLogger('ErrorBoundary')
@@ -23,12 +25,13 @@ export function ErrorUI({
   onReset,
   fullScreen = false,
 }: ErrorUIProps) {
+  const preventZoomRef = usePreventZoom()
   const containerClass = fullScreen
     ? 'flex flex-col w-full h-screen bg-[var(--surface-1)]'
     : 'flex flex-col w-full h-full bg-[var(--surface-1)]'
 
   return (
-    <div className={containerClass}>
+    <div ref={preventZoomRef} className={containerClass}>
       {/* Sidebar */}
       <Sidebar />
 
@@ -47,8 +50,9 @@ export function ErrorUI({
           </div>
         </div>
 
-        {/* Panel */}
-        <Panel />
+        <ReactFlowProvider>
+          <Panel />
+        </ReactFlowProvider>
       </div>
     </div>
   )

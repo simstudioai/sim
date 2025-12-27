@@ -16,9 +16,9 @@
 
 import { db } from '@sim/db'
 import { workflow, workspace } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { createLogger } from '@/lib/logs/console/logger'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {

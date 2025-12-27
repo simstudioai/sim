@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { Globe, Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
@@ -5,7 +6,6 @@ import {
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
 import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
-import { createLogger } from '@/lib/logs/console/logger'
 
 interface SearchOnlineArgs {
   query: string

@@ -5,10 +5,15 @@ import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'
 
 const CORE_TRIGGER_TYPES = ['manual', 'api', 'schedule', 'chat', 'webhook'] as const
-const RUNNING_COLOR = '#22c55e' as const
-const PENDING_COLOR = '#f59e0b' as const
+
+/** Possible execution status values for workflow logs */
 export type LogStatus = 'error' | 'pending' | 'running' | 'info' | 'cancelled'
 
+/**
+ * Maps raw status string to LogStatus for display.
+ * @param status - Raw status from API
+ * @returns Normalized LogStatus value
+ */
 export function getDisplayStatus(status: string | null | undefined): LogStatus {
   switch (status) {
     case 'running':
@@ -24,108 +29,54 @@ export function getDisplayStatus(status: string | null | undefined): LogStatus {
   }
 }
 
-/**
- * Checks if a hex color is gray/neutral (low saturation) or too light/dark
- */
-export function isGrayOrNeutral(hex: string): boolean {
-  const r = Number.parseInt(hex.slice(1, 3), 16)
-  const g = Number.parseInt(hex.slice(3, 5), 16)
-  const b = Number.parseInt(hex.slice(5, 7), 16)
-
-  const max = Math.max(r, g, b)
-  const min = Math.min(r, g, b)
-  const lightness = (max + min) / 2 / 255
-
-  const delta = max - min
-  const saturation = delta === 0 ? 0 : delta / (1 - Math.abs(2 * lightness - 1)) / 255
-
-  return saturation < 0.2 || lightness > 0.8 || lightness < 0.25
+/** Configuration mapping log status to Badge variant and display label */
+const STATUS_VARIANT_MAP: Record<
+  LogStatus,
+  { variant: React.ComponentProps<typeof Badge>['variant']; label: string }
+> = {
+  error: { variant: 'red', label: 'Error' },
+  pending: { variant: 'amber', label: 'Pending' },
+  running: { variant: 'green', label: 'Running' },
+  cancelled: { variant: 'gray', label: 'Cancelled' },
+  info: { variant: 'gray', label: 'Info' },
 }
 
-/**
- * Converts a hex color to a background variant with appropriate opacity
- */
-export function hexToBackground(hex: string): string {
-  const r = Number.parseInt(hex.slice(1, 3), 16)
-  const g = Number.parseInt(hex.slice(3, 5), 16)
-  const b = Number.parseInt(hex.slice(5, 7), 16)
-  return `rgba(${r}, ${g}, ${b}, 0.2)`
-}
-
-/**
- * Lightens a hex color to make it more vibrant for text
- */
-export function lightenColor(hex: string, percent = 30): string {
-  const r = Number.parseInt(hex.slice(1, 3), 16)
-  const g = Number.parseInt(hex.slice(3, 5), 16)
-  const b = Number.parseInt(hex.slice(5, 7), 16)
-
-  const newR = Math.min(255, Math.round(r + (255 - r) * (percent / 100)))
-  const newG = Math.min(255, Math.round(g + (255 - g) * (percent / 100)))
-  const newB = Math.min(255, Math.round(b + (255 - b) * (percent / 100)))
-
-  return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`
+/** Configuration mapping core trigger types to Badge color variants */
+const TRIGGER_VARIANT_MAP: Record<string, React.ComponentProps<typeof Badge>['variant']> = {
+  manual: 'gray-secondary',
+  api: 'blue',
+  schedule: 'teal',
+  chat: 'purple',
+  webhook: 'orange',
 }
 
 interface StatusBadgeProps {
+  /** The execution status to display */
   status: LogStatus
 }
 
 /**
- * Displays a styled badge for a log execution status
+ * Renders a colored badge indicating log execution status.
+ * @param props - Component props containing the status
+ * @returns A Badge with dot indicator and status label
  */
 export const StatusBadge = React.memo(({ status }: StatusBadgeProps) => {
-  const config = {
-    error: {
-      bg: 'var(--terminal-status-error-bg)',
-      color: 'var(--text-error)',
-      label: 'Error',
-    },
-    pending: {
-      bg: hexToBackground(PENDING_COLOR),
-      color: lightenColor(PENDING_COLOR, 65),
-      label: 'Pending',
-    },
-    running: {
-      bg: hexToBackground(RUNNING_COLOR),
-      color: lightenColor(RUNNING_COLOR, 65),
-      label: 'Running',
-    },
-    cancelled: {
-      bg: 'var(--terminal-status-info-bg)',
-      color: 'var(--terminal-status-info-color)',
-      label: 'Cancelled',
-    },
-    info: {
-      bg: 'var(--terminal-status-info-bg)',
-      color: 'var(--terminal-status-info-color)',
-      label: 'Info',
-    },
-  }[status]
-
-  return React.createElement(
-    'div',
-    {
-      className:
-        'inline-flex items-center gap-[6px] rounded-[6px] px-[9px] py-[2px] font-medium text-[12px]',
-      style: { backgroundColor: config.bg, color: config.color },
-    },
-    React.createElement('div', {
-      className: 'h-[6px] w-[6px] rounded-[2px]',
-      style: { backgroundColor: config.color },
-    }),
-    config.label
-  )
+  const config = STATUS_VARIANT_MAP[status]
+  return React.createElement(Badge, { variant: config.variant, dot: true }, config.label)
 })
 
 StatusBadge.displayName = 'StatusBadge'
 
 interface TriggerBadgeProps {
+  /** The trigger type identifier (e.g., 'manual', 'api', or integration block type) */
   trigger: string
 }
 
 /**
- * Displays a styled badge for a workflow trigger type
+ * Renders a colored badge indicating the workflow trigger type.
+ * Core triggers display with their designated colors; integrations show with icons.
+ * @param props - Component props containing the trigger type
+ * @returns A Badge with appropriate styling for the trigger type
  */
 export const TriggerBadge = React.memo(({ trigger }: TriggerBadgeProps) => {
   const metadata = getIntegrationMetadata(trigger)
@@ -133,37 +84,20 @@ export const TriggerBadge = React.memo(({ trigger }: TriggerBadgeProps) => {
   const block = isIntegration ? getBlock(trigger) : null
   const IconComponent = block?.icon
 
-  const isUnknownIntegration = isIntegration && trigger !== 'generic' && !block
-  if (
-    trigger === 'manual' ||
-    trigger === 'generic' ||
-    isUnknownIntegration ||
-    isGrayOrNeutral(metadata.color)
-  ) {
+  const coreVariant = TRIGGER_VARIANT_MAP[trigger]
+  if (coreVariant) {
+    return React.createElement(Badge, { variant: coreVariant }, metadata.label)
+  }
+
+  if (IconComponent) {
     return React.createElement(
       Badge,
-      {
-        variant: 'default',
-        className:
-          'inline-flex items-center gap-[6px] rounded-[6px] px-[9px] py-[2px] font-medium text-[12px]',
-      },
-      IconComponent && React.createElement(IconComponent, { className: 'h-[12px] w-[12px]' }),
+      { variant: 'gray-secondary', icon: IconComponent },
       metadata.label
     )
   }
 
-  const textColor = lightenColor(metadata.color, 65)
-
-  return React.createElement(
-    'div',
-    {
-      className:
-        'inline-flex items-center gap-[6px] rounded-[6px] px-[9px] py-[2px] font-medium text-[12px]',
-      style: { backgroundColor: hexToBackground(metadata.color), color: textColor },
-    },
-    IconComponent && React.createElement(IconComponent, { className: 'h-[12px] w-[12px]' }),
-    metadata.label
-  )
+  return React.createElement(Badge, { variant: 'gray-secondary' }, metadata.label)
 })
 
 TriggerBadge.displayName = 'TriggerBadge'

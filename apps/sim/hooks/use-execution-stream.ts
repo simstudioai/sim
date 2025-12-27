@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react'
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
@@ -76,6 +76,7 @@ export interface ExecuteStreamOptions {
  */
 export function useExecutionStream() {
   const abortControllerRef = useRef<AbortController | null>(null)
+  const currentExecutionRef = useRef<{ workflowId: string; executionId: string } | null>(null)
 
   const execute = useCallback(async (options: ExecuteStreamOptions) => {
     const { workflowId, callbacks = {}, ...payload } = options
@@ -88,6 +89,7 @@ export function useExecutionStream() {
     // Create new abort controller
     const abortController = new AbortController()
     abortControllerRef.current = abortController
+    currentExecutionRef.current = null
 
     try {
       const response = await fetch(`/api/workflows/${workflowId}/execute`, {
@@ -106,6 +108,11 @@ export function useExecutionStream() {
 
       if (!response.body) {
         throw new Error('No response body')
+      }
+
+      const executionId = response.headers.get('X-Execution-Id')
+      if (executionId) {
+        currentExecutionRef.current = { workflowId, executionId }
       }
 
       // Read SSE stream
@@ -215,14 +222,23 @@ export function useExecutionStream() {
       throw error
     } finally {
       abortControllerRef.current = null
+      currentExecutionRef.current = null
     }
   }, [])
 
   const cancel = useCallback(() => {
+    const execution = currentExecutionRef.current
+    if (execution) {
+      fetch(`/api/workflows/${execution.workflowId}/executions/${execution.executionId}/cancel`, {
+        method: 'POST',
+      }).catch(() => {})
+    }
+
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
       abortControllerRef.current = null
     }
+    currentExecutionRef.current = null
   }, [])
 
   return {

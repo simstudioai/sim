@@ -1,11 +1,11 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
 import { Badge, Tooltip } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -786,7 +786,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
    */
   const getHandleClasses = (position: 'left' | 'right' | 'top' | 'bottom', isError = false) => {
     const baseClasses = '!z-[10] !cursor-crosshair !border-none !transition-[colors] !duration-150'
-    const colorClasses = isError ? '!bg-red-400 dark:!bg-red-500' : '!bg-[var(--surface-12)]'
+    const colorClasses = isError ? '!bg-[var(--text-error)]' : '!bg-[var(--workflow-edge)]'
 
     const positionClasses = {
       left: '!left-[-8px] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-none hover:!left-[-11px] hover:!w-[10px] hover:!rounded-l-full',
@@ -906,7 +906,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         ref={contentRef}
         onClick={handleClick}
         className={cn(
-          'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)]'
+          'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)]'
         )}
       >
         {isPending && (
@@ -941,7 +941,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         <div
           className={cn(
             'workflow-drag-handle flex cursor-grab items-center justify-between p-[8px] [&:active]:cursor-grabbing',
-            hasContentBelowHeader && 'border-[var(--divider)] border-b'
+            hasContentBelowHeader && 'border-[var(--border-1)] border-b'
           )}
           onMouseDown={(e) => {
             e.stopPropagation()
@@ -974,12 +974,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Badge
-                      variant='outline'
+                      variant={!childIsDeployed ? 'red' : 'amber'}
                       className='cursor-pointer'
-                      style={{
-                        borderColor: !childIsDeployed ? 'var(--text-error)' : 'var(--warning)',
-                        color: !childIsDeployed ? 'var(--text-error)' : 'var(--warning)',
-                      }}
+                      dot
                       onClick={(e) => {
                         e.stopPropagation()
                         if (childWorkflowId && !isDeploying) {
@@ -997,18 +994,15 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                   </Tooltip.Content>
                 </Tooltip.Root>
               )}
-            {!isEnabled && <Badge>disabled</Badge>}
+            {!isEnabled && <Badge variant='gray-secondary'>disabled</Badge>}
 
             {type === 'schedule' && shouldShowScheduleBadge && scheduleInfo?.isDisabled && (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Badge
-                    variant='outline'
+                    variant='amber'
                     className='cursor-pointer'
-                    style={{
-                      borderColor: 'var(--warning)',
-                      color: 'var(--warning)',
-                    }}
+                    dot
                     onClick={(e) => {
                       e.stopPropagation()
                       if (scheduleInfo?.id) {
@@ -1028,14 +1022,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
             {showWebhookIndicator && (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Badge
-                    variant='outline'
-                    className='bg-[var(--brand-tertiary)] text-[var(--brand-tertiary)]'
-                  >
-                    <div className='relative flex items-center justify-center'>
-                      <div className='197, 94, 0.2)] absolute h-3 w-3 rounded-full bg-[rgba(34,' />
-                      <div className='relative h-2 w-2 rounded-full bg-[var(--brand-tertiary)]' />
-                    </div>
+                  <Badge variant='orange' dot>
                     Webhook
                   </Badge>
                 </Tooltip.Trigger>
@@ -1058,9 +1045,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Badge
-                    variant='outline'
+                    variant='amber'
                     className='cursor-pointer'
-                    style={{ borderColor: 'var(--warning)', color: 'var(--warning)' }}
+                    dot
                     onClick={(e) => {
                       e.stopPropagation()
                       reactivateWebhook(webhookId)

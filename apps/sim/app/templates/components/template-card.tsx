@@ -1,9 +1,9 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Star, User } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { VerifiedBadge } from '@/components/ui/verified-badge'
 import { cn } from '@/lib/core/utils/cn'
-import { createLogger } from '@/lib/logs/console/logger'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
 import { getBlock } from '@/blocks/registry'
 import { useStarTemplate } from '@/hooks/queries/templates'
@@ -27,15 +27,15 @@ interface TemplateCardProps {
 
 export function TemplateCardSkeleton({ className }: { className?: string }) {
   return (
-    <div className={cn('h-[268px] w-full rounded-[8px] bg-[#202020] p-[8px]', className)}>
-      <div className='h-[180px] w-full animate-pulse rounded-[6px] bg-gray-700' />
+    <div className={cn('h-[268px] w-full rounded-[8px] bg-[var(--surface-3)] p-[8px]', className)}>
+      <div className='h-[180px] w-full animate-pulse rounded-[6px] bg-[var(--surface-5)]' />
       <div className='mt-[14px] flex items-center justify-between'>
-        <div className='h-4 w-32 animate-pulse rounded bg-gray-700' />
+        <div className='h-4 w-32 animate-pulse rounded bg-[var(--surface-5)]' />
         <div className='flex items-center gap-[-4px]'>
           {Array.from({ length: 3 }).map((_, index) => (
             <div
               key={index}
-              className='h-[18px] w-[18px] animate-pulse rounded-[4px] bg-gray-700'
+              className='h-[18px] w-[18px] animate-pulse rounded-[4px] bg-[var(--surface-5)]'
             />
           ))}
         </div>
@@ -43,14 +43,14 @@ export function TemplateCardSkeleton({ className }: { className?: string }) {
 
       <div className='mt-[14px] flex items-center justify-between'>
         <div className='flex items-center gap-[6px]'>
-          <div className='h-[20px] w-[20px] animate-pulse rounded-full bg-gray-700' />
-          <div className='h-3 w-20 animate-pulse rounded bg-gray-700' />
+          <div className='h-[20px] w-[20px] animate-pulse rounded-full bg-[var(--surface-5)]' />
+          <div className='h-3 w-20 animate-pulse rounded bg-[var(--surface-5)]' />
         </div>
         <div className='flex items-center gap-[6px]'>
-          <div className='h-3 w-3 animate-pulse rounded bg-gray-700' />
-          <div className='h-3 w-6 animate-pulse rounded bg-gray-700' />
-          <div className='h-3 w-3 animate-pulse rounded bg-gray-700' />
-          <div className='h-3 w-6 animate-pulse rounded bg-gray-700' />
+          <div className='h-3 w-3 animate-pulse rounded bg-[var(--surface-5)]' />
+          <div className='h-3 w-6 animate-pulse rounded bg-[var(--surface-5)]' />
+          <div className='h-3 w-3 animate-pulse rounded bg-[var(--surface-5)]' />
+          <div className='h-3 w-6 animate-pulse rounded bg-[var(--surface-5)]' />
         </div>
       </div>
     </div>
@@ -195,7 +195,7 @@ function TemplateCardInner({
   return (
     <div
       onClick={handleCardClick}
-      className={cn('w-full cursor-pointer rounded-[8px] bg-[#202020] p-[8px]', className)}
+      className={cn('w-full cursor-pointer rounded-[8px] bg-[var(--surface-3)] p-[8px]', className)}
     >
       <div
         ref={previewRef}
@@ -213,12 +213,14 @@ function TemplateCardInner({
             lightweight
           />
         ) : (
-          <div className='h-full w-full bg-[#2A2A2A]' />
+          <div className='h-full w-full bg-[var(--surface-4)]' />
         )}
       </div>
 
       <div className='mt-[10px] flex items-center justify-between'>
-        <h3 className='truncate pr-[8px] pl-[2px] font-medium text-[16px] text-white'>{title}</h3>
+        <h3 className='truncate pr-[8px] pl-[2px] font-medium text-[16px] text-[var(--text-primary)]'>
+          {title}
+        </h3>
 
         <div className='flex flex-shrink-0'>
           {blockTypes.length > 4 ? (
@@ -241,10 +243,12 @@ function TemplateCardInner({
                 )
               })}
               <div
-                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[#4A4A4A]'
+                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[var(--surface-7)]'
                 style={{ marginLeft: '-4px' }}
               >
-                <span className='font-medium text-[10px] text-white'>+{blockTypes.length - 3}</span>
+                <span className='font-medium text-[10px] text-[var(--text-primary)]'>
+                  +{blockTypes.length - 3}
+                </span>
               </div>
             </>
           ) : (
@@ -276,24 +280,26 @@ function TemplateCardInner({
               <img src={authorImageUrl} alt={author} className='h-full w-full object-cover' />
             </div>
           ) : (
-            <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[#4A4A4A]'>
-              <User className='h-[12px] w-[12px] text-[#888888]' />
+            <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-7)]'>
+              <User className='h-[12px] w-[12px] text-[var(--text-muted)]' />
             </div>
           )}
           <div className='flex min-w-0 items-center gap-[4px]'>
-            <span className='truncate font-medium text-[#888888] text-[12px]'>{author}</span>
+            <span className='truncate font-medium text-[12px] text-[var(--text-muted)]'>
+              {author}
+            </span>
             {isVerified && <VerifiedBadge size='sm' />}
           </div>
         </div>
 
-        <div className='flex flex-shrink-0 items-center gap-[6px] font-medium text-[#888888] text-[12px]'>
+        <div className='flex flex-shrink-0 items-center gap-[6px] font-medium text-[12px] text-[var(--text-muted)]'>
           <User className='h-[12px] w-[12px]' />
           <span>{usageCount}</span>
           <Star
             onClick={handleStarClick}
             className={cn(
               'h-[12px] w-[12px] cursor-pointer transition-colors',
-              isStarred ? 'fill-yellow-500 text-yellow-500' : 'text-[#888888]',
+              isStarred ? 'fill-yellow-500 text-yellow-500' : 'text-[var(--text-muted)]',
               isStarLoading && 'opacity-50'
             )}
           />

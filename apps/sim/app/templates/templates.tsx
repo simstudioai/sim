@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Layout, Search } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { Input } from '@/components/ui/input'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { CredentialRequirement } from '@/lib/workflows/credentials/credential-extractor'
 import type { CreatorProfileDetails } from '@/app/_types/creator-profile'
 import { TemplateCard, TemplateCardSkeleton } from '@/app/templates/components/template-card'
@@ -149,7 +149,7 @@ export default function Templates({
           </div>
 
           <div className='mt-[14px] flex items-center justify-between'>
-            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-5)] px-[8px]'>
+            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-4)] px-[8px]'>
               <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
               <Input
                 placeholder='Search'

@@ -1,12 +1,12 @@
 import { db } from '@sim/db'
 import { account, user } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { createPermissionError, verifyWorkflowAccess } from '@/lib/copilot/auth/permissions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getAllOAuthServices } from '@/lib/oauth'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 

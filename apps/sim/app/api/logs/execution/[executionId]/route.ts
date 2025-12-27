@@ -5,11 +5,11 @@ import {
   workflowExecutionLogs,
   workflowExecutionSnapshots,
 } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('LogsByExecutionIdAPI')
 

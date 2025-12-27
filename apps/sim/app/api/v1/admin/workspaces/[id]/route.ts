@@ -8,8 +8,8 @@
 
 import { db } from '@sim/db'
 import { workflow, workflowFolder, workspace } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { count, eq } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console/logger'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   internalErrorResponse,

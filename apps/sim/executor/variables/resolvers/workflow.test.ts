@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ResolutionContext } from './reference'
 import { WorkflowResolver } from './workflow'
 
-vi.mock('@/lib/logs/console/logger', () => ({
+vi.mock('@sim/logger', () => ({
   createLogger: vi.fn().mockReturnValue({
     debug: vi.fn(),
     info: vi.fn(),

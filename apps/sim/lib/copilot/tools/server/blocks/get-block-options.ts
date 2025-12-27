@@ -1,10 +1,10 @@
+import { createLogger } from '@sim/logger'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import {
   type GetBlockOptionsInputType,
   GetBlockOptionsResult,
   type GetBlockOptionsResultType,
 } from '@/lib/copilot/tools/shared/schemas'
-import { createLogger } from '@/lib/logs/console/logger'
 import { registry as blockRegistry } from '@/blocks/registry'
 import { tools as toolsRegistry } from '@/tools/registry'
 

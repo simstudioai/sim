@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import {
   Button,
   Label,
@@ -11,7 +12,6 @@ import {
   ModalHeader,
 } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -257,7 +257,7 @@ export function GeneralDeploy({
         <ModalContent size='sm'>
           <ModalHeader>Load Deployment</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to load{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {versionToLoadInfo?.name || `v${versionToLoad}`}
@@ -272,11 +272,7 @@ export function GeneralDeploy({
             <Button variant='default' onClick={() => setShowLoadDialog(false)}>
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={confirmLoadDeployment}
-              className='bg-[var(--text-error)] text-white hover:bg-[var(--text-error)]'
-            >
+            <Button variant='destructive' onClick={confirmLoadDeployment}>
               Load deployment
             </Button>
           </ModalFooter>
@@ -302,7 +298,7 @@ export function GeneralDeploy({
             <Button variant='default' onClick={() => setShowPromoteDialog(false)}>
               Cancel
             </Button>
-            <Button variant='primary' onClick={confirmPromoteToLive}>
+            <Button variant='tertiary' onClick={confirmPromoteToLive}>
               Promote to live
             </Button>
           </ModalFooter>

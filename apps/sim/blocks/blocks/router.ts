@@ -135,12 +135,16 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
+      defaultValue: 'claude-sonnet-4-5',
       options: () => {
         const providersState = useProvidersStore.getState()
         const baseModels = providersState.providers.base.models
         const ollamaModels = providersState.providers.ollama.models
+        const vllmModels = providersState.providers.vllm.models
         const openrouterModels = providersState.providers.openrouter.models
-        const allModels = Array.from(new Set([...baseModels, ...ollamaModels, ...openrouterModels]))
+        const allModels = Array.from(
+          new Set([...baseModels, ...ollamaModels, ...vllmModels, ...openrouterModels])
+        )
 
         return allModels.map((model) => {
           const icon = getProviderIcon(model)

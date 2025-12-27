@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import { buildIntercomUrl, handleIntercomError } from './types'
 
@@ -101,15 +101,41 @@ export const intercomGetConversationTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    conversation: {
       type: 'object',
-      description: 'Conversation data',
+      description: 'Conversation object',
       properties: {
-        conversation: { type: 'object', description: 'Conversation object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
+        id: { type: 'string', description: 'Unique identifier for the conversation' },
+        type: { type: 'string', description: 'Object type (conversation)' },
+        title: { type: 'string', description: 'Title of the conversation' },
+        created_at: { type: 'number', description: 'Unix timestamp when conversation was created' },
+        updated_at: {
+          type: 'number',
+          description: 'Unix timestamp when conversation was last updated',
+        },
+        waiting_since: { type: 'number', description: 'Unix timestamp when waiting for reply' },
+        snoozed_until: { type: 'number', description: 'Unix timestamp when snooze ends' },
+        open: { type: 'boolean', description: 'Whether the conversation is open' },
+        state: { type: 'string', description: 'State of the conversation' },
+        read: { type: 'boolean', description: 'Whether the conversation has been read' },
+        priority: { type: 'string', description: 'Priority of the conversation' },
+        admin_assignee_id: { type: 'number', description: 'ID of assigned admin' },
+        team_assignee_id: { type: 'string', description: 'ID of assigned team' },
+        tags: { type: 'object', description: 'Tags on the conversation' },
+        source: { type: 'object', description: 'Source of the conversation' },
+        contacts: { type: 'object', description: 'Contacts in the conversation' },
+        teammates: { type: 'object', description: 'Teammates in the conversation' },
+        conversation_parts: { type: 'object', description: 'Parts of the conversation' },
+        statistics: { type: 'object', description: 'Conversation statistics' },
       },
     },
+    metadata: {
+      type: 'object',
+      description: 'Operation metadata',
+      properties: {
+        operation: { type: 'string', description: 'The operation performed (get_conversation)' },
+      },
+    },
+    success: { type: 'boolean', description: 'Operation success status' },
   },
 }

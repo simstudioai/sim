@@ -1,3 +1,4 @@
+import { drizzleOrmMock } from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => ({
@@ -35,11 +36,7 @@ vi.mock('@sim/db/schema', () => ({
   },
 }))
 
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn().mockReturnValue('and-condition'),
-  eq: vi.fn().mockReturnValue('eq-condition'),
-  or: vi.fn().mockReturnValue('or-condition'),
-}))
+vi.mock('drizzle-orm', () => drizzleOrmMock)
 
 import { db } from '@sim/db'
 import {

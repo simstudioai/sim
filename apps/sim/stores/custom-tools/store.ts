@@ -1,6 +1,6 @@
+import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { CustomToolsState, CustomToolsStore } from '@/stores/custom-tools/types'
 
 const logger = createLogger('CustomToolsStore')

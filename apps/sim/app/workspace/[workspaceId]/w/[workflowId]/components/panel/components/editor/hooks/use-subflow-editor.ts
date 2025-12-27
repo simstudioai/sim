@@ -156,13 +156,13 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
         if (type === 'env') {
           highlightedCode = highlightedCode.replace(
             placeholder,
-            `<span class="text-blue-500">${original}</span>`
+            `<span style="color: var(--brand-secondary);">${original}</span>`
           )
         } else {
           const escaped = original.replace(/</g, '&lt;').replace(/>/g, '&gt;')
           highlightedCode = highlightedCode.replace(
             placeholder,
-            `<span class="text-blue-500">${escaped}</span>`
+            `<span style="color: var(--brand-secondary);">${escaped}</span>`
           )
         }
       })

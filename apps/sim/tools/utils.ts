@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 import { AGENT, isCustomTool } from '@/executor/constants'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'

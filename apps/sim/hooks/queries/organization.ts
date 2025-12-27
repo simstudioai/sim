@@ -1,6 +1,6 @@
+import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { client } from '@/lib/auth/auth-client'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('OrganizationQueries')
 

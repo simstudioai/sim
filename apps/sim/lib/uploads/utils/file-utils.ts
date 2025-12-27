@@ -1,4 +1,4 @@
-import type { Logger } from '@/lib/logs/console/logger'
+import type { Logger } from '@sim/logger'
 import type { StorageContext } from '@/lib/uploads'
 import { ACCEPTED_FILE_TYPES, SUPPORTED_DOCUMENT_EXTENSIONS } from '@/lib/uploads/utils/validation'
 import { isUuid } from '@/executor/constants'

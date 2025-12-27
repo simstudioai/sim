@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import { extractEnvVarName, isEnvVarReference } from '@/executor/constants'
 import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
 

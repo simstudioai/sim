@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createLogger } from '@sim/logger'
 import {
   Button,
   Input,
@@ -13,7 +14,6 @@ import {
   ModalHeader,
   ModalTrigger,
 } from '@/components/emcn'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CreditBalance')
 
@@ -25,6 +25,9 @@ interface CreditBalanceProps {
   onPurchaseComplete?: () => void
 }
 
+/**
+ * Displays credit balance with optional purchase modal.
+ */
 export function CreditBalance({
   balance,
   canPurchase,
@@ -104,8 +107,8 @@ export function CreditBalance({
   return (
     <div className='flex items-center justify-between'>
       <div className='flex items-center gap-[8px]'>
-        <Label>Credit Balance</Label>
-        <span className='text-[13px] text-[var(--text-secondary)]'>
+        <Label>Credit Balance:</Label>
+        <span className='text-[12px] text-[var(--text-secondary)]'>
           {isLoading ? '...' : `$${balance.toFixed(2)}`}
         </span>
       </div>
@@ -113,27 +116,23 @@ export function CreditBalance({
       {canPurchase && (
         <Modal open={isOpen} onOpenChange={handleOpenChange}>
           <ModalTrigger asChild>
-            <Button variant='outline' className='h-8 rounded-[8px] text-[13px]'>
+            <Button variant='active' className='h-[32px] rounded-[6px] text-[12px]'>
               Add Credits
             </Button>
           </ModalTrigger>
           <ModalContent size='sm'>
             <ModalHeader>Add Credits</ModalHeader>
-            <ModalBody>
+            <ModalBody className='!pb-[16px]'>
               {success ? (
-                <p className='text-center text-[13px] text-[var(--text-primary)]'>
+                <p className='text-center text-[12px] text-[var(--text-primary)]'>
                   Credits added successfully!
                 </p>
               ) : (
-                <>
-                  <p className='text-[12px] text-[var(--text-muted)]'>
-                    Credits are used before overage charges. Min $10, max $1,000.
-                  </p>
-
-                  <div className='mt-4 flex flex-col gap-[4px]'>
+                <div className='space-y-[12px]'>
+                  <div className='flex flex-col gap-[8px]'>
                     <Label htmlFor='credit-amount'>Amount (USD)</Label>
                     <div className='relative'>
-                      <span className='-translate-y-1/2 absolute top-1/2 left-3 text-[13px] text-[var(--text-secondary)]'>
+                      <span className='-translate-y-1/2 absolute top-1/2 left-[12px] text-[12px] text-[var(--text-muted)]'>
                         $
                       </span>
                       <Input
@@ -143,29 +142,36 @@ export function CreditBalance({
                         value={amount}
                         onChange={(e) => handleAmountChange(e.target.value)}
                         placeholder='50'
-                        className='pl-7'
+                        className='pl-[28px]'
                         disabled={isPurchasing}
                       />
                     </div>
                     {error && <span className='text-[12px] text-[var(--text-error)]'>{error}</span>}
                   </div>
 
-                  <div className='mt-4 rounded-[6px] bg-[var(--surface-5)] p-3'>
-                    <p className='text-[12px] text-[var(--text-muted)]'>
+                  <div className='rounded-[6px] bg-[var(--surface-4)] p-[12px]'>
+                    <p className='text-[12px] text-[var(--text-secondary)]'>
+                      Credits are used before overage charges. Min: $10, Max: $1,000.
+                    </p>
+                  </div>
+                  <div className='rounded-[6px] bg-[var(--surface-4)] p-[12px]'>
+                    <p className='text-[12px] text-[var(--text-secondary)]'>
                       Credits are non-refundable and don't expire. They'll be applied automatically
                       to your {entityType === 'organization' ? 'team' : ''} usage.
                     </p>
                   </div>
-                </>
+                </div>
               )}
             </ModalBody>
             {!success && (
               <ModalFooter>
                 <ModalClose asChild>
-                  <Button disabled={isPurchasing}>Cancel</Button>
+                  <Button variant='default' disabled={isPurchasing}>
+                    Cancel
+                  </Button>
                 </ModalClose>
                 <Button
-                  variant='primary'
+                  variant='tertiary'
                   onClick={handlePurchase}
                   disabled={isPurchasing || !amount}
                 >

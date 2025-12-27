@@ -478,7 +478,7 @@ console.log(limits);`
           code={info.endpoint}
           language='javascript'
           wrapText
-          className='!min-h-0 rounded-[4px] border border-[var(--border-strong)]'
+          className='!min-h-0 rounded-[4px] border border-[var(--border-1)]'
         />
       </div> */}
 
@@ -534,7 +534,7 @@ console.log(limits);`
           code={getSyncCommand()}
           language={LANGUAGE_SYNTAX[language]}
           wrapText
-          className='!min-h-0 rounded-[4px] border border-[var(--border-strong)]'
+          className='!min-h-0 rounded-[4px] border border-[var(--border-1)]'
         />
       </div>
 
@@ -577,7 +577,7 @@ console.log(limits);`
           code={getStreamCommand()}
           language={LANGUAGE_SYNTAX[language]}
           wrapText
-          className='!min-h-0 rounded-[4px] border border-[var(--border-strong)]'
+          className='!min-h-0 rounded-[4px] border border-[var(--border-1)]'
         />
       </div>
 
@@ -655,7 +655,7 @@ console.log(limits);`
             code={getAsyncCommand()}
             language={LANGUAGE_SYNTAX[language]}
             wrapText
-            className='!min-h-0 rounded-[4px] border border-[var(--border-strong)]'
+            className='!min-h-0 rounded-[4px] border border-[var(--border-1)]'
           />
         </div>
       )}

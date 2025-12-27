@@ -1,10 +1,10 @@
+import { createLogger } from '@sim/logger'
 import {
   extractBlockIdFromOutputId,
   extractPathFromOutputId,
   traverseObjectPath,
 } from '@/lib/core/utils/response-format'
 import { encodeSSE } from '@/lib/core/utils/sse'
-import { createLogger } from '@/lib/logs/console/logger'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'

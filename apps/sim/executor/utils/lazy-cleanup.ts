@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflowBlocks } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('LazyCleanup')
 

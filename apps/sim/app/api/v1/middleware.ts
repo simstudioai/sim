@@ -1,7 +1,7 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { RateLimiter } from '@/lib/core/rate-limiter'
-import { createLogger } from '@/lib/logs/console/logger'
 import { authenticateV1Request } from '@/app/api/v1/auth'
 
 const logger = createLogger('V1Middleware')

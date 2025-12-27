@@ -1,10 +1,10 @@
+import { createLogger } from '@sim/logger'
 import { Loader2, MinusCircle, Moon, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import { createLogger } from '@/lib/logs/console/logger'
 
 /** Maximum sleep duration in seconds (3 minutes) */
 const MAX_SLEEP_SECONDS = 180

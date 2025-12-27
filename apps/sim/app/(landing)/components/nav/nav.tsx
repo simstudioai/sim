@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { ArrowRight, ChevronRight } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -8,7 +9,6 @@ import { useRouter } from 'next/navigation'
 import { GithubIcon } from '@/components/icons'
 import { useBrandConfig } from '@/lib/branding/branding'
 import { isHosted } from '@/lib/core/config/feature-flags'
-import { createLogger } from '@/lib/logs/console/logger'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
 
@@ -20,7 +20,7 @@ interface NavProps {
 }
 
 export default function Nav({ hideAuthButtons = false, variant = 'landing' }: NavProps = {}) {
-  const [githubStars, setGithubStars] = useState('24k')
+  const [githubStars, setGithubStars] = useState('24.4k')
   const [isHovered, setIsHovered] = useState(false)
   const [isLoginHovered, setIsLoginHovered] = useState(false)
   const router = useRouter()

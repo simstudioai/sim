@@ -1,8 +1,9 @@
 import { db } from '@sim/db'
 import { member, organization, userStats } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { createLogger } from '@/lib/logs/console/logger'
+import { Decimal, toDecimal, toFixedString, toNumber } from '@/lib/billing/utils/decimal'
 
 const logger = createLogger('CreditBalance')
 
@@ -23,7 +24,7 @@ export async function getCreditBalance(userId: string): Promise<CreditBalanceInf
       .limit(1)
 
     return {
-      balance: orgRows.length > 0 ? Number.parseFloat(orgRows[0].creditBalance || '0') : 0,
+      balance: orgRows.length > 0 ? toNumber(toDecimal(orgRows[0].creditBalance)) : 0,
       entityType: 'organization',
       entityId: subscription.referenceId,
     }
@@ -36,7 +37,7 @@ export async function getCreditBalance(userId: string): Promise<CreditBalanceInf
     .limit(1)
 
   return {
-    balance: userRows.length > 0 ? Number.parseFloat(userRows[0].creditBalance || '0') : 0,
+    balance: userRows.length > 0 ? toNumber(toDecimal(userRows[0].creditBalance)) : 0,
     entityType: 'user',
     entityId: userId,
   }
@@ -92,20 +93,21 @@ export interface DeductResult {
 }
 
 async function atomicDeductUserCredits(userId: string, cost: number): Promise<number> {
-  const costStr = cost.toFixed(6)
+  const costDecimal = toDecimal(cost)
+  const costStr = toFixedString(costDecimal)
 
   // Use raw SQL with CTE to capture old balance before update
   const result = await db.execute<{ old_balance: string; new_balance: string }>(sql`
     WITH old_balance AS (
       SELECT credit_balance FROM user_stats WHERE user_id = ${userId}
     )
-    UPDATE user_stats 
-    SET credit_balance = CASE 
+    UPDATE user_stats
+    SET credit_balance = CASE
       WHEN credit_balance >= ${costStr}::decimal THEN credit_balance - ${costStr}::decimal
       ELSE 0
     END
     WHERE user_id = ${userId} AND credit_balance >= 0
-    RETURNING 
+    RETURNING
       (SELECT credit_balance FROM old_balance) as old_balance,
       credit_balance as new_balance
   `)
@@ -113,25 +115,26 @@ async function atomicDeductUserCredits(userId: string, cost: number): Promise<nu
   const rows = Array.from(result)
   if (rows.length === 0) return 0
 
-  const oldBalance = Number.parseFloat(rows[0].old_balance || '0')
-  return Math.min(oldBalance, cost)
+  const oldBalance = toDecimal(rows[0].old_balance)
+  return toNumber(oldBalance.lessThan(costDecimal) ? oldBalance : costDecimal)
 }
 
 async function atomicDeductOrgCredits(orgId: string, cost: number): Promise<number> {
-  const costStr = cost.toFixed(6)
+  const costDecimal = toDecimal(cost)
+  const costStr = toFixedString(costDecimal)
 
   // Use raw SQL with CTE to capture old balance before update
   const result = await db.execute<{ old_balance: string; new_balance: string }>(sql`
     WITH old_balance AS (
       SELECT credit_balance FROM organization WHERE id = ${orgId}
     )
-    UPDATE organization 
-    SET credit_balance = CASE 
+    UPDATE organization
+    SET credit_balance = CASE
       WHEN credit_balance >= ${costStr}::decimal THEN credit_balance - ${costStr}::decimal
       ELSE 0
     END
     WHERE id = ${orgId} AND credit_balance >= 0
-    RETURNING 
+    RETURNING
       (SELECT credit_balance FROM old_balance) as old_balance,
       credit_balance as new_balance
   `)
@@ -139,8 +142,8 @@ async function atomicDeductOrgCredits(orgId: string, cost: number): Promise<numb
   const rows = Array.from(result)
   if (rows.length === 0) return 0
 
-  const oldBalance = Number.parseFloat(rows[0].old_balance || '0')
-  return Math.min(oldBalance, cost)
+  const oldBalance = toDecimal(rows[0].old_balance)
+  return toNumber(oldBalance.lessThan(costDecimal) ? oldBalance : costDecimal)
 }
 
 export async function deductFromCredits(userId: string, cost: number): Promise<DeductResult> {
@@ -159,7 +162,7 @@ export async function deductFromCredits(userId: string, cost: number): Promise<D
     creditsUsed = await atomicDeductUserCredits(userId, cost)
   }
 
-  const overflow = Math.max(0, cost - creditsUsed)
+  const overflow = toNumber(Decimal.max(0, toDecimal(cost).minus(creditsUsed)))
 
   if (creditsUsed > 0) {
     logger.info('Deducted credits atomically', {

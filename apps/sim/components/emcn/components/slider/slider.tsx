@@ -26,8 +26,8 @@ const Slider = React.forwardRef<React.ElementRef<typeof SliderPrimitive.Root>, S
       )}
       {...props}
     >
-      <SliderPrimitive.Track className='relative h-[6px] w-full grow overflow-hidden rounded-[20px] bg-[var(--surface-12)] transition-colors'>
-        <SliderPrimitive.Range className='absolute h-full bg-[var(--surface-12)]' />
+      <SliderPrimitive.Track className='relative h-[6px] w-full grow overflow-hidden rounded-[20px] bg-[var(--border-1)] transition-colors'>
+        <SliderPrimitive.Range className='absolute h-full bg-[var(--text-primary)]' />
       </SliderPrimitive.Track>
       <SliderPrimitive.Thumb className='block h-[14px] w-[14px] cursor-pointer rounded-full bg-[var(--text-primary)] shadow-sm transition-colors focus-visible:outline-none' />
     </SliderPrimitive.Root>

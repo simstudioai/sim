@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
 import { workflow, workflowFolder } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createLogger } from '@/lib/logs/console/logger'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 

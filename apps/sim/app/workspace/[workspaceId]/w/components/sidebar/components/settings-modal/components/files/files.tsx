@@ -1,10 +1,11 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { ArrowDown, Loader2, Plus, Search } from 'lucide-react'
+import { createLogger } from '@sim/logger'
+import { ArrowDown, Loader2, Plus, Search, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Tooltip, Trash } from '@/components/emcn'
-import { Input, Progress, Skeleton } from '@/components/ui'
+import { Input, Skeleton } from '@/components/ui'
 import {
   Table,
   TableBody,
@@ -15,7 +16,6 @@ import {
 } from '@/components/ui/table'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
@@ -30,9 +30,6 @@ import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 
 const logger = createLogger('FileUploadsSettings')
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
-
-const PRIMARY_BUTTON_STYLES =
-  '!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
 
 const SUPPORTED_EXTENSIONS = [
   // Documents
@@ -91,7 +88,7 @@ export function Files() {
 
   // Local UI state
   const [uploading, setUploading] = useState(false)
-  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [failedFiles, setFailedFiles] = useState<string[]>([])
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -112,7 +109,7 @@ export function Files() {
 
     try {
       setUploading(true)
-      setUploadError(null)
+      setFailedFiles([])
 
       const filesToUpload = Array.from(list)
       const unsupported: string[] = []
@@ -124,7 +121,7 @@ export function Files() {
       })
 
       setUploadProgress({ completed: 0, total: allowedFiles.length })
-      let lastError: string | null = null
+      const failed: string[] = [...unsupported]
 
       for (let i = 0; i < allowedFiles.length; i++) {
         const selectedFile = allowedFiles[i]
@@ -133,18 +130,15 @@ export function Files() {
           setUploadProgress({ completed: i + 1, total: allowedFiles.length })
         } catch (err) {
           logger.error('Error uploading file:', err)
-          lastError = 'Upload failed'
+          failed.push(selectedFile.name)
         }
       }
 
-      if (unsupported.length) {
-        lastError = `Unsupported file type: ${unsupported.join(', ')}`
+      if (failed.length > 0) {
+        setFailedFiles(failed)
       }
-      if (lastError) setUploadError(lastError)
     } catch (error) {
       logger.error('Error uploading file:', error)
-      setUploadError('Upload failed')
-      setTimeout(() => setUploadError(null), 5000)
     } finally {
       setUploading(false)
       setUploadProgress({ completed: 0, total: 0 })
@@ -237,19 +231,19 @@ export function Files() {
   const displayPlanName = PLAN_NAMES[planName as keyof typeof PLAN_NAMES] || 'Free'
 
   const renderTableSkeleton = () => (
-    <Table className='table-auto text-[13px]'>
+    <Table className='table-fixed text-[13px]'>
       <TableHeader>
         <TableRow className='hover:bg-transparent'>
-          <TableHead className='w-[56%] px-[12px] py-[6px] text-[12px] text-[var(--text-secondary)]'>
+          <TableHead className='w-[56%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
             <Skeleton className='h-[12px] w-[40px]' />
           </TableHead>
-          <TableHead className='w-[14%] px-[12px] py-[6px] text-left text-[12px] text-[var(--text-secondary)]'>
+          <TableHead className='w-[14%] px-[12px] py-[8px] text-left text-[12px] text-[var(--text-secondary)]'>
             <Skeleton className='h-[12px] w-[28px]' />
           </TableHead>
-          <TableHead className='w-[15%] px-[12px] py-[6px] text-left text-[12px] text-[var(--text-secondary)]'>
+          <TableHead className='w-[15%] px-[12px] py-[8px] text-left text-[12px] text-[var(--text-secondary)]'>
             <Skeleton className='h-[12px] w-[56px]' />
           </TableHead>
-          <TableHead className='w-[15%] px-[12px] py-[6px] text-left text-[12px] text-[var(--text-secondary)]'>
+          <TableHead className='w-[15%] px-[12px] py-[8px] text-left text-[12px] text-[var(--text-secondary)]'>
             <Skeleton className='h-[12px] w-[48px]' />
           </TableHead>
         </TableRow>
@@ -257,19 +251,19 @@ export function Files() {
       <TableBody>
         {Array.from({ length: 3 }, (_, i) => (
           <TableRow key={i} className='hover:bg-transparent'>
-            <TableCell className='px-[12px] py-[6px]'>
+            <TableCell className='px-[12px] py-[8px]'>
               <div className='flex min-w-0 items-center gap-[8px]'>
                 <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
                 <Skeleton className='h-[14px] w-[180px]' />
               </div>
             </TableCell>
-            <TableCell className='whitespace-nowrap px-[12px] py-[6px] text-[12px]'>
+            <TableCell className='whitespace-nowrap px-[12px] py-[8px] text-[12px]'>
               <Skeleton className='h-[12px] w-[48px]' />
             </TableCell>
-            <TableCell className='whitespace-nowrap px-[12px] py-[6px] text-[12px]'>
+            <TableCell className='whitespace-nowrap px-[12px] py-[8px] text-[12px]'>
               <Skeleton className='h-[12px] w-[56px]' />
             </TableCell>
-            <TableCell className='px-[12px] py-[6px]'>
+            <TableCell className='px-[12px] py-[8px]'>
               <div className='flex items-center gap-[4px]'>
                 <Skeleton className='h-[28px] w-[28px] rounded-[4px]' />
                 <Skeleton className='h-[28px] w-[28px] rounded-[4px]' />
@@ -287,7 +281,7 @@ export function Files() {
       <div className='flex items-center gap-[8px]'>
         <div
           className={cn(
-            'flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]',
+            'flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]',
             permissionsLoading && 'opacity-50'
           )}
         >
@@ -303,29 +297,6 @@ export function Files() {
             className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-100'
           />
         </div>
-        {!permissionsLoading && isBillingEnabled && storageInfo && (
-          <div className='flex flex-col items-end gap-[4px]'>
-            <div className='flex items-center gap-[8px] text-[13px]'>
-              <span
-                className={cn(
-                  'font-medium',
-                  planName === 'free' ? 'text-[var(--text-primary)]' : GRADIENT_TEXT_STYLES
-                )}
-              >
-                {displayPlanName}
-              </span>
-              <span className='text-[var(--text-muted)] tabular-nums'>
-                {formatStorageSize(storageInfo.usedBytes)} /{' '}
-                {formatStorageSize(storageInfo.limitBytes)}
-              </span>
-            </div>
-            <Progress
-              value={Math.min(storageInfo.percentUsed, 100)}
-              className='h-1 w-full'
-              indicatorClassName='bg-black dark:bg-white'
-            />
-          </div>
-        )}
         {(permissionsLoading || userPermissions.canEdit) && (
           <>
             <input
@@ -340,8 +311,7 @@ export function Files() {
             <Button
               onClick={handleUploadClick}
               disabled={uploading || permissionsLoading}
-              variant='primary'
-              className={PRIMARY_BUTTON_STYLES}
+              variant='tertiary'
             >
               <Plus className='mr-[6px] h-[13px] w-[13px]' />
               {uploading && uploadProgress.total > 0
@@ -354,47 +324,79 @@ export function Files() {
         )}
       </div>
 
-      {/* Error message */}
-      {uploadError && (
-        <p className='text-[11px] text-[var(--text-error)] leading-tight'>{uploadError}</p>
-      )}
-
       {/* Scrollable Content */}
       <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
         {permissionsLoading ? (
           renderTableSkeleton()
-        ) : files.length === 0 ? (
+        ) : files.length === 0 && failedFiles.length === 0 ? (
           <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
             No files uploaded yet
           </div>
-        ) : filteredFiles.length === 0 ? (
+        ) : filteredFiles.length === 0 && failedFiles.length === 0 ? (
           <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
             No files found matching "{search}"
           </div>
         ) : (
-          <Table className='table-auto text-[13px]'>
+          <Table className='table-fixed text-[13px]'>
             <TableHeader>
               <TableRow className='hover:bg-transparent'>
-                <TableHead className='w-[56%] px-[12px] py-[6px] text-[12px] text-[var(--text-secondary)]'>
+                <TableHead className='w-[56%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
                   Name
                 </TableHead>
-                <TableHead className='w-[14%] px-[12px] py-[6px] text-left text-[12px] text-[var(--text-secondary)]'>
+                <TableHead className='w-[14%] px-[12px] py-[8px] text-left text-[12px] text-[var(--text-secondary)]'>
                   Size
                 </TableHead>
-                <TableHead className='w-[15%] px-[12px] py-[6px] text-left text-[12px] text-[var(--text-secondary)]'>
+                <TableHead className='w-[15%] px-[12px] py-[8px] text-left text-[12px] text-[var(--text-secondary)]'>
                   Uploaded
                 </TableHead>
-                <TableHead className='w-[15%] px-[12px] py-[6px] text-left text-[12px] text-[var(--text-secondary)]'>
+                <TableHead className='w-[15%] px-[12px] py-[8px] text-left text-[12px] text-[var(--text-secondary)]'>
                   Actions
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
+              {failedFiles.map((fileName, index) => {
+                const Icon = getDocumentIcon('', fileName)
+                return (
+                  <TableRow
+                    key={`failed-${fileName}-${index}`}
+                    className='hover:bg-[var(--surface-2)]'
+                  >
+                    <TableCell className='px-[12px] py-[8px]'>
+                      <div className='flex min-w-0 items-center gap-[8px]'>
+                        <Icon className='h-[14px] w-[14px] shrink-0 text-[var(--text-error)]' />
+                        <span
+                          className='min-w-0 truncate text-[14px] text-[var(--text-error)]'
+                          title={fileName}
+                        >
+                          {truncateMiddle(fileName)}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className='whitespace-nowrap px-[12px] py-[8px] text-[12px] text-[var(--text-error)]'>
+                      —
+                    </TableCell>
+                    <TableCell className='whitespace-nowrap px-[12px] py-[8px] text-[12px] text-[var(--text-error)]'>
+                      —
+                    </TableCell>
+                    <TableCell className='px-[12px] py-[8px]'>
+                      <Button
+                        variant='ghost'
+                        onClick={() => setFailedFiles((prev) => prev.filter((_, i) => i !== index))}
+                        className='h-[28px] w-[28px] p-0'
+                        aria-label={`Dismiss ${fileName}`}
+                      >
+                        <X className='h-[14px] w-[14px]' />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
               {filteredFiles.map((file) => {
                 const Icon = getDocumentIcon(file.type || '', file.name)
                 return (
                   <TableRow key={file.id} className='hover:bg-[var(--surface-2)]'>
-                    <TableCell className='px-[12px] py-[6px]'>
+                    <TableCell className='px-[12px] py-[8px]'>
                       <div className='flex min-w-0 items-center gap-[8px]'>
                         <Icon className='h-[14px] w-[14px] shrink-0 text-[var(--text-muted)]' />
                         <button
@@ -407,13 +409,13 @@ export function Files() {
                         </button>
                       </div>
                     </TableCell>
-                    <TableCell className='whitespace-nowrap px-[12px] py-[6px] text-[12px] text-[var(--text-muted)]'>
+                    <TableCell className='whitespace-nowrap px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
                       {formatFileSize(file.size)}
                     </TableCell>
-                    <TableCell className='whitespace-nowrap px-[12px] py-[6px] text-[12px] text-[var(--text-muted)]'>
+                    <TableCell className='whitespace-nowrap px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
                       {formatDate(file.uploadedAt)}
                     </TableCell>
-                    <TableCell className='px-[12px] py-[6px]'>
+                    <TableCell className='px-[12px] py-[8px]'>
                       <div className='flex items-center gap-[4px]'>
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
@@ -458,6 +460,71 @@ export function Files() {
           </Table>
         )}
       </div>
+
+      {/* Storage Info - Fixed at bottom */}
+      {isBillingEnabled &&
+        (permissionsLoading ? (
+          <div className='mt-auto flex flex-col gap-[8px] pt-[10px]'>
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-[6px]'>
+                <Skeleton className='h-[14px] w-[32px] rounded-[2px]' />
+                <div className='h-[14px] w-[1.5px] bg-[var(--divider)]' />
+                <div className='flex items-center gap-[4px]'>
+                  <Skeleton className='h-[12px] w-[40px] rounded-[2px]' />
+                  <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>/</span>
+                  <Skeleton className='h-[12px] w-[32px] rounded-[2px]' />
+                </div>
+              </div>
+            </div>
+            <div className='flex items-center gap-[3px]'>
+              {Array.from({ length: 12 }).map((_, i) => (
+                <Skeleton key={i} className='h-[6px] flex-1 rounded-[2px]' />
+              ))}
+            </div>
+          </div>
+        ) : (
+          storageInfo && (
+            <div className='mt-auto flex flex-col gap-[8px] pt-[10px]'>
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-[6px]'>
+                  <span
+                    className={cn(
+                      'font-medium text-[12px]',
+                      planName === 'free' ? 'text-[var(--text-primary)]' : GRADIENT_TEXT_STYLES
+                    )}
+                  >
+                    {displayPlanName}
+                  </span>
+                  <div className='h-[14px] w-[1.5px] bg-[var(--divider)]' />
+                  <div className='flex items-center gap-[4px]'>
+                    <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
+                      {formatStorageSize(storageInfo.usedBytes)}
+                    </span>
+                    <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>/</span>
+                    <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
+                      {formatStorageSize(storageInfo.limitBytes)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className='flex items-center gap-[3px]'>
+                {Array.from({ length: 12 }).map((_, i) => {
+                  const filledCount = Math.ceil((Math.min(storageInfo.percentUsed, 100) / 100) * 12)
+                  const isFilled = i < filledCount
+                  return (
+                    <div
+                      key={i}
+                      className={cn(
+                        'h-[6px] flex-1 rounded-[2px]',
+                        isFilled ? 'bg-[var(--brand-secondary)]' : 'bg-[var(--surface-5)]'
+                      )}
+                    />
+                  )
+                })}
+              </div>
+            </div>
+          )
+        ))}
     </div>
   )
 }

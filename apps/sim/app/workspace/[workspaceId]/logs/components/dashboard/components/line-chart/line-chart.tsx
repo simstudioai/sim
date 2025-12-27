@@ -671,7 +671,7 @@ function LineChartComponent({
             const top = Math.min(Math.max(anchorY - 26, padding.top), height - padding.bottom - 18)
             return (
               <div
-                className='pointer-events-none absolute rounded-[8px] border border-[var(--border-strong)] bg-[var(--surface-1)] px-[8px] py-[6px] font-medium text-[11px] shadow-lg'
+                className='pointer-events-none absolute rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-1)] px-[8px] py-[6px] font-medium text-[11px] shadow-lg'
                 style={{ left, top }}
               >
                 {currentHoverDate && (

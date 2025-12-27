@@ -18,8 +18,8 @@
 
 import { db } from '@sim/db'
 import { member, organization, subscription } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, count, eq } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console/logger'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,

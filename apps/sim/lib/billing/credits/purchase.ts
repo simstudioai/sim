@@ -1,12 +1,12 @@
 import { db } from '@sim/db'
 import { organization, userStats } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { canPurchaseCredits, isOrgAdmin } from '@/lib/billing/credits/balance'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CreditPurchase')
 

@@ -1,3 +1,4 @@
+import { createSession, createWorkspaceRecord, loggerMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -59,14 +60,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
     mockHasWorkspaceAdminAccess(userId, workspaceId),
 }))
 
-vi.mock('@/lib/logs/console/logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/lib/core/utils/urls', () => ({
   getBaseUrl: vi.fn().mockReturnValue('https://test.sim.ai'),
@@ -127,9 +121,14 @@ const mockUser = {
   name: 'Test User',
 }
 
-const mockWorkspace = {
+const mockWorkspaceData = createWorkspaceRecord({
   id: 'workspace-456',
   name: 'Test Workspace',
+})
+
+const mockWorkspace = {
+  id: mockWorkspaceData.id,
+  name: mockWorkspaceData.name,
 }
 
 const mockInvitation = {
@@ -140,7 +139,7 @@ const mockInvitation = {
   status: 'pending',
   token: 'token-abc123',
   permissions: 'read',
-  expiresAt: new Date(Date.now() + 86400000), // 1 day from now
+  expiresAt: new Date(Date.now() + 86400000),
   createdAt: new Date(),
   updatedAt: new Date(),
 }
@@ -154,7 +153,8 @@ describe('Workspace Invitation [invitationId] API Route', () => {
 
   describe('GET /api/workspaces/invitations/[invitationId]', () => {
     it('should return invitation details when called without token', async () => {
-      mockGetSession.mockResolvedValue({ user: mockUser })
+      const session = createSession({ userId: mockUser.id, email: mockUser.email })
+      mockGetSession.mockResolvedValue(session)
       dbSelectResults = [[mockInvitation], [mockWorkspace]]
 
       const request = new NextRequest('http://localhost/api/workspaces/invitations/invitation-789')
@@ -202,15 +202,18 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     })
 
     it('should accept invitation when called with valid token', async () => {
-      mockGetSession.mockResolvedValue({
-        user: { ...mockUser, email: 'invited@example.com' },
+      const session = createSession({
+        userId: mockUser.id,
+        email: 'invited@example.com',
+        name: mockUser.name,
       })
+      mockGetSession.mockResolvedValue(session)
 
       dbSelectResults = [
-        [mockInvitation], // invitation lookup
-        [mockWorkspace], // workspace lookup
-        [{ ...mockUser, email: 'invited@example.com' }], // user lookup
-        [], // existing permission check (empty = no existing)
+        [mockInvitation],
+        [mockWorkspace],
+        [{ ...mockUser, email: 'invited@example.com' }],
+        [],
       ]
 
       const request = new NextRequest(
@@ -225,13 +228,16 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     })
 
     it('should redirect to error page when invitation expired', async () => {
-      mockGetSession.mockResolvedValue({
-        user: { ...mockUser, email: 'invited@example.com' },
+      const session = createSession({
+        userId: mockUser.id,
+        email: 'invited@example.com',
+        name: mockUser.name,
       })
+      mockGetSession.mockResolvedValue(session)
 
       const expiredInvitation = {
         ...mockInvitation,
-        expiresAt: new Date(Date.now() - 86400000), // 1 day ago
+        expiresAt: new Date(Date.now() - 86400000),
       }
 
       dbSelectResults = [[expiredInvitation], [mockWorkspace]]
@@ -250,9 +256,12 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     })
 
     it('should redirect to error page when email mismatch', async () => {
-      mockGetSession.mockResolvedValue({
-        user: { ...mockUser, email: 'wrong@example.com' },
+      const session = createSession({
+        userId: mockUser.id,
+        email: 'wrong@example.com',
+        name: mockUser.name,
       })
+      mockGetSession.mockResolvedValue(session)
 
       dbSelectResults = [
         [mockInvitation],
@@ -274,8 +283,9 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     })
 
     it('should return 404 when invitation not found', async () => {
-      mockGetSession.mockResolvedValue({ user: mockUser })
-      dbSelectResults = [[]] // Empty result
+      const session = createSession({ userId: mockUser.id, email: mockUser.email })
+      mockGetSession.mockResolvedValue(session)
+      dbSelectResults = [[]]
 
       const request = new NextRequest('http://localhost/api/workspaces/invitations/non-existent')
       const params = Promise.resolve({ invitationId: 'non-existent' })
@@ -306,7 +316,8 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     })
 
     it('should return 404 when invitation does not exist', async () => {
-      mockGetSession.mockResolvedValue({ user: mockUser })
+      const session = createSession({ userId: mockUser.id, email: mockUser.email })
+      mockGetSession.mockResolvedValue(session)
       dbSelectResults = [[]]
 
       const request = new NextRequest('http://localhost/api/workspaces/invitations/non-existent', {
@@ -322,7 +333,8 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     })
 
     it('should return 403 when user lacks admin access', async () => {
-      mockGetSession.mockResolvedValue({ user: mockUser })
+      const session = createSession({ userId: mockUser.id, email: mockUser.email })
+      mockGetSession.mockResolvedValue(session)
       mockHasWorkspaceAdminAccess.mockResolvedValue(false)
       dbSelectResults = [[mockInvitation]]
 
@@ -341,7 +353,8 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     })
 
     it('should return 400 when trying to delete non-pending invitation', async () => {
-      mockGetSession.mockResolvedValue({ user: mockUser })
+      const session = createSession({ userId: mockUser.id, email: mockUser.email })
+      mockGetSession.mockResolvedValue(session)
       mockHasWorkspaceAdminAccess.mockResolvedValue(true)
 
       const acceptedInvitation = { ...mockInvitation, status: 'accepted' }
@@ -361,7 +374,8 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     })
 
     it('should successfully delete pending invitation when user has admin access', async () => {
-      mockGetSession.mockResolvedValue({ user: mockUser })
+      const session = createSession({ userId: mockUser.id, email: mockUser.email })
+      mockGetSession.mockResolvedValue(session)
       mockHasWorkspaceAdminAccess.mockResolvedValue(true)
       dbSelectResults = [[mockInvitation]]
 

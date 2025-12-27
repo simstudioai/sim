@@ -36,8 +36,8 @@ interface ShimmerOverlayTextProps {
 function ShimmerOverlayText({ label, value, active = false }: ShimmerOverlayTextProps) {
   return (
     <span className='relative inline-block'>
-      <span style={{ color: '#B8B8B8' }}>{label}</span>
-      <span style={{ color: 'var(--text-muted)' }}>{value}</span>
+      <span className='text-[var(--text-tertiary)]'>{label}</span>
+      <span className='text-[var(--text-muted)]'>{value}</span>
       {active ? (
         <span
           aria-hidden='true'
@@ -194,14 +194,11 @@ export function ThinkingBlock({
       </button>
 
       {isExpanded && (
-        <div className='ml-1 border-[var(--border-strong)] border-l-2 pl-2'>
-          <pre
-            className='whitespace-pre-wrap font-[470] font-season text-[12px] leading-[1.15rem]'
-            style={{ color: '#B8B8B8' }}
-          >
+        <div className='ml-1 border-[var(--border-1)] border-l-2 pl-2'>
+          <pre className='whitespace-pre-wrap font-[470] font-season text-[12px] text-[var(--text-tertiary)] leading-[1.15rem]'>
             {content}
             {isStreaming && (
-              <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-[#B8B8B8]' />
+              <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-[var(--text-tertiary)]' />
             )}
           </pre>
         </div>

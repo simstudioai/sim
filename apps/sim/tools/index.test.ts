@@ -6,27 +6,61 @@
  * This file contains unit tests for the tools registry and executeTool function,
  * which are the central pieces of infrastructure for executing tools.
  */
+
+import {
+  createExecutionContext,
+  createMockFetch,
+  type ExecutionContext,
+  type MockFetchResponse,
+} from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ExecutionContext } from '@/executor/types'
-import { mockEnvironmentVariables } from '@/tools/__test-utils__/test-tools'
 import { executeTool } from '@/tools/index'
 import { tools } from '@/tools/registry'
 import { getTool } from '@/tools/utils'
 
-const createMockExecutionContext = (overrides?: Partial<ExecutionContext>): ExecutionContext => ({
-  workflowId: 'test-workflow',
-  workspaceId: 'workspace-456',
-  blockStates: new Map(),
-  blockLogs: [],
-  metadata: { duration: 0 },
-  environmentVariables: {},
-  decisions: { router: new Map(), condition: new Map() },
-  loopExecutions: new Map(),
-  completedLoops: new Set(),
-  executedBlocks: new Set(),
-  activeExecutionPath: new Set(),
-  ...overrides,
-})
+/**
+ * Sets up global fetch mock with Next.js preconnect support.
+ */
+function setupFetchMock(config: MockFetchResponse = {}) {
+  const mockFetch = createMockFetch(config)
+  const fetchWithPreconnect = Object.assign(mockFetch, { preconnect: vi.fn() }) as typeof fetch
+  global.fetch = fetchWithPreconnect
+  return mockFetch
+}
+
+/**
+ * Creates a mock execution context with workspaceId for tool tests.
+ */
+function createToolExecutionContext(overrides?: Partial<ExecutionContext>): ExecutionContext {
+  const ctx = createExecutionContext({
+    workflowId: overrides?.workflowId ?? 'test-workflow',
+    blockStates: overrides?.blockStates,
+    executedBlocks: overrides?.executedBlocks,
+    blockLogs: overrides?.blockLogs,
+    metadata: overrides?.metadata,
+    environmentVariables: overrides?.environmentVariables,
+  })
+  return {
+    ...ctx,
+    workspaceId: 'workspace-456',
+    ...overrides,
+  } as ExecutionContext
+}
+
+/**
+ * Sets up environment variables and returns a cleanup function.
+ */
+function setupEnvVars(variables: Record<string, string>) {
+  const originalEnv = { ...process.env }
+  Object.assign(process.env, variables)
+
+  return () => {
+    Object.keys(variables).forEach((key) => delete process.env[key])
+    Object.entries(originalEnv).forEach(([key, value]) => {
+      if (value !== undefined) process.env[key] = value
+    })
+  }
+}
 
 describe('Tools Registry', () => {
   it('should include all expected built-in tools', () => {
@@ -146,38 +180,14 @@ describe('executeTool Function', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
-    global.fetch = Object.assign(
-      vi.fn().mockImplementation(async (url, options) => {
-        const mockResponse = {
-          ok: true,
-          status: 200,
-          json: () =>
-            Promise.resolve({
-              success: true,
-              output: { result: 'Direct request successful' },
-            }),
-          headers: {
-            get: () => 'application/json',
-            forEach: () => {},
-          },
-          clone: function () {
-            return { ...this }
-          },
-        }
-
-        if (url.toString().includes('/api/proxy')) {
-          return mockResponse
-        }
-
-        return mockResponse
-      }),
-      { preconnect: vi.fn() }
-    ) as typeof fetch
+    setupFetchMock({
+      json: { success: true, output: { result: 'Direct request successful' } },
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })
 
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = mockEnvironmentVariables({
-      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
-    })
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
   })
 
   afterEach(() => {
@@ -242,19 +252,7 @@ describe('executeTool Function', () => {
   })
 
   it('should handle errors from tools', async () => {
-    global.fetch = Object.assign(
-      vi.fn().mockImplementation(async () => {
-        return {
-          ok: false,
-          status: 400,
-          json: () =>
-            Promise.resolve({
-              error: 'Bad request',
-            }),
-        }
-      }),
-      { preconnect: vi.fn() }
-    ) as typeof fetch
+    setupFetchMock({ status: 400, ok: false, json: { error: 'Bad request' } })
 
     const result = await executeTool(
       'http_request',
@@ -291,9 +289,7 @@ describe('Automatic Internal Route Detection', () => {
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = mockEnvironmentVariables({
-      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
-    })
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
   })
 
   afterEach(() => {
@@ -541,9 +537,7 @@ describe('Centralized Error Handling', () => {
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = mockEnvironmentVariables({
-      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
-    })
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
   })
 
   afterEach(() => {
@@ -772,9 +766,7 @@ describe('MCP Tool Execution', () => {
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = mockEnvironmentVariables({
-      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
-    })
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
   })
 
   afterEach(() => {
@@ -811,7 +803,7 @@ describe('MCP Tool Execution', () => {
       { preconnect: vi.fn() }
     ) as typeof fetch
 
-    const mockContext = createMockExecutionContext()
+    const mockContext = createToolExecutionContext()
 
     const result = await executeTool(
       'mcp-123-list_files',
@@ -847,7 +839,7 @@ describe('MCP Tool Execution', () => {
       { preconnect: vi.fn() }
     ) as typeof fetch
 
-    const mockContext2 = createMockExecutionContext()
+    const mockContext2 = createToolExecutionContext()
 
     await executeTool(
       'mcp-timestamp123-complex-tool-name',
@@ -877,7 +869,7 @@ describe('MCP Tool Execution', () => {
       { preconnect: vi.fn() }
     ) as typeof fetch
 
-    const mockContext3 = createMockExecutionContext()
+    const mockContext3 = createToolExecutionContext()
 
     await executeTool(
       'mcp-123-read_file',
@@ -911,7 +903,7 @@ describe('MCP Tool Execution', () => {
       { preconnect: vi.fn() }
     ) as typeof fetch
 
-    const mockContext4 = createMockExecutionContext()
+    const mockContext4 = createToolExecutionContext()
 
     await executeTool(
       'mcp-123-search',
@@ -945,7 +937,7 @@ describe('MCP Tool Execution', () => {
       { preconnect: vi.fn() }
     ) as typeof fetch
 
-    const mockContext5 = createMockExecutionContext()
+    const mockContext5 = createToolExecutionContext()
 
     const result = await executeTool(
       'mcp-123-nonexistent_tool',
@@ -968,7 +960,7 @@ describe('MCP Tool Execution', () => {
   })
 
   it('should handle invalid MCP tool ID format', async () => {
-    const mockContext6 = createMockExecutionContext()
+    const mockContext6 = createToolExecutionContext()
 
     const result = await executeTool(
       'invalid-mcp-id',
@@ -987,7 +979,7 @@ describe('MCP Tool Execution', () => {
       preconnect: vi.fn(),
     }) as typeof fetch
 
-    const mockContext7 = createMockExecutionContext()
+    const mockContext7 = createToolExecutionContext()
 
     const result = await executeTool(
       'mcp-123-test_tool',

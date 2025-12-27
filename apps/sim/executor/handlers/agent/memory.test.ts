@@ -3,7 +3,7 @@ import { MEMORY } from '@/executor/constants'
 import { Memory } from '@/executor/handlers/agent/memory'
 import type { Message } from '@/executor/handlers/agent/types'
 
-vi.mock('@/lib/logs/console/logger', () => ({
+vi.mock('@sim/logger', () => ({
   createLogger: () => ({
     warn: vi.fn(),
     error: vi.fn(),

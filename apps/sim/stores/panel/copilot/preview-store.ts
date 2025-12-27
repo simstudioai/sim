@@ -8,7 +8,6 @@ import type { CopilotMessage, CopilotToolCall } from '@/stores/panel/copilot/typ
 export interface PreviewData {
   id: string
   workflowState: any
-  yamlContent: string
   description?: string
   timestamp: number
   status: 'pending' | 'accepted' | 'rejected'

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import { AlertCircle, ChevronDown, ChevronUp, Loader2, X } from 'lucide-react'
+import { createLogger } from '@sim/logger'
+import { AlertCircle, ChevronDown, ChevronUp, X } from 'lucide-react'
 import {
   Button,
   Label,
@@ -14,7 +15,6 @@ import {
   Textarea,
   Tooltip,
 } from '@/components/emcn'
-import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { ChunkData, DocumentData } from '@/stores/knowledge/store'
 
@@ -275,19 +275,12 @@ export function EditChunkModal({
               </Button>
               {userPermissions.canEdit && (
                 <Button
-                  variant='primary'
+                  variant='tertiary'
                   onClick={handleSaveContent}
                   type='button'
                   disabled={!isFormValid || isSaving || !hasUnsavedChanges || isNavigating}
                 >
-                  {isSaving ? (
-                    <>
-                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save'
-                  )}
+                  {isSaving ? 'Saving...' : 'Save'}
                 </Button>
               )}
             </ModalFooter>
@@ -300,7 +293,7 @@ export function EditChunkModal({
         <ModalContent size='sm'>
           <ModalHeader>Unsaved Changes</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               You have unsaved changes to this chunk content.
               {pendingNavigation
                 ? ' Do you want to discard your changes and navigate to the next chunk?'
@@ -318,12 +311,7 @@ export function EditChunkModal({
             >
               Keep Editing
             </Button>
-            <Button
-              variant='primary'
-              onClick={handleConfirmDiscard}
-              type='button'
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={handleConfirmDiscard} type='button'>
               Discard Changes
             </Button>
           </ModalFooter>

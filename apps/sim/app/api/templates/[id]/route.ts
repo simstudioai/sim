@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
 import { templateCreators, templates, workflow } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   extractRequiredCredentials,
   sanitizeCredentials,
@@ -169,7 +169,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (creatorId !== undefined) updateData.creatorId = creatorId
 
     if (updateState && template.workflowId) {
-      const { verifyWorkflowAccess } = await import('@/socket-server/middleware/permissions')
+      const { verifyWorkflowAccess } = await import('@/socket/middleware/permissions')
       const { hasAccess: hasWorkflowAccess } = await verifyWorkflowAccess(
         session.user.id,
         template.workflowId

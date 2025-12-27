@@ -285,6 +285,7 @@ export function ComboBox({
             overlayContent={overlayContent}
             inputRef={ref as React.RefObject<HTMLInputElement>}
             filterOptions
+            searchable={config.searchable}
             className={cn('allow-scroll overflow-x-auto', selectedOptionIcon && 'pl-[28px]')}
             inputProps={{
               onDrop: onDrop as (e: React.DragEvent<HTMLInputElement>) => void,

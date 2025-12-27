@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -5,7 +6,6 @@ import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'
-import { createLogger } from '@/lib/logs/console/logger'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import {
@@ -183,11 +183,11 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Generate query embedding only if query is provided
+      const workspaceId = accessChecks.find((ac) => ac?.hasAccess)?.knowledgeBase?.workspaceId
+
       const hasQuery = validatedData.query && validatedData.query.trim().length > 0
-      // Start embedding generation early and await when needed
       const queryEmbeddingPromise = hasQuery
-        ? generateSearchEmbedding(validatedData.query!)
+        ? generateSearchEmbedding(validatedData.query!, undefined, workspaceId)
         : Promise.resolve(null)
 
       // Check if any requested knowledge bases were not accessible

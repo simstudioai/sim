@@ -1,9 +1,9 @@
 import { randomUUID } from 'crypto'
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { deleteChunk, updateChunk } from '@/lib/knowledge/chunks/service'
-import { createLogger } from '@/lib/logs/console/logger'
 import { checkChunkAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('ChunkByIdAPI')
@@ -100,7 +100,12 @@ export async function PUT(
     try {
       const validatedData = UpdateChunkSchema.parse(body)
 
-      const updatedChunk = await updateChunk(chunkId, validatedData, requestId)
+      const updatedChunk = await updateChunk(
+        chunkId,
+        validatedData,
+        requestId,
+        accessCheck.knowledgeBase?.workspaceId
+      )
 
       logger.info(
         `[${requestId}] Chunk updated: ${chunkId} in document ${documentId} in knowledge base ${knowledgeBaseId}`

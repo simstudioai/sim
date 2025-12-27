@@ -4,7 +4,7 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockRequest } from '@/app/api/__test-utils__/utils'
+import { createMockLogger, createMockRequest } from '@/app/api/__test-utils__/utils'
 
 describe('OAuth Disconnect API Route', () => {
   const mockGetSession = vi.fn()
@@ -12,12 +12,7 @@ describe('OAuth Disconnect API Route', () => {
     delete: vi.fn().mockReturnThis(),
     where: vi.fn(),
   }
-  const mockLogger = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }
+  const mockLogger = createMockLogger()
 
   const mockUUID = 'mock-uuid-12345678-90ab-cdef-1234-567890abcdef'
 
@@ -47,7 +42,7 @@ describe('OAuth Disconnect API Route', () => {
       or: vi.fn((...conditions) => ({ conditions, type: 'or' })),
     }))
 
-    vi.doMock('@/lib/logs/console/logger', () => ({
+    vi.doMock('@sim/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
   })

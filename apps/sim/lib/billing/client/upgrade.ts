@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
+import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { client, useSession, useSubscription } from '@/lib/auth/auth-client'
-import { createLogger } from '@/lib/logs/console/logger'
 import { organizationKeys } from '@/hooks/queries/organization'
 
 const logger = createLogger('SubscriptionUpgrade')

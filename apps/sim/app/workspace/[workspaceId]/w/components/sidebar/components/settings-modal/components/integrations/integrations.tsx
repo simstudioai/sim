@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Check, ChevronDown, ExternalLink, Search } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -14,7 +15,6 @@ import {
 } from '@/components/emcn'
 import { Input, Skeleton } from '@/components/ui'
 import { cn } from '@/lib/core/utils/cn'
-import { createLogger } from '@/lib/logs/console/logger'
 import { OAUTH_PROVIDERS } from '@/lib/oauth'
 import {
   type ServiceInfo,
@@ -53,7 +53,7 @@ const SKELETON_STRUCTURE: [string, number][] = [
 function IntegrationsSkeleton() {
   return (
     <div className='flex h-full flex-col gap-[16px]'>
-      <div className='flex w-full items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]'>
+      <div className='flex w-full items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
         <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
         <Input
           placeholder='Search integrations...'
@@ -274,7 +274,7 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
   return (
     <>
       <div className='flex h-full flex-col gap-[16px]'>
-        <div className='flex w-full items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]'>
+        <div className='flex w-full items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
           <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
           <Input
             placeholder='Search services...'
@@ -328,7 +328,7 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
                       ref={pendingService === service.id ? pendingServiceRef : undefined}
                     >
                       <div className='flex items-center gap-[12px]'>
-                        <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-[var(--surface-6)]'>
+                        <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-[var(--surface-5)]'>
                           {typeof service.icon === 'function'
                             ? service.icon({ className: 'h-4 w-4' })
                             : service.icon}
@@ -357,8 +357,7 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
                         </Button>
                       ) : (
                         <Button
-                          variant='primary'
-                          className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+                          variant='tertiary'
                           onClick={() => handleConnect(service)}
                           disabled={connectService.isPending}
                         >
@@ -384,7 +383,7 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
         <ModalContent className='w-[400px]'>
           <ModalHeader>Disconnect Service</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to disconnect{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {serviceToDisconnect?.service.name}
@@ -399,11 +398,7 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
             <Button variant='default' onClick={() => setShowDisconnectDialog(false)}>
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={confirmDisconnect}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={confirmDisconnect}>
               Disconnect
             </Button>
           </ModalFooter>

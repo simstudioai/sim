@@ -53,6 +53,7 @@ export const EDGE = {
   LOOP_CONTINUE: 'loop_continue',
   LOOP_CONTINUE_ALT: 'loop-continue-source',
   LOOP_EXIT: 'loop_exit',
+  PARALLEL_EXIT: 'parallel_exit',
   ERROR: 'error',
   SOURCE: 'source',
   DEFAULT: 'default',
@@ -86,6 +87,16 @@ export const PARALLEL = {
   BRANCH: {
     PREFIX: '₍',
     SUFFIX: '₎',
+  },
+
+  SENTINEL: {
+    PREFIX: 'parallel-',
+    START_SUFFIX: '-sentinel-start',
+    END_SUFFIX: '-sentinel-end',
+    START_TYPE: 'start' as SentinelType,
+    END_TYPE: 'end' as SentinelType,
+    START_NAME_PREFIX: 'Parallel Start',
+    END_NAME_PREFIX: 'Parallel End',
   },
 
   DEFAULT_COUNT: 1,
@@ -178,13 +189,13 @@ export const MEMORY = {
 } as const
 
 export const ROUTER = {
-  DEFAULT_MODEL: 'gpt-4o',
+  DEFAULT_MODEL: 'claude-sonnet-4-5',
   DEFAULT_TEMPERATURE: 0,
   INFERENCE_TEMPERATURE: 0.1,
 } as const
 
 export const EVALUATOR = {
-  DEFAULT_MODEL: 'gpt-4o',
+  DEFAULT_MODEL: 'claude-sonnet-4-5',
   DEFAULT_TEMPERATURE: 0.1,
   RESPONSE_SCHEMA_NAME: 'evaluation_response',
   JSON_INDENT: 2,

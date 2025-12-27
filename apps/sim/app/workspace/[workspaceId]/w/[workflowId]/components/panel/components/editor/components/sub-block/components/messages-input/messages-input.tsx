@@ -313,7 +313,7 @@ export function MessagesInput({
         <div
           key={`message-${index}`}
           className={cn(
-            'relative flex w-full flex-col rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] transition-colors dark:bg-[var(--surface-9)]',
+            'relative flex w-full flex-col rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] transition-colors dark:bg-[var(--surface-5)]',
             disabled && 'opacity-50'
           )}
         >
@@ -364,7 +364,7 @@ export function MessagesInput({
                         type='button'
                         disabled={isPreview || disabled}
                         className={cn(
-                          '-ml-1.5 -my-1 rounded px-1.5 py-1 font-medium text-[13px] text-[var(--text-primary)] leading-none transition-colors hover:bg-[var(--surface-8)] hover:text-[var(--text-secondary)]',
+                          '-ml-1.5 -my-1 rounded px-1.5 py-1 font-medium text-[13px] text-[var(--text-primary)] leading-none transition-colors hover:bg-[var(--surface-5)] hover:text-[var(--text-secondary)]',
                           (isPreview || disabled) &&
                             'cursor-default hover:bg-transparent hover:text-[var(--text-primary)]'
                         )}
@@ -534,7 +534,7 @@ export function MessagesInput({
 
                   {!isPreview && !disabled && (
                     <div
-                      className='absolute right-1 bottom-1 flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] dark:bg-[var(--surface-9)]'
+                      className='absolute right-1 bottom-1 flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
                       onMouseDown={(e) => handleResizeStart(fieldId, e)}
                       onDragStart={(e) => {
                         e.preventDefault()

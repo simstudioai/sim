@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import { Groq } from 'groq-sdk'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { createReadableStreamFromGroqStream } from '@/providers/groq/utils'

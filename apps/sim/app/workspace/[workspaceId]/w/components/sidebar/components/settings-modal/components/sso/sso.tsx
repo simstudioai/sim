@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Check, ChevronDown, Copy, Eye, EyeOff } from 'lucide-react'
 import { Button, Combobox, Input, Switch, Textarea } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
@@ -9,7 +10,6 @@ import { getSubscriptionStatus } from '@/lib/billing/client/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { useConfigureSSO, useSSOProviders } from '@/hooks/queries/sso'
@@ -492,11 +492,7 @@ export function SSO() {
 
         {/* Footer */}
         <div className='mt-auto flex items-center justify-end'>
-          <Button
-            onClick={handleEdit}
-            variant='primary'
-            className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-          >
+          <Button onClick={handleEdit} variant='tertiary'>
             Edit
           </Button>
         </div>
@@ -933,9 +929,8 @@ export function SSO() {
         {error && <p className='mr-auto text-[12px] text-[var(--text-error)]'>{error}</p>}
         <Button
           type='submit'
-          variant='primary'
+          variant='tertiary'
           disabled={configureSSOMutation.isPending || hasAnyErrors(errors) || !isFormValid()}
-          className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
         >
           {configureSSOMutation.isPending
             ? isEditing

@@ -1,6 +1,6 @@
+import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
 export const dynamic = 'force-dynamic'

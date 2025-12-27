@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 
 const logger = createLogger('CopilotAPI')
 
@@ -40,7 +40,6 @@ export interface CopilotChat {
   model: string
   messages: CopilotMessage[]
   messageCount: number
-  previewYaml: string | null
   planArtifact: string | null
   config: CopilotChatConfig | null
   createdAt: Date

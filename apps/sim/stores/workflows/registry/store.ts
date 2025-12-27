@@ -1,7 +1,7 @@
+import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { withOptimisticUpdate } from '@/lib/core/utils/optimistic-update'
-import { createLogger } from '@/lib/logs/console/logger'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type {

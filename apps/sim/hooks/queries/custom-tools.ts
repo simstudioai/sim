@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createLogger } from '@/lib/logs/console/logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import type { CustomToolDefinition, CustomToolSchema } from '@/stores/custom-tools/types'
 

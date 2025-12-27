@@ -134,8 +134,8 @@ export function Knowledge() {
           <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[28px] pb-[24px]'>
             <div>
               <div className='flex items-start gap-[12px]'>
-                <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#1E5A3E] bg-[#0F3D2C]'>
-                  <Database className='h-[14px] w-[14px] text-[#34D399]' />
+                <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#5BB377] bg-[#E8F7EE] dark:border-[#1E5A3E] dark:bg-[#0F3D2C]'>
+                  <Database className='h-[14px] w-[14px] text-[#5BB377] dark:text-[#34D399]' />
                 </div>
                 <h1 className='font-medium text-[18px]'>Knowledge Base</h1>
               </div>
@@ -145,7 +145,7 @@ export function Knowledge() {
             </div>
 
             <div className='mt-[14px] flex items-center justify-between'>
-              <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-5)] px-[8px]'>
+              <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-4)] px-[8px]'>
                 <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
                 <Input
                   placeholder='Search'
@@ -184,7 +184,7 @@ export function Knowledge() {
                     <Button
                       onClick={() => setIsCreateModalOpen(true)}
                       disabled={userPermissions.canEdit !== true}
-                      variant='primary'
+                      variant='tertiary'
                       className='h-[32px] rounded-[6px]'
                     >
                       Create

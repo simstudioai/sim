@@ -8,11 +8,11 @@ import {
   workflowEdges,
   workflowSubflows,
 } from '@sim/db'
+import { createLogger } from '@sim/logger'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
-import { createLogger } from '@/lib/logs/console/logger'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 import { SUBFLOW_TYPES } from '@/stores/workflows/workflow/types'
@@ -42,6 +42,7 @@ export interface NormalizedWorkflowData {
 
 export interface DeployedWorkflowData extends NormalizedWorkflowData {
   deploymentVersionId: string
+  variables?: Record<string, any>
 }
 
 export async function blockExistsInDeployment(
@@ -94,13 +95,14 @@ export async function loadDeployedWorkflowState(workflowId: string): Promise<Dep
       throw new Error(`Workflow ${workflowId} has no active deployment`)
     }
 
-    const state = active.state as WorkflowState
+    const state = active.state as WorkflowState & { variables?: Record<string, any> }
 
     return {
       blocks: state.blocks || {},
       edges: state.edges || [],
       loops: state.loops || {},
       parallels: state.parallels || {},
+      variables: state.variables || {},
       isFromNormalizedTables: false,
       deploymentVersionId: active.id,
     }

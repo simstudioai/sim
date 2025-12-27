@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
 import { member, userStats } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getSimplifiedBillingSummary } from '@/lib/billing/core/billing'
 import { getOrganizationBillingData } from '@/lib/billing/core/organization'
-import { createLogger } from '@/lib/logs/console/logger'
 
 /**
  * Gets the effective billing blocked status for a user.
@@ -93,6 +93,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const context = searchParams.get('context') || 'user'
     const contextId = searchParams.get('id')
+    const includeOrg = searchParams.get('includeOrg') === 'true'
 
     // Validate context parameter
     if (!['user', 'organization'].includes(context)) {
@@ -115,13 +116,37 @@ export async function GET(request: NextRequest) {
     if (context === 'user') {
       // Get user billing (may include organization if they're part of one)
       billingData = await getSimplifiedBillingSummary(session.user.id, contextId || undefined)
+
       // Attach effective billing blocked status (includes org owner check)
       const billingStatus = await getEffectiveBillingStatus(session.user.id)
+
       billingData = {
         ...billingData,
         billingBlocked: billingStatus.billingBlocked,
         billingBlockedReason: billingStatus.billingBlockedReason,
         blockedByOrgOwner: billingStatus.blockedByOrgOwner,
+      }
+
+      // Optionally include organization membership and role
+      if (includeOrg) {
+        const userMembership = await db
+          .select({
+            organizationId: member.organizationId,
+            role: member.role,
+          })
+          .from(member)
+          .where(eq(member.userId, session.user.id))
+          .limit(1)
+
+        if (userMembership.length > 0) {
+          billingData = {
+            ...billingData,
+            organization: {
+              id: userMembership[0].organizationId,
+              role: userMembership[0].role as 'owner' | 'admin' | 'member',
+            },
+          }
+        }
       }
     } else {
       // Get user role in organization for permission checks first

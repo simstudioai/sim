@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai'
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { GeminiClientConfig } from './types'
 
 const logger = createLogger('GeminiClient')

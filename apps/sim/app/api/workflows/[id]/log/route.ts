@@ -1,7 +1,7 @@
+import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'

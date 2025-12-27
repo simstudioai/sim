@@ -317,10 +317,10 @@ export default function PlaygroundPage() {
                 </PopoverContent>
               </Popover>
             </VariantRow>
-            <VariantRow label='primary variant'>
-              <Popover variant='primary'>
+            <VariantRow label='secondary variant'>
+              <Popover variant='secondary'>
                 <PopoverTrigger asChild>
-                  <Button variant='primary'>Primary Popover</Button>
+                  <Button variant='secondary'>Secondary Popover</Button>
                 </PopoverTrigger>
                 <PopoverContent>
                   <PopoverItem>Item 1</PopoverItem>
@@ -550,7 +550,7 @@ export default function PlaygroundPage() {
               ].map(({ Icon, name }) => (
                 <Tooltip.Root key={name}>
                   <Tooltip.Trigger asChild>
-                    <div className='flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-5)]'>
+                    <div className='flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-4)]'>
                       <Icon className='h-5 w-5 text-[var(--text-secondary)]' />
                     </div>
                   </Tooltip.Trigger>

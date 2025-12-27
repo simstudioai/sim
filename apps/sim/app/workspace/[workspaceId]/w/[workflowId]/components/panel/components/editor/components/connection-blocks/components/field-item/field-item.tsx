@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback } from 'react'
+import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { ChevronDown } from 'lucide-react'
 import { Badge } from '@/components/emcn'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
 
 const logger = createLogger('FieldItem')
@@ -30,17 +30,6 @@ interface FieldItemProps {
 }
 
 /**
- * Tree layout constants shared with parent component
- */
-export const TREE_SPACING = {
-  INDENT_PER_LEVEL: 20,
-  BASE_INDENT: 20,
-  VERTICAL_LINE_LEFT_OFFSET: 4,
-  ITEM_GAP: 0,
-  ITEM_HEIGHT: 25,
-} as const
-
-/**
  * Individual field item component with drag functionality
  */
 export function FieldItem({
@@ -52,8 +41,6 @@ export function FieldItem({
   isExpanded,
   onToggleExpand,
 }: FieldItemProps) {
-  const indent = TREE_SPACING.BASE_INDENT + level * TREE_SPACING.INDENT_PER_LEVEL
-
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
       const normalizedBlockName = connection.name.replace(/\s+/g, '').toLowerCase()
@@ -91,25 +78,26 @@ export function FieldItem({
       onDragStart={handleDragStart}
       onClick={handleClick}
       className={clsx(
-        'group flex h-[25px] cursor-grab items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--border)] active:cursor-grabbing',
+        'group flex h-[26px] cursor-grab items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover:bg-[var(--surface-5)]',
         hasChildren && 'cursor-pointer'
       )}
-      style={{ marginLeft: `${indent}px` }}
     >
       <span
         className={clsx(
-          'flex-1 truncate font-medium',
-          'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+          'min-w-0 flex-1 truncate font-medium',
+          'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
         )}
       >
         {field.name}
       </span>
-      <Badge className='rounded-[2px] px-[4px] py-[1px] font-mono text-[10px]'>{field.type}</Badge>
+      <Badge className='flex-shrink-0 rounded-[4px] px-[6px] py-[1px] font-mono text-[11px]'>
+        {field.type}
+      </Badge>
       {hasChildren && (
         <ChevronDown
           className={clsx(
-            'h-3.5 w-3.5 flex-shrink-0 transition-transform',
-            'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]',
+            'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
+            'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
             isExpanded && 'rotate-180'
           )}
         />

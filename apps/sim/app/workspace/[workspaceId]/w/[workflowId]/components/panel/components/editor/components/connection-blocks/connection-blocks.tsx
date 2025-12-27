@@ -1,14 +1,13 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { ChevronDown, RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   FieldItem,
   type SchemaField,
-  TREE_SPACING,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/connection-blocks/components/field-item/field-item'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
 import { useBlockOutputFields } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-output-fields'
@@ -22,43 +21,6 @@ const logger = createLogger('ConnectionBlocks')
 interface ConnectionBlocksProps {
   connections: ConnectedBlock[]
   currentBlockId: string
-}
-
-const TREE_STYLES = {
-  LINE_COLOR: 'var(--border)',
-  LINE_OFFSET: 4,
-} as const
-
-/**
- * Calculates total height of visible nested fields recursively
- */
-const calculateFieldsHeight = (
-  fields: SchemaField[] | undefined,
-  parentPath: string,
-  connectionId: string,
-  isExpanded: (connectionId: string, path: string) => boolean
-): number => {
-  if (!fields || fields.length === 0) return 0
-
-  let totalHeight = 0
-
-  fields.forEach((field, index) => {
-    const fieldPath = parentPath ? `${parentPath}.${field.name}` : field.name
-    const expanded = isExpanded(connectionId, fieldPath)
-
-    totalHeight += TREE_SPACING.ITEM_HEIGHT
-
-    if (index < fields.length - 1) {
-      totalHeight += TREE_SPACING.ITEM_GAP
-    }
-
-    if (expanded && field.children && field.children.length > 0) {
-      totalHeight += TREE_SPACING.ITEM_GAP
-      totalHeight += calculateFieldsHeight(field.children, fieldPath, connectionId, isExpanded)
-    }
-  })
-
-  return totalHeight
 }
 
 interface ConnectionItemProps {
@@ -123,13 +85,13 @@ function ConnectionItem({
         draggable
         onDragStart={(e) => onConnectionDragStart(e, connection)}
         className={clsx(
-          'group flex h-[25px] cursor-grab items-center gap-[8px] rounded-[8px] px-[5.5px] text-[14px] hover:bg-[var(--border)] active:cursor-grabbing',
+          'group flex h-[26px] cursor-grab items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover:bg-[var(--surface-5)]',
           hasFields && 'cursor-pointer'
         )}
         onClick={() => hasFields && onToggleExpand(connection.id)}
       >
         <div
-          className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+          className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
           style={{ background: bgColor }}
         >
           {Icon && (
@@ -137,7 +99,7 @@ function ConnectionItem({
               className={clsx(
                 'text-white transition-transform duration-200',
                 hasFields && 'group-hover:scale-110',
-                '!h-[10px] !w-[10px]'
+                '!h-[9px] !w-[9px]'
               )}
             />
           )}
@@ -145,7 +107,7 @@ function ConnectionItem({
         <span
           className={clsx(
             'truncate font-medium',
-            'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+            'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
           )}
         >
           {connection.name}
@@ -153,8 +115,8 @@ function ConnectionItem({
         {hasFields && (
           <ChevronDown
             className={clsx(
-              'h-3.5 w-3.5 flex-shrink-0 transition-transform',
-              'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]',
+              'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
+              'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
               isExpanded && 'rotate-180'
             )}
           />
@@ -162,17 +124,8 @@ function ConnectionItem({
       </div>
 
       {isExpanded && hasFields && (
-        <div className='relative'>
-          <div
-            className='pointer-events-none absolute'
-            style={{
-              left: `${TREE_SPACING.VERTICAL_LINE_LEFT_OFFSET}px`,
-              top: `${TREE_STYLES.LINE_OFFSET}px`,
-              width: '1px',
-              height: `${calculateFieldsHeight(fields, '', connection.id, isFieldExpanded) - TREE_STYLES.LINE_OFFSET * 2}px`,
-              background: TREE_STYLES.LINE_COLOR,
-            }}
-          />
+        <div className='relative mt-[2px] ml-[12px] space-y-[2px] pl-[10px]'>
+          <div className='pointer-events-none absolute top-[4px] bottom-[4px] left-0 w-px bg-[var(--border)]' />
           {renderFieldTree(fields, '', 0, connection)}
         </div>
       )}
@@ -311,18 +264,9 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
               onToggleExpand={(p) => toggleFieldExpansion(connection.id, p)}
             />
             {hasChildren && expanded && (
-              <div className='relative'>
-                <div
-                  className='pointer-events-none absolute'
-                  style={{
-                    left: `${TREE_SPACING.BASE_INDENT + level * TREE_SPACING.INDENT_PER_LEVEL + TREE_SPACING.VERTICAL_LINE_LEFT_OFFSET}px`,
-                    top: `${TREE_STYLES.LINE_OFFSET}px`,
-                    width: '1px',
-                    height: `${calculateFieldsHeight(field.children, fieldPath, connection.id, isFieldExpanded) - TREE_STYLES.LINE_OFFSET * 2}px`,
-                    background: TREE_STYLES.LINE_COLOR,
-                  }}
-                />
-                <div>{renderFieldTree(field.children!, fieldPath, level + 1, connection)}</div>
+              <div className='relative mt-[2px] ml-[6px] space-y-[2px] pl-[10px]'>
+                <div className='pointer-events-none absolute top-[4px] bottom-[4px] left-0 w-px bg-[var(--border)]' />
+                {renderFieldTree(field.children!, fieldPath, level + 1, connection)}
               </div>
             )}
           </div>

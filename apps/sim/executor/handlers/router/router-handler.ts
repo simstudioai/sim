@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
 import type { BlockOutput } from '@/blocks/types'
@@ -47,7 +47,7 @@ export class RouterBlockHandler implements BlockHandler {
       const messages = [{ role: 'user', content: routerConfig.prompt }]
       const systemPrompt = generateRouterPrompt(routerConfig.prompt, targetBlocks)
 
-      let finalApiKey = routerConfig.apiKey
+      let finalApiKey: string | undefined = routerConfig.apiKey
       if (providerId === 'vertex' && routerConfig.vertexCredential) {
         finalApiKey = await this.resolveVertexCredential(routerConfig.vertexCredential)
       }
@@ -60,11 +60,17 @@ export class RouterBlockHandler implements BlockHandler {
         temperature: ROUTER.INFERENCE_TEMPERATURE,
         apiKey: finalApiKey,
         workflowId: ctx.workflowId,
+        workspaceId: ctx.workspaceId,
       }
 
       if (providerId === 'vertex') {
         providerRequest.vertexProject = routerConfig.vertexProject
         providerRequest.vertexLocation = routerConfig.vertexLocation
+      }
+
+      if (providerId === 'azure-openai') {
+        providerRequest.azureEndpoint = inputs.azureEndpoint
+        providerRequest.azureApiVersion = inputs.azureApiVersion
       }
 
       const response = await fetch(url.toString(), {

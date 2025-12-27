@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import { client } from '@/lib/auth/auth-client'
-import { createLogger } from '@/lib/logs/console/logger'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 

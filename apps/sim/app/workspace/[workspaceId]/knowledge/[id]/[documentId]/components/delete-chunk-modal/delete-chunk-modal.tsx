@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { ChunkData } from '@/stores/knowledge/store'
 
 const logger = createLogger('DeleteChunkModal')
@@ -69,7 +69,7 @@ export function DeleteChunkModal({
       <ModalContent size='sm'>
         <ModalHeader>Delete Chunk</ModalHeader>
         <ModalBody>
-          <p className='text-[12px] text-[var(--text-tertiary)]'>
+          <p className='text-[12px] text-[var(--text-secondary)]'>
             Are you sure you want to delete this chunk?{' '}
             <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
           </p>
@@ -78,12 +78,7 @@ export function DeleteChunkModal({
           <Button variant='active' disabled={isDeleting} onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            variant='primary'
-            onClick={handleDeleteChunk}
-            disabled={isDeleting}
-            className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-          >
+          <Button variant='destructive' onClick={handleDeleteChunk} disabled={isDeleting}>
             {isDeleting ? <>Deleting...</> : <>Delete</>}
           </Button>
         </ModalFooter>

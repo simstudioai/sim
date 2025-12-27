@@ -1,17 +1,18 @@
-import { memo, useCallback } from 'react'
+import { memo, useCallback, useMemo } from 'react'
+import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { X } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
-import { createLogger } from '@/lib/logs/console/logger'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
+import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import {
   type NotificationAction,
   openCopilotWithMessage,
   useNotificationStore,
 } from '@/stores/notifications'
 import { useTerminalStore } from '@/stores/terminal'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('Notifications')
 const MAX_VISIBLE_NOTIFICATIONS = 4
@@ -22,15 +23,18 @@ const MAX_VISIBLE_NOTIFICATIONS = 4
  * Shows both global notifications and workflow-specific notifications
  */
 export const Notifications = memo(function Notifications() {
-  const params = useParams()
-  const workflowId = params.workflowId as string
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
-  const notifications = useNotificationStore((state) =>
-    state.notifications.filter((n) => !n.workflowId || n.workflowId === workflowId)
-  )
+  const allNotifications = useNotificationStore((state) => state.notifications)
   const removeNotification = useNotificationStore((state) => state.removeNotification)
   const clearNotifications = useNotificationStore((state) => state.clearNotifications)
-  const visibleNotifications = notifications.slice(0, MAX_VISIBLE_NOTIFICATIONS)
+
+  const visibleNotifications = useMemo(() => {
+    if (!activeWorkflowId) return []
+    return allNotifications
+      .filter((n) => !n.workflowId || n.workflowId === activeWorkflowId)
+      .slice(0, MAX_VISIBLE_NOTIFICATIONS)
+  }, [allNotifications, activeWorkflowId])
   const isTerminalResizing = useTerminalStore((state) => state.isResizing)
 
   /**
@@ -84,7 +88,7 @@ export const Notifications = memo(function Notifications() {
       {
         id: 'clear-notifications',
         handler: () => {
-          clearNotifications(workflowId)
+          clearNotifications(activeWorkflowId ?? undefined)
         },
         overrides: {
           allowInEditable: false,
@@ -93,12 +97,15 @@ export const Notifications = memo(function Notifications() {
     ])
   )
 
+  const preventZoomRef = usePreventZoom()
+
   if (visibleNotifications.length === 0) {
     return null
   }
 
   return (
     <div
+      ref={preventZoomRef}
       className={clsx(
         'fixed right-[calc(var(--panel-width)+16px)] bottom-[calc(var(--terminal-height)+16px)] z-30 flex flex-col items-end',
         !isTerminalResizing && 'transition-[bottom] duration-100 ease-out'
@@ -113,8 +120,8 @@ export const Notifications = memo(function Notifications() {
           <div
             key={notification.id}
             style={{ transform: `translateX(${xOffset}px)` }}
-            className={`relative h-[78px] w-[240px] overflow-hidden rounded-[4px] border bg-[var(--surface-2)] transition-transform duration-200 ${
-              index > 0 ? '-mt-[78px]' : ''
+            className={`relative h-[80px] w-[240px] overflow-hidden rounded-[4px] border bg-[var(--surface-2)] transition-transform duration-200 ${
+              index > 0 ? '-mt-[80px]' : ''
             }`}
           >
             <div className='flex h-full flex-col justify-between px-[8px] pt-[6px] pb-[8px]'>
@@ -137,19 +144,17 @@ export const Notifications = memo(function Notifications() {
                 {notification.message}
               </div>
               {hasAction && (
-                <div className='mt-[4px]'>
-                  <Button
-                    variant='active'
-                    onClick={() => executeAction(notification.id, notification.action!)}
-                    className='w-full px-[8px] py-[4px] font-medium text-[12px]'
-                  >
-                    {notification.action!.type === 'copilot'
-                      ? 'Fix in Copilot'
-                      : notification.action!.type === 'refresh'
-                        ? 'Refresh'
-                        : 'Take action'}
-                  </Button>
-                </div>
+                <Button
+                  variant='active'
+                  onClick={() => executeAction(notification.id, notification.action!)}
+                  className='w-full px-[8px] py-[4px] font-medium text-[12px]'
+                >
+                  {notification.action!.type === 'copilot'
+                    ? 'Fix in Copilot'
+                    : notification.action!.type === 'refresh'
+                      ? 'Refresh'
+                      : 'Take action'}
+                </Button>
               )}
             </div>
           </div>

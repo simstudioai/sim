@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { getBlockConfigServerTool } from '@/lib/copilot/tools/server/blocks/get-block-config'
 import { getBlockOptionsServerTool } from '@/lib/copilot/tools/server/blocks/get-block-options'
@@ -28,7 +29,6 @@ import {
   GetTriggerBlocksInput,
   GetTriggerBlocksResult,
 } from '@/lib/copilot/tools/shared/schemas'
-import { createLogger } from '@/lib/logs/console/logger'
 
 // Generic execute response schemas (success path only for this route; errors handled via HTTP status)
 export { ExecuteResponseSuccessSchema }
