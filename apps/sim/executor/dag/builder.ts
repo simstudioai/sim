@@ -2,9 +2,14 @@ import { createLogger } from '@sim/logger'
 import { EdgeConstructor } from '@/executor/dag/construction/edges'
 import { LoopConstructor } from '@/executor/dag/construction/loops'
 import { NodeConstructor } from '@/executor/dag/construction/nodes'
+import { ParallelConstructor } from '@/executor/dag/construction/parallels'
 import { PathConstructor } from '@/executor/dag/construction/paths'
 import type { DAGEdge, NodeMetadata } from '@/executor/dag/types'
-import { buildSentinelStartId, extractBaseBlockId } from '@/executor/utils/subflow-utils'
+import {
+  buildParallelSentinelStartId,
+  buildSentinelStartId,
+  extractBaseBlockId,
+} from '@/executor/utils/subflow-utils'
 import type {
   SerializedBlock,
   SerializedLoop,
@@ -31,6 +36,7 @@ export interface DAG {
 export class DAGBuilder {
   private pathConstructor = new PathConstructor()
   private loopConstructor = new LoopConstructor()
+  private parallelConstructor = new ParallelConstructor()
   private nodeConstructor = new NodeConstructor()
   private edgeConstructor = new EdgeConstructor()
 
@@ -50,6 +56,7 @@ export class DAGBuilder {
     const reachableBlocks = this.pathConstructor.execute(workflow, triggerBlockId)
 
     this.loopConstructor.execute(dag, reachableBlocks)
+    this.parallelConstructor.execute(dag, reachableBlocks)
 
     const { blocksInLoops, blocksInParallels, pauseTriggerMapping } = this.nodeConstructor.execute(
       workflow,
@@ -135,7 +142,9 @@ export class DAGBuilder {
       )
     }
 
-    const sentinelStartNode = dag.nodes.get(buildSentinelStartId(id))
+    const sentinelStartId =
+      type === 'Loop' ? buildSentinelStartId(id) : buildParallelSentinelStartId(id)
+    const sentinelStartNode = dag.nodes.get(sentinelStartId)
     if (!sentinelStartNode) return
 
     const hasConnections = Array.from(sentinelStartNode.outgoingEdges.values()).some((edge) =>
