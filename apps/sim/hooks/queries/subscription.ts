@@ -98,13 +98,13 @@ export function useUpdateUsageLimit() {
       return response.json()
     },
     onMutate: async ({ limit }) => {
-      await queryClient.cancelQueries({ queryKey: subscriptionKeys.user() })
-      await queryClient.cancelQueries({ queryKey: subscriptionKeys.usage() })
+      await queryClient.cancelQueries({ queryKey: subscriptionKeys.all })
 
-      const previousSubscriptionData = queryClient.getQueryData(subscriptionKeys.user())
+      const previousSubscriptionData = queryClient.getQueryData(subscriptionKeys.user(false))
+      const previousSubscriptionDataWithOrg = queryClient.getQueryData(subscriptionKeys.user(true))
       const previousUsageData = queryClient.getQueryData(subscriptionKeys.usage())
 
-      queryClient.setQueryData(subscriptionKeys.user(), (old: any) => {
+      const updateSubscriptionData = (old: any) => {
         if (!old) return old
         const currentUsage = old.data?.usage?.current || 0
         const newPercentUsed = limit > 0 ? (currentUsage / limit) * 100 : 0
@@ -120,7 +120,10 @@ export function useUpdateUsageLimit() {
             },
           },
         }
-      })
+      }
+
+      queryClient.setQueryData(subscriptionKeys.user(false), updateSubscriptionData)
+      queryClient.setQueryData(subscriptionKeys.user(true), updateSubscriptionData)
 
       queryClient.setQueryData(subscriptionKeys.usage(), (old: any) => {
         if (!old) return old
@@ -133,19 +136,24 @@ export function useUpdateUsageLimit() {
         }
       })
 
-      return { previousSubscriptionData, previousUsageData }
+      return { previousSubscriptionData, previousSubscriptionDataWithOrg, previousUsageData }
     },
     onError: (_err, _variables, context) => {
       if (context?.previousSubscriptionData) {
-        queryClient.setQueryData(subscriptionKeys.user(), context.previousSubscriptionData)
+        queryClient.setQueryData(subscriptionKeys.user(false), context.previousSubscriptionData)
+      }
+      if (context?.previousSubscriptionDataWithOrg) {
+        queryClient.setQueryData(
+          subscriptionKeys.user(true),
+          context.previousSubscriptionDataWithOrg
+        )
       }
       if (context?.previousUsageData) {
         queryClient.setQueryData(subscriptionKeys.usage(), context.previousUsageData)
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
-      queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() })
+      queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
     },
   })
 }
