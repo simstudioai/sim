@@ -118,7 +118,7 @@ function UnsubscribeContent() {
 
   if (loading) {
     return (
-      <div className='flex min-h-screen items-center justify-center bg-background'>
+      <div className='before:-z-50 relative flex min-h-screen items-center justify-center before:pointer-events-none before:fixed before:inset-0 before:bg-white'>
         <Card className='w-full max-w-md border shadow-sm'>
           <CardContent className='flex items-center justify-center p-8'>
             <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
@@ -130,7 +130,7 @@ function UnsubscribeContent() {
 
   if (error) {
     return (
-      <div className='flex min-h-screen items-center justify-center bg-background p-4'>
+      <div className='before:-z-50 relative flex min-h-screen items-center justify-center p-4 before:pointer-events-none before:fixed before:inset-0 before:bg-white'>
         <Card className='w-full max-w-md border shadow-sm'>
           <CardHeader className='text-center'>
             <XCircle className='mx-auto mb-2 h-12 w-12 text-red-500' />
@@ -191,7 +191,7 @@ function UnsubscribeContent() {
 
   if (data?.isTransactional) {
     return (
-      <div className='flex min-h-screen items-center justify-center bg-background p-4'>
+      <div className='before:-z-50 relative flex min-h-screen items-center justify-center p-4 before:pointer-events-none before:fixed before:inset-0 before:bg-white'>
         <Card className='w-full max-w-md border shadow-sm'>
           <CardHeader className='text-center'>
             <Info className='mx-auto mb-2 h-12 w-12 text-blue-500' />
@@ -243,7 +243,7 @@ function UnsubscribeContent() {
 
   if (unsubscribed) {
     return (
-      <div className='flex min-h-screen items-center justify-center bg-background'>
+      <div className='before:-z-50 relative flex min-h-screen items-center justify-center before:pointer-events-none before:fixed before:inset-0 before:bg-white'>
         <Card className='w-full max-w-md border shadow-sm'>
           <CardHeader className='text-center'>
             <CheckCircle className='mx-auto mb-2 h-12 w-12 text-green-500' />
@@ -271,7 +271,7 @@ function UnsubscribeContent() {
   }
 
   return (
-    <div className='flex min-h-screen items-center justify-center bg-background p-4'>
+    <div className='before:-z-50 relative flex min-h-screen items-center justify-center p-4 before:pointer-events-none before:fixed before:inset-0 before:bg-white'>
       <Card className='w-full max-w-md border shadow-sm'>
         <CardHeader className='text-center'>
           <Heart className='mx-auto mb-2 h-12 w-12 text-red-500' />
@@ -391,7 +391,7 @@ export default function Unsubscribe() {
   return (
     <Suspense
       fallback={
-        <div className='flex min-h-screen items-center justify-center bg-background'>
+        <div className='before:-z-50 relative flex min-h-screen items-center justify-center before:pointer-events-none before:fixed before:inset-0 before:bg-white'>
           <Card className='w-full max-w-md border shadow-sm'>
             <CardContent className='flex items-center justify-center p-8'>
               <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />

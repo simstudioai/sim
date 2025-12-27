@@ -996,7 +996,8 @@ export default function ResumeExecutionPage({
 
   if (!executionDetail) {
     return (
-      <div className='min-h-screen bg-white'>
+      <div className='relative min-h-screen'>
+        <div className='-z-50 pointer-events-none fixed inset-0 bg-white' />
         <Nav variant='auth' />
         <div className='flex min-h-[calc(100vh-120px)] items-center justify-center px-4'>
           <div className='w-full max-w-[410px]'>
@@ -1042,7 +1043,8 @@ export default function ResumeExecutionPage({
   }
 
   return (
-    <div className='min-h-screen bg-gradient-to-b from-slate-50 to-white'>
+    <div className='relative min-h-screen bg-gradient-to-b from-slate-50 to-white'>
+      <div className='-z-50 pointer-events-none fixed inset-0 bg-white' />
       <Nav variant='auth' />
       <div className='mx-auto min-h-[calc(100vh-120px)] max-w-7xl px-4 py-6 sm:py-8'>
         {/* Header Section */}

@@ -15,6 +15,7 @@ type BackgroundProps = {
 export default function Background({ className, children }: BackgroundProps) {
   return (
     <div className={cn('relative min-h-screen w-full', className)}>
+      <div className='-z-50 pointer-events-none fixed inset-0 bg-white' />
       <BackgroundSVG />
       <div className='relative z-0 mx-auto w-full max-w-[1308px]'>{children}</div>
     </div>
