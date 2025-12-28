@@ -46,10 +46,9 @@ function asAppBlocks<T>(blocks: T): Record<string, AppBlockState> {
  * These tests intentionally use old SubBlockTypes (textarea, select, messages-input, input)
  * to verify the migration logic converts them to new types.
  */
-function legacySubBlocks<T>(
-  subBlocks: T
-): Record<string, { id: string; type: string; value: any }> {
-  return subBlocks as Record<string, { id: string; type: string; value: any }>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function legacySubBlocks(subBlocks: Record<string, any>): any {
+  return subBlocks
 }
 
 const { mockDb, mockWorkflowBlocks, mockWorkflowEdges, mockWorkflowSubflows } = vi.hoisted(() => {
@@ -1022,7 +1021,7 @@ describe('Database Helpers', () => {
           position: { x: 100, y: 100 },
           height: 150,
           advancedMode: false,
-          subBlocks: { model: { id: 'model', type: 'select', value: 'gpt-4o' } },
+          subBlocks: legacySubBlocks({ model: { id: 'model', type: 'select', value: 'gpt-4o' } }),
         }),
         mockWorkflowId
       )
@@ -1034,11 +1033,11 @@ describe('Database Helpers', () => {
           position: { x: 200, y: 100 },
           height: 200,
           advancedMode: true,
-          subBlocks: {
+          subBlocks: legacySubBlocks({
             systemPrompt: { id: 'systemPrompt', type: 'textarea', value: 'System prompt' },
             userPrompt: { id: 'userPrompt', type: 'textarea', value: 'User prompt' },
             model: { id: 'model', type: 'select', value: 'gpt-4o' },
-          },
+          }),
         }),
         mockWorkflowId
       )
@@ -1153,7 +1152,7 @@ describe('Database Helpers', () => {
         'agent-1': createAgentBlock({
           id: 'agent-1',
           name: 'Test Agent',
-          subBlocks: {
+          subBlocks: legacySubBlocks({
             systemPrompt: {
               id: 'systemPrompt',
               type: 'textarea',
@@ -1164,7 +1163,7 @@ describe('Database Helpers', () => {
               type: 'textarea',
               value: 'Hello world',
             },
-          },
+          }),
         }),
       }
 
@@ -1183,13 +1182,13 @@ describe('Database Helpers', () => {
       const blocks = {
         'agent-1': createAgentBlock({
           id: 'agent-1',
-          subBlocks: {
+          subBlocks: legacySubBlocks({
             systemPrompt: {
               id: 'systemPrompt',
               type: 'textarea',
               value: 'You are helpful',
             },
-          },
+          }),
         }),
       }
 
@@ -1204,13 +1203,13 @@ describe('Database Helpers', () => {
       const blocks = {
         'agent-1': createAgentBlock({
           id: 'agent-1',
-          subBlocks: {
+          subBlocks: legacySubBlocks({
             userPrompt: {
               id: 'userPrompt',
               type: 'textarea',
               value: 'Hello',
             },
-          },
+          }),
         }),
       }
 
@@ -1225,13 +1224,13 @@ describe('Database Helpers', () => {
       const blocks = {
         'agent-1': createAgentBlock({
           id: 'agent-1',
-          subBlocks: {
+          subBlocks: legacySubBlocks({
             userPrompt: {
               id: 'userPrompt',
               type: 'textarea',
               value: { input: 'Hello from object' },
             },
-          },
+          }),
         }),
       }
 
@@ -1246,13 +1245,13 @@ describe('Database Helpers', () => {
       const blocks = {
         'agent-1': createAgentBlock({
           id: 'agent-1',
-          subBlocks: {
+          subBlocks: legacySubBlocks({
             userPrompt: {
               id: 'userPrompt',
               type: 'textarea',
               value: { foo: 'bar', baz: 123 },
             },
-          },
+          }),
         }),
       }
 
@@ -1268,7 +1267,7 @@ describe('Database Helpers', () => {
       const blocks = {
         'agent-1': createAgentBlock({
           id: 'agent-1',
-          subBlocks: {
+          subBlocks: legacySubBlocks({
             systemPrompt: {
               id: 'systemPrompt',
               type: 'textarea',
@@ -1284,7 +1283,7 @@ describe('Database Helpers', () => {
               type: 'messages-input',
               value: existingMessages,
             },
-          },
+          }),
         }),
       }
 
@@ -1297,13 +1296,13 @@ describe('Database Helpers', () => {
       const blocks = {
         'agent-1': createAgentBlock({
           id: 'agent-1',
-          subBlocks: {
+          subBlocks: legacySubBlocks({
             model: {
               id: 'model',
               type: 'select',
               value: 'gpt-4o',
             },
-          },
+          }),
         }),
       }
 
@@ -1316,13 +1315,13 @@ describe('Database Helpers', () => {
       const blocks = {
         'api-1': createApiBlock({
           id: 'api-1',
-          subBlocks: {
+          subBlocks: legacySubBlocks({
             url: {
               id: 'url',
               type: 'input',
               value: 'https://example.com',
             },
-          },
+          }),
         }),
       }
 
@@ -1336,18 +1335,18 @@ describe('Database Helpers', () => {
       const blocks = {
         'agent-1': createAgentBlock({
           id: 'agent-1',
-          subBlocks: {
+          subBlocks: legacySubBlocks({
             systemPrompt: { id: 'systemPrompt', type: 'textarea', value: 'System 1' },
-          },
+          }),
         }),
         'api-1': createApiBlock({
           id: 'api-1',
         }),
         'agent-2': createAgentBlock({
           id: 'agent-2',
-          subBlocks: {
+          subBlocks: legacySubBlocks({
             userPrompt: { id: 'userPrompt', type: 'textarea', value: 'User 2' },
-          },
+          }),
         }),
       }
 
@@ -1368,10 +1367,10 @@ describe('Database Helpers', () => {
       const blocks = {
         'agent-1': createAgentBlock({
           id: 'agent-1',
-          subBlocks: {
+          subBlocks: legacySubBlocks({
             systemPrompt: { id: 'systemPrompt', type: 'textarea', value: '' },
             userPrompt: { id: 'userPrompt', type: 'textarea', value: '' },
-          },
+          }),
         }),
       }
 
@@ -1384,9 +1383,9 @@ describe('Database Helpers', () => {
       const blocks = {
         'agent-1': createAgentBlock({
           id: 'agent-1',
-          subBlocks: {
+          subBlocks: legacySubBlocks({
             systemPrompt: { id: 'systemPrompt', type: 'textarea', value: 123 },
-          },
+          }),
         }),
       }
 
@@ -1401,9 +1400,9 @@ describe('Database Helpers', () => {
       const blocks = {
         'agent-1': createAgentBlock({
           id: 'agent-1',
-          subBlocks: {
+          subBlocks: legacySubBlocks({
             systemPrompt: { id: 'systemPrompt', type: 'textarea', value: 'System' },
-          },
+          }),
         }),
       }
 

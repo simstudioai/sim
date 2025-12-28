@@ -3,9 +3,6 @@
   "version": "0.1.1",
   "description": "Sim SDK - Execute workflows programmatically",
   "type": "module",
-  "main": "dist/index.js",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -13,8 +10,8 @@
     }
   },
   "scripts": {
-    "build": "bun run build:tsc",
-    "build:tsc": "tsc",
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
     "dev:watch": "tsc --watch",
     "prepublishOnly": "bun run build",
     "test": "vitest run",
@@ -38,10 +35,11 @@
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
     "@types/node": "^20.5.1",
-    "typescript": "^5.1.6",
-    "vitest": "^3.0.8",
-    "@vitest/coverage-v8": "^3.0.8"
+    "@vitest/coverage-v8": "^3.0.8",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.8"
   },
   "engines": {
     "node": ">=16"

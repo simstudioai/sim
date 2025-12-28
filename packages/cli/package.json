@@ -2,14 +2,19 @@
   "name": "simstudio",
   "version": "0.1.19",
   "description": "Sim CLI - Run Sim with a single command",
-  "main": "dist/index.js",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "bin": {
     "simstudio": "dist/index.js"
   },
   "scripts": {
-    "build": "bun run build:tsc",
-    "build:tsc": "tsc",
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
     "prepublishOnly": "bun run build"
   },
   "files": [
@@ -19,17 +24,16 @@
     "simstudio",
     "ai",
     "workflow",
-    "ui",
     "cli",
-    "sim",
-    "sim-studio",
     "agent",
-    "agents",
     "automation",
     "docker"
   ],
   "author": "Sim",
   "license": "Apache-2.0",
+  "engines": {
+    "node": ">=16"
+  },
   "dependencies": {
     "chalk": "^4.1.2",
     "commander": "^11.1.0",
@@ -38,20 +42,9 @@
     "listr2": "^6.6.1"
   },
   "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
     "@types/inquirer": "^8.2.6",
     "@types/node": "^20.5.1",
-    "typescript": "^5.1.6"
-  },
-  "engines": {
-    "node": ">=16"
-  },
-  "turbo": {
-    "tasks": {
-      "build": {
-        "outputs": [
-          "dist/**"
-        ]
-      }
-    }
+    "typescript": "^5.7.3"
   }
 }

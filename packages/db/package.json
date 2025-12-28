@@ -24,15 +24,13 @@
     "db:studio": "bunx drizzle-kit studio --config=./drizzle.config.ts",
     "type-check": "tsc --noEmit"
   },
-  "peerDependencies": {
+  "dependencies": {
     "drizzle-orm": "^0.44.5",
-    "postgres": "^3.4.5"
+    "postgres": "^3.4.5",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
     "typescript": "^5.7.3"
-  },
-  "overrides": {
-    "drizzle-orm": "^0.44.5",
-    "postgres": "^3.4.5"
   }
 }
