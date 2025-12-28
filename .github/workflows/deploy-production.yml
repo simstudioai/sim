@@ -1,0 +1,197 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/**'
+      - 'apps/**'
+      - 'helm/sim/**'
+      - '.github/workflows/deploy-production.yml'
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Force deployment even if no changes detected'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+concurrency:
+  group: production-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PRODUCTION_NAMESPACE: oppulence
+  PRODUCTION_DOMAIN: paperless.oppulence.app
+
+jobs:
+  check-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      should-deploy: ${{ steps.should-deploy.outputs.result }}
+      repo-owner: ${{ steps.repo-info.outputs.owner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract repository info
+        id: repo-info
+        run: |
+          echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_OUTPUT
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            app:
+              - 'packages/**'
+              - 'apps/**'
+            helm:
+              - 'helm/sim/**'
+
+      - name: Determine if deployment should proceed
+        id: should-deploy
+        env:
+          FORCE_DEPLOY: ${{ github.event.inputs.force_deploy }}
+          APP_CHANGED: ${{ steps.filter.outputs.app }}
+          HELM_CHANGED: ${{ steps.filter.outputs.helm }}
+        run: |
+          if [[ "$FORCE_DEPLOY" == "true" ]] || \
+             [[ "$APP_CHANGED" == "true" ]] || \
+             [[ "$HELM_CHANGED" == "true" ]]; then
+            echo "result=true" >> $GITHUB_OUTPUT
+          else
+            echo "result=false" >> $GITHUB_OUTPUT
+          fi
+
+  build-and-push:
+    needs: check-changes
+    if: needs.check-changes.outputs.should-deploy == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ needs.check-changes.outputs.repo-owner }}/paperless-automation
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  deploy-production:
+    name: Deploy to Production
+    needs: [check-changes, build-and-push]
+    if: |
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      needs.check-changes.outputs.should-deploy == 'true' &&
+      needs.build-and-push.result == 'success'
+    uses: ./.github/workflows/deploy-helm-template.yml
+    secrets:
+      KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+      ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+      INTERNAL_API_SECRET: ${{ secrets.INTERNAL_API_SECRET }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
+      GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+    with:
+      service_name: paperless-automation
+      chart_repository: ./helm/sim
+      namespace: oppulence
+      create_namespace: true
+      values_file: helm/sim/values-production.yaml
+      image_repository: ghcr.io/${{ needs.check-changes.outputs.repo-owner }}/paperless-automation
+      image_tag: latest
+
+  health-check:
+    name: Post-Deployment Health Check
+    needs: deploy-production
+    if: always() && needs.deploy-production.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Wait for deployment to stabilize
+        run: sleep 60
+
+      - name: Health check - Application
+        env:
+          PRODUCTION_DOMAIN: paperless.oppulence.app
+        run: |
+          echo "Checking application health..."
+          RESPONSE=$(curl -f -s -o /dev/null -w "%{http_code}" https://${PRODUCTION_DOMAIN}/health || echo "000")
+          if [ "$RESPONSE" = "200" ]; then
+            echo "✅ Application health check passed"
+          else
+            echo "❌ Application health check failed with status: $RESPONSE"
+            exit 1
+          fi
+
+      - name: Generate deployment summary
+        if: always()
+        run: |
+          echo "## Production Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** Production" >> $GITHUB_STEP_SUMMARY
+          echo "**Namespace:** oppulence" >> $GITHUB_STEP_SUMMARY
+          echo "**Domain:** https://paperless.oppulence.app" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** $GITHUB_SHA" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Services Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Paperless Automation App" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Realtime Service" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ PostgreSQL Database" >> $GITHUB_STEP_SUMMARY
+
+  notify:
+    name: Notify Deployment Status
+    needs: [deploy-production, health-check]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deployment Status
+        env:
+          HEALTH_CHECK_RESULT: ${{ needs.health-check.result }}
+        run: |
+          if [[ "$HEALTH_CHECK_RESULT" == "success" ]]; then
+            echo "🎉 Production deployment successful!"
+          else
+            echo "⚠️ Production deployment completed with issues"
+          fi

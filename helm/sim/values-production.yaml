@@ -1,0 +1,239 @@
+# Production values for Paperless Automation (Sim Platform)
+# Deploy to Oppulence Kubernetes Cluster
+
+## Global Configuration
+global:
+  imageRegistry: "ghcr.io"
+  useRegistryForAllImages: false
+
+## Main Application Configuration
+app:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: ghcr.io/oppulence-engineering/paperless-automation
+    tag: latest
+    pullPolicy: Always
+
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+  # Environment variables (non-sensitive)
+  env:
+    NODE_ENV: production
+    PORT: "3000"
+    LOG_LEVEL: info
+
+    # URLs
+    BASE_URL: "https://paperless.oppulence.app"
+    API_URL: "https://paperless.oppulence.app"
+
+    # Email provider (Resend)
+    EMAIL_PROVIDER: resend
+    EMAIL_FROM: "noreply@oppulence.app"
+
+    # Feature flags
+    ENABLE_SIGNUP: "true"
+    ENABLE_EMAIL_VERIFICATION: "true"
+
+    # Database settings
+    DB_CONNECTION_TIMEOUT_MS: "5000"
+    DB_POOL_MIN: "2"
+    DB_POOL_MAX: "10"
+
+  # Health checks
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 3000
+
+## Realtime Service Configuration
+realtime:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: simstudioai/realtime
+    tag: latest
+    pullPolicy: Always
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+  service:
+    type: ClusterIP
+    port: 3002
+
+## PostgreSQL Database
+postgresql:
+  enabled: true
+
+  auth:
+    database: paperless
+    username: postgres
+    # Password set via GitHub Actions secret
+
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: ""
+
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+  config:
+    max_connections: "200"
+    shared_buffers: "512MB"
+    effective_cache_size: "1536MB"
+    maintenance_work_mem: "128MB"
+    checkpoint_completion_target: "0.9"
+    wal_buffers: "16MB"
+    default_statistics_target: "100"
+    random_page_cost: "1.1"
+    effective_io_concurrency: "200"
+    work_mem: "2621kB"
+    min_wal_size: "1GB"
+    max_wal_size: "4GB"
+
+## Ingress Configuration
+ingress:
+  enabled: true
+  className: nginx
+
+  app:
+    enabled: true
+    host: paperless.oppulence.app
+    tls:
+      enabled: true
+      secretName: paperless-oppulence-app-tls
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-production
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+  realtime:
+    enabled: true
+    host: paperless-ws.oppulence.app
+    tls:
+      enabled: true
+      secretName: paperless-ws-oppulence-app-tls
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-production
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/websocket-services: sim-realtime
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+
+## CronJobs Configuration
+cronjobs:
+  enabled: true
+
+  scheduleExecution:
+    enabled: true
+    schedule: "*/1 * * * *"
+
+  gmailWebhookPoll:
+    enabled: true
+    schedule: "*/1 * * * *"
+
+  outlookWebhookPoll:
+    enabled: true
+    schedule: "*/1 * * * *"
+
+  rssWebhookPoll:
+    enabled: true
+    schedule: "*/1 * * * *"
+
+  renewSubscriptions:
+    enabled: true
+    schedule: "0 */12 * * *"
+
+  inactivityAlertPoll:
+    enabled: true
+    schedule: "*/15 * * * *"
+
+## High Availability Configuration
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 75
+  targetMemoryUtilizationPercentage: 80
+
+## Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+## Network Policies
+networkPolicies:
+  enabled: true
+
+## Service Account
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+
+## Monitoring (Prometheus)
+monitoring:
+  enabled: false
+  serviceMonitor:
+    enabled: false
+
+## Optional Services
+ollama:
+  enabled: false
+
+copilot:
+  enabled: false
+
+## Security Context
+podSecurityContext:
+  fsGroup: 1001
+  runAsNonRoot: true
+  runAsUser: 1001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1001

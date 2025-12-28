@@ -1,0 +1,221 @@
+name: Deploy Helm Chart to Kubernetes
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        description: "Name of the service to deploy (e.g., paperless-automation)"
+        required: true
+        type: string
+      chart_repository:
+        description: "Helm chart local path (e.g., ./helm/sim)"
+        required: true
+        type: string
+      namespace:
+        description: "Kubernetes namespace to deploy to"
+        required: true
+        type: string
+        default: "oppulence"
+      create_namespace:
+        description: "Whether to create the namespace if it does not exist"
+        required: false
+        type: boolean
+        default: true
+      values_file:
+        description: "Path to values file overlay (e.g., helm/sim/values-production.yaml)"
+        required: false
+        type: string
+      image_repository:
+        description: "Override image repository (e.g., ghcr.io/oppulence-engineering/paperless-automation-app)"
+        required: false
+        type: string
+      image_tag:
+        description: "Override image tag (e.g., latest)"
+        required: false
+        type: string
+    secrets:
+      KUBE_CONFIG_DATA:
+        description: "Base64 encoded kubeconfig file"
+        required: true
+      BETTER_AUTH_SECRET:
+        description: "Auth JWT signing key"
+        required: true
+      ENCRYPTION_KEY:
+        description: "Data encryption key"
+        required: true
+      INTERNAL_API_SECRET:
+        description: "Service-to-service auth"
+        required: true
+      CRON_SECRET:
+        description: "Scheduled job authentication"
+        required: true
+      POSTGRESQL_PASSWORD:
+        description: "PostgreSQL password"
+        required: true
+      GOOGLE_CLIENT_ID:
+        description: "Google OAuth client ID"
+        required: false
+      GOOGLE_CLIENT_SECRET:
+        description: "Google OAuth client secret"
+        required: false
+      GITHUB_CLIENT_ID:
+        description: "GitHub OAuth client ID"
+        required: false
+      GITHUB_CLIENT_SECRET:
+        description: "GitHub OAuth client secret"
+        required: false
+      OPENAI_API_KEY:
+        description: "OpenAI API key"
+        required: false
+      ANTHROPIC_API_KEY:
+        description: "Anthropic API key"
+        required: false
+      AWS_ACCESS_KEY_ID:
+        description: "AWS access key ID"
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        description: "AWS secret access key"
+        required: false
+      S3_BUCKET_NAME:
+        description: "S3 bucket name"
+        required: false
+
+permissions:
+  contents: read
+  packages: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SERVICE_NAME: ${{ inputs.service_name }}
+      CHART_REPOSITORY: ${{ inputs.chart_repository }}
+      NAMESPACE: ${{ inputs.namespace }}
+      CREATE_NAMESPACE: ${{ inputs.create_namespace }}
+      VALUES_FILE: ${{ inputs.values_file }}
+      IMAGE_REPOSITORY: ${{ inputs.image_repository }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        run: |
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Set up Kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Kubeconfig
+        env:
+          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+        run: |
+          mkdir -p $HOME/.kube
+          echo "$KUBE_CONFIG_DATA" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Verify Kubernetes Connection
+        run: kubectl get nodes
+
+      - name: Deploy Helm Chart
+        env:
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          INTERNAL_API_SECRET: ${{ secrets.INTERNAL_API_SECRET }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+        run: |
+          NAMESPACE_FLAG="-n ${NAMESPACE}"
+          CREATE_NAMESPACE_FLAG=""
+          VALUES_FLAG=""
+          IMAGE_REPO_FLAG=""
+          IMAGE_TAG_FLAG=""
+
+          if [ "$CREATE_NAMESPACE" = "true" ]; then
+            CREATE_NAMESPACE_FLAG="--create-namespace"
+          fi
+
+          if [ -n "$VALUES_FILE" ]; then
+            VALUES_FLAG="-f ${VALUES_FILE}"
+          fi
+
+          if [ -n "$IMAGE_REPOSITORY" ]; then
+            IMAGE_REPO_FLAG="--set app.image.repository=${IMAGE_REPOSITORY}"
+          fi
+
+          if [ -n "$IMAGE_TAG" ]; then
+            IMAGE_TAG_FLAG="--set app.image.tag=${IMAGE_TAG}"
+          fi
+
+          # Set secrets via --set flags
+          SECRET_FLAGS=""
+          SECRET_FLAGS="${SECRET_FLAGS} --set app.env.BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}"
+          SECRET_FLAGS="${SECRET_FLAGS} --set app.env.ENCRYPTION_KEY=${ENCRYPTION_KEY}"
+          SECRET_FLAGS="${SECRET_FLAGS} --set app.env.INTERNAL_API_SECRET=${INTERNAL_API_SECRET}"
+          SECRET_FLAGS="${SECRET_FLAGS} --set app.env.CRON_SECRET=${CRON_SECRET}"
+          SECRET_FLAGS="${SECRET_FLAGS} --set postgresql.auth.password=${POSTGRESQL_PASSWORD}"
+
+          # Optional OAuth secrets
+          if [ -n "$GOOGLE_CLIENT_ID" ]; then
+            SECRET_FLAGS="${SECRET_FLAGS} --set app.env.GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}"
+          fi
+          if [ -n "$GOOGLE_CLIENT_SECRET" ]; then
+            SECRET_FLAGS="${SECRET_FLAGS} --set app.env.GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}"
+          fi
+          if [ -n "$GITHUB_CLIENT_ID" ]; then
+            SECRET_FLAGS="${SECRET_FLAGS} --set app.env.GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}"
+          fi
+          if [ -n "$GITHUB_CLIENT_SECRET" ]; then
+            SECRET_FLAGS="${SECRET_FLAGS} --set app.env.GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}"
+          fi
+
+          # Optional AI API keys
+          if [ -n "$OPENAI_API_KEY" ]; then
+            SECRET_FLAGS="${SECRET_FLAGS} --set app.env.OPENAI_API_KEY=${OPENAI_API_KEY}"
+          fi
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            SECRET_FLAGS="${SECRET_FLAGS} --set app.env.ANTHROPIC_API_KEY_1=${ANTHROPIC_API_KEY}"
+          fi
+
+          # Optional AWS S3 secrets
+          if [ -n "$AWS_ACCESS_KEY_ID" ]; then
+            SECRET_FLAGS="${SECRET_FLAGS} --set app.env.AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}"
+          fi
+          if [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
+            SECRET_FLAGS="${SECRET_FLAGS} --set app.env.AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
+          fi
+          if [ -n "$S3_BUCKET_NAME" ]; then
+            SECRET_FLAGS="${SECRET_FLAGS} --set app.env.S3_BUCKET_NAME=${S3_BUCKET_NAME}"
+          fi
+
+          echo "Deploying ${SERVICE_NAME} from: ${CHART_REPOSITORY}"
+
+          helm upgrade --install "${SERVICE_NAME}" \
+            "${CHART_REPOSITORY}" \
+            ${VALUES_FLAG} \
+            ${IMAGE_REPO_FLAG} \
+            ${IMAGE_TAG_FLAG} \
+            ${SECRET_FLAGS} \
+            ${NAMESPACE_FLAG} ${CREATE_NAMESPACE_FLAG} \
+            --wait \
+            --timeout 10m
