@@ -108,12 +108,12 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
    */
   const getHandleClasses = (position: 'left' | 'right') => {
     const baseClasses = '!z-[10] !cursor-crosshair !border-none !transition-[colors] !duration-150'
-    const colorClasses = '!bg-[var(--surface-7)]'
+    const colorClasses = '!bg-[var(--workflow-edge)]'
 
     const positionClasses = {
-      left: '!left-[-7px] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-none hover:!left-[-10px] hover:!w-[10px] hover:!rounded-l-full',
+      left: '!left-[-8px] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-none hover:!left-[-11px] hover:!w-[10px] hover:!rounded-l-full',
       right:
-        '!right-[-7px] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none hover:!right-[-10px] hover:!w-[10px] hover:!rounded-r-full',
+        '!right-[-8px] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none hover:!right-[-11px] hover:!w-[10px] hover:!rounded-r-full',
     }
 
     return cn(baseClasses, colorClasses, positionClasses[position])
@@ -205,13 +205,12 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
             data-dragarea='true'
             style={{
               position: 'relative',
-              minHeight: '100%',
               pointerEvents: isPreview ? 'none' : 'auto',
             }}
           >
             {/* Subflow Start */}
             <div
-              className='absolute top-[16px] left-[16px] flex items-center justify-center rounded-[8px] bg-[var(--surface-2)] px-[12px] py-[6px]'
+              className='absolute top-[16px] left-[16px] flex items-center justify-center rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] px-[12px] py-[6px]'
               style={{ pointerEvents: isPreview ? 'none' : 'auto' }}
               data-parent-id={id}
               data-node-role={`${data.kind}-start`}
