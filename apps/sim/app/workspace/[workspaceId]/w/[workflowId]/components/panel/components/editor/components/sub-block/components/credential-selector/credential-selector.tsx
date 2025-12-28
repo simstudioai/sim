@@ -228,7 +228,7 @@ export function CredentialSelector({
   )
 
   return (
-    <>
+    <div>
       <Combobox
         options={comboboxOptions}
         value={inputValue}
@@ -247,9 +247,20 @@ export function CredentialSelector({
       />
 
       {needsUpdate && (
-        <div className='mt-2 flex items-center justify-between rounded-[6px] border border-amber-300/40 bg-amber-50/60 px-2 py-1 font-medium text-[12px] transition-colors dark:bg-amber-950/10'>
-          <span>Additional permissions required</span>
-          {!isForeign && <Button onClick={() => setShowOAuthModal(true)}>Update access</Button>}
+        <div className='mt-[8px] flex flex-col gap-[4px] rounded-[4px] border bg-[var(--surface-2)] px-[8px] py-[6px]'>
+          <div className='flex items-center font-medium text-[12px]'>
+            <span className='mr-[6px] inline-block h-[6px] w-[6px] rounded-[2px] bg-amber-500' />
+            Additional permissions required
+          </div>
+          {!isForeign && (
+            <Button
+              variant='active'
+              onClick={() => setShowOAuthModal(true)}
+              className='w-full px-[8px] py-[4px] font-medium text-[12px]'
+            >
+              Update access
+            </Button>
+          )}
         </div>
       )}
 
@@ -264,7 +275,7 @@ export function CredentialSelector({
           serviceId={serviceId}
         />
       )}
-    </>
+    </div>
   )
 }
 

@@ -341,7 +341,7 @@ export function Editor() {
                     )
 
                     return (
-                      <div key={stableKey}>
+                      <div key={stableKey} className='subblock-row'>
                         <SubBlock
                           blockId={currentBlockId}
                           config={subBlock}
@@ -352,7 +352,7 @@ export function Editor() {
                           allowExpandInPreview={false}
                         />
                         {index < subBlocks.length - 1 && (
-                          <div className='px-[2px] pt-[16px] pb-[13px]'>
+                          <div className='subblock-divider px-[2px] pt-[16px] pb-[13px]'>
                             <div
                               className='h-[1.25px]'
                               style={{

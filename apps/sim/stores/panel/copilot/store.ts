@@ -2661,7 +2661,7 @@ export const useCopilotStore = create<CopilotStore>()(
         // Invalidate subscription queries to update usage
         setTimeout(() => {
           const queryClient = getQueryClient()
-          queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+          queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
         }, 1000)
       } finally {
         clearTimeout(timeoutId)

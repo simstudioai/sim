@@ -165,7 +165,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
         logger.info('Subscription restored successfully', result)
       }
 
-      await queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+      await queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
       if (activeOrgId) {
         await queryClient.invalidateQueries({ queryKey: organizationKeys.detail(activeOrgId) })
         await queryClient.invalidateQueries({ queryKey: organizationKeys.billing(activeOrgId) })

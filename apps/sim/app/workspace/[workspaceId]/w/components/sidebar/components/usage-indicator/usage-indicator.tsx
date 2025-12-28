@@ -199,7 +199,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   useEffect(() => {
     const handleOperationConfirmed = () => {
       setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
       }, 1000)
     }
     onOperationConfirmed(handleOperationConfirmed)
