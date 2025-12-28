@@ -11,8 +11,9 @@ WORKDIR /app
 
 # Copy only package files needed for migrations (these change less frequently)
 COPY package.json bun.lock turbo.json ./
-RUN mkdir -p packages/db
+RUN mkdir -p packages/db packages/tsconfig
 COPY packages/db/package.json ./packages/db/package.json
+COPY packages/tsconfig/package.json ./packages/tsconfig/package.json
 
 # Install dependencies with cache mount for faster builds
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
