@@ -62,6 +62,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 # Copy db package (needed by socket)
 COPY --from=builder --chown=nextjs:nodejs /app/packages/db ./packages/db
 
+# Copy logger package (workspace dependency used by socket)
+COPY --from=builder --chown=nextjs:nodejs /app/packages/logger ./packages/logger
+
 # Copy sim app (changes most frequently - placed last)
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim ./apps/sim
 
