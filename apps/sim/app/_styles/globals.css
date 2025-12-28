@@ -47,8 +47,8 @@
 @layer base {
   :root,
   .light {
-    --bg: #fafafa; /* main canvas - neutral near-white */
-    --surface-1: #fafafa; /* sidebar, panels */
+    --bg: #fdfdfd; /* main canvas - neutral near-white */
+    --surface-1: #fcfcfc; /* sidebar, panels */
     --surface-2: #ffffff; /* blocks, cards, modals - pure white */
     --surface-3: #f7f7f7; /* popovers, headers */
     --surface-4: #f5f5f5; /* buttons base */
