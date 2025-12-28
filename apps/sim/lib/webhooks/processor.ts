@@ -76,6 +76,30 @@ export async function parseWebhookBody(
         body = Object.fromEntries(formData.entries())
         logger.debug(`[${requestId}] Parsed form-encoded webhook data (direct fields)`)
       }
+    } else if (contentType.includes('multipart/form-data')) {
+      try {
+        const formData = await request.formData()
+        const rawRequest = formData.get('rawRequest')
+
+        if (rawRequest && typeof rawRequest === 'string') {
+          body = JSON.parse(rawRequest)
+          logger.debug(`[${requestId}] Parsed multipart/form-data webhook with rawRequest field`)
+        } else {
+          const formObject: Record<string, any> = {}
+          for (const [key, value] of formData.entries()) {
+            if (typeof value === 'string') {
+              formObject[key] = value
+            }
+          }
+          body = formObject
+          logger.debug(`[${requestId}] Parsed multipart/form-data webhook into object`)
+        }
+      } catch (multipartError) {
+        logger.error(`[${requestId}] Failed to parse multipart/form-data`, {
+          error: multipartError instanceof Error ? multipartError.message : String(multipartError),
+        })
+        throw new Error(`Failed to parse multipart/form-data: ${multipartError}`)
+      }
     } else {
       body = JSON.parse(rawBody)
       logger.debug(`[${requestId}] Parsed JSON webhook payload`)

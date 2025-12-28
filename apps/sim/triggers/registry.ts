@@ -63,6 +63,7 @@ import {
   jiraWebhookTrigger,
   jiraWorklogCreatedTrigger,
 } from '@/triggers/jira'
+import { jotformWebhookTrigger } from '@/triggers/jotform'
 import {
   linearCommentCreatedTrigger,
   linearCommentUpdatedTrigger,
@@ -136,6 +137,7 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   jira_issue_deleted: jiraIssueDeletedTrigger,
   jira_issue_commented: jiraIssueCommentedTrigger,
   jira_worklog_created: jiraWorklogCreatedTrigger,
+  jotform_webhook: jotformWebhookTrigger,
   linear_webhook: linearWebhookTrigger,
   linear_issue_created: linearIssueCreatedTrigger,
   linear_issue_updated: linearIssueUpdatedTrigger,
