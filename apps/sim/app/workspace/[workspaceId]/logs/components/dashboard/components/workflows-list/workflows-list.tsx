@@ -35,9 +35,9 @@ export function WorkflowsList({
   const { workflows } = useWorkflowRegistry()
 
   return (
-    <div className='flex h-full flex-col overflow-hidden rounded-[6px] bg-[var(--surface-1)]'>
+    <div className='flex h-full flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)] dark:bg-[var(--surface-1)]'>
       {/* Table header */}
-      <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-[24px] py-[10px]'>
+      <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-[24px] py-[10px] dark:bg-[var(--surface-3)]'>
         <div className='flex items-center gap-[16px]'>
           <span className='w-[160px] flex-shrink-0 font-medium text-[12px] text-[var(--text-tertiary)]'>
             Workflow
@@ -66,8 +66,8 @@ export function WorkflowsList({
                 <div
                   key={workflow.workflowId}
                   className={cn(
-                    'flex h-[44px] cursor-pointer items-center gap-[16px] px-[24px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-4)]',
-                    isSelected && 'bg-[var(--surface-6)] dark:bg-[var(--surface-4)]'
+                    'flex h-[44px] cursor-pointer items-center gap-[16px] px-[24px] hover:bg-[var(--surface-3)] dark:hover:bg-[var(--surface-4)]',
+                    isSelected && 'bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'
                   )}
                   onClick={() => onToggleWorkflow(workflow.workflowId)}
                 >

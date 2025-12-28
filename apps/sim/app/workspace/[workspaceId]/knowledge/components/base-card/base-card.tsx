@@ -67,26 +67,26 @@ function formatAbsoluteDate(dateString: string): string {
  */
 export function BaseCardSkeleton() {
   return (
-    <div className='group flex h-full cursor-pointer flex-col gap-[12px] rounded-[4px] bg-[var(--surface-4)] px-[8px] py-[6px] transition-colors hover:bg-[var(--surface-5)]'>
+    <div className='group flex h-full cursor-pointer flex-col gap-[12px] rounded-[4px] bg-[var(--surface-3)] px-[8px] py-[6px] transition-colors hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover:bg-[var(--surface-5)]'>
       <div className='flex items-center justify-between gap-[8px]'>
-        <div className='h-[17px] w-[120px] animate-pulse rounded-[4px] bg-[var(--surface-5)]' />
-        <div className='h-[22px] w-[90px] animate-pulse rounded-[4px] bg-[var(--surface-4)]' />
+        <div className='h-[17px] w-[120px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+        <div className='h-[22px] w-[90px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
       </div>
 
       <div className='flex flex-1 flex-col gap-[8px]'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-[6px]'>
-            <div className='h-[12px] w-[12px] animate-pulse rounded-[2px] bg-[var(--surface-5)]' />
-            <div className='h-[15px] w-[45px] animate-pulse rounded-[4px] bg-[var(--surface-5)]' />
+            <div className='h-[12px] w-[12px] animate-pulse rounded-[2px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+            <div className='h-[15px] w-[45px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
           </div>
-          <div className='h-[15px] w-[120px] animate-pulse rounded-[4px] bg-[var(--surface-4)]' />
+          <div className='h-[15px] w-[120px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
         </div>
 
         <div className='h-0 w-full border-[var(--divider)] border-t' />
 
         <div className='flex h-[36px] flex-col gap-[6px]'>
-          <div className='h-[15px] w-full animate-pulse rounded-[4px] bg-[var(--surface-4)]' />
-          <div className='h-[15px] w-[75%] animate-pulse rounded-[4px] bg-[var(--surface-4)]' />
+          <div className='h-[15px] w-full animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+          <div className='h-[15px] w-[75%] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
         </div>
       </div>
     </div>
@@ -122,7 +122,7 @@ export function BaseCard({ id, title, docCount, description, updatedAt }: BaseCa
 
   return (
     <Link href={href} prefetch={true} className='h-full'>
-      <div className='group flex h-full cursor-pointer flex-col gap-[12px] rounded-[4px] bg-[var(--surface-4)] px-[8px] py-[6px] transition-colors hover:bg-[var(--surface-5)]'>
+      <div className='group flex h-full cursor-pointer flex-col gap-[12px] rounded-[4px] bg-[var(--surface-3)] px-[8px] py-[6px] transition-colors hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover:bg-[var(--surface-5)]'>
         <div className='flex items-center justify-between gap-[8px]'>
           <h3 className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-primary)]'>
             {title}

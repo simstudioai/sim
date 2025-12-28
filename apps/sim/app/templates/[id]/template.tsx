@@ -68,7 +68,7 @@ function TemplateDetailsLoading({ isWorkspaceContext, workspaceId }: TemplateDet
         <div
           className={cn(
             'flex flex-1 flex-col px-[24px] pt-[24px] pb-[24px]',
-            isWorkspaceContext ? 'overflow-auto' : 'overflow-visible'
+            isWorkspaceContext ? 'overflow-auto bg-white dark:bg-[var(--bg)]' : 'overflow-visible'
           )}
         >
           {/* Breadcrumb navigation */}
@@ -638,7 +638,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
         <div
           className={cn(
             'flex flex-1 flex-col px-[24px] pt-[24px] pb-[24px]',
-            isWorkspaceContext ? 'overflow-auto' : 'overflow-visible'
+            isWorkspaceContext ? 'overflow-auto bg-white dark:bg-[var(--bg)]' : 'overflow-visible'
           )}
         >
           {/* Breadcrumb navigation */}

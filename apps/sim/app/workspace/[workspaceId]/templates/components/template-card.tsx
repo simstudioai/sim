@@ -29,19 +29,19 @@ export function TemplateCardSkeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        'h-[268px] w-full rounded-[8px] bg-[var(--surface-4)] p-[8px] transition-colors hover:bg-[var(--surface-5)]',
+        'h-[268px] w-full rounded-[8px] bg-[var(--surface-3)] p-[8px] transition-colors hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover:bg-[var(--surface-5)]',
         className
       )}
     >
-      <div className='h-[180px] w-full animate-pulse rounded-[6px] bg-[var(--surface-5)]' />
+      <div className='h-[180px] w-full animate-pulse rounded-[6px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
 
       <div className='mt-[14px] flex items-center justify-between'>
-        <div className='h-4 w-32 animate-pulse rounded bg-[var(--surface-5)]' />
+        <div className='h-4 w-32 animate-pulse rounded bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
         <div className='flex items-center gap-[-4px]'>
           {Array.from({ length: 3 }).map((_, index) => (
             <div
               key={index}
-              className='h-[18px] w-[18px] animate-pulse rounded-[4px] bg-[var(--surface-5)]'
+              className='h-[18px] w-[18px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]'
             />
           ))}
         </div>
@@ -49,14 +49,14 @@ export function TemplateCardSkeleton({ className }: { className?: string }) {
 
       <div className='mt-[14px] flex items-center justify-between'>
         <div className='flex items-center gap-[6px]'>
-          <div className='h-[20px] w-[20px] animate-pulse rounded-full bg-[var(--surface-5)]' />
-          <div className='h-3 w-20 animate-pulse rounded bg-[var(--surface-5)]' />
+          <div className='h-[20px] w-[20px] animate-pulse rounded-full bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+          <div className='h-3 w-20 animate-pulse rounded bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
         </div>
         <div className='flex items-center gap-[6px]'>
-          <div className='h-3 w-3 animate-pulse rounded bg-[var(--surface-5)]' />
-          <div className='h-3 w-6 animate-pulse rounded bg-[var(--surface-5)]' />
-          <div className='h-3 w-3 animate-pulse rounded bg-[var(--surface-5)]' />
-          <div className='h-3 w-6 animate-pulse rounded bg-[var(--surface-5)]' />
+          <div className='h-3 w-3 animate-pulse rounded bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+          <div className='h-3 w-6 animate-pulse rounded bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+          <div className='h-3 w-3 animate-pulse rounded bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+          <div className='h-3 w-6 animate-pulse rounded bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
         </div>
       </div>
     </div>
@@ -202,7 +202,7 @@ function TemplateCardInner({
     <div
       onClick={handleCardClick}
       className={cn(
-        'w-full cursor-pointer rounded-[8px] bg-[var(--surface-4)] p-[8px] transition-colors hover:bg-[var(--surface-5)]',
+        'w-full cursor-pointer rounded-[8px] bg-[var(--surface-3)] p-[8px] transition-colors hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover:bg-[var(--surface-5)]',
         className
       )}
     >
@@ -223,7 +223,7 @@ function TemplateCardInner({
             cursorStyle='pointer'
           />
         ) : (
-          <div className='h-full w-full bg-[var(--surface-4)]' />
+          <div className='h-full w-full bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
         )}
       </div>
 
