@@ -9,7 +9,12 @@ import JSZip from 'jszip'
  * Read all template files from the templates directory.
  */
 function loadTemplates(): Record<string, string> {
-  const templatesDir = join(__dirname, 'templates')
+  // Use process.cwd() for Next.js compatibility since __dirname is unreliable in dev mode
+  // In monorepo, process.cwd() is the apps/sim directory
+  const templatesDir = join(
+    process.cwd(),
+    'app/api/workflows/[id]/export-service/templates'
+  )
   const templates: Record<string, string> = {}
 
   function readDir(dir: string, prefix: string = '') {
