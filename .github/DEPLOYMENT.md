@@ -44,8 +44,8 @@ The deployment pipeline uses:
 2. **GitHub Repository**: Admin access to configure secrets
 3. **Kubectl Access**: Kubeconfig file with cluster credentials
 4. **Domain Names**:
-   - `paperless.oppulence.app` (main application)
-   - `paperless-ws.oppulence.app` (WebSocket/realtime)
+   - `paperless-automation.oppulence.app` (main application)
+   - `paperless-automation-ws.oppulence.app` (WebSocket/realtime)
 
 ---
 
@@ -86,8 +86,8 @@ Navigate to your repository: **Settings → Secrets and variables → Actions �
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth app client secret | GitHub Developer settings |
 
 **OAuth Redirect URLs:**
-- Google: `https://paperless.oppulence.app/api/auth/callback/google`
-- GitHub: `https://paperless.oppulence.app/api/auth/callback/github`
+- Google: `https://paperless-automation.oppulence.app/api/auth/callback/google`
+- GitHub: `https://paperless-automation.oppulence.app/api/auth/callback/github`
 
 #### 5. AI/LLM API Keys (Optional)
 
@@ -195,7 +195,7 @@ The workflow performs these steps:
    ↓
 5. Wait for deployment stabilization (60 seconds)
    ↓
-6. Run health checks (https://paperless.oppulence.app/health)
+6. Run health checks (https://paperless-automation.oppulence.app/health)
    ↓
 7. Generate deployment summary
 ```
@@ -245,8 +245,8 @@ kubectl get ingress -n oppulence
 
 ### Health Check Endpoints
 
-- **Main App**: `https://paperless.oppulence.app/health`
-- **Realtime Service**: `https://paperless-ws.oppulence.app/health`
+- **Main App**: `https://paperless-automation.oppulence.app/health`
+- **Realtime Service**: `https://paperless-automation-ws.oppulence.app/health`
 
 ---
 
@@ -264,8 +264,8 @@ After successful deployment, the following services will be running:
 
 | Domain | Service | Protocol |
 |--------|---------|----------|
-| `paperless.oppulence.app` | sim-app | HTTPS |
-| `paperless-ws.oppulence.app` | sim-realtime | WSS (WebSocket) |
+| `paperless-automation.oppulence.app` | sim-app | HTTPS |
+| `paperless-automation-ws.oppulence.app` | sim-realtime | WSS (WebSocket) |
 
 ---
 

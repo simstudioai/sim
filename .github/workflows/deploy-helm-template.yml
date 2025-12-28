@@ -58,11 +58,14 @@ on:
       GOOGLE_CLIENT_SECRET:
         description: "Google OAuth client secret"
         required: false
-      GITHUB_CLIENT_ID:
+      OAUTH_GITHUB_CLIENT_ID:
         description: "GitHub OAuth client ID"
         required: false
-      GITHUB_CLIENT_SECRET:
+      OAUTH_GITHUB_CLIENT_SECRET:
         description: "GitHub OAuth client secret"
+        required: false
+      RESEND_API_KEY:
+        description: "Resend API key for email"
         required: false
       OPENAI_API_KEY:
         description: "OpenAI API key"
@@ -137,8 +140,9 @@ jobs:
           POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
-          GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
+          OAUTH_GITHUB_CLIENT_ID: ${{ secrets.OAUTH_GITHUB_CLIENT_ID }}
+          OAUTH_GITHUB_CLIENT_SECRET: ${{ secrets.OAUTH_GITHUB_CLIENT_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -182,11 +186,14 @@ jobs:
           if [ -n "$GOOGLE_CLIENT_SECRET" ]; then
             SECRET_FLAGS="${SECRET_FLAGS} --set app.env.GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}"
           fi
-          if [ -n "$GITHUB_CLIENT_ID" ]; then
-            SECRET_FLAGS="${SECRET_FLAGS} --set app.env.GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}"
+          if [ -n "$OAUTH_GITHUB_CLIENT_ID" ]; then
+            SECRET_FLAGS="${SECRET_FLAGS} --set app.env.GITHUB_CLIENT_ID=${OAUTH_GITHUB_CLIENT_ID}"
           fi
-          if [ -n "$GITHUB_CLIENT_SECRET" ]; then
-            SECRET_FLAGS="${SECRET_FLAGS} --set app.env.GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}"
+          if [ -n "$OAUTH_GITHUB_CLIENT_SECRET" ]; then
+            SECRET_FLAGS="${SECRET_FLAGS} --set app.env.GITHUB_CLIENT_SECRET=${OAUTH_GITHUB_CLIENT_SECRET}"
+          fi
+          if [ -n "$RESEND_API_KEY" ]; then
+            SECRET_FLAGS="${SECRET_FLAGS} --set app.env.RESEND_API_KEY=${RESEND_API_KEY}"
           fi
 
           # Optional AI API keys

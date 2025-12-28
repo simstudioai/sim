@@ -28,7 +28,7 @@ concurrency:
 
 env:
   PRODUCTION_NAMESPACE: oppulence
-  PRODUCTION_DOMAIN: paperless.oppulence.app
+  PRODUCTION_DOMAIN: paperless-automation.oppulence.app
 
 jobs:
   check-changes:
@@ -126,8 +126,9 @@ jobs:
       POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
       GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
       GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-      GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
-      GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
+      OAUTH_GITHUB_CLIENT_ID: ${{ secrets.OAUTH_GITHUB_CLIENT_ID }}
+      OAUTH_GITHUB_CLIENT_SECRET: ${{ secrets.OAUTH_GITHUB_CLIENT_SECRET }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}

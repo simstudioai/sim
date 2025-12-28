@@ -63,7 +63,7 @@ This document provides a quick checklist for setting up all required GitHub secr
 - [ ] **GOOGLE_CLIENT_ID**
   - Get from: https://console.cloud.google.com/apis/credentials
   - OAuth 2.0 Client IDs
-  - Redirect URI: `https://paperless.oppulence.app/api/auth/callback/google`
+  - Redirect URI: `https://paperless-automation.oppulence.app/api/auth/callback/google`
 
 - [ ] **GOOGLE_CLIENT_SECRET**
   - From same Google Cloud Console location
@@ -73,7 +73,7 @@ This document provides a quick checklist for setting up all required GitHub secr
 - [ ] **GITHUB_CLIENT_ID**
   - Get from: https://github.com/settings/developers
   - OAuth Apps → New OAuth App
-  - Callback URL: `https://paperless.oppulence.app/api/auth/callback/github`
+  - Callback URL: `https://paperless-automation.oppulence.app/api/auth/callback/github`
 
 - [ ] **GITHUB_CLIENT_SECRET**
   - From same GitHub Developer settings

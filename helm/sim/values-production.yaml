@@ -31,8 +31,8 @@ app:
     LOG_LEVEL: info
 
     # URLs
-    BASE_URL: "https://paperless.oppulence.app"
-    API_URL: "https://paperless.oppulence.app"
+    BASE_URL: "https://paperless-automation.oppulence.app"
+    API_URL: "https://paperless-automation.oppulence.app"
 
     # Email provider (Resend)
     EMAIL_PROVIDER: resend
@@ -137,10 +137,10 @@ ingress:
 
   app:
     enabled: true
-    host: paperless.oppulence.app
+    host: paperless-automation.oppulence.app
     tls:
       enabled: true
-      secretName: paperless-oppulence-app-tls
+      secretName: paperless-automation-oppulence-app-tls
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-production
       nginx.ingress.kubernetes.io/ssl-redirect: "true"
@@ -148,10 +148,10 @@ ingress:
 
   realtime:
     enabled: true
-    host: paperless-ws.oppulence.app
+    host: paperless-automation-ws.oppulence.app
     tls:
       enabled: true
-      secretName: paperless-ws-oppulence-app-tls
+      secretName: paperless-automation-ws-oppulence-app-tls
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-production
       nginx.ingress.kubernetes.io/ssl-redirect: "true"

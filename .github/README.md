@@ -50,7 +50,7 @@ Follow the [Secrets Setup Guide](SECRETS-SETUP.md) to configure all required sec
 
 Check deployment status:
 - **GitHub Actions**: View workflow progress in Actions tab
-- **Health Check**: https://paperless.oppulence.app/health
+- **Health Check**: https://paperless-automation.oppulence.app/health
 - **Kubernetes**: `kubectl get pods -n oppulence`
 
 ## 📖 Documentation
@@ -79,8 +79,8 @@ Main production deployment pipeline that runs on push to `main` branch.
 
 **Environment:**
 - Namespace: `oppulence`
-- Domain: `paperless.oppulence.app`
-- WebSocket Domain: `paperless-ws.oppulence.app`
+- Domain: `paperless-automation.oppulence.app`
+- WebSocket Domain: `paperless-automation-ws.oppulence.app`
 
 ### deploy-helm-template.yml
 
@@ -129,7 +129,7 @@ Reusable workflow template for Helm deployments.
 ### Production
 
 - **Namespace**: `oppulence`
-- **Domain**: `paperless.oppulence.app`
+- **Domain**: `paperless-automation.oppulence.app`
 - **Replicas**: 2+ (with autoscaling 2-5)
 - **Database**: PostgreSQL with 20Gi storage
 - **High Availability**: Pod disruption budgets, autoscaling enabled
