@@ -1,0 +1,136 @@
+---
+title: Greptile
+description: AI搭載のコードベース検索とQ&A
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="greptile"
+  color="#e5e5e5"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Greptile](https://greptile.com/)は、1つまたは複数のリポジトリにわたってソースコードを検索およびクエリするためのAI搭載開発者ツールです。Greptileを使用すると、エンジニアは自然言語で複雑なコードベースの質問に素早く回答し、関連するファイルやシンボルを見つけ、馴染みのないコードやレガシーコードについての洞察を得ることができます。
+
+Greptileでできること:
+
+- **自然言語でコードベースについて複雑な質問をする**: アーキテクチャ、使用パターン、または特定の実装についてAIが生成した回答を取得します。
+- **関連するコード、ファイル、または関数を即座に見つける**: キーワードまたは自然言語クエリを使用して検索し、一致する行、ファイル、またはコードブロックに直接ジャンプします。
+- **依存関係と関連性を理解する**: 大規模なコードベース全体で、関数がどこで呼び出されているか、モジュールがどのように関連しているか、またはAPIがどこで使用されているかを明らかにします。
+- **オンボーディングとコード探索を加速する**: 深い事前知識がなくても、新しいプロジェクトを素早く立ち上げたり、厄介な問題をデバッグしたりできます。
+
+Sim Greptile統合により、AIエージェントは次のことが可能になります:
+
+- Greptileの高度な言語モデルを使用して、プライベートおよびパブリックリポジトリをクエリおよび検索します。
+- コンテキストに関連するコードスニペット、ファイル参照、および説明を取得して、コードレビュー、ドキュメント、および開発ワークフローをサポートします。
+- 検索/クエリ結果に基づいてSimワークフローで自動化をトリガーするか、コードインテリジェンスをプロセスに直接埋め込みます。
+
+開発者の生産性を加速したり、ドキュメントを自動化したり、複雑なコードベースに対するチームの理解を強化したりする場合でも、GreptileとSimは、必要な場所でコードインテリジェンスと検索へのシームレスなアクセスを提供します。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Greptileを使用して自然言語でコードベースをクエリおよび検索します。コードについてAIが生成した回答を取得し、関連するファイルを見つけ、複雑なコードベースを理解します。
+
+## ツール
+
+### `greptile_query`
+
+自然言語でリポジトリを検索し、関連するコード参照とともに回答を取得します。Greptileは、AIを使用してコードベースを理解し、質問に答えます。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | はい | コードベースに関する自然言語の質問 |
+| `repositories` | string | はい | カンマ区切りのリポジトリリスト。形式:「github:branch:owner/repo」または「owner/repo」のみ(デフォルトはgithub:main) |
+| `sessionId` | string | いいえ | 会話の継続性を保つためのセッションID |
+| `genius` | boolean | いいえ | より徹底的な分析のためのジーニアスモードを有効化(遅いがより正確) |
+| `apiKey` | string | はい | Greptile APIキー |
+| `githubToken` | string | はい | リポジトリ読み取りアクセス権を持つGitHub個人アクセストークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | クエリに対するAI生成の回答 |
+| `sources` | array | 回答を裏付ける関連コード参照 |
+
+### `greptile_search`
+
+自然言語でリポジトリを検索し、回答を生成せずに関連するコード参照を取得します。特定のコードの場所を見つけるのに便利です。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | はい | 関連するコードを見つけるための自然言語検索クエリ |
+| `repositories` | string | はい | カンマ区切りのリポジトリリスト。形式:「github:branch:owner/repo」または「owner/repo」のみ(デフォルトはgithub:main) |
+| `sessionId` | string | いいえ | 会話の継続性を保つためのセッションID |
+| `genius` | boolean | いいえ | より徹底的な検索のためのジーニアスモードを有効化(遅いがより正確) |
+| `apiKey` | string | はい | Greptile APIキー |
+| `githubToken` | string | はい | リポジトリ読み取りアクセス権を持つGitHub個人アクセストークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `sources` | array | 検索クエリに一致する関連コード参照 |
+
+### `greptile_index_repo`
+
+Greptileでインデックス化するリポジトリを送信します。リポジトリをクエリする前に、インデックス化を完了する必要があります。小規模なリポジトリは3〜5分、大規模なものは1時間以上かかる場合があります。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `remote` | string | はい | Gitリモートタイプ: githubまたはgitlab |
+| `repository` | string | はい | owner/repo形式のリポジトリ（例:「facebook/react」） |
+| `branch` | string | はい | インデックス化するブランチ（例:「main」または「master」） |
+| `reload` | boolean | いいえ | すでにインデックス化されている場合でも強制的に再インデックス化 |
+| `notify` | boolean | いいえ | インデックス化完了時にメール通知を送信 |
+| `apiKey` | string | はい | Greptile APIキー |
+| `githubToken` | string | はい | リポジトリ読み取りアクセス権を持つGitHub Personal Access Token |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `repositoryId` | string | インデックス化されたリポジトリの一意の識別子（形式: remote:branch:owner/repo） |
+| `statusEndpoint` | string | インデックス化ステータスを確認するためのURLエンドポイント |
+| `message` | string | インデックス化操作に関するステータスメッセージ |
+
+### `greptile_status`
+
+リポジトリのインデックス化ステータスを確認します。リポジトリがクエリ可能な状態かどうかを確認したり、インデックス化の進行状況を監視したりするために使用します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `remote` | string | はい | Gitリモートタイプ: githubまたはgitlab |
+| `repository` | string | はい | owner/repo形式のリポジトリ \(例: "facebook/react"\) |
+| `branch` | string | はい | ブランチ名 \(例: "main"または"master"\) |
+| `apiKey` | string | はい | Greptile APIキー |
+| `githubToken` | string | はい | リポジトリ読み取りアクセス権を持つGitHub Personal Access Token |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `repository` | string | リポジトリ名 \(owner/repo\) |
+| `remote` | string | Gitリモート \(github/gitlab\) |
+| `branch` | string | ブランチ名 |
+| `private` | boolean | リポジトリがプライベートかどうか |
+| `status` | string | インデックス作成ステータス: submitted、cloning、processing、completed、またはfailed |
+| `filesProcessed` | number | これまでに処理されたファイル数 |
+| `numFiles` | number | リポジトリ内のファイルの総数 |
+| `sampleQuestions` | array | インデックス化されたリポジトリのサンプル質問 |
+| `sha` | string | インデックス化されたバージョンのGitコミットSHA |
+
+## 注記
+
+- カテゴリ: `tools`
+- タイプ: `greptile`
