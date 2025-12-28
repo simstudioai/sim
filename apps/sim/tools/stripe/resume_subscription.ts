@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { ResumeSubscriptionParams, SubscriptionResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Resume Subscription Tool
+ * Uses official stripe SDK to resume scheduled cancellations
+ */
 
 export const stripeResumeSubscriptionTool: ToolConfig<
   ResumeSubscriptionParams,
@@ -25,31 +31,42 @@ export const stripeResumeSubscriptionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/subscriptions/${params.id}/resume`,
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: () => {
-      const formData = new URLSearchParams()
-      return { body: formData.toString() }
-    },
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Resumes subscription that was scheduled for cancellation
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        subscription: data,
-        metadata: {
-          id: data.id,
-          status: data.status,
-          customer: data.customer,
+      // Resume subscription using SDK
+      const subscription = await stripe.subscriptions.resume(params.id, {
+        billing_cycle_anchor: 'unchanged',
+      })
+
+      return {
+        success: true,
+        output: {
+          subscription,
+          metadata: {
+            id: subscription.id,
+            status: subscription.status,
+            customer: subscription.customer as string,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_RESUME_SUBSCRIPTION_ERROR',
+          message: error.message || 'Failed to resume subscription',
+          details: error,
+        },
+      }
     }
   },
 

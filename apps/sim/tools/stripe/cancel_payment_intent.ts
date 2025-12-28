@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { CancelPaymentIntentParams, PaymentIntentResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Cancel Payment Intent Tool
+ * Uses official stripe SDK to cancel payment intents
+ */
 
 export const stripeCancelPaymentIntentTool: ToolConfig<
   CancelPaymentIntentParams,
@@ -32,35 +38,47 @@ export const stripeCancelPaymentIntentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/payment_intents/${params.id}/cancel`,
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
-      if (params.cancellation_reason) {
-        formData.append('cancellation_reason', params.cancellation_reason)
-      }
-      return { body: formData.toString() }
-    },
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Cancels payment intent with optional cancellation reason
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        payment_intent: data,
-        metadata: {
-          id: data.id,
-          status: data.status,
-          amount: data.amount,
-          currency: data.currency,
+      // Prepare cancel options
+      const cancelOptions: Stripe.PaymentIntentCancelParams = {}
+      if (params.cancellation_reason) {
+        cancelOptions.cancellation_reason = params.cancellation_reason as Stripe.PaymentIntentCancelParams.CancellationReason
+      }
+
+      // Cancel payment intent using SDK
+      const paymentIntent = await stripe.paymentIntents.cancel(params.id, cancelOptions)
+
+      return {
+        success: true,
+        output: {
+          payment_intent: paymentIntent,
+          metadata: {
+            id: paymentIntent.id,
+            status: paymentIntent.status,
+            amount: paymentIntent.amount,
+            currency: paymentIntent.currency,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_CANCEL_PAYMENT_INTENT_ERROR',
+          message: error.message || 'Failed to cancel payment intent',
+          details: error,
+        },
+      }
     }
   },
 

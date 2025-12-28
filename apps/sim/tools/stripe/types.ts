@@ -724,6 +724,253 @@ export interface EventListResponse extends ToolResponse {
   }
 }
 
+// ============================================================================
+// Advanced Stripe Tools - Payout Reconciliation
+// ============================================================================
+
+export interface ReconcilePayoutsParams {
+  apiKey: string
+  startDate: string
+  endDate: string
+  bankTransactions: any[]
+  amountTolerance?: number
+  dateTolerance?: number
+}
+
+export interface ReconcilePayoutsResponse extends ToolResponse {
+  output: {
+    matched_payouts: Array<{
+      payout_id: string
+      payout_amount: number
+      payout_date: string
+      payout_status: string
+      bank_transaction_id: string
+      bank_amount: number
+      bank_date: string
+      bank_name: string
+      confidence: number
+      status: string
+    }>
+    unmatched_payouts: Array<{
+      payout_id: string
+      payout_amount: number
+      payout_date: string
+      payout_status: string
+      arrival_date: string | null
+      status: string
+      reason: string
+    }>
+    metadata: {
+      total_payouts: number
+      matched_count: number
+      unmatched_count: number
+      match_rate: number
+      date_range: {
+        start: string
+        end: string
+      }
+    }
+  }
+}
+
+// ============================================================================
+// Advanced Stripe Tools - Tax Reporting
+// ============================================================================
+
+export interface GenerateTaxReportParams {
+  apiKey: string
+  taxYear: number
+  reportType?: string
+}
+
+export interface GenerateTaxReportResponse extends ToolResponse {
+  output: {
+    tax_summary: {
+      tax_year: number
+      total_gross_payments: number
+      total_refunds: number
+      total_net_payments: number
+      total_transactions: number
+      requires_1099k: boolean
+      threshold_amount: number
+      filing_deadline: string
+    }
+    monthly_breakdown: Array<{
+      month: number
+      month_name: string
+      gross_payments: number
+      refunds: number
+      net_payments: number
+      transaction_count: number
+    }>
+    payment_method_breakdown: Array<{
+      payment_type: string
+      total_amount: number
+      percentage: number
+    }>
+    metadata: {
+      tax_year: number
+      report_type: string
+      requires_1099k: boolean
+      total_gross_payments: number
+      total_net_payments: number
+    }
+  }
+}
+
+// ============================================================================
+// Advanced Stripe Tools - Revenue Analytics
+// ============================================================================
+
+export interface AnalyzeRevenueParams {
+  apiKey: string
+  startDate: string
+  endDate: string
+  includeSubscriptions?: boolean
+  compareToPreviousPeriod?: boolean
+}
+
+export interface AnalyzeRevenueResponse extends ToolResponse {
+  output: {
+    revenue_summary: {
+      total_revenue: number
+      total_transactions: number
+      unique_customers: number
+      avg_transaction_value: number
+      avg_revenue_per_customer: number
+      period_days: number
+      avg_daily_revenue: number
+    }
+    recurring_metrics: {
+      estimated_mrr: number
+      estimated_arr: number
+      note: string
+    }
+    top_customers: Array<{
+      customer_id: string
+      total_revenue: number
+      percentage_of_total: number
+    }>
+    revenue_trend: Array<{
+      date: string
+      revenue: number
+    }>
+    metadata: {
+      start_date: string
+      end_date: string
+      total_revenue: number
+      growth_rate: number | null
+    }
+  }
+}
+
+// ============================================================================
+// Advanced Stripe Tools - Failed Payments
+// ============================================================================
+
+export interface DetectFailedPaymentsParams {
+  apiKey: string
+  startDate: string
+  endDate: string
+  minimumAmount?: number
+}
+
+export interface DetectFailedPaymentsResponse extends ToolResponse {
+  output: {
+    failed_payments: Array<{
+      charge_id: string
+      customer_id: string
+      amount: number
+      currency: string
+      failure_code: string
+      failure_message: string
+      created: string
+      payment_method: string
+      description: string | null
+      receipt_email: string | null
+    }>
+    failure_summary: {
+      total_failures: number
+      total_failed_amount: number
+      unique_customers_affected: number
+      avg_failed_amount: number
+    }
+    failure_categories: {
+      insufficient_funds: number
+      card_declined: number
+      expired_card: number
+      incorrect_cvc: number
+      processing_error: number
+      fraud_suspected: number
+      other: number
+    }
+    failure_reasons: Array<{
+      failure_code: string
+      count: number
+      percentage: number
+    }>
+    high_risk_customers: Array<{
+      customer_id: string
+      failure_count: number
+      risk_level: string
+      recommended_action: string
+    }>
+    recovery_recommendations: string[]
+    metadata: {
+      start_date: string
+      end_date: string
+      total_failures: number
+      total_failed_amount: number
+    }
+  }
+}
+
+// ============================================================================
+// Advanced Stripe Tools - Recurring Invoices
+// ============================================================================
+
+export interface CreateRecurringInvoiceParams {
+  apiKey: string
+  customer: string
+  amount: number
+  currency?: string
+  interval: string
+  intervalCount?: number
+  description?: string
+  autoAdvance?: boolean
+  daysUntilDue?: number
+}
+
+export interface CreateRecurringInvoiceResponse extends ToolResponse {
+  output: {
+    invoice: {
+      id: string
+      customer: string
+      amount_due: number
+      currency: string
+      status: string
+      created: string
+      due_date: string | null
+      invoice_pdf: string | null
+      hosted_invoice_url: string | null
+    }
+    recurring_schedule: {
+      interval: string
+      interval_count: number
+      next_invoice_date: string
+      estimated_annual_value: number
+    }
+    metadata: {
+      invoice_id: string
+      customer_id: string
+      amount: number
+      status: string
+      recurring: boolean
+      interval: string
+    }
+  }
+}
+
 export type StripeResponse =
   | PaymentIntentResponse
   | PaymentIntentListResponse
@@ -744,3 +991,8 @@ export type StripeResponse =
   | PriceListResponse
   | EventResponse
   | EventListResponse
+  | ReconcilePayoutsResponse
+  | GenerateTaxReportResponse
+  | AnalyzeRevenueResponse
+  | DetectFailedPaymentsResponse
+  | CreateRecurringInvoiceResponse

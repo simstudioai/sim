@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { InvoiceResponse, VoidInvoiceParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Void Invoice Tool
+ * Uses official stripe SDK to void invoices
+ */
 
 export const stripeVoidInvoiceTool: ToolConfig<VoidInvoiceParams, InvoiceResponse> = {
   id: 'stripe_void_invoice',
@@ -22,28 +28,41 @@ export const stripeVoidInvoiceTool: ToolConfig<VoidInvoiceParams, InvoiceRespons
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/invoices/${params.id}/void`,
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Voids an invoice marking it as uncollectible
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        invoice: data,
-        metadata: {
-          id: data.id,
-          status: data.status,
-          amount_due: data.amount_due,
-          currency: data.currency,
+      // Void invoice using SDK
+      const invoice = await stripe.invoices.voidInvoice(params.id)
+
+      return {
+        success: true,
+        output: {
+          invoice,
+          metadata: {
+            id: invoice.id,
+            status: invoice.status,
+            amount_due: invoice.amount_due,
+            currency: invoice.currency,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_VOID_INVOICE_ERROR',
+          message: error.message || 'Failed to void invoice',
+          details: error,
+        },
+      }
     }
   },
 

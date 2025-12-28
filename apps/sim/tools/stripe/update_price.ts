@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { PriceResponse, UpdatePriceParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Update Price Tool
+ * Uses official stripe SDK for price updates
+ */
 
 export const stripeUpdatePriceTool: ToolConfig<UpdatePriceParams, PriceResponse> = {
   id: 'stripe_update_price',
@@ -34,41 +40,46 @@ export const stripeUpdatePriceTool: ToolConfig<UpdatePriceParams, PriceResponse>
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/prices/${params.id}`,
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
+  /**
+   * SDK-based execution using stripe SDK
+   * Updates price with optional fields (note: amount cannot be changed)
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-      if (params.active !== undefined) formData.append('active', String(params.active))
+      // Prepare update data
+      const updateData: Stripe.PriceUpdateParams = {}
+      if (params.active !== undefined) updateData.active = params.active
+      if (params.metadata) updateData.metadata = params.metadata
 
-      if (params.metadata) {
-        Object.entries(params.metadata).forEach(([key, value]) => {
-          formData.append(`metadata[${key}]`, String(value))
-        })
-      }
+      // Update price using SDK
+      const price = await stripe.prices.update(params.id, updateData)
 
-      return { body: formData.toString() }
-    },
-  },
-
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        price: data,
-        metadata: {
-          id: data.id,
-          product: data.product,
-          unit_amount: data.unit_amount,
-          currency: data.currency,
+      return {
+        success: true,
+        output: {
+          price,
+          metadata: {
+            id: price.id,
+            product: price.product as string,
+            unit_amount: price.unit_amount,
+            currency: price.currency,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_UPDATE_PRICE_ERROR',
+          message: error.message || 'Failed to update price',
+          details: error,
+        },
+      }
     }
   },
 

@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { EventListResponse, ListEventsParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe List Events Tool
+ * Uses official stripe SDK for event listing with filtering
+ */
 
 export const stripeListEventsTool: ToolConfig<ListEventsParams, EventListResponse> = {
   id: 'stripe_list_events',
@@ -34,36 +40,45 @@ export const stripeListEventsTool: ToolConfig<ListEventsParams, EventListRespons
     },
   },
 
-  request: {
-    url: (params) => {
-      const url = new URL('https://api.stripe.com/v1/events')
-      if (params.limit) url.searchParams.append('limit', params.limit.toString())
-      if (params.type) url.searchParams.append('type', params.type)
-      if (params.created) {
-        Object.entries(params.created).forEach(([key, value]) => {
-          url.searchParams.append(`created[${key}]`, String(value))
-        })
-      }
-      return url.toString()
-    },
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Lists events with optional filtering by type and date
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        events: data.data || [],
-        metadata: {
-          count: (data.data || []).length,
-          has_more: data.has_more || false,
+      // Prepare list options
+      const listOptions: Stripe.EventListParams = {}
+      if (params.limit) listOptions.limit = params.limit
+      if (params.type) listOptions.type = params.type
+      if (params.created) listOptions.created = params.created
+
+      // List events using SDK
+      const eventList = await stripe.events.list(listOptions)
+
+      return {
+        success: true,
+        output: {
+          events: eventList.data || [],
+          metadata: {
+            count: eventList.data.length,
+            has_more: eventList.has_more || false,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_LIST_EVENTS_ERROR',
+          message: error.message || 'Failed to list events',
+          details: error,
+        },
+      }
     }
   },
 

@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { InvoiceResponse, PayInvoiceParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Pay Invoice Tool
+ * Uses official stripe SDK to pay invoices
+ */
 
 export const stripePayInvoiceTool: ToolConfig<PayInvoiceParams, InvoiceResponse> = {
   id: 'stripe_pay_invoice',
@@ -28,35 +34,47 @@ export const stripePayInvoiceTool: ToolConfig<PayInvoiceParams, InvoiceResponse>
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/invoices/${params.id}/pay`,
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
-      if (params.paid_out_of_band !== undefined) {
-        formData.append('paid_out_of_band', String(params.paid_out_of_band))
-      }
-      return { body: formData.toString() }
-    },
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Pays an invoice or marks it as paid out of band
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        invoice: data,
-        metadata: {
-          id: data.id,
-          status: data.status,
-          amount_due: data.amount_due,
-          currency: data.currency,
+      // Prepare pay options
+      const payOptions: Stripe.InvoicePayParams = {}
+      if (params.paid_out_of_band !== undefined) {
+        payOptions.paid_out_of_band = params.paid_out_of_band
+      }
+
+      // Pay invoice using SDK
+      const invoice = await stripe.invoices.pay(params.id, payOptions)
+
+      return {
+        success: true,
+        output: {
+          invoice,
+          metadata: {
+            id: invoice.id,
+            status: invoice.status,
+            amount_due: invoice.amount_due,
+            currency: invoice.currency,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_PAY_INVOICE_ERROR',
+          message: error.message || 'Failed to pay invoice',
+          details: error,
+        },
+      }
     }
   },
 

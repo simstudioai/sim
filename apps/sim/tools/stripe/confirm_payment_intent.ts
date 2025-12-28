@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { ConfirmPaymentIntentParams, PaymentIntentResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Confirm Payment Intent Tool
+ * Uses official stripe SDK to confirm payment intents
+ */
 
 export const stripeConfirmPaymentIntentTool: ToolConfig<
   ConfirmPaymentIntentParams,
@@ -31,33 +37,45 @@ export const stripeConfirmPaymentIntentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/payment_intents/${params.id}/confirm`,
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
-      if (params.payment_method) formData.append('payment_method', params.payment_method)
-      return { body: formData.toString() }
-    },
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Confirms payment intent to complete the payment
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        payment_intent: data,
-        metadata: {
-          id: data.id,
-          status: data.status,
-          amount: data.amount,
-          currency: data.currency,
+      // Prepare confirm options
+      const confirmOptions: Stripe.PaymentIntentConfirmParams = {}
+      if (params.payment_method) confirmOptions.payment_method = params.payment_method
+
+      // Confirm payment intent using SDK
+      const paymentIntent = await stripe.paymentIntents.confirm(params.id, confirmOptions)
+
+      return {
+        success: true,
+        output: {
+          payment_intent: paymentIntent,
+          metadata: {
+            id: paymentIntent.id,
+            status: paymentIntent.status,
+            amount: paymentIntent.amount,
+            currency: paymentIntent.currency,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_CONFIRM_PAYMENT_INTENT_ERROR',
+          message: error.message || 'Failed to confirm payment intent',
+          details: error,
+        },
+      }
     }
   },
 

@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { ListPaymentIntentsParams, PaymentIntentListResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe List Payment Intents Tool
+ * Uses official stripe SDK for payment intent listing with pagination and filtering
+ */
 
 export const stripeListPaymentIntentsTool: ToolConfig<
   ListPaymentIntentsParams,
@@ -37,36 +43,45 @@ export const stripeListPaymentIntentsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: (params) => {
-      const url = new URL('https://api.stripe.com/v1/payment_intents')
-      if (params.limit) url.searchParams.append('limit', params.limit.toString())
-      if (params.customer) url.searchParams.append('customer', params.customer)
-      if (params.created) {
-        Object.entries(params.created).forEach(([key, value]) => {
-          url.searchParams.append(`created[${key}]`, String(value))
-        })
-      }
-      return url.toString()
-    },
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Lists payment intents with optional filtering and pagination
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        payment_intents: data.data || [],
-        metadata: {
-          count: (data.data || []).length,
-          has_more: data.has_more || false,
+      // Prepare list options
+      const listOptions: Stripe.PaymentIntentListParams = {}
+      if (params.limit) listOptions.limit = params.limit
+      if (params.customer) listOptions.customer = params.customer
+      if (params.created) listOptions.created = params.created
+
+      // List payment intents using SDK
+      const paymentIntentList = await stripe.paymentIntents.list(listOptions)
+
+      return {
+        success: true,
+        output: {
+          payment_intents: paymentIntentList.data || [],
+          metadata: {
+            count: paymentIntentList.data.length,
+            has_more: paymentIntentList.has_more || false,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_LIST_PAYMENT_INTENTS_ERROR',
+          message: error.message || 'Failed to list payment intents',
+          details: error,
+        },
+      }
     }
   },
 

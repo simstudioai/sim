@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { DeleteInvoiceParams, InvoiceDeleteResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Delete Invoice Tool
+ * Uses official stripe SDK to permanently delete draft invoices
+ */
 
 export const stripeDeleteInvoiceTool: ToolConfig<DeleteInvoiceParams, InvoiceDeleteResponse> = {
   id: 'stripe_delete_invoice',
@@ -22,27 +28,40 @@ export const stripeDeleteInvoiceTool: ToolConfig<DeleteInvoiceParams, InvoiceDel
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/invoices/${params.id}`,
-    method: 'DELETE',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Permanently deletes draft invoice (only works on draft status)
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        deleted: data.deleted,
-        id: data.id,
-        metadata: {
-          id: data.id,
-          deleted: data.deleted,
+      // Delete invoice using SDK
+      const deletionConfirmation = await stripe.invoices.del(params.id)
+
+      return {
+        success: true,
+        output: {
+          deleted: deletionConfirmation.deleted,
+          id: deletionConfirmation.id,
+          metadata: {
+            id: deletionConfirmation.id,
+            deleted: deletionConfirmation.deleted,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_DELETE_INVOICE_ERROR',
+          message: error.message || 'Failed to delete invoice',
+          details: error,
+        },
+      }
     }
   },
 

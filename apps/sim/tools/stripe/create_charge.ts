@@ -1,6 +1,11 @@
+import Stripe from 'stripe'
 import type { ChargeResponse, CreateChargeParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Stripe Create Charge Tool
+ * Uses official stripe SDK for charge creation
+ */
 export const stripeCreateChargeTool: ToolConfig<CreateChargeParams, ChargeResponse> = {
   id: 'stripe_create_charge',
   name: 'Stripe Create Charge',
@@ -58,47 +63,54 @@ export const stripeCreateChargeTool: ToolConfig<CreateChargeParams, ChargeRespon
     },
   },
 
-  request: {
-    url: () => 'https://api.stripe.com/v1/charges',
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
-      formData.append('amount', Number(params.amount).toString())
-      formData.append('currency', params.currency)
+  /**
+   * SDK-based execution using stripe SDK
+   * Creates charge with optional capture delay
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-      if (params.customer) formData.append('customer', params.customer)
-      if (params.source) formData.append('source', params.source)
-      if (params.description) formData.append('description', params.description)
-      if (params.capture !== undefined) formData.append('capture', String(params.capture))
-
-      if (params.metadata) {
-        Object.entries(params.metadata).forEach(([key, value]) => {
-          formData.append(`metadata[${key}]`, String(value))
-        })
+      // Prepare charge data
+      const chargeData: Stripe.ChargeCreateParams = {
+        amount: Number(params.amount),
+        currency: params.currency,
       }
 
-      return { body: formData.toString() }
-    },
-  },
+      if (params.customer) chargeData.customer = params.customer
+      if (params.source) chargeData.source = params.source
+      if (params.description) chargeData.description = params.description
+      if (params.capture !== undefined) chargeData.capture = params.capture
+      if (params.metadata) chargeData.metadata = params.metadata
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        charge: data,
-        metadata: {
-          id: data.id,
-          status: data.status,
-          amount: data.amount,
-          currency: data.currency,
-          paid: data.paid,
+      // Create charge using SDK
+      const charge = await stripe.charges.create(chargeData)
+
+      return {
+        success: true,
+        output: {
+          charge,
+          metadata: {
+            id: charge.id,
+            status: charge.status,
+            amount: charge.amount,
+            currency: charge.currency,
+            paid: charge.paid,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_CHARGE_ERROR',
+          message: error.message || 'Failed to create charge',
+          details: error,
+        },
+      }
     }
   },
 

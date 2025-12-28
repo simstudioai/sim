@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { ProductResponse, UpdateProductParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Update Product Tool
+ * Uses official stripe SDK for product updates
+ */
 
 export const stripeUpdateProductTool: ToolConfig<UpdateProductParams, ProductResponse> = {
   id: 'stripe_update_product',
@@ -52,48 +58,48 @@ export const stripeUpdateProductTool: ToolConfig<UpdateProductParams, ProductRes
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/products/${params.id}`,
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
+  /**
+   * SDK-based execution using stripe SDK
+   * Updates product with optional fields
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-      if (params.name) formData.append('name', params.name)
-      if (params.description) formData.append('description', params.description)
-      if (params.active !== undefined) formData.append('active', String(params.active))
+      // Prepare update data
+      const updateData: Stripe.ProductUpdateParams = {}
+      if (params.name) updateData.name = params.name
+      if (params.description) updateData.description = params.description
+      if (params.active !== undefined) updateData.active = params.active
+      if (params.images) updateData.images = params.images
+      if (params.metadata) updateData.metadata = params.metadata
 
-      if (params.images) {
-        params.images.forEach((image: string, index: number) => {
-          formData.append(`images[${index}]`, image)
-        })
-      }
+      // Update product using SDK
+      const product = await stripe.products.update(params.id, updateData)
 
-      if (params.metadata) {
-        Object.entries(params.metadata).forEach(([key, value]) => {
-          formData.append(`metadata[${key}]`, String(value))
-        })
-      }
-
-      return { body: formData.toString() }
-    },
-  },
-
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        product: data,
-        metadata: {
-          id: data.id,
-          name: data.name,
-          active: data.active,
+      return {
+        success: true,
+        output: {
+          product,
+          metadata: {
+            id: product.id,
+            name: product.name,
+            active: product.active,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_UPDATE_PRODUCT_ERROR',
+          message: error.message || 'Failed to update product',
+          details: error,
+        },
+      }
     }
   },
 

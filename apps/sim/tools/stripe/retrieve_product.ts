@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { ProductResponse, RetrieveProductParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Retrieve Product Tool
+ * Uses official stripe SDK for product retrieval
+ */
 
 export const stripeRetrieveProductTool: ToolConfig<RetrieveProductParams, ProductResponse> = {
   id: 'stripe_retrieve_product',
@@ -22,27 +28,40 @@ export const stripeRetrieveProductTool: ToolConfig<RetrieveProductParams, Produc
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/products/${params.id}`,
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Retrieves product by ID with full product data
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        product: data,
-        metadata: {
-          id: data.id,
-          name: data.name,
-          active: data.active,
+      // Retrieve product using SDK
+      const product = await stripe.products.retrieve(params.id)
+
+      return {
+        success: true,
+        output: {
+          product,
+          metadata: {
+            id: product.id,
+            name: product.name,
+            active: product.active,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_RETRIEVE_PRODUCT_ERROR',
+          message: error.message || 'Failed to retrieve product',
+          details: error,
+        },
+      }
     }
   },
 

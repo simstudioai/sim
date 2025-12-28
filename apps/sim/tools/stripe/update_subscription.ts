@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { SubscriptionResponse, UpdateSubscriptionParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Update Subscription Tool
+ * Uses official stripe SDK for subscription updates
+ */
 
 export const stripeUpdateSubscriptionTool: ToolConfig<
   UpdateSubscriptionParams,
@@ -43,51 +49,48 @@ export const stripeUpdateSubscriptionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/subscriptions/${params.id}`,
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
+  /**
+   * SDK-based execution using stripe SDK
+   * Updates subscription with optional fields
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-      if (params.items && Array.isArray(params.items)) {
-        params.items.forEach((item, index) => {
-          formData.append(`items[${index}][price]`, item.price)
-          if (item.quantity) {
-            formData.append(`items[${index}][quantity]`, String(item.quantity))
-          }
-        })
-      }
-
+      // Prepare update data
+      const updateData: Stripe.SubscriptionUpdateParams = {}
+      if (params.items) updateData.items = params.items
       if (params.cancel_at_period_end !== undefined) {
-        formData.append('cancel_at_period_end', String(params.cancel_at_period_end))
+        updateData.cancel_at_period_end = params.cancel_at_period_end
       }
+      if (params.metadata) updateData.metadata = params.metadata
 
-      if (params.metadata) {
-        Object.entries(params.metadata).forEach(([key, value]) => {
-          formData.append(`metadata[${key}]`, String(value))
-        })
-      }
+      // Update subscription using SDK
+      const subscription = await stripe.subscriptions.update(params.id, updateData)
 
-      return { body: formData.toString() }
-    },
-  },
-
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        subscription: data,
-        metadata: {
-          id: data.id,
-          status: data.status,
-          customer: data.customer,
+      return {
+        success: true,
+        output: {
+          subscription,
+          metadata: {
+            id: subscription.id,
+            status: subscription.status,
+            customer: subscription.customer as string,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_UPDATE_SUBSCRIPTION_ERROR',
+          message: error.message || 'Failed to update subscription',
+          details: error,
+        },
+      }
     }
   },
 

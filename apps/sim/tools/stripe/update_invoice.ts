@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { InvoiceResponse, UpdateInvoiceParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Update Invoice Tool
+ * Uses official stripe SDK for invoice updates
+ */
 
 export const stripeUpdateInvoiceTool: ToolConfig<UpdateInvoiceParams, InvoiceResponse> = {
   id: 'stripe_update_invoice',
@@ -40,44 +46,47 @@ export const stripeUpdateInvoiceTool: ToolConfig<UpdateInvoiceParams, InvoiceRes
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/invoices/${params.id}`,
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
+  /**
+   * SDK-based execution using stripe SDK
+   * Updates invoice with optional fields
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-      if (params.description) formData.append('description', params.description)
-      if (params.auto_advance !== undefined) {
-        formData.append('auto_advance', String(params.auto_advance))
-      }
+      // Prepare update data
+      const updateData: Stripe.InvoiceUpdateParams = {}
+      if (params.description) updateData.description = params.description
+      if (params.auto_advance !== undefined) updateData.auto_advance = params.auto_advance
+      if (params.metadata) updateData.metadata = params.metadata
 
-      if (params.metadata) {
-        Object.entries(params.metadata).forEach(([key, value]) => {
-          formData.append(`metadata[${key}]`, String(value))
-        })
-      }
+      // Update invoice using SDK
+      const invoice = await stripe.invoices.update(params.id, updateData)
 
-      return { body: formData.toString() }
-    },
-  },
-
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        invoice: data,
-        metadata: {
-          id: data.id,
-          status: data.status,
-          amount_due: data.amount_due,
-          currency: data.currency,
+      return {
+        success: true,
+        output: {
+          invoice,
+          metadata: {
+            id: invoice.id,
+            status: invoice.status,
+            amount_due: invoice.amount_due,
+            currency: invoice.currency,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_UPDATE_INVOICE_ERROR',
+          message: error.message || 'Failed to update invoice',
+          details: error,
+        },
+      }
     }
   },
 

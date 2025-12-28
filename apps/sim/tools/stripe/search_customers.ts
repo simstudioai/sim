@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { CustomerListResponse, SearchCustomersParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Search Customers Tool
+ * Uses official stripe SDK for customer search with query syntax
+ */
 
 export const stripeSearchCustomersTool: ToolConfig<SearchCustomersParams, CustomerListResponse> = {
   id: 'stripe_search_customers',
@@ -28,31 +34,45 @@ export const stripeSearchCustomersTool: ToolConfig<SearchCustomersParams, Custom
     },
   },
 
-  request: {
-    url: (params) => {
-      const url = new URL('https://api.stripe.com/v1/customers/search')
-      url.searchParams.append('query', params.query)
-      if (params.limit) url.searchParams.append('limit', params.limit.toString())
-      return url.toString()
-    },
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Searches customers using Stripe's query syntax
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        customers: data.data || [],
-        metadata: {
-          count: (data.data || []).length,
-          has_more: data.has_more || false,
+      // Prepare search options
+      const searchOptions: Stripe.CustomerSearchParams = {
+        query: params.query,
+      }
+      if (params.limit) searchOptions.limit = params.limit
+
+      // Search customers using SDK
+      const searchResult = await stripe.customers.search(searchOptions)
+
+      return {
+        success: true,
+        output: {
+          customers: searchResult.data || [],
+          metadata: {
+            count: searchResult.data.length,
+            has_more: searchResult.has_more || false,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_SEARCH_CUSTOMERS_ERROR',
+          message: error.message || 'Failed to search customers',
+          details: error,
+        },
+      }
     }
   },
 

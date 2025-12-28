@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { CancelSubscriptionParams, SubscriptionResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Cancel Subscription Tool
+ * Uses official stripe SDK to cancel subscriptions
+ */
 
 export const stripeCancelSubscriptionTool: ToolConfig<
   CancelSubscriptionParams,
@@ -37,39 +43,45 @@ export const stripeCancelSubscriptionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/subscriptions/${params.id}`,
-    method: 'DELETE',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
+  /**
+   * SDK-based execution using stripe SDK
+   * Cancels subscription with optional proration and invoicing
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-      if (params.prorate !== undefined) {
-        formData.append('prorate', String(params.prorate))
-      }
-      if (params.invoice_now !== undefined) {
-        formData.append('invoice_now', String(params.invoice_now))
-      }
+      // Prepare cancel options
+      const cancelOptions: Stripe.SubscriptionDeleteParams = {}
+      if (params.prorate !== undefined) cancelOptions.prorate = params.prorate
+      if (params.invoice_now !== undefined) cancelOptions.invoice_now = params.invoice_now
 
-      return { body: formData.toString() }
-    },
-  },
+      // Cancel subscription using SDK (uses delete method)
+      const subscription = await stripe.subscriptions.cancel(params.id, cancelOptions)
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        subscription: data,
-        metadata: {
-          id: data.id,
-          status: data.status,
-          customer: data.customer,
+      return {
+        success: true,
+        output: {
+          subscription,
+          metadata: {
+            id: subscription.id,
+            status: subscription.status,
+            customer: subscription.customer as string,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_CANCEL_SUBSCRIPTION_ERROR',
+          message: error.message || 'Failed to cancel subscription',
+          details: error,
+        },
+      }
     }
   },
 

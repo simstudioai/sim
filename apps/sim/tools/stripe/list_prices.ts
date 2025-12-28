@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { ListPricesParams, PriceListResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe List Prices Tool
+ * Uses official stripe SDK for price listing with pagination and filtering
+ */
 
 export const stripeListPricesTool: ToolConfig<ListPricesParams, PriceListResponse> = {
   id: 'stripe_list_prices',
@@ -34,32 +40,45 @@ export const stripeListPricesTool: ToolConfig<ListPricesParams, PriceListRespons
     },
   },
 
-  request: {
-    url: (params) => {
-      const url = new URL('https://api.stripe.com/v1/prices')
-      if (params.limit) url.searchParams.append('limit', params.limit.toString())
-      if (params.product) url.searchParams.append('product', params.product)
-      if (params.active !== undefined) url.searchParams.append('active', params.active.toString())
-      return url.toString()
-    },
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Lists prices with optional filtering and pagination
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        prices: data.data || [],
-        metadata: {
-          count: (data.data || []).length,
-          has_more: data.has_more || false,
+      // Prepare list options
+      const listOptions: Stripe.PriceListParams = {}
+      if (params.limit) listOptions.limit = params.limit
+      if (params.product) listOptions.product = params.product
+      if (params.active !== undefined) listOptions.active = params.active
+
+      // List prices using SDK
+      const priceList = await stripe.prices.list(listOptions)
+
+      return {
+        success: true,
+        output: {
+          prices: priceList.data || [],
+          metadata: {
+            count: priceList.data.length,
+            has_more: priceList.has_more || false,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_LIST_PRICES_ERROR',
+          message: error.message || 'Failed to list prices',
+          details: error,
+        },
+      }
     }
   },
 

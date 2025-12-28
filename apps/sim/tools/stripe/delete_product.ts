@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { DeleteProductParams, ProductDeleteResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Delete Product Tool
+ * Uses official stripe SDK to permanently delete products
+ */
 
 export const stripeDeleteProductTool: ToolConfig<DeleteProductParams, ProductDeleteResponse> = {
   id: 'stripe_delete_product',
@@ -22,27 +28,40 @@ export const stripeDeleteProductTool: ToolConfig<DeleteProductParams, ProductDel
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/products/${params.id}`,
-    method: 'DELETE',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Permanently deletes product record
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        deleted: data.deleted,
-        id: data.id,
-        metadata: {
-          id: data.id,
-          deleted: data.deleted,
+      // Delete product using SDK
+      const deletionConfirmation = await stripe.products.del(params.id)
+
+      return {
+        success: true,
+        output: {
+          deleted: deletionConfirmation.deleted,
+          id: deletionConfirmation.id,
+          metadata: {
+            id: deletionConfirmation.id,
+            deleted: deletionConfirmation.deleted,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_DELETE_PRODUCT_ERROR',
+          message: error.message || 'Failed to delete product',
+          details: error,
+        },
+      }
     }
   },
 

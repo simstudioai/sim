@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { CaptureChargeParams, ChargeResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Capture Charge Tool
+ * Uses official stripe SDK to capture authorized charges
+ */
 
 export const stripeCaptureChargeTool: ToolConfig<CaptureChargeParams, ChargeResponse> = {
   id: 'stripe_capture_charge',
@@ -28,36 +34,46 @@ export const stripeCaptureChargeTool: ToolConfig<CaptureChargeParams, ChargeResp
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/charges/${params.id}/capture`,
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
-      if (params.amount) {
-        formData.append('amount', Number(params.amount).toString())
-      }
-      return { body: formData.toString() }
-    },
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Captures authorized charge with optional partial amount
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        charge: data,
-        metadata: {
-          id: data.id,
-          status: data.status,
-          amount: data.amount,
-          currency: data.currency,
-          paid: data.paid,
+      // Prepare capture options
+      const captureOptions: Stripe.ChargeCaptureParams = {}
+      if (params.amount) captureOptions.amount = Number(params.amount)
+
+      // Capture charge using SDK
+      const charge = await stripe.charges.capture(params.id, captureOptions)
+
+      return {
+        success: true,
+        output: {
+          charge,
+          metadata: {
+            id: charge.id,
+            status: charge.status,
+            amount: charge.amount,
+            currency: charge.currency,
+            paid: charge.paid,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_CAPTURE_CHARGE_ERROR',
+          message: error.message || 'Failed to capture charge',
+          details: error,
+        },
+      }
     }
   },
 

@@ -1,3 +1,4 @@
+import Stripe from 'stripe'
 import type { PriceListResponse, SearchPricesParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -28,31 +29,21 @@ export const stripeSearchPricesTool: ToolConfig<SearchPricesParams, PriceListRes
     },
   },
 
-  request: {
-    url: (params) => {
-      const url = new URL('https://api.stripe.com/v1/prices/search')
-      url.searchParams.append('query', params.query)
-      if (params.limit) url.searchParams.append('limit', params.limit.toString())
-      return url.toString()
-    },
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-  },
-
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        prices: data.data || [],
-        metadata: {
-          count: (data.data || []).length,
-          has_more: data.has_more || false,
+  directExecution: async (params) => {
+    try {
+      const stripe = new Stripe(params.apiKey, { apiVersion: '2024-12-18.acacia' })
+      const searchOptions: Stripe.PriceSearchParams = { query: params.query }
+      if (params.limit) searchOptions.limit = params.limit
+      const searchResult = await stripe.prices.search(searchOptions)
+      return {
+        success: true,
+        output: {
+          prices: searchResult.data || [],
+          metadata: { count: searchResult.data.length, has_more: searchResult.has_more || false },
         },
-      },
+      }
+    } catch (error: any) {
+      return { success: false, error: { code: 'STRIPE_SEARCH_PRICES_ERROR', message: error.message || 'Failed to search prices', details: error } }
     }
   },
 

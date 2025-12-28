@@ -4344,3 +4344,66 @@ export function CirclebackIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function QuickBooksIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' width='24' height='24'>
+      <rect width='48' height='48' rx='8' fill='#2CA01C' />
+      <path
+        d='M12 16C12 14.3431 13.3431 13 15 13H19C20.6569 13 22 14.3431 22 16V24H19V16H15V32H19V28H22V32C22 33.6569 20.6569 35 19 35H15C13.3431 35 12 33.6569 12 32V16Z'
+        fill='white'
+      />
+      <path
+        d='M26 13H33C34.6569 13 36 14.3431 36 16V20C36 21.1046 35.1046 22 34 22H26V24H35V27H33C31.3431 27 30 25.6569 30 24V21C30 19.8954 30.8954 19 32 19H36V16H26V13Z'
+        fill='white'
+      />
+      <circle cx='34' cy='31' r='3' fill='white' />
+    </svg>
+  )
+}
+
+export function PlaidIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' width='24' height='24'>
+      <rect width='48' height='48' fill='#000000' />
+      <path
+        d='M24 12L12 18V30L24 36L36 30V18L24 12Z'
+        fill='none'
+        stroke='#00D4AA'
+        strokeWidth='2'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <path d='M24 12V36M12 18L36 30M36 18L12 30' stroke='#00D4AA' strokeWidth='1.5' />
+    </svg>
+  )
+}
+
+export function FreshBooksIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' width='24' height='24'>
+      <rect width='48' height='48' fill='#0075DD' />
+      <path
+        d='M14 16h20v3H14zM14 22h20v3H14zM14 28h14v3H14z'
+        fill='white'
+      />
+      <circle cx='32' cy='29.5' r='2' fill='white' />
+    </svg>
+  )
+}
+
+export function XeroIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' width='24' height='24'>
+      <rect width='48' height='48' fill='#13B5EA' />
+      <path
+        d='M12 16L24 24L36 16M12 32L24 24L36 32'
+        fill='none'
+        stroke='white'
+        strokeWidth='3'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+    </svg>
+  )
+}

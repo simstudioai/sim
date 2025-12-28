@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { CreateProductParams, ProductResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Create Product Tool
+ * Uses official stripe SDK for product creation
+ */
 
 export const stripeCreateProductTool: ToolConfig<CreateProductParams, ProductResponse> = {
   id: 'stripe_create_product',
@@ -46,48 +52,50 @@ export const stripeCreateProductTool: ToolConfig<CreateProductParams, ProductRes
     },
   },
 
-  request: {
-    url: () => 'https://api.stripe.com/v1/products',
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
+  /**
+   * SDK-based execution using stripe SDK
+   * Creates product with metadata and image support
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-      formData.append('name', params.name)
-      if (params.description) formData.append('description', params.description)
-      if (params.active !== undefined) formData.append('active', String(params.active))
-
-      if (params.images) {
-        params.images.forEach((image: string, index: number) => {
-          formData.append(`images[${index}]`, image)
-        })
+      // Prepare product data
+      const productData: Stripe.ProductCreateParams = {
+        name: params.name,
       }
 
-      if (params.metadata) {
-        Object.entries(params.metadata).forEach(([key, value]) => {
-          formData.append(`metadata[${key}]`, String(value))
-        })
-      }
+      if (params.description) productData.description = params.description
+      if (params.active !== undefined) productData.active = params.active
+      if (params.images) productData.images = params.images
+      if (params.metadata) productData.metadata = params.metadata
 
-      return { body: formData.toString() }
-    },
-  },
+      // Create product using SDK
+      const product = await stripe.products.create(productData)
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        product: data,
-        metadata: {
-          id: data.id,
-          name: data.name,
-          active: data.active,
+      return {
+        success: true,
+        output: {
+          product,
+          metadata: {
+            id: product.id,
+            name: product.name,
+            active: product.active,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_CREATE_PRODUCT_ERROR',
+          message: error.message || 'Failed to create product',
+          details: error,
+        },
+      }
     }
   },
 

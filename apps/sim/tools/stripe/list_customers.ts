@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { CustomerListResponse, ListCustomersParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe List Customers Tool
+ * Uses official stripe SDK for customer listing with pagination and filtering
+ */
 
 export const stripeListCustomersTool: ToolConfig<ListCustomersParams, CustomerListResponse> = {
   id: 'stripe_list_customers',
@@ -34,36 +40,45 @@ export const stripeListCustomersTool: ToolConfig<ListCustomersParams, CustomerLi
     },
   },
 
-  request: {
-    url: (params) => {
-      const url = new URL('https://api.stripe.com/v1/customers')
-      if (params.limit) url.searchParams.append('limit', params.limit.toString())
-      if (params.email) url.searchParams.append('email', params.email)
-      if (params.created) {
-        Object.entries(params.created).forEach(([key, value]) => {
-          url.searchParams.append(`created[${key}]`, String(value))
-        })
-      }
-      return url.toString()
-    },
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Lists customers with optional filtering and pagination
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        customers: data.data || [],
-        metadata: {
-          count: (data.data || []).length,
-          has_more: data.has_more || false,
+      // Prepare list options
+      const listOptions: Stripe.CustomerListParams = {}
+      if (params.limit) listOptions.limit = params.limit
+      if (params.email) listOptions.email = params.email
+      if (params.created) listOptions.created = params.created
+
+      // List customers using SDK
+      const customerList = await stripe.customers.list(listOptions)
+
+      return {
+        success: true,
+        output: {
+          customers: customerList.data || [],
+          metadata: {
+            count: customerList.data.length,
+            has_more: customerList.has_more || false,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_LIST_CUSTOMERS_ERROR',
+          message: error.message || 'Failed to list customers',
+          details: error,
+        },
+      }
     }
   },
 

@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { FinalizeInvoiceParams, InvoiceResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Finalize Invoice Tool
+ * Uses official stripe SDK to finalize draft invoices
+ */
 
 export const stripeFinalizeInvoiceTool: ToolConfig<FinalizeInvoiceParams, InvoiceResponse> = {
   id: 'stripe_finalize_invoice',
@@ -28,37 +34,45 @@ export const stripeFinalizeInvoiceTool: ToolConfig<FinalizeInvoiceParams, Invoic
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/invoices/${params.id}/finalize`,
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
+  /**
+   * SDK-based execution using stripe SDK
+   * Finalizes a draft invoice making it immutable
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-      if (params.auto_advance !== undefined) {
-        formData.append('auto_advance', String(params.auto_advance))
-      }
+      // Prepare finalize options
+      const finalizeOptions: Stripe.InvoiceFinalizeInvoiceParams = {}
+      if (params.auto_advance !== undefined) finalizeOptions.auto_advance = params.auto_advance
 
-      return { body: formData.toString() }
-    },
-  },
+      // Finalize invoice using SDK
+      const invoice = await stripe.invoices.finalizeInvoice(params.id, finalizeOptions)
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        invoice: data,
-        metadata: {
-          id: data.id,
-          status: data.status,
-          amount_due: data.amount_due,
-          currency: data.currency,
+      return {
+        success: true,
+        output: {
+          invoice,
+          metadata: {
+            id: invoice.id,
+            status: invoice.status,
+            amount_due: invoice.amount_due,
+            currency: invoice.currency,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_FINALIZE_INVOICE_ERROR',
+          message: error.message || 'Failed to finalize invoice',
+          details: error,
+        },
+      }
     }
   },
 

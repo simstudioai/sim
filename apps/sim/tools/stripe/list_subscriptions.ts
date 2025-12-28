@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { ListSubscriptionsParams, SubscriptionListResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe List Subscriptions Tool
+ * Uses official stripe SDK for subscription listing with pagination and filtering
+ */
 
 export const stripeListSubscriptionsTool: ToolConfig<
   ListSubscriptionsParams,
@@ -44,33 +50,46 @@ export const stripeListSubscriptionsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: (params) => {
-      const url = new URL('https://api.stripe.com/v1/subscriptions')
-      if (params.limit) url.searchParams.append('limit', params.limit.toString())
-      if (params.customer) url.searchParams.append('customer', params.customer)
-      if (params.status) url.searchParams.append('status', params.status)
-      if (params.price) url.searchParams.append('price', params.price)
-      return url.toString()
-    },
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Lists subscriptions with optional filtering and pagination
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        subscriptions: data.data || [],
-        metadata: {
-          count: (data.data || []).length,
-          has_more: data.has_more || false,
+      // Prepare list options
+      const listOptions: Stripe.SubscriptionListParams = {}
+      if (params.limit) listOptions.limit = params.limit
+      if (params.customer) listOptions.customer = params.customer
+      if (params.status) listOptions.status = params.status as Stripe.SubscriptionListParams.Status
+      if (params.price) listOptions.price = params.price
+
+      // List subscriptions using SDK
+      const subscriptionList = await stripe.subscriptions.list(listOptions)
+
+      return {
+        success: true,
+        output: {
+          subscriptions: subscriptionList.data || [],
+          metadata: {
+            count: subscriptionList.data.length,
+            has_more: subscriptionList.has_more || false,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_LIST_SUBSCRIPTIONS_ERROR',
+          message: error.message || 'Failed to list subscriptions',
+          details: error,
+        },
+      }
     }
   },
 

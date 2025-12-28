@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { EventResponse, RetrieveEventParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Retrieve Event Tool
+ * Uses official stripe SDK for event retrieval
+ */
 
 export const stripeRetrieveEventTool: ToolConfig<RetrieveEventParams, EventResponse> = {
   id: 'stripe_retrieve_event',
@@ -22,27 +28,40 @@ export const stripeRetrieveEventTool: ToolConfig<RetrieveEventParams, EventRespo
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/events/${params.id}`,
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Retrieves event by ID with full event data
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        event: data,
-        metadata: {
-          id: data.id,
-          type: data.type,
-          created: data.created,
+      // Retrieve event using SDK
+      const event = await stripe.events.retrieve(params.id)
+
+      return {
+        success: true,
+        output: {
+          event,
+          metadata: {
+            id: event.id,
+            type: event.type,
+            created: event.created,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_RETRIEVE_EVENT_ERROR',
+          message: error.message || 'Failed to retrieve event',
+          details: error,
+        },
+      }
     }
   },
 

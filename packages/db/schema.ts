@@ -1735,3 +1735,15 @@ export const usageLog = pgTable(
     workflowIdIdx: index('usage_log_workflow_id_idx').on(table.workflowId),
   })
 )
+
+// Financial Sync Schemas
+export {
+  financialSyncLogs,
+  financialTransactions,
+  plaidConnectionStatusEnum,
+  plaidConnections,
+  quickbooksSyncState,
+  quickbooksSyncStatusEnum,
+  reconciliationRules,
+  reconciliationStatusEnum,
+} from './financial-sync-schema'

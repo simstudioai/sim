@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { CreatePriceParams, PriceResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Create Price Tool
+ * Uses official stripe SDK for price creation with recurring billing support
+ */
 
 export const stripeCreatePriceTool: ToolConfig<CreatePriceParams, PriceResponse> = {
   id: 'stripe_create_price',
@@ -52,52 +58,52 @@ export const stripeCreatePriceTool: ToolConfig<CreatePriceParams, PriceResponse>
     },
   },
 
-  request: {
-    url: () => 'https://api.stripe.com/v1/prices',
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
+  /**
+   * SDK-based execution using stripe SDK
+   * Creates price with support for one-time and recurring billing
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-      formData.append('product', params.product)
-      formData.append('currency', params.currency)
-
-      if (params.unit_amount !== undefined)
-        formData.append('unit_amount', Number(params.unit_amount).toString())
-      if (params.billing_scheme) formData.append('billing_scheme', params.billing_scheme)
-
-      if (params.recurring) {
-        Object.entries(params.recurring).forEach(([key, value]) => {
-          if (value) formData.append(`recurring[${key}]`, String(value))
-        })
+      // Prepare price data
+      const priceData: Stripe.PriceCreateParams = {
+        product: params.product,
+        currency: params.currency,
       }
 
-      if (params.metadata) {
-        Object.entries(params.metadata).forEach(([key, value]) => {
-          formData.append(`metadata[${key}]`, String(value))
-        })
-      }
+      if (params.unit_amount !== undefined) priceData.unit_amount = Number(params.unit_amount)
+      if (params.billing_scheme) priceData.billing_scheme = params.billing_scheme as Stripe.PriceCreateParams.BillingScheme
+      if (params.recurring) priceData.recurring = params.recurring as Stripe.PriceCreateParams.Recurring
+      if (params.metadata) priceData.metadata = params.metadata
 
-      return { body: formData.toString() }
-    },
-  },
+      // Create price using SDK
+      const price = await stripe.prices.create(priceData)
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        price: data,
-        metadata: {
-          id: data.id,
-          product: data.product,
-          unit_amount: data.unit_amount,
-          currency: data.currency,
+      return {
+        success: true,
+        output: {
+          price,
+          metadata: {
+            id: price.id,
+            product: price.product as string,
+            unit_amount: price.unit_amount,
+            currency: price.currency,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_CREATE_PRICE_ERROR',
+          message: error.message || 'Failed to create price',
+          details: error,
+        },
+      }
     }
   },
 

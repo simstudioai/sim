@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { RetrieveSubscriptionParams, SubscriptionResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Retrieve Subscription Tool
+ * Uses official stripe SDK for subscription retrieval
+ */
 
 export const stripeRetrieveSubscriptionTool: ToolConfig<
   RetrieveSubscriptionParams,
@@ -25,27 +31,40 @@ export const stripeRetrieveSubscriptionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/subscriptions/${params.id}`,
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Retrieves subscription by ID with full subscription data
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        subscription: data,
-        metadata: {
-          id: data.id,
-          status: data.status,
-          customer: data.customer,
+      // Retrieve subscription using SDK
+      const subscription = await stripe.subscriptions.retrieve(params.id)
+
+      return {
+        success: true,
+        output: {
+          subscription,
+          metadata: {
+            id: subscription.id,
+            status: subscription.status,
+            customer: subscription.customer as string,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_RETRIEVE_SUBSCRIPTION_ERROR',
+          message: error.message || 'Failed to retrieve subscription',
+          details: error,
+        },
+      }
     }
   },
 

@@ -81,10 +81,12 @@ import { ParallelBlock } from '@/blocks/blocks/parallel'
 import { PerplexityBlock } from '@/blocks/blocks/perplexity'
 import { PineconeBlock } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock } from '@/blocks/blocks/pipedrive'
+import { PlaidBlock } from '@/blocks/blocks/plaid'
 import { PolymarketBlock } from '@/blocks/blocks/polymarket'
 import { PostgreSQLBlock } from '@/blocks/blocks/postgresql'
 import { PostHogBlock } from '@/blocks/blocks/posthog'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
+import { QuickBooksBlock } from '@/blocks/blocks/quickbooks'
 import { RDSBlock } from '@/blocks/blocks/rds'
 import { RedditBlock } from '@/blocks/blocks/reddit'
 import { ResendBlock } from '@/blocks/blocks/resend'
@@ -225,10 +227,12 @@ export const registry: Record<string, BlockConfig> = {
   perplexity: PerplexityBlock,
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,
+  plaid: PlaidBlock,
   polymarket: PolymarketBlock,
   postgresql: PostgreSQLBlock,
   posthog: PostHogBlock,
   qdrant: QdrantBlock,
+  quickbooks: QuickBooksBlock,
   rds: RDSBlock,
   sqs: SQSBlock,
   dynamodb: DynamoDBBlock,

@@ -1,6 +1,11 @@
+import Stripe from 'stripe'
 import type { CreateSubscriptionParams, SubscriptionResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Stripe Create Subscription Tool
+ * Uses official stripe SDK for subscription creation
+ */
 export const stripeCreateSubscriptionTool: ToolConfig<
   CreateSubscriptionParams,
   SubscriptionResponse
@@ -55,59 +60,57 @@ export const stripeCreateSubscriptionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: () => 'https://api.stripe.com/v1/subscriptions',
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
+  /**
+   * SDK-based execution using stripe SDK
+   * Creates subscription with trial support
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-      formData.append('customer', params.customer)
-
-      if (params.items && Array.isArray(params.items)) {
-        params.items.forEach((item, index) => {
-          formData.append(`items[${index}][price]`, item.price)
-          if (item.quantity) {
-            formData.append(`items[${index}][quantity]`, Number(item.quantity).toString())
-          }
-        })
+      // Prepare subscription data
+      const subscriptionData: Stripe.SubscriptionCreateParams = {
+        customer: params.customer,
+        items: params.items,
       }
 
       if (params.trial_period_days !== undefined) {
-        formData.append('trial_period_days', Number(params.trial_period_days).toString())
+        subscriptionData.trial_period_days = params.trial_period_days
       }
       if (params.default_payment_method) {
-        formData.append('default_payment_method', params.default_payment_method)
+        subscriptionData.default_payment_method = params.default_payment_method
       }
       if (params.cancel_at_period_end !== undefined) {
-        formData.append('cancel_at_period_end', String(params.cancel_at_period_end))
+        subscriptionData.cancel_at_period_end = params.cancel_at_period_end
       }
+      if (params.metadata) subscriptionData.metadata = params.metadata
 
-      if (params.metadata) {
-        Object.entries(params.metadata).forEach(([key, value]) => {
-          formData.append(`metadata[${key}]`, String(value))
-        })
-      }
+      // Create subscription using SDK
+      const subscription = await stripe.subscriptions.create(subscriptionData)
 
-      return { body: formData.toString() }
-    },
-  },
-
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        subscription: data,
-        metadata: {
-          id: data.id,
-          status: data.status,
-          customer: data.customer,
+      return {
+        success: true,
+        output: {
+          subscription,
+          metadata: {
+            id: subscription.id,
+            status: subscription.status,
+            customer: subscription.customer as string,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_SUBSCRIPTION_ERROR',
+          message: error.message || 'Failed to create subscription',
+          details: error,
+        },
+      }
     }
   },
 

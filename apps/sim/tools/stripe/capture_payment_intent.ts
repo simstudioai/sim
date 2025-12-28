@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { CapturePaymentIntentParams, PaymentIntentResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Capture Payment Intent Tool
+ * Uses official stripe SDK to capture authorized payment intents
+ */
 
 export const stripeCapturePaymentIntentTool: ToolConfig<
   CapturePaymentIntentParams,
@@ -31,35 +37,47 @@ export const stripeCapturePaymentIntentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/payment_intents/${params.id}/capture`,
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
-      if (params.amount_to_capture) {
-        formData.append('amount_to_capture', Number(params.amount_to_capture).toString())
-      }
-      return { body: formData.toString() }
-    },
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Captures authorized payment intent with optional partial amount
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        payment_intent: data,
-        metadata: {
-          id: data.id,
-          status: data.status,
-          amount: data.amount,
-          currency: data.currency,
+      // Prepare capture options
+      const captureOptions: Stripe.PaymentIntentCaptureParams = {}
+      if (params.amount_to_capture) {
+        captureOptions.amount_to_capture = Number(params.amount_to_capture)
+      }
+
+      // Capture payment intent using SDK
+      const paymentIntent = await stripe.paymentIntents.capture(params.id, captureOptions)
+
+      return {
+        success: true,
+        output: {
+          payment_intent: paymentIntent,
+          metadata: {
+            id: paymentIntent.id,
+            status: paymentIntent.status,
+            amount: paymentIntent.amount,
+            currency: paymentIntent.currency,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_CAPTURE_PAYMENT_INTENT_ERROR',
+          message: error.message || 'Failed to capture payment intent',
+          details: error,
+        },
+      }
     }
   },
 

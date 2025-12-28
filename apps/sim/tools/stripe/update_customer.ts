@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { CustomerResponse, UpdateCustomerParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Update Customer Tool
+ * Uses official stripe SDK for customer updates
+ */
 
 export const stripeUpdateCustomerTool: ToolConfig<UpdateCustomerParams, CustomerResponse> = {
   id: 'stripe_update_customer',
@@ -58,49 +64,49 @@ export const stripeUpdateCustomerTool: ToolConfig<UpdateCustomerParams, Customer
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/customers/${params.id}`,
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
+  /**
+   * SDK-based execution using stripe SDK
+   * Updates customer with optional fields
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-      if (params.email) formData.append('email', params.email)
-      if (params.name) formData.append('name', params.name)
-      if (params.phone) formData.append('phone', params.phone)
-      if (params.description) formData.append('description', params.description)
+      // Prepare update data
+      const updateData: Stripe.CustomerUpdateParams = {}
+      if (params.email) updateData.email = params.email
+      if (params.name) updateData.name = params.name
+      if (params.phone) updateData.phone = params.phone
+      if (params.description) updateData.description = params.description
+      if (params.address) updateData.address = params.address as Stripe.AddressParam
+      if (params.metadata) updateData.metadata = params.metadata
 
-      if (params.address) {
-        Object.entries(params.address).forEach(([key, value]) => {
-          if (value) formData.append(`address[${key}]`, String(value))
-        })
-      }
+      // Update customer using SDK
+      const customer = await stripe.customers.update(params.id, updateData)
 
-      if (params.metadata) {
-        Object.entries(params.metadata).forEach(([key, value]) => {
-          formData.append(`metadata[${key}]`, String(value))
-        })
-      }
-
-      return { body: formData.toString() }
-    },
-  },
-
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        customer: data,
-        metadata: {
-          id: data.id,
-          email: data.email,
-          name: data.name,
+      return {
+        success: true,
+        output: {
+          customer,
+          metadata: {
+            id: customer.id,
+            email: customer.email,
+            name: customer.name,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_UPDATE_CUSTOMER_ERROR',
+          message: error.message || 'Failed to update customer',
+          details: error,
+        },
+      }
     }
   },
 

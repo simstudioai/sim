@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { PaymentIntentResponse, UpdatePaymentIntentParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Update Payment Intent Tool
+ * Uses official stripe SDK for payment intent updates
+ */
 
 export const stripeUpdatePaymentIntentTool: ToolConfig<
   UpdatePaymentIntentParams,
@@ -55,44 +61,49 @@ export const stripeUpdatePaymentIntentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/payment_intents/${params.id}`,
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
+  /**
+   * SDK-based execution using stripe SDK
+   * Updates payment intent with optional fields
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-      if (params.amount) formData.append('amount', Number(params.amount).toString())
-      if (params.currency) formData.append('currency', params.currency)
-      if (params.customer) formData.append('customer', params.customer)
-      if (params.description) formData.append('description', params.description)
+      // Prepare update data
+      const updateData: Stripe.PaymentIntentUpdateParams = {}
+      if (params.amount) updateData.amount = Number(params.amount)
+      if (params.currency) updateData.currency = params.currency
+      if (params.customer) updateData.customer = params.customer
+      if (params.description) updateData.description = params.description
+      if (params.metadata) updateData.metadata = params.metadata
 
-      if (params.metadata) {
-        Object.entries(params.metadata).forEach(([key, value]) => {
-          formData.append(`metadata[${key}]`, String(value))
-        })
-      }
+      // Update payment intent using SDK
+      const paymentIntent = await stripe.paymentIntents.update(params.id, updateData)
 
-      return { body: formData.toString() }
-    },
-  },
-
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        payment_intent: data,
-        metadata: {
-          id: data.id,
-          status: data.status,
-          amount: data.amount,
-          currency: data.currency,
+      return {
+        success: true,
+        output: {
+          payment_intent: paymentIntent,
+          metadata: {
+            id: paymentIntent.id,
+            status: paymentIntent.status,
+            amount: paymentIntent.amount,
+            currency: paymentIntent.currency,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_UPDATE_PAYMENT_INTENT_ERROR',
+          message: error.message || 'Failed to update payment intent',
+          details: error,
+        },
+      }
     }
   },
 

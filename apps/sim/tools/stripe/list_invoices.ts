@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { InvoiceListResponse, ListInvoicesParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe List Invoices Tool
+ * Uses official stripe SDK for invoice listing with pagination and filtering
+ */
 
 export const stripeListInvoicesTool: ToolConfig<ListInvoicesParams, InvoiceListResponse> = {
   id: 'stripe_list_invoices',
@@ -34,32 +40,45 @@ export const stripeListInvoicesTool: ToolConfig<ListInvoicesParams, InvoiceListR
     },
   },
 
-  request: {
-    url: (params) => {
-      const url = new URL('https://api.stripe.com/v1/invoices')
-      if (params.limit) url.searchParams.append('limit', params.limit.toString())
-      if (params.customer) url.searchParams.append('customer', params.customer)
-      if (params.status) url.searchParams.append('status', params.status)
-      return url.toString()
-    },
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Lists invoices with optional filtering and pagination
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        invoices: data.data || [],
-        metadata: {
-          count: (data.data || []).length,
-          has_more: data.has_more || false,
+      // Prepare list options
+      const listOptions: Stripe.InvoiceListParams = {}
+      if (params.limit) listOptions.limit = params.limit
+      if (params.customer) listOptions.customer = params.customer
+      if (params.status) listOptions.status = params.status as Stripe.InvoiceListParams.Status
+
+      // List invoices using SDK
+      const invoiceList = await stripe.invoices.list(listOptions)
+
+      return {
+        success: true,
+        output: {
+          invoices: invoiceList.data || [],
+          metadata: {
+            count: invoiceList.data.length,
+            has_more: invoiceList.has_more || false,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_LIST_INVOICES_ERROR',
+          message: error.message || 'Failed to list invoices',
+          details: error,
+        },
+      }
     }
   },
 

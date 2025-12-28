@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { CreateInvoiceParams, InvoiceResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Create Invoice Tool
+ * Uses official stripe SDK for invoice creation
+ */
 
 export const stripeCreateInvoiceTool: ToolConfig<CreateInvoiceParams, InvoiceResponse> = {
   id: 'stripe_create_invoice',
@@ -46,46 +52,53 @@ export const stripeCreateInvoiceTool: ToolConfig<CreateInvoiceParams, InvoiceRes
     },
   },
 
-  request: {
-    url: () => 'https://api.stripe.com/v1/invoices',
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
-      formData.append('customer', params.customer)
+  /**
+   * SDK-based execution using stripe SDK
+   * Creates invoice with optional auto-advance and collection method
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-      if (params.description) formData.append('description', params.description)
-      if (params.auto_advance !== undefined) {
-        formData.append('auto_advance', String(params.auto_advance))
-      }
-      if (params.collection_method) formData.append('collection_method', params.collection_method)
-
-      if (params.metadata) {
-        Object.entries(params.metadata).forEach(([key, value]) => {
-          formData.append(`metadata[${key}]`, String(value))
-        })
+      // Prepare invoice data
+      const invoiceData: Stripe.InvoiceCreateParams = {
+        customer: params.customer,
       }
 
-      return { body: formData.toString() }
-    },
-  },
+      if (params.description) invoiceData.description = params.description
+      if (params.auto_advance !== undefined) invoiceData.auto_advance = params.auto_advance
+      if (params.collection_method) {
+        invoiceData.collection_method = params.collection_method as Stripe.InvoiceCreateParams.CollectionMethod
+      }
+      if (params.metadata) invoiceData.metadata = params.metadata
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        invoice: data,
-        metadata: {
-          id: data.id,
-          status: data.status,
-          amount_due: data.amount_due,
-          currency: data.currency,
+      // Create invoice using SDK
+      const invoice = await stripe.invoices.create(invoiceData)
+
+      return {
+        success: true,
+        output: {
+          invoice,
+          metadata: {
+            id: invoice.id,
+            status: invoice.status,
+            amount_due: invoice.amount_due,
+            currency: invoice.currency,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_CREATE_INVOICE_ERROR',
+          message: error.message || 'Failed to create invoice',
+          details: error,
+        },
+      }
     }
   },
 

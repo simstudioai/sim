@@ -1,6 +1,11 @@
+import Stripe from 'stripe'
 import type { CreateCustomerParams, CustomerResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Stripe Create Customer Tool
+ * Uses official stripe SDK for customer creation
+ */
 export const stripeCreateCustomerTool: ToolConfig<CreateCustomerParams, CustomerResponse> = {
   id: 'stripe_create_customer',
   name: 'Stripe Create Customer',
@@ -58,50 +63,51 @@ export const stripeCreateCustomerTool: ToolConfig<CreateCustomerParams, Customer
     },
   },
 
-  request: {
-    url: () => 'https://api.stripe.com/v1/customers',
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
+  /**
+   * SDK-based execution using stripe SDK
+   * Creates customer with full metadata support
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-      if (params.email) formData.append('email', params.email)
-      if (params.name) formData.append('name', params.name)
-      if (params.phone) formData.append('phone', params.phone)
-      if (params.description) formData.append('description', params.description)
-      if (params.payment_method) formData.append('payment_method', params.payment_method)
+      // Prepare customer data
+      const customerData: Stripe.CustomerCreateParams = {}
 
-      if (params.address) {
-        Object.entries(params.address).forEach(([key, value]) => {
-          if (value) formData.append(`address[${key}]`, String(value))
-        })
-      }
+      if (params.email) customerData.email = params.email
+      if (params.name) customerData.name = params.name
+      if (params.phone) customerData.phone = params.phone
+      if (params.description) customerData.description = params.description
+      if (params.payment_method) customerData.payment_method = params.payment_method
+      if (params.address) customerData.address = params.address as Stripe.AddressParam
+      if (params.metadata) customerData.metadata = params.metadata
 
-      if (params.metadata) {
-        Object.entries(params.metadata).forEach(([key, value]) => {
-          formData.append(`metadata[${key}]`, String(value))
-        })
-      }
+      // Create customer using SDK
+      const customer = await stripe.customers.create(customerData)
 
-      return { body: formData.toString() }
-    },
-  },
-
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        customer: data,
-        metadata: {
-          id: data.id,
-          email: data.email,
-          name: data.name,
+      return {
+        success: true,
+        output: {
+          customer,
+          metadata: {
+            id: customer.id,
+            email: customer.email,
+            name: customer.name,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_CUSTOMER_ERROR',
+          message: error.message || 'Failed to create Stripe customer',
+          details: error,
+        },
+      }
     }
   },
 

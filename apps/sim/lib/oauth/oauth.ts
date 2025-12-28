@@ -26,7 +26,11 @@ import {
   NotionIcon,
   OutlookIcon,
   PipedriveIcon,
+  PlaidIcon,
+  QuickBooksIcon,
   RedditIcon,
+  FreshBooksIcon,
+  XeroIcon,
   SalesforceIcon,
   ShopifyIcon,
   SlackIcon,
@@ -749,6 +753,89 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'spotify',
   },
+  quickbooks: {
+    name: 'QuickBooks',
+    icon: QuickBooksIcon,
+    services: {
+      'quickbooks-accounting': {
+        name: 'QuickBooks Online',
+        description: 'Automate accounting tasks, manage invoices, expenses, and customers.',
+        providerId: 'quickbooks',
+        icon: QuickBooksIcon,
+        baseProviderIcon: QuickBooksIcon,
+        scopes: ['com.intuit.quickbooks.accounting', 'com.intuit.quickbooks.payment', 'openid', 'profile', 'email', 'phone', 'address'],
+      },
+    },
+    defaultService: 'quickbooks-accounting',
+  },
+  plaid: {
+    name: 'Plaid',
+    icon: PlaidIcon,
+    services: {
+      'plaid-banking': {
+        name: 'Plaid Banking',
+        description: 'Access banking data, transactions, and account balances securely.',
+        providerId: 'plaid',
+        icon: PlaidIcon,
+        baseProviderIcon: PlaidIcon,
+        scopes: ['transactions', 'auth', 'identity', 'balance', 'investments'],
+      },
+    },
+    defaultService: 'plaid-banking',
+  },
+  freshbooks: {
+    name: 'FreshBooks',
+    icon: FreshBooksIcon,
+    services: {
+      'freshbooks-accounting': {
+        name: 'FreshBooks Accounting',
+        description: 'Automate invoicing, time tracking, expenses, and client management.',
+        providerId: 'freshbooks',
+        icon: FreshBooksIcon,
+        baseProviderIcon: FreshBooksIcon,
+        scopes: [
+          'user:profile:read',
+          'user:invoices:read',
+          'user:invoices:write',
+          'user:clients:read',
+          'user:clients:write',
+          'user:expenses:read',
+          'user:expenses:write',
+          'user:time_entries:read',
+          'user:time_entries:write',
+          'user:payments:read',
+          'user:payments:write',
+          'user:estimates:read',
+          'user:estimates:write',
+        ],
+      },
+    },
+    defaultService: 'freshbooks-accounting',
+  },
+  xero: {
+    name: 'Xero',
+    icon: XeroIcon,
+    services: {
+      'xero-accounting': {
+        name: 'Xero Accounting',
+        description: 'Manage invoices, bills, bank reconciliation, and inventory in Xero.',
+        providerId: 'xero',
+        icon: XeroIcon,
+        baseProviderIcon: XeroIcon,
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'accounting.transactions',
+          'accounting.contacts',
+          'accounting.settings',
+          'accounting.attachments',
+          'offline_access',
+        ],
+      },
+    },
+    defaultService: 'xero-accounting',
+  },
 }
 
 interface ProviderAuthConfig {
@@ -1063,6 +1150,57 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: true,
         supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'quickbooks': {
+      const { clientId, clientSecret } = getCredentials(
+        env.QUICKBOOKS_CLIENT_ID,
+        env.QUICKBOOKS_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'plaid': {
+      const { clientId, clientSecret } = getCredentials(
+        env.PLAID_CLIENT_ID,
+        env.PLAID_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://production.plaid.com/item/access_token/invalidate',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+      }
+    }
+    case 'freshbooks': {
+      const { clientId, clientSecret } = getCredentials(
+        env.FRESHBOOKS_CLIENT_ID,
+        env.FRESHBOOKS_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://api.freshbooks.com/auth/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'xero': {
+      const { clientId, clientSecret } = getCredentials(
+        env.XERO_CLIENT_ID,
+        env.XERO_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://identity.xero.com/connect/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
       }
     }
     default:

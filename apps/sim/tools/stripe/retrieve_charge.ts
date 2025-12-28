@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { ChargeResponse, RetrieveChargeParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Retrieve Charge Tool
+ * Uses official stripe SDK for charge retrieval
+ */
 
 export const stripeRetrieveChargeTool: ToolConfig<RetrieveChargeParams, ChargeResponse> = {
   id: 'stripe_retrieve_charge',
@@ -22,29 +28,42 @@ export const stripeRetrieveChargeTool: ToolConfig<RetrieveChargeParams, ChargeRe
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/charges/${params.id}`,
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Retrieves charge by ID with full charge data
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        charge: data,
-        metadata: {
-          id: data.id,
-          status: data.status,
-          amount: data.amount,
-          currency: data.currency,
-          paid: data.paid,
+      // Retrieve charge using SDK
+      const charge = await stripe.charges.retrieve(params.id)
+
+      return {
+        success: true,
+        output: {
+          charge,
+          metadata: {
+            id: charge.id,
+            status: charge.status,
+            amount: charge.amount,
+            currency: charge.currency,
+            paid: charge.paid,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_RETRIEVE_CHARGE_ERROR',
+          message: error.message || 'Failed to retrieve charge',
+          details: error,
+        },
+      }
     }
   },
 

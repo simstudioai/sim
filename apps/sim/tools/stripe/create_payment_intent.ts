@@ -1,6 +1,11 @@
+import Stripe from 'stripe'
 import type { CreatePaymentIntentParams, PaymentIntentResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Stripe Create Payment Intent Tool
+ * Uses official stripe SDK for payment intent creation
+ */
 export const stripeCreatePaymentIntentTool: ToolConfig<
   CreatePaymentIntentParams,
   PaymentIntentResponse
@@ -67,51 +72,56 @@ export const stripeCreatePaymentIntentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: () => 'https://api.stripe.com/v1/payment_intents',
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
+  /**
+   * SDK-based execution using stripe SDK
+   * Creates payment intent with full payment method support
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-      formData.append('amount', Number(params.amount).toString())
-      formData.append('currency', params.currency)
-
-      if (params.customer) formData.append('customer', params.customer)
-      if (params.payment_method) formData.append('payment_method', params.payment_method)
-      if (params.description) formData.append('description', params.description)
-      if (params.receipt_email) formData.append('receipt_email', params.receipt_email)
-
-      if (params.metadata) {
-        Object.entries(params.metadata).forEach(([key, value]) => {
-          formData.append(`metadata[${key}]`, String(value))
-        })
+      // Prepare payment intent data
+      const paymentIntentData: Stripe.PaymentIntentCreateParams = {
+        amount: Number(params.amount),
+        currency: params.currency,
       }
 
-      if (params.automatic_payment_methods?.enabled) {
-        formData.append('automatic_payment_methods[enabled]', 'true')
+      if (params.customer) paymentIntentData.customer = params.customer
+      if (params.payment_method) paymentIntentData.payment_method = params.payment_method
+      if (params.description) paymentIntentData.description = params.description
+      if (params.receipt_email) paymentIntentData.receipt_email = params.receipt_email
+      if (params.metadata) paymentIntentData.metadata = params.metadata
+      if (params.automatic_payment_methods) {
+        paymentIntentData.automatic_payment_methods = params.automatic_payment_methods
       }
 
-      return { body: formData.toString() }
-    },
-  },
+      // Create payment intent using SDK
+      const paymentIntent = await stripe.paymentIntents.create(paymentIntentData)
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        payment_intent: data,
-        metadata: {
-          id: data.id,
-          status: data.status,
-          amount: data.amount,
-          currency: data.currency,
+      return {
+        success: true,
+        output: {
+          payment_intent: paymentIntent,
+          metadata: {
+            id: paymentIntent.id,
+            status: paymentIntent.status,
+            amount: paymentIntent.amount,
+            currency: paymentIntent.currency,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_PAYMENT_INTENT_ERROR',
+          message: error.message || 'Failed to create payment intent',
+          details: error,
+        },
+      }
     }
   },
 

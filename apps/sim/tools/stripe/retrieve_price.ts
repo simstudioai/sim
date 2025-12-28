@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { PriceResponse, RetrievePriceParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Retrieve Price Tool
+ * Uses official stripe SDK for price retrieval
+ */
 
 export const stripeRetrievePriceTool: ToolConfig<RetrievePriceParams, PriceResponse> = {
   id: 'stripe_retrieve_price',
@@ -22,28 +28,41 @@ export const stripeRetrievePriceTool: ToolConfig<RetrievePriceParams, PriceRespo
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/prices/${params.id}`,
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-  },
+  /**
+   * SDK-based execution using stripe SDK
+   * Retrieves price by ID with full pricing data
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        price: data,
-        metadata: {
-          id: data.id,
-          product: data.product,
-          unit_amount: data.unit_amount,
-          currency: data.currency,
+      // Retrieve price using SDK
+      const price = await stripe.prices.retrieve(params.id)
+
+      return {
+        success: true,
+        output: {
+          price,
+          metadata: {
+            id: price.id,
+            product: price.product as string,
+            unit_amount: price.unit_amount,
+            currency: price.currency,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_RETRIEVE_PRICE_ERROR',
+          message: error.message || 'Failed to retrieve price',
+          details: error,
+        },
+      }
     }
   },
 

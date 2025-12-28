@@ -1,5 +1,11 @@
+import Stripe from 'stripe'
 import type { ChargeResponse, UpdateChargeParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Stripe Update Charge Tool
+ * Uses official stripe SDK for charge updates
+ */
 
 export const stripeUpdateChargeTool: ToolConfig<UpdateChargeParams, ChargeResponse> = {
   id: 'stripe_update_charge',
@@ -34,42 +40,47 @@ export const stripeUpdateChargeTool: ToolConfig<UpdateChargeParams, ChargeRespon
     },
   },
 
-  request: {
-    url: (params) => `https://api.stripe.com/v1/charges/${params.id}`,
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    }),
-    body: (params) => {
-      const formData = new URLSearchParams()
+  /**
+   * SDK-based execution using stripe SDK
+   * Updates charge with optional fields
+   */
+  directExecution: async (params) => {
+    try {
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2024-12-18.acacia',
+      })
 
-      if (params.description) formData.append('description', params.description)
+      // Prepare update data
+      const updateData: Stripe.ChargeUpdateParams = {}
+      if (params.description) updateData.description = params.description
+      if (params.metadata) updateData.metadata = params.metadata
 
-      if (params.metadata) {
-        Object.entries(params.metadata).forEach(([key, value]) => {
-          formData.append(`metadata[${key}]`, String(value))
-        })
-      }
+      // Update charge using SDK
+      const charge = await stripe.charges.update(params.id, updateData)
 
-      return { body: formData.toString() }
-    },
-  },
-
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        charge: data,
-        metadata: {
-          id: data.id,
-          status: data.status,
-          amount: data.amount,
-          currency: data.currency,
-          paid: data.paid,
+      return {
+        success: true,
+        output: {
+          charge,
+          metadata: {
+            id: charge.id,
+            status: charge.status,
+            amount: charge.amount,
+            currency: charge.currency,
+            paid: charge.paid,
+          },
         },
-      },
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'STRIPE_UPDATE_CHARGE_ERROR',
+          message: error.message || 'Failed to update charge',
+          details: error,
+        },
+      }
     }
   },
 
