@@ -1,20 +1,21 @@
 # ========================================
-# Base Stage: Debian-based Bun
+# Base Stage: Debian-based Bun with Node.js 22
 # ========================================
 FROM oven/bun:1.3.3-slim AS base
+
+# Install Node.js 22 and common dependencies once in base stage
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip python3-venv make g++ curl ca-certificates bash ffmpeg \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs
 
 # ========================================
 # Dependencies Stage: Install Dependencies
 # ========================================
 FROM base AS deps
 WORKDIR /app
-
-# Install Node.js 22 for isolated-vm compilation (requires node-gyp and V8)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ curl ca-certificates \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
 
 COPY package.json bun.lock turbo.json ./
 RUN mkdir -p apps packages/db packages/testing packages/logger
@@ -25,6 +26,7 @@ COPY packages/logger/package.json ./packages/logger/package.json
 
 # Install turbo globally, then dependencies, then rebuild isolated-vm for Node.js
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
+    --mount=type=cache,id=npm-cache,target=/root/.npm \
     bun install -g turbo && \
     HUSKY=0 bun install --omit=dev --ignore-scripts && \
     cd $(readlink -f node_modules/isolated-vm) && npx node-gyp rebuild --release && cd /app
@@ -89,13 +91,7 @@ RUN bun run build
 FROM base AS runner
 WORKDIR /app
 
-# Install Node.js 22 (for isolated-vm worker), Python, and other runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-pip python3-venv bash ffmpeg curl ca-certificates \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
-
+# Node.js 22, Python, ffmpeg, etc. are already installed in base stage
 ENV NODE_ENV=production
 
 # Create non-root user and group
@@ -113,15 +109,15 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules/isolated-vm ./node_modu
 # Copy the isolated-vm worker script
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs
 
-# Guardrails setup (files need to be owned by nextjs for runtime)
-COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/guardrails/setup.sh ./apps/sim/lib/guardrails/setup.sh
+# Guardrails setup with pip caching
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/guardrails/requirements.txt ./apps/sim/lib/guardrails/requirements.txt
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/guardrails/validate_pii.py ./apps/sim/lib/guardrails/validate_pii.py
 
-# Run guardrails setup as root, then fix ownership of generated venv files
-RUN chmod +x ./apps/sim/lib/guardrails/setup.sh && \
-    cd ./apps/sim/lib/guardrails && \
-    ./setup.sh && \
+# Install Python dependencies with pip cache mount for faster rebuilds
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python3 -m venv ./apps/sim/lib/guardrails/venv && \
+    ./apps/sim/lib/guardrails/venv/bin/pip install --upgrade pip && \
+    ./apps/sim/lib/guardrails/venv/bin/pip install -r ./apps/sim/lib/guardrails/requirements.txt && \
     chown -R nextjs:nodejs /app/apps/sim/lib/guardrails
 
 # Create .next/cache directory with correct ownership
