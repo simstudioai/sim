@@ -11,11 +11,12 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json bun.lock turbo.json ./
-RUN mkdir -p apps packages/db packages/testing packages/logger
+RUN mkdir -p apps packages/db packages/testing packages/logger packages/tsconfig
 COPY apps/sim/package.json ./apps/sim/package.json
 COPY packages/db/package.json ./packages/db/package.json
 COPY packages/testing/package.json ./packages/testing/package.json
 COPY packages/logger/package.json ./packages/logger/package.json
+COPY packages/tsconfig/package.json ./packages/tsconfig/package.json
 
 # Install dependencies with cache mount for faster builds
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \

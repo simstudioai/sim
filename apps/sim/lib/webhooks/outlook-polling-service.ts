@@ -465,7 +465,7 @@ async function processOutlookEmails(
             headers: {
               'Content-Type': 'application/json',
               'X-Webhook-Secret': webhookData.secret || '',
-              'User-Agent': 'SimStudio/1.0',
+              'User-Agent': 'Sim/1.0',
             },
             body: JSON.stringify(payload),
           })
