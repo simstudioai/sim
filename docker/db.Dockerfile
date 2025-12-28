@@ -35,6 +35,9 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
 # Copy package configuration files (needed for migrations)
 COPY --chown=nextjs:nodejs packages/db/drizzle.config.ts ./packages/db/drizzle.config.ts
 
+# Copy tsconfig package (needed for workspace symlink resolution)
+COPY --chown=nextjs:nodejs packages/tsconfig ./packages/tsconfig
+
 # Copy database package source code (changes most frequently - placed last)
 COPY --chown=nextjs:nodejs packages/db ./packages/db
 
