@@ -4,7 +4,9 @@ import {
   createFunctionBlock,
   createStarterBlock,
 } from '../factories/block.factory'
-import type { BlockState, Edge, Loop, Parallel, Position, WorkflowState } from '../types'
+import type { Position } from '../types'
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 /**
  * Fluent builder for creating complex workflow states.
@@ -29,11 +31,11 @@ import type { BlockState, Edge, Loop, Parallel, Position, WorkflowState } from '
  * ```
  */
 export class WorkflowBuilder {
-  private blocks: Record<string, BlockState> = {}
-  private edges: Edge[] = []
-  private loops: Record<string, Loop> = {}
-  private parallels: Record<string, Parallel> = {}
-  private variables: WorkflowState['variables'] = []
+  private blocks: Record<string, any> = {}
+  private edges: any[] = []
+  private loops: Record<string, any> = {}
+  private parallels: Record<string, any> = {}
+  private variables: any[] = []
   private isDeployed = false
 
   /**
@@ -245,8 +247,9 @@ export class WorkflowBuilder {
 
   /**
    * Builds and returns the workflow state.
+   * Returns `any` to be assignable to any app's workflow type.
    */
-  build(): WorkflowState {
+  build(): any {
     return {
       blocks: this.blocks,
       edges: this.edges,

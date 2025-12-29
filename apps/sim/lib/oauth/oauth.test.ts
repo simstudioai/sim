@@ -138,7 +138,10 @@ describe('OAuth Token Refresh', () => {
             })
           )
 
-          const [, requestOptions] = mockFetch.mock.calls[0]
+          const [, requestOptions] = mockFetch.mock.calls[0] as [
+            string,
+            { headers: Record<string, string>; body: string },
+          ]
 
           const authHeader = requestOptions.headers.Authorization
           expect(authHeader).toMatch(/^Basic /)
@@ -251,7 +254,10 @@ describe('OAuth Token Refresh', () => {
             })
           )
 
-          const [, requestOptions] = mockFetch.mock.calls[0]
+          const [, requestOptions] = mockFetch.mock.calls[0] as [
+            string,
+            { headers: Record<string, string>; body: string },
+          ]
 
           expect(requestOptions.headers.Authorization).toBeUndefined()
 
@@ -279,7 +285,10 @@ describe('OAuth Token Refresh', () => {
 
       await withMockFetch(mockFetch, () => refreshOAuthToken('github', refreshToken))
 
-      const [, requestOptions] = mockFetch.mock.calls[0]
+      const [, requestOptions] = mockFetch.mock.calls[0] as [
+        string,
+        { headers: Record<string, string>; body: string },
+      ]
       expect(requestOptions.headers.Accept).toBe('application/json')
     })
 
@@ -289,7 +298,10 @@ describe('OAuth Token Refresh', () => {
 
       await withMockFetch(mockFetch, () => refreshOAuthToken('reddit', refreshToken))
 
-      const [, requestOptions] = mockFetch.mock.calls[0]
+      const [, requestOptions] = mockFetch.mock.calls[0] as [
+        string,
+        { headers: Record<string, string>; body: string },
+      ]
       expect(requestOptions.headers['User-Agent']).toBe(
         'sim-studio/1.0 (https://github.com/simstudioai/sim)'
       )

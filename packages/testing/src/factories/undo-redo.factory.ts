@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid'
-import type { BlockState, Edge } from '../types'
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 /**
  * Operation types supported by the undo/redo store.
@@ -51,8 +52,8 @@ export interface RemoveBlockOperation extends BaseOperation {
   type: 'remove-block'
   data: {
     blockId: string
-    blockSnapshot: BlockState | null
-    edgeSnapshots?: Edge[]
+    blockSnapshot: any
+    edgeSnapshots?: any[]
   }
 }
 
@@ -69,7 +70,7 @@ export interface AddEdgeOperation extends BaseOperation {
  */
 export interface RemoveEdgeOperation extends BaseOperation {
   type: 'remove-edge'
-  data: { edgeId: string; edgeSnapshot: Edge | null }
+  data: { edgeId: string; edgeSnapshot: any }
 }
 
 /**
@@ -80,7 +81,7 @@ export interface DuplicateBlockOperation extends BaseOperation {
   data: {
     sourceBlockId: string
     duplicatedBlockId: string
-    duplicatedBlockSnapshot: BlockState
+    duplicatedBlockSnapshot: any
   }
 }
 
@@ -127,10 +128,7 @@ interface OperationEntryOptions {
 /**
  * Creates a mock add-block operation entry.
  */
-export function createAddBlockEntry(
-  blockId: string,
-  options: OperationEntryOptions = {}
-): OperationEntry {
+export function createAddBlockEntry(blockId: string, options: OperationEntryOptions = {}): any {
   const { id = nanoid(8), workflowId = 'wf-1', userId = 'user-1', createdAt = Date.now() } = options
   const timestamp = Date.now()
 
@@ -161,9 +159,9 @@ export function createAddBlockEntry(
  */
 export function createRemoveBlockEntry(
   blockId: string,
-  blockSnapshot: BlockState | null = null,
+  blockSnapshot: any = null,
   options: OperationEntryOptions = {}
-): OperationEntry {
+): any {
   const { id = nanoid(8), workflowId = 'wf-1', userId = 'user-1', createdAt = Date.now() } = options
   const timestamp = Date.now()
 
@@ -192,10 +190,7 @@ export function createRemoveBlockEntry(
 /**
  * Creates a mock add-edge operation entry.
  */
-export function createAddEdgeEntry(
-  edgeId: string,
-  options: OperationEntryOptions = {}
-): OperationEntry {
+export function createAddEdgeEntry(edgeId: string, options: OperationEntryOptions = {}): any {
   const { id = nanoid(8), workflowId = 'wf-1', userId = 'user-1', createdAt = Date.now() } = options
   const timestamp = Date.now()
 
@@ -226,9 +221,9 @@ export function createAddEdgeEntry(
  */
 export function createRemoveEdgeEntry(
   edgeId: string,
-  edgeSnapshot: Edge | null = null,
+  edgeSnapshot: any = null,
   options: OperationEntryOptions = {}
-): OperationEntry {
+): any {
   const { id = nanoid(8), workflowId = 'wf-1', userId = 'user-1', createdAt = Date.now() } = options
   const timestamp = Date.now()
 
@@ -262,10 +257,7 @@ interface MoveBlockOptions extends OperationEntryOptions {
 /**
  * Creates a mock move-block operation entry.
  */
-export function createMoveBlockEntry(
-  blockId: string,
-  options: MoveBlockOptions = {}
-): OperationEntry {
+export function createMoveBlockEntry(blockId: string, options: MoveBlockOptions = {}): any {
   const {
     id = nanoid(8),
     workflowId = 'wf-1',
@@ -304,9 +296,9 @@ export function createMoveBlockEntry(
 export function createDuplicateBlockEntry(
   sourceBlockId: string,
   duplicatedBlockId: string,
-  duplicatedBlockSnapshot: BlockState,
+  duplicatedBlockSnapshot: any,
   options: OperationEntryOptions = {}
-): OperationEntry {
+): any {
   const { id = nanoid(8), workflowId = 'wf-1', userId = 'user-1', createdAt = Date.now() } = options
   const timestamp = Date.now()
 
@@ -343,7 +335,7 @@ export function createUpdateParentEntry(
     oldPosition?: { x: number; y: number }
     newPosition?: { x: number; y: number }
   } = {}
-): OperationEntry {
+): any {
   const {
     id = nanoid(8),
     workflowId = 'wf-1',

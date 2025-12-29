@@ -47,32 +47,32 @@
 @layer base {
   :root,
   .light {
-    --bg: #f9faf8; /* main canvas - near white */
-    --surface-1: #f9faf8; /* sidebar, panels - light warm gray */
-    --surface-2: #fdfdfb; /* blocks, cards, modals - soft warm white */
-    --surface-3: #f4f5f1; /* popovers, headers - more contrast */
-    --surface-4: #f2f3ef; /* buttons base */
-    --border: #d7dcda; /* primary border */
-    --surface-5: #f0f1ed; /* inputs, form elements - subtle */
-    --border-1: #d7dcda; /* stronger border - sage gray */
-    --surface-6: #eceee9; /* popovers, elevated surfaces */
-    --surface-7: #e8e9e4;
+    --bg: #fdfdfd; /* main canvas - neutral near-white */
+    --surface-1: #fcfcfc; /* sidebar, panels */
+    --surface-2: #ffffff; /* blocks, cards, modals - pure white */
+    --surface-3: #f7f7f7; /* popovers, headers */
+    --surface-4: #f5f5f5; /* buttons base */
+    --border: #e0e0e0; /* primary border */
+    --surface-5: #f3f3f3; /* inputs, form elements */
+    --border-1: #e0e0e0; /* stronger border */
+    --surface-6: #f0f0f0; /* popovers, elevated surfaces */
+    --surface-7: #ececec;
 
-    --workflow-edge: #d7dcda; /* workflow handles/edges - matches border-1 */
+    --workflow-edge: #e0e0e0; /* workflow handles/edges - matches border-1 */
 
-    /* Text - warm neutrals */
+    /* Text - neutral */
     --text-primary: #2d2d2d;
     --text-secondary: #404040;
     --text-tertiary: #5c5c5c;
     --text-muted: #737373;
     --text-subtle: #8c8c8c;
-    --text-inverse: #f0fff6;
+    --text-inverse: #ffffff;
     --text-error: #ef4444;
 
     /* Borders / dividers */
-    --divider: #e8e9e4;
-    --border-muted: #dfe0db;
-    --border-success: #d7dcda;
+    --divider: #ededed;
+    --border-muted: #e4e4e4;
+    --border-success: #e0e0e0;
 
     /* Brand & state */
     --brand-400: #8e4cfb;
@@ -152,13 +152,13 @@
     --c-883827: #7c2d12;
 
     /* Terminal status badges */
-    --terminal-status-error-bg: #feeeee;
+    --terminal-status-error-bg: #fef2f2;
     --terminal-status-error-border: #f87171;
-    --terminal-status-info-bg: #f5f5f4;
-    --terminal-status-info-border: #a8a29e;
-    --terminal-status-info-color: #57534e;
-    --terminal-status-warning-bg: #fef9e7;
-    --terminal-status-warning-border: #f5c842;
+    --terminal-status-info-bg: #f7f7f7;
+    --terminal-status-info-border: #a3a3a3;
+    --terminal-status-info-color: #525252;
+    --terminal-status-warning-bg: #fefce8;
+    --terminal-status-warning-border: #facc15;
     --terminal-status-warning-color: #a16207;
   }
   .dark {

@@ -1,0 +1,136 @@
+---
+title: Greptile
+description: Búsqueda de código base y preguntas y respuestas con IA
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="greptile"
+  color="#e5e5e5"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Greptile](https://greptile.com/) es una herramienta de desarrollo impulsada por IA para buscar y consultar código fuente en uno o más repositorios. Greptile permite a los ingenieros responder rápidamente preguntas complejas sobre el código base en lenguaje natural, localizar archivos o símbolos relevantes y obtener información sobre código desconocido o heredado.
+
+Con Greptile, puedes:
+
+- **Hacer preguntas complejas sobre tu código base en lenguaje natural**: Obtén respuestas generadas por IA sobre arquitectura, patrones de uso o implementaciones específicas.
+- **Encontrar código, archivos o funciones relevantes al instante**: Busca usando palabras clave o consultas en lenguaje natural y ve directamente a las líneas, archivos o bloques de código coincidentes.
+- **Comprender dependencias y relaciones**: Descubre dónde se llaman las funciones, cómo se relacionan los módulos o dónde se usan las API en grandes bases de código.
+- **Acelerar la incorporación y exploración de código**: Ponte al día rápidamente en nuevos proyectos o depura problemas complicados sin necesitar un contexto previo profundo.
+
+La integración de Sim Greptile permite a tus agentes de IA:
+
+- Consultar y buscar repositorios privados y públicos usando los modelos de lenguaje avanzados de Greptile.
+- Recuperar fragmentos de código contextualmente relevantes, referencias de archivos y explicaciones para apoyar la revisión de código, documentación y flujos de trabajo de desarrollo.
+- Activar automatizaciones en flujos de trabajo de Sim basadas en resultados de búsqueda/consulta o integrar inteligencia de código directamente en tus procesos.
+
+Ya sea que estés tratando de acelerar la productividad del desarrollador, automatizar la documentación o potenciar la comprensión de tu equipo sobre un código base complejo, Greptile y Sim proporcionan acceso fluido a la inteligencia y búsqueda de código, justo donde lo necesitas.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Consulta y busca en bases de código usando lenguaje natural con Greptile. Obtén respuestas generadas por IA sobre tu código, encuentra archivos relevantes y comprende bases de código complejas.
+
+## Herramientas
+
+### `greptile_query`
+
+Consulta repositorios en lenguaje natural y obtén respuestas con referencias de código relevantes. Greptile utiliza IA para comprender tu código base y responder preguntas.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Sí | Pregunta en lenguaje natural sobre el código base |
+| `repositories` | string | Sí | Lista de repositorios separados por comas. Formato: "github:branch:owner/repo" o simplemente "owner/repo" \(por defecto github:main\) |
+| `sessionId` | string | No | ID de sesión para continuidad de la conversación |
+| `genius` | boolean | No | Activar modo genius para un análisis más exhaustivo \(más lento pero más preciso\) |
+| `apiKey` | string | Sí | Clave API de Greptile |
+| `githubToken` | string | Sí | Token de acceso personal de GitHub con acceso de lectura al repositorio |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Respuesta generada por IA a la consulta |
+| `sources` | array | Referencias de código relevantes que respaldan la respuesta |
+
+### `greptile_search`
+
+Busca en repositorios en lenguaje natural y obtén referencias de código relevantes sin generar una respuesta. Útil para encontrar ubicaciones específicas de código.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Sí | Consulta de búsqueda en lenguaje natural para encontrar código relevante |
+| `repositories` | string | Sí | Lista de repositorios separados por comas. Formato: "github:branch:owner/repo" o simplemente "owner/repo" \(por defecto github:main\) |
+| `sessionId` | string | No | ID de sesión para continuidad de la conversación |
+| `genius` | boolean | No | Activar modo genius para una búsqueda más exhaustiva \(más lento pero más preciso\) |
+| `apiKey` | string | Sí | Clave API de Greptile |
+| `githubToken` | string | Sí | Token de acceso personal de GitHub con acceso de lectura al repositorio |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `sources` | array | Referencias de código relevantes que coinciden con la consulta de búsqueda |
+
+### `greptile_index_repo`
+
+Envía un repositorio para ser indexado por Greptile. La indexación debe completarse antes de que el repositorio pueda ser consultado. Los repositorios pequeños tardan de 3 a 5 minutos, los más grandes pueden tardar más de una hora.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `remote` | string | Sí | Tipo de remoto Git: github o gitlab |
+| `repository` | string | Sí | Repositorio en formato propietario/repo \(ej., "facebook/react"\) |
+| `branch` | string | Sí | Rama a indexar \(ej., "main" o "master"\) |
+| `reload` | boolean | No | Forzar re-indexación incluso si ya está indexado |
+| `notify` | boolean | No | Enviar notificación por correo electrónico cuando se complete la indexación |
+| `apiKey` | string | Sí | Clave API de Greptile |
+| `githubToken` | string | Sí | Token de acceso personal de GitHub con acceso de lectura al repositorio |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `repositoryId` | string | Identificador único para el repositorio indexado \(formato: remoto:rama:propietario/repo\) |
+| `statusEndpoint` | string | URL del endpoint para verificar el estado de indexación |
+| `message` | string | Mensaje de estado sobre la operación de indexación |
+
+### `greptile_status`
+
+Verifica el estado de indexación de un repositorio. Usa esto para verificar si un repositorio está listo para ser consultado o para monitorear el progreso de indexación.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `remote` | string | Sí | Tipo de remoto Git: github o gitlab |
+| `repository` | string | Sí | Repositorio en formato propietario/repo \(ej., "facebook/react"\) |
+| `branch` | string | Sí | Nombre de la rama \(ej., "main" o "master"\) |
+| `apiKey` | string | Sí | Clave API de Greptile |
+| `githubToken` | string | Sí | Token de acceso personal de GitHub con acceso de lectura al repositorio |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `repository` | string | Nombre del repositorio \(propietario/repo\) |
+| `remote` | string | Remoto Git \(github/gitlab\) |
+| `branch` | string | Nombre de la rama |
+| `private` | boolean | Si el repositorio es privado |
+| `status` | string | Estado de indexación: submitted, cloning, processing, completed o failed |
+| `filesProcessed` | number | Número de archivos procesados hasta el momento |
+| `numFiles` | number | Número total de archivos en el repositorio |
+| `sampleQuestions` | array | Preguntas de ejemplo para el repositorio indexado |
+| `sha` | string | SHA del commit Git de la versión indexada |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `greptile`
