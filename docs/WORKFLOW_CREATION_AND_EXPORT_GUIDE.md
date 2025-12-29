@@ -13,6 +13,45 @@ The workflow creation API requires session authentication (not API keys), so for
 
 ---
 
+## End-to-End Process
+
+### Creating and Exporting a Workflow
+
+1. **Get user and workspace IDs** from the database
+2. **Generate UUIDs** for workflow, blocks, and edges
+3. **Insert workflow record** with metadata
+4. **Insert blocks** with full configuration (sub_blocks JSON)
+5. **Insert edges** to connect blocks in execution order
+6. **View in Sim Studio** to verify (refresh page if needed)
+7. **Add tools** to agent blocks (file operations, database, MCP)
+8. **Export via API** to generate standalone service ZIP
+9. **Deploy service** with environment variables
+
+### Re-exporting After Changes
+
+When you modify a workflow in the database:
+
+```bash
+# 1. Make changes to workflow_blocks
+PGPASSWORD=postgres psql -h localhost -p 5435 -U postgres -d simstudio -c "
+UPDATE workflow_blocks SET sub_blocks = ... WHERE id = 'block-id';
+"
+
+# 2. Re-export the workflow
+curl -s "http://localhost:3000/api/workflows/{workflow_id}/export-service" \
+  -H "X-API-Key: {api_key}" -o updated-service.zip
+
+# 3. Update service files (preserve any custom modifications)
+unzip -o updated-service.zip -d temp
+cp temp/*/workflow.json /path/to/running/service/
+
+# 4. Restart the service
+pkill -f "uvicorn main:app.*{port}"
+cd /path/to/running/service && uvicorn main:app --port {port}
+```
+
+---
+
 ## Database Schema
 
 ### Prerequisites
@@ -186,7 +225,13 @@ LLM-powered agent block.
 | Ollama | `ollama/*` | `OLLAMA_API_KEY` (optional) |
 | vLLM | `vllm/*` | `VLLM_API_KEY` (optional) |
 
-**Adding MCP Tools to Agent:**
+---
+
+## Adding Tools to Agent Blocks
+
+Agent blocks can use tools to perform actions like file operations, database queries, API calls, or any MCP-compatible operation. Tools are configured in the `tools` sub-block.
+
+### Tool Configuration Structure
 
 ```json
 {
@@ -196,29 +241,164 @@ LLM-powered agent block.
     "value": [
       {
         "type": "mcp",
-        "title": "write_file",
-        "toolId": "mcp-server-id-write_file",
+        "title": "tool_display_name",
+        "toolId": "unique-tool-identifier",
         "usageControl": "auto",
         "params": {
-          "serverId": "mcp-server-id",
-          "toolName": "write_file",
-          "serverUrl": "http://mcp.local:8001/mcp",
-          "serverName": "Filesystem"
+          "serverId": "server-identifier",
+          "toolName": "actual_tool_name",
+          "serverUrl": "http://server-url/mcp",
+          "serverName": "Human Readable Server Name"
         },
         "schema": {
           "type": "object",
-          "required": ["path", "content"],
+          "required": ["param1"],
           "properties": {
-            "path": {"type": "string"},
-            "content": {"type": "string"}
+            "param1": {"type": "string", "description": "Description"},
+            "param2": {"type": "number", "description": "Optional param"}
           },
-          "description": "Write content to a file"
+          "description": "What this tool does"
         }
       }
     ]
   }
 }
 ```
+
+### Tool Types
+
+| Type | Description | When to Use |
+|------|-------------|-------------|
+| `mcp` | Model Context Protocol tool | External MCP servers, or native tools exposed as MCP |
+| `native` | Direct native implementation | Built-in tools from `tools.py` |
+
+### Native File Tools (Local Filesystem)
+
+For local file operations, use `serverUrl: "local"` and `serverName: "Local Filesystem"`:
+
+```json
+{
+  "type": "mcp",
+  "title": "local_write_file",
+  "params": {
+    "serverId": "local",
+    "toolName": "local_write_file",
+    "serverUrl": "local",
+    "serverName": "Local Filesystem"
+  },
+  "schema": {
+    "type": "object",
+    "required": ["path", "content"],
+    "properties": {
+      "path": {"type": "string", "description": "File path relative to workspace"},
+      "content": {"type": "string", "description": "Content to write"}
+    }
+  },
+  "toolId": "local-write-file",
+  "usageControl": "auto"
+}
+```
+
+### Database Tools
+
+For database operations, define custom tools that map to your database functions:
+
+```json
+{
+  "type": "mcp",
+  "title": "db_insert_record",
+  "params": {
+    "serverId": "database",
+    "toolName": "db_insert_record",
+    "serverUrl": "database",
+    "serverName": "PostgreSQL Database"
+  },
+  "schema": {
+    "type": "object",
+    "required": ["table", "data"],
+    "properties": {
+      "table": {"type": "string", "description": "Table name"},
+      "data": {"type": "object", "description": "Record data as key-value pairs"}
+    }
+  },
+  "toolId": "db-insert-record",
+  "usageControl": "auto"
+}
+```
+
+### Adding Tools via SQL
+
+To add tools to an existing agent block:
+
+```sql
+UPDATE workflow_blocks
+SET sub_blocks = jsonb_set(
+  sub_blocks,
+  '{tools,value}',
+  '[
+    {
+      "type": "mcp",
+      "title": "local_write_file",
+      "params": {
+        "serverId": "local",
+        "toolName": "local_write_file",
+        "serverUrl": "local",
+        "serverName": "Local Filesystem"
+      },
+      "schema": {
+        "type": "object",
+        "required": ["path", "content"],
+        "properties": {
+          "path": {"type": "string"},
+          "content": {"type": "string"}
+        }
+      },
+      "toolId": "local-write-file",
+      "usageControl": "auto"
+    }
+  ]'::jsonb
+)
+WHERE id = 'your-agent-block-id';
+```
+
+### Important: Tool Deduplication
+
+The exported service auto-registers native tools when environment variables are set (e.g., `WORKSPACE_DIR` enables file tools, `DB_HOST` enables database tools). If your workflow also defines these tools in the block configuration, you may get duplicate tool errors.
+
+**The exported service handles this automatically** by deduplicating tools based on name. Native/environment-based tools take priority, and workflow-defined tools with the same name are skipped.
+
+If you encounter "Tool names must be unique" errors, ensure your `handlers/agent.py` includes deduplication logic in `_build_tools()`:
+
+```python
+seen_tool_names = set()
+# ... when adding each tool:
+if tool_name in seen_tool_names:
+    continue  # Skip duplicate
+seen_tool_names.add(tool_name)
+```
+
+### Prompting the Agent to Use Tools
+
+Tools must be explicitly mentioned in the agent's prompt for reliable usage:
+
+```json
+{
+  "messages": {
+    "value": [
+      {
+        "role": "user",
+        "content": "Process the data and then:\n1. Save results to output.json using local_write_file\n2. Insert records into the database using db_insert_batch\n3. Return a summary"
+      }
+    ]
+  }
+}
+```
+
+**Best Practices:**
+- Name specific tools the agent should use
+- Describe expected output format for each tool
+- Order operations logically
+- Ask for a summary of what was accomplished
 
 ### Block: `api`
 
@@ -333,18 +513,53 @@ Update workflow variables.
 
 ## Variable References
 
-Use `<blockname.field>` syntax to reference outputs from other blocks.
+Use `<blockname.field>` syntax to reference outputs from other blocks. Block names are converted to snake_case (spaces become underscores, lowercase).
+
+### Reference Syntax
 
 | Reference | Description |
 |-----------|-------------|
 | `<start.input>` | Input passed to workflow execution |
 | `<blockname.response>` | Agent response content |
-| `<blockname.response.data>` | API response body |
+| `<blockname.data>` | API response body (NOT `.response.data`) |
 | `<blockname.result.field>` | Specific field from function return |
 | `<variable.varname>` | Workflow variable value |
 | `{{ENV_VAR}}` | Environment variable (in apiKey fields) |
 
-**Important:** The start block outputs to `input` key, not `response`. Use `<start.input>`.
+### Block Name Conversion
+
+Block names in the UI are converted for variable references:
+- "Fetch Page" → `fetch_page`
+- "My Agent" → `my_agent`
+- "API Call" → `api_call`
+
+### Common Gotchas
+
+**Start Block:**
+```
+✓ <start.input>       - Correct
+✗ <start.response>    - Wrong, start outputs to "input" key
+```
+
+**API Block:**
+```
+✓ <fetch_page.data>           - Correct, gets response body directly
+✗ <fetch_page.response.data>  - Wrong, extra nesting doesn't exist
+```
+
+**Agent Block:**
+```
+✓ <my_agent.response>         - Gets the agent's text response
+✓ <my_agent.response.content> - Also works for content field
+```
+
+### Debugging Variable References
+
+If variables resolve to `null`, check:
+1. Block name matches exactly (case-insensitive, converted to snake_case)
+2. Field path matches actual output structure
+3. Previous block executed successfully
+4. Check execution logs for actual output structure
 
 ---
 
@@ -543,6 +758,121 @@ When `WORKSPACE_DIR` is set, agents automatically get these tools:
 
 All paths are sandboxed to `WORKSPACE_DIR`.
 
+### Database Tools
+
+When `DB_HOST` or `DB_NAME` environment variables are set, database tools are auto-registered:
+
+| Tool | Description |
+|------|-------------|
+| `db_insert_quote` | Insert single record (example implementation) |
+| `db_insert_quotes_batch` | Batch insert records |
+| `db_query_quotes` | Query records |
+
+**Environment Variables:**
+```bash
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=postgres
+DB_USER=postgres
+DB_PASSWORD=postgres
+```
+
+---
+
+## Extending the Exported Service
+
+The exported service can be extended with custom tools by modifying two files:
+
+### Adding Custom Tools to `tools.py`
+
+Add your tool functions at the end of `tools.py`:
+
+```python
+# Database configuration from environment
+DB_HOST = os.environ.get('DB_HOST', 'localhost')
+DB_PORT = int(os.environ.get('DB_PORT', 5432))
+DB_NAME = os.environ.get('DB_NAME', 'postgres')
+DB_USER = os.environ.get('DB_USER', 'postgres')
+DB_PASSWORD = os.environ.get('DB_PASSWORD', 'postgres')
+
+def is_database_enabled() -> bool:
+    """Check if database tools should be enabled."""
+    return bool(os.environ.get('DB_HOST') or os.environ.get('DB_NAME'))
+
+def db_insert_record(table: str, data: dict) -> Dict[str, Any]:
+    """Insert a record into the database."""
+    try:
+        import psycopg2
+        conn = psycopg2.connect(
+            host=DB_HOST, port=DB_PORT,
+            dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD
+        )
+        cur = conn.cursor()
+        columns = ', '.join(data.keys())
+        placeholders = ', '.join(['%s'] * len(data))
+        cur.execute(
+            f"INSERT INTO {table} ({columns}) VALUES ({placeholders}) RETURNING id",
+            list(data.values())
+        )
+        record_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {'success': True, 'id': record_id}
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+```
+
+### Registering Tools in `handlers/agent.py`
+
+1. **Import your functions** in `_execute_native_tool()`:
+
+```python
+def _execute_native_tool(self, tool_info: Dict, tool_input: Dict) -> str:
+    from tools import (
+        write_file, read_file, list_directory,
+        db_insert_record  # Add your function
+    )
+```
+
+2. **Add execution case**:
+
+```python
+elif tool_name == 'db_insert_record':
+    result = db_insert_record(
+        tool_input.get('table', ''),
+        tool_input.get('data', {})
+    )
+```
+
+3. **Register in `_get_native_file_tools()`** (add at the end):
+
+```python
+# Add database tools if DB is configured
+from tools import is_database_enabled
+if is_database_enabled():
+    tools.append({
+        'name': 'db_insert_record',
+        'description': 'Insert a record into the PostgreSQL database.',
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'table': {'type': 'string', 'description': 'Table name'},
+                'data': {'type': 'object', 'description': 'Record data'}
+            },
+            'required': ['table', 'data']
+        }
+    })
+```
+
+### Dependencies
+
+Add required packages to `requirements.txt`:
+
+```
+psycopg2-binary>=2.9.9
+```
+
 ### Docker Deployment
 
 ```bash
@@ -585,21 +915,52 @@ Check server logs for specific error. Common issues:
 
 ### Variable References Return Null
 
-- Verify block name matches exactly (case-sensitive, use lowercase with underscores)
+- Block names are converted to snake_case: "Fetch Page" → `fetch_page`
 - Use `<start.input>` not `<start.response>` for start block
-- Check the previous block actually produced output
+- Use `<blockname.data>` not `<blockname.response.data>` for API blocks
+- Check execution logs to see actual output structure
+- Verify previous block executed successfully
+
+### Tool Names Must Be Unique Error
+
+This error occurs when tools are registered multiple times. Common causes:
+- Workflow defines tools that are also auto-registered via environment variables
+- Fix: The exported service should deduplicate tools in `_build_tools()`
+
+```python
+seen_tool_names = set()
+if tool_name in seen_tool_names:
+    continue
+seen_tool_names.add(tool_name)
+```
 
 ### MCP Tools Not Working
 
-- MCP servers must be running and accessible
-- Alternative: Use `WORKSPACE_DIR` for local file operations
+- MCP servers must be running and accessible from the service
+- Alternative: Use `WORKSPACE_DIR` for local file operations (no external server needed)
+- For exported services, prefer native tools over MCP when possible
 - Both can be used together
 
 ### Agent Not Using Tools
 
 - Ensure tools array is properly configured with schema
 - Check `usageControl` is set to "auto"
-- Verify the prompt instructs the agent to use tools
+- **Explicitly name the tools** in the prompt (e.g., "use local_write_file to save")
+- Verify tools appear in the execution logs under `toolCalls`
+
+### Database Connection Errors
+
+- Ensure PostgreSQL is running and accessible
+- Check `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` env vars
+- Install `psycopg2-binary` in requirements
+- Verify table exists before running workflow
+
+### Workflow Doesn't Update in UI
+
+After modifying workflow via SQL:
+- Refresh the browser page (Cmd+R / F5)
+- Check `last_synced` timestamp was updated
+- Verify the SQL UPDATE affected the correct block ID
 
 ---
 
