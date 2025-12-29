@@ -40,6 +40,12 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       type: 'object',
       description: 'Form data to send (will set appropriate Content-Type)',
     },
+    timeout: {
+      type: 'number',
+      default: 120000,
+      description:
+        'Request timeout in milliseconds. Default is 120000ms (2 minutes). Max is 600000ms (10 minutes).',
+    },
   },
 
   request: {
