@@ -1,5 +1,6 @@
 import { expect } from 'vitest'
-import type { BlockState, Edge, WorkflowState } from '../types'
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 /**
  * Asserts that a block exists in the workflow.
@@ -12,7 +13,7 @@ import type { BlockState, Edge, WorkflowState } from '../types'
  * ```
  */
 export function expectBlockExists(
-  blocks: Record<string, BlockState>,
+  blocks: Record<string, any>,
   blockId: string,
   expectedType?: string
 ): void {
@@ -33,7 +34,7 @@ export function expectBlockExists(
  * expectBlockNotExists(workflow.blocks, 'deleted-block')
  * ```
  */
-export function expectBlockNotExists(blocks: Record<string, BlockState>, blockId: string): void {
+export function expectBlockNotExists(blocks: Record<string, any>, blockId: string): void {
   expect(blocks[blockId], `Block "${blockId}" should not exist`).toBeUndefined()
 }
 
@@ -45,7 +46,7 @@ export function expectBlockNotExists(blocks: Record<string, BlockState>, blockId
  * expectEdgeConnects(workflow.edges, 'block-0', 'block-1')
  * ```
  */
-export function expectEdgeConnects(edges: Edge[], sourceId: string, targetId: string): void {
+export function expectEdgeConnects(edges: any[], sourceId: string, targetId: string): void {
   const edge = edges.find((e) => e.source === sourceId && e.target === targetId)
   expect(edge, `Edge from "${sourceId}" to "${targetId}" should exist`).toBeDefined()
 }
@@ -58,7 +59,7 @@ export function expectEdgeConnects(edges: Edge[], sourceId: string, targetId: st
  * expectNoEdgeBetween(workflow.edges, 'block-1', 'block-0') // No reverse edge
  * ```
  */
-export function expectNoEdgeBetween(edges: Edge[], sourceId: string, targetId: string): void {
+export function expectNoEdgeBetween(edges: any[], sourceId: string, targetId: string): void {
   const edge = edges.find((e) => e.source === sourceId && e.target === targetId)
   expect(edge, `Edge from "${sourceId}" to "${targetId}" should not exist`).toBeUndefined()
 }
@@ -72,7 +73,7 @@ export function expectNoEdgeBetween(edges: Edge[], sourceId: string, targetId: s
  * ```
  */
 export function expectBlockHasParent(
-  blocks: Record<string, BlockState>,
+  blocks: Record<string, any>,
   childId: string,
   expectedParentId: string
 ): void {
@@ -91,7 +92,7 @@ export function expectBlockHasParent(
  * expectBlockCount(workflow, 5)
  * ```
  */
-export function expectBlockCount(workflow: WorkflowState, expectedCount: number): void {
+export function expectBlockCount(workflow: any, expectedCount: number): void {
   const actualCount = Object.keys(workflow.blocks).length
   expect(actualCount, `Workflow should have ${expectedCount} blocks`).toBe(expectedCount)
 }
@@ -104,7 +105,7 @@ export function expectBlockCount(workflow: WorkflowState, expectedCount: number)
  * expectEdgeCount(workflow, 4)
  * ```
  */
-export function expectEdgeCount(workflow: WorkflowState, expectedCount: number): void {
+export function expectEdgeCount(workflow: any, expectedCount: number): void {
   expect(workflow.edges.length, `Workflow should have ${expectedCount} edges`).toBe(expectedCount)
 }
 
@@ -117,7 +118,7 @@ export function expectEdgeCount(workflow: WorkflowState, expectedCount: number):
  * ```
  */
 export function expectBlockPosition(
-  blocks: Record<string, BlockState>,
+  blocks: Record<string, any>,
   blockId: string,
   expectedPosition: { x: number; y: number }
 ): void {
@@ -135,7 +136,7 @@ export function expectBlockPosition(
  * expectBlockEnabled(workflow.blocks, 'block-1')
  * ```
  */
-export function expectBlockEnabled(blocks: Record<string, BlockState>, blockId: string): void {
+export function expectBlockEnabled(blocks: Record<string, any>, blockId: string): void {
   const block = blocks[blockId]
   expect(block, `Block "${blockId}" should exist`).toBeDefined()
   expect(block.enabled, `Block "${blockId}" should be enabled`).toBe(true)
@@ -149,7 +150,7 @@ export function expectBlockEnabled(blocks: Record<string, BlockState>, blockId: 
  * expectBlockDisabled(workflow.blocks, 'disabled-block')
  * ```
  */
-export function expectBlockDisabled(blocks: Record<string, BlockState>, blockId: string): void {
+export function expectBlockDisabled(blocks: Record<string, any>, blockId: string): void {
   const block = blocks[blockId]
   expect(block, `Block "${blockId}" should exist`).toBeDefined()
   expect(block.enabled, `Block "${blockId}" should be disabled`).toBe(false)
@@ -164,7 +165,7 @@ export function expectBlockDisabled(blocks: Record<string, BlockState>, blockId:
  * ```
  */
 export function expectLoopExists(
-  workflow: WorkflowState,
+  workflow: any,
   loopId: string,
   expectedConfig?: { iterations?: number; loopType?: string; nodes?: string[] }
 ): void {
@@ -193,7 +194,7 @@ export function expectLoopExists(
  * ```
  */
 export function expectParallelExists(
-  workflow: WorkflowState,
+  workflow: any,
   parallelId: string,
   expectedConfig?: { count?: number; parallelType?: string; nodes?: string[] }
 ): void {
@@ -222,7 +223,7 @@ export function expectParallelExists(
  * expectEmptyWorkflow(workflow)
  * ```
  */
-export function expectEmptyWorkflow(workflow: WorkflowState): void {
+export function expectEmptyWorkflow(workflow: any): void {
   expect(Object.keys(workflow.blocks).length, 'Workflow should have no blocks').toBe(0)
   expect(workflow.edges.length, 'Workflow should have no edges').toBe(0)
   expect(Object.keys(workflow.loops).length, 'Workflow should have no loops').toBe(0)
@@ -237,7 +238,7 @@ export function expectEmptyWorkflow(workflow: WorkflowState): void {
  * expectLinearChain(workflow.edges, ['start', 'step1', 'step2', 'end'])
  * ```
  */
-export function expectLinearChain(edges: Edge[], blockIds: string[]): void {
+export function expectLinearChain(edges: any[], blockIds: string[]): void {
   for (let i = 0; i < blockIds.length - 1; i++) {
     expectEdgeConnects(edges, blockIds[i], blockIds[i + 1])
   }

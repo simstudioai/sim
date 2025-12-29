@@ -866,7 +866,7 @@ function SubBlockComponent({
   }
 
   return (
-    <div onMouseDown={handleMouseDown} className='flex flex-col gap-[10px]'>
+    <div onMouseDown={handleMouseDown} className='subblock-content flex flex-col gap-[10px]'>
       {renderLabel(
         config,
         isValidJson,

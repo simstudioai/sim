@@ -171,7 +171,7 @@ function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoadingProps) 
   return (
     <div className='flex h-full flex-1 flex-col'>
       <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
+        <div className='flex flex-1 flex-col overflow-auto bg-white px-[24px] pt-[24px] pb-[24px] dark:bg-[var(--bg)]'>
           <Breadcrumb items={breadcrumbItems} />
 
           <div className='mt-[14px] flex items-center justify-between'>
@@ -193,7 +193,7 @@ function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoadingProps) 
           </div>
 
           <div className='mt-[14px] flex items-center justify-between'>
-            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-4)] px-[8px]'>
+            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-3)] px-[8px] dark:bg-[var(--surface-4)]'>
               <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
               <Input
                 placeholder='Search documents...'
@@ -987,7 +987,7 @@ export function KnowledgeBase({
   return (
     <div className='flex h-full flex-1 flex-col'>
       <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
+        <div className='flex flex-1 flex-col overflow-auto bg-white px-[24px] pt-[24px] pb-[24px] dark:bg-[var(--bg)]'>
           <Breadcrumb items={breadcrumbItems} />
 
           <div className='mt-[14px] flex items-center justify-between'>
