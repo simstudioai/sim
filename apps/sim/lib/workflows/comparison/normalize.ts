@@ -89,6 +89,30 @@ export function sanitizeTools(tools: any[] | undefined): any[] {
 }
 
 /**
+ * Sanitizes a variable by removing UI-only fields like validationError
+ * @param variable - The variable object
+ * @returns Sanitized variable object
+ */
+export function sanitizeVariable(variable: any): any {
+  if (!variable || typeof variable !== 'object') return variable
+  const { validationError, ...rest } = variable
+  return rest
+}
+
+/**
+ * Normalizes the variables structure to always be an object.
+ * Handles legacy data where variables might be stored as an empty array.
+ * @param variables - The variables to normalize
+ * @returns A normalized variables object
+ */
+export function normalizeVariables(variables: any): Record<string, any> {
+  if (!variables) return {}
+  if (Array.isArray(variables)) return {}
+  if (typeof variables !== 'object') return {}
+  return variables
+}
+
+/**
  * Sanitizes inputFormat array by removing UI-only fields like value and collapsed
  * @param inputFormat - Array of input format configurations
  * @returns Sanitized input format array

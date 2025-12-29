@@ -6,8 +6,10 @@ import {
   normalizeLoop,
   normalizeParallel,
   normalizeValue,
+  normalizeVariables,
   sanitizeInputFormat,
   sanitizeTools,
+  sanitizeVariable,
   sortEdges,
 } from './normalize'
 
@@ -228,11 +230,17 @@ export function hasWorkflowChanged(
   }
 
   // 6. Compare variables
-  const currentVariables = (currentState as any).variables || {}
-  const deployedVariables = (deployedState as any).variables || {}
+  const currentVariables = normalizeVariables((currentState as any).variables)
+  const deployedVariables = normalizeVariables((deployedState as any).variables)
 
-  const normalizedCurrentVars = normalizeValue(currentVariables)
-  const normalizedDeployedVars = normalizeValue(deployedVariables)
+  const normalizedCurrentVars = normalizeValue(
+    Object.fromEntries(Object.entries(currentVariables).map(([id, v]) => [id, sanitizeVariable(v)]))
+  )
+  const normalizedDeployedVars = normalizeValue(
+    Object.fromEntries(
+      Object.entries(deployedVariables).map(([id, v]) => [id, sanitizeVariable(v)])
+    )
+  )
 
   if (normalizedStringify(normalizedCurrentVars) !== normalizedStringify(normalizedDeployedVars)) {
     return true
