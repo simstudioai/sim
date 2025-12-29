@@ -283,18 +283,23 @@ class AgentBlockHandler:
         """Build Claude tools from config and register for execution.
 
         Automatically includes native file tools if WORKSPACE_DIR is configured.
+        Deduplicates tools to prevent "Tool names must be unique" errors.
         """
         tools = []
         self.tool_registry = {}
+        seen_tool_names = set()
 
         # Auto-register native file tools if WORKSPACE_DIR is set
         native_file_tools = self._get_native_file_tools()
         for tool in native_file_tools:
-            tools.append(tool)
-            self.tool_registry[tool['name']] = {
-                'type': 'native',
-                'name': tool['name'].replace('local_', '')  # Map local_write_file -> write_file
-            }
+            tool_name = tool['name']
+            if tool_name not in seen_tool_names:
+                tools.append(tool)
+                seen_tool_names.add(tool_name)
+                self.tool_registry[tool_name] = {
+                    'type': 'native',
+                    'name': tool_name.replace('local_', '')  # Map local_write_file -> write_file
+                }
 
         for tool in tools_config:
             tool_type = tool.get('type')
@@ -306,6 +311,10 @@ class AgentBlockHandler:
                 tool_name = tool.get('params', {}).get('toolName') or tool.get('title', '')
                 server_url = tool.get('params', {}).get('serverUrl', '')
 
+                # Skip if already registered (deduplication)
+                if tool_name in seen_tool_names:
+                    continue
+
                 tools.append({
                     'name': tool_name,
                     'description': schema.get('description', f'MCP tool: {tool_name}'),
@@ -315,6 +324,7 @@ class AgentBlockHandler:
                         'required': schema.get('required', [])
                     }
                 })
+                seen_tool_names.add(tool_name)
 
                 self.tool_registry[tool_name] = {
                     'type': 'mcp',
@@ -325,11 +335,17 @@ class AgentBlockHandler:
             elif tool_type == 'native':
                 # Native tool - use local implementations from tools.py
                 tool_name = tool.get('name', '')
+
+                # Skip if already registered (deduplication)
+                if tool_name in seen_tool_names:
+                    continue
+
                 tools.append({
                     'name': tool_name,
                     'description': f'Native tool: {tool_name}',
                     'input_schema': tool.get('schema', {'type': 'object', 'properties': {}})
                 })
+                seen_tool_names.add(tool_name)
 
                 self.tool_registry[tool_name] = {
                     'type': 'native',
