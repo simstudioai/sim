@@ -1,6 +1,14 @@
 import QuickBooks from 'node-quickbooks'
 import type { ListCustomersParams, ListCustomersResponse } from '@/tools/quickbooks/types'
 import type { ToolConfig } from '@/tools/types'
+import {
+  validateQuickBooksQuery,
+  buildDefaultQuery,
+  addPaginationToQuery,
+} from '@/tools/quickbooks/utils'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('QuickBooksListCustomers')
 
 export const quickbooksListCustomersTool: ToolConfig<ListCustomersParams, ListCustomersResponse> =
   {
@@ -46,10 +54,21 @@ export const quickbooksListCustomersTool: ToolConfig<ListCustomersParams, ListCu
     directExecution: async (params) => {
       try {
         const qbo = new QuickBooks(
-          '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+          '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
         )
 
-        const query = params.query || 'SELECT * FROM Customer'
+        // Build and validate query with pagination
+        const rawQuery =
+          params.query ||
+          buildDefaultQuery('Customer', params.maxResults, params.startPosition)
+
+        // Apply pagination to custom queries
+        const queryWithPagination = params.query
+          ? addPaginationToQuery(rawQuery, params.maxResults, params.startPosition)
+          : rawQuery
+
+        const query = validateQuickBooksQuery(queryWithPagination, 'Customer')
+
         const customers = await new Promise<any[]>((resolve, reject) => {
           qbo.findCustomers(query, (err: any, result: any) => {
             if (err) reject(err)
@@ -69,13 +88,14 @@ export const quickbooksListCustomersTool: ToolConfig<ListCustomersParams, ListCu
           },
         }
       } catch (error: any) {
+        const errorDetails = error.response?.body
+          ? JSON.stringify(error.response.body)
+          : error.message || 'Unknown error'
+        logger.error('Failed to list customers', { error: errorDetails })
         return {
           success: false,
-          error: {
-            code: 'QUICKBOOKS_LIST_CUSTOMERS_ERROR',
-            message: error.message || 'Failed to list customers',
-            details: error,
-          },
+          output: {},
+          error: `QUICKBOOKS_LIST_CUSTOMERS_ERROR: Failed to list customers - ${errorDetails}`,
         }
       }
     },

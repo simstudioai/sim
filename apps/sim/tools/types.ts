@@ -88,8 +88,8 @@ export interface ToolConfig<P = any, R = any> {
   // If not specified, will try all extractors in order (fallback)
   errorExtractor?: string
 
-  // Request configuration
-  request: {
+  // Request configuration (optional if directExecution is provided)
+  request?: {
     url: string | ((params: P) => string)
     method: HttpMethod | ((params: P) => HttpMethod)
     headers: (params: P) => Record<string, string>

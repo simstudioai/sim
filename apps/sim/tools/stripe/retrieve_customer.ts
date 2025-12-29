@@ -36,11 +36,14 @@ export const stripeRetrieveCustomerTool: ToolConfig<RetrieveCustomerParams, Cust
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Retrieve customer using SDK
       const customer = await stripe.customers.retrieve(params.id)
+
+      // Handle Customer | DeletedCustomer union type
+      const customerData = customer.deleted ? null : (customer as Stripe.Customer)
 
       return {
         success: true,
@@ -48,19 +51,19 @@ export const stripeRetrieveCustomerTool: ToolConfig<RetrieveCustomerParams, Cust
           customer,
           metadata: {
             id: customer.id,
-            email: customer.email,
-            name: customer.name,
+            email: customerData?.email ?? null,
+            name: customerData?.name ?? null,
           },
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_RETRIEVE_CUSTOMER_ERROR',
-          message: error.message || 'Failed to retrieve customer',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_RETRIEVE_CUSTOMER_ERROR: Failed to retrieve customer - ${errorDetails}`,
       }
     }
   },

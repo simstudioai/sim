@@ -1,6 +1,10 @@
 import QuickBooks from 'node-quickbooks'
 import type { CreateBillPaymentParams, BillPaymentResponse } from '@/tools/quickbooks/types'
 import type { ToolConfig } from '@/tools/types'
+import { validateDate } from '@/tools/financial-validation'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('QuickBooksCreateBillPayment')
 
 export const quickbooksCreateBillPaymentTool: ToolConfig<
   CreateBillPaymentParams,
@@ -64,8 +68,25 @@ export const quickbooksCreateBillPaymentTool: ToolConfig<
 
   directExecution: async (params) => {
     try {
+      // Validate transaction date if provided
+      if (params.TxnDate) {
+        const txnDateValidation = validateDate(params.TxnDate, {
+          fieldName: 'transaction date',
+          allowFuture: false,
+          required: false,
+        })
+        if (!txnDateValidation.valid) {
+          logger.error('Transaction date validation failed', { error: txnDateValidation.error })
+          return {
+            success: false,
+            output: {},
+            error: `QUICKBOOKS_VALIDATION_ERROR: ${txnDateValidation.error}`,
+          }
+        }
+      }
+
       const qbo = new QuickBooks(
-        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
       )
 
       const billPayment: Record<string, any> = {
@@ -98,13 +119,13 @@ export const quickbooksCreateBillPaymentTool: ToolConfig<
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'QUICKBOOKS_CREATE_BILL_PAYMENT_ERROR',
-          message: error.message || 'Failed to create bill payment',
-          details: error,
-        },
+        output: {},
+        error: `QUICKBOOKS_CREATE_BILL_PAYMENT_ERROR: Failed to create bill payment - ${errorDetails}`,
       }
     }
   },

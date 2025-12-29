@@ -84,13 +84,13 @@ export const plaidGetAuthTool: ToolConfig<GetAuthParams, GetAuthResponse> = {
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'PLAID_AUTH_ERROR',
-          message: error.message || 'Failed to retrieve auth information from Plaid',
-          details: error.response?.data || error,
-        },
+        output: {},
+        error: `PLAID_AUTH_ERROR: Failed to retrieve auth information from Plaid - ${errorDetails}`,
       }
     }
   },

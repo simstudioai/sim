@@ -1,6 +1,14 @@
 import QuickBooks from 'node-quickbooks'
 import type { ListBillsParams, ListBillsResponse } from '@/tools/quickbooks/types'
 import type { ToolConfig } from '@/tools/types'
+import {
+  validateQuickBooksQuery,
+  buildDefaultQuery,
+  addPaginationToQuery,
+} from '@/tools/quickbooks/utils'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('QuickBooksListBills')
 
 export const quickbooksListBillsTool: ToolConfig<ListBillsParams, ListBillsResponse> = {
   id: 'quickbooks_list_bills',
@@ -44,10 +52,21 @@ export const quickbooksListBillsTool: ToolConfig<ListBillsParams, ListBillsRespo
   directExecution: async (params) => {
     try {
       const qbo = new QuickBooks(
-        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
       )
 
-      const query = params.query || 'SELECT * FROM Bill'
+      // Build and validate query with pagination
+      const rawQuery =
+        params.query ||
+        buildDefaultQuery('Bill', params.maxResults, params.startPosition)
+
+      // Apply pagination to custom queries
+      const queryWithPagination = params.query
+        ? addPaginationToQuery(rawQuery, params.maxResults, params.startPosition)
+        : rawQuery
+
+      const query = validateQuickBooksQuery(queryWithPagination, 'Bill')
+
       const bills = await new Promise<any[]>((resolve, reject) => {
         qbo.findBills(query, (err: any, result: any) => {
           if (err) reject(err)
@@ -67,13 +86,14 @@ export const quickbooksListBillsTool: ToolConfig<ListBillsParams, ListBillsRespo
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
+      logger.error('Failed to list bills', { error: errorDetails })
       return {
         success: false,
-        error: {
-          code: 'QUICKBOOKS_LIST_BILLS_ERROR',
-          message: error.message || 'Failed to list bills',
-          details: error,
-        },
+        output: {},
+        error: `QUICKBOOKS_LIST_BILLS_ERROR: Failed to list bills - ${errorDetails}`,
       }
     }
   },

@@ -43,6 +43,9 @@ interface RequestParams {
  * Format request parameters based on tool configuration and provided params
  */
 export function formatRequestParams(tool: ToolConfig, params: Record<string, any>): RequestParams {
+  if (!tool.request) {
+    throw new Error('Tool does not have a request configuration')
+  }
   // Process URL
   const url = typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
 

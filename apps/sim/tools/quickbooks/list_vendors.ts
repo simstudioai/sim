@@ -1,6 +1,14 @@
 import QuickBooks from 'node-quickbooks'
 import type { ListVendorsParams, ListVendorsResponse } from '@/tools/quickbooks/types'
 import type { ToolConfig } from '@/tools/types'
+import {
+  validateQuickBooksQuery,
+  buildDefaultQuery,
+  addPaginationToQuery,
+} from '@/tools/quickbooks/utils'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('QuickBooksListVendors')
 
 export const quickbooksListVendorsTool: ToolConfig<ListVendorsParams, ListVendorsResponse> = {
   id: 'quickbooks_list_vendors',
@@ -45,10 +53,21 @@ export const quickbooksListVendorsTool: ToolConfig<ListVendorsParams, ListVendor
   directExecution: async (params) => {
     try {
       const qbo = new QuickBooks(
-        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
       )
 
-      const query = params.query || 'SELECT * FROM Vendor'
+      // Build and validate query with pagination
+      const rawQuery =
+        params.query ||
+        buildDefaultQuery('Vendor', params.maxResults, params.startPosition)
+
+      // Apply pagination to custom queries
+      const queryWithPagination = params.query
+        ? addPaginationToQuery(rawQuery, params.maxResults, params.startPosition)
+        : rawQuery
+
+      const query = validateQuickBooksQuery(queryWithPagination, 'Vendor')
+
       const vendors = await new Promise<any[]>((resolve, reject) => {
         qbo.findVendors(query, (err: any, result: any) => {
           if (err) reject(err)
@@ -68,13 +87,14 @@ export const quickbooksListVendorsTool: ToolConfig<ListVendorsParams, ListVendor
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
+      logger.error('Failed to list vendors', { error: errorDetails })
       return {
         success: false,
-        error: {
-          code: 'QUICKBOOKS_LIST_VENDORS_ERROR',
-          message: error.message || 'Failed to list vendors',
-          details: error,
-        },
+        output: {},
+        error: `QUICKBOOKS_LIST_VENDORS_ERROR: Failed to list vendors - ${errorDetails}`,
       }
     }
   },

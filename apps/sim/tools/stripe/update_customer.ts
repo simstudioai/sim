@@ -72,7 +72,7 @@ export const stripeUpdateCustomerTool: ToolConfig<UpdateCustomerParams, Customer
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Prepare update data
@@ -99,13 +99,13 @@ export const stripeUpdateCustomerTool: ToolConfig<UpdateCustomerParams, Customer
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_UPDATE_CUSTOMER_ERROR',
-          message: error.message || 'Failed to update customer',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_UPDATE_CUSTOMER_ERROR: Failed to update customer - ${errorDetails}`,
       }
     }
   },

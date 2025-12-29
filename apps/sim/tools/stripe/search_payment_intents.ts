@@ -34,7 +34,7 @@ export const stripeSearchPaymentIntentsTool: ToolConfig<
 
   directExecution: async (params) => {
     try {
-      const stripe = new Stripe(params.apiKey, { apiVersion: '2024-12-18.acacia' })
+      const stripe = new Stripe(params.apiKey, { apiVersion: '2025-08-27.basil' })
       const searchOptions: Stripe.PaymentIntentSearchParams = { query: params.query }
       if (params.limit) searchOptions.limit = params.limit
       const searchResult = await stripe.paymentIntents.search(searchOptions)
@@ -46,7 +46,14 @@ export const stripeSearchPaymentIntentsTool: ToolConfig<
         },
       }
     } catch (error: any) {
-      return { success: false, error: { code: 'STRIPE_SEARCH_PAYMENT_INTENTS_ERROR', message: error.message || 'Failed to search payment intents', details: error } }
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
+      return {
+        success: false,
+        output: {},
+        error: `STRIPE_SEARCH_PAYMENT_INTENTS_ERROR: Failed to search payment intents - ${errorDetails}`,
+      }
     }
   },
 

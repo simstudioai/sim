@@ -23,8 +23,8 @@ export const stripeDeleteProductTool: ToolConfig<DeleteProductParams, ProductDel
     id: {
       type: 'string',
       required: true,
-      visibility: 'user-or-llm',
-      description: 'Product ID (e.g., prod_1234567890)',
+      visibility: 'user-only',
+      description: 'Product ID (e.g., prod_1234567890) - requires human confirmation for deletion',
     },
   },
 
@@ -36,7 +36,7 @@ export const stripeDeleteProductTool: ToolConfig<DeleteProductParams, ProductDel
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Delete product using SDK
@@ -54,13 +54,13 @@ export const stripeDeleteProductTool: ToolConfig<DeleteProductParams, ProductDel
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_DELETE_PRODUCT_ERROR',
-          message: error.message || 'Failed to delete product',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_DELETE_PRODUCT_ERROR: Failed to delete product - ${errorDetails}`,
       }
     }
   },

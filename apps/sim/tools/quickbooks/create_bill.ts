@@ -1,6 +1,10 @@
 import QuickBooks from 'node-quickbooks'
 import type { CreateBillParams, BillResponse } from '@/tools/quickbooks/types'
 import type { ToolConfig } from '@/tools/types'
+import { validateDate } from '@/tools/financial-validation'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('QuickBooksCreateBill')
 
 export const quickbooksCreateBillTool: ToolConfig<CreateBillParams, BillResponse> = {
   id: 'quickbooks_create_bill',
@@ -61,8 +65,94 @@ export const quickbooksCreateBillTool: ToolConfig<CreateBillParams, BillResponse
 
   directExecution: async (params) => {
     try {
+      // Validate transaction date if provided (must be in past or today)
+      if (params.TxnDate) {
+        const txnDateValidation = validateDate(params.TxnDate, {
+          fieldName: 'transaction date',
+          allowFuture: false,
+          allowPast: true,
+          required: false,
+        })
+        if (!txnDateValidation.valid) {
+          logger.error('Transaction date validation failed', { error: txnDateValidation.error })
+          return {
+            success: false,
+            output: {},
+            error: `QUICKBOOKS_VALIDATION_ERROR: ${txnDateValidation.error}`,
+          }
+        }
+      }
+
+      // Validate due date if provided (can be past for overdue bills)
+      if (params.DueDate) {
+        const dueDateValidation = validateDate(params.DueDate, {
+          fieldName: 'due date',
+          allowPast: true,
+          allowFuture: true,
+          required: false,
+        })
+        if (!dueDateValidation.valid) {
+          logger.error('Due date validation failed', { error: dueDateValidation.error })
+          return {
+            success: false,
+            output: {},
+            error: `QUICKBOOKS_VALIDATION_ERROR: ${dueDateValidation.error}`,
+          }
+        }
+      }
+
+      // Validate date relationship: transaction date must be before or equal to due date
+      if (params.TxnDate && params.DueDate) {
+        const txnDate = new Date(params.TxnDate)
+        const dueDate = new Date(params.DueDate)
+        if (txnDate > dueDate) {
+          logger.error('Date relationship validation failed', {
+            txnDate: params.TxnDate,
+            dueDate: params.DueDate,
+          })
+          return {
+            success: false,
+            output: {},
+            error: 'QUICKBOOKS_VALIDATION_ERROR: Transaction date cannot be after due date',
+          }
+        }
+      }
+
+      // Validate line item amounts
+      if (Array.isArray(params.Line)) {
+        for (let i = 0; i < params.Line.length; i++) {
+          const line = params.Line[i]
+          if (line.Amount !== undefined) {
+            const amountValidation = validateFinancialAmount(line.Amount, {
+              fieldName: `line item ${i + 1} amount`,
+              allowZero: false,
+              allowNegative: false,
+              min: 0.01,
+              max: 10000000,
+            })
+
+            if (!amountValidation.valid) {
+              logger.error('Line item amount validation failed', {
+                lineNumber: i + 1,
+                error: amountValidation.error,
+              })
+              return {
+                success: false,
+                output: {},
+                error: `QUICKBOOKS_VALIDATION_ERROR: ${amountValidation.error}`,
+              }
+            }
+
+            // Update with sanitized amount
+            if (amountValidation.sanitized !== undefined) {
+              params.Line[i].Amount = amountValidation.sanitized
+            }
+          }
+        }
+      }
+
       const qbo = new QuickBooks(
-        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
       )
 
       const bill: Record<string, any> = {
@@ -97,13 +187,13 @@ export const quickbooksCreateBillTool: ToolConfig<CreateBillParams, BillResponse
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'QUICKBOOKS_CREATE_BILL_ERROR',
-          message: error.message || 'Failed to create bill',
-          details: error,
-        },
+        output: {},
+        error: `QUICKBOOKS_CREATE_BILL_ERROR: Failed to create bill - ${errorDetails}`,
       }
     }
   },

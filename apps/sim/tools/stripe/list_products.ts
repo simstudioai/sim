@@ -42,7 +42,7 @@ export const stripeListProductsTool: ToolConfig<ListProductsParams, ProductListR
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Prepare list options
@@ -64,13 +64,13 @@ export const stripeListProductsTool: ToolConfig<ListProductsParams, ProductListR
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_LIST_PRODUCTS_ERROR',
-          message: error.message || 'Failed to list products',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_LIST_PRODUCTS_ERROR: Failed to list products - ${errorDetails}`,
       }
     }
   },

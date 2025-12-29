@@ -1,6 +1,11 @@
 import { XeroClient } from 'xero-node'
 import type { CreateInvoiceParams, CreateInvoiceResponse } from '@/tools/xero/types'
 import type { ToolConfig } from '@/tools/types'
+import { validateDate } from '@/tools/financial-validation'
+import { createLogger } from '@sim/logger'
+import { env } from '@/lib/core/config/env'
+
+const logger = createLogger('XeroCreateInvoice')
 
 /**
  * Xero Create Invoice Tool
@@ -63,10 +68,38 @@ export const xeroCreateInvoiceTool: ToolConfig<CreateInvoiceParams, CreateInvoic
    */
   directExecution: async (params) => {
     try {
-      // Initialize Xero SDK client
+      // Validate due date if provided (should be in future)
+      if (params.dueDate) {
+        const dueDateValidation = validateDate(params.dueDate, {
+          fieldName: 'due date',
+          allowPast: false,
+          required: false,
+        })
+        if (!dueDateValidation.valid) {
+          logger.error('Due date validation failed', { error: dueDateValidation.error })
+          return {
+            success: false,
+            output: {},
+            error: `XERO_VALIDATION_ERROR: ${dueDateValidation.error}`,
+          }
+        }
+      }
+
+      // Validate Xero credentials are configured
+      if (!env.XERO_CLIENT_ID || !env.XERO_CLIENT_SECRET) {
+        logger.error('Xero credentials not configured')
+        return {
+          success: false,
+          output: {},
+          error: 'XERO_CONFIGURATION_ERROR: XERO_CLIENT_ID and XERO_CLIENT_SECRET must be configured in environment variables',
+        }
+      }
+
+      // Initialize Xero SDK client with OAuth app credentials
+      // These are required by the SDK constructor but not used for token-based auth
       const xero = new XeroClient({
-        clientId: '', // Not needed for token-based auth
-        clientSecret: '', // Not needed for token-based auth
+        clientId: env.XERO_CLIENT_ID,
+        clientSecret: env.XERO_CLIENT_SECRET,
       })
 
       // Set access token for this request
@@ -96,7 +129,7 @@ export const xeroCreateInvoiceTool: ToolConfig<CreateInvoiceParams, CreateInvoic
 
       // Create invoice object
       const invoice = {
-        type: params.type || 'ACCREC',
+        type: (params.type || 'ACCREC') as any,
         contact: {
           contactID: params.contactId,
         },
@@ -104,7 +137,7 @@ export const xeroCreateInvoiceTool: ToolConfig<CreateInvoiceParams, CreateInvoic
         dueDateString: dueDate,
         lineItems,
         reference: params.reference || '',
-        status: 'DRAFT',
+        status: 'DRAFT' as any,
       }
 
       // Create invoice using SDK
@@ -147,13 +180,14 @@ export const xeroCreateInvoiceTool: ToolConfig<CreateInvoiceParams, CreateInvoic
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
+      logger.error('Failed to create Xero invoice', { error: errorDetails })
       return {
         success: false,
-        error: {
-          code: 'XERO_INVOICE_ERROR',
-          message: error.message || 'Failed to create Xero invoice',
-          details: error.response?.body || error,
-        },
+        output: {},
+        error: `XERO_INVOICE_ERROR: Failed to create Xero invoice - ${errorDetails}`,
       }
     }
   },

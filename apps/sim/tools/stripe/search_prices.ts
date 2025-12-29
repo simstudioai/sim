@@ -31,7 +31,7 @@ export const stripeSearchPricesTool: ToolConfig<SearchPricesParams, PriceListRes
 
   directExecution: async (params) => {
     try {
-      const stripe = new Stripe(params.apiKey, { apiVersion: '2024-12-18.acacia' })
+      const stripe = new Stripe(params.apiKey, { apiVersion: '2025-08-27.basil' })
       const searchOptions: Stripe.PriceSearchParams = { query: params.query }
       if (params.limit) searchOptions.limit = params.limit
       const searchResult = await stripe.prices.search(searchOptions)
@@ -43,7 +43,14 @@ export const stripeSearchPricesTool: ToolConfig<SearchPricesParams, PriceListRes
         },
       }
     } catch (error: any) {
-      return { success: false, error: { code: 'STRIPE_SEARCH_PRICES_ERROR', message: error.message || 'Failed to search prices', details: error } }
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
+      return {
+        success: false,
+        output: {},
+        error: `STRIPE_SEARCH_PRICES_ERROR: Failed to search prices - ${errorDetails}`,
+      }
     }
   },
 

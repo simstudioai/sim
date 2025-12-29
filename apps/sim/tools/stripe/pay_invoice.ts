@@ -42,7 +42,7 @@ export const stripePayInvoiceTool: ToolConfig<PayInvoiceParams, InvoiceResponse>
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Prepare pay options
@@ -67,13 +67,13 @@ export const stripePayInvoiceTool: ToolConfig<PayInvoiceParams, InvoiceResponse>
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_PAY_INVOICE_ERROR',
-          message: error.message || 'Failed to pay invoice',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_PAY_INVOICE_ERROR: Failed to pay invoice - ${errorDetails}`,
       }
     }
   },

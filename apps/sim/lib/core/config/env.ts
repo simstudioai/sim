@@ -12,8 +12,6 @@ const getEnv = (variable: string) => runtimeEnv(variable) ?? process.env[variabl
 
 // biome-ignore format: keep alignment for readability
 export const env = createEnv({
-  skipValidation: true,
-
   server: {
     // Core Database & Authentication
     DATABASE_URL:                          z.string().url(),                       // Primary database connection string
@@ -239,6 +237,14 @@ export const env = createEnv({
     WORDPRESS_CLIENT_SECRET:               z.string().optional(),                  // WordPress.com OAuth client secret
     SPOTIFY_CLIENT_ID:                     z.string().optional(),                  // Spotify OAuth client ID
     SPOTIFY_CLIENT_SECRET:                 z.string().optional(),                  // Spotify OAuth client secret
+    QUICKBOOKS_CLIENT_ID:                  z.string().optional(),                  // QuickBooks OAuth client ID
+    QUICKBOOKS_CLIENT_SECRET:              z.string().optional(),                  // QuickBooks OAuth client secret
+    PLAID_CLIENT_ID:                       z.string().optional(),                  // Plaid OAuth client ID
+    PLAID_CLIENT_SECRET:                   z.string().optional(),                  // Plaid OAuth client secret
+    FRESHBOOKS_CLIENT_ID:                  z.string().optional(),                  // FreshBooks OAuth client ID
+    FRESHBOOKS_CLIENT_SECRET:              z.string().optional(),                  // FreshBooks OAuth client secret
+    XERO_CLIENT_ID:                        z.string().optional(),                  // Xero OAuth client ID
+    XERO_CLIENT_SECRET:                    z.string().optional(),                  // Xero OAuth client secret
 
     // E2B Remote Code Execution
     E2B_ENABLED:                           z.string().optional(),                  // Enable E2B remote code execution
@@ -360,9 +366,20 @@ export const env = createEnv({
   },
 })
 
-// Need this utility because t3-env is returning string for boolean values.
-export const isTruthy = (value: string | boolean | number | undefined) =>
-  typeof value === 'string' ? value.toLowerCase() === 'true' || value === '1' : Boolean(value)
+/**
+ * Safely converts various types to boolean
+ * @param value - The value to convert to boolean
+ * @returns true if value represents a truthy value, false otherwise
+ */
+export const isTruthy = (value: string | boolean | number | undefined): boolean => {
+  if (value === undefined || value === null) return false
+  if (typeof value === 'string') {
+    const lower = value.trim().toLowerCase()
+    return lower === 'true' || lower === '1' || lower === 'yes'
+  }
+  if (typeof value === 'number') return value !== 0
+  return Boolean(value)
+}
 
 // Utility to check if a value is explicitly false (defaults to false only if explicitly set)
 export const isFalsy = (value: string | boolean | number | undefined) =>

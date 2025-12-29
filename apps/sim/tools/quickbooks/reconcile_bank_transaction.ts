@@ -54,7 +54,7 @@ export const quickbooksReconcileBankTransactionTool: ToolConfig<
   directExecution: async (params) => {
     try {
       const qbo = new QuickBooks(
-        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
       )
 
       const reconciliation = {
@@ -91,13 +91,13 @@ export const quickbooksReconcileBankTransactionTool: ToolConfig<
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'QUICKBOOKS_RECONCILE_BANK_TRANSACTION_ERROR',
-          message: error.message || 'Failed to reconcile transaction',
-          details: error,
-        },
+        output: {},
+        error: `QUICKBOOKS_RECONCILE_BANK_TRANSACTION_ERROR: Failed to reconcile transaction - ${errorDetails}`,
       }
     }
   },

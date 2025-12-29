@@ -112,13 +112,13 @@ export const freshbooksCreateExpenseTool: ToolConfig<
 
       // Add optional fields
       if (params.categoryId) {
-        expenseData.categoryid = params.categoryId
+        expenseData.categoryId = params.categoryId
       }
       if (params.clientId) {
-        expenseData.clientid = params.clientId
+        expenseData.clientId = params.clientId
       }
       if (params.projectId) {
-        expenseData.projectid = params.projectId
+        expenseData.projectId = params.projectId
       }
       if (params.taxName && taxAmount > 0) {
         expenseData.taxName1 = params.taxName
@@ -128,8 +128,13 @@ export const freshbooksCreateExpenseTool: ToolConfig<
         }
       }
 
-      // Create expense using SDK
-      const response = await client.expenses.create(params.accountId, expenseData)
+      // Create expense using SDK (Note: SDK expects expense data first, then accountId)
+      const response = await client.expenses.create(expenseData, params.accountId)
+
+      if (!response.data) {
+        throw new Error('FreshBooks API returned no data')
+      }
+
       const expense = response.data
 
       return {
@@ -155,13 +160,13 @@ export const freshbooksCreateExpenseTool: ToolConfig<
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'FRESHBOOKS_EXPENSE_ERROR',
-          message: error.message || 'Failed to create FreshBooks expense',
-          details: error.response?.data || error,
-        },
+        output: {},
+        error: `FRESHBOOKS_EXPENSE_ERROR: Failed to create FreshBooks expense - ${errorDetails}`,
       }
     }
   },

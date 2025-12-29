@@ -66,6 +66,10 @@ export const plaidDetectRecurringTool: ToolConfig<DetectRecurringParams, DetectR
     },
 
     transformResponse: async (response, params) => {
+      if (!params) {
+        throw new Error('Params are required for transformResponse')
+      }
+      
       const transactions = params.transactions as any[]
       const minOccurrences = params.minOccurrences || 2
       const toleranceDays = params.toleranceDays || 3

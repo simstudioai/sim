@@ -71,7 +71,7 @@ export const stripeCreateChargeTool: ToolConfig<CreateChargeParams, ChargeRespon
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Prepare charge data
@@ -103,13 +103,13 @@ export const stripeCreateChargeTool: ToolConfig<CreateChargeParams, ChargeRespon
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_CHARGE_ERROR',
-          message: error.message || 'Failed to create charge',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_CHARGE_ERROR: Failed to create charge - ${errorDetails}`,
       }
     }
   },

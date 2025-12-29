@@ -48,7 +48,7 @@ export const stripeUpdateChargeTool: ToolConfig<UpdateChargeParams, ChargeRespon
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Prepare update data
@@ -73,13 +73,13 @@ export const stripeUpdateChargeTool: ToolConfig<UpdateChargeParams, ChargeRespon
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_UPDATE_CHARGE_ERROR',
-          message: error.message || 'Failed to update charge',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_UPDATE_CHARGE_ERROR: Failed to update charge - ${errorDetails}`,
       }
     }
   },

@@ -36,7 +36,7 @@ export const stripeRetrieveChargeTool: ToolConfig<RetrieveChargeParams, ChargeRe
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Retrieve charge using SDK
@@ -56,13 +56,13 @@ export const stripeRetrieveChargeTool: ToolConfig<RetrieveChargeParams, ChargeRe
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_RETRIEVE_CHARGE_ERROR',
-          message: error.message || 'Failed to retrieve charge',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_RETRIEVE_CHARGE_ERROR: Failed to retrieve charge - ${errorDetails}`,
       }
     }
   },

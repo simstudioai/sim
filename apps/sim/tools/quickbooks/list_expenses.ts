@@ -1,6 +1,14 @@
 import QuickBooks from 'node-quickbooks'
 import type { ListExpensesParams, ListExpensesResponse } from '@/tools/quickbooks/types'
 import type { ToolConfig } from '@/tools/types'
+import {
+  validateQuickBooksQuery,
+  buildDefaultQuery,
+  addPaginationToQuery,
+} from '@/tools/quickbooks/utils'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('QuickBooksListExpenses')
 
 export const quickbooksListExpensesTool: ToolConfig<ListExpensesParams, ListExpensesResponse> = {
   id: 'quickbooks_list_expenses',
@@ -45,10 +53,21 @@ export const quickbooksListExpensesTool: ToolConfig<ListExpensesParams, ListExpe
   directExecution: async (params) => {
     try {
       const qbo = new QuickBooks(
-        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
       )
 
-      const query = params.query || 'SELECT * FROM Purchase'
+      // Build and validate query with pagination (Purchase is the QuickBooks entity name)
+      const rawQuery =
+        params.query ||
+        buildDefaultQuery('Purchase', params.maxResults, params.startPosition)
+
+      // Apply pagination to custom queries
+      const queryWithPagination = params.query
+        ? addPaginationToQuery(rawQuery, params.maxResults, params.startPosition)
+        : rawQuery
+
+      const query = validateQuickBooksQuery(queryWithPagination, 'Purchase')
+
       const expenses = await new Promise<any[]>((resolve, reject) => {
         qbo.findPurchases(query, (err: any, result: any) => {
           if (err) reject(err)
@@ -68,13 +87,14 @@ export const quickbooksListExpensesTool: ToolConfig<ListExpensesParams, ListExpe
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
+      logger.error('Failed to list expenses', { error: errorDetails })
       return {
         success: false,
-        error: {
-          code: 'QUICKBOOKS_LIST_EXPENSES_ERROR',
-          message: error.message || 'Failed to list expenses',
-          details: error,
-        },
+        output: {},
+        error: `QUICKBOOKS_LIST_EXPENSES_ERROR: Failed to list expenses - ${errorDetails}`,
       }
     }
   },

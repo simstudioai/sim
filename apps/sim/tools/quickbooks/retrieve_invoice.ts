@@ -32,7 +32,7 @@ export const quickbooksRetrieveInvoiceTool: ToolConfig<RetrieveInvoiceParams, In
   directExecution: async (params) => {
     try {
       const qbo = new QuickBooks(
-        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
       )
 
       const invoice = await new Promise<any>((resolve, reject) => {
@@ -58,11 +58,8 @@ export const quickbooksRetrieveInvoiceTool: ToolConfig<RetrieveInvoiceParams, In
     } catch (error: any) {
       return {
         success: false,
-        error: {
-          code: 'QUICKBOOKS_RETRIEVE_INVOICE_ERROR',
-          message: error.message || 'Failed to retrieve invoice',
-          details: error,
-        },
+        output: {},
+        error: `QUICKBOOKS_RETRIEVE_INVOICE_ERROR: ${error.message || 'Failed to retrieve invoice'}`,
       }
     }
   },

@@ -4,6 +4,10 @@ import type {
   ReconcileBankTransactionResponse,
 } from '@/tools/xero/types'
 import type { ToolConfig } from '@/tools/types'
+import { createLogger } from '@sim/logger'
+import { env } from '@/lib/core/config/env'
+
+const logger = createLogger('XeroReconcileBankTransaction')
 
 /**
  * Xero Reconcile Bank Transaction Tool
@@ -82,10 +86,21 @@ export const xeroReconcileBankTransactionTool: ToolConfig<
    */
   directExecution: async (params) => {
     try {
-      // Initialize Xero SDK client
+      // Validate Xero credentials are configured
+      if (!env.XERO_CLIENT_ID || !env.XERO_CLIENT_SECRET) {
+        logger.error('Xero credentials not configured')
+        return {
+          success: false,
+          output: {},
+          error: 'XERO_CONFIGURATION_ERROR: XERO_CLIENT_ID and XERO_CLIENT_SECRET must be configured in environment variables',
+        }
+      }
+
+      // Initialize Xero SDK client with OAuth app credentials
+      // These are required by the SDK constructor but not used for token-based auth
       const xero = new XeroClient({
-        clientId: '',
-        clientSecret: '',
+        clientId: env.XERO_CLIENT_ID,
+        clientSecret: env.XERO_CLIENT_SECRET,
       })
 
       // Set access token
@@ -106,15 +121,14 @@ export const xeroReconcileBankTransactionTool: ToolConfig<
         if (params.amount > 0) {
           const invoicesResponse = await xero.accountingApi.getInvoices(
             params.tenantId,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            `Status=="AUTHORISED"&&Type=="ACCREC"&&AmountDue>=${params.amount * 0.95}&&AmountDue<=${params.amount * 1.05}`
+            undefined, // ifModifiedSince
+            `Status=="AUTHORISED"&&Type=="ACCREC"&&AmountDue>=${params.amount * 0.95}&&AmountDue<=${params.amount * 1.05}` as any, // where
+            undefined, // order
+            undefined, // IDs
+            undefined, // page
+            undefined, // includeArchived
+            undefined, // summaryOnly
+            undefined // unitdp
           )
 
           const matchingInvoices = invoicesResponse.body.invoices || []
@@ -129,15 +143,14 @@ export const xeroReconcileBankTransactionTool: ToolConfig<
         else if (params.amount < 0) {
           const billsResponse = await xero.accountingApi.getInvoices(
             params.tenantId,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            `Status=="AUTHORISED"&&Type=="ACCPAY"&&AmountDue>=${Math.abs(params.amount) * 0.95}&&AmountDue<=${Math.abs(params.amount) * 1.05}`
+            undefined, // ifModifiedSince
+            `Status=="AUTHORISED"&&Type=="ACCPAY"&&AmountDue>=${Math.abs(params.amount) * 0.95}&&AmountDue<=${Math.abs(params.amount) * 1.05}` as any, // where
+            undefined, // order
+            undefined, // IDs
+            undefined, // page
+            undefined, // includeArchived
+            undefined, // summaryOnly
+            undefined // unitdp
           )
 
           const matchingBills = billsResponse.body.invoices || []
@@ -152,7 +165,7 @@ export const xeroReconcileBankTransactionTool: ToolConfig<
 
       // Create bank transaction
       const bankTransaction = {
-        type: params.amount > 0 ? 'RECEIVE' : 'SPEND',
+        type: (params.amount > 0 ? 'RECEIVE' : 'SPEND') as any,
         contact: params.payee
           ? {
               name: params.payee,
@@ -170,7 +183,7 @@ export const xeroReconcileBankTransactionTool: ToolConfig<
           accountID: params.bankAccountId,
         },
         dateString: params.date,
-        status: 'AUTHORISED',
+        status: 'AUTHORISED' as any,
         reference: matched
           ? `Matched to ${matchedInvoiceId || matchedBillId}`
           : 'Manual entry',
@@ -215,13 +228,14 @@ export const xeroReconcileBankTransactionTool: ToolConfig<
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
+      logger.error('Failed to reconcile bank transaction in Xero', { error: errorDetails })
       return {
         success: false,
-        error: {
-          code: 'XERO_RECONCILIATION_ERROR',
-          message: error.message || 'Failed to reconcile bank transaction in Xero',
-          details: error.response?.body || error,
-        },
+        output: {},
+        error: `XERO_RECONCILIATION_ERROR: Failed to reconcile bank transaction in Xero - ${errorDetails}`,
       }
     }
   },

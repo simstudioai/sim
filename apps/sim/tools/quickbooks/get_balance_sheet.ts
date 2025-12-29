@@ -41,7 +41,7 @@ export const quickbooksGetBalanceSheetTool: ToolConfig<
   directExecution: async (params) => {
     try {
       const qbo = new QuickBooks(
-        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
       )
 
       const reportParams: any = {}
@@ -67,13 +67,13 @@ export const quickbooksGetBalanceSheetTool: ToolConfig<
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'QUICKBOOKS_GET_BALANCE_SHEET_ERROR',
-          message: error.message || 'Failed to get balance sheet',
-          details: error,
-        },
+        output: {},
+        error: `QUICKBOOKS_GET_BALANCE_SHEET_ERROR: Failed to get balance sheet - ${errorDetails}`,
       }
     }
   },

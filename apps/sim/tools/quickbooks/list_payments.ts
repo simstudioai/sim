@@ -1,6 +1,14 @@
 import QuickBooks from 'node-quickbooks'
 import type { ListPaymentsParams, ListPaymentsResponse } from '@/tools/quickbooks/types'
 import type { ToolConfig } from '@/tools/types'
+import {
+  validateQuickBooksQuery,
+  buildDefaultQuery,
+  addPaginationToQuery,
+} from '@/tools/quickbooks/utils'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('QuickBooksListPayments')
 
 export const quickbooksListPaymentsTool: ToolConfig<ListPaymentsParams, ListPaymentsResponse> = {
   id: 'quickbooks_list_payments',
@@ -44,10 +52,21 @@ export const quickbooksListPaymentsTool: ToolConfig<ListPaymentsParams, ListPaym
   directExecution: async (params) => {
     try {
       const qbo = new QuickBooks(
-        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
       )
 
-      const query = params.query || 'SELECT * FROM Payment'
+      // Build and validate query with pagination
+      const rawQuery =
+        params.query ||
+        buildDefaultQuery('Payment', params.maxResults, params.startPosition)
+
+      // Apply pagination to custom queries
+      const queryWithPagination = params.query
+        ? addPaginationToQuery(rawQuery, params.maxResults, params.startPosition)
+        : rawQuery
+
+      const query = validateQuickBooksQuery(queryWithPagination, 'Payment')
+
       const payments = await new Promise<any[]>((resolve, reject) => {
         qbo.findPayments(query, (err: any, result: any) => {
           if (err) reject(err)
@@ -67,13 +86,14 @@ export const quickbooksListPaymentsTool: ToolConfig<ListPaymentsParams, ListPaym
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
+      logger.error('Failed to list payments', { error: errorDetails })
       return {
         success: false,
-        error: {
-          code: 'QUICKBOOKS_LIST_PAYMENTS_ERROR',
-          message: error.message || 'Failed to list payments',
-          details: error,
-        },
+        output: {},
+        error: `QUICKBOOKS_LIST_PAYMENTS_ERROR: Failed to list payments - ${errorDetails}`,
       }
     }
   },

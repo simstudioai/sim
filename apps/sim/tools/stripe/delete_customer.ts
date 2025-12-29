@@ -23,8 +23,8 @@ export const stripeDeleteCustomerTool: ToolConfig<DeleteCustomerParams, Customer
     id: {
       type: 'string',
       required: true,
-      visibility: 'user-or-llm',
-      description: 'Customer ID (e.g., cus_1234567890)',
+      visibility: 'user-only',
+      description: 'Customer ID (e.g., cus_1234567890) - requires human confirmation for deletion',
     },
   },
 
@@ -36,7 +36,7 @@ export const stripeDeleteCustomerTool: ToolConfig<DeleteCustomerParams, Customer
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Delete customer using SDK
@@ -54,13 +54,13 @@ export const stripeDeleteCustomerTool: ToolConfig<DeleteCustomerParams, Customer
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_DELETE_CUSTOMER_ERROR',
-          message: error.message || 'Failed to delete customer',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_DELETE_CUSTOMER_ERROR: Failed to delete customer - ${errorDetails}`,
       }
     }
   },

@@ -63,6 +63,10 @@ export const plaidCategorizeTransactionsTool: ToolConfig<
   },
 
   transformResponse: async (response, params) => {
+    if (!params) {
+      throw new Error('Params are required for transformResponse')
+    }
+    
     const transactions = params.transactions as any[]
     const historical = params.historicalCategories || []
     const useAI = params.useAI !== false

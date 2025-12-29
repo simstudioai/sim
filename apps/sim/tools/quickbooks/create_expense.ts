@@ -1,6 +1,10 @@
 import QuickBooks from 'node-quickbooks'
 import type { CreateExpenseParams, ExpenseResponse } from '@/tools/quickbooks/types'
 import type { ToolConfig } from '@/tools/types'
+import { validateDate } from '@/tools/financial-validation'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('QuickBooksCreateExpense')
 
 export const quickbooksCreateExpenseTool: ToolConfig<CreateExpenseParams, ExpenseResponse> = {
   id: 'quickbooks_create_expense',
@@ -67,8 +71,25 @@ export const quickbooksCreateExpenseTool: ToolConfig<CreateExpenseParams, Expens
 
   directExecution: async (params) => {
     try {
+      // Validate transaction date if provided
+      if (params.TxnDate) {
+        const txnDateValidation = validateDate(params.TxnDate, {
+          fieldName: 'transaction date',
+          allowFuture: false,
+          required: false,
+        })
+        if (!txnDateValidation.valid) {
+          logger.error('Transaction date validation failed', { error: txnDateValidation.error })
+          return {
+            success: false,
+            output: {},
+            error: `QUICKBOOKS_VALIDATION_ERROR: ${txnDateValidation.error}`,
+          }
+        }
+      }
+
       const qbo = new QuickBooks(
-        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
       )
 
       const expense: Record<string, any> = {
@@ -102,13 +123,13 @@ export const quickbooksCreateExpenseTool: ToolConfig<CreateExpenseParams, Expens
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'QUICKBOOKS_CREATE_EXPENSE_ERROR',
-          message: error.message || 'Failed to create expense',
-          details: error,
-        },
+        output: {},
+        error: `QUICKBOOKS_CREATE_EXPENSE_ERROR: Failed to create expense - ${errorDetails}`,
       }
     }
   },

@@ -1,6 +1,10 @@
 import { Configuration, PlaidApi, PlaidEnvironments } from 'plaid'
 import type { GetTransactionsParams, GetTransactionsResponse } from '@/tools/plaid/types'
 import type { ToolConfig } from '@/tools/types'
+import { validateDate } from '@/tools/financial-validation'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('PlaidGetTransactions')
 
 /**
  * Plaid Get Transactions Tool
@@ -70,6 +74,45 @@ export const plaidGetTransactionsTool: ToolConfig<GetTransactionsParams, GetTran
      */
     directExecution: async (params) => {
       try {
+        // Validate dates
+        const startDateValidation = validateDate(params.startDate, {
+          fieldName: 'start date',
+          allowFuture: false,
+        })
+        if (!startDateValidation.valid) {
+          logger.error('Start date validation failed', { error: startDateValidation.error })
+          return {
+            success: false,
+            output: {},
+            error: `PLAID_VALIDATION_ERROR: ${startDateValidation.error}`,
+          }
+        }
+
+        const endDateValidation = validateDate(params.endDate, {
+          fieldName: 'end date',
+          allowFuture: false,
+        })
+        if (!endDateValidation.valid) {
+          logger.error('End date validation failed', { error: endDateValidation.error })
+          return {
+            success: false,
+            output: {},
+            error: `PLAID_VALIDATION_ERROR: ${endDateValidation.error}`,
+          }
+        }
+
+        // Validate date range
+        const startDate = new Date(params.startDate)
+        const endDate = new Date(params.endDate)
+        if (startDate > endDate) {
+          logger.error('Invalid date range', { startDate: params.startDate, endDate: params.endDate })
+          return {
+            success: false,
+            output: {},
+            error: 'PLAID_VALIDATION_ERROR: Start date must be before or equal to end date',
+          }
+        }
+
         // Initialize Plaid SDK client
         const configuration = new Configuration({
           basePath: PlaidEnvironments.production,
@@ -82,6 +125,8 @@ export const plaidGetTransactionsTool: ToolConfig<GetTransactionsParams, GetTran
         })
 
         const plaidClient = new PlaidApi(configuration)
+
+        logger.info('Fetching transactions', { startDate: params.startDate, endDate: params.endDate })
 
         // Prepare request
         const request: any = {
@@ -122,13 +167,13 @@ export const plaidGetTransactionsTool: ToolConfig<GetTransactionsParams, GetTran
           },
         }
       } catch (error: any) {
+        const errorDetails = error.response?.data
+          ? JSON.stringify(error.response.data)
+          : error.message || 'Unknown error'
         return {
           success: false,
-          error: {
-            code: 'PLAID_TRANSACTIONS_ERROR',
-            message: error.message || 'Failed to retrieve transactions from Plaid',
-            details: error.response?.data || error,
-          },
+          output: {},
+          error: `PLAID_TRANSACTIONS_ERROR: Failed to retrieve transactions from Plaid - ${errorDetails}`,
         }
       }
     },

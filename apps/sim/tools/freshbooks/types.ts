@@ -173,7 +173,7 @@ export interface CreateInvoiceParams {
 
 export interface TrackTimeParams {
   apiKey: string
-  accountId: string
+  accountId?: string
   businessId: number
   clientId?: number
   projectId?: number

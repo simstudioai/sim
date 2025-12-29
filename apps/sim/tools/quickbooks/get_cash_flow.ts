@@ -44,7 +44,7 @@ export const quickbooksGetCashFlowTool: ToolConfig<GetCashFlowParams, CashFlowRe
   directExecution: async (params) => {
     try {
       const qbo = new QuickBooks(
-        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
       )
 
       const reportParams: any = {}
@@ -72,13 +72,13 @@ export const quickbooksGetCashFlowTool: ToolConfig<GetCashFlowParams, CashFlowRe
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'QUICKBOOKS_GET_CASH_FLOW_ERROR',
-          message: error.message || 'Failed to get cash flow report',
-          details: error,
-        },
+        output: {},
+        error: `QUICKBOOKS_GET_CASH_FLOW_ERROR: Failed to get cash flow report - ${errorDetails}`,
       }
     }
   },

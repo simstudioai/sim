@@ -85,13 +85,13 @@ export const plaidGetAccountsTool: ToolConfig<GetAccountsParams, GetAccountsResp
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'PLAID_ACCOUNTS_ERROR',
-          message: error.message || 'Failed to retrieve accounts from Plaid',
-          details: error.response?.data || error,
-        },
+        output: {},
+        error: `PLAID_ACCOUNTS_ERROR: Failed to retrieve accounts from Plaid - ${errorDetails}`,
       }
     }
   },

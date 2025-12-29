@@ -32,7 +32,7 @@ export const quickbooksRetrieveBillTool: ToolConfig<RetrieveBillParams, BillResp
   directExecution: async (params) => {
     try {
       const qbo = new QuickBooks(
-        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
       )
 
       const bill = await new Promise<any>((resolve, reject) => {
@@ -59,11 +59,8 @@ export const quickbooksRetrieveBillTool: ToolConfig<RetrieveBillParams, BillResp
     } catch (error: any) {
       return {
         success: false,
-        error: {
-          code: 'QUICKBOOKS_RETRIEVE_BILL_ERROR',
-          message: error.message || 'Failed to retrieve bill',
-          details: error,
-        },
+        output: {},
+        error: `QUICKBOOKS_RETRIEVE_BILL_ERROR: ${error.message || 'Failed to retrieve bill'}`,
       }
     }
   },

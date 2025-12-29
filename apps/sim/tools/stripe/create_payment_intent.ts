@@ -1,6 +1,10 @@
 import Stripe from 'stripe'
 import type { CreatePaymentIntentParams, PaymentIntentResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { validateFinancialAmount } from '@/tools/financial-validation'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('StripeCreatePaymentIntent')
 
 /**
  * Stripe Create Payment Intent Tool
@@ -78,14 +82,36 @@ export const stripeCreatePaymentIntentTool: ToolConfig<
    */
   directExecution: async (params) => {
     try {
-      // Initialize Stripe SDK client
-      const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+      // Validate amount (Stripe uses cents, so min is 50 cents = $0.50 for most currencies)
+      const amountValidation = validateFinancialAmount(params.amount, {
+        fieldName: 'amount',
+        allowZero: false,
+        allowNegative: false,
+        min: 50, // Minimum 50 cents for Stripe
+        max: 99999999, // Stripe's maximum: $999,999.99
+        currency: params.currency.toUpperCase(),
       })
 
-      // Prepare payment intent data
+      if (!amountValidation.valid) {
+        logger.error('Payment intent amount validation failed', {
+          amount: params.amount,
+          error: amountValidation.error,
+        })
+        return {
+          success: false,
+          output: {},
+          error: `STRIPE_VALIDATION_ERROR: ${amountValidation.error}`,
+        }
+      }
+
+      // Initialize Stripe SDK client
+      const stripe = new Stripe(params.apiKey, {
+        apiVersion: '2025-08-27.basil',
+      })
+
+      // Prepare payment intent data with validated amount
       const paymentIntentData: Stripe.PaymentIntentCreateParams = {
-        amount: Number(params.amount),
+        amount: Math.round(amountValidation.sanitized || params.amount),
         currency: params.currency,
       }
 
@@ -114,13 +140,14 @@ export const stripeCreatePaymentIntentTool: ToolConfig<
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
+      logger.error('Failed to create payment intent', { error: errorDetails })
       return {
         success: false,
-        error: {
-          code: 'STRIPE_PAYMENT_INTENT_ERROR',
-          message: error.message || 'Failed to create payment intent',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_PAYMENT_INTENT_ERROR: Failed to create payment intent - ${errorDetails}`,
       }
     }
   },

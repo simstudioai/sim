@@ -60,7 +60,7 @@ export const stripeCreateInvoiceTool: ToolConfig<CreateInvoiceParams, InvoiceRes
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Prepare invoice data
@@ -91,13 +91,13 @@ export const stripeCreateInvoiceTool: ToolConfig<CreateInvoiceParams, InvoiceRes
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_CREATE_INVOICE_ERROR',
-          message: error.message || 'Failed to create invoice',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_CREATE_INVOICE_ERROR: Failed to create invoice - ${errorDetails}`,
       }
     }
   },

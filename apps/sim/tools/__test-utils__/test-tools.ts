@@ -157,6 +157,16 @@ export class ToolTester<P = any, R = any> {
    * Execute the tool with provided parameters
    */
   async execute(params: P, skipProxy = true): Promise<ToolResponse> {
+    // If the tool has directExecution, use that instead of making HTTP requests
+    if (this.tool.directExecution) {
+      return this.tool.directExecution(params)
+    }
+
+    // Otherwise, use the request configuration
+    if (!this.tool.request) {
+      throw new Error('Tool has neither directExecution nor request configuration')
+    }
+
     const url =
       typeof this.tool.request.url === 'function'
         ? this.tool.request.url(params)
@@ -336,6 +346,10 @@ export class ToolTester<P = any, R = any> {
     }
 
     // For other tools, use the regular pattern
+    if (!this.tool.request) {
+      throw new Error('Tool has no request configuration')
+    }
+
     const url =
       typeof this.tool.request.url === 'function'
         ? this.tool.request.url(params)
@@ -420,6 +434,9 @@ export class ToolTester<P = any, R = any> {
     }
 
     // For other tools, use the regular pattern
+    if (!this.tool.request) {
+      throw new Error('Tool has no request configuration')
+    }
     return this.tool.request.headers(params)
   }
 
@@ -427,6 +444,9 @@ export class ToolTester<P = any, R = any> {
    * Get request body that would be used for a request
    */
   getRequestBody(params: P): any {
+    if (!this.tool.request) {
+      throw new Error('Tool has no request configuration')
+    }
     return this.tool.request.body ? this.tool.request.body(params) : undefined
   }
 }

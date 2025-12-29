@@ -42,7 +42,7 @@ export const stripeSearchCustomersTool: ToolConfig<SearchCustomersParams, Custom
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Prepare search options
@@ -65,13 +65,13 @@ export const stripeSearchCustomersTool: ToolConfig<SearchCustomersParams, Custom
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_SEARCH_CUSTOMERS_ERROR',
-          message: error.message || 'Failed to search customers',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_SEARCH_CUSTOMERS_ERROR: Failed to search customers - ${errorDetails}`,
       }
     }
   },

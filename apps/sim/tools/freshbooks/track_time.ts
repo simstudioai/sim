@@ -22,9 +22,9 @@ export const freshbooksTrackTimeTool: ToolConfig<TrackTimeParams, TrackTimeRespo
     },
     accountId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'FreshBooks account ID',
+      description: 'FreshBooks account ID (not used by time entry API)',
     },
     businessId: {
       type: 'number',
@@ -54,7 +54,8 @@ export const freshbooksTrackTimeTool: ToolConfig<TrackTimeParams, TrackTimeRespo
       type: 'number',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Hours worked (decimal format, e.g., 1.5 for 1 hour 30 minutes)',
+      description:
+        'Hours worked (decimal format, e.g., 1.5 for 1 hour 30 minutes). Ignored when startTimer is true.',
     },
     note: {
       type: 'string',
@@ -94,75 +95,76 @@ export const freshbooksTrackTimeTool: ToolConfig<TrackTimeParams, TrackTimeRespo
       })
 
       // Convert hours to seconds (FreshBooks uses seconds for duration)
-      const durationSeconds = Math.round(params.hours * 3600)
+      const durationSeconds = params.startTimer ? 0 : Math.round(params.hours * 3600)
 
       // Prepare time entry data
       const timeEntryData: any = {
-        is_logged: !params.startTimer,
+        isLogged: !params.startTimer,
         duration: durationSeconds,
         note: params.note || '',
-        started_at: params.date
-          ? `${params.date}T09:00:00Z`
-          : new Date().toISOString(),
+        startedAt: params.date ? new Date(`${params.date}T09:00:00Z`) : new Date(),
         billable: params.billable !== false,
       }
 
       // Add optional associations
       if (params.clientId) {
-        timeEntryData.client_id = params.clientId
+        timeEntryData.clientId = params.clientId
       }
       if (params.projectId) {
-        timeEntryData.project_id = params.projectId
+        timeEntryData.projectId = params.projectId
       }
       if (params.serviceId) {
-        timeEntryData.service_id = params.serviceId
+        timeEntryData.serviceId = params.serviceId
       }
 
-      // Start timer if requested
       if (params.startTimer) {
-        timeEntryData.timer = {
-          is_running: true,
-        }
+        timeEntryData.active = true
       }
 
-      // Create time entry using SDK
-      const response = await client.timeEntries.create(
-        params.accountId,
-        params.businessId,
-        timeEntryData
-      )
+      // Create time entry using SDK (data first, then businessId like other create methods)
+      const response = await client.timeEntries.create(timeEntryData, params.businessId)
+
+      if (!response.data) {
+        throw new Error('FreshBooks API returned no data')
+      }
+
       const timeEntry = response.data
+      const loggedSeconds =
+        typeof timeEntry.duration === 'number' ? timeEntry.duration : durationSeconds
+      const loggedHours = loggedSeconds / 3600
+      const timerRunning =
+        typeof timeEntry.active === 'boolean' ? timeEntry.active : Boolean(params.startTimer)
 
       return {
         success: true,
         output: {
           time_entry: {
             id: timeEntry.id,
-            client_id: timeEntry.client_id,
-            project_id: timeEntry.project_id,
-            hours: params.hours,
+            client_id: timeEntry.clientId,
+            project_id: timeEntry.projectId,
+            hours: loggedHours,
             billable: timeEntry.billable,
             billed: timeEntry.billed || false,
             date: params.date || new Date().toISOString().split('T')[0],
             note: params.note,
-            timer_running: params.startTimer || false,
+            timer_running: timerRunning,
           },
           metadata: {
             time_entry_id: timeEntry.id,
-            duration_hours: params.hours,
+            duration_hours: loggedHours,
             billable: timeEntry.billable,
             created_at: new Date().toISOString().split('T')[0],
           },
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'FRESHBOOKS_TIME_TRACKING_ERROR',
-          message: error.message || 'Failed to track time in FreshBooks',
-          details: error.response?.data || error,
-        },
+        output: {},
+        error: `FRESHBOOKS_TIME_TRACKING_ERROR: Failed to track time in FreshBooks - ${errorDetails}`,
       }
     }
   },

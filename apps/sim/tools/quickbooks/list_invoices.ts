@@ -1,6 +1,14 @@
 import QuickBooks from 'node-quickbooks'
 import type { ListInvoicesParams, ListInvoicesResponse } from '@/tools/quickbooks/types'
 import type { ToolConfig } from '@/tools/types'
+import {
+  validateQuickBooksQuery,
+  buildDefaultQuery,
+  addPaginationToQuery,
+} from '@/tools/quickbooks/utils'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('QuickBooksListInvoices')
 
 export const quickbooksListInvoicesTool: ToolConfig<ListInvoicesParams, ListInvoicesResponse> = {
   id: 'quickbooks_list_invoices',
@@ -45,10 +53,21 @@ export const quickbooksListInvoicesTool: ToolConfig<ListInvoicesParams, ListInvo
   directExecution: async (params) => {
     try {
       const qbo = new QuickBooks(
-        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
       )
 
-      const query = params.query || 'SELECT * FROM Invoice'
+      // Build and validate query with pagination
+      const rawQuery =
+        params.query ||
+        buildDefaultQuery('Invoice', params.maxResults, params.startPosition)
+
+      // Apply pagination to custom queries
+      const queryWithPagination = params.query
+        ? addPaginationToQuery(rawQuery, params.maxResults, params.startPosition)
+        : rawQuery
+
+      const query = validateQuickBooksQuery(queryWithPagination, 'Invoice')
+
       const invoices = await new Promise<any[]>((resolve, reject) => {
         qbo.findInvoices(query, (err: any, result: any) => {
           if (err) reject(err)
@@ -68,13 +87,14 @@ export const quickbooksListInvoicesTool: ToolConfig<ListInvoicesParams, ListInvo
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
+      logger.error('Failed to list invoices', { error: errorDetails })
       return {
         success: false,
-        error: {
-          code: 'QUICKBOOKS_LIST_INVOICES_ERROR',
-          message: error.message || 'Failed to list invoices',
-          details: error,
-        },
+        output: {},
+        error: `QUICKBOOKS_LIST_INVOICES_ERROR: Failed to list invoices - ${errorDetails}`,
       }
     }
   },

@@ -45,7 +45,7 @@ export const stripeGenerateTaxReportTool: ToolConfig<
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Fetch charges for tax year using SDK
@@ -151,13 +151,13 @@ export const stripeGenerateTaxReportTool: ToolConfig<
       },
     }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_GENERATE_TAX_REPORT_ERROR',
-          message: error.message || 'Failed to generate tax report',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_GENERATE_TAX_REPORT_ERROR: Failed to generate tax report - ${errorDetails}`,
       }
     }
   },

@@ -75,8 +75,8 @@ export interface LinkTokenResponse extends ToolResponse {
   output: {
     linkToken: LinkTokenObject
     metadata: {
-      link_token: string
       expiration: string
+      created: boolean
     }
   }
 }
@@ -100,8 +100,8 @@ export interface AccessTokenResponse extends ToolResponse {
   output: {
     accessToken: AccessTokenObject
     metadata: {
-      access_token: string
       item_id: string
+      success: boolean
     }
   }
 }

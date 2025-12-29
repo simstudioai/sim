@@ -32,7 +32,7 @@ export const quickbooksRetrieveVendorTool: ToolConfig<RetrieveVendorParams, Vend
   directExecution: async (params) => {
     try {
       const qbo = new QuickBooks(
-        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
       )
 
       const vendor = await new Promise<any>((resolve, reject) => {
@@ -57,11 +57,8 @@ export const quickbooksRetrieveVendorTool: ToolConfig<RetrieveVendorParams, Vend
     } catch (error: any) {
       return {
         success: false,
-        error: {
-          code: 'QUICKBOOKS_RETRIEVE_VENDOR_ERROR',
-          message: error.message || 'Failed to retrieve vendor',
-          details: error,
-        },
+        output: {},
+        error: `QUICKBOOKS_RETRIEVE_VENDOR_ERROR: ${error.message || 'Failed to retrieve vendor'}`,
       }
     }
   },

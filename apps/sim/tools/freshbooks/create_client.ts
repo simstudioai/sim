@@ -85,17 +85,22 @@ export const freshbooksCreateClientTool: ToolConfig<
 
       // Prepare client data
       const clientData = {
-        fname: params.firstName,
-        lname: params.lastName,
+        fName: params.firstName,
+        lName: params.lastName,
         email: params.email,
         organization: params.companyName || `${params.firstName} ${params.lastName}`,
-        currency_code: params.currencyCode || 'USD',
-        ...(params.phone && { mobile_phone: params.phone }),
+        currencyCode: params.currencyCode || 'USD',
+        ...(params.phone && { mobPhone: params.phone }),
         ...(params.notes && { note: params.notes }),
       }
 
-      // Create client using SDK
-      const response = await client.clients.create(params.accountId, clientData)
+      // Create client using SDK (Note: SDK expects client data first, then accountId)
+      const response = await client.clients.create(clientData, params.accountId)
+
+      if (!response.data) {
+        throw new Error('FreshBooks API returned no data')
+      }
+
       const createdClient = response.data
 
       return {
@@ -104,11 +109,11 @@ export const freshbooksCreateClientTool: ToolConfig<
           client: {
             id: createdClient.id,
             organization: createdClient.organization,
-            fname: createdClient.fname,
-            lname: createdClient.lname,
+            fname: createdClient.fName,
+            lname: createdClient.lName,
             email: createdClient.email,
             company_name: params.companyName,
-            currency_code: createdClient.currency_code,
+            currency_code: createdClient.currencyCode,
           },
           metadata: {
             client_id: createdClient.id,
@@ -118,13 +123,13 @@ export const freshbooksCreateClientTool: ToolConfig<
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'FRESHBOOKS_CLIENT_ERROR',
-          message: error.message || 'Failed to create FreshBooks client',
-          details: error.response?.data || error,
-        },
+        output: {},
+        error: `FRESHBOOKS_CLIENT_ERROR: Failed to create FreshBooks client - ${errorDetails}`,
       }
     }
   },

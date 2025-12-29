@@ -26,20 +26,20 @@ export const stripeCancelSubscriptionTool: ToolConfig<
     id: {
       type: 'string',
       required: true,
-      visibility: 'user-or-llm',
-      description: 'Subscription ID (e.g., sub_1234567890)',
+      visibility: 'user-only',
+      description: 'Subscription ID (e.g., sub_1234567890) - requires human confirmation for cancellation',
     },
     prorate: {
       type: 'boolean',
       required: false,
-      visibility: 'user-or-llm',
-      description: 'Whether to prorate the cancellation',
+      visibility: 'user-only',
+      description: 'Whether to prorate the cancellation - affects billing',
     },
     invoice_now: {
       type: 'boolean',
       required: false,
-      visibility: 'user-or-llm',
-      description: 'Whether to invoice immediately',
+      visibility: 'user-only',
+      description: 'Whether to invoice immediately - can trigger charges',
     },
   },
 
@@ -51,11 +51,11 @@ export const stripeCancelSubscriptionTool: ToolConfig<
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Prepare cancel options
-      const cancelOptions: Stripe.SubscriptionDeleteParams = {}
+      const cancelOptions: Stripe.SubscriptionCancelParams = {}
       if (params.prorate !== undefined) cancelOptions.prorate = params.prorate
       if (params.invoice_now !== undefined) cancelOptions.invoice_now = params.invoice_now
 
@@ -74,13 +74,13 @@ export const stripeCancelSubscriptionTool: ToolConfig<
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_CANCEL_SUBSCRIPTION_ERROR',
-          message: error.message || 'Failed to cancel subscription',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_CANCEL_SUBSCRIPTION_ERROR: Failed to cancel subscription - ${errorDetails}`,
       }
     }
   },

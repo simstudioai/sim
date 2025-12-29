@@ -1,6 +1,10 @@
 import { Client } from '@freshbooks/api'
 import type { CreateInvoiceParams, CreateInvoiceResponse } from '@/tools/freshbooks/types'
 import type { ToolConfig } from '@/tools/types'
+import { validateDate } from '@/tools/financial-validation'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('FreshBooksCreateInvoice')
 
 /**
  * FreshBooks Create Invoice Tool
@@ -73,24 +77,50 @@ export const freshbooksCreateInvoiceTool: ToolConfig<
    */
   directExecution: async (params) => {
     try {
+      // Validate due date if provided (should be in future)
+      if (params.dueDate) {
+        const dueDateValidation = validateDate(params.dueDate, {
+          fieldName: 'due date',
+          allowPast: false,
+          required: false,
+        })
+        if (!dueDateValidation.valid) {
+          logger.error('Due date validation failed', { error: dueDateValidation.error })
+          return {
+            success: false,
+            output: {},
+            error: `FRESHBOOKS_VALIDATION_ERROR: ${dueDateValidation.error}`,
+          }
+        }
+      }
+
       // Initialize FreshBooks SDK client
       const client = new Client(params.apiKey, {
         apiUrl: 'https://api.freshbooks.com',
       })
 
       // Calculate due date (30 days from now if not specified)
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      }
+
       const dueDate = params.dueDate || (() => {
         const date = new Date()
         date.setDate(date.getDate() + 30)
-        return date.toISOString().split('T')[0]
+        return formatDate(date)
       })()
+      const [dueYear, dueMonth, dueDay] = dueDate.split('-').map(Number)
+      const dueDateValue = new Date(dueYear, dueMonth - 1, dueDay)
 
       // Transform line items to FreshBooks format
       const lines = params.lines.map((line: any) => ({
         name: line.name,
         description: line.description || '',
         qty: line.quantity,
-        unit_cost: {
+        unitCost: {
           amount: line.unitCost.toString(),
           code: params.currencyCode || 'USD',
         },
@@ -104,21 +134,26 @@ export const freshbooksCreateInvoiceTool: ToolConfig<
 
       // Create invoice using SDK
       const invoiceData = {
-        customerid: params.clientId,
-        create_date: new Date().toISOString().split('T')[0],
-        due_date: dueDate,
-        currency_code: params.currencyCode || 'USD',
+        customerId: params.clientId,
+        createDate: new Date(),
+        dueDate: dueDateValue,
+        currencyCode: params.currencyCode || 'USD',
         lines,
         notes: params.notes || '',
       }
 
-      const response = await client.invoices.create(params.accountId, invoiceData)
+      const response = await client.invoices.create(invoiceData, params.accountId)
+
+      if (!response.data) {
+        throw new Error('FreshBooks API returned no data')
+      }
+
       const invoice = response.data
 
       // Auto-send if requested
       if (params.autoSend && invoice.id) {
-        await client.invoices.update(params.accountId, invoice.id, {
-          action_email: true,
+        await client.invoices.update(params.accountId, String(invoice.id), {
+          actionEmail: true,
         })
       }
 
@@ -127,14 +162,13 @@ export const freshbooksCreateInvoiceTool: ToolConfig<
         output: {
           invoice: {
             id: invoice.id,
-            invoice_number: invoice.invoice_number || `INV-${invoice.id}`,
+            invoice_number: invoice.invoiceNumber || `INV-${invoice.id}`,
             client_id: params.clientId,
             amount_due: totalAmount,
             currency: params.currencyCode || 'USD',
             status: invoice.status || 'draft',
             created: new Date().toISOString().split('T')[0],
             due_date: dueDate,
-            invoice_url: invoice.invoice_url || undefined,
           },
           lines: params.lines.map((line: any) => ({
             name: line.name,
@@ -144,20 +178,20 @@ export const freshbooksCreateInvoiceTool: ToolConfig<
           })),
           metadata: {
             invoice_id: invoice.id,
-            invoice_number: invoice.invoice_number || `INV-${invoice.id}`,
+            invoice_number: invoice.invoiceNumber || `INV-${invoice.id}`,
             total_amount: totalAmount,
             status: invoice.status || 'draft',
           },
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'FRESHBOOKS_INVOICE_ERROR',
-          message: error.message || 'Failed to create FreshBooks invoice',
-          details: error.response?.data || error,
-        },
+        output: {},
+        error: `FRESHBOOKS_INVOICE_ERROR: Failed to create FreshBooks invoice - ${errorDetails}`,
       }
     }
   },

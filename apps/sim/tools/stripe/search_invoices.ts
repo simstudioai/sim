@@ -31,7 +31,7 @@ export const stripeSearchInvoicesTool: ToolConfig<SearchInvoicesParams, InvoiceL
 
   directExecution: async (params) => {
     try {
-      const stripe = new Stripe(params.apiKey, { apiVersion: '2024-12-18.acacia' })
+      const stripe = new Stripe(params.apiKey, { apiVersion: '2025-08-27.basil' })
       const searchOptions: Stripe.InvoiceSearchParams = { query: params.query }
       if (params.limit) searchOptions.limit = params.limit
       const searchResult = await stripe.invoices.search(searchOptions)
@@ -43,7 +43,14 @@ export const stripeSearchInvoicesTool: ToolConfig<SearchInvoicesParams, InvoiceL
         },
       }
     } catch (error: any) {
-      return { success: false, error: { code: 'STRIPE_SEARCH_INVOICES_ERROR', message: error.message || 'Failed to search invoices', details: error } }
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
+      return {
+        success: false,
+        output: {},
+        error: `STRIPE_SEARCH_INVOICES_ERROR: Failed to search invoices - ${errorDetails}`,
+      }
     }
   },
 

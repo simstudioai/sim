@@ -1,6 +1,10 @@
 import Stripe from 'stripe'
 import type { AnalyzeRevenueParams, AnalyzeRevenueResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { validateDate } from '@/tools/financial-validation'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('StripeAnalyzeRevenue')
 
 /**
  * Stripe Analyze Revenue Tool
@@ -57,14 +61,55 @@ export const stripeAnalyzeRevenueTool: ToolConfig<
    */
   directExecution: async (params) => {
     try {
+      // Validate dates
+      const startDateValidation = validateDate(params.startDate, {
+        fieldName: 'start date',
+        allowFuture: false,
+      })
+      if (!startDateValidation.valid) {
+        logger.error('Start date validation failed', { error: startDateValidation.error })
+        return {
+          success: false,
+          output: {},
+          error: `STRIPE_VALIDATION_ERROR: ${startDateValidation.error}`,
+        }
+      }
+
+      const endDateValidation = validateDate(params.endDate, {
+        fieldName: 'end date',
+        allowFuture: false,
+      })
+      if (!endDateValidation.valid) {
+        logger.error('End date validation failed', { error: endDateValidation.error })
+        return {
+          success: false,
+          output: {},
+          error: `STRIPE_VALIDATION_ERROR: ${endDateValidation.error}`,
+        }
+      }
+
+      // Validate date range
+      const startDate = new Date(params.startDate)
+      const endDate = new Date(params.endDate)
+      if (startDate > endDate) {
+        logger.error('Invalid date range', { startDate: params.startDate, endDate: params.endDate })
+        return {
+          success: false,
+          output: {},
+          error: 'STRIPE_VALIDATION_ERROR: Start date must be before or equal to end date',
+        }
+      }
+
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
+      logger.info('Analyzing revenue', { startDate: params.startDate, endDate: params.endDate })
+
       // Fetch charges using SDK
-      const startTimestamp = Math.floor(new Date(params.startDate).getTime() / 1000)
-      const endTimestamp = Math.floor(new Date(params.endDate).getTime() / 1000)
+      const startTimestamp = Math.floor(startDate.getTime() / 1000)
+      const endTimestamp = Math.floor(endDate.getTime() / 1000)
 
       const chargeList = await stripe.charges.list({
         created: {
@@ -168,13 +213,13 @@ export const stripeAnalyzeRevenueTool: ToolConfig<
       },
     }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_ANALYZE_REVENUE_ERROR',
-          message: error.message || 'Failed to analyze revenue',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_ANALYZE_REVENUE_ERROR: Failed to analyze revenue - ${errorDetails}`,
       }
     }
   },

@@ -1,6 +1,10 @@
 import QuickBooks from 'node-quickbooks'
 import type { CreateEstimateParams, EstimateResponse } from '@/tools/quickbooks/types'
 import type { ToolConfig } from '@/tools/types'
+import { validateDate } from '@/tools/financial-validation'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('QuickBooksCreateEstimate')
 
 export const quickbooksCreateEstimateTool: ToolConfig<CreateEstimateParams, EstimateResponse> = {
   id: 'quickbooks_create_estimate',
@@ -61,8 +65,61 @@ export const quickbooksCreateEstimateTool: ToolConfig<CreateEstimateParams, Esti
 
   directExecution: async (params) => {
     try {
+      // Validate transaction date if provided (must be in past or today)
+      if (params.TxnDate) {
+        const txnDateValidation = validateDate(params.TxnDate, {
+          fieldName: 'transaction date',
+          allowFuture: false,
+          allowPast: true,
+          required: false,
+        })
+        if (!txnDateValidation.valid) {
+          logger.error('Transaction date validation failed', { error: txnDateValidation.error })
+          return {
+            success: false,
+            output: {},
+            error: `QUICKBOOKS_VALIDATION_ERROR: ${txnDateValidation.error}`,
+          }
+        }
+      }
+
+      // Validate expiration date if provided (can be past for expired estimates)
+      if (params.ExpirationDate) {
+        const expirationDateValidation = validateDate(params.ExpirationDate, {
+          fieldName: 'expiration date',
+          allowPast: true,
+          allowFuture: true,
+          required: false,
+        })
+        if (!expirationDateValidation.valid) {
+          logger.error('Expiration date validation failed', { error: expirationDateValidation.error })
+          return {
+            success: false,
+            output: {},
+            error: `QUICKBOOKS_VALIDATION_ERROR: ${expirationDateValidation.error}`,
+          }
+        }
+      }
+
+      // Validate date relationship: transaction date must be before or equal to expiration date
+      if (params.TxnDate && params.ExpirationDate) {
+        const txnDate = new Date(params.TxnDate)
+        const expirationDate = new Date(params.ExpirationDate)
+        if (txnDate > expirationDate) {
+          logger.error('Date relationship validation failed', {
+            txnDate: params.TxnDate,
+            expirationDate: params.ExpirationDate,
+          })
+          return {
+            success: false,
+            output: {},
+            error: 'QUICKBOOKS_VALIDATION_ERROR: Transaction date cannot be after expiration date',
+          }
+        }
+      }
+
       const qbo = new QuickBooks(
-        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
       )
 
       const estimate: Record<string, any> = {
@@ -96,13 +153,13 @@ export const quickbooksCreateEstimateTool: ToolConfig<CreateEstimateParams, Esti
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'QUICKBOOKS_CREATE_ESTIMATE_ERROR',
-          message: error.message || 'Failed to create estimate',
-          details: error,
-        },
+        output: {},
+        error: `QUICKBOOKS_CREATE_ESTIMATE_ERROR: Failed to create estimate - ${errorDetails}`,
       }
     }
   },

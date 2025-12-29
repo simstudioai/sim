@@ -110,6 +110,10 @@ export const stripeCreateRecurringInvoiceTool: ToolConfig<
   },
 
   transformResponse: async (response, params) => {
+    if (!params) {
+      throw new Error('Missing required parameters for recurring invoice')
+    }
+
     const invoice = await response.json()
 
     // Calculate next invoice date based on interval

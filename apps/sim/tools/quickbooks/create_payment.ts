@@ -1,6 +1,10 @@
 import QuickBooks from 'node-quickbooks'
 import type { CreatePaymentParams, PaymentResponse } from '@/tools/quickbooks/types'
 import type { ToolConfig } from '@/tools/types'
+import { validateDate } from '@/tools/financial-validation'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('QuickBooksCreatePayment')
 
 export const quickbooksCreatePaymentTool: ToolConfig<CreatePaymentParams, PaymentResponse> = {
   id: 'quickbooks_create_payment',
@@ -49,8 +53,25 @@ export const quickbooksCreatePaymentTool: ToolConfig<CreatePaymentParams, Paymen
 
   directExecution: async (params) => {
     try {
+      // Validate transaction date if provided
+      if (params.TxnDate) {
+        const txnDateValidation = validateDate(params.TxnDate, {
+          fieldName: 'transaction date',
+          allowFuture: false,
+          required: false,
+        })
+        if (!txnDateValidation.valid) {
+          logger.error('Transaction date validation failed', { error: txnDateValidation.error })
+          return {
+            success: false,
+            output: {},
+            error: `QUICKBOOKS_VALIDATION_ERROR: ${txnDateValidation.error}`,
+          }
+        }
+      }
+
       const qbo = new QuickBooks(
-        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
       )
 
       const payment: Record<string, any> = {
@@ -80,13 +101,13 @@ export const quickbooksCreatePaymentTool: ToolConfig<CreatePaymentParams, Paymen
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'QUICKBOOKS_CREATE_PAYMENT_ERROR',
-          message: error.message || 'Failed to create payment',
-          details: error,
-        },
+        output: {},
+        error: `QUICKBOOKS_CREATE_PAYMENT_ERROR: Failed to create payment - ${errorDetails}`,
       }
     }
   },

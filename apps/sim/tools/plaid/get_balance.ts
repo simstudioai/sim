@@ -98,13 +98,13 @@ export const plaidGetBalanceTool: ToolConfig<GetBalanceParams, GetBalanceRespons
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'PLAID_BALANCE_ERROR',
-          message: error.message || 'Failed to retrieve account balances from Plaid',
-          details: error.response?.data || error,
-        },
+        output: {},
+        error: `PLAID_BALANCE_ERROR: Failed to retrieve account balances from Plaid - ${errorDetails}`,
       }
     }
   },

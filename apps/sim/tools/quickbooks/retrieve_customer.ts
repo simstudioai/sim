@@ -33,7 +33,7 @@ export const quickbooksRetrieveCustomerTool: ToolConfig<RetrieveCustomerParams, 
     directExecution: async (params) => {
       try {
         const qbo = new QuickBooks(
-          '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+          '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
         )
 
         const customer = await new Promise<any>((resolve, reject) => {
@@ -57,11 +57,8 @@ export const quickbooksRetrieveCustomerTool: ToolConfig<RetrieveCustomerParams, 
       } catch (error: any) {
         return {
           success: false,
-          error: {
-            code: 'QUICKBOOKS_RETRIEVE_CUSTOMER_ERROR',
-            message: error.message || 'Failed to retrieve customer',
-            details: error,
-          },
+          output: {},
+          error: `QUICKBOOKS_RETRIEVE_CUSTOMER_ERROR: ${error.message || 'Failed to retrieve customer'}`,
         }
       }
     },

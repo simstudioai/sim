@@ -48,7 +48,7 @@ export const stripeListChargesTool: ToolConfig<ListChargesParams, ChargeListResp
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Prepare list options
@@ -71,13 +71,13 @@ export const stripeListChargesTool: ToolConfig<ListChargesParams, ChargeListResp
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_LIST_CHARGES_ERROR',
-          message: error.message || 'Failed to list charges',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_LIST_CHARGES_ERROR: Failed to list charges - ${errorDetails}`,
       }
     }
   },

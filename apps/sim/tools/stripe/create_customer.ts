@@ -71,7 +71,7 @@ export const stripeCreateCustomerTool: ToolConfig<CreateCustomerParams, Customer
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Prepare customer data
@@ -100,13 +100,13 @@ export const stripeCreateCustomerTool: ToolConfig<CreateCustomerParams, Customer
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_CUSTOMER_ERROR',
-          message: error.message || 'Failed to create Stripe customer',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_CUSTOMER_ERROR: Failed to create Stripe customer - ${errorDetails}`,
       }
     }
   },

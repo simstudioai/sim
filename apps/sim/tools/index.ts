@@ -368,6 +368,11 @@ export async function executeTool(
       }
     }
 
+    // Tool must have either directExecution or request configuration
+    if (!tool.request) {
+      throw new Error(`Tool ${toolId} has neither directExecution nor request configuration`)
+    }
+
     // For internal routes or when skipProxy is true, call the API directly
     // Internal routes are automatically detected by checking if URL starts with /api/
     const endpointUrl =
@@ -597,6 +602,10 @@ async function handleInternalRequest(
   params: Record<string, any>
 ): Promise<ToolResponse> {
   const requestId = generateRequestId()
+
+  if (!tool.request) {
+    throw new Error(`Tool ${toolId} has no request configuration`)
+  }
 
   const requestParams = formatRequestParams(tool, params)
 

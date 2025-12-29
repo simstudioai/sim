@@ -20,12 +20,14 @@
  * ```
  */
 
-import { db } from '@/db'
-import { templates } from '@/db/schema'
+import { db } from '@sim/db'
+import { templates } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { financialTemplates } from './financial'
 import type { SeedResult, SeedSummary, TemplateDefinition } from './types'
-import { logger } from '@sim/utils/logger'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('SeedTemplates')
 
 /**
  * Seeds a single template into the database using upsert logic

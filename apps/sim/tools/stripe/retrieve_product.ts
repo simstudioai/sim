@@ -36,7 +36,7 @@ export const stripeRetrieveProductTool: ToolConfig<RetrieveProductParams, Produc
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Retrieve product using SDK
@@ -54,13 +54,13 @@ export const stripeRetrieveProductTool: ToolConfig<RetrieveProductParams, Produc
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_RETRIEVE_PRODUCT_ERROR',
-          message: error.message || 'Failed to retrieve product',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_RETRIEVE_PRODUCT_ERROR: Failed to retrieve product - ${errorDetails}`,
       }
     }
   },

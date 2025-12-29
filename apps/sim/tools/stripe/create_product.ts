@@ -60,7 +60,7 @@ export const stripeCreateProductTool: ToolConfig<CreateProductParams, ProductRes
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Prepare product data
@@ -88,13 +88,13 @@ export const stripeCreateProductTool: ToolConfig<CreateProductParams, ProductRes
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_CREATE_PRODUCT_ERROR',
-          message: error.message || 'Failed to create product',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_CREATE_PRODUCT_ERROR: Failed to create product - ${errorDetails}`,
       }
     }
   },

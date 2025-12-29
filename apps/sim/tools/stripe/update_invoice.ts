@@ -54,7 +54,7 @@ export const stripeUpdateInvoiceTool: ToolConfig<UpdateInvoiceParams, InvoiceRes
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Prepare update data
@@ -79,13 +79,13 @@ export const stripeUpdateInvoiceTool: ToolConfig<UpdateInvoiceParams, InvoiceRes
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_UPDATE_INVOICE_ERROR',
-          message: error.message || 'Failed to update invoice',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_UPDATE_INVOICE_ERROR: Failed to update invoice - ${errorDetails}`,
       }
     }
   },

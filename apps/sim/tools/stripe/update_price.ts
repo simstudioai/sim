@@ -48,7 +48,7 @@ export const stripeUpdatePriceTool: ToolConfig<UpdatePriceParams, PriceResponse>
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Prepare update data
@@ -72,13 +72,13 @@ export const stripeUpdatePriceTool: ToolConfig<UpdatePriceParams, PriceResponse>
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_UPDATE_PRICE_ERROR',
-          message: error.message || 'Failed to update price',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_UPDATE_PRICE_ERROR: Failed to update price - ${errorDetails}`,
       }
     }
   },

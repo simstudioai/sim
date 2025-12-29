@@ -70,19 +70,19 @@ export const plaidExchangePublicTokenTool: ToolConfig<
             request_id: data.request_id,
           },
           metadata: {
-            access_token: data.access_token,
             item_id: data.item_id,
+            success: true,
           },
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'PLAID_EXCHANGE_TOKEN_ERROR',
-          message: error.message || 'Failed to exchange public token',
-          details: error.response?.data || error,
-        },
+        output: {},
+        error: `PLAID_EXCHANGE_TOKEN_ERROR: Failed to exchange public token - ${errorDetails}`,
       }
     }
   },

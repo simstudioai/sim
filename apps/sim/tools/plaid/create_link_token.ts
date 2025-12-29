@@ -120,19 +120,19 @@ export const plaidCreateLinkTokenTool: ToolConfig<CreateLinkTokenParams, LinkTok
             request_id: data.request_id,
           },
           metadata: {
-            link_token: data.link_token,
             expiration: data.expiration,
+            created: true,
           },
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'PLAID_LINK_TOKEN_ERROR',
-          message: error.message || 'Failed to create Plaid link token',
-          details: error.response?.data || error,
-        },
+        output: {},
+        error: `PLAID_LINK_TOKEN_ERROR: Failed to create Plaid link token - ${errorDetails}`,
       }
     }
   },

@@ -74,7 +74,7 @@ export const quickbooksCreateVendorTool: ToolConfig<CreateVendorParams, VendorRe
   directExecution: async (params) => {
     try {
       const qbo = new QuickBooks(
-        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
       )
 
       const vendor: Record<string, any> = {
@@ -109,13 +109,13 @@ export const quickbooksCreateVendorTool: ToolConfig<CreateVendorParams, VendorRe
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'QUICKBOOKS_CREATE_VENDOR_ERROR',
-          message: error.message || 'Failed to create vendor',
-          details: error,
-        },
+        output: {},
+        error: `QUICKBOOKS_CREATE_VENDOR_ERROR: Failed to create vendor - ${errorDetails}`,
       }
     }
   },

@@ -50,7 +50,7 @@ export const quickbooksGetProfitLossTool: ToolConfig<GetProfitLossParams, Profit
   directExecution: async (params) => {
     try {
       const qbo = new QuickBooks(
-        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', null
+        '', '', params.apiKey, '', params.realmId, false, false, 70, '2.0', undefined
       )
 
       const reportParams: any = {}
@@ -79,13 +79,13 @@ export const quickbooksGetProfitLossTool: ToolConfig<GetProfitLossParams, Profit
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'QUICKBOOKS_GET_PROFIT_LOSS_ERROR',
-          message: error.message || 'Failed to get profit and loss report',
-          details: error,
-        },
+        output: {},
+        error: `QUICKBOOKS_GET_PROFIT_LOSS_ERROR: Failed to get profit and loss report - ${errorDetails}`,
       }
     }
   },

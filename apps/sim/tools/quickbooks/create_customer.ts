@@ -95,7 +95,7 @@ export const quickbooksCreateCustomerTool: ToolConfig<CreateCustomerParams, Cust
         false, // debug
         70, // minorVersion
         '2.0', // oauthVersion
-        null // refreshToken
+        undefined // refreshToken
       )
 
       const customer: Record<string, any> = {
@@ -133,13 +133,13 @@ export const quickbooksCreateCustomerTool: ToolConfig<CreateCustomerParams, Cust
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'QUICKBOOKS_CREATE_CUSTOMER_ERROR',
-          message: error.message || 'Failed to create customer',
-          details: error,
-        },
+        output: {},
+        error: `QUICKBOOKS_CREATE_CUSTOMER_ERROR: Failed to create customer - ${errorDetails}`,
       }
     }
   },

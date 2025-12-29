@@ -1,9 +1,13 @@
 import { Client } from '@freshbooks/api'
+import { SearchQueryBuilder } from '@freshbooks/api/dist/models/builders'
 import type {
   GetOutstandingInvoicesParams,
   GetOutstandingInvoicesResponse,
 } from '@/tools/freshbooks/types'
 import type { ToolConfig } from '@/tools/types'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('FreshBooksOutstandingInvoices')
 
 /**
  * FreshBooks Get Outstanding Invoices Tool
@@ -64,19 +68,15 @@ export const freshbooksGetOutstandingInvoicesTool: ToolConfig<
       })
 
       // Build search criteria for outstanding invoices
-      const searchParams: any = {
-        search: {
-          status: ['unpaid', 'partial'],
-        },
-      }
+      const searchBuilder = new SearchQueryBuilder().in('status', ['unpaid', 'partial'])
 
       if (params.clientId) {
-        searchParams.search.customerid = params.clientId
+        searchBuilder.equals('customerid', params.clientId)
       }
 
       // Fetch invoices using SDK
-      const response = await client.invoices.list(params.accountId, searchParams)
-      const invoices = response.data || []
+      const response = await client.invoices.list(params.accountId, [searchBuilder])
+      const invoices = response.data?.invoices || []
 
       const today = new Date()
       const outstandingInvoices: any[] = []
@@ -93,9 +93,42 @@ export const freshbooksGetOutstandingInvoicesTool: ToolConfig<
         overdue_over_90_days: 0,
       }
 
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      }
+
       invoices.forEach((invoice: any) => {
         const outstandingAmount = parseFloat(invoice.outstanding?.amount || '0')
-        const dueDate = new Date(invoice.due_date)
+
+        // Parse date string to Date object (FreshBooks returns ISO date strings)
+        let dueDate: Date
+        try {
+          const dueDateStr = invoice.dueDate || invoice.due_date || invoice.createDate || invoice.create_date
+          if (dueDateStr) {
+            dueDate = new Date(dueDateStr)
+            // Validate the date
+            if (Number.isNaN(dueDate.getTime())) {
+              logger.warn('Invalid due date for invoice', {
+                invoiceId: invoice.id,
+                dueDate: dueDateStr
+              })
+              dueDate = new Date() // Fallback to today
+            }
+          } else {
+            logger.warn('No due date found for invoice', { invoiceId: invoice.id })
+            dueDate = new Date() // Fallback to today
+          }
+        } catch (error) {
+          logger.warn('Error parsing due date for invoice', {
+            invoiceId: invoice.id,
+            error
+          })
+          dueDate = new Date() // Fallback to today
+        }
+
         const daysOverdue = Math.floor(
           (today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)
         )
@@ -109,16 +142,19 @@ export const freshbooksGetOutstandingInvoicesTool: ToolConfig<
         }
 
         // Fetch client name (simplified - would normally cache this)
-        const clientName = invoice.organization || `Client ${invoice.customerid}`
-        clientsSet.add(invoice.customerid.toString())
+        const clientId = invoice.customerId
+        const clientName = invoice.organization || `Client ${clientId ?? 'Unknown'}`
+        if (clientId !== undefined && clientId !== null) {
+          clientsSet.add(String(clientId))
+        }
 
         outstandingInvoices.push({
           id: invoice.id,
-          invoice_number: invoice.invoice_number || `INV-${invoice.id}`,
+          invoice_number: invoice.invoiceNumber || `INV-${invoice.id}`,
           client_name: clientName,
           amount_due: outstandingAmount,
-          currency: invoice.currency_code || 'USD',
-          due_date: invoice.due_date,
+          currency: invoice.currencyCode || 'USD',
+          due_date: formatDate(dueDate),
           days_overdue: Math.max(0, daysOverdue),
           status: invoice.status,
         })
@@ -165,13 +201,14 @@ export const freshbooksGetOutstandingInvoicesTool: ToolConfig<
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message || 'Unknown error'
+      logger.error('Failed to fetch outstanding invoices from FreshBooks', { error: errorDetails })
       return {
         success: false,
-        error: {
-          code: 'FRESHBOOKS_OUTSTANDING_INVOICES_ERROR',
-          message: error.message || 'Failed to fetch outstanding invoices from FreshBooks',
-          details: error.response?.data || error,
-        },
+        output: {},
+        error: `FRESHBOOKS_OUTSTANDING_INVOICES_ERROR: Failed to fetch outstanding invoices from FreshBooks - ${errorDetails}`,
       }
     }
   },

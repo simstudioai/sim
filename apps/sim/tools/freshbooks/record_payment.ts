@@ -74,7 +74,7 @@ export const freshbooksRecordPaymentTool: ToolConfig<
 
       // Prepare payment data
       const paymentData = {
-        invoiceid: params.invoiceId,
+        invoiceId: params.invoiceId,
         amount: {
           amount: params.amount.toString(),
           code: 'USD',
@@ -86,10 +86,23 @@ export const freshbooksRecordPaymentTool: ToolConfig<
 
       // Record payment using SDK
       const paymentResponse = await client.payments.create(params.accountId, paymentData)
+      
+      if (!paymentResponse.data) {
+        throw new Error('FreshBooks API returned no payment data')
+      }
+      
       const payment = paymentResponse.data
 
       // Fetch updated invoice to get current status
-      const invoiceResponse = await client.invoices.get(params.accountId, params.invoiceId)
+      const invoiceResponse = await client.invoices.single(
+        params.accountId,
+        String(params.invoiceId)
+      )
+
+      if (!invoiceResponse.data) {
+        throw new Error('FreshBooks API returned no invoice data')
+      }
+
       const invoice = invoiceResponse.data
 
       // Parse amounts
@@ -125,13 +138,13 @@ export const freshbooksRecordPaymentTool: ToolConfig<
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'FRESHBOOKS_PAYMENT_ERROR',
-          message: error.message || 'Failed to record payment in FreshBooks',
-          details: error.response?.data || error,
-        },
+        output: {},
+        error: `FRESHBOOKS_PAYMENT_ERROR: Failed to record payment in FreshBooks - ${errorDetails}`,
       }
     }
   },

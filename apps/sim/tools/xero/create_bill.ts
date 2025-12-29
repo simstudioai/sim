@@ -1,6 +1,11 @@
 import { XeroClient } from 'xero-node'
 import type { CreateBillParams, CreateBillResponse } from '@/tools/xero/types'
 import type { ToolConfig } from '@/tools/types'
+import { validateDate } from '@/tools/financial-validation'
+import { createLogger } from '@sim/logger'
+import { env } from '@/lib/core/config/env'
+
+const logger = createLogger('XeroCreateBill')
 
 /**
  * Xero Create Bill Tool
@@ -57,10 +62,38 @@ export const xeroCreateBillTool: ToolConfig<CreateBillParams, CreateBillResponse
    */
   directExecution: async (params) => {
     try {
-      // Initialize Xero SDK client
+      // Validate due date if provided (should be in future)
+      if (params.dueDate) {
+        const dueDateValidation = validateDate(params.dueDate, {
+          fieldName: 'due date',
+          allowPast: false,
+          required: false,
+        })
+        if (!dueDateValidation.valid) {
+          logger.error('Due date validation failed', { error: dueDateValidation.error })
+          return {
+            success: false,
+            output: {},
+            error: `XERO_VALIDATION_ERROR: ${dueDateValidation.error}`,
+          }
+        }
+      }
+
+      // Validate Xero credentials are configured
+      if (!env.XERO_CLIENT_ID || !env.XERO_CLIENT_SECRET) {
+        logger.error('Xero credentials not configured')
+        return {
+          success: false,
+          output: {},
+          error: 'XERO_CONFIGURATION_ERROR: XERO_CLIENT_ID and XERO_CLIENT_SECRET must be configured in environment variables',
+        }
+      }
+
+      // Initialize Xero SDK client with OAuth app credentials
+      // These are required by the SDK constructor but not used for token-based auth
       const xero = new XeroClient({
-        clientId: '',
-        clientSecret: '',
+        clientId: env.XERO_CLIENT_ID,
+        clientSecret: env.XERO_CLIENT_SECRET,
       })
 
       // Set access token
@@ -90,7 +123,7 @@ export const xeroCreateBillTool: ToolConfig<CreateBillParams, CreateBillResponse
 
       // Create bill (ACCPAY type invoice)
       const bill = {
-        type: 'ACCPAY',
+        type: 'ACCPAY' as any,
         contact: {
           contactID: params.supplierId,
         },
@@ -98,7 +131,7 @@ export const xeroCreateBillTool: ToolConfig<CreateBillParams, CreateBillResponse
         dueDateString: dueDate,
         lineItems,
         reference: params.reference || '',
-        status: 'DRAFT',
+        status: 'DRAFT' as any,
       }
 
       // Create bill using SDK
@@ -140,13 +173,14 @@ export const xeroCreateBillTool: ToolConfig<CreateBillParams, CreateBillResponse
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
+      logger.error('Failed to create Xero bill', { error: errorDetails })
       return {
         success: false,
-        error: {
-          code: 'XERO_BILL_ERROR',
-          message: error.message || 'Failed to create Xero bill',
-          details: error.response?.body || error,
-        },
+        output: {},
+        error: `XERO_BILL_ERROR: Failed to create Xero bill - ${errorDetails}`,
       }
     }
   },

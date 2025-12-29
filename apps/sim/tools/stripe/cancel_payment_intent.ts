@@ -26,15 +26,15 @@ export const stripeCancelPaymentIntentTool: ToolConfig<
     id: {
       type: 'string',
       required: true,
-      visibility: 'user-or-llm',
-      description: 'Payment Intent ID (e.g., pi_1234567890)',
+      visibility: 'user-only',
+      description: 'Payment Intent ID (e.g., pi_1234567890) - requires human confirmation for cancellation',
     },
     cancellation_reason: {
       type: 'string',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description:
-        'Reason for cancellation (duplicate, fraudulent, requested_by_customer, abandoned)',
+        'Reason for cancellation (duplicate, fraudulent, requested_by_customer, abandoned) - requires human confirmation',
     },
   },
 
@@ -46,7 +46,7 @@ export const stripeCancelPaymentIntentTool: ToolConfig<
     try {
       // Initialize Stripe SDK client
       const stripe = new Stripe(params.apiKey, {
-        apiVersion: '2024-12-18.acacia',
+        apiVersion: '2025-08-27.basil',
       })
 
       // Prepare cancel options
@@ -71,13 +71,13 @@ export const stripeCancelPaymentIntentTool: ToolConfig<
         },
       }
     } catch (error: any) {
+      const errorDetails = error.response?.body
+        ? JSON.stringify(error.response.body)
+        : error.message || 'Unknown error'
       return {
         success: false,
-        error: {
-          code: 'STRIPE_CANCEL_PAYMENT_INTENT_ERROR',
-          message: error.message || 'Failed to cancel payment intent',
-          details: error,
-        },
+        output: {},
+        error: `STRIPE_CANCEL_PAYMENT_INTENT_ERROR: Failed to cancel payment intent - ${errorDetails}`,
       }
     }
   },
