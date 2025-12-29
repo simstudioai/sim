@@ -2523,4 +2523,181 @@ describe('hasWorkflowChanged', () => {
       }
     )
   })
+
+  describe('Variables (UI-only fields should not trigger change)', () => {
+    it.concurrent('should not detect change when validationError differs', () => {
+      const deployedState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1'),
+        },
+      })
+      ;(deployedState as any).variables = {
+        var1: {
+          id: 'var1',
+          workflowId: 'workflow1',
+          name: 'myVar',
+          type: 'plain',
+          value: 'test',
+        },
+      }
+
+      const currentState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1'),
+        },
+      })
+      ;(currentState as any).variables = {
+        var1: {
+          id: 'var1',
+          workflowId: 'workflow1',
+          name: 'myVar',
+          type: 'plain',
+          value: 'test',
+          validationError: undefined,
+        },
+      }
+
+      expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
+    })
+
+    it.concurrent('should not detect change when validationError has value vs missing', () => {
+      const deployedState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1'),
+        },
+      })
+      ;(deployedState as any).variables = {
+        var1: {
+          id: 'var1',
+          workflowId: 'workflow1',
+          name: 'myVar',
+          type: 'number',
+          value: 'invalid',
+        },
+      }
+
+      const currentState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1'),
+        },
+      })
+      ;(currentState as any).variables = {
+        var1: {
+          id: 'var1',
+          workflowId: 'workflow1',
+          name: 'myVar',
+          type: 'number',
+          value: 'invalid',
+          validationError: 'Not a valid number',
+        },
+      }
+
+      expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
+    })
+
+    it.concurrent('should detect change when variable value differs', () => {
+      const deployedState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1'),
+        },
+      })
+      ;(deployedState as any).variables = {
+        var1: {
+          id: 'var1',
+          workflowId: 'workflow1',
+          name: 'myVar',
+          type: 'plain',
+          value: 'old value',
+        },
+      }
+
+      const currentState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1'),
+        },
+      })
+      ;(currentState as any).variables = {
+        var1: {
+          id: 'var1',
+          workflowId: 'workflow1',
+          name: 'myVar',
+          type: 'plain',
+          value: 'new value',
+          validationError: undefined,
+        },
+      }
+
+      expect(hasWorkflowChanged(currentState, deployedState)).toBe(true)
+    })
+
+    it.concurrent('should detect change when variable is added', () => {
+      const deployedState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1'),
+        },
+      })
+      ;(deployedState as any).variables = {}
+
+      const currentState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1'),
+        },
+      })
+      ;(currentState as any).variables = {
+        var1: {
+          id: 'var1',
+          workflowId: 'workflow1',
+          name: 'myVar',
+          type: 'plain',
+          value: 'test',
+        },
+      }
+
+      expect(hasWorkflowChanged(currentState, deployedState)).toBe(true)
+    })
+
+    it.concurrent('should detect change when variable is removed', () => {
+      const deployedState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1'),
+        },
+      })
+      ;(deployedState as any).variables = {
+        var1: {
+          id: 'var1',
+          workflowId: 'workflow1',
+          name: 'myVar',
+          type: 'plain',
+          value: 'test',
+        },
+      }
+
+      const currentState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1'),
+        },
+      })
+      ;(currentState as any).variables = {}
+
+      expect(hasWorkflowChanged(currentState, deployedState)).toBe(true)
+    })
+
+    it.concurrent('should not detect change when empty array vs empty object', () => {
+      const deployedState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1'),
+        },
+      })
+      ;(deployedState as any).variables = []
+
+      const currentState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1'),
+        },
+      })
+      ;(currentState as any).variables = {}
+
+      expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
+    })
+  })
 })
