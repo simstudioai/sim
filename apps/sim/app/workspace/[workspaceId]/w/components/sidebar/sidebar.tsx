@@ -437,8 +437,8 @@ export function Sidebar() {
   return (
     <>
       {isCollapsed ? (
-        /* Floating collapsed header */
-        <div className='fixed top-[14px] left-[10px] z-10 max-w-[232px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-1)] px-[12px] py-[6px]'>
+        /* Floating collapsed header - minimal pill showing workspace name and expand toggle */
+        <div className='fixed top-[14px] left-[10px] z-10 w-fit rounded-[10px] border border-[var(--border)] bg-[var(--surface-1)] px-[10px] py-[6px]'>
           <WorkspaceHeader
             activeWorkspace={activeWorkspace}
             workspaceId={workspaceId}
