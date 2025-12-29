@@ -70,7 +70,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           .update(templates)
           .set({
             views: sql`${templates.views} + 1`,
-            updatedAt: new Date(),
           })
           .where(eq(templates.id, id))
 
