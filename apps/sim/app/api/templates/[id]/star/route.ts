@@ -100,7 +100,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         .update(templates)
         .set({
           stars: sql`${templates.stars} + 1`,
-          updatedAt: new Date(),
         })
         .where(eq(templates.id, id))
     })
@@ -160,7 +159,6 @@ export async function DELETE(
         .update(templates)
         .set({
           stars: sql`GREATEST(${templates.stars} - 1, 0)`,
-          updatedAt: new Date(),
         })
         .where(eq(templates.id, id))
     })
