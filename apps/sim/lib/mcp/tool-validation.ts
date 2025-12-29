@@ -93,6 +93,16 @@ export function getIssueBadgeLabel(issue: McpToolIssue): string {
   }
 }
 
+export function getIssueBadgeVariant(issue: McpToolIssue): 'amber' | 'red' {
+  switch (issue.type) {
+    case 'schema_changed':
+    case 'url_changed':
+      return 'amber'
+    default:
+      return 'red'
+  }
+}
+
 export function isToolUnavailable(issue: McpToolIssue | null): boolean {
   if (!issue) return false
   return (

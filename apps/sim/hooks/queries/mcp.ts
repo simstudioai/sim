@@ -4,6 +4,27 @@ import type { McpServerStatusConfig, McpTool, McpToolSchema } from '@/lib/mcp/ty
 
 const logger = createLogger('McpQueries')
 
+/**
+ * Sanitizes a string by removing invisible Unicode characters that cause HTTP header errors.
+ */
+function sanitizeString(value: string): string {
+  return value
+    .replace(/[\u2028\u2029\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[\x00-\x1F\x7F]/g, '')
+    .trim()
+}
+
+function sanitizeHeaders(
+  headers: Record<string, string> | undefined
+): Record<string, string> | undefined {
+  if (!headers) return headers
+  return Object.fromEntries(
+    Object.entries(headers)
+      .map(([key, value]) => [sanitizeString(key), sanitizeString(value)])
+      .filter(([key, value]) => key !== '' && value !== '')
+  )
+}
+
 export type { McpServerStatusConfig, McpTool }
 
 export const mcpKeys = {
@@ -101,6 +122,16 @@ export function useMcpToolsQuery(workspaceId: string) {
   })
 }
 
+export function useForceRefreshMcpTools() {
+  const queryClient = useQueryClient()
+
+  return async (workspaceId: string) => {
+    const freshTools = await fetchMcpTools(workspaceId, true)
+    queryClient.setQueryData(mcpKeys.tools(workspaceId), freshTools)
+    return freshTools
+  }
+}
+
 interface CreateMcpServerParams {
   workspaceId: string
   config: McpServerConfig
@@ -113,6 +144,8 @@ export function useCreateMcpServer() {
     mutationFn: async ({ workspaceId, config }: CreateMcpServerParams) => {
       const serverData = {
         ...config,
+        url: config.url ? sanitizeString(config.url) : config.url,
+        headers: sanitizeHeaders(config.headers),
         workspaceId,
       }
 
@@ -225,10 +258,16 @@ export function useUpdateMcpServer() {
 
   return useMutation({
     mutationFn: async ({ workspaceId, serverId, updates }: UpdateMcpServerParams) => {
+      const sanitizedUpdates = {
+        ...updates,
+        url: updates.url ? sanitizeString(updates.url) : updates.url,
+        headers: updates.headers ? sanitizeHeaders(updates.headers) : updates.headers,
+      }
+
       const response = await fetch(`/api/mcp/servers/${serverId}?workspaceId=${workspaceId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
+        body: JSON.stringify(sanitizedUpdates),
       })
 
       const data = await response.json()
@@ -280,6 +319,8 @@ export interface RefreshMcpServerResult {
   toolCount: number
   lastConnected: string | null
   error: string | null
+  workflowsUpdated: number
+  updatedWorkflowIds: string[]
 }
 
 export function useRefreshMcpServer() {
@@ -309,8 +350,8 @@ export function useRefreshMcpServer() {
     onSuccess: async (_data, variables) => {
       const freshTools = await fetchMcpTools(variables.workspaceId, true)
       queryClient.setQueryData(mcpKeys.tools(variables.workspaceId), freshTools)
-      queryClient.invalidateQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
-      queryClient.invalidateQueries({ queryKey: mcpKeys.storedTools(variables.workspaceId) })
+      await queryClient.invalidateQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
+      await queryClient.refetchQueries({ queryKey: mcpKeys.storedTools(variables.workspaceId) })
     },
   })
 }

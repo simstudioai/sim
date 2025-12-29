@@ -2,11 +2,15 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Check, Clipboard, Plus, Search } from 'lucide-react'
+import { Check, Clipboard, Plus, Search, Workflow as WorkflowIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
+  Badge,
   Button,
+  Combobox,
+  type ComboboxOption,
   Input as EmcnInput,
+  Label,
   Modal,
   ModalBody,
   ModalContent,
@@ -16,9 +20,11 @@ import {
 import { Input, Skeleton } from '@/components/ui'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
+  useAddWorkflowMcpTool,
   useCreateWorkflowMcpServer,
   useDeleteWorkflowMcpServer,
   useDeleteWorkflowMcpTool,
+  useDeployedWorkflows,
   useWorkflowMcpServer,
   useWorkflowMcpServers,
   type WorkflowMcpServer,
@@ -35,10 +41,16 @@ interface ServerDetailViewProps {
 }
 
 function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewProps) {
-  const { data, isLoading, error } = useWorkflowMcpServer(workspaceId, serverId)
+  const { data, isLoading, error, refetch } = useWorkflowMcpServer(workspaceId, serverId)
+  const { data: deployedWorkflows = [], isLoading: isLoadingWorkflows } =
+    useDeployedWorkflows(workspaceId)
   const deleteToolMutation = useDeleteWorkflowMcpTool()
+  const addToolMutation = useAddWorkflowMcpTool()
   const [copiedUrl, setCopiedUrl] = useState(false)
   const [toolToDelete, setToolToDelete] = useState<WorkflowMcpTool | null>(null)
+  const [toolToView, setToolToView] = useState<WorkflowMcpTool | null>(null)
+  const [showAddWorkflow, setShowAddWorkflow] = useState(false)
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null)
 
   const mcpServerUrl = useMemo(() => {
     return `${getBaseUrl()}/api/mcp/serve/${serverId}`
@@ -64,6 +76,41 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
     }
   }
 
+  const handleAddWorkflow = async () => {
+    if (!selectedWorkflowId) return
+    try {
+      await addToolMutation.mutateAsync({
+        workspaceId,
+        serverId,
+        workflowId: selectedWorkflowId,
+      })
+      setShowAddWorkflow(false)
+      setSelectedWorkflowId(null)
+      refetch()
+    } catch (err) {
+      logger.error('Failed to add workflow:', err)
+    }
+  }
+
+  const tools = data?.tools ?? []
+
+  const availableWorkflows = useMemo(() => {
+    const existingWorkflowIds = new Set(tools.map((t) => t.workflowId))
+    return deployedWorkflows.filter((w) => !existingWorkflowIds.has(w.id))
+  }, [deployedWorkflows, tools])
+
+  const workflowOptions: ComboboxOption[] = useMemo(() => {
+    return availableWorkflows.map((w) => ({
+      label: w.name,
+      value: w.id,
+      icon: WorkflowIcon,
+    }))
+  }, [availableWorkflows])
+
+  const selectedWorkflow = useMemo(() => {
+    return availableWorkflows.find((w) => w.id === selectedWorkflowId)
+  }, [availableWorkflows, selectedWorkflowId])
+
   if (isLoading) {
     return (
       <div className='flex h-full flex-col gap-[16px]'>
@@ -87,7 +134,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
     )
   }
 
-  const { server, tools } = data
+  const { server } = data
 
   return (
     <>
@@ -123,29 +170,65 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             </div>
 
             <div className='flex flex-col gap-[8px]'>
-              <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                Tools ({tools.length})
-              </span>
+              <div className='flex items-center justify-between'>
+                <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                  Workflows ({tools.length})
+                </span>
+                <Button
+                  variant='primary'
+                  onClick={() => setShowAddWorkflow(true)}
+                  disabled={availableWorkflows.length === 0}
+                  className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+                >
+                  <Plus className='mr-[6px] h-[13px] w-[13px]' />
+                  Add
+                </Button>
+              </div>
+
               {tools.length === 0 ? (
-                <p className='text-[13px] text-[var(--text-muted)]'>No tools available</p>
+                <p className='text-[13px] text-[var(--text-muted)]'>
+                  No workflows added yet. Click "Add" to add a deployed workflow.
+                </p>
               ) : (
                 <div className='flex flex-col gap-[8px]'>
                   {tools.map((tool) => (
-                    <div
-                      key={tool.id}
-                      className='rounded-[6px] border bg-[var(--surface-3)] px-[10px] py-[8px]'
-                    >
-                      <p className='font-medium text-[13px] text-[var(--text-primary)]'>
-                        {tool.toolName}
-                      </p>
-                      {tool.toolDescription && (
-                        <p className='mt-[4px] text-[13px] text-[var(--text-tertiary)]'>
-                          {tool.toolDescription}
+                    <div key={tool.id} className='flex items-center justify-between gap-[12px]'>
+                      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                        <span className='font-medium text-[14px]'>{tool.toolName}</span>
+                        <p className='truncate text-[13px] text-[var(--text-muted)]'>
+                          {tool.toolDescription || 'No description'}
                         </p>
-                      )}
+                      </div>
+                      <div className='flex flex-shrink-0 items-center gap-[4px]'>
+                        <Button
+                          variant='primary'
+                          onClick={() => setToolToView(tool)}
+                          className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+                        >
+                          Details
+                        </Button>
+                        <Button
+                          variant='ghost'
+                          onClick={() => setToolToDelete(tool)}
+                          disabled={deleteToolMutation.isPending}
+                        >
+                          Remove
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
+              )}
+
+              {availableWorkflows.length === 0 && deployedWorkflows.length > 0 && (
+                <p className='mt-[4px] text-[11px] text-[var(--text-muted)]'>
+                  All deployed workflows have been added to this server.
+                </p>
+              )}
+              {deployedWorkflows.length === 0 && !isLoadingWorkflows && (
+                <p className='mt-[4px] text-[11px] text-[var(--text-muted)]'>
+                  Deploy a workflow first to add it to this server.
+                </p>
               )}
             </div>
           </div>
@@ -164,14 +247,14 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
 
       <Modal open={!!toolToDelete} onOpenChange={(open) => !open && setToolToDelete(null)}>
         <ModalContent className='w-[400px]'>
-          <ModalHeader>Remove Tool</ModalHeader>
+          <ModalHeader>Remove Workflow</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-tertiary)]'>
               Are you sure you want to remove{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {toolToDelete?.toolName}
               </span>{' '}
-              from this server?
+              from this server? The workflow will remain deployed and can be added back later.
             </p>
           </ModalBody>
           <ModalFooter>
@@ -185,6 +268,140 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
               className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {deleteToolMutation.isPending ? 'Removing...' : 'Remove'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal open={!!toolToView} onOpenChange={(open) => !open && setToolToView(null)}>
+        <ModalContent className='w-[480px]'>
+          <ModalHeader>{toolToView?.toolName}</ModalHeader>
+          <ModalBody>
+            <div className='flex flex-col gap-[16px]'>
+              <div className='flex flex-col gap-[4px]'>
+                <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                  Description
+                </span>
+                <p className='text-[13px] text-[var(--text-secondary)]'>
+                  {toolToView?.toolDescription || 'No description'}
+                </p>
+              </div>
+
+              <div className='flex flex-col gap-[8px]'>
+                <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                  Parameters
+                </span>
+                {(() => {
+                  const schema = toolToView?.parameterSchema as
+                    | { properties?: Record<string, { type?: string; description?: string }> }
+                    | undefined
+                  const properties = schema?.properties
+                  if (!properties || Object.keys(properties).length === 0) {
+                    return <p className='text-[13px] text-[var(--text-muted)]'>No parameters</p>
+                  }
+                  return (
+                    <div className='flex flex-col gap-[8px]'>
+                      {Object.entries(properties).map(([name, prop]) => (
+                        <div
+                          key={name}
+                          className='rounded-[6px] border bg-[var(--surface-3)] px-[10px] py-[8px]'
+                        >
+                          <div className='flex items-center justify-between'>
+                            <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                              {name}
+                            </span>
+                            <Badge variant='outline' size='sm'>
+                              {prop.type || 'any'}
+                            </Badge>
+                          </div>
+                          {prop.description && (
+                            <p className='mt-[4px] text-[12px] text-[var(--text-muted)]'>
+                              {prop.description}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+              </div>
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant='primary'
+              onClick={() => setToolToView(null)}
+              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+            >
+              Close
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal
+        open={showAddWorkflow}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowAddWorkflow(false)
+            setSelectedWorkflowId(null)
+          }
+        }}
+      >
+        <ModalContent className='w-[420px]'>
+          <ModalHeader>Add Workflow</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-tertiary)]'>
+              Select a deployed workflow to add to this MCP server. The workflow will be available
+              as a tool.
+            </p>
+
+            <div className='mt-[16px] flex flex-col gap-[8px]'>
+              <Label className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                Select Workflow
+              </Label>
+              <Combobox
+                options={workflowOptions}
+                value={selectedWorkflowId || undefined}
+                onChange={(value: string) => setSelectedWorkflowId(value)}
+                placeholder='Select a workflow...'
+                searchable
+                searchPlaceholder='Search workflows...'
+                disabled={addToolMutation.isPending}
+                overlayContent={
+                  selectedWorkflow ? (
+                    <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
+                      <WorkflowIcon className='h-[12px] w-[12px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                      <span className='truncate'>{selectedWorkflow.name}</span>
+                    </span>
+                  ) : undefined
+                }
+              />
+              {addToolMutation.isError && (
+                <p className='text-[11px] text-[var(--text-error)] leading-tight'>
+                  {addToolMutation.error?.message || 'Failed to add workflow'}
+                </p>
+              )}
+            </div>
+          </ModalBody>
+
+          <ModalFooter>
+            <Button
+              variant='default'
+              onClick={() => {
+                setShowAddWorkflow(false)
+                setSelectedWorkflowId(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant='primary'
+              onClick={handleAddWorkflow}
+              disabled={!selectedWorkflowId || addToolMutation.isPending}
+              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+            >
+              {addToolMutation.isPending ? 'Adding...' : 'Add Workflow'}
             </Button>
           </ModalFooter>
         </ModalContent>

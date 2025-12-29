@@ -13,19 +13,28 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Tooltip,
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
-import { getIssueBadgeLabel, getMcpToolIssue, type McpToolIssue } from '@/lib/mcp/tool-validation'
+import {
+  getIssueBadgeLabel,
+  getIssueBadgeVariant,
+  getMcpToolIssue,
+  type McpToolIssue,
+} from '@/lib/mcp/tool-validation'
 import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import {
   useCreateMcpServer,
   useDeleteMcpServer,
+  useForceRefreshMcpTools,
   useMcpServers,
   useMcpToolsQuery,
   useRefreshMcpServer,
   useStoredMcpTools,
 } from '@/hooks/queries/mcp'
 import { useMcpServerTest } from '@/hooks/use-mcp-server-test'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { InputFieldType, McpServerFormData, McpServerTestResult } from './components'
 import {
   FormattedInput,
@@ -98,7 +107,8 @@ export function MCP({ initialServerId }: MCPProps) {
     isLoading: toolsLoading,
     isFetching: toolsFetching,
   } = useMcpToolsQuery(workspaceId)
-  const { data: storedTools = [] } = useStoredMcpTools(workspaceId)
+  const { data: storedTools = [], refetch: refetchStoredTools } = useStoredMcpTools(workspaceId)
+  const forceRefreshTools = useForceRefreshMcpTools()
   const createServerMutation = useCreateMcpServer()
   const deleteServerMutation = useDeleteMcpServer()
   const refreshServerMutation = useRefreshMcpServer()
@@ -118,7 +128,7 @@ export function MCP({ initialServerId }: MCPProps) {
 
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null)
   const [refreshingServers, setRefreshingServers] = useState<
-    Record<string, 'refreshing' | 'refreshed'>
+    Record<string, { status: 'refreshing' | 'refreshed'; workflowsUpdated?: number }>
   >({})
 
   const [showEnvVars, setShowEnvVars] = useState(false)
@@ -136,6 +146,14 @@ export function MCP({ initialServerId }: MCPProps) {
       setSelectedServerId(initialServerId)
     }
   }, [initialServerId, servers])
+
+  // Force refresh tools when entering server detail view to detect stale schemas
+  useEffect(() => {
+    if (selectedServerId) {
+      forceRefreshTools(workspaceId)
+      refetchStoredTools()
+    }
+  }, [selectedServerId, workspaceId, forceRefreshTools, refetchStoredTools])
 
   /**
    * Resets environment variable dropdown state.
@@ -404,21 +422,48 @@ export function MCP({ initialServerId }: MCPProps) {
 
   /**
    * Refreshes a server's tools by re-discovering them from the MCP server.
+   * Also syncs updated tool schemas to all workflows using those tools.
+   * If the active workflow was updated, reloads its subblock values.
    */
   const handleRefreshServer = useCallback(
     async (serverId: string) => {
       try {
-        setRefreshingServers((prev) => ({ ...prev, [serverId]: 'refreshing' }))
-        await refreshServerMutation.mutateAsync({ workspaceId, serverId })
-        logger.info(`Refreshed MCP server: ${serverId}`)
-        setRefreshingServers((prev) => ({ ...prev, [serverId]: 'refreshed' }))
+        setRefreshingServers((prev) => ({ ...prev, [serverId]: { status: 'refreshing' } }))
+        const result = await refreshServerMutation.mutateAsync({ workspaceId, serverId })
+        logger.info(
+          `Refreshed MCP server: ${serverId}, workflows updated: ${result.workflowsUpdated}`
+        )
+
+        // If the active workflow was updated, reload its subblock values from DB
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (activeWorkflowId && result.updatedWorkflowIds?.includes(activeWorkflowId)) {
+          logger.info(`Active workflow ${activeWorkflowId} was updated, reloading subblock values`)
+          try {
+            const response = await fetch(`/api/workflows/${activeWorkflowId}`)
+            if (response.ok) {
+              const { data: workflowData } = await response.json()
+              if (workflowData?.state?.blocks) {
+                useSubBlockStore
+                  .getState()
+                  .initializeFromWorkflow(activeWorkflowId, workflowData.state.blocks)
+              }
+            }
+          } catch (reloadError) {
+            logger.warn('Failed to reload workflow subblock values:', reloadError)
+          }
+        }
+
+        setRefreshingServers((prev) => ({
+          ...prev,
+          [serverId]: { status: 'refreshed', workflowsUpdated: result.workflowsUpdated },
+        }))
         setTimeout(() => {
           setRefreshingServers((prev) => {
             const newState = { ...prev }
             delete newState[serverId]
             return newState
           })
-        }, 2000)
+        }, 3000)
       } catch (error) {
         logger.error('Failed to refresh MCP server:', error)
         setRefreshingServers((prev) => {
@@ -554,26 +599,27 @@ export function MCP({ initialServerId }: MCPProps) {
                         key={tool.name}
                         className='rounded-[6px] border bg-[var(--surface-3)] px-[10px] py-[8px]'
                       >
-                        <div className='flex items-center justify-between'>
+                        <div className='flex items-center gap-[8px]'>
                           <p className='font-medium text-[13px] text-[var(--text-primary)]'>
                             {tool.name}
                           </p>
                           {issues.length > 0 && (
-                            <div className='group relative'>
-                              <Badge
-                                variant='outline'
-                                className='cursor-help'
-                                style={{
-                                  borderColor: 'var(--warning)',
-                                  color: 'var(--warning)',
-                                }}
-                              >
-                                {getIssueBadgeLabel(issues[0].issue)}
-                              </Badge>
-                              <div className='pointer-events-none absolute top-full right-0 z-50 mt-1 hidden whitespace-nowrap rounded bg-[var(--surface-1)] px-2 py-1 text-[12px] text-[var(--text-secondary)] shadow-lg group-hover:block'>
+                            <Tooltip.Root>
+                              <Tooltip.Trigger asChild>
+                                <div>
+                                  <Badge
+                                    variant={getIssueBadgeVariant(issues[0].issue)}
+                                    size='sm'
+                                    className='cursor-help'
+                                  >
+                                    {getIssueBadgeLabel(issues[0].issue)}
+                                  </Badge>
+                                </div>
+                              </Tooltip.Trigger>
+                              <Tooltip.Content>
                                 Update in: {affectedWorkflows.join(', ')}
-                              </div>
-                            </div>
+                              </Tooltip.Content>
+                            </Tooltip.Root>
                           )}
                         </div>
                         {tool.description && (
@@ -596,10 +642,12 @@ export function MCP({ initialServerId }: MCPProps) {
             variant='default'
             disabled={!!refreshingServers[server.id]}
           >
-            {refreshingServers[server.id] === 'refreshing'
+            {refreshingServers[server.id]?.status === 'refreshing'
               ? 'Refreshing...'
-              : refreshingServers[server.id] === 'refreshed'
-                ? 'Refreshed'
+              : refreshingServers[server.id]?.status === 'refreshed'
+                ? refreshingServers[server.id].workflowsUpdated
+                  ? `Synced (${refreshingServers[server.id].workflowsUpdated} workflow${refreshingServers[server.id].workflowsUpdated === 1 ? '' : 's'})`
+                  : 'Refreshed'
                 : 'Refresh Tools'}
           </Button>
           <Button onClick={handleBackToList} variant='tertiary'>
@@ -761,7 +809,7 @@ export function MCP({ initialServerId }: MCPProps) {
                     tools={tools}
                     isDeleting={deletingServers.has(server.id)}
                     isLoadingTools={isLoadingTools}
-                    isRefreshing={refreshingServers[server.id] === 'refreshing'}
+                    isRefreshing={refreshingServers[server.id]?.status === 'refreshing'}
                     onRemove={() => handleRemoveServer(server.id, server.name || 'this server')}
                     onViewDetails={() => handleViewDetails(server.id)}
                   />

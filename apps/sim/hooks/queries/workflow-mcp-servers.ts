@@ -4,6 +4,16 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 const logger = createLogger('WorkflowMcpServerQueries')
 
 /**
+ * Deployed Workflow type for adding to MCP servers
+ */
+export interface DeployedWorkflow {
+  id: string
+  name: string
+  description: string | null
+  isDeployed: boolean
+}
+
+/**
  * Query key factories for Workflow MCP Server queries
  */
 export const workflowMcpServerKeys = {
@@ -417,5 +427,40 @@ export function useDeleteWorkflowMcpTool() {
         queryKey: workflowMcpServerKeys.tools(variables.workspaceId, variables.serverId),
       })
     },
+  })
+}
+
+/**
+ * Fetch deployed workflows for a workspace
+ */
+async function fetchDeployedWorkflows(workspaceId: string): Promise<DeployedWorkflow[]> {
+  const response = await fetch(`/api/workflows?workspaceId=${workspaceId}`)
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch workflows')
+  }
+
+  const { data }: { data: any[] } = await response.json()
+
+  return data
+    .filter((w) => w.isDeployed)
+    .map((w) => ({
+      id: w.id,
+      name: w.name,
+      description: w.description,
+      isDeployed: w.isDeployed,
+    }))
+}
+
+/**
+ * Hook to fetch deployed workflows for a workspace
+ */
+export function useDeployedWorkflows(workspaceId: string) {
+  return useQuery({
+    queryKey: ['deployed-workflows', workspaceId],
+    queryFn: () => fetchDeployedWorkflows(workspaceId),
+    enabled: !!workspaceId,
+    staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
   })
 }

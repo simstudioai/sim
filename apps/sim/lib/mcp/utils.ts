@@ -7,7 +7,7 @@ import { isMcpTool, MCP } from '@/executor/constants'
  */
 export const MCP_CONSTANTS = {
   EXECUTION_TIMEOUT: 60000,
-  CACHE_TIMEOUT: 60 * 1000,
+  CACHE_TIMEOUT: 5 * 60 * 1000,
   DEFAULT_RETRIES: 3,
   DEFAULT_CONNECTION_TIMEOUT: 30000,
   MAX_CACHE_SIZE: 1000,

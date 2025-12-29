@@ -10,6 +10,17 @@ function isUrlBasedTransport(transport: McpTransport): boolean {
   return transport === 'streamable-http'
 }
 
+/**
+ * Sanitizes a string for use in HTTP headers by removing invisible Unicode characters
+ * that can cause ByteString conversion errors (e.g., U+2028 Line Separator from copy-paste).
+ */
+function sanitizeHeaderValue(value: string): string {
+  return value
+    .replace(/[\u2028\u2029\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[\x00-\x1F\x7F]/g, '')
+    .trim()
+}
+
 export interface McpServerTestConfig {
   name: string
   transport: McpTransport
@@ -68,11 +79,12 @@ export function useMcpServerTest() {
       try {
         const cleanConfig = {
           ...config,
+          url: config.url ? sanitizeHeaderValue(config.url) : config.url,
           headers: config.headers
             ? Object.fromEntries(
-                Object.entries(config.headers).filter(
-                  ([key, value]) => key.trim() !== '' && value.trim() !== ''
-                )
+                Object.entries(config.headers)
+                  .map(([key, value]) => [sanitizeHeaderValue(key), sanitizeHeaderValue(value)])
+                  .filter(([key, value]) => key !== '' && value !== '')
               )
             : {},
         }
