@@ -1,18 +1,20 @@
-import type { BlockState, Edge, Loop, Parallel, WorkflowState } from '../types'
 import { createBlock, createFunctionBlock, createStarterBlock } from './block.factory'
 import { createLinearEdges } from './edge.factory'
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 /**
  * Options for creating a mock workflow state.
+ * Uses `any` for complex types to avoid conflicts with app types.
  */
 export interface WorkflowFactoryOptions {
-  blocks?: Record<string, BlockState>
-  edges?: Edge[]
-  loops?: Record<string, Loop>
-  parallels?: Record<string, Parallel>
+  blocks?: Record<string, any>
+  edges?: any[]
+  loops?: Record<string, any>
+  parallels?: Record<string, any>
   lastSaved?: number
   isDeployed?: boolean
-  variables?: WorkflowState['variables']
+  variables?: any[]
 }
 
 /**
@@ -23,7 +25,7 @@ export interface WorkflowFactoryOptions {
  * const workflow = createWorkflowState()
  * ```
  */
-export function createWorkflowState(options: WorkflowFactoryOptions = {}): WorkflowState {
+export function createWorkflowState(options: WorkflowFactoryOptions = {}): any {
   return {
     blocks: options.blocks ?? {},
     edges: options.edges ?? [],
@@ -45,12 +47,12 @@ export function createWorkflowState(options: WorkflowFactoryOptions = {}): Workf
  * const workflow = createLinearWorkflow(3)
  * ```
  */
-export function createLinearWorkflow(blockCount: number, spacing = 200): WorkflowState {
+export function createLinearWorkflow(blockCount: number, spacing = 200): any {
   if (blockCount < 1) {
     return createWorkflowState()
   }
 
-  const blocks: Record<string, BlockState> = {}
+  const blocks: Record<string, any> = {}
   const blockIds: string[] = []
 
   for (let i = 0; i < blockCount; i++) {
@@ -87,8 +89,8 @@ export function createLinearWorkflow(blockCount: number, spacing = 200): Workflo
  *           └─→ false-branch ┘
  * ```
  */
-export function createBranchingWorkflow(): WorkflowState {
-  const blocks: Record<string, BlockState> = {
+export function createBranchingWorkflow(): any {
+  const blocks: Record<string, any> = {
     start: createStarterBlock({ id: 'start', position: { x: 0, y: 0 } }),
     condition: createBlock({
       id: 'condition',
@@ -109,7 +111,7 @@ export function createBranchingWorkflow(): WorkflowState {
     end: createFunctionBlock({ id: 'end', name: 'End', position: { x: 600, y: 0 } }),
   }
 
-  const edges: Edge[] = [
+  const edges: any[] = [
     { id: 'e1', source: 'start', target: 'condition' },
     { id: 'e2', source: 'condition', target: 'true-branch', sourceHandle: 'condition-if' },
     { id: 'e3', source: 'condition', target: 'false-branch', sourceHandle: 'condition-else' },
@@ -128,8 +130,8 @@ export function createBranchingWorkflow(): WorkflowState {
  * start ─→ loop[loop-body] ─→ end
  * ```
  */
-export function createLoopWorkflow(iterations = 3): WorkflowState {
-  const blocks: Record<string, BlockState> = {
+export function createLoopWorkflow(iterations = 3): any {
+  const blocks: Record<string, any> = {
     start: createStarterBlock({ id: 'start', position: { x: 0, y: 0 } }),
     loop: createBlock({
       id: 'loop',
@@ -147,12 +149,12 @@ export function createLoopWorkflow(iterations = 3): WorkflowState {
     end: createFunctionBlock({ id: 'end', name: 'End', position: { x: 500, y: 0 } }),
   }
 
-  const edges: Edge[] = [
+  const edges: any[] = [
     { id: 'e1', source: 'start', target: 'loop' },
     { id: 'e2', source: 'loop', target: 'end' },
   ]
 
-  const loops: Record<string, Loop> = {
+  const loops: Record<string, any> = {
     loop: {
       id: 'loop',
       nodes: ['loop-body'],
@@ -172,8 +174,8 @@ export function createLoopWorkflow(iterations = 3): WorkflowState {
  * start ─→ parallel[parallel-task] ─→ end
  * ```
  */
-export function createParallelWorkflow(count = 2): WorkflowState {
-  const blocks: Record<string, BlockState> = {
+export function createParallelWorkflow(count = 2): any {
+  const blocks: Record<string, any> = {
     start: createStarterBlock({ id: 'start', position: { x: 0, y: 0 } }),
     parallel: createBlock({
       id: 'parallel',
@@ -191,12 +193,12 @@ export function createParallelWorkflow(count = 2): WorkflowState {
     end: createFunctionBlock({ id: 'end', name: 'End', position: { x: 500, y: 0 } }),
   }
 
-  const edges: Edge[] = [
+  const edges: any[] = [
     { id: 'e1', source: 'start', target: 'parallel' },
     { id: 'e2', source: 'parallel', target: 'end' },
   ]
 
-  const parallels: Record<string, Parallel> = {
+  const parallels: Record<string, any> = {
     parallel: {
       id: 'parallel',
       nodes: ['parallel-task'],

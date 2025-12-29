@@ -11,11 +11,12 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json bun.lock turbo.json ./
-RUN mkdir -p apps packages/db packages/testing packages/logger
+RUN mkdir -p apps packages/db packages/testing packages/logger packages/tsconfig
 COPY apps/sim/package.json ./apps/sim/package.json
 COPY packages/db/package.json ./packages/db/package.json
 COPY packages/testing/package.json ./packages/testing/package.json
 COPY packages/logger/package.json ./packages/logger/package.json
+COPY packages/tsconfig/package.json ./packages/tsconfig/package.json
 
 # Install dependencies with cache mount for faster builds
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
@@ -61,6 +62,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 
 # Copy db package (needed by socket)
 COPY --from=builder --chown=nextjs:nodejs /app/packages/db ./packages/db
+
+# Copy logger package (workspace dependency used by socket)
+COPY --from=builder --chown=nextjs:nodejs /app/packages/logger ./packages/logger
 
 # Copy sim app (changes most frequently - placed last)
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim ./apps/sim

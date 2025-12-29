@@ -3,7 +3,15 @@
 import { useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { Check } from 'lucide-react'
-import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
+import {
+  Badge,
+  Button,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+} from '@/components/emcn'
 import { client } from '@/lib/auth/auth-client'
 import {
   getProviderIdFromServiceId,
@@ -407,9 +415,9 @@ export function OAuthRequiredModal({
                       <div className='flex flex-1 items-center gap-[8px] text-[12px] text-[var(--text-primary)]'>
                         <span>{getScopeDescription(scope)}</span>
                         {newScopesSet.has(scope) && (
-                          <span className='inline-flex items-center gap-[6px] rounded-[6px] bg-[#fde68a] px-[7px] py-[1px] font-medium text-[#a16207] text-[11px] dark:bg-[rgba(245,158,11,0.2)] dark:text-[#fcd34d]'>
+                          <Badge variant='amber' size='sm'>
                             New
-                          </span>
+                          </Badge>
                         )}
                       </div>
                     </li>

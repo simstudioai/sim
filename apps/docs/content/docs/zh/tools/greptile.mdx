@@ -1,0 +1,136 @@
+---
+title: Greptile
+description: AI 驱动的代码库搜索与问答
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="greptile"
+  color="#e5e5e5"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Greptile](https://greptile.com/) 是一款 AI 驱动的开发者工具，可用于在一个或多个代码仓库中搜索和查询源代码。Greptile 让工程师能够用自然语言快速解答复杂的代码库问题，定位相关文件或符号，并深入了解陌生或遗留代码。
+
+使用 Greptile，您可以：
+
+- **用自然语言就代码库提出复杂问题**：获取关于架构、使用模式或具体实现的 AI 生成答案。
+- **即时查找相关代码、文件或函数**：通过关键词或自然语言查询搜索，直接跳转到匹配的行、文件或代码块。
+- **理解依赖关系和关联**：发现函数被调用的位置、模块之间的关系，或 API 在大型代码库中的使用情况。
+- **加速入职和代码探索**：快速上手新项目，或在无需深厚背景知识的情况下排查棘手问题。
+
+Sim Greptile 集成让您的 AI 代理能够：
+
+- 利用 Greptile 的先进语言模型查询和搜索私有及公共仓库。
+- 获取与上下文相关的代码片段、文件引用和解释，支持代码评审、文档编写和开发流程。
+- 根据搜索/查询结果在 Sim 工作流中触发自动化，或将代码智能直接嵌入您的流程。
+
+无论您是想提升开发效率、自动化文档，还是增强团队对复杂代码库的理解，Greptile 与 Sim 都能为您无缝提供代码智能与搜索服务——就在您需要的地方。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+使用 Greptile 通过自然语言查询和搜索代码库。获取 AI 生成的代码解答，查找相关文件，理解复杂代码库。
+
+## 工具
+
+### `greptile_query`
+
+使用自然语言查询代码仓库，并获得带有相关代码引用的答案。Greptile 利用 AI 理解您的代码库并回答问题。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | 是 | 关于代码库的自然语言问题 |
+| `repositories` | string | 是 | 以逗号分隔的仓库列表。格式："github:branch:owner/repo" 或 "owner/repo"（默认为 github:main） |
+| `sessionId` | string | 否 | 用于会话连续性的会话 ID |
+| `genius` | boolean | 否 | 启用 genius 模式以进行更深入的分析（速度较慢但更准确） |
+| `apiKey` | string | 是 | Greptile API 密钥 |
+| `githubToken` | string | 是 | 具有仓库读取权限的 GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | AI 生成的查询答案 |
+| `sources` | array | 支持答案的相关代码引用 |
+
+### `greptile_search`
+
+使用自然语言搜索代码仓库，获取相关代码引用而不生成答案。适用于查找特定代码位置。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | 是 | 用于查找相关代码的自然语言搜索查询 |
+| `repositories` | string | 是 | 以逗号分隔的仓库列表。格式："github:branch:owner/repo" 或 "owner/repo"（默认为 github:main） |
+| `sessionId` | string | 否 | 用于会话连续性的会话 ID |
+| `genius` | boolean | 否 | 启用 genius 模式以进行更深入的搜索（速度较慢但更准确） |
+| `apiKey` | string | 是 | Greptile API 密钥 |
+| `githubToken` | string | 是 | 具有仓库读取权限的 GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `sources` | array | 与搜索查询匹配的相关代码引用 |
+
+### `greptile_index_repo`
+
+提交一个仓库以供 Greptile 索引。索引完成后才能对仓库进行查询。小型仓库大约需要 3-5 分钟，大型仓库可能需要一个小时以上。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | ------ | ----------- |
+| `remote` | string | 是 | Git 远程类型：github 或 gitlab |
+| `repository` | string | 是 | 以 owner/repo 格式填写的仓库（例如，"facebook/react"） |
+| `branch` | string | 是 | 要索引的分支（例如，"main" 或 "master"） |
+| `reload` | boolean | 否 | 即使已被索引也强制重新索引 |
+| `notify` | boolean | 否 | 索引完成后发送邮件通知 |
+| `apiKey` | string | 是 | Greptile API 密钥 |
+| `githubToken` | string | 是 | 具有仓库读取权限的 GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `repositoryId` | string | 已索引仓库的唯一标识符（格式：remote:branch:owner/repo） |
+| `statusEndpoint` | string | 用于检查索引状态的 URL 端点 |
+| `message` | string | 关于索引操作的状态信息 |
+
+### `greptile_status`
+
+检查仓库的索引状态。可用于验证仓库是否已准备好被查询，或监控索引进度。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `remote` | string | 是 | Git 远程类型：github 或 gitlab |
+| `repository` | string | 是 | 仓库，格式为 owner/repo（例如，"facebook/react"） |
+| `branch` | string | 是 | 分支名称（例如，"main" 或 "master"） |
+| `apiKey` | string | 是 | Greptile API 密钥 |
+| `githubToken` | string | 是 | 具有仓库读取权限的 GitHub 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `repository` | string | 仓库名称（owner/repo） |
+| `remote` | string | Git 远程（github/gitlab） |
+| `branch` | string | 分支名称 |
+| `private` | boolean | 仓库是否为私有 |
+| `status` | string | 索引状态：submitted、cloning、processing、completed 或 failed |
+| `filesProcessed` | number | 已处理的文件数 |
+| `numFiles` | number | 仓库中的文件总数 |
+| `sampleQuestions` | array | 已索引仓库的示例问题 |
+| `sha` | string | 已索引版本的 Git 提交 SHA |
+
+## 备注
+
+- 分类：`tools`
+- 类型：`greptile`

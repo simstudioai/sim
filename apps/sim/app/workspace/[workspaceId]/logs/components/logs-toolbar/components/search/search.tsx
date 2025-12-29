@@ -163,7 +163,7 @@ export function AutocompleteSearch({
         }}
       >
         <PopoverAnchor asChild>
-          <div className='relative flex h-[32px] w-[400px] items-center rounded-[8px] bg-[var(--surface-4)]'>
+          <div className='relative flex h-[32px] w-[400px] items-center rounded-[8px] bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'>
             {/* Search Icon */}
             <Search className='mr-[6px] ml-[8px] h-[14px] w-[14px] flex-shrink-0 text-[var(--text-subtle)]' />
 
@@ -179,7 +179,7 @@ export function AutocompleteSearch({
                   className={cn(
                     'h-6 shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2 text-[11px]',
                     highlightedBadgeIndex === index &&
-                      'ring-1 ring-[var(--border-focus)] ring-offset-1 ring-offset-[var(--surface-5)]'
+                      'ring-1 ring-[var(--border-focus)] ring-offset-1 ring-offset-[var(--surface-3)] dark:ring-offset-[var(--surface-5)]'
                   )}
                   onClick={() => removeBadge(index)}
                   onKeyDown={(e) => {
