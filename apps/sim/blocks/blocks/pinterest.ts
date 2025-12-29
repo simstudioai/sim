@@ -25,9 +25,12 @@ export const PinterestBlock: BlockConfig<PinterestResponse> = {
     },
     {
       id: 'board_id',
-      title: 'Board ID',
-      type: 'short-input',
-      placeholder: 'Enter board ID (e.g., 1234567890)',
+      title: 'Board',
+      type: 'file-selector',
+      canonicalParamId: 'board_id',
+      serviceId: 'pinterest',
+      placeholder: 'Select a Pinterest board',
+      dependsOn: ['credential'],
       required: true,
     },
     {
