@@ -191,7 +191,7 @@ describe('getMcpToolIssue', () => {
 
       expect(result).toEqual({
         type: 'url_changed',
-        message: 'Server URL changed - tools may be different',
+        message: 'Server URL changed',
       })
     })
 
