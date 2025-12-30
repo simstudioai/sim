@@ -1189,6 +1189,14 @@ export function KnowledgeBase({
             ) : (
               <h1
                 className={`font-medium text-[18px] text-[var(--text-primary)] ${userPermissions.canEdit ? 'cursor-text' : ''}`}
+                onMouseDown={
+                  isEditingDescription && userPermissions.canEdit
+                    ? (e) => e.preventDefault()
+                    : undefined
+                }
+                onClick={
+                  isEditingDescription && userPermissions.canEdit ? handleStartEditName : undefined
+                }
                 onDoubleClick={userPermissions.canEdit ? handleStartEditName : undefined}
               >
                 {knowledgeBaseName}
@@ -1250,6 +1258,12 @@ export function KnowledgeBase({
           ) : knowledgeBase?.description ? (
             <p
               className={`mt-[4px] line-clamp-2 max-w-[40vw] font-medium text-[14px] text-[var(--text-tertiary)] ${userPermissions.canEdit ? 'cursor-text' : ''}`}
+              onMouseDown={
+                isEditingName && userPermissions.canEdit ? (e) => e.preventDefault() : undefined
+              }
+              onClick={
+                isEditingName && userPermissions.canEdit ? handleStartEditDescription : undefined
+              }
               onDoubleClick={userPermissions.canEdit ? handleStartEditDescription : undefined}
             >
               {knowledgeBase.description}
@@ -1257,7 +1271,8 @@ export function KnowledgeBase({
           ) : isEditingName && userPermissions.canEdit ? (
             <p
               className='mt-[4px] cursor-text font-medium text-[14px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-tertiary)]'
-              onDoubleClick={handleStartEditDescription}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleStartEditDescription}
             >
               Add a description...
             </p>
