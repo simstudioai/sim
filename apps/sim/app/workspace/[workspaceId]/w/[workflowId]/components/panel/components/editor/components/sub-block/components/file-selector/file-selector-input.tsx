@@ -49,6 +49,16 @@ export function FileSelectorInput({
   const [teamIdValueFromStore] = useSubBlockValue(blockId, 'teamId')
   const [siteIdValueFromStore] = useSubBlockValue(blockId, 'siteId')
   const [collectionIdValueFromStore] = useSubBlockValue(blockId, 'collectionId')
+  const [apiKeyValueFromStore] = useSubBlockValue(blockId, 'apiKey')
+  const [boardIdValueFromStore] = useSubBlockValue(blockId, 'board_id')
+  const [boardIdCamelFromStore] = useSubBlockValue(blockId, 'boardId')
+  const [boardIdListFromStore] = useSubBlockValue(blockId, 'board_id_list')
+  const [boardIdUpdateFromStore] = useSubBlockValue(blockId, 'board_id_update')
+  const [groupIdValueFromStore] = useSubBlockValue(blockId, 'group_id')
+  const [groupIdCamelFromStore] = useSubBlockValue(blockId, 'groupId')
+  const [groupIdListFromStore] = useSubBlockValue(blockId, 'group_id_list')
+  const [columnIdValueFromStore] = useSubBlockValue(blockId, 'column_id')
+  const [columnIdCamelFromStore] = useSubBlockValue(blockId, 'columnId')
 
   const connectedCredential = previewContextValues?.credential ?? connectedCredentialFromStore
   const domainValue = previewContextValues?.domain ?? domainValueFromStore
@@ -57,6 +67,25 @@ export function FileSelectorInput({
   const teamIdValue = previewContextValues?.teamId ?? teamIdValueFromStore
   const siteIdValue = previewContextValues?.siteId ?? siteIdValueFromStore
   const collectionIdValue = previewContextValues?.collectionId ?? collectionIdValueFromStore
+  const apiKeyValue = previewContextValues?.apiKey ?? apiKeyValueFromStore
+  const boardIdValue =
+    previewContextValues?.board_id ??
+    previewContextValues?.boardId ??
+    boardIdValueFromStore ??
+    boardIdCamelFromStore ??
+    boardIdListFromStore ??
+    boardIdUpdateFromStore
+  const groupIdValue =
+    previewContextValues?.group_id ??
+    previewContextValues?.groupId ??
+    groupIdValueFromStore ??
+    groupIdCamelFromStore ??
+    groupIdListFromStore
+  const columnIdValue =
+    previewContextValues?.column_id ??
+    previewContextValues?.columnId ??
+    columnIdValueFromStore ??
+    columnIdCamelFromStore
 
   const normalizedCredentialId =
     typeof connectedCredential === 'string'
@@ -81,6 +110,10 @@ export function FileSelectorInput({
       teamId: (teamIdValue as string) || undefined,
       siteId: (siteIdValue as string) || undefined,
       collectionId: (collectionIdValue as string) || undefined,
+      apiKey: (apiKeyValue as string) || undefined,
+      boardId: (boardIdValue as string) || undefined,
+      groupId: (groupIdValue as string) || undefined,
+      columnId: (columnIdValue as string) || undefined,
     })
   }, [
     subBlock,
@@ -92,9 +125,15 @@ export function FileSelectorInput({
     teamIdValue,
     siteIdValue,
     collectionIdValue,
+    apiKeyValue,
+    boardIdValue,
+    groupIdValue,
+    columnIdValue,
   ])
 
-  const missingCredential = !normalizedCredentialId
+  const isMondaySelector = selectorResolution?.key?.startsWith('monday.')
+  const missingCredential = !isMondaySelector && !normalizedCredentialId
+  const missingApiKey = isMondaySelector && !selectorResolution?.context.apiKey
   const missingDomain =
     selectorResolution?.key &&
     (selectorResolution.key === 'confluence.pages' || selectorResolution.key === 'jira.issues') &&
@@ -109,16 +148,27 @@ export function FileSelectorInput({
     selectorResolution?.key === 'webflow.collections' && !selectorResolution.context.siteId
   const missingCollection =
     selectorResolution?.key === 'webflow.items' && !selectorResolution.context.collectionId
+  const missingBoard =
+    isMondaySelector &&
+    (selectorResolution?.key === 'monday.groups' || selectorResolution?.key === 'monday.columns') &&
+    !selectorResolution?.context.boardId
+  const missingColumn =
+    isMondaySelector &&
+    selectorResolution?.key === 'monday.status-options' &&
+    !selectorResolution?.context.columnId
 
   const disabledReason =
     finalDisabled ||
     isForeignCredential ||
     missingCredential ||
+    missingApiKey ||
     missingDomain ||
     missingProject ||
     missingPlan ||
     missingSite ||
     missingCollection ||
+    missingBoard ||
+    missingColumn ||
     !selectorResolution?.key
 
   if (!selectorResolution?.key) {

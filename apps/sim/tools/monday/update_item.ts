@@ -26,9 +26,9 @@ export const updateItemTool: ToolConfig<UpdateItemParams, UpdateItemResponse> = 
     },
     board_id: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description: 'The board ID (optional but recommended)',
+      description: 'The board ID containing the item',
     },
     column_values: {
       type: 'json',
@@ -49,7 +49,7 @@ export const updateItemTool: ToolConfig<UpdateItemParams, UpdateItemResponse> = 
     body: (params) => ({
       query: QUERIES.UPDATE_ITEM,
       variables: {
-        boardId: params.board_id ? parseInt(params.board_id, 10) : undefined,
+        boardId: parseInt(params.board_id, 10),
         itemId: parseInt(params.item_id, 10),
         columnValues: JSON.stringify(params.column_values),
       },

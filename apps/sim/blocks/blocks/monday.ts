@@ -85,12 +85,14 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
     },
     {
       id: 'board_id_update',
-      title: 'Board ID (Optional)',
-      type: 'short-input',
+      title: 'Board',
+      type: 'file-selector',
+      serviceId: 'monday',
       canonicalParamId: 'board_id',
-      placeholder: 'Enter board ID (recommended)',
-      required: false,
+      placeholder: 'Select a Monday.com board',
+      required: true,
       condition: { field: 'operation', value: 'monday_update_item' },
+      dependsOn: ['apiKey'],
     },
     {
       id: 'column_values_update',

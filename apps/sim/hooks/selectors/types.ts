@@ -56,6 +56,7 @@ export interface SelectorContext {
   collectionId?: string
   apiKey?: string
   boardId?: string
+  groupId?: string
   columnId?: string
 }
 

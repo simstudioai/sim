@@ -47,19 +47,17 @@ export const listItemsTool: ToolConfig<ListItemsParams, ListItemsResponse> = {
       'API-Version': '2024-01',
     }),
     body: (params) => {
-      const query = params.group_id ? QUERIES.LIST_ITEMS : QUERIES.LIST_ITEMS_NO_FILTER
       return {
-        query,
+        query: QUERIES.LIST_ITEMS,
         variables: {
           boardId: [parseInt(params.board_id, 10)],
           limit: params.limit || 25,
-          groupId: params.group_id,
         },
       }
     },
   },
 
-  transformResponse: async (response: Response): Promise<ListItemsResponse> => {
+  transformResponse: async (response: Response, params): Promise<ListItemsResponse> => {
     if (!response.ok) {
       const errorText = await response.text()
       logger.error('Monday list items failed', {
@@ -84,9 +82,14 @@ export const listItemsTool: ToolConfig<ListItemsParams, ListItemsResponse> = {
       }
     }
 
-    const items = result.data?.boards?.[0]?.items_page?.items || []
+    let items = result.data?.boards?.[0]?.items_page?.items || []
 
-    logger.info('Monday items listed successfully', { count: items.length })
+    // Filter by group if group_id is provided
+    if (params.group_id) {
+      items = items.filter((item: any) => item.group?.id === params.group_id)
+    }
+
+    logger.info('Monday items listed successfully', { count: items.length, filtered: !!params.group_id })
 
     return {
       success: true,

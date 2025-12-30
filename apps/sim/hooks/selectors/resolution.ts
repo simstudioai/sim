@@ -127,13 +127,22 @@ function resolveFileSelector(
       }
       return { key: null, context, allowSearch: true }
     case 'monday':
-      if (subBlock.id === 'board_id' || subBlock.id === 'boardId') {
+      if (
+        subBlock.id === 'board_id' ||
+        subBlock.id === 'boardId' ||
+        subBlock.id === 'board_id_list' ||
+        subBlock.id === 'board_id_update'
+      ) {
         return { key: 'monday.boards', context, allowSearch: true }
       }
       if (subBlock.id === 'column_id' || subBlock.id === 'columnId') {
         return { key: 'monday.columns', context, allowSearch: true }
       }
-      if (subBlock.id === 'group_id' || subBlock.id === 'groupId') {
+      if (
+        subBlock.id === 'group_id' ||
+        subBlock.id === 'groupId' ||
+        subBlock.id === 'group_id_list'
+      ) {
         return { key: 'monday.groups', context, allowSearch: true }
       }
       if (subBlock.id === 'status_column' || subBlock.id === 'statusColumn') {

@@ -54,6 +54,11 @@ export function FileSelectorInput({
   const [apiKeyValueFromStore] = useSubBlockValue(blockId, 'apiKey')
   const [boardIdValueFromStore] = useSubBlockValue(blockId, 'board_id')
   const [boardIdCamelFromStore] = useSubBlockValue(blockId, 'boardId')
+  const [boardIdListFromStore] = useSubBlockValue(blockId, 'board_id_list')
+  const [boardIdUpdateFromStore] = useSubBlockValue(blockId, 'board_id_update')
+  const [groupIdValueFromStore] = useSubBlockValue(blockId, 'group_id')
+  const [groupIdCamelFromStore] = useSubBlockValue(blockId, 'groupId')
+  const [groupIdListFromStore] = useSubBlockValue(blockId, 'group_id_list')
   const [columnIdValueFromStore] = useSubBlockValue(blockId, 'column_id')
   const [columnIdCamelFromStore] = useSubBlockValue(blockId, 'columnId')
 
@@ -66,7 +71,18 @@ export function FileSelectorInput({
   const collectionIdValue = previewContextValues?.collectionId ?? collectionIdValueFromStore
   const apiKeyValue = previewContextValues?.apiKey ?? apiKeyValueFromStore
   const boardIdValue =
-    previewContextValues?.board_id ?? previewContextValues?.boardId ?? boardIdValueFromStore ?? boardIdCamelFromStore
+    previewContextValues?.board_id ??
+    previewContextValues?.boardId ??
+    boardIdValueFromStore ??
+    boardIdCamelFromStore ??
+    boardIdListFromStore ??
+    boardIdUpdateFromStore
+  const groupIdValue =
+    previewContextValues?.group_id ??
+    previewContextValues?.groupId ??
+    groupIdValueFromStore ??
+    groupIdCamelFromStore ??
+    groupIdListFromStore
   const columnIdValue =
     previewContextValues?.column_id ??
     previewContextValues?.columnId ??
@@ -98,6 +114,7 @@ export function FileSelectorInput({
       collectionId: (collectionIdValue as string) || undefined,
       apiKey: (apiKeyValue as string) || undefined,
       boardId: (boardIdValue as string) || undefined,
+      groupId: (groupIdValue as string) || undefined,
       columnId: (columnIdValue as string) || undefined,
     })
   }, [
@@ -112,9 +129,15 @@ export function FileSelectorInput({
     collectionIdValue,
     apiKeyValue,
     boardIdValue,
+    groupIdValue,
     columnIdValue,
     boardIdValueFromStore,
     boardIdCamelFromStore,
+    boardIdListFromStore,
+    boardIdUpdateFromStore,
+    groupIdValueFromStore,
+    groupIdCamelFromStore,
+    groupIdListFromStore,
     columnIdValueFromStore,
     columnIdCamelFromStore,
   ])

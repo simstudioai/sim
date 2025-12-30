@@ -111,7 +111,7 @@ export const QUERIES = {
   `,
 
   UPDATE_ITEM: `
-    mutation ($boardId: ID, $itemId: ID!, $columnValues: JSON!) {
+    mutation ($boardId: ID!, $itemId: ID!, $columnValues: JSON!) {
       change_multiple_column_values(
         board_id: $boardId
         item_id: $itemId
@@ -150,9 +150,9 @@ export const QUERIES = {
   `,
 
   LIST_ITEMS: `
-    query ($boardId: [ID!]!, $limit: Int, $groupId: String) {
+    query ($boardId: [ID!]!, $limit: Int) {
       boards(ids: $boardId) {
-        items_page(limit: $limit, query_params: {rules: [{column_id: "group", compare_value: [$groupId]}]}) {
+        items_page(limit: $limit) {
           items {
             id
             name
