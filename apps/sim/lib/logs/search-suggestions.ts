@@ -9,6 +9,8 @@ export interface FilterDefinition {
     label: string
     description?: string
   }>
+  acceptsCustomValue?: boolean
+  customValueHint?: string
 }
 
 export interface WorkflowData {
@@ -26,6 +28,20 @@ export interface TriggerData {
   value: string
   label: string
   color: string
+}
+
+/**
+ * Generates current date examples for the date filter options.
+ */
+function getDateExamples() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const firstOfMonth = `${year}-${month}-01`
+  const today = `${year}-${month}-${day}`
+  const yearMonth = `${year}-${month}`
+  return { today, firstOfMonth, year: String(year), yearMonth }
 }
 
 export const FILTER_DEFINITIONS: FilterDefinition[] = [
@@ -58,13 +74,24 @@ export const FILTER_DEFINITIONS: FilterDefinition[] = [
     key: 'date',
     label: 'Date',
     description: 'Filter by date range',
-    options: [
-      { value: 'today', label: 'Today', description: "Today's logs" },
-      { value: 'yesterday', label: 'Yesterday', description: "Yesterday's logs" },
-      { value: 'this-week', label: 'This week', description: "This week's logs" },
-      { value: 'last-week', label: 'Last week', description: "Last week's logs" },
-      { value: 'this-month', label: 'This month', description: "This month's logs" },
-    ],
+    options: (() => {
+      const { today, firstOfMonth, year, yearMonth } = getDateExamples()
+      return [
+        { value: 'today', label: 'Today', description: "Today's logs" },
+        { value: 'yesterday', label: 'Yesterday', description: "Yesterday's logs" },
+        { value: 'this-week', label: 'This week', description: "This week's logs" },
+        { value: 'last-week', label: 'Last week', description: "Last week's logs" },
+        { value: 'this-month', label: 'This month', description: "This month's logs" },
+        { value: today, label: 'Specific date', description: 'YYYY-MM-DD' },
+        { value: yearMonth, label: 'Specific month', description: 'YYYY-MM' },
+        { value: year, label: 'Specific year', description: 'YYYY' },
+        {
+          value: `${firstOfMonth}..${today}`,
+          label: 'Date range',
+          description: 'YYYY-MM-DD..YYYY-MM-DD',
+        },
+      ]
+    })(),
   },
   {
     key: 'duration',
@@ -208,7 +235,7 @@ export class SearchSuggestions {
     const filterDef = FILTER_DEFINITIONS.find((f) => f.key === key)
 
     if (filterDef) {
-      const suggestions = filterDef.options
+      const suggestions: Suggestion[] = filterDef.options
         .filter(
           (opt) =>
             !partial ||
@@ -220,8 +247,16 @@ export class SearchSuggestions {
           value: `${key}:${opt.value}`,
           label: opt.label,
           description: opt.description,
-          category: key as any,
+          category: key as Suggestion['category'],
         }))
+
+      // Handle custom date input
+      if (key === 'date' && partial) {
+        const dateSuggestions = this.getDateSuggestions(partial)
+        if (dateSuggestions.length > 0) {
+          suggestions.unshift(...dateSuggestions)
+        }
+      }
 
       return suggestions.length > 0
         ? {
@@ -370,6 +405,140 @@ export class SearchSuggestions {
           sections,
         }
       : null
+  }
+
+  /**
+   * Get suggestions for custom date input
+   */
+  private getDateSuggestions(partial: string): Suggestion[] {
+    const suggestions: Suggestion[] = []
+
+    // Pattern for year only: YYYY
+    const yearPattern = /^\d{4}$/
+    // Pattern for month only: YYYY-MM
+    const monthPattern = /^\d{4}-\d{2}$/
+    // Pattern for full date: YYYY-MM-DD
+    const fullDatePattern = /^\d{4}-\d{2}-\d{2}$/
+    // Pattern for partial date being typed
+    const partialDatePattern = /^\d{4}(-\d{0,2})?(-\d{0,2})?$/
+    // Pattern for date range: YYYY-MM-DD..YYYY-MM-DD (complete or partial)
+    const rangePattern = /^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/
+    const partialRangePattern = /^(\d{4}-\d{2}-\d{2})\.\.?$/
+
+    // Check if it's a complete date range
+    if (rangePattern.test(partial)) {
+      const [startDate, endDate] = partial.split('..')
+      suggestions.push({
+        id: `date-range-${partial}`,
+        value: `date:${partial}`,
+        label: `${this.formatDateLabel(startDate)} to ${this.formatDateLabel(endDate)}`,
+        description: 'Custom date range',
+        category: 'date' as any,
+      })
+      return suggestions
+    }
+
+    // Check if it's a partial date range (has ..)
+    if (partialRangePattern.test(partial)) {
+      const startDate = partial.replace(/\.+$/, '')
+      suggestions.push({
+        id: `date-range-hint-${partial}`,
+        value: `date:${startDate}..`,
+        label: `${this.formatDateLabel(startDate)} to ...`,
+        description: 'Type end date (YYYY-MM-DD)',
+        category: 'date' as any,
+      })
+      return suggestions
+    }
+
+    // Check if it's a year only (YYYY)
+    if (yearPattern.test(partial)) {
+      suggestions.push({
+        id: `date-year-${partial}`,
+        value: `date:${partial}`,
+        label: `Year ${partial}`,
+        description: 'All logs from this year',
+        category: 'date' as any,
+      })
+      return suggestions
+    }
+
+    // Check if it's a month only (YYYY-MM)
+    if (monthPattern.test(partial)) {
+      const [year, month] = partial.split('-')
+      const monthNames = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ]
+      const monthName = monthNames[Number.parseInt(month, 10) - 1] || month
+      suggestions.push({
+        id: `date-month-${partial}`,
+        value: `date:${partial}`,
+        label: `${monthName} ${year}`,
+        description: 'All logs from this month',
+        category: 'date' as any,
+      })
+      return suggestions
+    }
+
+    // Check if it's a complete single date
+    if (fullDatePattern.test(partial)) {
+      const date = new Date(partial)
+      if (!Number.isNaN(date.getTime())) {
+        suggestions.push({
+          id: `date-single-${partial}`,
+          value: `date:${partial}`,
+          label: this.formatDateLabel(partial),
+          description: 'Single date',
+          category: 'date' as any,
+        })
+        // Also suggest starting a range
+        suggestions.push({
+          id: `date-range-start-${partial}`,
+          value: `date:${partial}..`,
+          label: `${this.formatDateLabel(partial)} to ...`,
+          description: 'Start a date range',
+          category: 'date' as any,
+        })
+      }
+      return suggestions
+    }
+
+    // Check if user is typing a date pattern
+    if (partialDatePattern.test(partial) && partial.length >= 4) {
+      suggestions.push({
+        id: 'date-custom-hint',
+        value: `date:${partial}`,
+        label: partial,
+        description: 'Continue typing: YYYY, YYYY-MM, or YYYY-MM-DD',
+        category: 'date' as any,
+      })
+    }
+
+    return suggestions
+  }
+
+  /**
+   * Format a date string for display
+   */
+  private formatDateLabel(dateStr: string): string {
+    const date = new Date(dateStr)
+    if (Number.isNaN(date.getTime())) return dateStr
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
   }
 
   /**
