@@ -54,6 +54,7 @@ export function FileSelectorInput({
   const [boardIdCamelFromStore] = useSubBlockValue(blockId, 'boardId')
   const [boardIdListFromStore] = useSubBlockValue(blockId, 'board_id_list')
   const [boardIdUpdateFromStore] = useSubBlockValue(blockId, 'board_id_update')
+  const [boardIdGetFromStore] = useSubBlockValue(blockId, 'board_id_get')
   const [groupIdValueFromStore] = useSubBlockValue(blockId, 'group_id')
   const [groupIdCamelFromStore] = useSubBlockValue(blockId, 'groupId')
   const [groupIdListFromStore] = useSubBlockValue(blockId, 'group_id_list')
@@ -61,6 +62,7 @@ export function FileSelectorInput({
   const [columnIdCamelFromStore] = useSubBlockValue(blockId, 'columnId')
   const [itemIdValueFromStore] = useSubBlockValue(blockId, 'item_id')
   const [itemIdCamelFromStore] = useSubBlockValue(blockId, 'itemId')
+  const [itemIdGetFromStore] = useSubBlockValue(blockId, 'item_id_get')
 
   const connectedCredential = previewContextValues?.credential ?? connectedCredentialFromStore
   const domainValue = previewContextValues?.domain ?? domainValueFromStore
@@ -76,7 +78,8 @@ export function FileSelectorInput({
     boardIdValueFromStore ??
     boardIdCamelFromStore ??
     boardIdListFromStore ??
-    boardIdUpdateFromStore
+    boardIdUpdateFromStore ??
+    boardIdGetFromStore
   const groupIdValue =
     previewContextValues?.group_id ??
     previewContextValues?.groupId ??
@@ -92,7 +95,8 @@ export function FileSelectorInput({
     previewContextValues?.item_id ??
     previewContextValues?.itemId ??
     itemIdValueFromStore ??
-    itemIdCamelFromStore
+    itemIdCamelFromStore ??
+    itemIdGetFromStore
 
   const normalizedCredentialId =
     typeof connectedCredential === 'string'

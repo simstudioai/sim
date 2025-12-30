@@ -118,13 +118,26 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
     },
     // GET ITEM fields
     {
-      id: 'item_id_get',
-      title: 'Item ID',
-      type: 'short-input',
-      canonicalParamId: 'item_id',
-      placeholder: 'Enter item ID to retrieve',
+      id: 'board_id_get',
+      title: 'Board',
+      type: 'file-selector',
+      serviceId: 'monday',
+      canonicalParamId: 'board_id',
+      placeholder: 'Select a Monday.com board',
       required: true,
       condition: { field: 'operation', value: 'monday_get_item' },
+      dependsOn: ['apiKey'],
+    },
+    {
+      id: 'item_id_get',
+      title: 'Item',
+      type: 'file-selector',
+      serviceId: 'monday',
+      canonicalParamId: 'item_id',
+      placeholder: 'Select an item to retrieve',
+      required: true,
+      condition: { field: 'operation', value: 'monday_get_item' },
+      dependsOn: ['apiKey', 'board_id_get'],
     },
     // LIST ITEMS fields
     {

@@ -133,7 +133,8 @@ function resolveFileSelector(
         subBlock.id === 'board_id' ||
         subBlock.id === 'boardId' ||
         subBlock.id === 'board_id_list' ||
-        subBlock.id === 'board_id_update'
+        subBlock.id === 'board_id_update' ||
+        subBlock.id === 'board_id_get'
       ) {
         return { key: 'monday.boards', context, allowSearch: true }
       }
@@ -150,7 +151,7 @@ function resolveFileSelector(
       if (subBlock.id === 'status_column' || subBlock.id === 'statusColumn') {
         return { key: 'monday.status-options', context, allowSearch: true }
       }
-      if (subBlock.id === 'item_id' || subBlock.id === 'itemId') {
+      if (subBlock.id === 'item_id' || subBlock.id === 'itemId' || subBlock.id === 'item_id_get') {
         return { key: 'monday.items', context, allowSearch: true }
       }
       if (subBlock.id === 'subitem_id' || subBlock.id === 'subitemId') {
