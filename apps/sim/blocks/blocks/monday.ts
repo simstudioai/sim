@@ -12,7 +12,7 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
     'Integrate with Monday work management platform. Create items, update column values, list items, and manage your boards programmatically.',
   docsLink: 'https://docs.monday.com/api',
   category: 'tools',
-  bgColor: '#FF3D57',
+  bgColor: '#FFFFFF',
   icon: MondayIcon,
   subBlocks: [
     {
