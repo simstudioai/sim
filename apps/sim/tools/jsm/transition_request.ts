@@ -12,7 +12,7 @@ export const jsmTransitionRequestTool: ToolConfig<
 
   oauth: {
     required: true,
-    provider: 'jira-service-management',
+    provider: 'jira',
   },
 
   params: {

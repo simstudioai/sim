@@ -9,7 +9,7 @@ export const jsmGetRequestsTool: ToolConfig<JsmGetRequestsParams, JsmGetRequests
 
   oauth: {
     required: true,
-    provider: 'jira-service-management',
+    provider: 'jira',
   },
 
   params: {

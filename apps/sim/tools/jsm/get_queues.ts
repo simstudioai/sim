@@ -9,7 +9,7 @@ export const jsmGetQueuesTool: ToolConfig<JsmGetQueuesParams, JsmGetQueuesRespon
 
   oauth: {
     required: true,
-    provider: 'jira-service-management',
+    provider: 'jira',
   },
 
   params: {

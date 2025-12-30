@@ -9,7 +9,7 @@ export const jsmGetSlaTool: ToolConfig<JsmGetSlaParams, JsmGetSlaResponse> = {
 
   oauth: {
     required: true,
-    provider: 'jira-service-management',
+    provider: 'jira',
   },
 
   params: {

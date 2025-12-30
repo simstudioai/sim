@@ -9,7 +9,7 @@ export const jsmCreateRequestTool: ToolConfig<JsmCreateRequestParams, JsmCreateR
 
   oauth: {
     required: true,
-    provider: 'jira-service-management',
+    provider: 'jira',
   },
 
   params: {

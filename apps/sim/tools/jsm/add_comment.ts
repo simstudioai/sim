@@ -9,7 +9,7 @@ export const jsmAddCommentTool: ToolConfig<JsmAddCommentParams, JsmAddCommentRes
 
   oauth: {
     required: true,
-    provider: 'jira-service-management',
+    provider: 'jira',
   },
 
   params: {

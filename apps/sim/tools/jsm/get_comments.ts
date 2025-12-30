@@ -9,7 +9,7 @@ export const jsmGetCommentsTool: ToolConfig<JsmGetCommentsParams, JsmGetComments
 
   oauth: {
     required: true,
-    provider: 'jira-service-management',
+    provider: 'jira',
   },
 
   params: {

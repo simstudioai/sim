@@ -52,10 +52,10 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
     },
     {
       id: 'credential',
-      title: 'Jira Service Management Account',
+      title: 'Jira Account',
       type: 'oauth-input',
       required: true,
-      serviceId: 'jira-service-management',
+      serviceId: 'jira',
       requiredScopes: [
         'read:jira-user',
         'read:jira-work',
@@ -92,7 +92,7 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
         'read:request.approval:jira-service-management',
         'write:request.approval:jira-service-management',
       ],
-      placeholder: 'Select Jira Service Management account',
+      placeholder: 'Select Jira account',
     },
     {
       id: 'serviceDeskId',
