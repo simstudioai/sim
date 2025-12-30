@@ -13,7 +13,8 @@ import {
 import { getBillingStatus, getSubscriptionStatus, getUsage } from '@/lib/billing/client/utils'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
-import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
+import { SIDEBAR_WIDTH } from '@/stores/constants'
+import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('UsageIndicator')
 
@@ -172,7 +173,7 @@ function shouldShowPlanText(
   const countDigits = (value: number): number => value.toFixed(2).replace(/\D/g, '').length
 
   const usageDigits = countDigits(usage.current) + countDigits(usage.limit)
-  const extraWidth = Math.max(0, sidebarWidth - MIN_SIDEBAR_WIDTH)
+  const extraWidth = Math.max(0, sidebarWidth - SIDEBAR_WIDTH.MIN)
   const bonusDigits = Math.floor(extraWidth / WIDTH_COSTS.WIDTH_PER_EXTRA_DIGIT)
 
   let totalCost = usageDigits
@@ -256,7 +257,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   )
 
   const pillCount = useMemo(() => {
-    const widthDelta = sidebarWidth - MIN_SIDEBAR_WIDTH
+    const widthDelta = sidebarWidth - SIDEBAR_WIDTH.MIN
     const additionalPills = Math.floor(widthDelta / PILL_CONFIG.WIDTH_PER_PILL)
     const calculatedCount = PILL_CONFIG.MIN_COUNT + additionalPills
     return Math.max(PILL_CONFIG.MIN_COUNT, Math.min(PILL_CONFIG.MAX_COUNT, calculatedCount))
