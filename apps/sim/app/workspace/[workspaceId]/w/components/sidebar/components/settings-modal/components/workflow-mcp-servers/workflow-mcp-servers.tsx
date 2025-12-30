@@ -1,8 +1,8 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Check, Clipboard, Plus, Search, Workflow as WorkflowIcon } from 'lucide-react'
+import { Check, Clipboard, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -16,6 +16,7 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Textarea,
 } from '@/components/emcn'
 import { Input, Skeleton } from '@/components/ui'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -25,6 +26,7 @@ import {
   useDeleteWorkflowMcpServer,
   useDeleteWorkflowMcpTool,
   useDeployedWorkflows,
+  useUpdateWorkflowMcpTool,
   useWorkflowMcpServer,
   useWorkflowMcpServers,
   type WorkflowMcpServer,
@@ -46,10 +48,18 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
     useDeployedWorkflows(workspaceId)
   const deleteToolMutation = useDeleteWorkflowMcpTool()
   const addToolMutation = useAddWorkflowMcpTool()
+  const updateToolMutation = useUpdateWorkflowMcpTool()
   const [copiedUrl, setCopiedUrl] = useState(false)
   const [toolToDelete, setToolToDelete] = useState<WorkflowMcpTool | null>(null)
   const [toolToView, setToolToView] = useState<WorkflowMcpTool | null>(null)
+  const [editingDescription, setEditingDescription] = useState<string>('')
   const [showAddWorkflow, setShowAddWorkflow] = useState(false)
+
+  useEffect(() => {
+    if (toolToView) {
+      setEditingDescription(toolToView.toolDescription || '')
+    }
+  }, [toolToView])
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null)
 
   const mcpServerUrl = useMemo(() => {
@@ -103,7 +113,6 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
     return availableWorkflows.map((w) => ({
       label: w.name,
       value: w.id,
-      icon: WorkflowIcon,
     }))
   }, [availableWorkflows])
 
@@ -156,7 +165,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             <div className='flex flex-col gap-[8px]'>
               <span className='font-medium text-[13px] text-[var(--text-primary)]'>URL</span>
               <div className='flex items-center gap-[8px]'>
-                <p className='flex-1 break-all font-mono text-[13px] text-[var(--text-secondary)]'>
+                <p className='flex-1 break-all text-[14px] text-[var(--text-secondary)]'>
                   {mcpServerUrl}
                 </p>
                 <Button variant='ghost' onClick={handleCopyUrl} className='h-[32px] w-[32px] p-0'>
@@ -175,10 +184,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                   Workflows ({tools.length})
                 </span>
                 <Button
-                  variant='primary'
+                  variant='tertiary'
                   onClick={() => setShowAddWorkflow(true)}
                   disabled={availableWorkflows.length === 0}
-                  className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
                 >
                   <Plus className='mr-[6px] h-[13px] w-[13px]' />
                   Add
@@ -200,15 +208,11 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                         </p>
                       </div>
                       <div className='flex flex-shrink-0 items-center gap-[4px]'>
-                        <Button
-                          variant='primary'
-                          onClick={() => setToolToView(tool)}
-                          className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-                        >
+                        <Button variant='ghost' onClick={() => setToolToView(tool)}>
                           Details
                         </Button>
                         <Button
-                          variant='ghost'
+                          variant='destructive'
                           onClick={() => setToolToDelete(tool)}
                           disabled={deleteToolMutation.isPending}
                         >
@@ -235,11 +239,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         </div>
 
         <div className='mt-auto flex items-center justify-end'>
-          <Button
-            onClick={onBack}
-            variant='primary'
-            className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-          >
+          <Button onClick={onBack} variant='tertiary'>
             Back
           </Button>
         </div>
@@ -249,7 +249,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         <ModalContent className='w-[400px]'>
           <ModalHeader>Remove Workflow</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to remove{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {toolToDelete?.toolName}
@@ -262,10 +262,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
               Cancel
             </Button>
             <Button
-              variant='primary'
+              variant='destructive'
               onClick={handleDeleteTool}
               disabled={deleteToolMutation.isPending}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {deleteToolMutation.isPending ? 'Removing...' : 'Remove'}
             </Button>
@@ -273,18 +272,29 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         </ModalContent>
       </Modal>
 
-      <Modal open={!!toolToView} onOpenChange={(open) => !open && setToolToView(null)}>
+      <Modal
+        open={!!toolToView}
+        onOpenChange={(open) => {
+          if (!open) {
+            setToolToView(null)
+            setEditingDescription('')
+          }
+        }}
+      >
         <ModalContent className='w-[480px]'>
           <ModalHeader>{toolToView?.toolName}</ModalHeader>
           <ModalBody>
             <div className='flex flex-col gap-[16px]'>
-              <div className='flex flex-col gap-[4px]'>
+              <div className='flex flex-col gap-[8px]'>
                 <span className='font-medium text-[13px] text-[var(--text-primary)]'>
                   Description
                 </span>
-                <p className='text-[13px] text-[var(--text-secondary)]'>
-                  {toolToView?.toolDescription || 'No description'}
-                </p>
+                <Textarea
+                  value={editingDescription}
+                  onChange={(e) => setEditingDescription(e.target.value)}
+                  placeholder='Describe what this tool does...'
+                  className='min-h-[80px] resize-none'
+                />
               </div>
 
               <div className='flex flex-col gap-[8px]'>
@@ -328,12 +338,33 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             </div>
           </ModalBody>
           <ModalFooter>
+            <Button variant='default' onClick={() => setToolToView(null)}>
+              Cancel
+            </Button>
             <Button
-              variant='primary'
-              onClick={() => setToolToView(null)}
-              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+              variant='tertiary'
+              onClick={async () => {
+                if (!toolToView) return
+                try {
+                  await updateToolMutation.mutateAsync({
+                    workspaceId,
+                    serverId,
+                    toolId: toolToView.id,
+                    toolDescription: editingDescription.trim() || undefined,
+                  })
+                  refetch()
+                  setToolToView(null)
+                  setEditingDescription('')
+                } catch (err) {
+                  logger.error('Failed to update tool description:', err)
+                }
+              }}
+              disabled={
+                updateToolMutation.isPending ||
+                editingDescription.trim() === (toolToView?.toolDescription || '')
+              }
             >
-              Close
+              {updateToolMutation.isPending ? 'Saving...' : 'Save'}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -351,7 +382,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         <ModalContent className='w-[420px]'>
           <ModalHeader>Add Workflow</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Select a deployed workflow to add to this MCP server. The workflow will be available
               as a tool.
             </p>
@@ -370,9 +401,8 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                 disabled={addToolMutation.isPending}
                 overlayContent={
                   selectedWorkflow ? (
-                    <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
-                      <WorkflowIcon className='h-[12px] w-[12px] flex-shrink-0 text-[var(--text-tertiary)]' />
-                      <span className='truncate'>{selectedWorkflow.name}</span>
+                    <span className='truncate text-[var(--text-primary)]'>
+                      {selectedWorkflow.name}
                     </span>
                   ) : undefined
                 }
@@ -396,10 +426,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
               Cancel
             </Button>
             <Button
-              variant='primary'
+              variant='tertiary'
               onClick={handleAddWorkflow}
               disabled={!selectedWorkflowId || addToolMutation.isPending}
-              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
             >
               {addToolMutation.isPending ? 'Adding...' : 'Add Workflow'}
             </Button>
@@ -477,7 +506,7 @@ export function WorkflowMcpServers() {
   }
 
   const hasServers = servers.length > 0
-  const showEmptyState = !hasServers && !showAddForm
+  const shouldShowForm = showAddForm || !hasServers
   const showNoResults = searchTerm.trim() && filteredServers.length === 0 && hasServers
   const isFormValid = formData.name.trim().length > 0
 
@@ -495,7 +524,7 @@ export function WorkflowMcpServers() {
     <>
       <div className='flex h-full flex-col gap-[16px]'>
         <div className='flex items-center gap-[8px]'>
-          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]'>
+          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
             <Search
               className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
@@ -507,19 +536,14 @@ export function WorkflowMcpServers() {
               className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
             />
           </div>
-          <Button
-            onClick={() => setShowAddForm(true)}
-            disabled={isLoading}
-            variant='primary'
-            className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-          >
+          <Button onClick={() => setShowAddForm(true)} disabled={isLoading} variant='tertiary'>
             <Plus className='mr-[6px] h-[13px] w-[13px]' />
             Add
           </Button>
         </div>
 
-        {showAddForm && !isLoading && (
-          <div className='rounded-[8px] border bg-[var(--surface-3)] p-[10px]'>
+        {shouldShowForm && !isLoading && (
+          <div className='rounded-[8px] border p-[10px]'>
             <div className='flex flex-col gap-[8px]'>
               <FormField label='Server Name'>
                 <EmcnInput
@@ -537,7 +561,7 @@ export function WorkflowMcpServers() {
                 <Button
                   onClick={handleCreateServer}
                   disabled={!isFormValid || createServerMutation.isPending}
-                  className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
+                  variant='tertiary'
                 >
                   {createServerMutation.isPending ? 'Adding...' : 'Add Server'}
                 </Button>
@@ -558,10 +582,6 @@ export function WorkflowMcpServers() {
               <McpServerSkeleton />
               <McpServerSkeleton />
               <McpServerSkeleton />
-            </div>
-          ) : showEmptyState ? (
-            <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
-              Click "Add" above to get started
             </div>
           ) : (
             <div className='flex flex-col gap-[8px]'>
@@ -585,15 +605,11 @@ export function WorkflowMcpServers() {
                       <p className='truncate text-[13px] text-[var(--text-muted)]'>{toolsLabel}</p>
                     </div>
                     <div className='flex flex-shrink-0 items-center gap-[4px]'>
-                      <Button
-                        variant='primary'
-                        onClick={() => setSelectedServerId(server.id)}
-                        className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-                      >
+                      <Button variant='ghost' onClick={() => setSelectedServerId(server.id)}>
                         Details
                       </Button>
                       <Button
-                        variant='ghost'
+                        variant='destructive'
                         onClick={() => setServerToDelete(server)}
                         disabled={isDeleting}
                       >
@@ -617,7 +633,7 @@ export function WorkflowMcpServers() {
         <ModalContent className='w-[400px]'>
           <ModalHeader>Delete MCP Server</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{serverToDelete?.name}</span>
               ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
@@ -627,11 +643,7 @@ export function WorkflowMcpServers() {
             <Button variant='default' onClick={() => setServerToDelete(null)}>
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={handleDeleteServer}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={handleDeleteServer}>
               Delete
             </Button>
           </ModalFooter>

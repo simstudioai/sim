@@ -489,7 +489,7 @@ export function MCP({ initialServerId }: MCPProps) {
 
   const error = toolsError || serversError
   const hasServers = servers && servers.length > 0
-  const showEmptyState = !hasServers && !showAddForm
+  const shouldShowForm = showAddForm || !hasServers
   const showNoResults = searchTerm.trim() && filteredServers.length === 0 && servers.length > 0
 
   const isFormValid = formData.name.trim() && formData.url?.trim()
@@ -568,9 +568,7 @@ export function MCP({ initialServerId }: MCPProps) {
             {server.url && (
               <div className='flex flex-col gap-[8px]'>
                 <span className='font-medium text-[13px] text-[var(--text-primary)]'>URL</span>
-                <p className='break-all font-mono text-[13px] text-[var(--text-secondary)]'>
-                  {server.url}
-                </p>
+                <p className='break-all text-[14px] text-[var(--text-secondary)]'>{server.url}</p>
               </div>
             )}
 
@@ -684,8 +682,8 @@ export function MCP({ initialServerId }: MCPProps) {
           </Button>
         </div>
 
-        {showAddForm && !serversLoading && (
-          <div className='rounded-[8px] border bg-[var(--surface-3)] p-[10px]'>
+        {shouldShowForm && !serversLoading && (
+          <div className='rounded-[8px] border p-[10px]'>
             <div className='flex flex-col gap-[8px]'>
               <FormField label='Server Name'>
                 <EmcnInput
@@ -790,10 +788,6 @@ export function MCP({ initialServerId }: MCPProps) {
               <McpServerSkeleton />
               <McpServerSkeleton />
               <McpServerSkeleton />
-            </div>
-          ) : showEmptyState ? (
-            <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
-              Click "Add" above to get started
             </div>
           ) : (
             <div className='flex flex-col gap-[8px]'>

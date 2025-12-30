@@ -118,6 +118,7 @@ const allNavigationItems: NavigationItem[] = [
   { id: 'mcp', label: 'MCP Tools', icon: McpIcon, section: 'tools' },
   { id: 'environment', label: 'Environment', icon: FolderCode, section: 'system' },
   { id: 'apikeys', label: 'API Keys', icon: Key, section: 'system' },
+  { id: 'workflow-mcp-servers', label: 'MCP Servers', icon: Server, section: 'system' },
   {
     id: 'byok',
     label: 'BYOK',
@@ -142,7 +143,6 @@ const allNavigationItems: NavigationItem[] = [
     requiresEnterprise: true,
     requiresOwner: true,
   },
-  { id: 'workflow-mcp-servers', label: 'MCP Servers', icon: Server, section: 'system' },
 ]
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {

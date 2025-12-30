@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Server } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Badge, Combobox, type ComboboxOption, Input, Label, Textarea } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
@@ -19,6 +18,7 @@ import {
   type WorkflowMcpServer,
   type WorkflowMcpTool,
 } from '@/hooks/queries/workflow-mcp-servers'
+import { useSettingsModalStore } from '@/stores/settings-modal/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -27,7 +27,7 @@ const logger = createLogger('McpToolDeploy')
 /** InputFormatField with guaranteed name (after normalization) */
 type NormalizedField = InputFormatField & { name: string }
 
-interface McpToolDeployProps {
+interface McpDeployProps {
   workflowId: string
   workflowName: string
   workflowDescription?: string | null
@@ -75,7 +75,7 @@ function ServerToolsQuery({
   return null
 }
 
-export function McpToolDeploy({
+export function McpDeploy({
   workflowId,
   workflowName,
   workflowDescription,
@@ -83,9 +83,10 @@ export function McpToolDeploy({
   onAddedToServer,
   onSubmittingChange,
   onCanSaveChange,
-}: McpToolDeployProps) {
+}: McpDeployProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
+  const openSettingsModal = useSettingsModalStore((state) => state.openModal)
 
   const {
     data: servers = [],
@@ -116,21 +117,24 @@ export function McpToolDeploy({
   const inputFormat = useMemo((): NormalizedField[] => {
     if (!starterBlockId) return []
 
-    // Try SubBlockStore first (runtime state)
     const storeValue = subBlockValues[starterBlockId]?.inputFormat
     const normalized = normalizeInputFormatValue(storeValue) as NormalizedField[]
     if (normalized.length > 0) return normalized
 
-    // Fallback to block definition
     const startBlock = blocks[starterBlockId]
     const blockValue = startBlock?.subBlocks?.inputFormat?.value
     return normalizeInputFormatValue(blockValue) as NormalizedField[]
   }, [starterBlockId, subBlockValues, blocks])
 
   const [toolName, setToolName] = useState(() => sanitizeToolName(workflowName))
-  const [toolDescription, setToolDescription] = useState(
-    () => workflowDescription || `Execute ${workflowName} workflow`
-  )
+  const [toolDescription, setToolDescription] = useState(() => {
+    const isDefaultDescription =
+      !workflowDescription ||
+      workflowDescription === workflowName ||
+      workflowDescription.toLowerCase() === 'new workflow'
+
+    return isDefaultDescription ? '' : workflowDescription
+  })
   const [parameterDescriptions, setParameterDescriptions] = useState<Record<string, string>>({})
   const [pendingServerChanges, setPendingServerChanges] = useState<Set<string>>(new Set())
 
@@ -177,7 +181,13 @@ export function McpToolDeploy({
       const toolInfo = serverToolsMap[server.id]
       if (toolInfo?.tool) {
         setToolName(toolInfo.tool.toolName)
-        setToolDescription(toolInfo.tool.toolDescription || '')
+
+        const loadedDescription = toolInfo.tool.toolDescription || ''
+        const isDefaultDescription =
+          !loadedDescription ||
+          loadedDescription === workflowName ||
+          loadedDescription.toLowerCase() === 'new workflow'
+        setToolDescription(isDefaultDescription ? '' : loadedDescription)
 
         const schema = toolInfo.tool.parameterSchema as Record<string, unknown> | undefined
         const properties = schema?.properties as
@@ -202,16 +212,14 @@ export function McpToolDeploy({
         break
       }
     }
-  }, [servers, serverToolsMap])
+  }, [servers, serverToolsMap, workflowName])
 
-  // Track saved values to detect changes (use state so updates trigger re-render)
   const [savedValues, setSavedValues] = useState<{
     toolName: string
     toolDescription: string
     parameterDescriptions: Record<string, string>
   } | null>(null)
 
-  // Store saved values once loaded
   useEffect(() => {
     if (hasLoadedInitialData.current && !savedValues) {
       setSavedValues({
@@ -222,7 +230,6 @@ export function McpToolDeploy({
     }
   }, [toolName, toolDescription, parameterDescriptions, savedValues])
 
-  // Determine if there are unsaved changes
   const hasDeployedTools = selectedServerIds.length > 0
   const hasChanges = useMemo(() => {
     if (!savedValues || !hasDeployedTools) return false
@@ -236,7 +243,6 @@ export function McpToolDeploy({
     return false
   }, [toolName, toolDescription, parameterDescriptions, hasDeployedTools, savedValues])
 
-  // Notify parent about save availability
   useEffect(() => {
     onCanSaveChange?.(hasChanges && hasDeployedTools && !!toolName.trim())
   }, [hasChanges, hasDeployedTools, toolName, onCanSaveChange])
@@ -298,7 +304,6 @@ export function McpToolDeploy({
     return servers.map((server) => ({
       label: server.name,
       value: server.id,
-      icon: Server,
     }))
   }, [servers])
 
@@ -394,14 +399,8 @@ export function McpToolDeploy({
 
   if (!isDeployed) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-[12px] text-center'>
-        <Server className='h-[32px] w-[32px] text-[var(--text-muted)]' />
-        <div className='flex flex-col gap-[4px]'>
-          <p className='text-[14px] text-[var(--text-primary)]'>Deploy workflow first</p>
-          <p className='text-[13px] text-[var(--text-muted)]'>
-            You need to deploy your workflow before adding it as an MCP tool.
-          </p>
-        </div>
+      <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
+        Deploy your workflow first to add it as an MCP tool.
       </div>
     )
   }
@@ -429,21 +428,21 @@ export function McpToolDeploy({
 
   if (servers.length === 0) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-[12px] text-center'>
-        <Server className='h-[32px] w-[32px] text-[var(--text-muted)]' />
-        <div className='flex flex-col gap-[4px]'>
-          <p className='text-[14px] text-[var(--text-primary)]'>No MCP servers yet</p>
-          <p className='text-[13px] text-[var(--text-muted)]'>
-            Create an MCP Server in Settings → MCP Servers first.
-          </p>
-        </div>
+      <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
+        <button
+          type='button'
+          onClick={() => openSettingsModal({ section: 'workflow-mcp-servers' })}
+          className='transition-colors hover:text-[var(--text-secondary)]'
+        >
+          Create an MCP Server in Settings → MCP Servers first.
+        </button>
       </div>
     )
   }
 
   return (
     <form
-      id='mcp-tool-deploy-form'
+      id='mcp-deploy-form'
       className='-mx-1 space-y-[12px] overflow-y-auto px-1'
       onSubmit={(e) => {
         e.preventDefault()
@@ -538,10 +537,7 @@ export function McpToolDeploy({
           disabled={!toolName.trim() || isPending}
           isLoading={isPending}
           overlayContent={
-            <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
-              <Server className='h-[12px] w-[12px] flex-shrink-0 text-[var(--text-tertiary)]' />
-              <span className='truncate'>{selectedServersLabel}</span>
-            </span>
+            <span className='truncate text-[var(--text-primary)]'>{selectedServersLabel}</span>
           }
         />
         {!toolName.trim() && (

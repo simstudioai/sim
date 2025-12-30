@@ -163,7 +163,7 @@ export function CustomTools() {
                       Edit
                     </Button>
                     <Button
-                      variant='ghost'
+                      variant='destructive'
                       onClick={() => handleDeleteClick(tool.id)}
                       disabled={deletingTools.has(tool.id)}
                     >

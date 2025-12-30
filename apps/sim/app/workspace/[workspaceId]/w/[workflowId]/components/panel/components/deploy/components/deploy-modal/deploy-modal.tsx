@@ -25,7 +25,7 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { ApiDeploy } from './components/api/api'
 import { ChatDeploy, type ExistingChat } from './components/chat/chat'
 import { GeneralDeploy } from './components/general/general'
-import { McpToolDeploy } from './components/mcp-tool/mcp-tool'
+import { McpDeploy } from './components/mcp/mcp'
 import { TemplateDeploy } from './components/template/template'
 
 const logger = createLogger('DeployModal')
@@ -50,7 +50,7 @@ interface WorkflowDeploymentInfo {
   needsRedeployment: boolean
 }
 
-type TabView = 'general' | 'api' | 'chat' | 'template' | 'mcp-tool'
+type TabView = 'general' | 'api' | 'chat' | 'template' | 'mcp'
 
 export function DeployModal({
   open,
@@ -532,7 +532,7 @@ export function DeployModal({
   }, [])
 
   const handleMcpToolFormSubmit = useCallback(() => {
-    const form = document.getElementById('mcp-tool-deploy-form') as HTMLFormElement
+    const form = document.getElementById('mcp-deploy-form') as HTMLFormElement
     form?.requestSubmit()
   }, [])
 
@@ -556,7 +556,7 @@ export function DeployModal({
             <ModalTabsList activeValue={activeTab}>
               <ModalTabsTrigger value='general'>General</ModalTabsTrigger>
               <ModalTabsTrigger value='api'>API</ModalTabsTrigger>
-              <ModalTabsTrigger value='mcp-tool'>MCP Tool</ModalTabsTrigger>
+              <ModalTabsTrigger value='mcp'>MCP</ModalTabsTrigger>
               <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
               <ModalTabsTrigger value='template'>Template</ModalTabsTrigger>
             </ModalTabsList>
@@ -618,9 +618,9 @@ export function DeployModal({
                 )}
               </ModalTabsContent>
 
-              <ModalTabsContent value='mcp-tool'>
+              <ModalTabsContent value='mcp' className='h-full'>
                 {workflowId && (
-                  <McpToolDeploy
+                  <McpDeploy
                     workflowId={workflowId}
                     workflowName={workflowMetadata?.name || 'Workflow'}
                     workflowDescription={workflowMetadata?.description}
@@ -674,11 +674,11 @@ export function DeployModal({
               </div>
             </ModalFooter>
           )}
-          {activeTab === 'mcp-tool' && isDeployed && (
+          {activeTab === 'mcp' && isDeployed && (
             <ModalFooter className='items-center'>
               <Button
                 type='button'
-                variant='primary'
+                variant='tertiary'
                 onClick={handleMcpToolFormSubmit}
                 disabled={mcpToolSubmitting || !mcpToolCanSave}
               >

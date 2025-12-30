@@ -15,6 +15,7 @@ type SettingsSection =
   | 'copilot'
   | 'mcp'
   | 'custom-tools'
+  | 'workflow-mcp-servers'
 
 interface SettingsModalState {
   isOpen: boolean

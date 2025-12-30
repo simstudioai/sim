@@ -64,7 +64,7 @@ export function ServerListItem({
         </p>
       </div>
       <div className='flex flex-shrink-0 items-center gap-[4px]'>
-        <Button variant='tertiary' onClick={onViewDetails}>
+        <Button variant='ghost' onClick={onViewDetails}>
           Details
         </Button>
         <Button variant='destructive' onClick={onRemove} disabled={isDeleting}>
