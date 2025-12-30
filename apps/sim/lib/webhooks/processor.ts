@@ -8,6 +8,7 @@ import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { convertSquareBracketsToTwiML } from '@/lib/webhooks/utils'
 import {
+  handleMondayChallenge,
   handleSlackChallenge,
   handleWhatsAppVerification,
   validateMicrosoftTeamsSignature,
@@ -106,6 +107,11 @@ export async function handleProviderChallenges(
   const slackResponse = handleSlackChallenge(body)
   if (slackResponse) {
     return slackResponse
+  }
+
+  const mondayResponse = handleMondayChallenge(body)
+  if (mondayResponse) {
+    return mondayResponse
   }
 
   const url = new URL(request.url)

@@ -70,6 +70,18 @@ export function handleSlackChallenge(body: any): NextResponse | null {
 }
 
 /**
+ * Handles Monday.com webhook challenge verification
+ * Monday.com sends a challenge field that must be echoed back
+ */
+export function handleMondayChallenge(body: any): NextResponse | null {
+  if (body?.challenge) {
+    return NextResponse.json({ challenge: body.challenge })
+  }
+
+  return null
+}
+
+/**
  * Fetches a URL with DNS pinning to prevent DNS rebinding attacks
  * @param url - The URL to fetch
  * @param accessToken - Authorization token (optional for pre-signed URLs)

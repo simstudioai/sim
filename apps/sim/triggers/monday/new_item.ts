@@ -68,18 +68,13 @@ export const mondayNewItemTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'pollingInterval',
-      title: 'Polling Interval',
-      type: 'dropdown',
-      options: [
-        { label: 'Every 5 minutes', id: '5' },
-        { label: 'Every 15 minutes', id: '15' },
-        { label: 'Every 30 minutes', id: '30' },
-        { label: 'Every hour', id: '60' },
-      ],
-      defaultValue: '15',
-      description: 'How often to check for new items',
-      required: true,
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
@@ -92,11 +87,11 @@ export const mondayNewItemTrigger: TriggerConfig = {
       hideFromPreview: true,
       type: 'text',
       defaultValue: [
-        'Get your Monday.com API key from Settings > Admin > API',
-        'Select the board you want to monitor',
-        'Optionally filter by a specific group',
-        'The trigger will check for new items at the specified interval',
-        'New items will be detected based on their creation time',
+        'Get your Monday.com API key from Clicking your profile picture > Developers > API Access Tokens.',
+        'Copy the Webhook URL above',
+        'Select the board and click on automate on the right',
+        "search for webhook and paste the copied webhook url",
+        'The webhook will send real-time notifications when new item is added',
       ]
         .map((instruction, index) => `${index + 1}. ${instruction}`)
         .join('\n'),
@@ -133,6 +128,14 @@ export const mondayNewItemTrigger: TriggerConfig = {
     timestamp: {
       type: 'string',
       description: 'Trigger timestamp',
+    },
+  },
+
+  webhook: {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': 'monday.com',
     },
   },
 }
