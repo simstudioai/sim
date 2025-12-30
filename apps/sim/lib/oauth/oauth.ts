@@ -1081,6 +1081,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         supportsRefreshTokenRotation: false,
       }
     }
+    case 'pinterest': {
+      const { clientId, clientSecret } = getCredentials(
+        env.PINTEREST_CLIENT_ID,
+        env.PINTEREST_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://api.pinterest.com/v5/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
+      }
+    }
     default:
       throw new Error(`Unsupported provider: ${provider}`)
   }
