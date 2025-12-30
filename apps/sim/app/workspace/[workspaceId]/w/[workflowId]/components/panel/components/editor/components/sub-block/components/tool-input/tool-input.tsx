@@ -12,10 +12,10 @@ import {
   PopoverContent,
   PopoverItem,
   PopoverTrigger,
+  Switch,
   Tooltip,
 } from '@/components/emcn'
 import { McpIcon } from '@/components/icons'
-import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/core/utils/cn'
 import {
   getIssueBadgeLabel,

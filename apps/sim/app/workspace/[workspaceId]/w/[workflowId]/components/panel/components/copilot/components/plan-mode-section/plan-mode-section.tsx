@@ -26,9 +26,8 @@
 
 import * as React from 'react'
 import { Check, GripHorizontal, Pencil, X } from 'lucide-react'
-import { Button } from '@/components/emcn'
+import { Button, Textarea } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
-import { Textarea } from '@/components/ui'
 import { cn } from '@/lib/core/utils/cn'
 import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
 

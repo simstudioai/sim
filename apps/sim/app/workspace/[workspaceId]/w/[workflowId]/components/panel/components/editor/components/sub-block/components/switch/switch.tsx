@@ -1,5 +1,4 @@
-import { Label } from '@/components/ui/label'
-import { Switch as UISwitch } from '@/components/ui/switch'
+import { Label, Switch as UISwitch } from '@/components/emcn'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 
 interface SwitchProps {
@@ -23,11 +22,9 @@ export function Switch({
 }: SwitchProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<boolean>(blockId, subBlockId)
 
-  // Use preview value when in preview mode, otherwise use store value or prop value
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   const handleChange = (checked: boolean) => {
-    // Only update store when not in preview mode and not disabled
     if (!isPreview && !disabled) {
       setStoreValue(checked)
     }

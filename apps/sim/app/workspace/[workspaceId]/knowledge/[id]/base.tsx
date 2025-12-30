@@ -26,6 +26,12 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
   Tooltip,
   Trash,
 } from '@/components/emcn'
@@ -33,14 +39,6 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { cn } from '@/lib/core/utils/cn'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import {

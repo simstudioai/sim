@@ -16,8 +16,7 @@ import {
   X,
   Zap,
 } from 'lucide-react'
-import { Modal, ModalBody, ModalContent, ModalHeader } from '@/components/emcn'
-import { Badge } from '@/components/ui/badge'
+import { Badge, Modal, ModalBody, ModalContent, ModalHeader } from '@/components/emcn'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { cn } from '@/lib/core/utils/cn'
@@ -200,7 +199,7 @@ function PinnedLogs({
             </button>
           </div>
           <div className='flex items-center gap-[8px]'>
-            <Badge variant='secondary'>{formatted.blockType}</Badge>
+            <Badge variant='gray-secondary'>{formatted.blockType}</Badge>
             <Badge variant='outline'>not executed</Badge>
           </div>
         </CardHeader>
@@ -254,7 +253,7 @@ function PinnedLogs({
         </div>
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-[8px]'>
-            <Badge variant={formatted.status === 'success' ? 'default' : 'destructive'}>
+            <Badge variant={formatted.status === 'success' ? 'default' : 'red'}>
               {formatted.blockType}
             </Badge>
             <Badge variant='outline'>{formatted.status}</Badge>

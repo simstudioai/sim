@@ -12,9 +12,10 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Switch,
   Tooltip,
 } from '@/components/emcn'
-import { Input, Skeleton, Switch } from '@/components/ui'
+import { Input, Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
