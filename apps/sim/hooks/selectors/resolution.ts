@@ -20,6 +20,7 @@ export interface SelectorResolutionArgs {
   apiKey?: string
   boardId?: string
   columnId?: string
+  itemId?: string
 }
 
 const defaultContext: SelectorContext = {}
@@ -64,6 +65,7 @@ function buildBaseContext(
     apiKey: args.apiKey,
     boardId: args.boardId,
     columnId: args.columnId,
+    itemId: args.itemId,
     ...extra,
   }
 }
@@ -147,6 +149,12 @@ function resolveFileSelector(
       }
       if (subBlock.id === 'status_column' || subBlock.id === 'statusColumn') {
         return { key: 'monday.status-options', context, allowSearch: true }
+      }
+      if (subBlock.id === 'item_id' || subBlock.id === 'itemId') {
+        return { key: 'monday.items', context, allowSearch: true }
+      }
+      if (subBlock.id === 'subitem_id' || subBlock.id === 'subitemId') {
+        return { key: 'monday.subitems', context, allowSearch: true }
       }
       return { key: null, context, allowSearch: true }
     default:

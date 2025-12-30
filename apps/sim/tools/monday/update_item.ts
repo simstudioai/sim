@@ -8,7 +8,7 @@ const logger = createLogger('MondayUpdateItem')
 export const updateItemTool: ToolConfig<UpdateItemParams, UpdateItemResponse> = {
   id: 'monday_update_item',
   name: 'Update Monday.com Item',
-  description: 'Update column values in an existing Monday.com item',
+  description: 'Update column values in an existing Monday.com item or sub-item',
   version: '1.0.0',
 
   params: {
@@ -23,6 +23,12 @@ export const updateItemTool: ToolConfig<UpdateItemParams, UpdateItemResponse> = 
       required: true,
       visibility: 'user-or-llm',
       description: 'The ID of the item to update',
+    },
+    subitem_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'The ID of the sub-item to update (if updating a sub-item)',
     },
     board_id: {
       type: 'string',
@@ -46,14 +52,18 @@ export const updateItemTool: ToolConfig<UpdateItemParams, UpdateItemResponse> = 
       Authorization: params.apiKey,
       'API-Version': '2024-01',
     }),
-    body: (params) => ({
-      query: QUERIES.UPDATE_ITEM,
-      variables: {
-        boardId: parseInt(params.board_id, 10),
-        itemId: parseInt(params.item_id, 10),
-        columnValues: JSON.stringify(params.column_values),
-      },
-    }),
+    body: (params) => {
+      // Use subitem_id if provided, otherwise use item_id
+      const targetItemId = params.subitem_id || params.item_id
+      return {
+        query: QUERIES.UPDATE_ITEM,
+        variables: {
+          boardId: parseInt(params.board_id, 10),
+          itemId: parseInt(targetItemId, 10),
+          columnValues: JSON.stringify(params.column_values),
+        },
+      }
+    },
   },
 
   transformResponse: async (response: Response): Promise<UpdateItemResponse> => {

@@ -207,4 +207,28 @@ export const QUERIES = {
       }
     }
   `,
+
+  GET_BOARD_ITEMS: `
+    query ($boardId: [ID!]!, $limit: Int) {
+      boards(ids: $boardId) {
+        items_page(limit: $limit) {
+          items {
+            id
+            name
+          }
+        }
+      }
+    }
+  `,
+
+  GET_ITEM_SUBITEMS: `
+    query ($itemId: [ID!]!) {
+      items(ids: $itemId) {
+        subitems {
+          id
+          name
+        }
+      }
+    }
+  `,
 }

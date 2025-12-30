@@ -31,6 +31,8 @@ export type SelectorKey =
   | 'monday.columns'
   | 'monday.groups'
   | 'monday.status-options'
+  | 'monday.items'
+  | 'monday.subitems'
 
 
 export interface SelectorOption {
@@ -58,6 +60,7 @@ export interface SelectorContext {
   boardId?: string
   groupId?: string
   columnId?: string
+  itemId?: string
 }
 
 export interface SelectorQueryArgs {

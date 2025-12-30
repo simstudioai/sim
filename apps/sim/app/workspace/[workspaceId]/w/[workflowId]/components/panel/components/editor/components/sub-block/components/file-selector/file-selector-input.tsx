@@ -59,6 +59,8 @@ export function FileSelectorInput({
   const [groupIdListFromStore] = useSubBlockValue(blockId, 'group_id_list')
   const [columnIdValueFromStore] = useSubBlockValue(blockId, 'column_id')
   const [columnIdCamelFromStore] = useSubBlockValue(blockId, 'columnId')
+  const [itemIdValueFromStore] = useSubBlockValue(blockId, 'item_id')
+  const [itemIdCamelFromStore] = useSubBlockValue(blockId, 'itemId')
 
   const connectedCredential = previewContextValues?.credential ?? connectedCredentialFromStore
   const domainValue = previewContextValues?.domain ?? domainValueFromStore
@@ -86,6 +88,11 @@ export function FileSelectorInput({
     previewContextValues?.columnId ??
     columnIdValueFromStore ??
     columnIdCamelFromStore
+  const itemIdValue =
+    previewContextValues?.item_id ??
+    previewContextValues?.itemId ??
+    itemIdValueFromStore ??
+    itemIdCamelFromStore
 
   const normalizedCredentialId =
     typeof connectedCredential === 'string'
@@ -114,6 +121,7 @@ export function FileSelectorInput({
       boardId: (boardIdValue as string) || undefined,
       groupId: (groupIdValue as string) || undefined,
       columnId: (columnIdValue as string) || undefined,
+      itemId: (itemIdValue as string) || undefined,
     })
   }, [
     subBlock,
@@ -129,6 +137,7 @@ export function FileSelectorInput({
     boardIdValue,
     groupIdValue,
     columnIdValue,
+    itemIdValue,
   ])
 
   const isMondaySelector = selectorResolution?.key?.startsWith('monday.')
@@ -150,12 +159,18 @@ export function FileSelectorInput({
     selectorResolution?.key === 'webflow.items' && !selectorResolution.context.collectionId
   const missingBoard =
     isMondaySelector &&
-    (selectorResolution?.key === 'monday.groups' || selectorResolution?.key === 'monday.columns') &&
+    (selectorResolution?.key === 'monday.groups' ||
+      selectorResolution?.key === 'monday.columns' ||
+      selectorResolution?.key === 'monday.items') &&
     !selectorResolution?.context.boardId
   const missingColumn =
     isMondaySelector &&
     selectorResolution?.key === 'monday.status-options' &&
     !selectorResolution?.context.columnId
+  const missingItem =
+    isMondaySelector &&
+    selectorResolution?.key === 'monday.subitems' &&
+    !selectorResolution?.context.itemId
 
   const disabledReason =
     finalDisabled ||
@@ -169,6 +184,7 @@ export function FileSelectorInput({
     missingCollection ||
     missingBoard ||
     missingColumn ||
+    missingItem ||
     !selectorResolution?.key
 
   if (!selectorResolution?.key) {

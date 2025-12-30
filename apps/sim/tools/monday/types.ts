@@ -81,7 +81,8 @@ export interface CreateItemResponse extends ToolResponse {
 export interface UpdateItemParams {
   apiKey: string
   item_id: string
-  board_id?: string
+  subitem_id?: string
+  board_id: string
   column_values: Record<string, any>
 }
 

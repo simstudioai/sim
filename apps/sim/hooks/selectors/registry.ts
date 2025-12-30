@@ -889,6 +889,56 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       }))
     },
   },
+  'monday.items': {
+    key: 'monday.items',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'monday.items',
+      context.apiKey ?? 'none',
+      context.boardId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.apiKey && context.boardId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const body = JSON.stringify({
+        apiKey: context.apiKey,
+        boardId: context.boardId,
+      })
+      const data = await fetchJson<{ items: { id: string; name: string }[] }>(
+        '/api/tools/monday/items',
+        { method: 'POST', body }
+      )
+      return (data.items || []).map((item) => ({
+        id: item.id,
+        label: item.name,
+      }))
+    },
+  },
+  'monday.subitems': {
+    key: 'monday.subitems',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'monday.subitems',
+      context.apiKey ?? 'none',
+      context.itemId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.apiKey && context.itemId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const body = JSON.stringify({
+        apiKey: context.apiKey,
+        itemId: context.itemId,
+      })
+      const data = await fetchJson<{ items: { id: string; name: string }[] }>(
+        '/api/tools/monday/subitems',
+        { method: 'POST', body }
+      )
+      return (data.items || []).map((subitem) => ({
+        id: subitem.id,
+        label: subitem.name,
+      }))
+    },
+  },
 }
 
 export function getSelectorDefinition(key: SelectorKey): SelectorDefinition {
