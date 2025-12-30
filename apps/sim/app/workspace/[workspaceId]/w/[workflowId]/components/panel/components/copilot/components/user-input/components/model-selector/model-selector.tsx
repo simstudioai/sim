@@ -140,7 +140,7 @@ export function ModelSelector({ selectedModel, isNearTop, onModelSelect }: Model
               {getModelIconComponent(option.value)}
               <span>{option.label}</span>
               {isMaxModel(option.value) && (
-                <Badge variant='default' className='ml-auto px-[6px] py-[1px] text-[10px]'>
+                <Badge size='sm' className='ml-auto'>
                   MAX
                 </Badge>
               )}

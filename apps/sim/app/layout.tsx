@@ -41,7 +41,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
 
-        {/* Workspace layout dimensions: set CSS vars before hydration to avoid layout jump */}
+        {/* 
+          Workspace layout dimensions: set CSS vars before hydration to avoid layout jump.
+          
+          IMPORTANT: These hardcoded values must stay in sync with stores/constants.ts
+          We cannot use imports here since this is a blocking script that runs before React.
+        */}
         <script
           id='workspace-layout-dimensions'
           dangerouslySetInnerHTML={{
@@ -84,7 +89,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     var panelWidth = panelState && panelState.panelWidth;
                     var maxPanelWidth = window.innerWidth * 0.4;
 
-                    if (panelWidth >= 260 && panelWidth <= maxPanelWidth) {
+                    if (panelWidth >= 290 && panelWidth <= maxPanelWidth) {
                       document.documentElement.style.setProperty('--panel-width', panelWidth + 'px');
                     } else if (panelWidth > maxPanelWidth) {
                       document.documentElement.style.setProperty('--panel-width', maxPanelWidth + 'px');

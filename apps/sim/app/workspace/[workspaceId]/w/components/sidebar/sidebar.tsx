@@ -30,10 +30,11 @@ import {
   useExportWorkspace,
   useImportWorkspace,
 } from '@/app/workspace/[workspaceId]/w/hooks'
+import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/search-modal/store'
 import { useSettingsModalStore } from '@/stores/settings-modal/store'
-import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
+import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
 
@@ -250,7 +251,7 @@ export function Sidebar() {
       if (isCollapsed) {
         setIsCollapsed(false)
       }
-      setSidebarWidth(MIN_SIDEBAR_WIDTH)
+      setSidebarWidth(SIDEBAR_WIDTH.MIN)
     }
   }, [isOnWorkflowPage, isCollapsed, setIsCollapsed, setSidebarWidth])
 
