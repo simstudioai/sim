@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
 import { getStartDateFromTimeRange } from '@/lib/logs/filters'
@@ -424,8 +424,7 @@ export default function Logs() {
                   </div>
                 ) : logsQuery.isError ? (
                   <div className='flex h-full items-center justify-center'>
-                    <div className='flex items-center gap-[8px] text-[var(--text-error)]'>
-                      <AlertCircle className='h-[16px] w-[16px]' />
+                    <div className='text-[var(--text-error)]'>
                       <span className='text-[13px]'>
                         Error: {logsQuery.error?.message || 'Failed to load logs'}
                       </span>
