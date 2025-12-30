@@ -1,10 +1,19 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import {
+  validateAlphanumericId,
+  validateEnum,
+  validateJiraCloudId,
+  validateJiraIssueKey,
+} from '@/lib/core/security/input-validation'
 import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JsmApprovalsAPI')
+
+const VALID_ACTIONS = ['get', 'answer'] as const
+const VALID_DECISIONS = ['approve', 'decline'] as const
 
 export async function POST(request: Request) {
   try {
@@ -41,7 +50,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Action is required' }, { status: 400 })
     }
 
+    const actionValidation = validateEnum(action, VALID_ACTIONS, 'action')
+    if (!actionValidation.isValid) {
+      return NextResponse.json({ error: actionValidation.error }, { status: 400 })
+    }
+
     const cloudId = cloudIdParam || (await getJiraCloudId(domain, accessToken))
+
+    const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
+    if (!cloudIdValidation.isValid) {
+      return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
+    }
+
+    const issueIdOrKeyValidation = validateJiraIssueKey(issueIdOrKey, 'issueIdOrKey')
+    if (!issueIdOrKeyValidation.isValid) {
+      return NextResponse.json({ error: issueIdOrKeyValidation.error }, { status: 400 })
+    }
+
     const baseUrl = getJsmApiBaseUrl(cloudId)
 
     if (action === 'get') {
@@ -91,12 +116,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Approval ID is required' }, { status: 400 })
       }
 
-      if (!decision || !['approve', 'decline'].includes(decision)) {
-        logger.error('Invalid or missing decision in request')
-        return NextResponse.json(
-          { error: 'Decision is required and must be "approve" or "decline"' },
-          { status: 400 }
-        )
+      const approvalIdValidation = validateAlphanumericId(approvalId, 'approvalId')
+      if (!approvalIdValidation.isValid) {
+        return NextResponse.json({ error: approvalIdValidation.error }, { status: 400 })
+      }
+
+      const decisionValidation = validateEnum(decision, VALID_DECISIONS, 'decision')
+      if (!decisionValidation.isValid) {
+        return NextResponse.json({ error: decisionValidation.error }, { status: 400 })
       }
 
       const url = `${baseUrl}/request/${issueIdOrKey}/approval/${approvalId}`

@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import {
+  validateAlphanumericId,
+  validateJiraCloudId,
+  validateJiraIssueKey,
+} from '@/lib/core/security/input-validation'
 import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 export const dynamic = 'force-dynamic'
@@ -38,6 +43,22 @@ export async function POST(request: Request) {
     }
 
     const cloudId = providedCloudId || (await getJiraCloudId(domain, accessToken))
+
+    const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
+    if (!cloudIdValidation.isValid) {
+      return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
+    }
+
+    const issueIdOrKeyValidation = validateJiraIssueKey(issueIdOrKey, 'issueIdOrKey')
+    if (!issueIdOrKeyValidation.isValid) {
+      return NextResponse.json({ error: issueIdOrKeyValidation.error }, { status: 400 })
+    }
+
+    const transitionIdValidation = validateAlphanumericId(transitionId, 'transitionId')
+    if (!transitionIdValidation.isValid) {
+      return NextResponse.json({ error: transitionIdValidation.error }, { status: 400 })
+    }
+
     const baseUrl = getJsmApiBaseUrl(cloudId)
 
     const url = `${baseUrl}/request/${issueIdOrKey}/transition`
