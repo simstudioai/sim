@@ -414,8 +414,8 @@ export function FieldFormat({
           {renderFieldHeader(field, index)}
 
           {!field.collapsed && (
-            <div className='flex flex-col gap-[6px] border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>
-              <div className='flex flex-col gap-[4px]'>
+            <div className='flex flex-col gap-[8px] border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>
+              <div className='flex flex-col gap-[6px]'>
                 <Label className='text-[13px]'>Name</Label>
                 <Input
                   name='name'
@@ -428,7 +428,7 @@ export function FieldFormat({
               </div>
 
               {showType && (
-                <div className='space-y-[4px]'>
+                <div className='flex flex-col gap-[6px]'>
                   <Label className='text-[13px]'>Type</Label>
                   <Combobox
                     options={TYPE_OPTIONS}
@@ -440,7 +440,7 @@ export function FieldFormat({
               )}
 
               {showValue && (
-                <div className='space-y-[4px]'>
+                <div className='flex flex-col gap-[6px]'>
                   <Label className='text-[13px]'>Value</Label>
                   <div className='relative'>{renderValueInput(field)}</div>
                 </div>
