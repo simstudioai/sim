@@ -55,7 +55,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
  */
 const MIN_HEIGHT = 30
 const NEAR_MIN_THRESHOLD = 40
-const DEFAULT_EXPANDED_HEIGHT = 196
+const DEFAULT_EXPANDED_HEIGHT = 155
 
 /**
  * Column width constants - numeric values for calculations

@@ -163,14 +163,14 @@ export function FieldFormat({
    */
   const renderFieldHeader = (field: Field, index: number) => (
     <div
-      className='flex cursor-pointer items-center justify-between bg-transparent px-[10px] py-[5px]'
+      className='flex cursor-pointer items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'
       onClick={() => toggleCollapse(field.id)}
     >
       <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
         <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
           {field.name || `${title} ${index + 1}`}
         </span>
-        {field.name && showType && <Badge className='h-[20px] text-[13px]'>{field.type}</Badge>}
+        {field.name && showType && <Badge size='sm'>{field.type}</Badge>}
       </div>
       <div className='flex items-center gap-[8px] pl-[8px]' onClick={(e) => e.stopPropagation()}>
         <Button variant='ghost' onClick={addField} disabled={isReadOnly} className='h-auto p-0'>
@@ -407,7 +407,7 @@ export function FieldFormat({
           key={field.id}
           data-field-id={field.id}
           className={cn(
-            'rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-3)] dark:bg-[#1F1F1F]',
+            'rounded-[4px] border border-[var(--border-1)]',
             field.collapsed ? 'overflow-hidden' : 'overflow-visible'
           )}
         >

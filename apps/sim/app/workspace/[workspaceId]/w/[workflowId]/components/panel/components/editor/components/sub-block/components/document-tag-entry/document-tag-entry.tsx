@@ -225,18 +225,14 @@ export function DocumentTagEntry({
    */
   const renderTagHeader = (tag: DocumentTag, index: number) => (
     <div
-      className='flex cursor-pointer items-center justify-between bg-transparent px-[10px] py-[5px]'
+      className='flex cursor-pointer items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'
       onClick={() => toggleCollapse(tag.id)}
     >
       <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
         <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
           {tag.tagName || `Tag ${index + 1}`}
         </span>
-        {tag.tagName && (
-          <Badge className='h-[20px] text-[13px]'>
-            {FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}
-          </Badge>
-        )}
+        {tag.tagName && <Badge size='sm'>{FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}</Badge>}
       </div>
       <div className='flex items-center gap-[8px] pl-[8px]' onClick={(e) => e.stopPropagation()}>
         <Button
@@ -356,7 +352,7 @@ export function DocumentTagEntry({
             value={tag.tagName}
             onChange={(value) => updateTag(tag.id, 'tagName', value)}
             disabled={isReadOnly || isLoading}
-            placeholder={isLoading ? 'Loading tags...' : 'Select tag'}
+            placeholder='Select tag'
           />
         </div>
 
@@ -375,7 +371,7 @@ export function DocumentTagEntry({
           key={tag.id}
           data-tag-id={tag.id}
           className={cn(
-            'rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-3)] dark:bg-[#1F1F1F]',
+            'rounded-[4px] border border-[var(--border-1)]',
             tag.collapsed ? 'overflow-hidden' : 'overflow-visible'
           )}
         >

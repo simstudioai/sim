@@ -218,18 +218,14 @@ export function KnowledgeTagFilters({
    */
   const renderFilterHeader = (filter: TagFilter, index: number) => (
     <div
-      className='flex cursor-pointer items-center justify-between bg-transparent px-[10px] py-[5px]'
+      className='flex cursor-pointer items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'
       onClick={() => toggleCollapse(filter.id)}
     >
       <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
         <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
           {filter.tagName || `Filter ${index + 1}`}
         </span>
-        {filter.tagName && (
-          <Badge className='h-[20px] text-[13px]'>
-            {FIELD_TYPE_LABELS[filter.fieldType] || 'Text'}
-          </Badge>
-        )}
+        {filter.tagName && <Badge size='sm'>{FIELD_TYPE_LABELS[filter.fieldType] || 'Text'}</Badge>}
       </div>
       <div className='flex items-center gap-[8px] pl-[8px]' onClick={(e) => e.stopPropagation()}>
         <Button variant='ghost' onClick={addFilter} disabled={isReadOnly} className='h-auto p-0'>
@@ -347,7 +343,7 @@ export function KnowledgeTagFilters({
             value={filter.tagName}
             onChange={(value) => updateFilter(filter.id, 'tagName', value)}
             disabled={isReadOnly || isLoading}
-            placeholder={isLoading ? 'Loading tags...' : 'Select tag'}
+            placeholder='Select tag'
           />
         </div>
 
@@ -385,7 +381,7 @@ export function KnowledgeTagFilters({
           key={filter.id}
           data-filter-id={filter.id}
           className={cn(
-            'rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-3)] dark:bg-[#1F1F1F]',
+            'rounded-[4px] border border-[var(--border-1)]',
             filter.collapsed ? 'overflow-hidden' : 'overflow-visible'
           )}
         >
