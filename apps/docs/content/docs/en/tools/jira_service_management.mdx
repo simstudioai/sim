@@ -1,0 +1,490 @@
+---
+title: Jira Service Management
+description: Interact with Jira Service Management
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="jira_service_management"
+  color="#E0E0E0"
+/>
+
+## Usage Instructions
+
+Integrate with Jira Service Management for IT service management. Create and manage service requests, handle customers and organizations, track SLAs, and manage queues.
+
+
+
+## Tools
+
+### `jsm_get_service_desks`
+
+Get all service desks from Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `start` | number | No | Start index for pagination \(default: 0\) |
+| `limit` | number | No | Maximum results to return \(default: 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `serviceDesks` | json | Array of service desks |
+| `total` | number | Total number of service desks |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_get_request_types`
+
+Get request types for a service desk in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `serviceDeskId` | string | Yes | Service Desk ID to get request types for |
+| `start` | number | No | Start index for pagination \(default: 0\) |
+| `limit` | number | No | Maximum results to return \(default: 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `requestTypes` | json | Array of request types |
+| `total` | number | Total number of request types |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_create_request`
+
+Create a new service request in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `serviceDeskId` | string | Yes | Service Desk ID to create the request in |
+| `requestTypeId` | string | Yes | Request Type ID for the new request |
+| `summary` | string | Yes | Summary/title for the service request |
+| `description` | string | No | Description for the service request |
+| `raiseOnBehalfOf` | string | No | Account ID of customer to raise request on behalf of |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueId` | string | Created request issue ID |
+| `issueKey` | string | Created request issue key \(e.g., SD-123\) |
+| `requestTypeId` | string | Request type ID |
+| `serviceDeskId` | string | Service desk ID |
+| `success` | boolean | Whether the request was created successfully |
+| `url` | string | URL to the created request |
+
+### `jsm_get_request`
+
+Get a single service request from Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+
+### `jsm_get_requests`
+
+Get multiple service requests from Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `serviceDeskId` | string | No | Filter by service desk ID |
+| `requestOwnership` | string | No | Filter by ownership: OWNED_REQUESTS, PARTICIPATED_REQUESTS, ORGANIZATION, ALL_REQUESTS |
+| `requestStatus` | string | No | Filter by status: OPEN, CLOSED, ALL |
+| `searchTerm` | string | No | Search term to filter requests |
+| `start` | number | No | Start index for pagination \(default: 0\) |
+| `limit` | number | No | Maximum results to return \(default: 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `requests` | json | Array of service requests |
+| `total` | number | Total number of requests |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_add_comment`
+
+Add a comment (public or internal) to a service request in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+| `body` | string | Yes | Comment body text |
+| `isPublic` | boolean | Yes | Whether the comment is public \(visible to customer\) or internal |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `commentId` | string | Created comment ID |
+| `body` | string | Comment body text |
+| `isPublic` | boolean | Whether the comment is public |
+| `success` | boolean | Whether the comment was added successfully |
+
+### `jsm_get_comments`
+
+Get comments for a service request in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+| `isPublic` | boolean | No | Filter to only public comments |
+| `internal` | boolean | No | Filter to only internal comments |
+| `start` | number | No | Start index for pagination \(default: 0\) |
+| `limit` | number | No | Maximum results to return \(default: 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `comments` | json | Array of comments |
+| `total` | number | Total number of comments |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_get_customers`
+
+Get customers for a service desk in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `serviceDeskId` | string | Yes | Service Desk ID to get customers for |
+| `query` | string | No | Search query to filter customers |
+| `start` | number | No | Start index for pagination \(default: 0\) |
+| `limit` | number | No | Maximum results to return \(default: 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `customers` | json | Array of customers |
+| `total` | number | Total number of customers |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_add_customer`
+
+Add customers to a service desk in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `serviceDeskId` | string | Yes | Service Desk ID to add customers to |
+| `emails` | string | Yes | Comma-separated email addresses to add as customers |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `serviceDeskId` | string | Service desk ID |
+| `success` | boolean | Whether customers were added successfully |
+
+### `jsm_get_organizations`
+
+Get organizations for a service desk in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `serviceDeskId` | string | Yes | Service Desk ID to get organizations for |
+| `start` | number | No | Start index for pagination \(default: 0\) |
+| `limit` | number | No | Maximum results to return \(default: 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `organizations` | json | Array of organizations |
+| `total` | number | Total number of organizations |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_create_organization`
+
+Create a new organization in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `name` | string | Yes | Name of the organization to create |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `organizationId` | string | ID of the created organization |
+| `name` | string | Name of the created organization |
+| `success` | boolean | Whether the operation succeeded |
+
+### `jsm_add_organization_to_service_desk`
+
+Add an organization to a service desk in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `serviceDeskId` | string | Yes | Service Desk ID to add the organization to |
+| `organizationId` | string | Yes | Organization ID to add to the service desk |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `serviceDeskId` | string | Service Desk ID |
+| `organizationId` | string | Organization ID added |
+| `success` | boolean | Whether the operation succeeded |
+
+### `jsm_get_queues`
+
+Get queues for a service desk in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `serviceDeskId` | string | Yes | Service Desk ID to get queues for |
+| `includeCount` | boolean | No | Include issue count for each queue |
+| `start` | number | No | Start index for pagination \(default: 0\) |
+| `limit` | number | No | Maximum results to return \(default: 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `queues` | json | Array of queues |
+| `total` | number | Total number of queues |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_get_sla`
+
+Get SLA information for a service request in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+| `start` | number | No | Start index for pagination \(default: 0\) |
+| `limit` | number | No | Maximum results to return \(default: 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `slas` | json | Array of SLA information |
+| `total` | number | Total number of SLAs |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_get_transitions`
+
+Get available transitions for a service request in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `transitions` | json | Array of available transitions |
+
+### `jsm_transition_request`
+
+Transition a service request to a new status in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+| `transitionId` | string | Yes | Transition ID to apply |
+| `comment` | string | No | Optional comment to add during transition |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `transitionId` | string | Applied transition ID |
+| `success` | boolean | Whether the transition was successful |
+
+### `jsm_get_participants`
+
+Get participants for a request in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+| `start` | number | No | Start index for pagination \(default: 0\) |
+| `limit` | number | No | Maximum results to return \(default: 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `participants` | json | Array of participants |
+| `total` | number | Total number of participants |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_add_participants`
+
+Add participants to a request in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+| `accountIds` | string | Yes | Comma-separated account IDs to add as participants |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `participants` | json | Array of added participants |
+| `success` | boolean | Whether the operation succeeded |
+
+### `jsm_get_approvals`
+
+Get approvals for a request in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+| `start` | number | No | Start index for pagination \(default: 0\) |
+| `limit` | number | No | Maximum results to return \(default: 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `approvals` | json | Array of approvals |
+| `total` | number | Total number of approvals |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_answer_approval`
+
+Approve or decline an approval request in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+| `approvalId` | string | Yes | Approval ID to answer |
+| `decision` | string | Yes | Decision: "approve" or "decline" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `approvalId` | string | Approval ID |
+| `decision` | string | Decision made \(approve/decline\) |
+| `success` | boolean | Whether the operation succeeded |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `jira_service_management`

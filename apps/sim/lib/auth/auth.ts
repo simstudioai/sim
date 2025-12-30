@@ -1227,6 +1227,98 @@ export const auth = betterAuth({
           },
         },
 
+        // Jira Service Management provider
+        {
+          providerId: 'jira-service-management',
+          clientId: env.JIRA_CLIENT_ID as string,
+          clientSecret: env.JIRA_CLIENT_SECRET as string,
+          authorizationUrl: 'https://auth.atlassian.com/authorize',
+          tokenUrl: 'https://auth.atlassian.com/oauth/token',
+          userInfoUrl: 'https://api.atlassian.com/me',
+          scopes: [
+            'read:jira-user',
+            'read:jira-work',
+            'write:jira-work',
+            'read:project:jira',
+            'read:me',
+            'offline_access',
+            'read:issue:jira',
+            'read:status:jira',
+            'read:user:jira',
+            'read:issue-details:jira',
+            'write:comment:jira',
+            'read:comment:jira',
+            'read:servicedesk:jira-service-management',
+            'read:requesttype:jira-service-management',
+            'read:request:jira-service-management',
+            'write:request:jira-service-management',
+            'read:request.comment:jira-service-management',
+            'write:request.comment:jira-service-management',
+            'read:customer:jira-service-management',
+            'write:customer:jira-service-management',
+            'read:servicedesk.customer:jira-service-management',
+            'write:servicedesk.customer:jira-service-management',
+            'read:organization:jira-service-management',
+            'write:organization:jira-service-management',
+            'read:servicedesk.organization:jira-service-management',
+            'write:servicedesk.organization:jira-service-management',
+            'read:organization.user:jira-service-management',
+            'write:organization.user:jira-service-management',
+            'read:organization.property:jira-service-management',
+            'write:organization.property:jira-service-management',
+            'read:organization.profile:jira-service-management',
+            'write:organization.profile:jira-service-management',
+            'read:queue:jira-service-management',
+            'read:request.sla:jira-service-management',
+            'read:request.status:jira-service-management',
+            'write:request.status:jira-service-management',
+            'read:request.participant:jira-service-management',
+            'write:request.participant:jira-service-management',
+            'read:request.approval:jira-service-management',
+            'write:request.approval:jira-service-management',
+          ],
+          responseType: 'code',
+          pkce: true,
+          accessType: 'offline',
+          authentication: 'basic',
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/jira-service-management`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://api.atlassian.com/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                logger.error('Error fetching Jira Service Management user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
+              }
+
+              const profile = await response.json()
+
+              const now = new Date()
+
+              return {
+                id: profile.account_id,
+                name: profile.name || profile.display_name || 'JSM User',
+                email: profile.email || `${profile.account_id}@atlassian.com`,
+                image: profile.picture || undefined,
+                emailVerified: true,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Jira Service Management getUserInfo:', { error })
+              return null
+            }
+          },
+        },
+
         // Airtable provider
         {
           providerId: 'airtable',
