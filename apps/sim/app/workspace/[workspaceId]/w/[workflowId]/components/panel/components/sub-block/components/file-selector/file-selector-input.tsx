@@ -31,6 +31,8 @@ export function FileSelectorInput({
   previewValue,
   previewContextValues,
 }: FileSelectorInputProps) {
+  console.log('[FileSelectorInput RENDER]', { subBlockId: subBlock.id, serviceId: subBlock.serviceId })
+
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const { activeWorkflowId } = useWorkflowRegistry()
   const params = useParams()
@@ -49,6 +51,11 @@ export function FileSelectorInput({
   const [teamIdValueFromStore] = useSubBlockValue(blockId, 'teamId')
   const [siteIdValueFromStore] = useSubBlockValue(blockId, 'siteId')
   const [collectionIdValueFromStore] = useSubBlockValue(blockId, 'collectionId')
+  const [apiKeyValueFromStore] = useSubBlockValue(blockId, 'apiKey')
+  const [boardIdValueFromStore] = useSubBlockValue(blockId, 'board_id')
+  const [boardIdCamelFromStore] = useSubBlockValue(blockId, 'boardId')
+  const [columnIdValueFromStore] = useSubBlockValue(blockId, 'column_id')
+  const [columnIdCamelFromStore] = useSubBlockValue(blockId, 'columnId')
 
   const connectedCredential = previewContextValues?.credential ?? connectedCredentialFromStore
   const domainValue = previewContextValues?.domain ?? domainValueFromStore
@@ -57,6 +64,14 @@ export function FileSelectorInput({
   const teamIdValue = previewContextValues?.teamId ?? teamIdValueFromStore
   const siteIdValue = previewContextValues?.siteId ?? siteIdValueFromStore
   const collectionIdValue = previewContextValues?.collectionId ?? collectionIdValueFromStore
+  const apiKeyValue = previewContextValues?.apiKey ?? apiKeyValueFromStore
+  const boardIdValue =
+    previewContextValues?.board_id ?? previewContextValues?.boardId ?? boardIdValueFromStore ?? boardIdCamelFromStore
+  const columnIdValue =
+    previewContextValues?.column_id ??
+    previewContextValues?.columnId ??
+    columnIdValueFromStore ??
+    columnIdCamelFromStore
 
   const normalizedCredentialId =
     typeof connectedCredential === 'string'
@@ -81,6 +96,9 @@ export function FileSelectorInput({
       teamId: (teamIdValue as string) || undefined,
       siteId: (siteIdValue as string) || undefined,
       collectionId: (collectionIdValue as string) || undefined,
+      apiKey: (apiKeyValue as string) || undefined,
+      boardId: (boardIdValue as string) || undefined,
+      columnId: (columnIdValue as string) || undefined,
     })
   }, [
     subBlock,
@@ -92,9 +110,37 @@ export function FileSelectorInput({
     teamIdValue,
     siteIdValue,
     collectionIdValue,
+    apiKeyValue,
+    boardIdValue,
+    columnIdValue,
+    boardIdValueFromStore,
+    boardIdCamelFromStore,
+    columnIdValueFromStore,
+    columnIdCamelFromStore,
   ])
 
-  const missingCredential = !normalizedCredentialId
+  const isMondaySelector = selectorResolution?.key?.startsWith('monday.')
+  const missingCredential = !isMondaySelector && !normalizedCredentialId
+  const missingApiKey = isMondaySelector && !selectorResolution?.context.apiKey
+
+  // Debug logging for Monday selectors
+  if (isMondaySelector && typeof window !== 'undefined') {
+    console.log('[Monday Selector Debug]', {
+      subBlockId: subBlock.id,
+      selectorKey: selectorResolution?.key,
+      apiKeyFromStore: apiKeyValueFromStore,
+      apiKeyValue: apiKeyValue,
+      contextApiKey: selectorResolution?.context.apiKey,
+      missingApiKey,
+      finalDisabled,
+      disabledReason: {
+        finalDisabled,
+        isForeignCredential,
+        missingCredential,
+        missingApiKey,
+      },
+    })
+  }
   const missingDomain =
     selectorResolution?.key &&
     (selectorResolution.key === 'confluence.pages' || selectorResolution.key === 'jira.issues') &&
@@ -109,16 +155,21 @@ export function FileSelectorInput({
     selectorResolution?.key === 'webflow.collections' && !selectorResolution?.context.siteId
   const missingCollection =
     selectorResolution?.key === 'webflow.items' && !selectorResolution?.context.collectionId
+  const missingBoardId =
+    (selectorResolution?.key === 'monday.columns' || selectorResolution?.key === 'monday.groups') &&
+    !selectorResolution?.context.boardId
 
   const disabledReason =
     finalDisabled ||
-    isForeignCredential ||
+    (!isMondaySelector && isForeignCredential) ||
     missingCredential ||
+    missingApiKey ||
     missingDomain ||
     missingProject ||
     missingPlan ||
     missingSite ||
     missingCollection ||
+    missingBoardId ||
     !selectorResolution?.key
 
   if (!selectorResolution?.key) {
@@ -149,6 +200,12 @@ export function FileSelectorInput({
       allowSearch={selectorResolution.allowSearch}
       onOptionChange={(value) => {
         if (!isPreview) {
+          console.log('[FileSelectorInput] Setting value', {
+            blockId,
+            subBlockId: subBlock.id,
+            value,
+            valueType: typeof value,
+          })
           collaborativeSetSubblockValue(blockId, subBlock.id, value)
         }
       }}

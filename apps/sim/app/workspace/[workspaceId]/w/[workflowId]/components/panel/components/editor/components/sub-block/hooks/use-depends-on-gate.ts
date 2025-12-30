@@ -144,9 +144,22 @@ export function useDependsOnGate(
 
   const finalDisabled = disabledProp || isPreview || blocked
 
+  // Debug logging for dependency issues
+  if (typeof window !== 'undefined' && allDependsOnFields.includes('apiKey')) {
+    console.log('[useDependsOnGate Debug]', {
+      subBlockId: subBlock.id,
+      allDependsOnFields,
+      dependencyValuesMap,
+      depsSatisfied,
+      blocked,
+      finalDisabled,
+    })
+  }
+
   return {
     dependsOn,
     dependencyValues,
+    dependencyValuesMap,
     depsSatisfied,
     blocked,
     finalDisabled,

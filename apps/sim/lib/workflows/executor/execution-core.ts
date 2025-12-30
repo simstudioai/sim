@@ -148,6 +148,20 @@ export async function executeWorkflowCore(
       loops = draftData.loops
       parallels = draftData.parallels
 
+      // Debug: Log Monday blocks loaded from database
+      Object.entries(blocks).forEach(([blockId, block]) => {
+        if (block.type === 'monday') {
+          logger.info(`[${requestId}] Monday block loaded from database`, {
+            blockId,
+            subBlockKeys: Object.keys(block.subBlocks || {}),
+            subBlockValues: Object.entries(block.subBlocks || {}).reduce((acc, [key, sb]) => {
+              acc[key] = (sb as any).value
+              return acc
+            }, {} as Record<string, any>),
+          })
+        }
+      })
+
       logger.info(
         `[${requestId}] Using draft workflow state from normalized tables (client execution)`
       )

@@ -38,6 +38,46 @@ export function SelectorCombobox({
   onOptionChange,
   allowSearch = true,
 }: SelectorComboboxProps) {
+  // For Monday.com selectors, read apiKey and boardId directly from block state
+  const [apiKeyFromBlock] = useSubBlockValue<string>(blockId, 'apiKey')
+  const [boardIdFromBlock] = useSubBlockValue<string>(blockId, 'board_id')
+  const [boardIdCamelFromBlock] = useSubBlockValue<string>(blockId, 'boardId')
+  const [columnIdFromBlock] = useSubBlockValue<string>(blockId, 'column_id')
+  const [columnIdCamelFromBlock] = useSubBlockValue<string>(blockId, 'columnId')
+
+  // Merge Monday.com specific values into context if they're missing
+  const enrichedContext = selectorKey.startsWith('monday.') ? {
+    ...selectorContext,
+    apiKey: selectorContext.apiKey || apiKeyFromBlock,
+    boardId: selectorContext.boardId || boardIdFromBlock || boardIdCamelFromBlock,
+    columnId: selectorContext.columnId || columnIdFromBlock || columnIdCamelFromBlock,
+  } : selectorContext
+
+  // For Monday selectors, override disabled if we have apiKey and required dependencies
+  let actualDisabled = disabled
+  if (selectorKey.startsWith('monday.')) {
+    if (selectorKey === 'monday.boards') {
+      // boards only needs apiKey
+      actualDisabled = !enrichedContext.apiKey
+    } else if (selectorKey === 'monday.columns' || selectorKey === 'monday.groups') {
+      // columns/groups need apiKey AND boardId
+      actualDisabled = !enrichedContext.apiKey || !enrichedContext.boardId
+    } else if (selectorKey === 'monday.status-options') {
+      // status-options need apiKey, boardId, AND columnId
+      actualDisabled = !enrichedContext.apiKey || !enrichedContext.boardId || !enrichedContext.columnId
+    }
+  }
+
+  console.log('[SelectorCombobox RENDER]', {
+    subBlockId: subBlock.id,
+    selectorKey,
+    disabled,
+    actualDisabled,
+    hasApiKey: !!enrichedContext.apiKey,
+    apiKeyFromBlock,
+    enrichedContext
+  })
+
   const [storeValueRaw, setStoreValue] = useSubBlockValue<string | null | undefined>(
     blockId,
     subBlock.id
@@ -52,11 +92,11 @@ export function SelectorCombobox({
     isLoading,
     error,
   } = useSelectorOptions(selectorKey, {
-    context: selectorContext,
+    context: enrichedContext,
     search: allowSearch ? searchTerm : undefined,
   })
   const { data: detailOption } = useSelectorOptionDetail(selectorKey, {
-    context: selectorContext,
+    context: enrichedContext,
     detailId: activeValue,
   })
   const optionMap = useSelectorOptionMap(options, detailOption ?? undefined)
@@ -89,12 +129,12 @@ export function SelectorCombobox({
 
   const handleSelection = useCallback(
     (value: string) => {
-      if (readOnly || disabled) return
+      if (readOnly || actualDisabled) return
       setStoreValue(value)
       setIsEditing(false)
       onOptionChange?.(value)
     },
-    [setStoreValue, onOptionChange, readOnly, disabled]
+    [setStoreValue, onOptionChange, readOnly, actualDisabled]
   )
 
   return (
@@ -104,7 +144,7 @@ export function SelectorCombobox({
         subBlockId={subBlock.id}
         config={subBlock}
         value={activeValue ?? ''}
-        disabled={disabled || readOnly}
+        disabled={actualDisabled || readOnly}
         isPreview={isPreview}
       >
         {({ ref, onDrop, onDragOver }) => (
@@ -127,7 +167,7 @@ export function SelectorCombobox({
               }
             }}
             placeholder={placeholder || subBlock.placeholder || 'Select an option'}
-            disabled={disabled || readOnly}
+            disabled={actualDisabled || readOnly}
             editable={allowSearch}
             filterOptions={allowSearch}
             inputRef={ref as React.RefObject<HTMLInputElement>}

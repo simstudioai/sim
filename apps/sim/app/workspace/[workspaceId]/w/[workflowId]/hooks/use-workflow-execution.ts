@@ -903,7 +903,12 @@ export function useWorkflowExecution() {
                 loops: executionWorkflowState.loops,
                 parallels: executionWorkflowState.parallels,
               }
-            : undefined,
+            : {
+                blocks: filteredStates,
+                edges: workflowEdges,
+                loops: latestWorkflowState.loops || {},
+                parallels: latestWorkflowState.parallels || {},
+              },
           callbacks: {
             onExecutionStarted: (data) => {
               logger.info('Server execution started:', data)

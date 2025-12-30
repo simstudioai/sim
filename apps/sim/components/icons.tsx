@@ -253,6 +253,23 @@ export function MessagesIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function MondayIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      width='24'
+      height='24'
+      viewBox='0 0 24 24'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <circle cx='6' cy='12' r='4' fill='#FF3D57' />
+      <circle cx='12' cy='8' r='4' fill='#FF3D57' />
+      <circle cx='18' cy='14' r='4' fill='#FF3D57' />
+    </svg>
+  )
+}
+
 export function NotificationsIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

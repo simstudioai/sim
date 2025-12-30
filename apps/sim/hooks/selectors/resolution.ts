@@ -17,6 +17,9 @@ export interface SelectorResolutionArgs {
   knowledgeBaseId?: string
   siteId?: string
   collectionId?: string
+  apiKey?: string
+  boardId?: string
+  columnId?: string
 }
 
 const defaultContext: SelectorContext = {}
@@ -58,6 +61,9 @@ function buildBaseContext(
     knowledgeBaseId: args.knowledgeBaseId,
     siteId: args.siteId,
     collectionId: args.collectionId,
+    apiKey: args.apiKey,
+    boardId: args.boardId,
+    columnId: args.columnId,
     ...extra,
   }
 }
@@ -118,6 +124,20 @@ function resolveFileSelector(
       }
       if (subBlock.id === 'itemId') {
         return { key: 'webflow.items', context, allowSearch: true }
+      }
+      return { key: null, context, allowSearch: true }
+    case 'monday':
+      if (subBlock.id === 'board_id' || subBlock.id === 'boardId') {
+        return { key: 'monday.boards', context, allowSearch: true }
+      }
+      if (subBlock.id === 'column_id' || subBlock.id === 'columnId') {
+        return { key: 'monday.columns', context, allowSearch: true }
+      }
+      if (subBlock.id === 'group_id' || subBlock.id === 'groupId') {
+        return { key: 'monday.groups', context, allowSearch: true }
+      }
+      if (subBlock.id === 'status_column' || subBlock.id === 'statusColumn') {
+        return { key: 'monday.status-options', context, allowSearch: true }
       }
       return { key: null, context, allowSearch: true }
     default:

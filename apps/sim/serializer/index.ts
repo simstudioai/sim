@@ -479,12 +479,26 @@ export class Serializer {
         chosen = undefined
       }
 
+      // Preserve existing canonical key value if consolidation produces no better value
+      const existingCanonicalValue = params[canonicalKey]
+      const hasValidExistingValue =
+        existingCanonicalValue !== undefined &&
+        existingCanonicalValue !== null &&
+        (typeof existingCanonicalValue !== 'string' || existingCanonicalValue.trim().length > 0)
+
       const sourceIds = [basicId, ...advancedIds].filter(Boolean) as string[]
       sourceIds.forEach((id) => {
         if (id !== canonicalKey) delete params[id]
       })
-      if (chosen !== undefined) params[canonicalKey] = chosen
-      else delete params[canonicalKey]
+
+      if (chosen !== undefined) {
+        params[canonicalKey] = chosen
+      } else if (hasValidExistingValue) {
+        // Keep existing value if consolidation produces nothing
+        params[canonicalKey] = existingCanonicalValue
+      } else {
+        delete params[canonicalKey]
+      }
     })
 
     return params

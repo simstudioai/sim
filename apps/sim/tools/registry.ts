@@ -594,6 +594,12 @@ import { linkedInGetProfileTool, linkedInSharePostTool } from '@/tools/linkedin'
 import { linkupSearchTool } from '@/tools/linkup'
 import { llmChatTool } from '@/tools/llm'
 import {
+  mondayCreateItemTool,
+  mondayUpdateItemTool,
+  mondayGetItemTool,
+  mondayListItemsTool,
+} from '@/tools/monday'
+import {
   mailchimpAddMemberTagsTool,
   mailchimpAddMemberTool,
   mailchimpAddOrUpdateMemberTool,
@@ -1424,6 +1430,10 @@ export const tools: Record<string, ToolConfig> = {
   linkup_search: linkupSearchTool,
   linkedin_share_post: linkedInSharePostTool,
   linkedin_get_profile: linkedInGetProfileTool,
+  monday_create_item: mondayCreateItemTool,
+  monday_update_item: mondayUpdateItemTool,
+  monday_get_item: mondayGetItemTool,
+  monday_list_items: mondayListItemsTool,
   resend_send: mailSendTool,
   sendgrid_send_mail: sendGridSendMailTool,
   sendgrid_add_contact: sendGridAddContactTool,

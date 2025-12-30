@@ -392,13 +392,26 @@ function SubBlockComponent({
 
   // Use dependsOn gating to compute final disabled state
   // Only pass previewContextValues when in preview mode to avoid format mismatches
-  const { finalDisabled: gatedDisabled } = useDependsOnGate(blockId, config, {
+  const { finalDisabled: gatedDisabled, dependencyValuesMap, depsSatisfied } = useDependsOnGate(blockId, config, {
     disabled,
     isPreview,
     previewContextValues: isPreview ? subBlockValues : undefined,
   })
 
   const isDisabled = gatedDisabled
+
+  // Debug logging for Monday selector issues
+  if (config.serviceId === 'monday' && typeof window !== 'undefined') {
+    console.log('[Sub-block Debug]', {
+      subBlockId: config.id,
+      type: config.type,
+      dependsOn: config.dependsOn,
+      dependencyValuesMap,
+      depsSatisfied,
+      gatedDisabled,
+      isDisabled,
+    })
+  }
 
   /**
    * Selects and renders the appropriate input component based on config.type.
@@ -656,6 +669,12 @@ function SubBlockComponent({
         )
 
       case 'file-selector':
+        console.log('[SUB-BLOCK] Rendering file-selector', {
+          subBlockId: config.id,
+          serviceId: config.serviceId,
+          isDisabled,
+          dependsOn: config.dependsOn
+        })
         return (
           <FileSelectorInput
             blockId={blockId}

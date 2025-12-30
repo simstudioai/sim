@@ -84,6 +84,7 @@ import {
   microsoftTeamsChatSubscriptionTrigger,
   microsoftTeamsWebhookTrigger,
 } from '@/triggers/microsoftteams'
+import { mondayNewItemTrigger, mondayColumnChangedTrigger } from '@/triggers/monday'
 import { outlookPollingTrigger } from '@/triggers/outlook'
 import { rssPollingTrigger } from '@/triggers/rss'
 import { slackWebhookTrigger } from '@/triggers/slack'
@@ -153,6 +154,8 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   linear_customer_request_updated: linearCustomerRequestUpdatedTrigger,
   microsoftteams_webhook: microsoftTeamsWebhookTrigger,
   microsoftteams_chat_subscription: microsoftTeamsChatSubscriptionTrigger,
+  monday_new_item: mondayNewItemTrigger,
+  monday_column_changed: mondayColumnChangedTrigger,
   outlook_poller: outlookPollingTrigger,
   rss_poller: rssPollingTrigger,
   stripe_webhook: stripeWebhookTrigger,
