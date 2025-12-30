@@ -1,60 +1,32 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, Maximize2, X, Zap } from 'lucide-react'
+import { Maximize2, X, Zap } from 'lucide-react'
 import { Badge, Button } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { getBlock } from '@/blocks'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 function ExpandableValue({ title, value }: { title: string; value: unknown }) {
-  const [isExpanded, setIsExpanded] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   const displayValue = formatSubBlockValue(value)
   const isLargeValue = displayValue.length > 100 || displayValue.includes('\n')
 
-  if (!isLargeValue) {
-    return (
-      <div className='rounded-[4px] border border-[var(--border)] bg-[var(--surface-3)] p-[10px]'>
-        <pre className='whitespace-pre-wrap break-words font-mono text-[12px] text-[var(--text-primary)]'>
-          {displayValue}
-        </pre>
-      </div>
-    )
-  }
-
   return (
     <>
-      <div>
-        <div className='mb-[4px] flex items-center justify-end gap-[4px]'>
+      <div className='relative'>
+        {isLargeValue && (
           <button
             onClick={() => setIsModalOpen(true)}
-            className='rounded-[4px] p-[4px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]'
+            className='absolute top-[6px] right-[6px] z-10 rounded-[4px] p-[4px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-4)] hover:text-[var(--text-primary)]'
             title='Expand in modal'
             type='button'
           >
             <Maximize2 className='h-[12px] w-[12px]' />
           </button>
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className='rounded-[4px] p-[4px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]'
-            type='button'
-          >
-            {isExpanded ? (
-              <ChevronUp className='h-[12px] w-[12px]' />
-            ) : (
-              <ChevronDown className='h-[12px] w-[12px]' />
-            )}
-          </button>
-        </div>
-        <div
-          className={cn(
-            'overflow-y-auto rounded-[4px] border border-[var(--border)] bg-[var(--surface-3)] p-[10px] font-mono text-[12px] transition-all duration-200',
-            isExpanded ? 'max-h-64' : 'max-h-20'
-          )}
-        >
+        )}
+        <div className='max-h-24 overflow-y-auto rounded-[4px] border border-[var(--border)] bg-[var(--surface-3)] p-[10px] font-mono text-[12px]'>
           <pre className='whitespace-pre-wrap break-words text-[var(--text-primary)]'>
             {displayValue}
           </pre>
