@@ -23,6 +23,7 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { runWithUndoRedoRecordingSuspended, useUndoRedoStore } from '@/stores/undo-redo/store'
+import type { DuplicateBlockOperation, UpdateParentOperation } from '@/stores/undo-redo/types'
 
 describe('useUndoRedoStore', () => {
   const workflowId = 'wf-test'
@@ -663,7 +664,8 @@ describe('useUndoRedoStore', () => {
       )
 
       const entry = undo(workflowId, userId)
-      expect(entry?.operation.data.duplicatedBlockSnapshot).toMatchObject({
+      const operation = entry?.operation as DuplicateBlockOperation
+      expect(operation.data.duplicatedBlockSnapshot).toMatchObject({
         id: 'duplicated-block',
         name: 'Duplicated Agent',
         type: 'agent',
@@ -716,10 +718,11 @@ describe('useUndoRedoStore', () => {
       )
 
       const entry = undo(workflowId, userId)
-      expect(entry?.inverse.data.oldParentId).toBe('loop-2')
-      expect(entry?.inverse.data.newParentId).toBe('loop-1')
-      expect(entry?.inverse.data.oldPosition).toEqual({ x: 100, y: 100 })
-      expect(entry?.inverse.data.newPosition).toEqual({ x: 0, y: 0 })
+      const inverse = entry?.inverse as UpdateParentOperation
+      expect(inverse.data.oldParentId).toBe('loop-2')
+      expect(inverse.data.newParentId).toBe('loop-1')
+      expect(inverse.data.oldPosition).toEqual({ x: 100, y: 100 })
+      expect(inverse.data.newPosition).toEqual({ x: 0, y: 0 })
     })
   })
 

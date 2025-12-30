@@ -1,0 +1,13 @@
+{
+  "name": "@sim/tsconfig",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "Shared TypeScript configurations for Sim monorepo",
+  "exports": {
+    "./base.json": "./base.json",
+    "./nextjs.json": "./nextjs.json",
+    "./library.json": "./library.json",
+    "./library-build.json": "./library-build.json"
+  }
+}

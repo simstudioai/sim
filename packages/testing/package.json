@@ -41,7 +41,11 @@
     "vitest": "^3.0.0"
   },
   "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
     "typescript": "^5.7.3",
     "vitest": "^3.0.8"
+  },
+  "dependencies": {
+    "nanoid": "5.1.6"
   }
 }

@@ -1,13 +1,6 @@
 {
+  "extends": "@sim/tsconfig/nextjs.json",
   "compilerOptions": {
-    "target": "es2022",
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "lib": ["es2022", "dom", "dom.iterable"],
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
       "@/*": ["./*"],
@@ -28,19 +21,7 @@
       "@sim/db/*": ["../../packages/db/*"],
       "@/executor": ["./executor"],
       "@/executor/*": ["./executor/*"]
-    },
-    "allowJs": true,
-    "noEmit": true,
-    "incremental": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "allowImportingTsExtensions": true,
-    "jsx": "react-jsx",
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ]
+    }
   },
   "include": [
     "**/*.ts",

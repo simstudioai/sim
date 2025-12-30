@@ -1,4 +1,4 @@
-import type { Edge } from '../types'
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 /**
  * Options for creating a mock edge.
@@ -36,7 +36,7 @@ function generateEdgeId(source: string, target: string): string {
  * })
  * ```
  */
-export function createEdge(options: EdgeFactoryOptions): Edge {
+export function createEdge(options: EdgeFactoryOptions): any {
   return {
     id: options.id ?? generateEdgeId(options.source, options.target),
     source: options.source,
@@ -66,7 +66,7 @@ export function createEdges(
     sourceHandle?: string
     targetHandle?: string
   }>
-): Edge[] {
+): any[] {
   return connections.map((conn) => createEdge(conn))
 }
 
@@ -79,8 +79,8 @@ export function createEdges(
  * const edges = createLinearEdges(['a', 'b', 'c', 'd'])
  * ```
  */
-export function createLinearEdges(blockIds: string[]): Edge[] {
-  const edges: Edge[] = []
+export function createLinearEdges(blockIds: string[]): any[] {
+  const edges: any[] = []
   for (let i = 0; i < blockIds.length - 1; i++) {
     edges.push(createEdge({ source: blockIds[i], target: blockIds[i + 1] }))
   }

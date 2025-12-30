@@ -36,14 +36,14 @@ const SKELETON_BAR_HEIGHTS = [
 
 function GraphCardSkeleton({ title }: { title: string }) {
   return (
-    <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)]'>
-      <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px]'>
+    <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
+      <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px] dark:bg-[var(--surface-3)]'>
         <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
           {title}
         </span>
         <Skeleton className='h-[20px] w-[40px]' />
       </div>
-      <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-1)] px-[14px] py-[10px]'>
+      <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-2)] px-[14px] py-[10px] dark:bg-[var(--surface-1)]'>
         <div className='flex h-[166px] flex-col justify-end gap-[4px]'>
           <div className='flex items-end gap-[2px]'>
             {SKELETON_BAR_HEIGHTS.map((height, i) => (
@@ -81,8 +81,8 @@ function WorkflowRowSkeleton() {
 
 function WorkflowsListSkeleton({ rowCount = 5 }: { rowCount?: number }) {
   return (
-    <div className='flex h-full flex-col overflow-hidden rounded-[6px] bg-[var(--surface-1)]'>
-      <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-[24px] py-[10px]'>
+    <div className='flex h-full flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)] dark:bg-[var(--surface-1)]'>
+      <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-[24px] py-[10px] dark:bg-[var(--surface-3)]'>
         <div className='flex items-center gap-[16px]'>
           <span className='w-[160px] flex-shrink-0 font-medium text-[12px] text-[var(--text-tertiary)]'>
             Workflow
@@ -570,8 +570,8 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
     <div className='mt-[24px] flex min-h-0 flex-1 flex-col pb-[24px]'>
       <div className='mb-[16px] flex-shrink-0'>
         <div className='grid grid-cols-1 gap-[16px] md:grid-cols-3'>
-          <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)]'>
-            <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px]'>
+          <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
+            <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px] dark:bg-[var(--surface-3)]'>
               <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
                 Runs
               </span>
@@ -581,7 +581,7 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
                 </span>
               )}
             </div>
-            <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-1)] px-[14px] py-[10px]'>
+            <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-2)] px-[14px] py-[10px] dark:bg-[var(--surface-1)]'>
               {globalDetails ? (
                 <LineChart
                   data={globalDetails.executionCounts}
@@ -597,8 +597,8 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
             </div>
           </div>
 
-          <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)]'>
-            <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px]'>
+          <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
+            <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px] dark:bg-[var(--surface-3)]'>
               <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
                 Errors
               </span>
@@ -608,7 +608,7 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
                 </span>
               )}
             </div>
-            <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-1)] px-[14px] py-[10px]'>
+            <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-2)] px-[14px] py-[10px] dark:bg-[var(--surface-1)]'>
               {globalDetails ? (
                 <LineChart
                   data={globalDetails.failureCounts}
@@ -624,8 +624,8 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
             </div>
           </div>
 
-          <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)]'>
-            <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px]'>
+          <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
+            <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px] dark:bg-[var(--surface-3)]'>
               <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
                 Latency
               </span>
@@ -635,7 +635,7 @@ export default function Dashboard({ logs, isLoading, error }: DashboardProps) {
                 </span>
               )}
             </div>
-            <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-1)] px-[14px] py-[10px]'>
+            <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-2)] px-[14px] py-[10px] dark:bg-[var(--surface-1)]'>
               {globalDetails ? (
                 <LineChart
                   data={globalDetails.latencies}
