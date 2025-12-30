@@ -194,3 +194,102 @@ Use `@sim/testing` factories over manual test data.
 - Never create `utils.ts` for single consumer - inline it
 - Create `utils.ts` when 2+ files need the same helper
 - Check existing sources in `lib/` before duplicating
+
+## Adding Integrations
+
+New integrations require: **Tools** → **Block** → **Icon** → (optional) **Trigger**
+
+Always look up the service's API docs first.
+
+### 1. Tools (`tools/{service}/`)
+
+```
+tools/{service}/
+├── index.ts      # Barrel export
+├── types.ts      # Params/response types
+└── {action}.ts   # Tool implementation
+```
+
+**Tool structure:**
+```typescript
+export const serviceTool: ToolConfig<Params, Response> = {
+  id: 'service_action',
+  name: 'Service Action',
+  description: '...',
+  version: '1.0.0',
+  oauth: { required: true, provider: 'service' },
+  params: { /* ... */ },
+  request: { url: '/api/tools/service/action', method: 'POST', ... },
+  transformResponse: async (response) => { /* ... */ },
+  outputs: { /* ... */ },
+}
+```
+
+Register in `tools/registry.ts`.
+
+### 2. Block (`blocks/blocks/{service}.ts`)
+
+```typescript
+export const ServiceBlock: BlockConfig = {
+  type: 'service',
+  name: 'Service',
+  description: '...',
+  category: 'tools',
+  bgColor: '#hexcolor',
+  icon: ServiceIcon,
+  subBlocks: [ /* see SubBlock Properties */ ],
+  tools: { access: ['service_action'], config: { tool: (p) => `service_${p.operation}` } },
+  inputs: { /* ... */ },
+  outputs: { /* ... */ },
+}
+```
+
+Register in `blocks/registry.ts` (alphabetically).
+
+**SubBlock Properties:**
+```typescript
+{
+  id: 'field', title: 'Label', type: 'short-input', placeholder: '...',
+  required: true,                    // or condition object
+  condition: { field: 'op', value: 'send' },  // show/hide
+  dependsOn: ['credential'],         // clear when dep changes
+  mode: 'basic',                     // 'basic' | 'advanced' | 'both' | 'trigger'
+}
+```
+
+**condition examples:**
+- `{ field: 'op', value: 'send' }` - show when op === 'send'
+- `{ field: 'op', value: ['a','b'] }` - show when op is 'a' OR 'b'
+- `{ field: 'op', value: 'x', not: true }` - show when op !== 'x'
+- `{ field: 'op', value: 'x', not: true, and: { field: 'type', value: 'dm', not: true } }` - complex
+
+**dependsOn:** `['field']` or `{ all: ['a'], any: ['b', 'c'] }`
+
+### 3. Icon (`components/icons.tsx`)
+
+```typescript
+export function ServiceIcon(props: SVGProps<SVGSVGElement>) {
+  return <svg {...props}>/* SVG from brand assets */</svg>
+}
+```
+
+### 4. Trigger (`triggers/{service}/`) - Optional
+
+```
+triggers/{service}/
+├── index.ts      # Barrel export
+├── webhook.ts    # Webhook handler
+└── {event}.ts    # Event-specific handlers
+```
+
+Register in `triggers/registry.ts`.
+
+### Integration Checklist
+
+- [ ] Look up API docs
+- [ ] Create `tools/{service}/` with types and tools
+- [ ] Register tools in `tools/registry.ts`
+- [ ] Add icon to `components/icons.tsx`
+- [ ] Create block in `blocks/blocks/{service}.ts`
+- [ ] Register block in `blocks/registry.ts`
+- [ ] (Optional) Create and register triggers
