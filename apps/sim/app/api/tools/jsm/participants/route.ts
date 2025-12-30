@@ -1,10 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import {
+  validateEnum,
+  validateJiraCloudId,
+  validateJiraIssueKey,
+} from '@/lib/core/security/input-validation'
 import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JsmParticipantsAPI')
+
+const VALID_ACTIONS = ['get', 'add'] as const
 
 export async function POST(request: Request) {
   try {
@@ -40,7 +47,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Action is required' }, { status: 400 })
     }
 
+    const actionValidation = validateEnum(action, VALID_ACTIONS, 'action')
+    if (!actionValidation.isValid) {
+      return NextResponse.json({ error: actionValidation.error }, { status: 400 })
+    }
+
     const cloudId = cloudIdParam || (await getJiraCloudId(domain, accessToken))
+
+    const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
+    if (!cloudIdValidation.isValid) {
+      return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
+    }
+
+    const issueIdOrKeyValidation = validateJiraIssueKey(issueIdOrKey, 'issueIdOrKey')
+    if (!issueIdOrKeyValidation.isValid) {
+      return NextResponse.json({ error: issueIdOrKeyValidation.error }, { status: 400 })
+    }
+
     const baseUrl = getJsmApiBaseUrl(cloudId)
 
     if (action === 'get') {
