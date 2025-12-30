@@ -468,7 +468,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                         if (createError) setCreateError(null)
                       }}
                       disabled={!allowPersonalApiKeys}
-                      className='disabled:cursor-not-allowed disabled:opacity-60'
+                      className={`disabled:cursor-not-allowed disabled:opacity-60 ${keyType === 'personal' ? 'bg-[var(--border-1)] hover:bg-[var(--border-1)] dark:bg-[var(--surface-5)] dark:hover:bg-[var(--border-1)]' : ''}`}
                     >
                       Personal
                     </Button>
@@ -479,6 +479,11 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                         setKeyType('workspace')
                         if (createError) setCreateError(null)
                       }}
+                      className={
+                        keyType === 'workspace'
+                          ? 'bg-[var(--border-1)] hover:bg-[var(--border-1)] dark:bg-[var(--surface-5)] dark:hover:bg-[var(--border-1)]'
+                          : ''
+                      }
                     >
                       Workspace
                     </Button>
