@@ -15,7 +15,6 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@/components/emcn'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal/invite-modal'
@@ -27,6 +26,7 @@ interface Workspace {
   name: string
   ownerId: string
   role?: string
+  permissions?: 'admin' | 'write' | 'read' | null
 }
 
 interface WorkspaceHeaderProps {
@@ -128,7 +128,6 @@ export function WorkspaceHeader({
   isImportingWorkspace,
   showCollapseButton = true,
 }: WorkspaceHeaderProps) {
-  const userPermissions = useUserPermissionsContext()
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -138,13 +137,15 @@ export function WorkspaceHeader({
   const [isListRenaming, setIsListRenaming] = useState(false)
   const listRenameInputRef = useRef<HTMLInputElement | null>(null)
 
-  // Context menu state
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
   const contextMenuRef = useRef<HTMLDivElement | null>(null)
-  const capturedWorkspaceRef = useRef<{ id: string; name: string } | null>(null)
+  const capturedWorkspaceRef = useRef<{
+    id: string
+    name: string
+    permissions?: 'admin' | 'write' | 'read' | null
+  } | null>(null)
 
-  // Client-only rendering for Popover to prevent Radix ID hydration mismatch
   const [isMounted, setIsMounted] = useState(false)
   useEffect(() => {
     setIsMounted(true)
@@ -186,7 +187,11 @@ export function WorkspaceHeader({
     e.preventDefault()
     e.stopPropagation()
 
-    capturedWorkspaceRef.current = { id: workspace.id, name: workspace.name }
+    capturedWorkspaceRef.current = {
+      id: workspace.id,
+      name: workspace.name,
+      permissions: workspace.permissions,
+    }
     setContextMenuPosition({ x: e.clientX, y: e.clientY })
     setIsContextMenuOpen(true)
   }
@@ -467,23 +472,31 @@ export function WorkspaceHeader({
       </div>
 
       {/* Context Menu */}
-      <ContextMenu
-        isOpen={isContextMenuOpen}
-        position={contextMenuPosition}
-        menuRef={contextMenuRef}
-        onClose={closeContextMenu}
-        onRename={handleRenameAction}
-        onDuplicate={handleDuplicateAction}
-        onExport={handleExportAction}
-        onDelete={handleDeleteAction}
-        showRename={true}
-        showDuplicate={true}
-        showExport={true}
-        disableRename={!userPermissions.canEdit}
-        disableDuplicate={!userPermissions.canEdit}
-        disableExport={!userPermissions.canAdmin}
-        disableDelete={!userPermissions.canAdmin}
-      />
+      {(() => {
+        const capturedPermissions = capturedWorkspaceRef.current?.permissions
+        const contextCanEdit = capturedPermissions === 'admin' || capturedPermissions === 'write'
+        const contextCanAdmin = capturedPermissions === 'admin'
+
+        return (
+          <ContextMenu
+            isOpen={isContextMenuOpen}
+            position={contextMenuPosition}
+            menuRef={contextMenuRef}
+            onClose={closeContextMenu}
+            onRename={handleRenameAction}
+            onDuplicate={handleDuplicateAction}
+            onExport={handleExportAction}
+            onDelete={handleDeleteAction}
+            showRename={true}
+            showDuplicate={true}
+            showExport={true}
+            disableRename={!contextCanEdit}
+            disableDuplicate={!contextCanEdit}
+            disableExport={!contextCanAdmin}
+            disableDelete={!contextCanAdmin}
+          />
+        )
+      })()}
 
       {/* Invite Modal */}
       <InviteModal
