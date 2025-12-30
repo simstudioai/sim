@@ -1254,7 +1254,7 @@ export function KnowledgeBase({
             >
               {knowledgeBase.description}
             </p>
-          ) : userPermissions.canEdit ? (
+          ) : isEditingName && userPermissions.canEdit ? (
             <p
               className='mt-[4px] cursor-text font-medium text-[14px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-tertiary)]'
               onDoubleClick={handleStartEditDescription}
