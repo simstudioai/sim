@@ -55,6 +55,7 @@ import { InputTriggerBlock } from '@/blocks/blocks/input_trigger'
 import { IntercomBlock } from '@/blocks/blocks/intercom'
 import { JinaBlock } from '@/blocks/blocks/jina'
 import { JiraBlock } from '@/blocks/blocks/jira'
+import { JiraServiceManagementBlock } from '@/blocks/blocks/jira_service_management'
 import { KalshiBlock } from '@/blocks/blocks/kalshi'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { LinearBlock } from '@/blocks/blocks/linear'
@@ -200,6 +201,7 @@ export const registry: Record<string, BlockConfig> = {
   intercom: IntercomBlock,
   jina: JinaBlock,
   jira: JiraBlock,
+  jira_service_management: JiraServiceManagementBlock,
   kalshi: KalshiBlock,
   knowledge: KnowledgeBlock,
   linear: LinearBlock,
