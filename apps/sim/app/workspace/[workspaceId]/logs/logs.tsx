@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
-import { getStartDateFromTimeRange } from '@/lib/logs/filters'
+import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
 import { useFolders } from '@/hooks/queries/folders'
 import { useDashboardLogs, useLogDetail, useLogsList } from '@/hooks/queries/logs'
@@ -30,6 +30,8 @@ export default function Logs() {
     setWorkspaceId,
     initializeFromURL,
     timeRange,
+    startDate,
+    endDate,
     level,
     workflowIds,
     folderIds,
@@ -72,6 +74,8 @@ export default function Logs() {
   const logFilters = useMemo(
     () => ({
       timeRange,
+      startDate,
+      endDate,
       level,
       workflowIds,
       folderIds,
@@ -79,7 +83,7 @@ export default function Logs() {
       searchQuery: debouncedSearchQuery,
       limit: LOGS_PER_PAGE,
     }),
-    [timeRange, level, workflowIds, folderIds, triggers, debouncedSearchQuery]
+    [timeRange, startDate, endDate, level, workflowIds, folderIds, triggers, debouncedSearchQuery]
   )
 
   const logsQuery = useLogsList(workspaceId, logFilters, {
@@ -90,13 +94,15 @@ export default function Logs() {
   const dashboardFilters = useMemo(
     () => ({
       timeRange,
+      startDate,
+      endDate,
       level,
       workflowIds,
       folderIds,
       triggers,
       searchQuery: debouncedSearchQuery,
     }),
-    [timeRange, level, workflowIds, folderIds, triggers, debouncedSearchQuery]
+    [timeRange, startDate, endDate, level, workflowIds, folderIds, triggers, debouncedSearchQuery]
   )
 
   const dashboardLogsQuery = useDashboardLogs(workspaceId, dashboardFilters, {
@@ -261,9 +267,14 @@ export default function Logs() {
       if (workflowIds.length > 0) params.set('workflowIds', workflowIds.join(','))
       if (folderIds.length > 0) params.set('folderIds', folderIds.join(','))
 
-      const startDate = getStartDateFromTimeRange(timeRange)
-      if (startDate) {
-        params.set('startDate', startDate.toISOString())
+      const computedStartDate = getStartDateFromTimeRange(timeRange, startDate)
+      if (computedStartDate) {
+        params.set('startDate', computedStartDate.toISOString())
+      }
+
+      const computedEndDate = getEndDateFromTimeRange(timeRange, endDate)
+      if (computedEndDate) {
+        params.set('endDate', computedEndDate.toISOString())
       }
 
       const parsed = parseQuery(debouncedSearchQuery)
