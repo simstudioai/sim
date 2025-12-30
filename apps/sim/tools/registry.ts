@@ -1256,6 +1256,11 @@ import {
   typeformResponsesTool,
   typeformUpdateFormTool,
 } from '@/tools/typeform'
+import {
+  jotformGetFormTool,
+  jotformListFormsTool,
+  jotformSubmissionsTool,
+} from '@/tools/jotform'
 import type { ToolConfig } from '@/tools/types'
 import {
   falaiVideoTool,
@@ -1593,6 +1598,9 @@ export const tools: Record<string, ToolConfig> = {
   typeform_create_form: typeformCreateFormTool,
   typeform_update_form: typeformUpdateFormTool,
   typeform_delete_form: typeformDeleteFormTool,
+  jotform_submissions: jotformSubmissionsTool,
+  jotform_get_form: jotformGetFormTool,
+  jotform_list_forms: jotformListFormsTool,
   youtube_search: youtubeSearchTool,
   youtube_video_details: youtubeVideoDetailsTool,
   youtube_channel_info: youtubeChannelInfoTool,
