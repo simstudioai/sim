@@ -10,58 +10,47 @@ globs: ["apps/sim/**"]
 2. **Composition Over Complexity**: Break down complex logic into smaller pieces
 3. **Type Safety First**: TypeScript interfaces for all props, state, return types
 4. **Predictable State**: Zustand for global state, useState for UI-only concerns
-5. **Performance by Default**: useMemo, useCallback, refs appropriately
 
-## File Organization
+## Root-Level Structure
+
+```
+apps/sim/
+├── app/                 # Next.js app router (pages, API routes)
+├── blocks/              # Block definitions and registry
+├── components/          # Shared UI (emcn/, ui/)
+├── executor/            # Workflow execution engine
+├── hooks/               # Shared hooks (queries/, selectors/)
+├── lib/                 # App-wide utilities
+├── providers/           # LLM provider integrations
+├── stores/              # Zustand stores
+├── tools/               # Tool definitions
+└── triggers/            # Trigger definitions
+```
+
+## Feature Organization
+
+Features live under `app/workspace/[workspaceId]/`:
 
 ```
 feature/
-├── components/        # Feature components
-│   └── sub-feature/   # Sub-feature with own components
-├── hooks/             # Custom hooks
-└── feature.tsx        # Main component
+├── components/          # Feature components
+├── hooks/               # Feature-scoped hooks
+├── utils/               # Feature-scoped utilities (2+ consumers)
+├── feature.tsx          # Main component
+└── page.tsx             # Next.js page entry
 ```
 
 ## Naming Conventions
-- **Components**: PascalCase (`WorkflowList`, `TriggerPanel`)
-- **Hooks**: camelCase with `use` prefix (`useWorkflowOperations`)
-- **Files**: kebab-case matching export (`workflow-list.tsx`)
-- **Stores**: kebab-case in stores/ (`sidebar/store.ts`)
+- **Components**: PascalCase (`WorkflowList`)
+- **Hooks**: `use` prefix (`useWorkflowOperations`)
+- **Files**: kebab-case (`workflow-list.tsx`)
+- **Stores**: `stores/feature/store.ts`
 - **Constants**: SCREAMING_SNAKE_CASE
 - **Interfaces**: PascalCase with suffix (`WorkflowListProps`)
 
-## State Management
+## Utils Rules
 
-**useState**: UI-only concerns (dropdown open, hover, form inputs)
-**Zustand**: Shared state, persistence, global app state
-**useRef**: DOM refs, avoiding dependency issues, mutable non-reactive values
-
-## Component Extraction
-
-**Extract to separate file when:**
-- Complex (50+ lines)
-- Used across 2+ files
-- Has own state/logic
-
-**Keep inline when:**
-- Simple (< 10 lines)
-- Used in only 1 file
-- Purely presentational
-
-**Never import utilities from another component file.** Extract shared helpers to `lib/` or `utils/`.
-
-## Utils Files
-
-**Never create a `utils.ts` file for a single consumer.** Inline the logic directly in the consuming component.
-
-**Create `utils.ts` when:**
-- 2+ files import the same helper
-
-**Prefer existing sources of truth:**
-- Before duplicating logic, check if a centralized helper already exists (e.g., `lib/logs/get-trigger-options.ts`)
-- Import from the source of truth rather than creating wrapper functions
-
-**Location hierarchy:**
-- `lib/` — App-wide utilities (auth, billing, core)
-- `feature/utils.ts` — Feature-scoped utilities (used by 2+ components in the feature)
-- Inline — Single-use helpers (define directly in the component)
+- **Never create `utils.ts` for single consumer** - inline it
+- **Create `utils.ts` when** 2+ files need the same helper
+- **Check existing sources** before duplicating (`lib/` has many utilities)
+- **Location**: `lib/` (app-wide) → `feature/utils/` (feature-scoped) → inline (single-use)
