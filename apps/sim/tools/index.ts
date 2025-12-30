@@ -689,7 +689,7 @@ async function handleInternalRequest(
       method: requestParams.method,
       headers: headers,
       body: requestParams.body,
-      // @ts-expect-error - Bun-specific option to disable default 5-minute timeout
+      // @ts-ignore - Bun-specific option to disable default 5-minute timeout (not in standard RequestInit types)
       timeout: false,
       signal: AbortSignal.timeout(timeoutMs),
     }
@@ -917,7 +917,7 @@ async function handleProxyRequest(
       method: 'POST',
       headers,
       body,
-      // @ts-expect-error - Bun-specific option to disable default 5-minute timeout
+      // @ts-ignore - Bun-specific option to disable default 5-minute timeout (not in standard RequestInit types)
       timeout: false,
       signal: AbortSignal.timeout(timeoutMs),
     })
