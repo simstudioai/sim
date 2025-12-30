@@ -1,15 +1,10 @@
 {
+  "extends": "@sim/tsconfig/library-build.json",
   "compilerOptions": {
-    "target": "es2020",
-    "module": "ESNext",
+    "target": "ES2020",
     "moduleResolution": "node",
     "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "declaration": true,
-    "forceConsistentCasingInFileNames": true
+    "rootDir": "./src"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

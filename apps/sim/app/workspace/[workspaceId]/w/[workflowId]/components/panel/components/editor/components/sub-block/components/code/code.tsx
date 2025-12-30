@@ -3,6 +3,7 @@ import { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react
 import { Check, Copy, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import 'prismjs/components/prism-python'
+import { createLogger } from '@sim/logger'
 import Editor from 'react-simple-code-editor'
 import {
   CODE_LINE_HEIGHT_PX,
@@ -15,7 +16,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
 import { CodeLanguage } from '@/lib/execution/languages'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   isLikelyReferenceSegment,
   SYSTEM_REFERENCE_PREFIXES,
@@ -99,15 +99,12 @@ const createHighlightFunction = (
     const placeholders: CodePlaceholder[] = []
     let processedCode = codeToHighlight
 
-    // Replace environment variables with placeholders
     processedCode = processedCode.replace(createEnvVarPattern(), (match) => {
       const placeholder = `__ENV_VAR_${placeholders.length}__`
       placeholders.push({ placeholder, original: match, type: 'env' })
       return placeholder
     })
 
-    // Replace variable references with placeholders
-    // Use [^<>]+ to prevent matching across nested brackets (e.g., "<3 <real.ref>" should match separately)
     processedCode = processedCode.replace(createReferencePattern(), (match) => {
       if (shouldHighlightReference(match)) {
         const placeholder = `__VAR_REF_${placeholders.length}__`
@@ -117,25 +114,22 @@ const createHighlightFunction = (
       return match
     })
 
-    // Apply Prism syntax highlighting
     const lang = effectiveLanguage === 'python' ? 'python' : 'javascript'
     let highlightedCode = highlight(processedCode, languages[lang], lang)
 
-    // Apply dark mode token styling
     highlightedCode = applyDarkModeTokenStyling(highlightedCode)
 
-    // Restore and highlight the placeholders
     placeholders.forEach(({ placeholder, original, type }) => {
       if (type === 'env') {
         highlightedCode = highlightedCode.replace(
           placeholder,
-          `<span class="text-blue-500">${original}</span>`
+          `<span style="color: var(--brand-secondary);">${original}</span>`
         )
       } else if (type === 'var') {
         const escaped = original.replace(/</g, '&lt;').replace(/>/g, '&gt;')
         highlightedCode = highlightedCode.replace(
           placeholder,
-          `<span class="text-blue-500">${escaped}</span>`
+          `<span style="color: var(--brand-secondary);">${escaped}</span>`
         )
       }
     })
@@ -194,11 +188,9 @@ export function Code({
   wandControlRef,
   hideInternalWand = false,
 }: CodeProps) {
-  // Route params
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
-  // Local state
   const [code, setCode] = useState<string>('')
   const [showTags, setShowTags] = useState(false)
   const [showEnvVars, setShowEnvVars] = useState(false)
@@ -209,19 +201,16 @@ export function Code({
   const [activeLineNumber, setActiveLineNumber] = useState(1)
   const [copied, setCopied] = useState(false)
 
-  // Refs
   const editorRef = useRef<HTMLDivElement>(null)
   const handleStreamStartRef = useRef<() => void>(() => {})
   const handleGeneratedContentRef = useRef<(generatedCode: string) => void>(() => {})
   const handleStreamChunkRef = useRef<(chunk: string) => void>(() => {})
   const hasEditedSinceFocusRef = useRef(false)
 
-  // Custom hooks
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const emitTagSelection = useTagSelection(blockId, subBlockId)
   const [languageValue] = useSubBlockValue<string>(blockId, 'language')
 
-  // Derived state
   const effectiveLanguage = (languageValue as 'javascript' | 'python' | 'json') || language
 
   const trimmedCode = code.trim()
@@ -279,7 +268,6 @@ export function Code({
     return wandConfig
   }, [wandConfig, languageValue])
 
-  // AI code generation integration
   const wandHook = useWand({
     wandConfig: dynamicWandConfig || { enabled: false, prompt: '' },
     currentValue: code,
@@ -298,7 +286,6 @@ export function Code({
   const updatePromptValue = wandHook?.updatePromptValue || (() => {})
   const cancelGeneration = wandHook?.cancelGeneration || (() => {})
 
-  // Store integration
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId, false, {
     isStreaming: isAiStreaming,
     onStreamingEnd: () => {
@@ -320,7 +307,6 @@ export function Code({
         ? getDefaultValueString()
         : storeValue
 
-  // Effects: JSON validation
   const lastValidationStatus = useRef<boolean>(true)
 
   useEffect(() => {
@@ -345,7 +331,6 @@ export function Code({
     return () => clearTimeout(timeoutId)
   }, [isValidJson, onValidationChange, shouldValidateJson])
 
-  // Effects: AI stream handlers setup
   useEffect(() => {
     handleStreamStartRef.current = () => {
       setCode('')
@@ -359,7 +344,6 @@ export function Code({
     }
   }, [isPreview, disabled, setStoreValue])
 
-  // Effects: Set read only state for textarea
   useEffect(() => {
     if (!editorRef.current) return
 
@@ -388,7 +372,6 @@ export function Code({
     }
   }, [readOnly])
 
-  // Effects: Sync code with external value
   useEffect(() => {
     if (isAiStreaming) return
     const valueString = value?.toString() ?? ''
@@ -397,7 +380,6 @@ export function Code({
     }
   }, [value, code, isAiStreaming])
 
-  // Effects: Track active line number for cursor position
   useEffect(() => {
     const textarea = editorRef.current?.querySelector('textarea')
     if (!textarea) return
@@ -422,7 +404,6 @@ export function Code({
     }
   }, [code])
 
-  // Effects: Calculate visual line heights for proper gutter alignment
   useEffect(() => {
     if (!editorRef.current) return
 

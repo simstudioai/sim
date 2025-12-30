@@ -1,9 +1,9 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { SEARCH_TOOL_COST } from '@/lib/billing/constants'
 import { env } from '@/lib/core/config/env'
-import { createLogger } from '@/lib/logs/console/logger'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('search')
@@ -39,8 +39,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validated = SearchRequestSchema.parse(body)
 
-    if (!env.EXA_API_KEY) {
-      logger.error(`[${requestId}] EXA_API_KEY not configured`)
+    const exaApiKey = env.EXA_API_KEY
+
+    if (!exaApiKey) {
+      logger.error(`[${requestId}] No Exa API key available`)
       return NextResponse.json(
         { success: false, error: 'Search service not configured' },
         { status: 503 }
@@ -57,7 +59,7 @@ export async function POST(request: NextRequest) {
       type: 'auto',
       useAutoprompt: true,
       highlights: true,
-      apiKey: env.EXA_API_KEY,
+      apiKey: exaApiKey,
     })
 
     if (!result.success) {

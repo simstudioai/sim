@@ -56,8 +56,7 @@ Créer un nouveau contact dans Intercom avec email, external_id ou role
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données du contact créé |
+| `contact` | object | Objet contact créé |
 
 ### `intercom_get_contact`
 
@@ -73,8 +72,7 @@ Obtenir un seul contact par ID depuis Intercom
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données du contact |
+| `contact` | object | Objet contact |
 
 ### `intercom_update_contact`
 
@@ -102,8 +100,7 @@ Mettre à jour un contact existant dans Intercom
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données du contact mises à jour |
+| `contact` | object | Objet contact mis à jour |
 
 ### `intercom_list_contacts`
 
@@ -120,8 +117,7 @@ Lister tous les contacts d'Intercom avec prise en charge de la pagination
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | booléen | Statut de réussite de l'opération |
-| `output` | objet | Liste des contacts |
+| `contacts` | array | Tableau d'objets contact |
 
 ### `intercom_search_contacts`
 
@@ -141,8 +137,7 @@ Rechercher des contacts dans Intercom à l'aide d'une requête
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | booléen | Statut de réussite de l'opération |
-| `output` | objet | Résultats de la recherche |
+| `contacts` | array | Tableau d'objets contact correspondants |
 
 ### `intercom_delete_contact`
 
@@ -158,8 +153,9 @@ Supprimer un contact d'Intercom par ID
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | booléen | Statut de réussite de l'opération |
-| `output` | objet | Résultat de la suppression |
+| `id` | string | ID du contact supprimé |
+| `deleted` | boolean | Indique si le contact a été supprimé |
+| `metadata` | object | Métadonnées de l'opération |
 
 ### `intercom_create_company`
 
@@ -183,8 +179,7 @@ Créer ou mettre à jour une entreprise dans Intercom
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | booléen | Statut de réussite de l'opération |
-| `output` | objet | Données de l'entreprise créée ou mise à jour |
+| `company` | object | Objet entreprise créé ou mis à jour |
 
 ### `intercom_get_company`
 
@@ -200,8 +195,7 @@ Récupérer une seule entreprise par ID depuis Intercom
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | booléen | Statut de réussite de l'opération |
-| `output` | objet | Données de l'entreprise |
+| `company` | object | Objet entreprise |
 
 ### `intercom_list_companies`
 
@@ -219,8 +213,7 @@ Liste toutes les entreprises d'Intercom avec prise en charge de la pagination. R
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Liste des entreprises |
+| `companies` | array | Tableau d'objets entreprise |
 
 ### `intercom_get_conversation`
 
@@ -238,8 +231,7 @@ Récupérer une seule conversation par ID depuis Intercom
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données de la conversation |
+| `conversation` | object | Objet conversation |
 
 ### `intercom_list_conversations`
 
@@ -258,8 +250,7 @@ Lister toutes les conversations depuis Intercom avec prise en charge de la pagin
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Liste des conversations |
+| `conversations` | array | Tableau d'objets conversation |
 
 ### `intercom_reply_conversation`
 
@@ -280,8 +271,7 @@ Répondre à une conversation en tant qu'administrateur dans Intercom
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Conversation mise à jour avec la réponse |
+| `conversation` | object | Objet conversation mis à jour |
 
 ### `intercom_search_conversations`
 
@@ -301,8 +291,7 @@ Rechercher des conversations dans Intercom à l'aide d'une requête
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Résultats de la recherche |
+| `conversations` | array | Tableau d'objets conversation correspondants |
 
 ### `intercom_create_ticket`
 
@@ -324,8 +313,7 @@ Créer un nouveau ticket dans Intercom
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données du ticket créé |
+| `ticket` | object | Objet ticket créé |
 
 ### `intercom_get_ticket`
 
@@ -341,8 +329,7 @@ Récupérer un ticket unique par ID depuis Intercom
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données du ticket |
+| `ticket` | object | Objet ticket |
 
 ### `intercom_create_message`
 
@@ -366,8 +353,7 @@ Créer et envoyer un nouveau message initié par l'administrateur dans Intercom
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | object | Données du message créé |
+| `message` | object | Objet message créé |
 
 ## Notes
 

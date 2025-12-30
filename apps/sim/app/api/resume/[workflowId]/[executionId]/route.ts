@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createLogger } from '@/lib/logs/console/logger'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 

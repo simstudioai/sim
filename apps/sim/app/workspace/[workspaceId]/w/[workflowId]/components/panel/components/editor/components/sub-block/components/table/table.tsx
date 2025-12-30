@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react'
+import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/core/utils/cn'
-import { createLogger } from '@/lib/logs/console/logger'
 import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
@@ -148,13 +148,13 @@ export function Table({
 
   const renderHeader = () => (
     <thead className='bg-transparent'>
-      <tr className='border-[var(--border-strong)] border-b bg-transparent'>
+      <tr className='border-[var(--border-1)] border-b bg-transparent'>
         {columns.map((column, index) => (
           <th
             key={column}
             className={cn(
               'bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]',
-              index < columns.length - 1 && 'border-[var(--border-strong)] border-r'
+              index < columns.length - 1 && 'border-[var(--border-1)] border-r'
             )}
           >
             {column}
@@ -223,7 +223,7 @@ export function Table({
         key={`${row.id}-${column}`}
         className={cn(
           'relative bg-transparent p-0',
-          cellIndex < columns.length - 1 && 'border-[var(--border-strong)] border-r'
+          cellIndex < columns.length - 1 && 'border-[var(--border-1)] border-r'
         )}
       >
         <div className='relative w-full'>
@@ -310,14 +310,14 @@ export function Table({
 
   return (
     <div className='relative'>
-      <div className='overflow-visible rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-2)] dark:bg-[#1F1F1F]'>
+      <div className='overflow-visible rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-2)] dark:bg-[#1F1F1F]'>
         <table className='w-full bg-transparent'>
           {renderHeader()}
           <tbody className='bg-transparent'>
             {rows.map((row, rowIndex) => (
               <tr
                 key={row.id}
-                className='group relative border-[var(--border-strong)] border-t bg-transparent'
+                className='group relative border-[var(--border-1)] border-t bg-transparent'
               >
                 {columns.map((column, cellIndex) => renderCell(row, rowIndex, column, cellIndex))}
                 {renderDeleteButton(rowIndex)}

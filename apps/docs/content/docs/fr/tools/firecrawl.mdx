@@ -146,6 +146,32 @@ Extrayez des données structurées de pages web entières à l'aide d'instructio
 | `success` | boolean | Indique si l'opération d'extraction a réussi |
 | `data` | object | Données structurées extraites selon le schéma ou l'invite |
 
+### `firecrawl_agent`
+
+Agent autonome d'extraction de données web. Recherche et collecte des informations basées sur des instructions en langage naturel sans nécessiter d'URLs spécifiques.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `prompt` | string | Oui | Description en langage naturel des données à extraire (max 10 000 caractères) |
+| `urls` | json | Non | Tableau optionnel d'URLs sur lesquelles concentrer l'agent |
+| `schema` | json | Non | Schéma JSON définissant la structure des données à extraire |
+| `maxCredits` | number | Non | Nombre maximum de crédits à dépenser pour cette tâche d'agent |
+| `strictConstrainToURLs` | boolean | Non | Si true, l'agent visitera uniquement les URLs fournies dans le tableau urls |
+| `apiKey` | string | Oui | Clé API Firecrawl |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indique si l'opération de l'agent a réussi |
+| `status` | string | Statut actuel de la tâche de l'agent (processing, completed, failed) |
+| `data` | object | Données extraites par l'agent |
+| `creditsUsed` | number | Nombre de crédits consommés par cette tâche d'agent |
+| `expiresAt` | string | Horodatage d'expiration des résultats (24 heures) |
+| `sources` | object | Tableau des URLs sources utilisées par l'agent |
+
 ## Remarques
 
 - Catégorie : `tools`

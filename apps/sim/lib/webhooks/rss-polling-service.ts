@@ -1,16 +1,15 @@
 import { db } from '@sim/db'
 import { webhook, workflow } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import Parser from 'rss-parser'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import { createPinnedUrl, validateUrlWithDNS } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
+import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 const logger = createLogger('RssPollingService')
-
-const MAX_CONSECUTIVE_FAILURES = 10
 const MAX_GUIDS_TO_TRACK = 100 // Track recent guids to prevent duplicates
 
 interface RssWebhookConfig {
@@ -61,7 +60,7 @@ export interface RssWebhookPayload {
 const parser = new Parser({
   timeout: 30000,
   headers: {
-    'User-Agent': 'SimStudio/1.0 RSS Poller',
+    'User-Agent': 'Sim/1.0 RSS Poller',
   },
 })
 
@@ -256,7 +255,7 @@ async function fetchNewRssItems(
     const response = await fetch(pinnedUrl, {
       headers: {
         Host: urlValidation.originalHostname!,
-        'User-Agent': 'SimStudio/1.0 RSS Poller',
+        'User-Agent': 'Sim/1.0 RSS Poller',
         Accept: 'application/rss+xml, application/xml, text/xml, */*',
       },
       signal: AbortSignal.timeout(30000),
@@ -363,7 +362,7 @@ async function processRssItems(
             headers: {
               'Content-Type': 'application/json',
               'X-Webhook-Secret': webhookData.secret || '',
-              'User-Agent': 'SimStudio/1.0',
+              'User-Agent': 'Sim/1.0',
             },
             body: JSON.stringify(payload),
           })

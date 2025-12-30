@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import { generateFolderName } from '@/lib/workspaces/naming'
 import { useCreateFolder } from '@/hooks/queries/folders'
 

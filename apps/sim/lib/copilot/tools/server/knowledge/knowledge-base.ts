@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import {
   type KnowledgeBaseArgs,
@@ -10,7 +11,6 @@ import {
   getKnowledgeBaseById,
   getKnowledgeBases,
 } from '@/lib/knowledge/service'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getQueryStrategy, handleVectorOnlySearch } from '@/app/api/knowledge/search/utils'
 
 const logger = createLogger('KnowledgeBaseServerTool')
@@ -174,8 +174,11 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const topK = args.topK || 5
 
-          // Generate embedding for the query
-          const queryEmbedding = await generateSearchEmbedding(args.query)
+          const queryEmbedding = await generateSearchEmbedding(
+            args.query,
+            undefined,
+            kb.workspaceId
+          )
           const queryVector = JSON.stringify(queryEmbedding)
 
           // Get search strategy

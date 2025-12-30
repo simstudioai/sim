@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { AlertTriangle, Check, Clipboard, Eye, EyeOff, Loader2, RefreshCw, X } from 'lucide-react'
 import {
   Button,
@@ -19,7 +20,6 @@ import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { generatePassword } from '@/lib/core/security/encryption'
 import { cn } from '@/lib/core/utils/cn'
 import { getEmailDomain } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
 import {
@@ -394,7 +394,7 @@ export function ChatDeploy({
         <ModalContent size='sm'>
           <ModalHeader>Delete Chat</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to delete this chat?{' '}
               <span className='text-[var(--text-error)]'>
                 This will remove the chat at "{getEmailDomain()}/chat/{existingChat?.identifier}"
@@ -410,13 +410,7 @@ export function ChatDeploy({
             >
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={handleDelete}
-              disabled={isDeleting}
-              className='gap-[8px] bg-[var(--text-error)] text-[13px] text-white hover:bg-[var(--text-error)]'
-            >
-              {isDeleting && <Loader2 className='mr-1 h-4 w-4 animate-spin' />}
+            <Button variant='destructive' onClick={handleDelete} disabled={isDeleting}>
               {isDeleting ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>
@@ -507,11 +501,11 @@ function IdentifierInput({
       </Label>
       <div
         className={cn(
-          'relative flex items-stretch overflow-hidden rounded-[4px] border border-[var(--surface-11)]',
+          'relative flex items-stretch overflow-hidden rounded-[4px] border border-[var(--border-1)]',
           error && 'border-[var(--text-error)]'
         )}
       >
-        <div className='flex items-center whitespace-nowrap bg-[var(--surface-6)] px-[8px] font-medium text-[var(--text-secondary)] text-sm dark:bg-[var(--surface-9)]'>
+        <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] px-[8px] font-medium text-[var(--text-secondary)] text-sm dark:bg-[var(--surface-5)]'>
           {getDomainPrefix()}
         </div>
         <div className='relative flex-1'>
@@ -787,7 +781,7 @@ function AuthSelector({
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
             {authType === 'email' ? 'Allowed emails' : 'Allowed SSO emails'}
           </Label>
-          <div className='scrollbar-hide flex max-h-32 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[8px] py-[6px] focus-within:outline-none dark:bg-[var(--surface-9)]'>
+          <div className='scrollbar-hide flex max-h-32 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] py-[6px] focus-within:outline-none dark:bg-[var(--surface-5)]'>
             {invalidEmails.map((email, index) => (
               <EmailTag
                 key={`invalid-${index}`}
@@ -851,7 +845,7 @@ function EmailTag({ email, onRemove, disabled, isInvalid }: EmailTagProps) {
         'flex w-auto items-center gap-[4px] rounded-[4px] border px-[6px] py-[2px] text-[12px]',
         isInvalid
           ? 'border-[var(--text-error)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] text-[var(--text-error)] dark:bg-[color-mix(in_srgb,var(--text-error)_16%,transparent)]'
-          : 'border-[var(--surface-11)] bg-[var(--surface-5)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          : 'border-[var(--border-1)] bg-[var(--surface-4)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
       )}
     >
       <span className='max-w-[200px] truncate'>{email}</span>

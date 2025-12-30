@@ -2,8 +2,8 @@ import { type ChildProcess, execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createLogger } from '@sim/logger'
 import { validateProxyUrl } from '@/lib/core/security/input-validation'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('IsolatedVMExecution')
 

@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
-import { createLogger } from '@/lib/logs/console/logger'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'

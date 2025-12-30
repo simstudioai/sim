@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { ArrowUp, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
@@ -22,7 +23,6 @@ import {
   Trash,
 } from '@/components/emcn'
 import { VariableIcon } from '@/components/icons'
-import { createLogger } from '@/lib/logs/console/logger'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
@@ -37,6 +37,7 @@ import {
   useUsageLimits,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { Variables } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/variables/variables'
+import { useAutoLayout } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-auto-layout'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useChatStore } from '@/stores/chat/store'
@@ -99,6 +100,7 @@ export function Panel() {
     hydration.phase === 'state-loading'
   const { getJson } = useWorkflowJsonStore()
   const { blocks } = useWorkflowStore()
+  const { handleAutoLayout: autoLayoutWithFitView } = useAutoLayout(activeWorkflowId || null)
 
   // Delete workflow hook
   const { isDeleting, handleDeleteWorkflow } = useDeleteWorkflow({
@@ -134,6 +136,13 @@ export function Panel() {
   }
 
   /**
+   * Cancels the currently executing workflow
+   */
+  const cancelWorkflow = useCallback(async () => {
+    await handleCancelExecution()
+  }, [handleCancelExecution])
+
+  /**
    * Runs the workflow with usage limit check
    */
   const runWorkflow = useCallback(async () => {
@@ -143,13 +152,6 @@ export function Panel() {
     }
     await handleRunWorkflow()
   }, [usageExceeded, handleRunWorkflow])
-
-  /**
-   * Cancels the currently executing workflow
-   */
-  const cancelWorkflow = useCallback(async () => {
-    await handleCancelExecution()
-  }, [handleCancelExecution])
 
   // Chat state
   const { isChatOpen, setIsChatOpen } = useChatStore()
@@ -201,22 +203,11 @@ export function Panel() {
 
     setIsAutoLayouting(true)
     try {
-      // Use the standalone auto layout utility for immediate frontend updates
-      const { applyAutoLayoutAndUpdateStore } = await import('../../utils')
-
-      const result = await applyAutoLayoutAndUpdateStore(activeWorkflowId!)
-
-      if (result.success) {
-        logger.info('Auto layout completed successfully')
-      } else {
-        logger.error('Auto layout failed:', result.error)
-      }
-    } catch (error) {
-      logger.error('Auto layout error:', error)
+      await autoLayoutWithFitView()
     } finally {
       setIsAutoLayouting(false)
     }
-  }, [isExecuting, userPermissions.canEdit, isAutoLayouting, activeWorkflowId])
+  }, [isExecuting, userPermissions.canEdit, isAutoLayouting, autoLayoutWithFitView])
 
   /**
    * Handles exporting workflow as JSON
@@ -300,7 +291,6 @@ export function Panel() {
       {
         id: 'run-workflow',
         handler: () => {
-          // Do exactly what the Run button does
           if (isExecuting) {
             void cancelWorkflow()
           } else {
@@ -362,10 +352,10 @@ export function Panel() {
           {/* Header */}
           <div className='flex flex-shrink-0 items-center justify-between px-[8px]'>
             {/* More and Chat */}
-            <div className='flex gap-[4px]'>
+            <div className='flex gap-[6px]'>
               <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <PopoverTrigger asChild>
-                  <Button className='h-[32px] w-[32px]'>
+                  <Button className='h-[30px] w-[30px] rounded-[5px]'>
                     <MoreHorizontal />
                   </Button>
                 </PopoverTrigger>
@@ -418,7 +408,7 @@ export function Panel() {
                 </PopoverContent>
               </Popover>
               <Button
-                className='h-[32px] w-[32px]'
+                className='h-[30px] w-[30px] rounded-[5px]'
                 variant={isChatOpen ? 'active' : 'default'}
                 onClick={() => setIsChatOpen(!isChatOpen)}
               >
@@ -427,11 +417,11 @@ export function Panel() {
             </div>
 
             {/* Deploy and Run */}
-            <div className='flex gap-[4px]'>
+            <div className='flex gap-[6px]'>
               <Deploy activeWorkflowId={activeWorkflowId} userPermissions={userPermissions} />
               <Button
-                className='h-[32px] w-[61.5px] gap-[8px]'
-                variant={isExecuting ? 'active' : 'primary'}
+                className='h-[30px] gap-[8px] px-[10px]'
+                variant={isExecuting ? 'active' : 'tertiary'}
                 onClick={isExecuting ? cancelWorkflow : () => runWorkflow()}
                 disabled={!isExecuting && isButtonDisabled}
               >
@@ -440,7 +430,7 @@ export function Panel() {
                 ) : (
                   <Play className='h-[11.5px] w-[11.5px]' />
                 )}
-                Run
+                {isExecuting ? 'Stop' : 'Run'}
               </Button>
             </div>
           </div>
@@ -449,7 +439,11 @@ export function Panel() {
           <div className='flex flex-shrink-0 items-center justify-between px-[8px] pt-[14px]'>
             <div className='flex gap-[4px]'>
               <Button
-                className='h-[28px] truncate px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)]'
+                className={`h-[28px] truncate rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
+                  _hasHydrated && activeTab === 'copilot'
+                    ? 'border-[var(--border-1)]'
+                    : 'border-transparent hover:border-[var(--border-1)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                }`}
                 variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('copilot')}
                 data-tab-button='copilot'
@@ -457,7 +451,11 @@ export function Panel() {
                 Copilot
               </Button>
               <Button
-                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)]'
+                className={`h-[28px] rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
+                  _hasHydrated && activeTab === 'toolbar'
+                    ? 'border-[var(--border-1)]'
+                    : 'border-transparent hover:border-[var(--border-1)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                }`}
                 variant={_hasHydrated && activeTab === 'toolbar' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('toolbar')}
                 data-tab-button='toolbar'
@@ -465,7 +463,11 @@ export function Panel() {
                 Toolbar
               </Button>
               <Button
-                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)]'
+                className={`h-[28px] rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
+                  _hasHydrated && activeTab === 'editor'
+                    ? 'border-[var(--border-1)]'
+                    : 'border-transparent hover:border-[var(--border-1)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                }`}
                 variant={_hasHydrated && activeTab === 'editor' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('editor')}
                 data-tab-button='editor'
@@ -474,7 +476,7 @@ export function Panel() {
               </Button>
             </div>
 
-            {/* Workflow Controls (Undo/Redo and Zoom) */}
+            {/* Workflow Controls (Undo/Redo) */}
             {/* <WorkflowControls /> */}
           </div>
 
@@ -534,7 +536,7 @@ export function Panel() {
         <ModalContent size='sm'>
           <ModalHeader>Delete Workflow</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Deleting this workflow will permanently remove all associated blocks, executions, and
               configuration.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
@@ -548,12 +550,7 @@ export function Panel() {
             >
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={handleDeleteWorkflow}
-              disabled={isDeleting}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={handleDeleteWorkflow} disabled={isDeleting}>
               {isDeleting ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>

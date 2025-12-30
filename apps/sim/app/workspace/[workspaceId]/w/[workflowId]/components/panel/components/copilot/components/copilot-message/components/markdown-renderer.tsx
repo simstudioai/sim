@@ -115,7 +115,6 @@ interface CopilotMarkdownRendererProps {
 export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRendererProps) {
   const [copiedCodeBlocks, setCopiedCodeBlocks] = useState<Record<string, boolean>>({})
 
-  // Reset copy success state after 2 seconds
   useEffect(() => {
     const timers: Record<string, NodeJS.Timeout> = {}
 
@@ -132,42 +131,38 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
     }
   }, [copiedCodeBlocks])
 
-  // Custom components for react-markdown with current styling - memoized to prevent re-renders
   const markdownComponents = useMemo(
     () => ({
-      // Paragraph
       p: ({ children }: React.HTMLAttributes<HTMLParagraphElement>) => (
-        <p className='mb-1 font-base font-season text-[#1f2124] text-sm leading-[1.25rem] last:mb-0 dark:font-[470] dark:text-[#E8E8E8]'>
+        <p className='mb-2 font-base font-season text-[var(--text-primary)] text-sm leading-[1.25rem] last:mb-0 dark:font-[470]'>
           {children}
         </p>
       ),
 
-      // Headings
       h1: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-        <h1 className='mt-3 mb-3 font-season font-semibold text-2xl text-[var(--text-primary)] dark:text-[#F0F0F0]'>
+        <h1 className='mt-3 mb-3 font-season font-semibold text-2xl text-[var(--text-primary)]'>
           {children}
         </h1>
       ),
       h2: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-        <h2 className='mt-2.5 mb-2.5 font-season font-semibold text-[var(--text-primary)] text-xl dark:text-[#F0F0F0]'>
+        <h2 className='mt-2.5 mb-2.5 font-season font-semibold text-[var(--text-primary)] text-xl'>
           {children}
         </h2>
       ),
       h3: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-        <h3 className='mt-2 mb-2 font-season font-semibold text-[var(--text-primary)] text-lg dark:text-[#F0F0F0]'>
+        <h3 className='mt-2 mb-2 font-season font-semibold text-[var(--text-primary)] text-lg'>
           {children}
         </h3>
       ),
       h4: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-        <h4 className='mt-5 mb-2 font-season font-semibold text-[var(--text-primary)] text-base dark:text-[#F0F0F0]'>
+        <h4 className='mt-2 mb-2 font-season font-semibold text-[var(--text-primary)] text-base'>
           {children}
         </h4>
       ),
 
-      // Lists
       ul: ({ children }: React.HTMLAttributes<HTMLUListElement>) => (
         <ul
-          className='mt-1 mb-1 space-y-1 pl-6 font-base font-season text-[#1f2124] dark:font-[470] dark:text-[#E8E8E8]'
+          className='mt-1 mb-1 space-y-1.5 pl-6 font-base font-season text-[var(--text-primary)] dark:font-[470]'
           style={{ listStyleType: 'disc' }}
         >
           {children}
@@ -175,7 +170,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
       ),
       ol: ({ children }: React.HTMLAttributes<HTMLOListElement>) => (
         <ol
-          className='mt-1 mb-1 space-y-1 pl-6 font-base font-season text-[#1f2124] dark:font-[470] dark:text-[#E8E8E8]'
+          className='mt-1 mb-1 space-y-1.5 pl-6 font-base font-season text-[var(--text-primary)] dark:font-[470]'
           style={{ listStyleType: 'decimal' }}
         >
           {children}
@@ -186,14 +181,13 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
         ordered,
       }: React.LiHTMLAttributes<HTMLLIElement> & { ordered?: boolean }) => (
         <li
-          className='font-base font-season text-[#1f2124] dark:font-[470] dark:text-[#E8E8E8]'
+          className='font-base font-season text-[var(--text-primary)] dark:font-[470]'
           style={{ display: 'list-item' }}
         >
           {children}
         </li>
       ),
 
-      // Code blocks - render using shared Code.Viewer for consistent styling
       pre: ({ children }: React.HTMLAttributes<HTMLPreElement>) => {
         let codeContent: React.ReactNode = children
         let language = 'code'
@@ -210,15 +204,12 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
           language = childElement.props.className?.replace('language-', '') || 'code'
         }
 
-        // Extract actual text content
         let actualCodeText = ''
         if (typeof codeContent === 'string') {
           actualCodeText = codeContent
         } else if (React.isValidElement(codeContent)) {
-          // If it's a React element, try to get its text content
           actualCodeText = getTextContent(codeContent)
         } else if (Array.isArray(codeContent)) {
-          // If it's an array of elements, join their text content
           actualCodeText = codeContent
             .map((child) =>
               typeof child === 'string'
@@ -232,7 +223,6 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
           actualCodeText = String(codeContent || '')
         }
 
-        // Create a unique key for this code block based on content
         const codeText = actualCodeText || 'code'
         const codeBlockKey = `${language}-${codeText.substring(0, 30).replace(/\s/g, '-')}-${codeText.length}`
 
@@ -246,7 +236,6 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
           }
         }
 
-        // Map markdown language tag to Code.Viewer supported languages
         const normalizedLanguage = (language || '').toLowerCase()
         const viewerLanguage: 'javascript' | 'json' | 'python' =
           normalizedLanguage === 'json'
@@ -256,14 +245,14 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
               : 'javascript'
 
         return (
-          <div className='my-6 w-0 min-w-full overflow-hidden rounded-md border border-[var(--border-strong)] bg-[#1F1F1F] text-sm'>
-            <div className='flex items-center justify-between border-[var(--border-strong)] border-b px-4 py-1.5'>
-              <span className='font-season text-[#A3A3A3] text-xs'>
+          <div className='mt-6 mb-6 w-0 min-w-full overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-1)] text-sm'>
+            <div className='flex items-center justify-between border-[var(--border-1)] border-b px-4 py-1.5'>
+              <span className='font-season text-[var(--text-muted)] text-xs'>
                 {language === 'code' ? viewerLanguage : language}
               </span>
               <button
                 onClick={handleCopy}
-                className='text-[#A3A3A3] transition-colors hover:text-gray-300'
+                className='text-[var(--text-muted)] transition-colors hover:text-[var(--text-tertiary)]'
                 title='Copy'
               >
                 {showCopySuccess ? (
@@ -274,16 +263,15 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
               </button>
             </div>
             <Code.Viewer
-              code={actualCodeText}
+              code={actualCodeText.replace(/\n+$/, '')}
               showGutter
               language={viewerLanguage}
-              className='[&_pre]:!pb-0 m-0 rounded-none border-0 bg-transparent'
+              className='m-0 min-h-0 rounded-none border-0 bg-transparent'
             />
           </div>
         )
       },
 
-      // Inline code
       code: ({
         inline,
         className,
@@ -293,7 +281,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
         if (inline) {
           return (
             <code
-              className='whitespace-normal break-all rounded border border-[var(--border-strong)] bg-[#1F1F1F] px-1 py-0.5 font-mono text-[#eeeeee] text-[0.9em]'
+              className='whitespace-normal break-all rounded border border-[var(--border-1)] bg-[var(--surface-1)] px-1 py-0.5 font-mono text-[0.9em] text-[var(--text-primary)]'
               {...props}
             >
               {children}
@@ -307,76 +295,67 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
         )
       },
 
-      // Bold text
       strong: ({ children }: React.HTMLAttributes<HTMLElement>) => (
-        <strong className='font-semibold text-[var(--text-primary)] dark:text-[#F0F0F0]'>
-          {children}
-        </strong>
+        <strong className='font-semibold text-[var(--text-primary)]'>{children}</strong>
       ),
 
-      // Bold text (alternative)
       b: ({ children }: React.HTMLAttributes<HTMLElement>) => (
-        <b className='font-semibold text-[var(--text-primary)] dark:text-[#F0F0F0]'>{children}</b>
+        <b className='font-semibold text-[var(--text-primary)]'>{children}</b>
       ),
 
-      // Italic text
       em: ({ children }: React.HTMLAttributes<HTMLElement>) => (
-        <em className='text-[#1f2124] italic dark:text-[#E8E8E8]'>{children}</em>
+        <em className='text-[var(--text-primary)] italic'>{children}</em>
       ),
 
-      // Italic text (alternative)
       i: ({ children }: React.HTMLAttributes<HTMLElement>) => (
-        <i className='text-[#1f2124] italic dark:text-[#E8E8E8]'>{children}</i>
+        <i className='text-[var(--text-primary)] italic'>{children}</i>
       ),
 
-      // Blockquotes
       blockquote: ({ children }: React.HTMLAttributes<HTMLQuoteElement>) => (
-        <blockquote className='my-4 border-[var(--border-strong)] border-l-4 py-1 pl-4 font-season text-[#3a3d41] italic dark:border-gray-600 dark:text-[#E0E0E0]'>
+        <blockquote className='my-4 border-[var(--border-1)] border-l-4 py-1 pl-4 font-season text-[var(--text-secondary)] italic'>
           {children}
         </blockquote>
       ),
 
-      // Horizontal rule
-      hr: () => <hr className='my-8 border-[var(--divider)] border-t dark:border-gray-400/[.07]' />,
+      hr: () => <hr className='my-8 border-[var(--divider)] border-t' />,
 
-      // Links
       a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
         <LinkWithPreview href={href || '#'} {...props}>
           {children}
         </LinkWithPreview>
       ),
 
-      // Tables
       table: ({ children }: React.TableHTMLAttributes<HTMLTableElement>) => (
         <div className='my-4 max-w-full overflow-x-auto'>
-          <table className='min-w-full table-auto border border-[var(--border)] font-season text-sm dark:border-gray-600'>
+          <table className='min-w-full table-auto border border-[var(--border-1)] font-season text-sm'>
             {children}
           </table>
         </div>
       ),
       thead: ({ children }: React.HTMLAttributes<HTMLTableSectionElement>) => (
-        <thead className='bg-[var(--surface-9)] text-left dark:bg-[#2A2A2A]'>{children}</thead>
+        <thead className='bg-[var(--surface-5)] text-left dark:bg-[var(--surface-4)]'>
+          {children}
+        </thead>
       ),
       tbody: ({ children }: React.HTMLAttributes<HTMLTableSectionElement>) => (
-        <tbody className='divide-y divide-[var(--border)] dark:divide-gray-600'>{children}</tbody>
+        <tbody className='divide-y divide-[var(--border-1)]'>{children}</tbody>
       ),
       tr: ({ children }: React.HTMLAttributes<HTMLTableRowElement>) => (
-        <tr className='border-[var(--border)] border-b transition-colors hover:bg-[var(--surface-9)] dark:border-gray-600 dark:hover:bg-[#2A2A2A]/60'>
+        <tr className='border-[var(--border-1)] border-b transition-colors hover:bg-[var(--surface-5)] dark:hover:bg-[var(--surface-4)]/60'>
           {children}
         </tr>
       ),
       th: ({ children }: React.ThHTMLAttributes<HTMLTableCellElement>) => (
-        <th className='border-[var(--border)] border-r px-4 py-2 align-top font-base text-[#3a3d41] last:border-r-0 dark:border-gray-600 dark:font-[470] dark:text-[#E0E0E0]'>
+        <th className='border-[var(--border-1)] border-r px-4 py-2 align-top font-base text-[var(--text-secondary)] last:border-r-0 dark:font-[470]'>
           {children}
         </th>
       ),
       td: ({ children }: React.TdHTMLAttributes<HTMLTableCellElement>) => (
-        <td className='break-words border-[var(--border)] border-r px-4 py-2 align-top font-base text-[#1f2124] last:border-r-0 dark:border-gray-600 dark:font-[470] dark:text-[#E8E8E8]'>
+        <td className='break-words border-[var(--border-1)] border-r px-4 py-2 align-top font-base text-[var(--text-primary)] last:border-r-0 dark:font-[470]'>
           {children}
         </td>
       ),
 
-      // Images
       img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
         <img
           src={src}
@@ -390,7 +369,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
   )
 
   return (
-    <div className='copilot-markdown-wrapper max-w-full space-y-3 break-words font-base font-season text-[#1f2124] text-sm leading-[1.25rem] dark:font-[470] dark:text-[#E8E8E8]'>
+    <div className='copilot-markdown-wrapper max-w-full space-y-3 break-words font-base font-season text-[var(--text-primary)] text-sm leading-[1.25rem] dark:font-[470]'>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
         {content}
       </ReactMarkdown>

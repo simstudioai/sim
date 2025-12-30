@@ -1,17 +1,7 @@
 import { BlockType, isMetadataOnlyBlockType } from '@/executor/constants'
-import type { DAG, DAGNode } from '@/executor/dag/builder'
-import {
-  buildBranchNodeId,
-  calculateBranchCount,
-  parseDistributionItems,
-} from '@/executor/utils/subflow-utils'
+import type { DAG } from '@/executor/dag/builder'
+import { buildBranchNodeId } from '@/executor/utils/subflow-utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
-
-interface ParallelExpansion {
-  parallelId: string
-  branchCount: number
-  distributionItems: any[]
-}
 
 export class NodeConstructor {
   execute(
@@ -37,7 +27,7 @@ export class NodeConstructor {
       const parallelId = this.findParallelForBlock(block.id, dag)
 
       if (parallelId) {
-        this.createParallelBranchNodes(block, parallelId, dag)
+        this.createParallelTemplateNode(block, parallelId, dag)
       } else {
         this.createRegularOrLoopNode(block, blocksInLoops, dag)
       }
@@ -100,57 +90,27 @@ export class NodeConstructor {
     }
   }
 
-  private createParallelBranchNodes(block: SerializedBlock, parallelId: string, dag: DAG): void {
-    const expansion = this.calculateParallelExpansion(parallelId, dag)
-
-    for (let branchIndex = 0; branchIndex < expansion.branchCount; branchIndex++) {
-      const branchNode = this.createParallelBranchNode(block, branchIndex, expansion)
-      dag.nodes.set(branchNode.id, branchNode)
-    }
-  }
-
-  private calculateParallelExpansion(parallelId: string, dag: DAG): ParallelExpansion {
-    const config = dag.parallelConfigs.get(parallelId)
-
-    if (!config) {
-      throw new Error(`Parallel config not found: ${parallelId}`)
-    }
-
-    const distributionItems = parseDistributionItems(config)
-    const branchCount = calculateBranchCount(config, distributionItems)
-
-    return {
-      parallelId,
-      branchCount,
-      distributionItems,
-    }
-  }
-
-  private createParallelBranchNode(
-    baseBlock: SerializedBlock,
-    branchIndex: number,
-    expansion: ParallelExpansion
-  ): DAGNode {
-    const branchNodeId = buildBranchNodeId(baseBlock.id, branchIndex)
+  private createParallelTemplateNode(block: SerializedBlock, parallelId: string, dag: DAG): void {
+    const templateNodeId = buildBranchNodeId(block.id, 0)
     const blockClone: SerializedBlock = {
-      ...baseBlock,
-      id: branchNodeId,
+      ...block,
+      id: templateNodeId,
     }
-    return {
-      id: branchNodeId,
+
+    dag.nodes.set(templateNodeId, {
+      id: templateNodeId,
       block: blockClone,
       incomingEdges: new Set(),
       outgoingEdges: new Map(),
       metadata: {
         isParallelBranch: true,
-        parallelId: expansion.parallelId,
-        branchIndex,
-        branchTotal: expansion.branchCount,
-        distributionItem: expansion.distributionItems[branchIndex],
-        isPauseResponse: baseBlock.metadata?.id === BlockType.HUMAN_IN_THE_LOOP,
-        originalBlockId: baseBlock.id,
+        parallelId,
+        branchIndex: 0,
+        branchTotal: 1,
+        isPauseResponse: block.metadata?.id === BlockType.HUMAN_IN_THE_LOOP,
+        originalBlockId: block.id,
       },
-    }
+    })
   }
 
   private createRegularOrLoopNode(
@@ -174,44 +134,6 @@ export class NodeConstructor {
         originalBlockId: block.id,
       },
     })
-  }
-
-  private createTriggerNode(
-    block: SerializedBlock,
-    triggerId: string,
-    options: {
-      loopId?: string
-      isParallelBranch?: boolean
-      parallelId?: string
-      branchIndex?: number
-      branchTotal?: number
-    }
-  ): DAGNode {
-    const triggerBlock: SerializedBlock = {
-      ...block,
-      id: triggerId,
-      enabled: true,
-      metadata: {
-        ...block.metadata,
-        id: BlockType.START_TRIGGER,
-      },
-    }
-
-    return {
-      id: triggerId,
-      block: triggerBlock,
-      incomingEdges: new Set(),
-      outgoingEdges: new Map(),
-      metadata: {
-        isResumeTrigger: true,
-        originalBlockId: block.id,
-        loopId: options.loopId,
-        isParallelBranch: options.isParallelBranch,
-        parallelId: options.parallelId,
-        branchIndex: options.branchIndex,
-        branchTotal: options.branchTotal,
-      },
-    }
   }
 
   private findLoopIdForBlock(blockId: string, dag: DAG): string | undefined {

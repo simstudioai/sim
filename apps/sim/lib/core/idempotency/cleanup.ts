@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { idempotencyKey } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, lt } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('IdempotencyCleanup')
 

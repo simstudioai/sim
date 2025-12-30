@@ -1,5 +1,5 @@
+import { createLogger } from '@sim/logger'
 import { getRedisClient } from '@/lib/core/config/redis'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { McpCacheStorageAdapter } from './adapter'
 import { MemoryMcpCache } from './memory-cache'
 import { RedisMcpCache } from './redis-cache'

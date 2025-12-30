@@ -82,7 +82,7 @@ vi.mock('@/lib/execution/isolated-vm', () => ({
   }),
 }))
 
-vi.mock('@/lib/logs/console/logger', () => ({
+vi.mock('@sim/logger', () => ({
   createLogger: vi.fn(() => ({
     info: vi.fn(),
     error: vi.fn(),

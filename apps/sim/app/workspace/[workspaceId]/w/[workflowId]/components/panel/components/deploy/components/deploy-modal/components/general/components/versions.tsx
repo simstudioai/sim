@@ -1,18 +1,18 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { MoreVertical, Pencil, RotateCcw, SendToBack } from 'lucide-react'
 import { Button, Popover, PopoverContent, PopoverItem, PopoverTrigger } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('Versions')
 
 /** Shared styling constants aligned with terminal component */
 const HEADER_TEXT_CLASS = 'font-medium text-[var(--text-tertiary)] text-[12px]'
-const ROW_TEXT_CLASS = 'font-medium text-[#D2D2D2] text-[12px]'
+const ROW_TEXT_CLASS = 'font-medium text-[var(--text-primary)] text-[12px]'
 const COLUMN_BASE_CLASS = 'flex-shrink-0'
 
 /** Column width configuration */
@@ -220,10 +220,10 @@ export function Versions({
             <div
               key={v.id}
               className={clsx(
-                'flex h-[36px] cursor-pointer items-center px-[16px] transition-colors',
+                'flex h-[36px] cursor-pointer items-center px-[16px] transition-colors duration-100',
                 isSelected
                   ? 'bg-[var(--accent)]/10 hover:bg-[var(--accent)]/15'
-                  : 'hover:bg-[var(--border)]'
+                  : 'hover:bg-[var(--surface-6)] dark:hover:bg-[var(--border)]'
               )}
               onClick={() => handleRowClick(v.version)}
             >

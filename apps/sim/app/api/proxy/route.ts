@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -7,7 +8,6 @@ import { isDev } from '@/lib/core/config/feature-flags'
 import { createPinnedUrl, validateUrlWithDNS } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 import { executeTool } from '@/tools'
 import { getTool, validateRequiredParametersAfterMerge } from '@/tools/utils'
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -14,7 +15,6 @@ import {
   ModalHeader,
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getIssueBadgeLabel, getMcpToolIssue, type McpToolIssue } from '@/lib/mcp/tool-validation'
 import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import {
@@ -595,11 +595,7 @@ export function MCP({ initialServerId }: MCPProps) {
                 ? 'Refreshed'
                 : 'Refresh Tools'}
           </Button>
-          <Button
-            onClick={handleBackToList}
-            variant='primary'
-            className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-          >
+          <Button onClick={handleBackToList} variant='tertiary'>
             Back
           </Button>
         </div>
@@ -611,7 +607,7 @@ export function MCP({ initialServerId }: MCPProps) {
     <>
       <div className='flex h-full flex-col gap-[16px]'>
         <div className='flex items-center gap-[8px]'>
-          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]'>
+          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
             <Search
               className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
@@ -625,9 +621,8 @@ export function MCP({ initialServerId }: MCPProps) {
           </div>
           <Button
             onClick={() => setShowAddForm(!showAddForm)}
-            variant='primary'
+            variant='tertiary'
             disabled={serversLoading}
-            className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
           >
             <Plus className='mr-[6px] h-[13px] w-[13px]' />
             Add
@@ -719,11 +714,7 @@ export function MCP({ initialServerId }: MCPProps) {
                   <Button variant='ghost' onClick={handleCancelForm}>
                     Cancel
                   </Button>
-                  <Button
-                    onClick={handleAddServer}
-                    disabled={isSubmitDisabled}
-                    className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-                  >
+                  <Button onClick={handleAddServer} disabled={isSubmitDisabled} variant='tertiary'>
                     {isSubmitDisabled && isFormValid ? 'Adding...' : 'Add Server'}
                   </Button>
                 </div>
@@ -783,7 +774,7 @@ export function MCP({ initialServerId }: MCPProps) {
         <ModalContent className='w-[400px]'>
           <ModalHeader>Delete MCP Server</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{serverToDelete?.name}</span>
               ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
@@ -793,11 +784,7 @@ export function MCP({ initialServerId }: MCPProps) {
             <Button variant='default' onClick={() => setShowDeleteDialog(false)}>
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={confirmDeleteServer}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
-            >
+            <Button variant='destructive' onClick={confirmDeleteServer}>
               Delete
             </Button>
           </ModalFooter>

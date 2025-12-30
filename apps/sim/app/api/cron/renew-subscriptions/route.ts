@@ -1,9 +1,9 @@
 import { db } from '@sim/db'
 import { webhook as webhookTable, workflow as workflowTable } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
-import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('TeamsSubscriptionRenewal')

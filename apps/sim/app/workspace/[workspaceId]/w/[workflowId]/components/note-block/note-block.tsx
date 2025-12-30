@@ -28,6 +28,21 @@ function extractFieldValue(rawValue: unknown): string | undefined {
 }
 
 /**
+ * Extract YouTube video ID from various YouTube URL formats
+ */
+function getYouTubeVideoId(url: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]{11})/,
+  ]
+  for (const pattern of patterns) {
+    const match = url.match(pattern)
+    if (match) return match[1]
+  }
+  return null
+}
+
+/**
  * Compact markdown renderer for note blocks with tight spacing
  */
 const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }) {
@@ -36,39 +51,41 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
       remarkPlugins={[remarkGfm]}
       components={{
         p: ({ children }: any) => (
-          <p className='mb-2 break-words text-[#E5E5E5] text-sm'>{children}</p>
+          <p className='mb-1 break-words text-[var(--text-primary)] text-sm leading-[1.25rem] last:mb-0'>
+            {children}
+          </p>
         ),
         h1: ({ children }: any) => (
-          <h1 className='mt-3 mb-1 break-words font-semibold text-[#E5E5E5] text-lg first:mt-0'>
+          <h1 className='mt-3 mb-3 break-words font-semibold text-[var(--text-primary)] text-lg first:mt-0'>
             {children}
           </h1>
         ),
         h2: ({ children }: any) => (
-          <h2 className='mt-3 mb-1 break-words font-semibold text-[#E5E5E5] text-base first:mt-0'>
+          <h2 className='mt-2.5 mb-2.5 break-words font-semibold text-[var(--text-primary)] text-base first:mt-0'>
             {children}
           </h2>
         ),
         h3: ({ children }: any) => (
-          <h3 className='mt-3 mb-1 break-words font-semibold text-[#E5E5E5] text-sm first:mt-0'>
+          <h3 className='mt-2 mb-2 break-words font-semibold text-[var(--text-primary)] text-sm first:mt-0'>
             {children}
           </h3>
         ),
         h4: ({ children }: any) => (
-          <h4 className='mt-3 mb-1 break-words font-semibold text-[#E5E5E5] text-xs first:mt-0'>
+          <h4 className='mt-2 mb-2 break-words font-semibold text-[var(--text-primary)] text-xs first:mt-0'>
             {children}
           </h4>
         ),
         ul: ({ children }: any) => (
-          <ul className='mt-1 mb-2 list-disc break-words pl-4 text-[#E5E5E5] text-sm'>
+          <ul className='mt-1 mb-1 list-disc space-y-1 break-words pl-6 text-[var(--text-primary)] text-sm'>
             {children}
           </ul>
         ),
         ol: ({ children }: any) => (
-          <ol className='mt-1 mb-2 list-decimal break-words pl-4 text-[#E5E5E5] text-sm'>
+          <ol className='mt-1 mb-1 list-decimal space-y-1 break-words pl-6 text-[var(--text-primary)] text-sm'>
             {children}
           </ol>
         ),
-        li: ({ children }: any) => <li className='mb-0 break-words'>{children}</li>,
+        li: ({ children }: any) => <li className='break-words'>{children}</li>,
         code: ({ inline, className, children, ...props }: any) => {
           const isInline = inline || !className?.includes('language-')
 
@@ -76,7 +93,7 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
             return (
               <code
                 {...props}
-                className='whitespace-normal rounded bg-gray-200 px-1 py-0.5 font-mono text-[#F59E0B] text-xs dark:bg-[var(--surface-11)]'
+                className='whitespace-normal rounded bg-[var(--surface-5)] px-1 py-0.5 font-mono text-[#F59E0B] text-xs'
               >
                 {children}
               </code>
@@ -86,28 +103,61 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
           return (
             <code
               {...props}
-              className='block whitespace-pre-wrap break-words rounded bg-[#1A1A1A] p-2 text-[#E5E5E5] text-xs'
+              className='block whitespace-pre-wrap break-words rounded bg-[var(--surface-5)] p-2 text-[var(--text-primary)] text-xs'
             >
               {children}
             </code>
           )
         },
-        a: ({ href, children }: any) => (
-          <a
-            href={href}
-            target='_blank'
-            rel='noopener noreferrer'
-            className='text-[var(--brand-secondary)] underline-offset-2 hover:underline'
-          >
-            {children}
-          </a>
-        ),
+        a: ({ href, children }: any) => {
+          const videoId = href ? getYouTubeVideoId(href) : null
+          if (videoId) {
+            return (
+              <span className='inline'>
+                <a
+                  href={href}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='text-[var(--brand-secondary)] underline-offset-2 hover:underline'
+                >
+                  {children}
+                </a>
+                <span className='mt-1.5 block overflow-hidden rounded-md'>
+                  <iframe
+                    src={`https://www.youtube.com/embed/${videoId}`}
+                    title='YouTube video'
+                    allow='accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share'
+                    allowFullScreen
+                    loading='lazy'
+                    referrerPolicy='strict-origin-when-cross-origin'
+                    sandbox='allow-scripts allow-same-origin allow-presentation allow-popups'
+                    className='aspect-video w-full'
+                  />
+                </span>
+              </span>
+            )
+          }
+          return (
+            <a
+              href={href}
+              target='_blank'
+              rel='noopener noreferrer'
+              className='text-[var(--brand-secondary)] underline-offset-2 hover:underline'
+            >
+              {children}
+            </a>
+          )
+        },
         strong: ({ children }: any) => (
-          <strong className='break-words font-semibold text-white'>{children}</strong>
+          <strong className='break-words font-semibold text-[var(--text-primary)]'>
+            {children}
+          </strong>
         ),
-        em: ({ children }: any) => <em className='break-words text-[#B8B8B8]'>{children}</em>,
+        em: ({ children }: any) => (
+          <em className='break-words text-[var(--text-tertiary)]'>{children}</em>
+        ),
         blockquote: ({ children }: any) => (
-          <blockquote className='mt-1 mb-2 break-words border-[#F59E0B] border-l-2 pl-3 text-[#B8B8B8] italic'>
+          <blockquote className='my-4 break-words border-[var(--border-1)] border-l-4 py-1 pl-4 text-[var(--text-tertiary)] italic'>
             {children}
           </blockquote>
         ),
@@ -135,28 +185,16 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
     )
   )
 
-  const noteValues = useMemo(() => {
+  const content = useMemo(() => {
     if (data.isPreview && data.subBlockValues) {
-      const extractedPreviewFormat = extractFieldValue(data.subBlockValues.format)
-      const extractedPreviewContent = extractFieldValue(data.subBlockValues.content)
-      return {
-        format: typeof extractedPreviewFormat === 'string' ? extractedPreviewFormat : 'plain',
-        content: typeof extractedPreviewContent === 'string' ? extractedPreviewContent : '',
-      }
+      const extractedContent = extractFieldValue(data.subBlockValues.content)
+      return typeof extractedContent === 'string' ? extractedContent : ''
     }
-
-    const format = extractFieldValue(storedValues?.format)
-    const content = extractFieldValue(storedValues?.content)
-
-    return {
-      format: typeof format === 'string' ? format : 'plain',
-      content: typeof content === 'string' ? content : '',
-    }
+    const storedContent = extractFieldValue(storedValues?.content)
+    return typeof storedContent === 'string' ? storedContent : ''
   }, [data.isPreview, data.subBlockValues, storedValues])
 
-  const content = noteValues.content ?? ''
   const isEmpty = content.trim().length === 0
-  const showMarkdown = noteValues.format === 'markdown' && !isEmpty
 
   const userPermissions = useUserPermissionsContext()
 
@@ -182,7 +220,7 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
     <div className='group relative'>
       <div
         className={cn(
-          'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] bg-[var(--surface-2)]'
+          'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)]'
         )}
         onClick={handleClick}
       >
@@ -194,15 +232,12 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
             event.stopPropagation()
           }}
         >
-          <div className='flex min-w-0 flex-1 items-center gap-[10px]'>
-            <div
-              className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
-              style={{ background: isEnabled ? config.bgColor : 'gray' }}
-            >
-              <config.icon className='h-[16px] w-[16px] text-white' />
-            </div>
+          <div className='flex min-w-0 flex-1 items-center'>
             <span
-              className={cn('font-medium text-[16px]', !isEnabled && 'truncate text-[#808080]')}
+              className={cn(
+                'truncate font-medium text-[16px]',
+                !isEnabled && 'text-[var(--text-muted)]'
+              )}
               title={name}
             >
               {name}
@@ -210,14 +245,12 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
           </div>
         </div>
 
-        <div className='relative px-[12px] pt-[6px] pb-[8px]'>
+        <div className='relative p-[8px]'>
           <div className='relative break-words'>
             {isEmpty ? (
-              <p className='text-[#868686] text-sm italic'>Add a note...</p>
-            ) : showMarkdown ? (
-              <NoteMarkdown content={content} />
+              <p className='text-[#868686] text-sm'>Add note...</p>
             ) : (
-              <p className='whitespace-pre-wrap text-[#E5E5E5] text-sm leading-snug'>{content}</p>
+              <NoteMarkdown content={content} />
             )}
           </div>
         </div>

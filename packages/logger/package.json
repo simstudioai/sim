@@ -1,0 +1,30 @@
+{
+  "name": "@sim/logger",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "bun": ">=1.2.13",
+    "node": ">=20.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "chalk": "5.6.2"
+  },
+  "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.8"
+  }
+}

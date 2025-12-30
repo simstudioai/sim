@@ -1,10 +1,10 @@
 import crypto from 'crypto'
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -56,6 +56,7 @@ type SkippedItemType =
   | 'invalid_subblock_field'
   | 'missing_required_params'
   | 'invalid_subflow_parent'
+  | 'nested_subflow_not_allowed'
   | 'duplicate_block_name'
 
 /**
@@ -1487,6 +1488,17 @@ function applyOperationsToWorkflowState(
               return
             }
 
+            if (childBlock.type === 'loop' || childBlock.type === 'parallel') {
+              logSkippedItem(skippedItems, {
+                type: 'nested_subflow_not_allowed',
+                operationType: 'edit_nested_node',
+                blockId: childId,
+                reason: `Cannot nest ${childBlock.type} inside ${block.type} - nested subflows are not supported`,
+                details: { parentType: block.type, childType: childBlock.type },
+              })
+              return
+            }
+
             const childBlockState = createBlockFromParams(
               childId,
               childBlock,
@@ -1733,6 +1745,17 @@ function applyOperationsToWorkflowState(
               return
             }
 
+            if (childBlock.type === 'loop' || childBlock.type === 'parallel') {
+              logSkippedItem(skippedItems, {
+                type: 'nested_subflow_not_allowed',
+                operationType: 'add_nested_node',
+                blockId: childId,
+                reason: `Cannot nest ${childBlock.type} inside ${params.type} - nested subflows are not supported`,
+                details: { parentType: params.type, childType: childBlock.type },
+              })
+              return
+            }
+
             const childBlockState = createBlockFromParams(
               childId,
               childBlock,
@@ -1799,6 +1822,17 @@ function applyOperationsToWorkflowState(
           break
         }
 
+        if (params.type === 'loop' || params.type === 'parallel') {
+          logSkippedItem(skippedItems, {
+            type: 'nested_subflow_not_allowed',
+            operationType: 'insert_into_subflow',
+            blockId: block_id,
+            reason: `Cannot nest ${params.type} inside ${subflowBlock.type} - nested subflows are not supported`,
+            details: { parentType: subflowBlock.type, childType: params.type },
+          })
+          break
+        }
+
         // Get block configuration
         const blockConfig = getAllBlocks().find((block) => block.type === params.type)
 
@@ -1806,6 +1840,17 @@ function applyOperationsToWorkflowState(
         const existingBlock = modifiedState.blocks[block_id]
 
         if (existingBlock) {
+          if (existingBlock.type === 'loop' || existingBlock.type === 'parallel') {
+            logSkippedItem(skippedItems, {
+              type: 'nested_subflow_not_allowed',
+              operationType: 'insert_into_subflow',
+              blockId: block_id,
+              reason: `Cannot move ${existingBlock.type} into ${subflowBlock.type} - nested subflows are not supported`,
+              details: { parentType: subflowBlock.type, childType: existingBlock.type },
+            })
+            break
+          }
+
           // Moving existing block into subflow - just update parent
           existingBlock.data = {
             ...existingBlock.data,

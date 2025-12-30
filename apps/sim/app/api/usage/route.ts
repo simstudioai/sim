@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -6,7 +7,6 @@ import {
   getOrganizationBillingData,
   isOrganizationOwnerOrAdmin,
 } from '@/lib/billing/core/organization'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('UnifiedUsageAPI')
 

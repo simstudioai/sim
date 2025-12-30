@@ -15,7 +15,7 @@ export const randomPageTool: ToolConfig<Record<string, never>, WikipediaRandomPa
     },
     method: 'GET',
     headers: () => ({
-      'User-Agent': 'SimStudio/1.0 (https://sim.ai)',
+      'User-Agent': 'Sim/1.0 (https://sim.ai)',
       Accept: 'application/json',
     }),
   },

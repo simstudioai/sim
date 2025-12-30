@@ -71,22 +71,11 @@ export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeRespon
   },
 
   transformResponse: async (response) => {
-    // Handle empty response (201 Created)
-    if (response.status === 201) {
-      return {
-        success: true,
-        output: {
-          statusText: 'Created',
-        },
-      }
-    }
-
-    // Handle response with content
-    const data = await response.json()
+    // Pinecone upsert returns 201 Created with empty body on success
     return {
-      success: true,
+      success: response.status === 201,
       output: {
-        upsertedCount: data.upsertedCount || 0,
+        statusText: response.status === 201 ? 'Created' : response.statusText,
       },
     }
   },
@@ -95,10 +84,6 @@ export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeRespon
     statusText: {
       type: 'string',
       description: 'Status of the upsert operation',
-    },
-    upsertedCount: {
-      type: 'number',
-      description: 'Number of records successfully upserted',
     },
   },
 }

@@ -1,9 +1,9 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { createLogger } from '@/lib/logs/console/logger'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import { SetNewPasswordForm } from '@/app/(auth)/reset-password/reset-password-form'

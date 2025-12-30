@@ -120,7 +120,7 @@ export const PermissionsTable = ({
     return (
       <div className='space-y-[12px]'>
         <h3 className='font-medium text-[14px] text-[var(--text-primary)]'>Member Permissions</h3>
-        <div className='rounded-[8px] border border-[var(--surface-11)] bg-[var(--surface-3)]'>
+        <div className='rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-3)]'>
           <div className='flex items-center justify-center py-[48px]'>
             <div className='flex items-center gap-[8px] text-[var(--text-secondary)]'>
               <Loader2 className='h-[16px] w-[16px] animate-spin' />

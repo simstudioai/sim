@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { ChevronDown, ChevronUp, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import Editor from 'react-simple-code-editor'
@@ -15,7 +16,6 @@ import {
 } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/core/utils/cn'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   isLikelyReferenceSegment,
   SYSTEM_REFERENCE_PREFIXES,
@@ -154,13 +154,9 @@ export function ConditionInput({
   const removeEdge = useWorkflowStore((state) => state.removeEdge)
   const edges = useWorkflowStore((state) => state.edges)
 
-  // Use a ref to track the previous store value for comparison
   const prevStoreValueRef = useRef<string | null>(null)
-  // Use a ref to track if we're currently syncing from store to prevent loops
   const isSyncingFromStoreRef = useRef(false)
-  // Use a ref to track if we've already initialized from store
   const hasInitializedRef = useRef(false)
-  // Track previous blockId to detect workflow changes
   const previousBlockIdRef = useRef<string>(blockId)
   const shouldPersistRef = useRef<boolean>(false)
 
@@ -709,14 +705,14 @@ export function ConditionInput({
       {conditionalBlocks.map((block, index) => (
         <div
           key={block.id}
-          className='group relative overflow-visible rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-3)] dark:bg-[#1F1F1F]'
+          className='group relative overflow-visible rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-3)] dark:bg-[#1F1F1F]'
         >
           <div
             className={cn(
               'flex items-center justify-between overflow-hidden bg-transparent px-[10px] py-[5px]',
               block.title === 'else'
                 ? 'rounded-[4px] border-0'
-                : 'rounded-t-[4px] border-[var(--border-strong)] border-b'
+                : 'rounded-t-[4px] border-[var(--border-1)] border-b'
             )}
           >
             <span className='font-medium text-[14px] text-[var(--text-tertiary)]'>
@@ -869,7 +865,6 @@ export function ConditionInput({
                           }[] = []
                           let processedCode = codeToHighlight
 
-                          // Replace environment variables with placeholders
                           processedCode = processedCode.replace(createEnvVarPattern(), (match) => {
                             const placeholder = `__ENV_VAR_${placeholders.length}__`
                             placeholders.push({
@@ -881,8 +876,6 @@ export function ConditionInput({
                             return placeholder
                           })
 
-                          // Replace variable references with placeholders
-                          // Use [^<>]+ to prevent matching across nested brackets (e.g., "<3 <real.ref>" should match separately)
                           processedCode = processedCode.replace(
                             createReferencePattern(),
                             (match) => {
@@ -901,14 +894,12 @@ export function ConditionInput({
                             }
                           )
 
-                          // Apply Prism syntax highlighting
                           let highlightedCode = highlight(
                             processedCode,
                             languages.javascript,
                             'javascript'
                           )
 
-                          // Restore and highlight the placeholders
                           placeholders.forEach(
                             ({ placeholder, original, type, shouldHighlight }) => {
                               if (!shouldHighlight) return
@@ -916,14 +907,13 @@ export function ConditionInput({
                               if (type === 'env') {
                                 highlightedCode = highlightedCode.replace(
                                   placeholder,
-                                  `<span class="text-blue-500">${original}</span>`
+                                  `<span style="color: var(--brand-secondary);">${original}</span>`
                                 )
                               } else if (type === 'var') {
-                                // Escape the < and > for display
                                 const escaped = original.replace(/</g, '&lt;').replace(/>/g, '&gt;')
                                 highlightedCode = highlightedCode.replace(
                                   placeholder,
-                                  `<span class="text-blue-500">${escaped}</span>`
+                                  `<span style="color: var(--brand-secondary);">${escaped}</span>`
                                 )
                               }
                             }

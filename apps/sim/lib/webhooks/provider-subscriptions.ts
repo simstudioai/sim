@@ -1,6 +1,6 @@
+import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 const teamsLogger = createLogger('TeamsSubscription')

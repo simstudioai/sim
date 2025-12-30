@@ -131,14 +131,17 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | ----------- |
 | `id` | string | 表单唯一标识符 |
 | `title` | string | 表单标题 |
-| `type` | string | 表单类型 \(form, quiz 等\) |
+| `type` | string | 表单类型 \(form、quiz 等\) |
 | `settings` | object | 表单设置，包括语言、进度条等 |
 | `theme` | object | 主题引用 |
 | `workspace` | object | 工作区引用 |
 | `fields` | array | 表单字段/问题数组 |
-| `welcome_screens` | array | 欢迎页面数组 |
-| `thankyou_screens` | array | 感谢页面数组 |
-| `_links` | object | 包括公共表单 URL 在内的相关资源链接 |
+| `welcome_screens` | array | 欢迎页数组（如未配置则为空） |
+| `thankyou_screens` | array | 感谢页数组 |
+| `created_at` | string | 表单创建时间戳（ISO 8601 格式） |
+| `last_updated_at` | string | 表单最后更新时间戳（ISO 8601 格式） |
+| `published_at` | string | 表单发布时间戳（ISO 8601 格式） |
+| `_links` | object | 相关资源链接，包括公开表单 URL |
 
 ### `typeform_create_form`
 
@@ -160,11 +163,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `id` | string | 创建的表单唯一标识符 |
+| `id` | string | 已创建表单的唯一标识符 |
 | `title` | string | 表单标题 |
 | `type` | string | 表单类型 |
-| `fields` | array | 创建的表单字段数组 |
-| `_links` | object | 包括公共表单 URL 在内的相关资源链接 |
+| `settings` | object | 表单设置对象 |
+| `theme` | object | 主题引用 |
+| `workspace` | object | 工作区引用 |
+| `fields` | array | 已创建表单字段数组（如未添加则为空） |
+| `welcome_screens` | array | 欢迎页数组（如未配置则为空） |
+| `thankyou_screens` | array | 感谢页数组 |
+| `_links` | object | 相关资源链接，包括公开表单 URL |
 
 ### `typeform_update_form`
 
@@ -182,16 +190,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `id` | string | 更新的表单唯一标识符 |
-| `title` | string | 表单标题 |
-| `type` | string | 表单类型 |
-| `settings` | object | 表单设置 |
-| `theme` | object | 主题引用 |
-| `workspace` | object | 工作区引用 |
-| `fields` | array | 表单字段数组 |
-| `welcome_screens` | array | 欢迎屏幕数组 |
-| `thankyou_screens` | array | 感谢屏幕数组 |
-| `_links` | object | 相关资源链接 |
+| `message` | string | 成功确认消息 |
 
 ### `typeform_delete_form`
 

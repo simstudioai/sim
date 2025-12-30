@@ -3,6 +3,8 @@
  *
  * @vitest-environment node
  */
+
+import { loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createMockRequest,
@@ -176,6 +178,8 @@ vi.mock('drizzle-orm/postgres-js', () => ({
 
 vi.mock('postgres', () => vi.fn().mockReturnValue({}))
 
+vi.mock('@sim/logger', () => loggerMock)
+
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
 
 import { POST } from '@/app/api/webhooks/trigger/[path]/route'
@@ -257,9 +261,6 @@ describe('Webhook Trigger API Route', () => {
       expect(data.message).toBe('Webhook processed')
     })
 
-    /**
-     * Test generic webhook with Bearer token authentication
-     */
     it('should authenticate with Bearer token when no custom header is configured', async () => {
       globalMockData.webhooks.push({
         id: 'generic-webhook-id',
@@ -489,7 +490,7 @@ describe('Webhook Trigger API Route', () => {
 
       const headers = {
         'Content-Type': 'application/json',
-        Authorization: 'Bearer exclusive-token', // Correct token but wrong header type
+        Authorization: 'Bearer exclusive-token',
       }
       const req = createMockRequest('POST', { event: 'exclusivity.test' }, headers)
       const params = Promise.resolve({ path: 'test-path' })
@@ -517,7 +518,7 @@ describe('Webhook Trigger API Route', () => {
 
       const headers = {
         'Content-Type': 'application/json',
-        'X-Wrong-Header': 'correct-token', // Correct token but wrong header name
+        'X-Wrong-Header': 'correct-token',
       }
       const req = createMockRequest('POST', { event: 'wrong.header.name.test' }, headers)
       const params = Promise.resolve({ path: 'test-path' })

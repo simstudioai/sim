@@ -1,16 +1,15 @@
 import { db } from '@sim/db'
 import { account, webhook, workflow } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { htmlToText } from 'html-to-text'
 import { nanoid } from 'nanoid'
 import { pollingIdempotency } from '@/lib/core/idempotency'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 const logger = createLogger('OutlookPollingService')
-
-const MAX_CONSECUTIVE_FAILURES = 10
 
 async function markWebhookFailed(webhookId: string) {
   try {
@@ -466,7 +465,7 @@ async function processOutlookEmails(
             headers: {
               'Content-Type': 'application/json',
               'X-Webhook-Secret': webhookData.secret || '',
-              'User-Agent': 'SimStudio/1.0',
+              'User-Agent': 'Sim/1.0',
             },
             body: JSON.stringify(payload),
           })

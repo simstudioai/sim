@@ -4,7 +4,7 @@ import type {
   RawMessageStreamEvent,
   Usage,
 } from '@anthropic-ai/sdk/resources'
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import { trackForcedToolUsage } from '@/providers/utils'
 
 const logger = createLogger('AnthropicUtils')

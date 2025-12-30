@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { account, mcpServers } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console/logger'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { getAllBlocks } from '@/blocks'
@@ -26,7 +26,7 @@ import { collectBlockData } from '@/executor/utils/block-data'
 import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
 import { executeProviderRequest } from '@/providers'
-import { getApiKey, getProviderFromModel, transformBlockTool } from '@/providers/utils'
+import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { getTool, getToolAsync } from '@/tools/utils'
@@ -1006,15 +1006,13 @@ export class AgentBlockHandler implements BlockHandler {
     responseFormat: any,
     providerStartTime: number
   ) {
-    let finalApiKey: string
+    let finalApiKey: string | undefined = providerRequest.apiKey
 
     if (providerId === 'vertex' && providerRequest.vertexCredential) {
       finalApiKey = await this.resolveVertexCredential(
         providerRequest.vertexCredential,
         ctx.workflowId
       )
-    } else {
-      finalApiKey = this.getApiKey(providerId, model, providerRequest.apiKey)
     }
 
     const { blockData, blockNameMapping } = collectBlockData(ctx)
@@ -1033,7 +1031,7 @@ export class AgentBlockHandler implements BlockHandler {
       vertexLocation: providerRequest.vertexLocation,
       responseFormat: providerRequest.responseFormat,
       workflowId: providerRequest.workflowId,
-      workspaceId: providerRequest.workspaceId,
+      workspaceId: ctx.workspaceId,
       stream: providerRequest.stream,
       messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
       environmentVariables: ctx.environmentVariables || {},
@@ -1109,20 +1107,6 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     return this.createMinimalStreamingExecution(response.body!)
-  }
-
-  private getApiKey(providerId: string, model: string, inputApiKey: string): string {
-    try {
-      return getApiKey(providerId, model, inputApiKey)
-    } catch (error) {
-      logger.error('Failed to get API key:', {
-        provider: providerId,
-        model,
-        error: error instanceof Error ? error.message : String(error),
-        hasProvidedApiKey: !!inputApiKey,
-      })
-      throw new Error(error instanceof Error ? error.message : 'API key error')
-    }
   }
 
   /**

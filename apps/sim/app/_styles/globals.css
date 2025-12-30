@@ -5,13 +5,16 @@
 /**
  * CSS-based sidebar and panel widths to prevent SSR hydration mismatches.
  * Default widths are set here and updated via blocking script before React hydrates.
+ *
+ * @important These values must stay in sync with stores/constants.ts
+ * @see stores/constants.ts for the source of truth
  */
 :root {
-  --sidebar-width: 232px;
-  --panel-width: 244px;
-  --toolbar-triggers-height: 300px;
-  --editor-connections-height: 200px;
-  --terminal-height: 196px;
+  --sidebar-width: 232px; /* SIDEBAR_WIDTH.DEFAULT */
+  --panel-width: 290px; /* PANEL_WIDTH.DEFAULT */
+  --toolbar-triggers-height: 300px; /* TOOLBAR_TRIGGERS_HEIGHT.DEFAULT */
+  --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
+  --terminal-height: 155px; /* TERMINAL_HEIGHT.DEFAULT */
 }
 
 .sidebar-container {
@@ -24,41 +27,6 @@
 
 .terminal-container {
   height: var(--terminal-height);
-}
-
-/**
- * Workflow component z-index fixes and background colors
- */
-.workflow-container .react-flow__edges {
-  z-index: 0 !important;
-}
-
-.workflow-container .react-flow__node {
-  z-index: 21 !important;
-}
-
-.workflow-container .react-flow__handle {
-  z-index: 30 !important;
-}
-
-.workflow-container .react-flow__edge [data-testid="workflow-edge"] {
-  z-index: 0 !important;
-}
-
-.workflow-container .react-flow__edge-labels {
-  z-index: 60 !important;
-}
-
-.workflow-container,
-.workflow-container .react-flow__pane,
-.workflow-container .react-flow__renderer {
-  background-color: var(--bg) !important;
-}
-
-.dark .workflow-container,
-.dark .workflow-container .react-flow__pane,
-.dark .workflow-container .react-flow__renderer {
-  background-color: var(--bg) !important;
 }
 
 /**
@@ -75,101 +43,87 @@
 }
 
 /**
- * Dark color tokens - single source of truth for all colors (dark-only)
+ * Color tokens - single source of truth for all colors
+ * Light mode: Warm theme
+ * Dark mode: Dark neutral theme
  */
 @layer base {
   :root,
   .light {
-    /* Neutrals (surfaces) - shadcn stone palette */
-    --bg: #ffffff; /* pure white for landing/auth pages */
-    --surface-1: #fafaf9; /* stone-50 */
-    --surface-2: #ffffff; /* white */
-    --surface-3: #f5f5f4; /* stone-100 */
-    --surface-4: #f5f5f4; /* stone-100 */
-    --surface-5: #eeedec; /* stone-150 */
-    --surface-6: #f5f5f4; /* stone-100 */
-    --surface-9: #f5f5f4; /* stone-100 */
-    --surface-11: #e7e5e4; /* stone-200 */
-    --surface-12: #d6d3d1; /* stone-300 */
-    --surface-13: #a8a29e; /* stone-400 */
-    --surface-14: #78716c; /* stone-500 */
-    --surface-15: #57534e; /* stone-600 */
-    --surface-elevated: #ffffff; /* white */
-    --bg-strong: #e7e5e4; /* stone-200 */
+    --bg: #fdfdfd; /* main canvas - neutral near-white */
+    --surface-1: #fcfcfc; /* sidebar, panels */
+    --surface-2: #ffffff; /* blocks, cards, modals - pure white */
+    --surface-3: #f7f7f7; /* popovers, headers */
+    --surface-4: #f5f5f5; /* buttons base */
+    --border: #e0e0e0; /* primary border */
+    --surface-5: #f3f3f3; /* inputs, form elements */
+    --border-1: #e0e0e0; /* stronger border */
+    --surface-6: #f0f0f0; /* popovers, elevated surfaces */
+    --surface-7: #ececec;
 
-    /* Text - shadcn stone palette for proper contrast */
-    --text-primary: #1c1917; /* stone-900 */
-    --text-secondary: #292524; /* stone-800 */
-    --text-tertiary: #57534e; /* stone-600 */
-    --text-muted: #78716c; /* stone-500 */
-    --text-subtle: #a8a29e; /* stone-400 */
-    --text-inverse: #fafaf9; /* stone-50 */
-    --text-error: #dc2626;
+    --workflow-edge: #e0e0e0; /* workflow handles/edges - matches border-1 */
 
-    /* Borders / dividers - shadcn stone palette */
-    --border: #d6d3d1; /* stone-300 */
-    --border-strong: #d6d3d1; /* stone-300 */
-    --divider: #e7e5e4; /* stone-200 */
-    --border-muted: #e7e5e4; /* stone-200 */
-    --border-success: #d6d3d1; /* stone-300 */
+    /* Text - neutral */
+    --text-primary: #2d2d2d;
+    --text-secondary: #404040;
+    --text-tertiary: #5c5c5c;
+    --text-muted: #737373;
+    --text-subtle: #8c8c8c;
+    --text-inverse: #ffffff;
+    --text-error: #ef4444;
+
+    /* Borders / dividers */
+    --divider: #ededed;
+    --border-muted: #e4e4e4;
+    --border-success: #e0e0e0;
 
     /* Brand & state */
     --brand-400: #8e4cfb;
-    --brand-500: #6f3dfa;
     --brand-secondary: #33b4ff;
     --brand-tertiary: #22c55e;
-    --brand-tertiary-2: #33c481;
+    --brand-tertiary-2: #32bd7e;
     --warning: #ea580c;
 
     /* Utility */
     --white: #ffffff;
 
-    /* Font weights - lighter for light mode (-20 from dark) */
+    /* Font weights - lighter for light mode */
     --font-weight-base: 430;
     --font-weight-medium: 450;
     --font-weight-semibold: 500;
 
-    /* RGB for opacity usage - stone palette */
-    --surface-4-rgb: 245 245 244; /* stone-100 */
-    --surface-5-rgb: 238 237 236; /* stone-150 */
-    --surface-7-rgb: 245 245 244; /* stone-100 */
-    --surface-9-rgb: 245 245 244; /* stone-100 */
-    --divider-rgb: 231 229 228; /* stone-200 */
-    --white-rgb: 255 255 255;
-    --black-rgb: 0 0 0;
-
-    /* Extended palette - mapped to shadcn stone palette */
-    --c-0D0D0D: #0c0a09; /* stone-950 */
-    --c-1A1A1A: #1c1917; /* stone-900 */
-    --c-1F1F1F: #1c1917; /* stone-900 */
-    --c-2A2A2A: #292524; /* stone-800 */
-    --c-383838: #44403c; /* stone-700 */
-    --c-414141: #57534e; /* stone-600 */
+    /* Extended palette */
+    --c-0D0D0D: #0d0d0d;
+    --c-1A1A1A: #1a1a1a;
+    --c-1F1F1F: #1f1f1f;
+    --c-2A2A2A: #2a2a2a;
+    --c-383838: #383838;
+    --c-414141: #414141;
     --c-442929: #442929;
     --c-491515: #491515;
-    --c-575757: #78716c; /* stone-500 */
-    --c-686868: #78716c; /* stone-500 */
-    --c-707070: #78716c; /* stone-500 */
-    --c-727272: #78716c; /* stone-500 */
-    --c-737373: #78716c; /* stone-500 */
-    --c-808080: #a8a29e; /* stone-400 */
-    --c-858585: #a8a29e; /* stone-400 */
-    --c-868686: #a8a29e; /* stone-400 */
-    --c-8D8D8D: #a8a29e; /* stone-400 */
-    --c-939393: #a8a29e; /* stone-400 */
-    --c-A8A8A8: #a8a29e; /* stone-400 */
-    --c-B8B8B8: #d6d3d1; /* stone-300 */
-    --c-C0C0C0: #d6d3d1; /* stone-300 */
-    --c-CDCDCD: #d6d3d1; /* stone-300 */
-    --c-D0D0D0: #d6d3d1; /* stone-300 */
-    --c-D2D2D2: #d6d3d1; /* stone-300 */
-    --c-E0E0E0: #e7e5e4; /* stone-200 */
-    --c-E5E5E5: #e7e5e4; /* stone-200 */
-    --c-E8E8E8: #e7e5e4; /* stone-200 */
-    --c-EEEEEE: #f5f5f4; /* stone-100 */
-    --c-F0F0F0: #f5f5f4; /* stone-100 */
-    --c-F4F4F4: #fafaf9; /* stone-50 */
-    --c-F5F5F5: #fafaf9; /* stone-50 */
+    --c-575757: #575757;
+    --c-686868: #686868;
+    --c-707070: #707070;
+    --c-727272: #727272;
+    --c-737373: #737373;
+    --c-808080: #808080;
+    --c-858585: #858585;
+    --c-868686: #868686;
+    --c-8D8D8D: #8d8d8d;
+    --c-939393: #939393;
+    --c-A8A8A8: #a8a8a8;
+    --c-B8B8B8: #b8b8b8;
+    --c-C0C0C0: #c0c0c0;
+    --c-CDCDCD: #cdcdcd;
+    --c-D0D0D0: #d0d0d0;
+    --c-D2D2D2: #d2d2d2;
+    --c-E0E0E0: #e0e0e0;
+    --c-E5E5E5: #e5e5e5;
+    --c-E8E8E8: #e8e8e8;
+    --c-EEEEEE: #eeeeee;
+    --c-F0F0F0: #f0f0f0;
+    --c-F4F4F4: #f4f4f4;
+    --c-F5F5F5: #f5f5f5;
 
     /* Blues and cyans */
     --c-00B0B0: #00b0b0;
@@ -201,32 +155,29 @@
     --c-883827: #7c2d12;
 
     /* Terminal status badges */
-    --terminal-status-error-bg: #feeeee;
+    --terminal-status-error-bg: #fef2f2;
     --terminal-status-error-border: #f87171;
-    --terminal-status-info-bg: #f5f5f4; /* stone-100 */
-    --terminal-status-info-border: #a8a29e; /* stone-400 */
-    --terminal-status-info-color: #57534e; /* stone-600 */
-    --terminal-status-warning-bg: #fef9e7;
-    --terminal-status-warning-border: #f5c842;
+    --terminal-status-info-bg: #f7f7f7;
+    --terminal-status-info-border: #a3a3a3;
+    --terminal-status-info-color: #525252;
+    --terminal-status-warning-bg: #fefce8;
+    --terminal-status-warning-border: #facc15;
     --terminal-status-warning-color: #a16207;
   }
   .dark {
-    /* Neutrals (surfaces) */
+    /* Surface */
     --bg: #1b1b1b;
     --surface-1: #1e1e1e;
     --surface-2: #232323;
     --surface-3: #242424;
-    --surface-4: #252525;
-    --surface-5: #272727;
-    --surface-6: #282828;
-    --surface-9: #363636;
-    --surface-11: #3d3d3d;
-    --surface-12: #434343;
-    --surface-13: #454545;
-    --surface-14: #4a4a4a;
-    --surface-15: #5a5a5a;
-    --surface-elevated: #202020;
-    --bg-strong: #0c0c0c;
+    --surface-4: #292929;
+    --border: #2c2c2c;
+    --surface-5: #363636;
+    --border-1: #3d3d3d;
+    --surface-6: #454545;
+    --surface-7: #454545;
+
+    --workflow-edge: #454545; /* workflow handles/edges - same as surface-6 in dark */
 
     /* Text */
     --text-primary: #e6e6e6;
@@ -237,9 +188,7 @@
     --text-inverse: #1b1b1b;
     --text-error: #ef4444;
 
-    /* Borders / dividers */
-    --border: #2c2c2c;
-    --border-strong: #303030;
+    /* --border-strong: #303030; */
     --divider: #393939;
     --border-muted: #424242;
     --border-success: #575757;
@@ -248,7 +197,7 @@
     --brand-400: #8e4cfb;
     --brand-secondary: #33b4ff;
     --brand-tertiary: #22c55e;
-    --brand-tertiary-2: #33c481;
+    --brand-tertiary-2: #32bd7e;
     --warning: #ff6600;
 
     /* Utility */
@@ -258,15 +207,6 @@
     --font-weight-base: 440;
     --font-weight-medium: 480;
     --font-weight-semibold: 550;
-
-    /* RGB for opacity usage */
-    --surface-4-rgb: 37 37 37;
-    --surface-5-rgb: 39 39 39;
-    --surface-7-rgb: 44 44 44;
-    --surface-9-rgb: 54 54 54;
-    --divider-rgb: 57 57 57;
-    --white-rgb: 255 255 255;
-    --black-rgb: 0 0 0;
 
     /* Extended palette (exhaustive from code usage via -[#...]) */
     /* Neutral deep shades */
@@ -395,34 +335,34 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background-color: var(--surface-12);
+    background-color: var(--surface-7);
     border-radius: var(--radius);
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background-color: var(--surface-13);
+    background-color: var(--surface-7);
   }
 
   /* Dark Mode Global Scrollbar */
   .dark ::-webkit-scrollbar-track {
-    background: var(--surface-5);
+    background: var(--surface-4);
   }
 
   .dark ::-webkit-scrollbar-thumb {
-    background-color: var(--surface-12);
+    background-color: var(--surface-7);
   }
 
   .dark ::-webkit-scrollbar-thumb:hover {
-    background-color: var(--surface-13);
+    background-color: var(--surface-7);
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--surface-12) var(--surface-1);
+    scrollbar-color: var(--surface-7) var(--surface-1);
   }
 
   .dark * {
-    scrollbar-color: var(--surface-12) var(--surface-5);
+    scrollbar-color: var(--surface-7) var(--surface-4);
   }
 
   .copilot-scrollable {
@@ -438,8 +378,8 @@
 }
 
 .panel-tab-active {
-  background-color: var(--white);
-  color: var(--text-inverse);
+  background-color: var(--surface-5);
+  color: var(--text-primary);
   border-color: var(--border-muted);
 }
 
@@ -450,8 +390,19 @@
 }
 
 .panel-tab-inactive:hover {
-  background-color: var(--surface-9);
+  background-color: var(--surface-5);
   color: var(--text-primary);
+}
+
+/**
+ * Subblock divider visibility
+ * Hides dividers when adjacent subblocks render empty content (e.g., schedule-info without data).
+ * Uses CSS :has() to detect empty .subblock-content elements and hide associated dividers.
+ * Selectors ordered by ascending specificity: (0,4,0) then (0,5,0)
+ */
+.subblock-row:has(> .subblock-content:empty) > .subblock-divider,
+.subblock-row:has(+ .subblock-row > .subblock-content:empty) > .subblock-divider {
+  display: none;
 }
 
 /**
@@ -601,25 +552,25 @@ input[type="search"]::-ms-clear {
   }
 
   .auth-button-gradient {
-    background: linear-gradient(to bottom, var(--brand-500), var(--brand-400)) !important;
+    background: linear-gradient(to bottom, var(--brand-primary-hex), var(--brand-400)) !important;
     border-color: var(--brand-400) !important;
     box-shadow: inset 0 2px 4px 0 var(--brand-400) !important;
   }
 
   .auth-button-gradient:hover {
-    background: linear-gradient(to bottom, var(--brand-500), var(--brand-400)) !important;
+    background: linear-gradient(to bottom, var(--brand-primary-hex), var(--brand-400)) !important;
     opacity: 0.9;
   }
 
   .auth-button-custom {
-    background: var(--brand-500) !important;
-    border-color: var(--brand-500) !important;
+    background: var(--brand-primary-hex) !important;
+    border-color: var(--brand-primary-hex) !important;
     box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.1) !important;
   }
 
   .auth-button-custom:hover {
-    background: var(--brand-500) !important;
-    border-color: var(--brand-500) !important;
+    background: var(--brand-primary-hover-hex) !important;
+    border-color: var(--brand-primary-hover-hex) !important;
     opacity: 1;
   }
 
@@ -642,7 +593,7 @@ input[type="search"]::-ms-clear {
   }
 
   html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="copilot"] {
-    background-color: var(--surface-11) !important;
+    background-color: var(--border-1) !important;
     color: var(--text-primary) !important;
   }
   html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="toolbar"],
@@ -652,7 +603,7 @@ input[type="search"]::-ms-clear {
   }
 
   html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="toolbar"] {
-    background-color: var(--surface-11) !important;
+    background-color: var(--border-1) !important;
     color: var(--text-primary) !important;
   }
   html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="copilot"],
@@ -662,7 +613,7 @@ input[type="search"]::-ms-clear {
   }
 
   html[data-panel-active-tab="editor"] .panel-container [data-tab-button="editor"] {
-    background-color: var(--surface-11) !important;
+    background-color: var(--border-1) !important;
     color: var(--text-primary) !important;
   }
   html[data-panel-active-tab="editor"] .panel-container [data-tab-button="copilot"],

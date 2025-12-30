@@ -1,12 +1,12 @@
 import { db } from '@sim/db'
 import { member, user, userStats } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getUserUsageData } from '@/lib/billing/core/usage'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('OrganizationMemberAPI')
 

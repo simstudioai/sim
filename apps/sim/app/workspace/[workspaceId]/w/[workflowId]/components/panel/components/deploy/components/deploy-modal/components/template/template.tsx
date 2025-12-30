@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { forwardRef, useEffect, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import {
   Button,
   Combobox,
@@ -17,7 +17,6 @@ import {
 import { Skeleton, TagInput } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
-import { createLogger } from '@/lib/logs/console/logger'
 import { captureAndUploadOGImage, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH } from '@/lib/og'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
 import {
@@ -364,7 +363,7 @@ export function TemplateDeploy({
               </p>
               <Button
                 type='button'
-                variant='primary'
+                variant='tertiary'
                 onClick={() => {
                   try {
                     const event = new CustomEvent('open-settings', {
@@ -425,7 +424,7 @@ export function TemplateDeploy({
         <ModalContent size='sm'>
           <ModalHeader>Delete Template</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to delete this template?{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
@@ -435,19 +434,11 @@ export function TemplateDeploy({
               Cancel
             </Button>
             <Button
-              variant='primary'
+              variant='destructive'
               onClick={handleDelete}
               disabled={deleteMutation.isPending}
-              className='bg-[var(--text-error)] text-[13px] text-white hover:bg-[var(--text-error)]'
             >
-              {deleteMutation.isPending ? (
-                <>
-                  <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
-                  Deleting...
-                </>
-              ) : (
-                'Delete'
-              )}
+              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -463,7 +454,7 @@ export function TemplateDeploy({
  * Hidden container for OG image capture.
  * Lazy-rendered only when capturing - gets workflow state from store on mount.
  */
-const OGCaptureContainer = React.forwardRef<HTMLDivElement>((_, ref) => {
+const OGCaptureContainer = forwardRef<HTMLDivElement>((_, ref) => {
   const blocks = useWorkflowStore((state) => state.blocks)
   const edges = useWorkflowStore((state) => state.edges)
   const loops = useWorkflowStore((state) => state.loops)

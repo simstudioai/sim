@@ -1,6 +1,7 @@
 'use client'
 
 import { startTransition, useCallback, useEffect, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   ChevronLeft,
@@ -36,7 +37,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   CreateChunkModal,
   DeleteChunkModal,
@@ -212,7 +212,7 @@ function DocumentLoading({
   return (
     <div className='flex h-full flex-1 flex-col'>
       <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
+        <div className='flex flex-1 flex-col overflow-auto bg-white px-[24px] pt-[24px] pb-[24px] dark:bg-[var(--bg)]'>
           <Breadcrumb items={breadcrumbItems} />
 
           <div className='mt-[14px] flex items-center justify-between'>
@@ -234,7 +234,7 @@ function DocumentLoading({
           </div>
 
           <div className='mt-[14px] flex items-center justify-between'>
-            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-5)] px-[8px]'>
+            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-3)] px-[8px] dark:bg-[var(--surface-4)]'>
               <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
               <Input
                 placeholder='Search chunks...'
@@ -242,7 +242,7 @@ function DocumentLoading({
                 className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
               />
             </div>
-            <Button disabled variant='primary' className='h-[32px] rounded-[6px]'>
+            <Button disabled variant='tertiary' className='h-[32px] rounded-[6px]'>
               Create Chunk
             </Button>
           </div>
@@ -788,7 +788,7 @@ export function Document({
   return (
     <div className='flex h-full flex-1 flex-col'>
       <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
+        <div className='flex flex-1 flex-col overflow-auto bg-white px-[24px] pt-[24px] pb-[24px] dark:bg-[var(--bg)]'>
           <Breadcrumb items={breadcrumbItems} />
 
           <div className='mt-[14px] flex items-center justify-between'>
@@ -851,7 +851,7 @@ export function Document({
           </div>
 
           <div className='mt-[14px] flex items-center justify-between'>
-            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-5)] px-[8px]'>
+            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-4)] px-[8px]'>
               <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
               <Input
                 placeholder={
@@ -882,7 +882,7 @@ export function Document({
                 <Button
                   onClick={() => setIsCreateChunkModalOpen(true)}
                   disabled={documentData?.processingStatus === 'failed' || !userPermissions.canEdit}
-                  variant='primary'
+                  variant='tertiary'
                   className='h-[32px] rounded-[6px]'
                 >
                   Create Chunk
@@ -1092,18 +1092,13 @@ export function Document({
             )}
 
             {documentData?.processingStatus === 'completed' && totalPages > 1 && (
-              <div className='flex items-center justify-center border-t bg-background px-6 py-4'>
+              <div className='flex items-center justify-center border-t bg-background px-4 pt-[10px]'>
                 <div className='flex items-center gap-1'>
-                  <Button
-                    variant='ghost'
-                    onClick={prevPage}
-                    disabled={!hasPrevPage}
-                    className='h-8 w-8 p-0'
-                  >
-                    <ChevronLeft className='h-4 w-4' />
+                  <Button variant='ghost' onClick={prevPage} disabled={!hasPrevPage}>
+                    <ChevronLeft className='h-3.5 w-3.5' />
                   </Button>
 
-                  <div className='mx-4 flex items-center gap-6'>
+                  <div className='mx-[12px] flex items-center gap-[16px]'>
                     {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
                       let page: number
                       if (totalPages <= 5) {
@@ -1133,13 +1128,8 @@ export function Document({
                     })}
                   </div>
 
-                  <Button
-                    variant='ghost'
-                    onClick={nextPage}
-                    disabled={!hasNextPage}
-                    className='h-8 w-8 p-0'
-                  >
-                    <ChevronRight className='h-4 w-4' />
+                  <Button variant='ghost' onClick={nextPage} disabled={!hasNextPage}>
+                    <ChevronRight className='h-3.5 w-3.5' />
                   </Button>
                 </div>
               </div>
@@ -1229,7 +1219,7 @@ export function Document({
         <ModalContent size='sm'>
           <ModalHeader>Delete Document</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to delete "{effectiveDocumentName}"? This will permanently
               delete the document and all {documentData?.chunkCount ?? 0} chunk
               {documentData?.chunkCount === 1 ? '' : 's'} within it.{' '}
@@ -1245,10 +1235,9 @@ export function Document({
               Cancel
             </Button>
             <Button
-              variant='primary'
+              variant='destructive'
               onClick={handleDeleteDocument}
               disabled={isDeletingDocument}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {isDeletingDocument ? 'Deleting...' : 'Delete Document'}
             </Button>

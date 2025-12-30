@@ -71,7 +71,7 @@ export function AttachedFilesDisplay({
       {files.map((file) => (
         <div
           key={file.id}
-          className='group relative h-16 w-16 flex-shrink-0 cursor-pointer overflow-hidden rounded-md border border-border/50 bg-muted/20 transition-all hover:bg-muted/40'
+          className='group relative h-16 w-16 flex-shrink-0 cursor-pointer overflow-hidden rounded-md border bg-muted/20 transition-all hover:bg-muted/40'
           title={`${file.name} (${formatFileSize(file.size)})`}
           onClick={() => onFileClick(file)}
         >

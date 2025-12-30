@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { Loader2, MinusCircle, Play, XCircle } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import {
@@ -6,7 +7,6 @@ import {
   ClientToolCallState,
   WORKFLOW_EXECUTION_TIMEOUT_MS,
 } from '@/lib/copilot/tools/client/base-tool'
-import { createLogger } from '@/lib/logs/console/logger'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'

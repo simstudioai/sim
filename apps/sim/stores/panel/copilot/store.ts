@@ -1,5 +1,6 @@
 'use client'
 
+import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { type CopilotChat, sendStreamingMessage } from '@/lib/copilot/api'
@@ -52,7 +53,6 @@ import { ManageCustomToolClientTool } from '@/lib/copilot/tools/client/workflow/
 import { ManageMcpToolClientTool } from '@/lib/copilot/tools/client/workflow/manage-mcp-tool'
 import { RunWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/run-workflow'
 import { SetGlobalWorkflowVariablesClientTool } from '@/lib/copilot/tools/client/workflow/set-global-workflow-variables'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import type {
@@ -2520,14 +2520,6 @@ export const useCopilotStore = create<CopilotStore>()(
       return messageCheckpoints[messageId] || []
     },
 
-    // Preview YAML (stubbed/no-op)
-    setPreviewYaml: async (_yamlContent: string) => {},
-    clearPreviewYaml: async () => {
-      set((state) => ({
-        currentChat: state.currentChat ? { ...state.currentChat, previewYaml: null } : null,
-      }))
-    },
-
     // Handle streaming response
     handleStreamingResponse: async (
       stream: ReadableStream,
@@ -2669,7 +2661,7 @@ export const useCopilotStore = create<CopilotStore>()(
         // Invalidate subscription queries to update usage
         setTimeout(() => {
           const queryClient = getQueryClient()
-          queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+          queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
         }, 1000)
       } finally {
         clearTimeout(timeoutId)
@@ -2685,7 +2677,6 @@ export const useCopilotStore = create<CopilotStore>()(
         model: selectedModel,
         messages: get().messages,
         messageCount: get().messages.length,
-        previewYaml: null,
         planArtifact: streamingPlanContent || null,
         config: {
           mode,
@@ -2842,10 +2833,6 @@ export const useCopilotStore = create<CopilotStore>()(
         }
       }
     },
-
-    // Diff updates are out of scope for minimal store
-    updateDiffStore: async (_yamlContent: string) => {},
-    updateDiffStoreWithWorkflowState: async (_workflowState: any) => {},
 
     setSelectedModel: async (model) => {
       logger.info('[Context Usage] Model changed', { from: get().selectedModel, to: model })

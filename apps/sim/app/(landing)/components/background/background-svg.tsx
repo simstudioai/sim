@@ -5,39 +5,39 @@ export default function BackgroundSVG() {
       focusable='false'
       className='-translate-x-1/2 pointer-events-none absolute top-0 left-1/2 z-10 hidden h-full min-h-full w-[1308px] sm:block'
       width='1308'
-      height='4942'
-      viewBox='0 18 1308 4066'
+      height='4970'
+      viewBox='0 18 1308 4094'
       fill='none'
       xmlns='http://www.w3.org/2000/svg'
       preserveAspectRatio='xMidYMin slice'
     >
-      {/* Pricing section (original height ~380 units) */}
+      {/* Pricing section (extended by ~28 units) */}
       <path d='M6.71704 1236.22H1300.76' stroke='#E7E4EF' strokeWidth='2' />
       <circle cx='11.0557' cy='1236.48' r='8.07846' fill='white' stroke='#E7E4EF' strokeWidth='2' />
       <circle cx='1298.02' cy='1236.48' r='8.07846' fill='white' stroke='#E7E4EF' strokeWidth='2' />
-      <path d='M10.7967 1245.42V1613.91' stroke='#E7E4EF' strokeWidth='2' />
-      <path d='M1297.76 1245.96V1613.91' stroke='#E7E4EF' strokeWidth='2' />
+      <path d='M10.7967 1245.42V1641.91' stroke='#E7E4EF' strokeWidth='2' />
+      <path d='M1297.76 1245.96V1641.91' stroke='#E7E4EF' strokeWidth='2' />
 
-      {/* Integrations section (original height ~412 units) */}
-      <path d='M6.71704 1614.89H1291.05' stroke='#E7E4EF' strokeWidth='2' />
-      <circle cx='11.0557' cy='1615.15' r='8.07846' fill='white' stroke='#E7E4EF' strokeWidth='2' />
-      <circle cx='1298.02' cy='1615.15' r='8.07846' fill='white' stroke='#E7E4EF' strokeWidth='2' />
-      <path d='M10.7967 1624.61V2026.93' stroke='#E7E4EF' strokeWidth='2' />
-      <path d='M1297.76 1624.61V2026.93' stroke='#E7E4EF' strokeWidth='2' />
+      {/* Integrations section (shifted down by 28 units) */}
+      <path d='M6.71704 1642.89H1291.05' stroke='#E7E4EF' strokeWidth='2' />
+      <circle cx='11.0557' cy='1643.15' r='8.07846' fill='white' stroke='#E7E4EF' strokeWidth='2' />
+      <circle cx='1298.02' cy='1643.15' r='8.07846' fill='white' stroke='#E7E4EF' strokeWidth='2' />
+      <path d='M10.7967 1652.61V2054.93' stroke='#E7E4EF' strokeWidth='2' />
+      <path d='M1297.76 1652.61V2054.93' stroke='#E7E4EF' strokeWidth='2' />
 
-      {/* Testimonials section (original short height ~149 units) */}
-      <path d='M6.71704 2026.71H1300.76' stroke='#E7E4EF' strokeWidth='2' />
-      <circle cx='11.0557' cy='2026.97' r='8.07846' fill='white' stroke='#E7E4EF' strokeWidth='2' />
-      <circle cx='1298.02' cy='2026.97' r='8.07846' fill='white' stroke='#E7E4EF' strokeWidth='2' />
-      <path d='M10.7967 2036.43V2177.43' stroke='#E7E4EF' strokeWidth='2' />
-      <path d='M1297.76 2036.43V2177.43' stroke='#E7E4EF' strokeWidth='2' />
+      {/* Testimonials section (shifted down by 28 units) */}
+      <path d='M6.71704 2054.71H1300.76' stroke='#E7E4EF' strokeWidth='2' />
+      <circle cx='11.0557' cy='2054.97' r='8.07846' fill='white' stroke='#E7E4EF' strokeWidth='2' />
+      <circle cx='1298.02' cy='2054.97' r='8.07846' fill='white' stroke='#E7E4EF' strokeWidth='2' />
+      <path d='M10.7967 2064.43V2205.43' stroke='#E7E4EF' strokeWidth='2' />
+      <path d='M1297.76 2064.43V2205.43' stroke='#E7E4EF' strokeWidth='2' />
 
-      {/* Footer section line */}
-      <path d='M6.71704 2177.71H1300.76' stroke='#E7E4EF' strokeWidth='2' />
-      <circle cx='11.0557' cy='2177.97' r='8.07846' fill='white' stroke='#E7E4EF' strokeWidth='2' />
-      <circle cx='1298.02' cy='2177.97' r='8.07846' fill='white' stroke='#E7E4EF' strokeWidth='2' />
-      <path d='M10.7967 2187.43V4090.25' stroke='#E7E4EF' strokeWidth='2' />
-      <path d='M1297.76 2187.43V4090.25' stroke='#E7E4EF' strokeWidth='2' />
+      {/* Footer section line (shifted down by 28 units) */}
+      <path d='M6.71704 2205.71H1300.76' stroke='#E7E4EF' strokeWidth='2' />
+      <circle cx='11.0557' cy='2205.97' r='8.07846' fill='white' stroke='#E7E4EF' strokeWidth='2' />
+      <circle cx='1298.02' cy='2205.97' r='8.07846' fill='white' stroke='#E7E4EF' strokeWidth='2' />
+      <path d='M10.7967 2215.43V4118.25' stroke='#E7E4EF' strokeWidth='2' />
+      <path d='M1297.76 2215.43V4118.25' stroke='#E7E4EF' strokeWidth='2' />
       <path
         d='M959.828 116.604C1064.72 187.189 1162.61 277.541 1293.45 536.597'
         stroke='#E7E4EF'

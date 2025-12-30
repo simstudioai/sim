@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { ChevronDown, Database, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -29,7 +30,9 @@ import {
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
-import type { KnowledgeBaseData } from '@/stores/knowledge/store'
+import { type KnowledgeBaseData, useKnowledgeStore } from '@/stores/knowledge/store'
+
+const logger = createLogger('Knowledge')
 
 /**
  * Extended knowledge base data with document count
@@ -46,7 +49,7 @@ export function Knowledge() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
-  const { knowledgeBases, isLoading, error, addKnowledgeBase, refreshList } =
+  const { knowledgeBases, isLoading, error, addKnowledgeBase, removeKnowledgeBase, refreshList } =
     useKnowledgeBasesList(workspaceId)
   const userPermissions = useUserPermissionsContext()
 
@@ -84,6 +87,65 @@ export function Knowledge() {
   const handleRetry = () => {
     refreshList()
   }
+
+  const { updateKnowledgeBase: updateKnowledgeBaseInStore } = useKnowledgeStore()
+
+  /**
+   * Updates a knowledge base name and description
+   */
+  const handleUpdateKnowledgeBase = useCallback(
+    async (id: string, name: string, description: string) => {
+      const response = await fetch(`/api/knowledge/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, description }),
+      })
+
+      if (!response.ok) {
+        const result = await response.json()
+        throw new Error(result.error || 'Failed to update knowledge base')
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        logger.info(`Knowledge base updated: ${id}`)
+        updateKnowledgeBaseInStore(id, { name, description })
+        await refreshList()
+      } else {
+        throw new Error(result.error || 'Failed to update knowledge base')
+      }
+    },
+    [refreshList, updateKnowledgeBaseInStore]
+  )
+
+  /**
+   * Deletes a knowledge base
+   */
+  const handleDeleteKnowledgeBase = useCallback(
+    async (id: string) => {
+      const response = await fetch(`/api/knowledge/${id}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        const result = await response.json()
+        throw new Error(result.error || 'Failed to delete knowledge base')
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        logger.info(`Knowledge base deleted: ${id}`)
+        removeKnowledgeBase(id)
+      } else {
+        throw new Error(result.error || 'Failed to delete knowledge base')
+      }
+    },
+    [removeKnowledgeBase]
+  )
 
   /**
    * Filter and sort knowledge bases based on search query and sort options
@@ -131,11 +193,11 @@ export function Knowledge() {
     <>
       <div className='flex h-full flex-1 flex-col'>
         <div className='flex flex-1 overflow-hidden'>
-          <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[28px] pb-[24px]'>
+          <div className='flex flex-1 flex-col overflow-auto bg-white px-[24px] pt-[28px] pb-[24px] dark:bg-[var(--bg)]'>
             <div>
               <div className='flex items-start gap-[12px]'>
-                <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#1E5A3E] bg-[#0F3D2C]'>
-                  <Database className='h-[14px] w-[14px] text-[#34D399]' />
+                <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#5BB377] bg-[#E8F7EE] dark:border-[#1E5A3E] dark:bg-[#0F3D2C]'>
+                  <Database className='h-[14px] w-[14px] text-[#5BB377] dark:text-[#34D399]' />
                 </div>
                 <h1 className='font-medium text-[18px]'>Knowledge Base</h1>
               </div>
@@ -145,7 +207,7 @@ export function Knowledge() {
             </div>
 
             <div className='mt-[14px] flex items-center justify-between'>
-              <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-5)] px-[8px]'>
+              <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-4)] px-[8px]'>
                 <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
                 <Input
                   placeholder='Search'
@@ -184,7 +246,7 @@ export function Knowledge() {
                     <Button
                       onClick={() => setIsCreateModalOpen(true)}
                       disabled={userPermissions.canEdit !== true}
-                      variant='primary'
+                      variant='tertiary'
                       className='h-[32px] rounded-[6px]'
                     >
                       Create
@@ -234,6 +296,8 @@ export function Knowledge() {
                       description={displayData.description}
                       createdAt={displayData.createdAt}
                       updatedAt={displayData.updatedAt}
+                      onUpdate={handleUpdateKnowledgeBase}
+                      onDelete={handleDeleteKnowledgeBase}
                     />
                   )
                 })

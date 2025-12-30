@@ -1,6 +1,6 @@
+import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { createLogger } from '@/lib/logs/console/logger'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import {
   computeEditSequence,

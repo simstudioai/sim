@@ -188,9 +188,6 @@ export interface CopilotActions {
   revertToCheckpoint: (checkpointId: string) => Promise<void>
   getCheckpointsForMessage: (messageId: string) => any[]
 
-  setPreviewYaml: (yamlContent: string) => Promise<void>
-  clearPreviewYaml: () => Promise<void>
-
   clearMessages: () => void
   clearError: () => void
   clearSaveError: () => void
@@ -217,8 +214,6 @@ export interface CopilotActions {
     triggerUserMessageId?: string
   ) => Promise<void>
   handleNewChatCreation: (newChatId: string) => Promise<void>
-  updateDiffStore: (yamlContent: string, toolName?: string) => Promise<void>
-  updateDiffStoreWithWorkflowState: (workflowState: any, toolName?: string) => Promise<void>
   executeIntegrationTool: (toolCallId: string) => Promise<void>
   skipIntegrationTool: (toolCallId: string) => void
   loadAutoAllowedTools: () => Promise<void>

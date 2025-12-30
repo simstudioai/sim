@@ -187,6 +187,7 @@ import {
 } from '@/tools/exa'
 import { fileParseTool } from '@/tools/file'
 import {
+  firecrawlAgentTool,
   firecrawlCrawlTool,
   firecrawlExtractTool,
   firecrawlMapTool,
@@ -368,6 +369,12 @@ import {
   grainListRecordingsTool,
   grainListTeamsTool,
 } from '@/tools/grain'
+import {
+  greptileIndexRepoTool,
+  greptileQueryTool,
+  greptileSearchTool,
+  greptileStatusTool,
+} from '@/tools/greptile'
 import { guardrailsValidateTool } from '@/tools/guardrails'
 import { httpRequestTool } from '@/tools/http'
 import {
@@ -1397,6 +1404,7 @@ export const tools: Record<string, ToolConfig> = {
   firecrawl_crawl: firecrawlCrawlTool,
   firecrawl_map: firecrawlMapTool,
   firecrawl_extract: firecrawlExtractTool,
+  firecrawl_agent: firecrawlAgentTool,
   grafana_get_dashboard: grafanaGetDashboardTool,
   grafana_list_dashboards: grafanaListDashboardsTool,
   grafana_create_dashboard: grafanaCreateDashboardTool,
@@ -1762,6 +1770,10 @@ export const tools: Record<string, ToolConfig> = {
   grain_create_hook: grainCreateHookTool,
   grain_list_hooks: grainListHooksTool,
   grain_delete_hook: grainDeleteHookTool,
+  greptile_query: greptileQueryTool,
+  greptile_search: greptileSearchTool,
+  greptile_index_repo: greptileIndexRepoTool,
+  greptile_status: greptileStatusTool,
   elasticsearch_search: elasticsearchSearchTool,
   elasticsearch_index_document: elasticsearchIndexDocumentTool,
   elasticsearch_get_document: elasticsearchGetDocumentTool,

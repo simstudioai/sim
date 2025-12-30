@@ -1,8 +1,8 @@
 import { db, workflow, workflowDeploymentVersion } from '@sim/db'
+import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createLogger } from '@/lib/logs/console/logger'
 import { deployWorkflow, loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
   createSchedulesForDeploy,
@@ -60,13 +60,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const { loadWorkflowFromNormalizedTables } = await import('@/lib/workflows/persistence/utils')
       const normalizedData = await loadWorkflowFromNormalizedTables(id)
       if (normalizedData) {
+        const [workflowRecord] = await db
+          .select({ variables: workflow.variables })
+          .from(workflow)
+          .where(eq(workflow.id, id))
+          .limit(1)
+
         const currentState = {
           blocks: normalizedData.blocks,
           edges: normalizedData.edges,
           loops: normalizedData.loops,
           parallels: normalizedData.parallels,
+          variables: workflowRecord?.variables || {},
         }
-        const { hasWorkflowChanged } = await import('@/lib/workflows/utils')
+        const { hasWorkflowChanged } = await import('@/lib/workflows/comparison')
         needsRedeployment = hasWorkflowChanged(currentState as any, active.state as any)
       }
     }

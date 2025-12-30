@@ -99,7 +99,7 @@ export interface EmbeddingData {
 
 export interface KnowledgeBaseAccessResult {
   hasAccess: true
-  knowledgeBase: Pick<KnowledgeBaseData, 'id' | 'userId'>
+  knowledgeBase: Pick<KnowledgeBaseData, 'id' | 'userId' | 'workspaceId'>
 }
 
 export interface KnowledgeBaseAccessDenied {
@@ -113,7 +113,7 @@ export type KnowledgeBaseAccessCheck = KnowledgeBaseAccessResult | KnowledgeBase
 export interface DocumentAccessResult {
   hasAccess: true
   document: DocumentData
-  knowledgeBase: Pick<KnowledgeBaseData, 'id' | 'userId'>
+  knowledgeBase: Pick<KnowledgeBaseData, 'id' | 'userId' | 'workspaceId'>
 }
 
 export interface DocumentAccessDenied {
@@ -128,7 +128,7 @@ export interface ChunkAccessResult {
   hasAccess: true
   chunk: EmbeddingData
   document: DocumentData
-  knowledgeBase: Pick<KnowledgeBaseData, 'id' | 'userId'>
+  knowledgeBase: Pick<KnowledgeBaseData, 'id' | 'userId' | 'workspaceId'>
 }
 
 export interface ChunkAccessDenied {

@@ -38,8 +38,8 @@ const LogRow = memo(
       <div
         ref={isSelected ? selectedRowRef : null}
         className={cn(
-          'relative flex h-[44px] cursor-pointer items-center px-[24px] hover:bg-[var(--c-2A2A2A)]',
-          isSelected && 'bg-[var(--c-2A2A2A)]'
+          'relative flex h-[44px] cursor-pointer items-center px-[24px] hover:bg-[var(--surface-3)] dark:hover:bg-[var(--surface-4)]',
+          isSelected && 'bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'
         )}
         onClick={handleClick}
       >

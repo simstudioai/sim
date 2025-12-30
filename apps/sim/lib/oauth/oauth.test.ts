@@ -1,3 +1,4 @@
+import { createMockFetch, loggerMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/config/env', () => ({
@@ -51,28 +52,25 @@ vi.mock('@/lib/core/config/env', () => ({
   },
 }))
 
-vi.mock('@/lib/logs/console/logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
 import { refreshOAuthToken } from '@/lib/oauth'
 
-function createMockFetch() {
-  return vi.fn().mockResolvedValue({
-    ok: true,
-    json: async () => ({
-      access_token: 'new_access_token',
-      expires_in: 3600,
-      refresh_token: 'new_refresh_token',
-    }),
-  })
+/**
+ * Default OAuth token response for successful requests.
+ */
+const defaultOAuthResponse = {
+  ok: true,
+  json: {
+    access_token: 'new_access_token',
+    expires_in: 3600,
+    refresh_token: 'new_refresh_token',
+  },
 }
 
+/**
+ * Helper to run a function with a mocked global fetch.
+ */
 function withMockFetch<T>(mockFetch: ReturnType<typeof vi.fn>, fn: () => Promise<T>): Promise<T> {
   const originalFetch = global.fetch
   global.fetch = mockFetch
@@ -123,7 +121,7 @@ describe('OAuth Token Refresh', () => {
       it.concurrent(
         `should send ${name} request with Basic Auth header and no credentials in body`,
         async () => {
-          const mockFetch = createMockFetch()
+          const mockFetch = createMockFetch(defaultOAuthResponse)
           const refreshToken = 'test_refresh_token'
 
           await withMockFetch(mockFetch, () => refreshOAuthToken(providerId, refreshToken))
@@ -140,7 +138,10 @@ describe('OAuth Token Refresh', () => {
             })
           )
 
-          const [, requestOptions] = mockFetch.mock.calls[0]
+          const [, requestOptions] = mockFetch.mock.calls[0] as [
+            string,
+            { headers: Record<string, string>; body: string },
+          ]
 
           const authHeader = requestOptions.headers.Authorization
           expect(authHeader).toMatch(/^Basic /)
@@ -237,7 +238,7 @@ describe('OAuth Token Refresh', () => {
       it.concurrent(
         `should send ${name} request with credentials in body and no Basic Auth`,
         async () => {
-          const mockFetch = createMockFetch()
+          const mockFetch = createMockFetch(defaultOAuthResponse)
           const refreshToken = 'test_refresh_token'
 
           await withMockFetch(mockFetch, () => refreshOAuthToken(providerId, refreshToken))
@@ -253,7 +254,10 @@ describe('OAuth Token Refresh', () => {
             })
           )
 
-          const [, requestOptions] = mockFetch.mock.calls[0]
+          const [, requestOptions] = mockFetch.mock.calls[0] as [
+            string,
+            { headers: Record<string, string>; body: string },
+          ]
 
           expect(requestOptions.headers.Authorization).toBeUndefined()
 
@@ -276,22 +280,28 @@ describe('OAuth Token Refresh', () => {
     })
 
     it.concurrent('should include Accept header for GitHub requests', async () => {
-      const mockFetch = createMockFetch()
+      const mockFetch = createMockFetch(defaultOAuthResponse)
       const refreshToken = 'test_refresh_token'
 
       await withMockFetch(mockFetch, () => refreshOAuthToken('github', refreshToken))
 
-      const [, requestOptions] = mockFetch.mock.calls[0]
+      const [, requestOptions] = mockFetch.mock.calls[0] as [
+        string,
+        { headers: Record<string, string>; body: string },
+      ]
       expect(requestOptions.headers.Accept).toBe('application/json')
     })
 
     it.concurrent('should include User-Agent header for Reddit requests', async () => {
-      const mockFetch = createMockFetch()
+      const mockFetch = createMockFetch(defaultOAuthResponse)
       const refreshToken = 'test_refresh_token'
 
       await withMockFetch(mockFetch, () => refreshOAuthToken('reddit', refreshToken))
 
-      const [, requestOptions] = mockFetch.mock.calls[0]
+      const [, requestOptions] = mockFetch.mock.calls[0] as [
+        string,
+        { headers: Record<string, string>; body: string },
+      ]
       expect(requestOptions.headers['User-Agent']).toBe(
         'sim-studio/1.0 (https://github.com/simstudioai/sim)'
       )
@@ -300,7 +310,7 @@ describe('OAuth Token Refresh', () => {
 
   describe('Error Handling', () => {
     it.concurrent('should return null for unsupported provider', async () => {
-      const mockFetch = createMockFetch()
+      const mockFetch = createMockFetch(defaultOAuthResponse)
       const refreshToken = 'test_refresh_token'
 
       const result = await withMockFetch(mockFetch, () =>

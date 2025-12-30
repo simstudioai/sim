@@ -30,13 +30,15 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
   const startHandleId = isLoop ? 'loop-start-source' : 'parallel-start-source'
   const endHandleId = isLoop ? 'loop-end-source' : 'parallel-end-source'
 
-  // Handle styles matching the actual subflow component
-  const handleClass =
-    '!border-none !bg-[var(--surface-12)] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-[2px]'
+  // Handle styles matching the workflow-block component
+  const leftHandleClass =
+    '!z-[10] !border-none !bg-[var(--workflow-edge)] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-none'
+  const rightHandleClass =
+    '!z-[10] !border-none !bg-[var(--workflow-edge)] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none'
 
   return (
     <div
-      className='relative select-none rounded-[8px] border border-[var(--divider)]'
+      className='relative select-none rounded-[8px] border border-[var(--border)]'
       style={{
         width,
         height,
@@ -47,16 +49,16 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
         type='target'
         position={Position.Left}
         id='target'
-        className={handleClass}
+        className={leftHandleClass}
         style={{
-          left: '-7px',
+          left: '-8px',
           top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px`,
           transform: 'translateY(-50%)',
         }}
       />
 
       {/* Header - matches actual subflow header */}
-      <div className='flex items-center gap-[10px] rounded-t-[8px] border-[var(--divider)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px]'>
+      <div className='flex items-center gap-[10px] rounded-t-[8px] border-[var(--border)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px]'>
         <div
           className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
           style={{ backgroundColor: blockIconBg }}
@@ -69,14 +71,14 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
       </div>
 
       {/* Start handle inside - connects to first block in subflow */}
-      <div className='absolute top-[56px] left-[16px] flex items-center justify-center rounded-[8px] bg-[var(--surface-2)] px-[12px] py-[6px]'>
+      <div className='absolute top-[56px] left-[16px] flex items-center justify-center rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] px-[12px] py-[6px]'>
         <span className='font-medium text-[14px] text-white'>Start</span>
         <Handle
           type='source'
           position={Position.Right}
           id={startHandleId}
-          className={handleClass}
-          style={{ right: '-7px', top: '50%', transform: 'translateY(-50%)' }}
+          className={rightHandleClass}
+          style={{ right: '-8px', top: '50%', transform: 'translateY(-50%)' }}
         />
       </div>
 
@@ -85,9 +87,9 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
         type='source'
         position={Position.Right}
         id={endHandleId}
-        className={handleClass}
+        className={rightHandleClass}
         style={{
-          right: '-7px',
+          right: '-8px',
           top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px`,
           transform: 'translateY(-50%)',
         }}

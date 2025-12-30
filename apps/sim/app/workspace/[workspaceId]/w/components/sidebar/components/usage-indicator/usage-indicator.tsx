@@ -1,58 +1,55 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
-import { Button } from '@/components/emcn'
+import { Badge } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
-import { isUsageAtLimit, USAGE_PILL_COLORS } from '@/lib/billing/client/usage-visualization'
 import {
-  canUpgrade,
-  getBillingStatus,
-  getSubscriptionStatus,
-  getUsage,
-} from '@/lib/billing/client/utils'
-import { createLogger } from '@/lib/logs/console/logger'
+  getFilledPillColor,
+  USAGE_PILL_COLORS,
+  USAGE_THRESHOLDS,
+} from '@/lib/billing/client/usage-visualization'
+import { getBillingStatus, getSubscriptionStatus, getUsage } from '@/lib/billing/client/utils'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
-import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
+import { SIDEBAR_WIDTH } from '@/stores/constants'
+import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('UsageIndicator')
 
 /**
- * Minimum number of pills to display (at minimum sidebar width).
+ * Pill display configuration.
  */
-const MIN_PILL_COUNT = 6
+const PILL_CONFIG = {
+  MIN_COUNT: 6,
+  MAX_COUNT: 8,
+  WIDTH_PER_PILL: 50,
+  ANIMATION_TICK_MS: 30,
+  PILLS_PER_SECOND: 1.8,
+} as const
+
+const PILL_STEP_PER_TICK = (PILL_CONFIG.PILLS_PER_SECOND * PILL_CONFIG.ANIMATION_TICK_MS) / 1000
 
 /**
- * Maximum number of pills to display.
+ * Display width costs in "digit equivalents" for responsive layout.
  */
-const MAX_PILL_COUNT = 8
+const WIDTH_COSTS = {
+  BADGE: 6,
+  BLOCKED_TEXT: 4,
+  WIDTH_PER_EXTRA_DIGIT: 10,
+} as const
 
 /**
- * Width increase (in pixels) required to add one additional pill.
+ * Base digit capacity by plan type (without badge).
  */
-const WIDTH_PER_PILL = 50
+const PLAN_DIGIT_CAPACITY = {
+  enterprise: 14,
+  team: 14,
+  pro: 14,
+  free: 14,
+} as const
 
-/**
- * Animation tick interval in milliseconds.
- * Controls the update frequency of the wave animation.
- */
-const PILL_ANIMATION_TICK_MS = 30
-
-/**
- * Speed of the wave animation in pills per second.
- */
-const PILLS_PER_SECOND = 1.8
-
-/**
- * Distance (in pill units) the wave advances per animation tick.
- * Derived from {@link PILLS_PER_SECOND} and {@link PILL_ANIMATION_TICK_MS}.
- */
-const PILL_STEP_PER_TICK = (PILLS_PER_SECOND * PILL_ANIMATION_TICK_MS) / 1000
-
-/**
- * Human-readable plan name labels.
- */
 const PLAN_NAMES = {
   enterprise: 'Enterprise',
   team: 'Team',
@@ -60,65 +57,170 @@ const PLAN_NAMES = {
   free: 'Free',
 } as const
 
+type PlanType = keyof typeof PLAN_NAMES
+type OrgRole = 'owner' | 'admin' | 'member'
+
+interface DisplayState {
+  planType: PlanType
+  isBlocked: boolean
+  isDispute: boolean
+  isCritical: boolean
+  isWarning: boolean
+  canManageBilling: boolean
+}
+
+interface BadgeConfig {
+  show: boolean
+  variant: 'red' | 'blue-secondary'
+  label: string
+}
+
+interface StatusTextConfig {
+  text: string
+  isError: boolean
+}
+
 /**
- * Props for the {@link UsageIndicator} component.
+ * Determines if user can manage billing based on plan type and org role.
+ *
+ * @param planType - The user's current plan type
+ * @param orgRole - The user's role in the organization, if applicable
+ * @returns True if the user has billing management permissions
  */
+function canManageBilling(planType: PlanType, orgRole: OrgRole | null): boolean {
+  if (planType === 'free' || planType === 'pro') return true
+  if (planType === 'team' || planType === 'enterprise') {
+    return orgRole === 'owner' || orgRole === 'admin'
+  }
+  return false
+}
+
+/**
+ * Determines the badge configuration based on display state.
+ *
+ * Priority order:
+ * 1. Blocked/dispute states (all users including free with past due payments)
+ * 2. Free users see upgrade badge
+ * 3. Critical usage shows "Get Help" (enterprise) or "Set Limit" (others)
+ *
+ * @param state - The current display state
+ * @returns Badge configuration with visibility, variant, and label
+ */
+function getBadgeConfig(state: DisplayState): BadgeConfig {
+  const { isBlocked, isDispute, planType, isCritical, canManageBilling } = state
+
+  if (isDispute && canManageBilling) {
+    return { show: true, variant: 'red', label: 'Get Help' }
+  }
+  if (isBlocked && canManageBilling) {
+    return { show: true, variant: 'red', label: 'Fix Now' }
+  }
+
+  if (planType === 'free') {
+    return { show: true, variant: 'blue-secondary', label: 'Upgrade' }
+  }
+
+  if (isCritical && canManageBilling) {
+    const label = planType === 'enterprise' ? 'Get Help' : 'Set Limit'
+    return { show: true, variant: 'red', label }
+  }
+
+  return { show: false, variant: 'blue-secondary', label: '' }
+}
+
+/**
+ * Determines the status text configuration for the usage display.
+ *
+ * @param isBlocked - Whether billing is blocked
+ * @param isDispute - Whether there is a payment dispute
+ * @param usage - Current and limit usage values
+ * @returns Status text configuration with display text and error state
+ */
+function getStatusTextConfig(
+  isBlocked: boolean,
+  isDispute: boolean,
+  usage: { current: number; limit: number }
+): StatusTextConfig {
+  if (isBlocked || isDispute) {
+    return {
+      text: 'Payment failed',
+      isError: true,
+    }
+  }
+  return {
+    text: `$${usage.current.toFixed(2)} / $${usage.limit.toFixed(2)}`,
+    isError: false,
+  }
+}
+
+/**
+ * Calculates whether plan text fits based on available sidebar space.
+ *
+ * @param planType - The user's current plan type
+ * @param usage - Current and limit usage values
+ * @param sidebarWidth - Current sidebar width in pixels
+ * @param badgeShowing - Whether a badge is currently displayed
+ * @param isBlocked - Whether billing is blocked
+ * @returns True if plan text should be displayed
+ */
+function shouldShowPlanText(
+  planType: PlanType,
+  usage: { current: number; limit: number },
+  sidebarWidth: number,
+  badgeShowing: boolean,
+  isBlocked: boolean
+): boolean {
+  const countDigits = (value: number): number => value.toFixed(2).replace(/\D/g, '').length
+
+  const usageDigits = countDigits(usage.current) + countDigits(usage.limit)
+  const extraWidth = Math.max(0, sidebarWidth - SIDEBAR_WIDTH.MIN)
+  const bonusDigits = Math.floor(extraWidth / WIDTH_COSTS.WIDTH_PER_EXTRA_DIGIT)
+
+  let totalCost = usageDigits
+  if (badgeShowing) totalCost += WIDTH_COSTS.BADGE
+  if (isBlocked) totalCost += WIDTH_COSTS.BLOCKED_TEXT
+
+  const capacity = PLAN_DIGIT_CAPACITY[planType] + bonusDigits
+  return totalCost <= capacity
+}
+
 interface UsageIndicatorProps {
-  /**
-   * Optional click handler. If provided, overrides the default behavior
-   * of opening the settings modal to the subscription tab.
-   */
   onClick?: () => void
 }
 
 /**
- * Displays a visual usage indicator showing current subscription usage
- * with an animated pill bar that responds to hover interactions.
- *
- * The component shows:
- * - Current plan type (Free, Pro, Team, Enterprise)
- * - Current usage vs. limit (e.g., $7.00 / $10.00)
- * - Visual pill bar representing usage percentage
- * - Upgrade button for free plans or when blocked
- *
- * @param props - Component props
- * @returns A usage indicator component with responsive pill visualization
+ * Displays a visual usage indicator with animated pill bar.
  */
 export function UsageIndicator({ onClick }: UsageIndicatorProps) {
-  const { data: subscriptionData, isLoading } = useSubscriptionData()
+  const { data: subscriptionData, isLoading } = useSubscriptionData({ includeOrg: true })
   const sidebarWidth = useSidebarStore((state) => state.sidebarWidth)
   const { onOperationConfirmed } = useSocket()
   const queryClient = useQueryClient()
 
-  // Listen for completed operations to update usage
   useEffect(() => {
     const handleOperationConfirmed = () => {
-      // Small delay to ensure backend has updated usage
       setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
       }, 1000)
     }
-
     onOperationConfirmed(handleOperationConfirmed)
   }, [onOperationConfirmed, queryClient])
 
-  /**
-   * Calculate pill count based on sidebar width (6-8 pills dynamically).
-   * This provides responsive feedback as the sidebar width changes.
-   */
-  const pillCount = useMemo(() => {
-    const widthDelta = sidebarWidth - MIN_SIDEBAR_WIDTH
-    const additionalPills = Math.floor(widthDelta / WIDTH_PER_PILL)
-    const calculatedCount = MIN_PILL_COUNT + additionalPills
-    return Math.max(MIN_PILL_COUNT, Math.min(MAX_PILL_COUNT, calculatedCount))
-  }, [sidebarWidth])
-
   const usage = getUsage(subscriptionData?.data)
   const subscription = getSubscriptionStatus(subscriptionData?.data)
+  const billingStatus = getBillingStatus(subscriptionData?.data)
 
   const progressPercentage = Math.min(usage.percentUsed, 100)
+  const isBlocked = billingStatus === 'blocked'
+  const blockedReason = subscriptionData?.data?.billingBlockedReason as
+    | 'payment_failed'
+    | 'dispute'
+    | null
+  const isDispute = isBlocked && blockedReason === 'dispute'
 
-  const planType = subscription.isEnterprise
+  const orgRole = (subscriptionData?.data?.organization?.role as OrgRole) ?? null
+
+  const planType: PlanType = subscription.isEnterprise
     ? 'enterprise'
     : subscription.isTeam
       ? 'team'
@@ -126,24 +228,43 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         ? 'pro'
         : 'free'
 
-  const billingStatus = getBillingStatus(subscriptionData?.data)
-  const isBlocked = billingStatus === 'blocked'
-  const blockedReason = subscriptionData?.data?.billingBlockedReason as
-    | 'payment_failed'
-    | 'dispute'
-    | null
-  const isDispute = isBlocked && blockedReason === 'dispute'
-  const showUpgradeButton =
-    (planType === 'free' || isBlocked || progressPercentage >= 80) && planType !== 'enterprise'
+  const isCritical = isBlocked || progressPercentage >= USAGE_THRESHOLDS.CRITICAL
+  const isWarning = !isCritical && progressPercentage >= USAGE_THRESHOLDS.WARNING
+  const userCanManageBilling = canManageBilling(planType, orgRole)
 
-  /**
-   * Calculate which pills should be filled based on usage percentage.
-   * Uses a percentage-based heuristic with dynamic pill count (6-8).
-   * The warning/limit (red) state is derived from shared usage visualization utilities
-   * so it is consistent with other parts of the app (e.g. UsageHeader).
-   */
+  const displayState: DisplayState = {
+    planType,
+    isBlocked,
+    isDispute,
+    isCritical,
+    isWarning,
+    canManageBilling: userCanManageBilling,
+  }
+
+  const badgeConfig = useMemo(
+    () => getBadgeConfig(displayState),
+    [isBlocked, isDispute, planType, isCritical, userCanManageBilling]
+  )
+
+  const statusText = useMemo(
+    () => getStatusTextConfig(isBlocked, isDispute, usage),
+    [isBlocked, isDispute, usage.current, usage.limit]
+  )
+
+  const showPlanText = useMemo(
+    () => shouldShowPlanText(planType, usage, sidebarWidth, badgeConfig.show, isBlocked),
+    [planType, usage.current, usage.limit, sidebarWidth, badgeConfig.show, isBlocked]
+  )
+
+  const pillCount = useMemo(() => {
+    const widthDelta = sidebarWidth - SIDEBAR_WIDTH.MIN
+    const additionalPills = Math.floor(widthDelta / PILL_CONFIG.WIDTH_PER_PILL)
+    const calculatedCount = PILL_CONFIG.MIN_COUNT + additionalPills
+    return Math.max(PILL_CONFIG.MIN_COUNT, Math.min(PILL_CONFIG.MAX_COUNT, calculatedCount))
+  }, [sidebarWidth])
+
   const filledPillsCount = Math.ceil((progressPercentage / 100) * pillCount)
-  const isAtLimit = isUsageAtLimit(progressPercentage)
+  const filledColor = getFilledPillColor(isCritical, isWarning)
 
   const [isHovered, setIsHovered] = useState(false)
   const [wavePosition, setWavePosition] = useState<number | null>(null)
@@ -151,52 +272,37 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   const startAnimationIndex = pillCount === 0 ? 0 : Math.min(filledPillsCount, pillCount - 1)
 
   useEffect(() => {
-    // Animation enabled for all plans on hover
     if (!isHovered || pillCount <= 0) {
       setWavePosition(null)
       return
     }
 
-    /**
-     * Maximum distance (in pill units) the wave should travel from
-     * {@link startAnimationIndex} to the end of the row. The wave stops
-     * once it reaches the final pill and does not wrap.
-     */
-    const maxDistance = pillCount <= 0 ? 0 : Math.max(0, pillCount - startAnimationIndex)
-
+    const maxDistance = Math.max(0, pillCount - startAnimationIndex)
     setWavePosition(0)
 
     const interval = window.setInterval(() => {
       setWavePosition((prev) => {
         const current = prev ?? 0
-
-        if (current >= maxDistance) {
-          return current
-        }
-
+        if (current >= maxDistance) return current
         const next = current + PILL_STEP_PER_TICK
         return next >= maxDistance ? maxDistance : next
       })
-    }, PILL_ANIMATION_TICK_MS)
+    }, PILL_CONFIG.ANIMATION_TICK_MS)
 
-    return () => {
-      window.clearInterval(interval)
-    }
+    return () => window.clearInterval(interval)
   }, [isHovered, pillCount, startAnimationIndex])
 
   if (isLoading) {
     return (
-      <div className='flex flex-shrink-0 flex-col gap-[8px] border-t pt-[12px] pr-[13.5px] pb-[10px] pl-[12px] dark:border-[var(--border)]'>
-        {/* Top row skeleton */}
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-[6px]'>
-            <Skeleton className='h-[14px] w-[40px] rounded-[4px]' />
-            <Skeleton className='h-[14px] w-[70px] rounded-[4px]' />
+      <div className='flex flex-shrink-0 flex-col gap-[8px] border-t px-[13.5px] pt-[8px] pb-[10px]'>
+        <div className='flex h-[18px] items-center justify-between'>
+          <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
+            <Skeleton className='h-[12px] w-[28px] rounded-[4px]' />
+            <div className='h-[14px] w-[1.5px] flex-shrink-0 bg-[var(--divider)]' />
+            <Skeleton className='h-[12px] w-[90px] rounded-[4px]' />
           </div>
-          <Skeleton className='h-[12px] w-[50px] rounded-[4px]' />
+          <Skeleton className='h-[16px] w-[50px] rounded-[6px]' />
         </div>
-
-        {/* Pills skeleton */}
         <div className='flex items-center gap-[4px]'>
           {Array.from({ length: pillCount }).map((_, i) => (
             <Skeleton key={i} className='h-[6px] flex-1 rounded-[2px]' />
@@ -213,28 +319,16 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         return
       }
 
-      const blocked = getBillingStatus(subscriptionData?.data) === 'blocked'
-      const reason = subscriptionData?.data?.billingBlockedReason as
-        | 'payment_failed'
-        | 'dispute'
-        | null
-      const canUpg = canUpgrade(subscriptionData?.data)
-
-      // For disputes, open help modal instead of billing portal
-      if (blocked && reason === 'dispute') {
+      if (isDispute) {
         window.dispatchEvent(new CustomEvent('open-help-modal'))
         logger.info('Opened help modal for disputed account')
         return
       }
 
-      // For payment failures, open billing portal
-      if (blocked) {
+      if (isBlocked && userCanManageBilling) {
         try {
           const context = subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
-          const organizationId =
-            subscription.isTeam || subscription.isEnterprise
-              ? subscriptionData?.data?.organization?.id
-              : undefined
+          const organizationId = subscriptionData?.data?.organization?.id
 
           const response = await fetch('/api/billing/portal', {
             method: 'POST',
@@ -257,7 +351,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'subscription' } }))
-        logger.info('Opened settings to subscription tab', { blocked, canUpgrade: canUpg })
+        logger.info('Opened settings to subscription tab')
       }
     } catch (error) {
       logger.error('Failed to handle usage indicator click', { error })
@@ -266,60 +360,44 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
   return (
     <div
-      className={`group flex flex-shrink-0 cursor-pointer flex-col gap-[8px] border-t px-[13.5px] pt-[8px] pb-[10px] ${
-        isBlocked ? 'border-red-500/50 bg-red-950/20' : ''
-      }`}
+      className='group flex flex-shrink-0 cursor-pointer flex-col gap-[8px] border-t px-[13.5px] pt-[8px] pb-[10px]'
       onClick={handleClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Top row */}
-      <div className='flex items-center justify-between'>
+      <div className='flex h-[18px] items-center justify-between'>
         <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
-          <span className='flex-shrink-0 font-medium text-[#FFFFFF] text-[12px]'>
-            {PLAN_NAMES[planType]}
-          </span>
-          <div className='h-[14px] w-[1.5px] flex-shrink-0 bg-[var(--divider)]' />
+          {showPlanText && (
+            <>
+              <span className='flex-shrink-0 font-medium text-[12px] text-[var(--text-primary)]'>
+                {PLAN_NAMES[planType]}
+              </span>
+              <div className='h-[14px] w-[1.5px] flex-shrink-0 bg-[var(--divider)]' />
+            </>
+          )}
           <div className='flex min-w-0 flex-1 items-center gap-[4px]'>
-            {isBlocked ? (
-              isDispute ? (
-                <>
-                  <span className='font-medium text-[12px] text-red-400'>Account</span>
-                  <span className='font-medium text-[12px] text-red-400'>Frozen</span>
-                </>
-              ) : (
-                <>
-                  <span className='font-medium text-[12px] text-red-400'>Payment</span>
-                  <span className='font-medium text-[12px] text-red-400'>Required</span>
-                </>
-              )
+            {statusText.isError ? (
+              <span className='font-medium text-[12px] text-[var(--text-error)]'>
+                {statusText.text}
+              </span>
             ) : (
               <>
-                <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
+                <span className='font-medium text-[12px] text-[var(--text-secondary)] tabular-nums'>
                   ${usage.current.toFixed(2)}
                 </span>
-                <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>/</span>
-                <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
+                <span className='font-medium text-[12px] text-[var(--text-secondary)]'>/</span>
+                <span className='font-medium text-[12px] text-[var(--text-secondary)] tabular-nums'>
                   ${usage.limit.toFixed(2)}
                 </span>
               </>
             )}
           </div>
         </div>
-        {showUpgradeButton && (
-          <Button
-            variant='ghost'
-            className={`-mx-1 !h-auto !px-1 !py-0 mt-[-2px] transition-colors duration-100 ${
-              isBlocked
-                ? '!text-red-400 group-hover:!text-red-300'
-                : '!text-[#F473B7] group-hover:!text-[#F789C4]'
-            }`}
-            onClick={handleClick}
-          >
-            <span className='font-medium text-[12px]'>
-              {isBlocked ? (isDispute ? 'Get Help' : 'Fix Now') : 'Upgrade'}
-            </span>
-          </Button>
+        {badgeConfig.show && (
+          <Badge variant={badgeConfig.variant} size='sm' className='-translate-y-[1px]'>
+            {badgeConfig.label}
+          </Badge>
         )}
       </div>
 
@@ -327,42 +405,20 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
       <div className='flex items-center gap-[4px]'>
         {Array.from({ length: pillCount }).map((_, i) => {
           const isFilled = i < filledPillsCount
+          const baseColor = isFilled ? filledColor : USAGE_PILL_COLORS.UNFILLED
 
-          const baseColor = isFilled
-            ? isBlocked || isAtLimit
-              ? USAGE_PILL_COLORS.AT_LIMIT
-              : USAGE_PILL_COLORS.FILLED
-            : USAGE_PILL_COLORS.UNFILLED
-
-          let backgroundColor = baseColor
+          const backgroundColor = baseColor
           let backgroundImage: string | undefined
 
-          if (isHovered && wavePosition !== null && pillCount > 0) {
-            const grayColor = USAGE_PILL_COLORS.UNFILLED
-            const activeColor = isAtLimit ? USAGE_PILL_COLORS.AT_LIMIT : USAGE_PILL_COLORS.FILLED
-
-            /**
-             * Single-pass wave: travel from {@link startAnimationIndex} to the end
-             * of the row without wrapping. Previously highlighted pills remain
-             * filled; the wave only affects pills at or after the start index.
-             */
+          if (isHovered && wavePosition !== null) {
             const headIndex = Math.floor(wavePosition)
-            const progress = wavePosition - headIndex
-
             const pillOffsetFromStart = i - startAnimationIndex
 
-            if (pillOffsetFromStart < 0) {
-            } else if (pillOffsetFromStart < headIndex) {
-              backgroundColor = isFilled ? baseColor : grayColor
-              backgroundImage = `linear-gradient(to right, ${activeColor} 0%, ${activeColor} 100%)`
+            if (pillOffsetFromStart >= 0 && pillOffsetFromStart < headIndex) {
+              backgroundImage = `linear-gradient(to right, ${filledColor}, ${filledColor})`
             } else if (pillOffsetFromStart === headIndex) {
-              const fillPercent = Math.max(0, Math.min(1, progress)) * 100
-              backgroundColor = isFilled ? baseColor : grayColor
-              backgroundImage = `linear-gradient(to right, ${activeColor} 0%, ${activeColor} ${fillPercent}%, ${
-                isFilled ? baseColor : grayColor
-              } ${fillPercent}%, ${isFilled ? baseColor : grayColor} 100%)`
-            } else {
-              backgroundColor = isFilled ? baseColor : grayColor
+              const fillPercent = (wavePosition - headIndex) * 100
+              backgroundImage = `linear-gradient(to right, ${filledColor} ${fillPercent}%, ${baseColor} ${fillPercent}%)`
             }
           }
 

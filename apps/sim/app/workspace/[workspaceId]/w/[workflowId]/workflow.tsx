@@ -14,9 +14,9 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { createLogger } from '@sim/logger'
 import { useShallow } from 'zustand/react/shallow'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/other/oauth-request-access'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { OAuthProvider } from '@/lib/oauth'
 import { DEFAULT_HORIZONTAL_SPACING } from '@/lib/workflows/autolayout/constants'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
@@ -92,6 +92,22 @@ const edgeTypes: EdgeTypes = {
 
 /** ReactFlow configuration constants. */
 const defaultEdgeOptions = { type: 'custom' }
+
+/** Tailwind classes for ReactFlow internal element styling */
+const reactFlowStyles = [
+  // Z-index layering
+  '[&_.react-flow__edges]:!z-0',
+  '[&_.react-flow__node]:!z-[21]',
+  '[&_.react-flow__handle]:!z-[30]',
+  '[&_.react-flow__edge-labels]:!z-[60]',
+  // Light mode: transparent pane to show dots
+  '[&_.react-flow__pane]:!bg-transparent',
+  '[&_.react-flow__renderer]:!bg-transparent',
+  // Dark mode: solid background, hide dots
+  'dark:[&_.react-flow__pane]:!bg-[var(--bg)]',
+  'dark:[&_.react-flow__renderer]:!bg-[var(--bg)]',
+  'dark:[&_.react-flow__background]:hidden',
+].join(' ')
 const reactFlowFitViewOptions = { padding: 0.6 } as const
 const reactFlowProOptions = { hideAttribution: true } as const
 
@@ -127,7 +143,7 @@ const WorkflowContent = React.memo(() => {
 
   const params = useParams()
   const router = useRouter()
-  const { screenToFlowPosition, getNodes, fitView } = useReactFlow()
+  const { screenToFlowPosition, getNodes, fitView, getIntersectingNodes } = useReactFlow()
   const { emitCursorUpdate } = useSocket()
 
   const workspaceId = params.workspaceId as string
@@ -184,7 +200,6 @@ const WorkflowContent = React.memo(() => {
 
   const {
     getNodeDepth,
-    getNodeHierarchy,
     getNodeAbsolutePosition,
     isPointInLoopNode,
     resizeLoopNodes,
@@ -198,7 +213,7 @@ const WorkflowContent = React.memo(() => {
     return resizeLoopNodes(updateNodeDimensions)
   }, [resizeLoopNodes, updateNodeDimensions])
 
-  const { applyAutoLayoutAndUpdateStore } = useAutoLayout(activeWorkflowId || null)
+  const { handleAutoLayout: autoLayoutWithFitView } = useAutoLayout(activeWorkflowId || null)
 
   const isWorkflowEmpty = useMemo(() => Object.keys(blocks).length === 0, [blocks])
 
@@ -231,6 +246,9 @@ const WorkflowContent = React.memo(() => {
         hasActiveDiff: state.hasActiveDiff,
       }))
     )
+
+  /** Stores source node/handle info when a connection drag starts for drop-on-block detection. */
+  const connectionSourceRef = useRef<{ nodeId: string; handleId: string } | null>(null)
 
   /** Re-applies diff markers when blocks change after socket rehydration. */
   const blocksRef = useRef(blocks)
@@ -324,7 +342,6 @@ const WorkflowContent = React.memo(() => {
     collaborativeRemoveEdge: removeEdge,
     collaborativeUpdateBlockPosition,
     collaborativeUpdateParentId: updateParentId,
-    collaborativeSetSubblockValue,
     undo,
     redo,
   } = useCollaborativeWorkflow()
@@ -342,7 +359,7 @@ const WorkflowContent = React.memo(() => {
   /** Connection line style - red for error handles, default otherwise. */
   const connectionLineStyle = useMemo(
     () => ({
-      stroke: isErrorConnectionDrag ? 'var(--text-error)' : 'var(--surface-12)',
+      stroke: isErrorConnectionDrag ? 'var(--text-error)' : 'var(--surface-7)',
       strokeWidth: 2,
     }),
     [isErrorConnectionDrag]
@@ -388,7 +405,6 @@ const WorkflowContent = React.memo(() => {
       if (newParentId) {
         const nodeAbsPos = getNodeAbsolutePosition(nodeId)
         const parentAbsPos = getNodeAbsolutePosition(newParentId)
-        // Account for header (50px), left padding (16px), and top padding (16px)
         const headerHeight = 50
         const leftPadding = 16
         const topPadding = 16
@@ -429,7 +445,6 @@ const WorkflowContent = React.memo(() => {
       getNodes,
       collaborativeUpdateBlockPosition,
       updateParentId,
-      updateNodeDimensions,
       blocks,
       edgesForDisplay,
       getNodeAbsolutePosition,
@@ -441,19 +456,8 @@ const WorkflowContent = React.memo(() => {
   /** Applies auto-layout to the workflow canvas. */
   const handleAutoLayout = useCallback(async () => {
     if (Object.keys(blocks).length === 0) return
-
-    try {
-      const result = await applyAutoLayoutAndUpdateStore()
-
-      if (result.success) {
-        logger.info('Auto layout completed successfully')
-      } else {
-        logger.error('Auto layout failed:', result.error)
-      }
-    } catch (error) {
-      logger.error('Auto layout error:', error)
-    }
-  }, [blocks, applyAutoLayoutAndUpdateStore])
+    await autoLayoutWithFitView()
+  }, [blocks, autoLayoutWithFitView])
 
   const debouncedAutoLayout = useCallback(() => {
     const debounceTimer = setTimeout(() => {
@@ -1127,20 +1131,51 @@ const WorkflowContent = React.memo(() => {
   }, [screenToFlowPosition, handleToolbarDrop])
 
   /**
-   * Recenter canvas when diff appears
-   * Tracks when diff becomes ready to automatically fit the view with smooth animation
+   * Focus canvas on changed blocks when diff appears
+   * Focuses on new/edited blocks rather than fitting the entire workflow
    */
   const prevDiffReadyRef = useRef(false)
   useEffect(() => {
-    // Only recenter when diff transitions from not ready to ready
+    // Only focus when diff transitions from not ready to ready
     if (isDiffReady && !prevDiffReadyRef.current && diffAnalysis) {
-      logger.info('Diff ready - recentering canvas to show changes')
-      requestAnimationFrame(() => {
-        fitView({ padding: 0.3, duration: 600 })
-      })
+      const changedBlockIds = [
+        ...(diffAnalysis.new_blocks || []),
+        ...(diffAnalysis.edited_blocks || []),
+      ]
+
+      if (changedBlockIds.length > 0) {
+        const allNodes = getNodes()
+        const changedNodes = allNodes.filter((node) => changedBlockIds.includes(node.id))
+
+        if (changedNodes.length > 0) {
+          logger.info('Diff ready - focusing on changed blocks', {
+            changedBlockIds,
+            foundNodes: changedNodes.length,
+          })
+          requestAnimationFrame(() => {
+            fitView({
+              nodes: changedNodes,
+              duration: 600,
+              padding: 0.3,
+              minZoom: 0.5,
+              maxZoom: 1.0,
+            })
+          })
+        } else {
+          logger.info('Diff ready - no changed nodes found, fitting all')
+          requestAnimationFrame(() => {
+            fitView({ padding: 0.3, duration: 600 })
+          })
+        }
+      } else {
+        logger.info('Diff ready - no changed blocks, fitting all')
+        requestAnimationFrame(() => {
+          fitView({ padding: 0.3, duration: 600 })
+        })
+      }
     }
     prevDiffReadyRef.current = isDiffReady
-  }, [isDiffReady, diffAnalysis, fitView])
+  }, [isDiffReady, diffAnalysis, fitView, getNodes])
 
   /** Displays trigger warning notifications. */
   useEffect(() => {
@@ -1667,19 +1702,50 @@ const WorkflowContent = React.memo(() => {
   )
 
   /**
+   * Finds the best node at a given flow position for drop-on-block connection.
+   * Skips subflow containers as they have their own connection logic.
+   */
+  const findNodeAtPosition = useCallback(
+    (position: { x: number; y: number }) => {
+      const cursorRect = {
+        x: position.x - 1,
+        y: position.y - 1,
+        width: 2,
+        height: 2,
+      }
+
+      const intersecting = getIntersectingNodes(cursorRect, true).filter(
+        (node) => node.type !== 'subflowNode'
+      )
+
+      if (intersecting.length === 0) return undefined
+      if (intersecting.length === 1) return intersecting[0]
+
+      return intersecting.reduce((closest, node) => {
+        const getDistance = (n: Node) => {
+          const absPos = getNodeAbsolutePosition(n.id)
+          const dims = getBlockDimensions(n.id)
+          const centerX = absPos.x + dims.width / 2
+          const centerY = absPos.y + dims.height / 2
+          return Math.hypot(position.x - centerX, position.y - centerY)
+        }
+
+        return getDistance(node) < getDistance(closest) ? node : closest
+      })
+    },
+    [getIntersectingNodes, getNodeAbsolutePosition, getBlockDimensions]
+  )
+
+  /**
    * Captures the source handle when a connection drag starts
    */
   const onConnectStart = useCallback((_event: any, params: any) => {
     const handleId: string | undefined = params?.handleId
-    // Treat explicit error handle (id === 'error') as error connection
     setIsErrorConnectionDrag(handleId === 'error')
-  }, [])
-
-  /**
-   * Resets the source handle when connection drag ends
-   */
-  const onConnectEnd = useCallback(() => {
-    setIsErrorConnectionDrag(false)
+    connectionSourceRef.current = {
+      nodeId: params?.nodeId,
+      handleId: params?.handleId,
+    }
   }, [])
 
   /** Handles new edge connections with container boundary validation. */
@@ -1770,7 +1836,46 @@ const WorkflowContent = React.memo(() => {
         })
       }
     },
-    [addEdge, getNodes]
+    [addEdge, getNodes, blocks]
+  )
+
+  /**
+   * Handles connection drag end. Detects if the edge was dropped over a block
+   * and automatically creates a connection to that block's target handle.
+   */
+  const onConnectEnd = useCallback(
+    (event: MouseEvent | TouchEvent) => {
+      setIsErrorConnectionDrag(false)
+
+      const source = connectionSourceRef.current
+      if (!source?.nodeId) {
+        connectionSourceRef.current = null
+        return
+      }
+
+      // Get cursor position in flow coordinates
+      const clientPos = 'changedTouches' in event ? event.changedTouches[0] : event
+      const flowPosition = screenToFlowPosition({
+        x: clientPos.clientX,
+        y: clientPos.clientY,
+      })
+
+      // Find node under cursor
+      const targetNode = findNodeAtPosition(flowPosition)
+
+      // Create connection if valid target found
+      if (targetNode && targetNode.id !== source.nodeId) {
+        onConnect({
+          source: source.nodeId,
+          sourceHandle: source.handleId,
+          target: targetNode.id,
+          targetHandle: 'target',
+        })
+      }
+
+      connectionSourceRef.current = null
+    },
+    [screenToFlowPosition, findNodeAtPosition, onConnect]
   )
 
   /** Handles node drag to detect container intersections and update highlighting. */
@@ -2300,7 +2405,7 @@ const WorkflowContent = React.memo(() => {
               noWheelClassName='allow-scroll'
               edgesFocusable={true}
               edgesUpdatable={effectivePermissions.canEdit}
-              className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${isCanvasReady ? 'opacity-100' : 'opacity-0'}`}
+              className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'}`}
               onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
               onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
               onNodeDragStart={effectivePermissions.canEdit ? onNodeDragStart : undefined}

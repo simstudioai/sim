@@ -1,5 +1,6 @@
+import { createLogger } from '@sim/logger'
+import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
 import { getCostMultiplier } from '@/lib/core/config/feature-flags'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { getProviderExecutor } from '@/providers/registry'
 import type { ProviderId, ProviderRequest, ProviderResponse } from '@/providers/types'
@@ -48,7 +49,32 @@ export async function executeProviderRequest(
   if (!provider.executeRequest) {
     throw new Error(`Provider ${providerId} does not implement executeRequest`)
   }
-  const sanitizedRequest = sanitizeRequest(request)
+
+  let resolvedRequest = sanitizeRequest(request)
+  let isBYOK = false
+
+  if (request.workspaceId) {
+    try {
+      const result = await getApiKeyWithBYOK(
+        providerId,
+        request.model,
+        request.workspaceId,
+        request.apiKey
+      )
+      resolvedRequest = { ...resolvedRequest, apiKey: result.apiKey }
+      isBYOK = result.isBYOK
+    } catch (error) {
+      logger.error('Failed to resolve API key:', {
+        provider: providerId,
+        model: request.model,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      throw error
+    }
+  }
+
+  resolvedRequest.isBYOK = isBYOK
+  const sanitizedRequest = resolvedRequest
 
   if (sanitizedRequest.responseFormat) {
     if (
@@ -88,7 +114,8 @@ export async function executeProviderRequest(
     const { input: promptTokens = 0, output: completionTokens = 0 } = response.tokens
     const useCachedInput = !!request.context && request.context.length > 0
 
-    if (shouldBillModelUsage(response.model)) {
+    const shouldBill = shouldBillModelUsage(response.model) && !isBYOK
+    if (shouldBill) {
       const costMultiplier = getCostMultiplier()
       response.cost = calculateCost(
         response.model,
@@ -109,9 +136,13 @@ export async function executeProviderRequest(
           updatedAt: new Date().toISOString(),
         },
       }
-      logger.debug(
-        `Not billing model usage for ${response.model} - user provided API key or not hosted model`
-      )
+      if (isBYOK) {
+        logger.debug(`Not billing model usage for ${response.model} - workspace BYOK key used`)
+      } else {
+        logger.debug(
+          `Not billing model usage for ${response.model} - user provided API key or not hosted model`
+        )
+      }
     }
   }
 

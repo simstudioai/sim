@@ -1,12 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
-import { createLogger } from '@/lib/logs/console/logger'
+import { useMemo } from 'react'
+import { hasWorkflowChanged } from '@/lib/workflows/comparison'
 import { useDebounce } from '@/hooks/use-debounce'
-import { useOperationQueueStore } from '@/stores/operation-queue/store'
+import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-
-const logger = createLogger('useChangeDetection')
 
 interface UseChangeDetectionProps {
   workflowId: string | null
@@ -15,97 +13,78 @@ interface UseChangeDetectionProps {
 }
 
 /**
- * Hook to detect changes between current workflow state and deployed state
- * Uses API-based change detection for accuracy
+ * Detects meaningful changes between current workflow state and deployed state.
+ * Performs comparison entirely on the client - no API calls needed.
  */
 export function useChangeDetection({
   workflowId,
   deployedState,
   isLoadingDeployedState,
 }: UseChangeDetectionProps) {
-  const [changeDetected, setChangeDetected] = useState(false)
-  const [blockStructureVersion, setBlockStructureVersion] = useState(0)
-  const [edgeStructureVersion, setEdgeStructureVersion] = useState(0)
-  const [subBlockStructureVersion, setSubBlockStructureVersion] = useState(0)
-
-  // Get current store state for change detection
-  const currentBlocks = useWorkflowStore((state) => state.blocks)
-  const currentEdges = useWorkflowStore((state) => state.edges)
-  const lastSaved = useWorkflowStore((state) => state.lastSaved)
+  const blocks = useWorkflowStore((state) => state.blocks)
+  const edges = useWorkflowStore((state) => state.edges)
+  const loops = useWorkflowStore((state) => state.loops)
+  const parallels = useWorkflowStore((state) => state.parallels)
   const subBlockValues = useSubBlockStore((state) =>
     workflowId ? state.workflowValues[workflowId] : null
   )
-
-  // Track structure changes
-  useEffect(() => {
-    setBlockStructureVersion((version) => version + 1)
-  }, [currentBlocks])
-
-  useEffect(() => {
-    setEdgeStructureVersion((version) => version + 1)
-  }, [currentEdges])
-
-  useEffect(() => {
-    setSubBlockStructureVersion((version) => version + 1)
-  }, [subBlockValues])
-
-  // Reset version counters when workflow changes
-  useEffect(() => {
-    setBlockStructureVersion(0)
-    setEdgeStructureVersion(0)
-    setSubBlockStructureVersion(0)
-  }, [workflowId])
-
-  // Create trigger for status check
-  const statusCheckTrigger = useMemo(() => {
-    return JSON.stringify({
-      lastSaved: lastSaved ?? 0,
-      blockVersion: blockStructureVersion,
-      edgeVersion: edgeStructureVersion,
-      subBlockVersion: subBlockStructureVersion,
-    })
-  }, [lastSaved, blockStructureVersion, edgeStructureVersion, subBlockStructureVersion])
-
-  const debouncedStatusCheckTrigger = useDebounce(statusCheckTrigger, 500)
-
-  useEffect(() => {
-    // Avoid off-by-one false positives: wait until operation queue is idle
-    const { operations, isProcessing } = useOperationQueueStore.getState()
-    const hasPendingOps =
-      isProcessing || operations.some((op) => op.status === 'pending' || op.status === 'processing')
-
-    if (!workflowId || !deployedState) {
-      setChangeDetected(false)
-      return
+  const allVariables = useVariablesStore((state) => state.variables)
+  const workflowVariables = useMemo(() => {
+    if (!workflowId) return {}
+    const vars: Record<string, any> = {}
+    for (const [id, variable] of Object.entries(allVariables)) {
+      if (variable.workflowId === workflowId) {
+        vars[id] = variable
+      }
     }
+    return vars
+  }, [workflowId, allVariables])
 
-    if (isLoadingDeployedState || hasPendingOps) {
-      return
-    }
+  const currentState = useMemo((): WorkflowState | null => {
+    if (!workflowId) return null
 
-    // Use the workflow status API to get accurate change detection
-    // This uses the same logic as the deployment API (reading from normalized tables)
-    const checkForChanges = async () => {
-      try {
-        const response = await fetch(`/api/workflows/${workflowId}/status`)
-        if (response.ok) {
-          const data = await response.json()
-          setChangeDetected(data.needsRedeployment || false)
-        } else {
-          logger.error('Failed to fetch workflow status:', response.status, response.statusText)
-          setChangeDetected(false)
+    const blocksWithSubBlocks: WorkflowState['blocks'] = {}
+    for (const [blockId, block] of Object.entries(blocks)) {
+      const blockSubValues = subBlockValues?.[blockId] || {}
+      const subBlocks: Record<string, any> = {}
+
+      for (const [subId, value] of Object.entries(blockSubValues)) {
+        subBlocks[subId] = { value }
+      }
+
+      if (block.subBlocks) {
+        for (const [subId, subBlock] of Object.entries(block.subBlocks)) {
+          if (!subBlocks[subId]) {
+            subBlocks[subId] = subBlock
+          } else {
+            subBlocks[subId] = { ...subBlock, value: subBlocks[subId].value }
+          }
         }
-      } catch (error) {
-        logger.error('Error fetching workflow status:', error)
-        setChangeDetected(false)
+      }
+
+      blocksWithSubBlocks[blockId] = {
+        ...block,
+        subBlocks,
       }
     }
 
-    checkForChanges()
-  }, [workflowId, deployedState, debouncedStatusCheckTrigger, isLoadingDeployedState])
+    return {
+      blocks: blocksWithSubBlocks,
+      edges,
+      loops,
+      parallels,
+      variables: workflowVariables,
+    } as WorkflowState & { variables: Record<string, any> }
+  }, [workflowId, blocks, edges, loops, parallels, subBlockValues, workflowVariables])
 
-  return {
-    changeDetected,
-    setChangeDetected,
-  }
+  const rawChangeDetected = useMemo(() => {
+    if (!currentState || !deployedState || isLoadingDeployedState) {
+      return false
+    }
+    return hasWorkflowChanged(currentState, deployedState)
+  }, [currentState, deployedState, isLoadingDeployedState])
+
+  const changeDetected = useDebounce(rawChangeDetected, 300)
+
+  return { changeDetected }
 }

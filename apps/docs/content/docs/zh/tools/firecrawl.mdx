@@ -146,7 +146,33 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `success` | boolean | 提取操作是否成功 |
 | `data` | object | 根据模式或提示提取的结构化数据 |
 
-## 注意
+### `firecrawl_agent`
 
-- 类别：`tools`
+自主网页数据提取代理。根据自然语言提示进行搜索和信息收集，无需指定具体 URL。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `prompt` | string | 是 | 要提取数据的自然语言描述（最多 10,000 个字符） |
+| `urls` | json | 否 | 可选的 URL 数组，用于聚焦代理任务 |
+| `schema` | json | 否 | 定义要提取数据结构的 JSON 架构 |
+| `maxCredits` | number | 否 | 此代理任务可消耗的最大积分数 |
+| `strictConstrainToURLs` | boolean | 否 | 若为 true，代理仅访问 urls 数组中提供的 URL |
+| `apiKey` | string | 是 | Firecrawl API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 代理操作是否成功 |
+| `status` | string | 代理任务的当前状态（processing、completed、failed） |
+| `data` | object | 代理提取的数据 |
+| `creditsUsed` | number | 此代理任务消耗的积分数 |
+| `expiresAt` | string | 结果过期的时间戳（24 小时） |
+| `sources` | object | 代理使用的来源 URL 数组 |
+
+## 说明
+
+- 分类：`tools`
 - 类型：`firecrawl`

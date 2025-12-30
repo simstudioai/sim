@@ -1,11 +1,11 @@
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
+import { createLogger } from '@sim/logger'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import {
   type GetBlocksMetadataInput,
   GetBlocksMetadataResult,
 } from '@/lib/copilot/tools/shared/schemas'
-import { createLogger } from '@/lib/logs/console/logger'
 import { registry as blockRegistry } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'

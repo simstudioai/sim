@@ -1,6 +1,6 @@
-import type { LucideIcon } from 'lucide-react'
 // Lazy require in setState to avoid circular init issues
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
+import type { LucideIcon } from 'lucide-react'
 
 const baseToolLogger = createLogger('BaseClientTool')
 

@@ -41,8 +41,8 @@ export function ActionBar({
       transition={{ duration: 0.2 }}
       className={cn('-translate-x-1/2 fixed bottom-6 left-1/2 z-50 transform', className)}
     >
-      <div className='flex items-center gap-[8px] rounded-[10px] border border-[var(--border-strong)] bg-[var(--surface-1)] p-[8px]'>
-        <span className='px-[4px] text-[13px] text-[var(--text-muted)]'>
+      <div className='flex items-center gap-[8px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-[8px] py-[6px]'>
+        <span className='px-[4px] text-[13px] text-[var(--text-secondary)]'>
           {selectedCount} selected
         </span>
 
@@ -54,14 +54,12 @@ export function ActionBar({
                   variant='ghost'
                   onClick={onEnable}
                   disabled={isLoading}
-                  className='hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-[8px] bg-[var(--surface-9)] p-0 text-[#868686] hover:bg-[var(--brand-secondary)]'
+                  className='hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-[8px] bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
                 >
                   <Circle className='h-[12px] w-[12px]' />
                 </Button>
               </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                Enable {disabledCount > 1 ? `${disabledCount} items` : 'item'}
-              </Tooltip.Content>
+              <Tooltip.Content side='top'>Enable</Tooltip.Content>
             </Tooltip.Root>
           )}
 
@@ -72,14 +70,12 @@ export function ActionBar({
                   variant='ghost'
                   onClick={onDisable}
                   disabled={isLoading}
-                  className='hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-[8px] bg-[var(--surface-9)] p-0 text-[#868686] hover:bg-[var(--brand-secondary)]'
+                  className='hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-[8px] bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
                 >
                   <CircleOff className='h-[12px] w-[12px]' />
                 </Button>
               </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                Disable {enabledCount > 1 ? `${enabledCount} items` : 'item'}
-              </Tooltip.Content>
+              <Tooltip.Content side='top'>Disable</Tooltip.Content>
             </Tooltip.Root>
           )}
 
@@ -90,12 +86,12 @@ export function ActionBar({
                   variant='ghost'
                   onClick={onDelete}
                   disabled={isLoading}
-                  className='hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-[8px] bg-[var(--surface-9)] p-0 text-[#868686] hover:bg-[var(--brand-secondary)]'
+                  className='hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-[8px] bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
                 >
                   <Trash2 className='h-[12px] w-[12px]' />
                 </Button>
               </Tooltip.Trigger>
-              <Tooltip.Content side='top'>Delete items</Tooltip.Content>
+              <Tooltip.Content side='top'>Delete</Tooltip.Content>
             </Tooltip.Root>
           )}
         </div>

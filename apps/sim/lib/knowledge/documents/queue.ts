@@ -1,6 +1,6 @@
+import { createLogger } from '@sim/logger'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('DocumentQueue')
 

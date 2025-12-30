@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console/logger'
+import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import { buildIntercomUrl, handleIntercomError } from './types'
 
@@ -23,7 +23,58 @@ export interface IntercomCreateContactParams {
 export interface IntercomCreateContactResponse {
   success: boolean
   output: {
-    contact: any
+    contact: {
+      id: string
+      type: string
+      role: string
+      email: string | null
+      phone: string | null
+      name: string | null
+      avatar: string | null
+      owner_id: string | null
+      external_id: string | null
+      created_at: number
+      updated_at: number
+      signed_up_at: number | null
+      last_seen_at: number | null
+      workspace_id: string
+      custom_attributes: Record<string, any>
+      tags: {
+        type: string
+        url: string
+        data: any[]
+        has_more: boolean
+        total_count: number
+      }
+      notes: {
+        type: string
+        url: string
+        data: any[]
+        has_more: boolean
+        total_count: number
+      }
+      companies: {
+        type: string
+        url: string
+        data: any[]
+        has_more: boolean
+        total_count: number
+      }
+      location: {
+        type: string
+        city: string | null
+        region: string | null
+        country: string | null
+        country_code: string | null
+        continent_code: string | null
+      }
+      social_profiles: {
+        type: string
+        data: any[]
+      }
+      unsubscribed_from_emails: boolean
+      [key: string]: any
+    }
     metadata: {
       operation: 'create_contact'
       contactId: string
@@ -182,15 +233,92 @@ export const intercomCreateContactTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    contact: {
       type: 'object',
-      description: 'Created contact data',
+      description: 'Created contact object',
       properties: {
-        contact: { type: 'object', description: 'Created contact object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
+        id: { type: 'string', description: 'Unique identifier for the contact' },
+        type: { type: 'string', description: 'Object type (contact)' },
+        role: { type: 'string', description: 'Role of the contact (user or lead)' },
+        email: { type: 'string', description: 'Email address of the contact' },
+        phone: { type: 'string', description: 'Phone number of the contact' },
+        name: { type: 'string', description: 'Name of the contact' },
+        avatar: { type: 'string', description: 'Avatar URL of the contact' },
+        owner_id: { type: 'string', description: 'ID of the admin assigned to this contact' },
+        external_id: { type: 'string', description: 'External identifier for the contact' },
+        created_at: { type: 'number', description: 'Unix timestamp when contact was created' },
+        updated_at: { type: 'number', description: 'Unix timestamp when contact was last updated' },
+        signed_up_at: { type: 'number', description: 'Unix timestamp when user signed up' },
+        last_seen_at: { type: 'number', description: 'Unix timestamp when user was last seen' },
+        workspace_id: { type: 'string', description: 'Workspace ID the contact belongs to' },
+        custom_attributes: { type: 'object', description: 'Custom attributes set on the contact' },
+        tags: {
+          type: 'object',
+          description: 'Tags associated with the contact',
+          properties: {
+            type: { type: 'string', description: 'List type' },
+            url: { type: 'string', description: 'URL to fetch tags' },
+            data: { type: 'array', description: 'Array of tag objects' },
+            has_more: { type: 'boolean', description: 'Whether there are more tags' },
+            total_count: { type: 'number', description: 'Total number of tags' },
+          },
+        },
+        notes: {
+          type: 'object',
+          description: 'Notes associated with the contact',
+          properties: {
+            type: { type: 'string', description: 'List type' },
+            url: { type: 'string', description: 'URL to fetch notes' },
+            data: { type: 'array', description: 'Array of note objects' },
+            has_more: { type: 'boolean', description: 'Whether there are more notes' },
+            total_count: { type: 'number', description: 'Total number of notes' },
+          },
+        },
+        companies: {
+          type: 'object',
+          description: 'Companies associated with the contact',
+          properties: {
+            type: { type: 'string', description: 'List type' },
+            url: { type: 'string', description: 'URL to fetch companies' },
+            data: { type: 'array', description: 'Array of company objects' },
+            has_more: { type: 'boolean', description: 'Whether there are more companies' },
+            total_count: { type: 'number', description: 'Total number of companies' },
+          },
+        },
+        location: {
+          type: 'object',
+          description: 'Location information for the contact',
+          properties: {
+            type: { type: 'string', description: 'Location type' },
+            city: { type: 'string', description: 'City' },
+            region: { type: 'string', description: 'Region/State' },
+            country: { type: 'string', description: 'Country' },
+            country_code: { type: 'string', description: 'Country code' },
+            continent_code: { type: 'string', description: 'Continent code' },
+          },
+        },
+        social_profiles: {
+          type: 'object',
+          description: 'Social profiles of the contact',
+          properties: {
+            type: { type: 'string', description: 'List type' },
+            data: { type: 'array', description: 'Array of social profile objects' },
+          },
+        },
+        unsubscribed_from_emails: {
+          type: 'boolean',
+          description: 'Whether contact is unsubscribed from emails',
+        },
       },
     },
+    metadata: {
+      type: 'object',
+      description: 'Operation metadata',
+      properties: {
+        operation: { type: 'string', description: 'The operation performed (create_contact)' },
+        contactId: { type: 'string', description: 'ID of the created contact' },
+      },
+    },
+    success: { type: 'boolean', description: 'Operation success status' },
   },
 }

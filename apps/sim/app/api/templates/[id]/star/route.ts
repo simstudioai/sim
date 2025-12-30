@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
 import { templateStars, templates } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('TemplateStarAPI')
 
@@ -100,7 +100,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         .update(templates)
         .set({
           stars: sql`${templates.stars} + 1`,
-          updatedAt: new Date(),
         })
         .where(eq(templates.id, id))
     })
@@ -160,7 +159,6 @@ export async function DELETE(
         .update(templates)
         .set({
           stars: sql`GREATEST(${templates.stars} - 1, 0)`,
-          updatedAt: new Date(),
         })
         .where(eq(templates.id, id))
     })

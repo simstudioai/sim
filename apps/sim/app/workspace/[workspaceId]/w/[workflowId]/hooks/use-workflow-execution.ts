@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { v4 as uuidv4 } from 'uuid'
-import { createLogger } from '@/lib/logs/console/logger'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import {
@@ -573,7 +573,7 @@ export function useWorkflowExecution() {
 
                 // Invalidate subscription queries to update usage
                 setTimeout(() => {
-                  queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+                  queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
                 }, 1000)
 
                 safeEnqueue(encodeSSE({ event: 'final', data: result }))
@@ -646,7 +646,7 @@ export function useWorkflowExecution() {
 
           // Invalidate subscription queries to update usage
           setTimeout(() => {
-            queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+            queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
           }, 1000)
         }
         return result

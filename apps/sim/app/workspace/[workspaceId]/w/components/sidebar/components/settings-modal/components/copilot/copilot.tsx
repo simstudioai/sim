@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Check, Copy, Plus, Search } from 'lucide-react'
 import {
   Button,
@@ -12,7 +13,6 @@ import {
   ModalHeader,
 } from '@/components/emcn'
 import { Input, Skeleton } from '@/components/ui'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   type CopilotKey,
   useCopilotKeys,
@@ -133,7 +133,7 @@ export function Copilot() {
       <div className='flex h-full flex-col gap-[16px]'>
         {/* Search Input and Create Button */}
         <div className='flex items-center gap-[8px]'>
-          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border bg-[var(--surface-6)] px-[8px] py-[5px]'>
+          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
             <Search
               className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
@@ -150,9 +150,8 @@ export function Copilot() {
               setIsCreateDialogOpen(true)
               setCreateError(null)
             }}
-            variant='primary'
+            variant='tertiary'
             disabled={isLoading}
-            className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90 disabled:cursor-not-allowed disabled:opacity-60'
           >
             <Plus className='mr-[6px] h-[13px] w-[13px]' />
             Create
@@ -253,10 +252,9 @@ export function Copilot() {
             </Button>
             <Button
               type='button'
-              variant='primary'
+              variant='tertiary'
               onClick={handleCreateKey}
               disabled={!newKeyName.trim() || generateKey.isPending}
-              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
             >
               {generateKey.isPending ? 'Creating...' : 'Create'}
             </Button>
@@ -315,7 +313,7 @@ export function Copilot() {
         <ModalContent className='w-[400px]'>
           <ModalHeader>Delete API key</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Deleting{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {deleteKey?.name || 'Unnamed Key'}
@@ -336,10 +334,9 @@ export function Copilot() {
               Cancel
             </Button>
             <Button
-              variant='primary'
+              variant='destructive'
               onClick={handleDeleteKey}
               disabled={deleteKeyMutation.isPending}
-              className='!bg-[var(--text-error)] !text-white hover:!bg-[var(--text-error)]/90'
             >
               {deleteKeyMutation.isPending ? 'Deleting...' : 'Delete'}
             </Button>

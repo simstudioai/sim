@@ -1,16 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef } from 'react'
 import { Plus } from 'lucide-react'
-import { Button, Combobox, type ComboboxOption, Label, Trash } from '@/components/emcn'
-import { Input } from '@/components/ui/input'
+import {
+  Badge,
+  Button,
+  Combobox,
+  type ComboboxOption,
+  Input,
+  Label,
+  Trash,
+} from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
-import {
-  checkTagTrigger,
-  TagDropdown,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
@@ -24,19 +30,8 @@ interface TagFilter {
   fieldType: FilterFieldType
   operator: string
   tagValue: string
-  valueTo?: string // For 'between' operator
-}
-
-interface TagFilterRow {
-  id: string
-  cells: {
-    tagName: string
-    tagSlot?: string
-    fieldType: FilterFieldType
-    operator: string
-    value: string
-    valueTo?: string
-  }
+  valueTo?: string
+  collapsed?: boolean
 }
 
 interface KnowledgeTagFiltersProps {
@@ -47,6 +42,18 @@ interface KnowledgeTagFiltersProps {
   previewValue?: string | null
 }
 
+/**
+ * Creates a new filter with default values
+ */
+const createDefaultFilter = (): TagFilter => ({
+  id: crypto.randomUUID(),
+  tagName: '',
+  fieldType: 'text',
+  operator: 'eq',
+  tagValue: '',
+  collapsed: false,
+})
+
 export function KnowledgeTagFilters({
   blockId,
   subBlock,
@@ -56,30 +63,37 @@ export function KnowledgeTagFilters({
 }: KnowledgeTagFiltersProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string | null>(blockId, subBlock.id)
   const emitTagSelection = useTagSelection(blockId, subBlock.id)
+  const valueInputRefs = useRef<Record<string, HTMLInputElement>>({})
+  const overlayRefs = useRef<Record<string, HTMLDivElement>>({})
 
   const [knowledgeBaseIdValue] = useSubBlockValue(blockId, 'knowledgeBaseId')
   const knowledgeBaseId = knowledgeBaseIdValue || null
 
   const { tagDefinitions, isLoading } = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
-
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
-  const [activeTagDropdown, setActiveTagDropdown] = useState<{
-    rowIndex: number
-    showTags: boolean
-    cursorPosition: number
-    activeSourceBlockId: string | null
-    element?: HTMLElement | null
-  } | null>(null)
+  const inputController = useSubBlockInput({
+    blockId,
+    subBlockId: subBlock.id,
+    config: {
+      id: subBlock.id,
+      type: 'knowledge-tag-filters',
+      connectionDroppable: true,
+    },
+    isPreview,
+    disabled,
+  })
 
   const parseFilters = (filterValue: string | null): TagFilter[] => {
     if (!filterValue) return []
     try {
       const parsed = JSON.parse(filterValue)
+      if (!Array.isArray(parsed)) return []
       return parsed.map((f: TagFilter) => ({
         ...f,
         fieldType: f.fieldType || 'text',
         operator: f.operator || 'eq',
+        collapsed: f.collapsed ?? false,
       }))
     } catch {
       return []
@@ -87,145 +101,103 @@ export function KnowledgeTagFilters({
   }
 
   const currentValue = isPreview ? previewValue : storeValue
-  const filters = parseFilters(currentValue || null)
+  const parsedFilters = parseFilters(currentValue || null)
+  const filters: TagFilter[] = parsedFilters.length > 0 ? parsedFilters : [createDefaultFilter()]
+  const isReadOnly = isPreview || disabled
 
-  const rows: TagFilterRow[] =
-    filters.length > 0
-      ? filters.map((filter) => ({
-          id: filter.id,
-          cells: {
-            tagName: filter.tagName || '',
-            tagSlot: filter.tagSlot,
-            fieldType: filter.fieldType || 'text',
-            operator: filter.operator || 'eq',
-            value: filter.tagValue || '',
-            valueTo: filter.valueTo,
-          },
-        }))
-      : [
-          {
-            id: 'empty-row-0',
-            cells: { tagName: '', fieldType: 'text', operator: '', value: '' },
-          },
-        ]
-
+  /**
+   * Updates the store with new filters
+   */
   const updateFilters = (newFilters: TagFilter[]) => {
-    if (isPreview) return
+    if (isReadOnly) return
     const value = newFilters.length > 0 ? JSON.stringify(newFilters) : null
     setStoreValue(value)
   }
 
-  const rowsToFilters = (rowsToConvert: TagFilterRow[]): TagFilter[] => {
-    return rowsToConvert
-      .filter((row) => row.cells.tagName?.trim())
-      .map((row) => ({
-        id: row.id,
-        tagName: row.cells.tagName || '',
-        tagSlot: row.cells.tagSlot,
-        fieldType: row.cells.fieldType || 'text',
-        operator: row.cells.operator || 'eq',
-        tagValue: row.cells.value || '',
-        valueTo: row.cells.valueTo,
-      }))
+  /**
+   * Adds a new filter
+   */
+  const addFilter = () => {
+    if (isReadOnly) return
+    updateFilters([...filters, createDefaultFilter()])
   }
 
-  const handleCellChange = (rowIndex: number, column: string, value: string | FilterFieldType) => {
-    if (isPreview || disabled) return
+  /**
+   * Removes a filter by ID (prevents removing the last filter)
+   */
+  const removeFilter = (id: string) => {
+    if (isReadOnly || filters.length === 1) return
+    updateFilters(filters.filter((f) => f.id !== id))
+  }
 
-    const updatedRows = [...rows].map((row, idx) => {
-      if (idx === rowIndex) {
-        const newCells = { ...row.cells, [column]: value }
+  /**
+   * Updates a specific filter property
+   */
+  const updateFilter = (id: string, field: keyof TagFilter, value: any) => {
+    if (isReadOnly) return
 
-        if (column === 'fieldType') {
+    const updatedFilters = filters.map((f) => {
+      if (f.id === id) {
+        const updated = { ...f, [field]: value }
+
+        // When tag changes, reset operator and value based on new field type
+        if (field === 'tagName') {
+          const tagDef = tagDefinitions.find((t) => t.displayName === value)
+          const fieldType = (tagDef?.fieldType || 'text') as FilterFieldType
+          const operators = getOperatorsForFieldType(fieldType)
+          updated.tagSlot = tagDef?.tagSlot
+          updated.fieldType = fieldType
+          updated.operator = operators[0]?.value || 'eq'
+          updated.tagValue = ''
+          updated.valueTo = undefined
+        }
+
+        // When field type changes, reset operator and value
+        if (field === 'fieldType') {
           const operators = getOperatorsForFieldType(value as FilterFieldType)
-          newCells.operator = operators[0]?.value || 'eq'
-          newCells.value = ''
-          newCells.valueTo = undefined
+          updated.operator = operators[0]?.value || 'eq'
+          updated.tagValue = ''
+          updated.valueTo = undefined
         }
 
-        if (column === 'operator' && value !== 'between') {
-          newCells.valueTo = undefined
+        // When operator changes from 'between', clear valueTo
+        if (field === 'operator' && value !== 'between') {
+          updated.valueTo = undefined
         }
 
-        return { ...row, cells: newCells }
+        return updated
       }
-      return row
+      return f
     })
 
-    updateFilters(rowsToFilters(updatedRows))
+    updateFilters(updatedFilters)
   }
 
-  const handleTagNameSelection = (rowIndex: number, tagName: string) => {
-    if (isPreview || disabled) return
+  /**
+   * Handles tag dropdown selection for value field
+   */
+  const handleTagDropdownSelection = (id: string, field: 'tagValue' | 'valueTo', value: string) => {
+    if (isReadOnly) return
 
-    const tagDef = tagDefinitions.find((t) => t.displayName === tagName)
-    const fieldType = (tagDef?.fieldType || 'text') as FilterFieldType
-    const operators = getOperatorsForFieldType(fieldType)
-
-    const updatedRows = [...rows].map((row, idx) => {
-      if (idx === rowIndex) {
-        return {
-          ...row,
-          cells: {
-            ...row.cells,
-            tagName,
-            tagSlot: tagDef?.tagSlot,
-            fieldType,
-            operator: operators[0]?.value || 'eq',
-            value: '',
-            valueTo: undefined,
-          },
-        }
-      }
-      return row
-    })
-
-    updateFilters(rowsToFilters(updatedRows))
-  }
-
-  const handleTagDropdownSelection = (rowIndex: number, column: string, value: string) => {
-    if (isPreview || disabled) return
-
-    const updatedRows = [...rows].map((row, idx) => {
-      if (idx === rowIndex) {
-        return {
-          ...row,
-          cells: { ...row.cells, [column]: value },
-        }
-      }
-      return row
-    })
-
-    const jsonValue =
-      rowsToFilters(updatedRows).length > 0 ? JSON.stringify(rowsToFilters(updatedRows)) : null
+    const updatedFilters = filters.map((f) => (f.id === id ? { ...f, [field]: value } : f))
+    const jsonValue = updatedFilters.length > 0 ? JSON.stringify(updatedFilters) : null
     emitTagSelection(jsonValue)
   }
 
-  const handleAddRow = () => {
-    if (isPreview || disabled) return
-
-    const newRowId = `filter-${filters.length}-${Math.random().toString(36).slice(2, 11)}`
-    const newFilter: TagFilter = {
-      id: newRowId,
-      tagName: '',
-      fieldType: 'text',
-      operator: 'eq',
-      tagValue: '',
-    }
-    updateFilters([...filters, newFilter])
+  /**
+   * Toggles the collapsed state of a filter
+   */
+  const toggleCollapse = (id: string) => {
+    if (isReadOnly) return
+    updateFilters(filters.map((f) => (f.id === id ? { ...f, collapsed: !f.collapsed } : f)))
   }
 
-  const handleDeleteRow = (rowIndex: number) => {
-    if (isPreview || disabled) return
-
-    if (rows.length <= 1) {
-      // Clear the single row instead of deleting
-      setStoreValue(null)
-      return
-    }
-
-    const updatedRows = rows.filter((_, idx) => idx !== rowIndex)
-    updateFilters(rowsToFilters(updatedRows))
+  /**
+   * Syncs scroll position between input and overlay
+   */
+  const syncOverlayScroll = (filterId: string, scrollLeft: number) => {
+    const overlay = overlayRefs.current[filterId]
+    if (overlay) overlay.scrollLeft = scrollLeft
   }
 
   if (isPreview) {
@@ -241,238 +213,182 @@ export function KnowledgeTagFilters({
     )
   }
 
-  const renderHeader = () => (
-    <thead className='bg-transparent'>
-      <tr className='border-[var(--border-strong)] border-b bg-transparent'>
-        <th className='w-[35%] min-w-0 border-[var(--border-strong)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
-          Tag
-        </th>
-        <th className='w-[35%] min-w-0 border-[var(--border-strong)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
-          Operator
-        </th>
-        <th className='w-[30%] min-w-0 bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
-          Value
-        </th>
-      </tr>
-    </thead>
+  /**
+   * Renders the filter header with name, badge, and action buttons
+   */
+  const renderFilterHeader = (filter: TagFilter, index: number) => (
+    <div
+      className='flex cursor-pointer items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'
+      onClick={() => toggleCollapse(filter.id)}
+    >
+      <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+        <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
+          {filter.tagName || `Filter ${index + 1}`}
+        </span>
+        {filter.tagName && <Badge size='sm'>{FIELD_TYPE_LABELS[filter.fieldType] || 'Text'}</Badge>}
+      </div>
+      <div className='flex items-center gap-[8px] pl-[8px]' onClick={(e) => e.stopPropagation()}>
+        <Button variant='ghost' onClick={addFilter} disabled={isReadOnly} className='h-auto p-0'>
+          <Plus className='h-[14px] w-[14px]' />
+          <span className='sr-only'>Add Filter</span>
+        </Button>
+        <Button
+          variant='ghost'
+          onClick={() => removeFilter(filter.id)}
+          disabled={isReadOnly || filters.length === 1}
+          className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
+        >
+          <Trash className='h-[14px] w-[14px]' />
+          <span className='sr-only'>Delete Filter</span>
+        </Button>
+      </div>
+    </div>
   )
 
-  const renderTagNameCell = (row: TagFilterRow, rowIndex: number) => {
-    const cellValue = row.cells.tagName || ''
+  /**
+   * Renders the value input with tag dropdown support
+   */
+  const renderValueInput = (filter: TagFilter, field: 'tagValue' | 'valueTo') => {
+    const fieldValue = field === 'tagValue' ? filter.tagValue : filter.valueTo || ''
+    const cellKey = `${filter.id}-${field}`
+    const placeholder = getPlaceholderForFieldType(filter.fieldType)
 
+    const fieldState = inputController.fieldHelpers.getFieldState(cellKey)
+    const handlers = inputController.fieldHelpers.createFieldHandlers(
+      cellKey,
+      fieldValue,
+      (newValue) => updateFilter(filter.id, field, newValue)
+    )
+    const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
+      cellKey,
+      fieldValue,
+      (newValue) => handleTagDropdownSelection(filter.id, field, newValue)
+    )
+
+    return (
+      <div className='relative'>
+        <Input
+          ref={(el) => {
+            if (el) valueInputRefs.current[cellKey] = el
+          }}
+          value={fieldValue}
+          onChange={handlers.onChange}
+          onKeyDown={handlers.onKeyDown}
+          onDrop={handlers.onDrop}
+          onDragOver={handlers.onDragOver}
+          onScroll={(e) => syncOverlayScroll(cellKey, e.currentTarget.scrollLeft)}
+          onPaste={() =>
+            setTimeout(() => {
+              const input = valueInputRefs.current[cellKey]
+              input && syncOverlayScroll(cellKey, input.scrollLeft)
+            }, 0)
+          }
+          disabled={isReadOnly}
+          autoComplete='off'
+          placeholder={placeholder}
+          className='allow-scroll w-full overflow-auto text-transparent caret-foreground'
+        />
+        <div
+          ref={(el) => {
+            if (el) overlayRefs.current[cellKey] = el
+          }}
+          className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'
+        >
+          <div className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
+            {formatDisplayText(
+              fieldValue,
+              accessiblePrefixes ? { accessiblePrefixes } : { highlightAll: true }
+            )}
+          </div>
+        </div>
+        {fieldState.showTags && (
+          <TagDropdown
+            visible={fieldState.showTags}
+            onSelect={tagSelectHandler}
+            blockId={blockId}
+            activeSourceBlockId={fieldState.activeSourceBlockId}
+            inputValue={fieldValue}
+            cursorPosition={fieldState.cursorPosition}
+            onClose={() => inputController.fieldHelpers.hideFieldDropdowns(cellKey)}
+            inputRef={{ current: valueInputRefs.current[cellKey] || null }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  /**
+   * Renders the filter content (tag, operator, value inputs)
+   */
+  const renderFilterContent = (filter: TagFilter) => {
     const tagOptions: ComboboxOption[] = tagDefinitions.map((tag) => ({
       value: tag.displayName,
       label: `${tag.displayName} (${FIELD_TYPE_LABELS[tag.fieldType] || 'Text'})`,
     }))
 
-    return (
-      <td className='relative min-w-0 overflow-hidden border-[var(--border-strong)] border-r bg-transparent p-0'>
-        <Combobox
-          options={tagOptions}
-          value={cellValue}
-          onChange={(value) => handleTagNameSelection(rowIndex, value)}
-          disabled={disabled || isLoading}
-          placeholder='Select tag'
-          className='!border-0 !bg-transparent hover:!bg-transparent px-[10px] py-[8px] font-medium text-sm leading-[21px] focus-visible:ring-0 focus-visible:ring-offset-0 [&>span]:truncate'
-        />
-      </td>
-    )
-  }
-
-  const renderOperatorCell = (row: TagFilterRow, rowIndex: number) => {
-    const fieldType = row.cells.fieldType || 'text'
-    const operator = row.cells.operator || ''
-    const operators = getOperatorsForFieldType(fieldType)
-    const isOperatorDisabled = disabled || !row.cells.tagName
-
+    const operators = getOperatorsForFieldType(filter.fieldType)
     const operatorOptions: ComboboxOption[] = operators.map((op) => ({
       value: op.value,
       label: op.label,
     }))
 
+    const isBetween = filter.operator === 'between'
+
     return (
-      <td className='relative min-w-0 overflow-hidden border-[var(--border-strong)] border-r bg-transparent p-0'>
-        <Combobox
-          options={operatorOptions}
-          value={operator}
-          onChange={(value) => handleCellChange(rowIndex, 'operator', value)}
-          disabled={isOperatorDisabled}
-          placeholder='Select operator'
-          className='!border-0 !bg-transparent hover:!bg-transparent px-[10px] py-[8px] font-medium text-sm leading-[21px] focus-visible:ring-0 focus-visible:ring-offset-0 [&>span]:truncate'
-        />
-      </td>
-    )
-  }
+      <div className='flex flex-col gap-[8px] border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>
+        <div className='flex flex-col gap-[6px]'>
+          <Label className='text-[13px]'>Tag</Label>
+          <Combobox
+            options={tagOptions}
+            value={filter.tagName}
+            onChange={(value) => updateFilter(filter.id, 'tagName', value)}
+            disabled={isReadOnly || isLoading}
+            placeholder='Select tag'
+          />
+        </div>
 
-  const renderValueCell = (row: TagFilterRow, rowIndex: number) => {
-    const cellValue = row.cells.value || ''
-    const fieldType = row.cells.fieldType || 'text'
-    const operator = row.cells.operator || 'eq'
-    const isBetween = operator === 'between'
-    const valueTo = row.cells.valueTo || ''
-    const isDisabled = disabled || !row.cells.tagName
-    const placeholder = getPlaceholderForFieldType(fieldType)
+        <div className='flex flex-col gap-[6px]'>
+          <Label className='text-[13px]'>Operator</Label>
+          <Combobox
+            options={operatorOptions}
+            value={filter.operator}
+            onChange={(value) => updateFilter(filter.id, 'operator', value)}
+            disabled={isReadOnly}
+            placeholder='Select operator'
+          />
+        </div>
 
-    const renderInput = (value: string, column: 'value' | 'valueTo') => (
-      <div className='relative w-full'>
-        <Input
-          value={value}
-          onChange={(e) => {
-            const newValue = e.target.value
-            const cursorPosition = e.target.selectionStart ?? 0
-
-            handleCellChange(rowIndex, column, newValue)
-
-            if (column === 'value') {
-              const tagTrigger = checkTagTrigger(newValue, cursorPosition)
-
-              setActiveTagDropdown({
-                rowIndex,
-                showTags: tagTrigger.show,
-                cursorPosition,
-                activeSourceBlockId: null,
-                element: e.target,
-              })
-            }
-          }}
-          onFocus={(e) => {
-            if (!isDisabled && column === 'value') {
-              setActiveTagDropdown({
-                rowIndex,
-                showTags: false,
-                cursorPosition: 0,
-                activeSourceBlockId: null,
-                element: e.target,
-              })
-            }
-          }}
-          onBlur={() => {
-            if (column === 'value') {
-              setTimeout(() => setActiveTagDropdown(null), 200)
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              setActiveTagDropdown(null)
-            }
-          }}
-          disabled={isDisabled}
-          autoComplete='off'
-          placeholder={placeholder}
-          className='w-full border-0 bg-transparent px-[10px] py-[8px] font-medium text-sm text-transparent leading-[21px] caret-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
-        />
-        <div className='scrollbar-hide pointer-events-none absolute top-0 right-[10px] bottom-0 left-[10px] overflow-x-auto overflow-y-hidden bg-transparent'>
-          <div className='whitespace-pre py-[8px] font-medium text-[var(--text-primary)] text-sm leading-[21px]'>
-            {formatDisplayText(value || '', {
-              accessiblePrefixes,
-              highlightAll: !accessiblePrefixes,
-            })}
-          </div>
+        <div className='flex flex-col gap-[6px]'>
+          <Label className='text-[13px]'>Value</Label>
+          {isBetween ? (
+            <div className='flex items-center gap-2'>
+              <div className='flex-1'>{renderValueInput(filter, 'tagValue')}</div>
+              <span className='flex-shrink-0 text-muted-foreground text-xs'>to</span>
+              <div className='flex-1'>{renderValueInput(filter, 'valueTo')}</div>
+            </div>
+          ) : (
+            renderValueInput(filter, 'tagValue')
+          )}
         </div>
       </div>
     )
-
-    if (isBetween) {
-      return (
-        <td className='relative min-w-0 overflow-hidden bg-transparent p-0'>
-          <div className='flex items-center gap-1 px-[10px]'>
-            {renderInput(cellValue, 'value')}
-            <span className='flex-shrink-0 text-muted-foreground text-xs'>to</span>
-            {renderInput(valueTo, 'valueTo')}
-          </div>
-        </td>
-      )
-    }
-
-    return (
-      <td className='relative min-w-0 overflow-hidden bg-transparent p-0'>
-        {renderInput(cellValue, 'value')}
-      </td>
-    )
-  }
-
-  const renderDeleteButton = (rowIndex: number) => {
-    if (isPreview || disabled) return null
-
-    return (
-      <td className='w-0 p-0'>
-        <Button
-          variant='ghost'
-          className='-translate-y-1/2 absolute top-1/2 right-[8px] transition-opacity'
-          onClick={() => handleDeleteRow(rowIndex)}
-        >
-          <Trash className='h-[14px] w-[14px]' />
-        </Button>
-      </td>
-    )
-  }
-
-  if (isLoading) {
-    return <div className='p-4 text-muted-foreground text-sm'>Loading tag definitions...</div>
   }
 
   return (
-    <div className='relative w-full'>
-      <div className='overflow-hidden rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-2)] dark:bg-[#1F1F1F]'>
-        <table className='w-full table-fixed bg-transparent'>
-          {renderHeader()}
-          <tbody className='bg-transparent'>
-            {rows.map((row, rowIndex) => (
-              <tr
-                key={row.id}
-                className='group relative border-[var(--border-strong)] border-t bg-transparent'
-              >
-                {renderTagNameCell(row, rowIndex)}
-                {renderOperatorCell(row, rowIndex)}
-                {renderValueCell(row, rowIndex)}
-                {renderDeleteButton(rowIndex)}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Tag Dropdown */}
-      {activeTagDropdown?.element && (
-        <TagDropdown
-          visible={activeTagDropdown.showTags}
-          onSelect={(newValue) => {
-            // Use immediate emission for tag dropdown selections
-            handleTagDropdownSelection(activeTagDropdown.rowIndex, 'value', newValue)
-            setActiveTagDropdown(null)
-          }}
-          blockId={blockId}
-          activeSourceBlockId={activeTagDropdown.activeSourceBlockId}
-          inputValue={rows[activeTagDropdown.rowIndex]?.cells.value || ''}
-          cursorPosition={activeTagDropdown.cursorPosition}
-          onClose={() => {
-            setActiveTagDropdown((prev) => (prev ? { ...prev, showTags: false } : null))
-          }}
-          className='absolute z-[9999] mt-0'
-        />
-      )}
-
-      {/* Add Filter Button */}
-      {!isPreview && !disabled && (
-        <div className='mt-3 flex items-center justify-between'>
-          <Button onClick={handleAddRow} className='h-7 px-2 text-xs'>
-            <Plus className='mr-1 h-2.5 w-2.5' />
-            Add Filter
-          </Button>
-
-          {/* Filter count indicator */}
-          {(() => {
-            const appliedFilters = filters.filter(
-              (f) => f.tagName.trim() && f.tagValue.trim()
-            ).length
-            return (
-              <div className='text-muted-foreground text-xs'>
-                {appliedFilters} filter{appliedFilters !== 1 ? 's' : ''} applied
-              </div>
-            )
-          })()}
+    <div className='space-y-[8px]'>
+      {filters.map((filter, index) => (
+        <div
+          key={filter.id}
+          data-filter-id={filter.id}
+          className={cn(
+            'rounded-[4px] border border-[var(--border-1)]',
+            filter.collapsed ? 'overflow-hidden' : 'overflow-visible'
+          )}
+        >
+          {renderFilterHeader(filter, index)}
+          {!filter.collapsed && renderFilterContent(filter)}
         </div>
-      )}
+      ))}
     </div>
   )
 }

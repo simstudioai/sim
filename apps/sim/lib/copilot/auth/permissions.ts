@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions, type PermissionType } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CopilotPermissions')

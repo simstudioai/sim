@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
-import { createLogger } from '@/lib/logs/console/logger'
 import type { GenerationType } from '@/blocks/types'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 
@@ -252,7 +252,7 @@ export function useWand({
         })
 
         setTimeout(() => {
-          queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+          queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
         }, 1000)
       } catch (error: any) {
         if (error.name === 'AbortError') {

@@ -1,10 +1,10 @@
+import { createLogger } from '@sim/logger'
 import { ListTodo, Loader2, X, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import { createLogger } from '@/lib/logs/console/logger'
 
 interface PlanArgs {
   objective?: string
