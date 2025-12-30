@@ -549,16 +549,25 @@ export function General({ onOpenChange }: GeneralProps) {
         </div>
       )}
 
-      {!isAuthDisabled && (
-        <div className='mt-auto flex items-center gap-[8px]'>
-          <Button onClick={handleSignOut} variant='active'>
-            Sign out
-          </Button>
-          <Button onClick={() => setShowResetPasswordModal(true)} variant='active'>
-            Reset password
-          </Button>
-        </div>
-      )}
+      <div className='mt-auto flex items-center gap-[8px]'>
+        {!isAuthDisabled && (
+          <>
+            <Button onClick={handleSignOut} variant='active'>
+              Sign out
+            </Button>
+            <Button onClick={() => setShowResetPasswordModal(true)} variant='active'>
+              Reset password
+            </Button>
+          </>
+        )}
+        <Button
+          onClick={() => window.open('/', '_blank', 'noopener,noreferrer')}
+          variant='active'
+          className='ml-auto'
+        >
+          Landing
+        </Button>
+      </div>
 
       {/* Password Reset Confirmation Modal */}
       <Modal open={showResetPasswordModal} onOpenChange={setShowResetPasswordModal}>

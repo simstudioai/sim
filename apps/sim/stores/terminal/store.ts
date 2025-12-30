@@ -49,7 +49,7 @@ interface TerminalState {
  * inside the resize hook to keep the workflow canvas visible.
  */
 export const MIN_TERMINAL_HEIGHT = 30
-export const DEFAULT_TERMINAL_HEIGHT = 196
+export const DEFAULT_TERMINAL_HEIGHT = 155
 
 /**
  * Output panel width constraints.
