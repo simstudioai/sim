@@ -15,6 +15,7 @@ import {
   organization,
 } from 'better-auth/plugins'
 import { and, eq } from 'drizzle-orm'
+import crypto from 'node:crypto'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
 import {
@@ -1766,6 +1767,13 @@ export const auth = betterAuth({
           authentication: 'basic',
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/pinterest`,
           getUserInfo: async (tokens) => {
+            // Generate stable ID from access token to prevent duplicate accounts
+            const stableId = crypto
+              .createHash('sha256')
+              .update(tokens.accessToken)
+              .digest('hex')
+              .substring(0, 16)
+
             try {
               logger.info('Fetching Pinterest user profile', {
                 hasAccessToken: !!tokens.accessToken,
@@ -1788,9 +1796,9 @@ export const auth = betterAuth({
 
                 // Pinterest might not require user info - return minimal data
                 return {
-                  id: `pinterest_${Date.now()}`,
+                  id: `pinterest_${stableId}`,
                   name: 'Pinterest User',
-                  email: `pinterest_${Date.now()}@pinterest.user`,
+                  email: `pinterest_${stableId}@pinterest.user`,
                   emailVerified: true,
                   createdAt: new Date(),
                   updatedAt: new Date(),
@@ -1800,10 +1808,15 @@ export const auth = betterAuth({
               const profile = await response.json()
               logger.info('Pinterest profile fetched successfully', { profile })
 
+              // Log warning if profile data is missing critical fields
+              if (!profile.username && !profile.id) {
+                logger.warn('Pinterest profile missing username and id', { profile })
+              }
+
               return {
-                id: profile.username || profile.id || `pinterest_${Date.now()}`,
+                id: profile.username || profile.id || `pinterest_${stableId}`,
                 name: profile.username || profile.business_name || 'Pinterest User',
-                email: `${profile.username || profile.id}@pinterest.user`,
+                email: `${profile.username || profile.id || stableId}@pinterest.user`,
                 emailVerified: true,
                 image: profile.profile_image || undefined,
                 createdAt: new Date(),
@@ -1813,9 +1826,9 @@ export const auth = betterAuth({
               logger.error('Error in Pinterest getUserInfo:', { error })
               // Return fallback user info instead of null
               return {
-                id: `pinterest_${Date.now()}`,
+                id: `pinterest_${stableId}`,
                 name: 'Pinterest User',
-                email: `pinterest_${Date.now()}@pinterest.user`,
+                email: `pinterest_${stableId}@pinterest.user`,
                 emailVerified: true,
                 createdAt: new Date(),
                 updatedAt: new Date(),
