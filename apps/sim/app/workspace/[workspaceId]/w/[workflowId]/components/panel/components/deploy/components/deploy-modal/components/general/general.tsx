@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { Maximize2 } from 'lucide-react'
 import {
   Button,
   Label,
@@ -13,6 +14,7 @@ import {
 } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
+import { ExpandedWorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/components'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { Versions } from './components'
@@ -49,6 +51,7 @@ export function GeneralDeploy({
   const [previewMode, setPreviewMode] = useState<PreviewMode>('active')
   const [showLoadDialog, setShowLoadDialog] = useState(false)
   const [showPromoteDialog, setShowPromoteDialog] = useState(false)
+  const [showExpandedPreview, setShowExpandedPreview] = useState(false)
   const [versionToLoad, setVersionToLoad] = useState<number | null>(null)
   const [versionToPromote, setVersionToPromote] = useState<number | null>(null)
 
@@ -219,15 +222,25 @@ export function GeneralDeploy({
             }}
           >
             {workflowToShow ? (
-              <WorkflowPreview
-                workflowState={workflowToShow}
-                showSubBlocks={true}
-                height='100%'
-                width='100%'
-                isPannable={true}
-                defaultPosition={{ x: 0, y: 0 }}
-                defaultZoom={0.6}
-              />
+              <>
+                <WorkflowPreview
+                  workflowState={workflowToShow}
+                  showSubBlocks={true}
+                  height='100%'
+                  width='100%'
+                  isPannable={true}
+                  defaultPosition={{ x: 0, y: 0 }}
+                  defaultZoom={0.6}
+                />
+                <button
+                  type='button'
+                  onClick={() => setShowExpandedPreview(true)}
+                  className='absolute top-[8px] right-[8px] z-10 rounded-[4px] bg-[var(--surface-1)] p-[6px] text-[var(--text-secondary)] shadow-sm transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]'
+                  title='Expand preview'
+                >
+                  <Maximize2 className='h-[14px] w-[14px]' />
+                </button>
+              </>
             ) : (
               <div className='flex h-full items-center justify-center text-[#8D8D8D] text-[13px]'>
                 Deploy your workflow to see a preview
@@ -304,6 +317,19 @@ export function GeneralDeploy({
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {workflowToShow && (
+        <ExpandedWorkflowPreview
+          isOpen={showExpandedPreview}
+          onClose={() => setShowExpandedPreview(false)}
+          workflowState={workflowToShow}
+          title={
+            previewMode === 'selected' && selectedVersionInfo
+              ? selectedVersionInfo.name || `v${selectedVersion}`
+              : 'Live Workflow'
+          }
+        />
+      )}
     </>
   )
 }
