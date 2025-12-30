@@ -115,57 +115,56 @@ function formatSubBlockValue(value: unknown): string {
 }
 
 /**
- * Get display label for a subblock type.
+ * Evaluate whether a subblock's condition is met based on current values.
+ * Returns true if the subblock should be visible.
  */
-function getSubBlockTypeLabel(type: string): string {
-  const typeLabels: Record<string, string> = {
-    'short-input': 'Text',
-    'long-input': 'Text Area',
-    dropdown: 'Select',
-    combobox: 'Combobox',
-    slider: 'Slider',
-    table: 'Table',
-    code: 'Code',
-    switch: 'Toggle',
-    'tool-input': 'Tool',
-    'checkbox-list': 'Checkboxes',
-    'grouped-checkbox-list': 'Grouped Checkboxes',
-    'condition-input': 'Condition',
-    'eval-input': 'Evaluation',
-    'time-input': 'Time',
-    'oauth-input': 'OAuth',
-    'webhook-config': 'Webhook',
-    'schedule-info': 'Schedule',
-    'file-selector': 'File',
-    'project-selector': 'Project',
-    'channel-selector': 'Channel',
-    'user-selector': 'User',
-    'folder-selector': 'Folder',
-    'knowledge-base-selector': 'Knowledge Base',
-    'knowledge-tag-filters': 'Tag Filters',
-    'document-selector': 'Document',
-    'document-tag-entry': 'Document Tags',
-    'mcp-server-selector': 'MCP Server',
-    'mcp-tool-selector': 'MCP Tool',
-    'mcp-dynamic-args': 'MCP Args',
-    'input-format': 'Input Format',
-    'response-format': 'Response Format',
-    'trigger-save': 'Trigger',
-    'file-upload': 'File Upload',
-    'input-mapping': 'Input Mapping',
-    'variables-input': 'Variables',
-    'messages-input': 'Messages',
-    'workflow-selector': 'Workflow',
-    'workflow-input-mapper': 'Workflow Input',
-    text: 'Text',
+function evaluateCondition(
+  condition: SubBlockConfig['condition'],
+  subBlockValues: Record<string, { value: unknown } | unknown>
+): boolean {
+  if (!condition) return true
+
+  const actualCondition = typeof condition === 'function' ? condition() : condition
+
+  const fieldValueObj = subBlockValues[actualCondition.field]
+  const fieldValue =
+    fieldValueObj && typeof fieldValueObj === 'object' && 'value' in fieldValueObj
+      ? (fieldValueObj as { value: unknown }).value
+      : fieldValueObj
+
+  const conditionValues = Array.isArray(actualCondition.value)
+    ? actualCondition.value
+    : [actualCondition.value]
+
+  let isMatch = conditionValues.some((v) => v === fieldValue)
+
+  if (actualCondition.not) {
+    isMatch = !isMatch
   }
 
-  return typeLabels[type] || type
+  if (actualCondition.and && isMatch) {
+    const andFieldValueObj = subBlockValues[actualCondition.and.field]
+    const andFieldValue =
+      andFieldValueObj && typeof andFieldValueObj === 'object' && 'value' in andFieldValueObj
+        ? (andFieldValueObj as { value: unknown }).value
+        : andFieldValueObj
+
+    const andConditionValues = Array.isArray(actualCondition.and.value)
+      ? actualCondition.and.value
+      : [actualCondition.and.value]
+
+    let andMatch = andConditionValues.some((v) => v === andFieldValue)
+
+    if (actualCondition.and.not) {
+      andMatch = !andMatch
+    }
+
+    isMatch = isMatch && andMatch
+  }
+
+  return isMatch
 }
 
-/**
- * Individual subblock row showing label, type, and value.
- */
 function SubBlockRow({
   subBlockConfig,
   value,
@@ -174,17 +173,11 @@ function SubBlockRow({
   value: unknown
 }) {
   const title = subBlockConfig.title || subBlockConfig.id
-  const typeLabel = getSubBlockTypeLabel(subBlockConfig.type)
   const hasValue = value !== null && value !== undefined && value !== ''
 
   return (
     <div className='flex flex-col gap-[6px] border-[var(--border)] border-b py-[10px] last:border-b-0'>
-      <div className='flex items-center justify-between gap-[8px]'>
-        <span className='font-medium text-[13px] text-[var(--text-primary)]'>{title}</span>
-        <Badge variant='gray-secondary' className='text-[10px]'>
-          {typeLabel}
-        </Badge>
-      </div>
+      <span className='font-medium text-[13px] text-[var(--text-primary)]'>{title}</span>
       {hasValue ? (
         <ExpandableValue title={title} value={value} />
       ) : (
@@ -231,13 +224,17 @@ export function PinnedSubBlocks({ block, onClose }: PinnedSubBlocksProps) {
     )
   }
 
-  // Get visible subblocks (filter out hidden ones)
-  const visibleSubBlocks = blockConfig.subBlocks.filter(
-    (subBlock) => !subBlock.hidden && !subBlock.hideFromPreview
-  )
-
-  // Get subblock values from block state
   const subBlockValues = block.subBlocks || {}
+
+  const visibleSubBlocks = blockConfig.subBlocks.filter((subBlock) => {
+    if (subBlock.hidden || subBlock.hideFromPreview) return false
+
+    if (subBlock.condition) {
+      return evaluateCondition(subBlock.condition, subBlockValues)
+    }
+
+    return true
+  })
 
   return (
     <div className='absolute top-[16px] right-[16px] z-[100] flex max-h-[calc(100%-32px)] w-80 flex-col overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] shadow-lg'>
