@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { format } from 'date-fns'
 import {
@@ -406,11 +406,21 @@ export function KnowledgeBase({
 }: KnowledgeBaseProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const { removeKnowledgeBase } = useKnowledgeBasesList(workspaceId, { enabled: false })
+  const { removeKnowledgeBase, refreshList } = useKnowledgeBasesList(workspaceId, {
+    enabled: false,
+  })
   const userPermissions = useUserPermissionsContext()
 
   const [searchQuery, setSearchQuery] = useState('')
   const [showTagsModal, setShowTagsModal] = useState(false)
+
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [isEditingDescription, setIsEditingDescription] = useState(false)
+  const [editDescription, setEditDescription] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const nameInputRef = useRef<HTMLInputElement>(null)
+  const descriptionInputRef = useRef<HTMLTextAreaElement>(null)
 
   /**
    * Memoize the search query setter to prevent unnecessary re-renders
@@ -459,6 +469,168 @@ export function KnowledgeBase({
 
   const knowledgeBaseName = knowledgeBase?.name || passedKnowledgeBaseName || 'Knowledge Base'
   const error = knowledgeBaseError || documentsError
+
+  /**
+   * Start editing the knowledge base name
+   */
+  const handleStartEditName = useCallback(() => {
+    setEditName(knowledgeBaseName)
+    setIsEditingName(true)
+  }, [knowledgeBaseName])
+
+  /**
+   * Start editing the knowledge base description
+   */
+  const handleStartEditDescription = useCallback(() => {
+    setEditDescription(knowledgeBase?.description || '')
+    setIsEditingDescription(true)
+  }, [knowledgeBase?.description])
+
+  /**
+   * Save the updated name
+   */
+  const handleSaveName = useCallback(async () => {
+    const trimmedName = editName.trim()
+
+    if (!trimmedName || trimmedName === knowledgeBaseName) {
+      setIsEditingName(false)
+      setEditName('')
+      return
+    }
+
+    try {
+      setIsSaving(true)
+      const response = await fetch(`/api/knowledge/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: trimmedName }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update knowledge base name')
+      }
+
+      await refreshKnowledgeBase()
+      await refreshList()
+      setIsEditingName(false)
+      setEditName('')
+      logger.info(`Successfully updated knowledge base name to: ${trimmedName}`)
+    } catch (err) {
+      logger.error('Error updating knowledge base name:', err)
+      setEditName(knowledgeBaseName)
+    } finally {
+      setIsSaving(false)
+    }
+  }, [editName, knowledgeBaseName, id, refreshKnowledgeBase, refreshList])
+
+  /**
+   * Save the updated description
+   */
+  const handleSaveDescription = useCallback(async () => {
+    const trimmedDescription = editDescription.trim()
+    const currentDescription = knowledgeBase?.description || ''
+
+    if (trimmedDescription === currentDescription) {
+      setIsEditingDescription(false)
+      setEditDescription('')
+      return
+    }
+
+    try {
+      setIsSaving(true)
+      const response = await fetch(`/api/knowledge/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ description: trimmedDescription }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update knowledge base description')
+      }
+
+      await refreshKnowledgeBase()
+      setIsEditingDescription(false)
+      setEditDescription('')
+      logger.info(`Successfully updated knowledge base description`)
+    } catch (err) {
+      logger.error('Error updating knowledge base description:', err)
+      setEditDescription(knowledgeBase?.description || '')
+    } finally {
+      setIsSaving(false)
+    }
+  }, [editDescription, knowledgeBase?.description, id, refreshKnowledgeBase])
+
+  /**
+   * Cancel editing name
+   */
+  const handleCancelEditName = useCallback(() => {
+    setIsEditingName(false)
+    setEditName('')
+  }, [])
+
+  /**
+   * Cancel editing description
+   */
+  const handleCancelEditDescription = useCallback(() => {
+    setIsEditingDescription(false)
+    setEditDescription('')
+  }, [])
+
+  /**
+   * Handle keyboard events for name input
+   */
+  const handleNameKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        handleSaveName()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        handleCancelEditName()
+      }
+    },
+    [handleSaveName, handleCancelEditName]
+  )
+
+  /**
+   * Handle keyboard events for description input
+   */
+  const handleDescriptionKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        handleSaveDescription()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        handleCancelEditDescription()
+      }
+    },
+    [handleSaveDescription, handleCancelEditDescription]
+  )
+
+  /**
+   * Focus and select name input when editing starts
+   */
+  useEffect(() => {
+    if (isEditingName && nameInputRef.current) {
+      nameInputRef.current.focus()
+      nameInputRef.current.select()
+    }
+  }, [isEditingName])
+
+  /**
+   * Focus and select description input when editing starts
+   */
+  useEffect(() => {
+    if (isEditingDescription && descriptionInputRef.current) {
+      descriptionInputRef.current.focus()
+      descriptionInputRef.current.select()
+    }
+  }, [isEditingDescription])
 
   const totalPages = Math.ceil(pagination.total / pagination.limit)
   const hasNextPage = currentPage < totalPages
@@ -991,9 +1163,37 @@ export function KnowledgeBase({
           <Breadcrumb items={breadcrumbItems} />
 
           <div className='mt-[14px] flex items-center justify-between'>
-            <h1 className='font-medium text-[18px] text-[var(--text-primary)]'>
-              {knowledgeBaseName}
-            </h1>
+            {isEditingName ? (
+              <div className='relative inline-flex'>
+                <span
+                  className='invisible whitespace-pre font-medium text-[18px]'
+                  aria-hidden='true'
+                >
+                  {editName || '\u00A0'}
+                </span>
+                <input
+                  ref={nameInputRef}
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onKeyDown={handleNameKeyDown}
+                  onBlur={handleSaveName}
+                  className='absolute top-0 left-0 h-full w-full border-0 bg-transparent p-0 font-medium text-[18px] text-[var(--text-primary)] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                  maxLength={200}
+                  disabled={isSaving}
+                  autoComplete='off'
+                  autoCorrect='off'
+                  autoCapitalize='off'
+                  spellCheck='false'
+                />
+              </div>
+            ) : (
+              <h1
+                className={`font-medium text-[18px] text-[var(--text-primary)] ${userPermissions.canEdit ? 'cursor-text' : ''}`}
+                onDoubleClick={userPermissions.canEdit ? handleStartEditName : undefined}
+              >
+                {knowledgeBaseName}
+              </h1>
+            )}
             <div className='flex items-center gap-2'>
               {userPermissions.canEdit && (
                 <Button
@@ -1023,11 +1223,45 @@ export function KnowledgeBase({
             </div>
           </div>
 
-          {knowledgeBase?.description && (
-            <p className='mt-[4px] line-clamp-2 max-w-[40vw] font-medium text-[14px] text-[var(--text-tertiary)]'>
+          {isEditingDescription ? (
+            <div className='relative mt-[4px] inline-flex max-w-[40vw]'>
+              <span
+                className='invisible whitespace-pre-wrap font-medium text-[14px]'
+                aria-hidden='true'
+              >
+                {editDescription || 'Add a description...'}
+              </span>
+              <textarea
+                ref={descriptionInputRef}
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                onKeyDown={handleDescriptionKeyDown}
+                onBlur={handleSaveDescription}
+                className='absolute top-0 left-0 h-full w-full resize-none border-0 bg-transparent p-0 font-medium text-[14px] text-[var(--text-tertiary)] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                maxLength={500}
+                disabled={isSaving}
+                autoComplete='off'
+                autoCorrect='off'
+                autoCapitalize='off'
+                spellCheck='false'
+                rows={2}
+              />
+            </div>
+          ) : knowledgeBase?.description ? (
+            <p
+              className={`mt-[4px] line-clamp-2 max-w-[40vw] font-medium text-[14px] text-[var(--text-tertiary)] ${userPermissions.canEdit ? 'cursor-text' : ''}`}
+              onDoubleClick={userPermissions.canEdit ? handleStartEditDescription : undefined}
+            >
               {knowledgeBase.description}
             </p>
-          )}
+          ) : userPermissions.canEdit ? (
+            <p
+              className='mt-[4px] cursor-text font-medium text-[14px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-tertiary)]'
+              onDoubleClick={handleStartEditDescription}
+            >
+              Add a description...
+            </p>
+          ) : null}
 
           <div className='mt-[16px] flex items-center gap-[8px]'>
             <span className='text-[14px] text-[var(--text-muted)]'>
