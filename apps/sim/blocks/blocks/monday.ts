@@ -2,12 +2,14 @@ import { MondayIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { MondayResponse } from '@/tools/monday/types'
+import { getTrigger } from '@/triggers'
 
 export const MondayBlock: BlockConfig<MondayResponse> = {
   type: 'monday',
   name: 'Monday',
   description: 'Create and manage items on Monday boards',
   authMode: AuthMode.ApiKey,
+  triggerAllowed: true,
   longDescription:
     'Integrate with Monday work management platform. Create items, update column values, list items, and manage your boards programmatically.',
   docsLink: 'https://docs.monday.com/api',
@@ -174,6 +176,11 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
       required: false,
       condition: { field: 'operation', value: 'monday_list_items' },
     },
+    // Trigger subBlocks
+    // Include all fields from first trigger (has selectedTriggerId + all fields with conditions)
+    ...getTrigger('monday_new_item').subBlocks,
+    // Skip only selectedTriggerId from second trigger (index 0), keep apiKey and rest
+    ...getTrigger('monday_column_changed').subBlocks.slice(1),
   ],
   tools: {
     access: [

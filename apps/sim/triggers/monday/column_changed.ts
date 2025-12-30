@@ -1,6 +1,7 @@
 import { MondayIcon } from '@/components/icons'
 import { createLogger } from '@sim/logger'
 import type { TriggerConfig } from '@/triggers/types'
+import { mondayTriggerOptions } from './utils'
 
 const logger = createLogger('MondayColumnChangedTrigger')
 
@@ -14,6 +15,15 @@ export const mondayColumnChangedTrigger: TriggerConfig = {
 
   subBlocks: [
     {
+      id: 'selectedTriggerId',
+      title: 'Trigger Type',
+      type: 'dropdown',
+      mode: 'trigger',
+      options: mondayTriggerOptions,
+      value: () => 'monday_column_changed',
+      required: true,
+    },
+    {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
@@ -22,6 +32,10 @@ export const mondayColumnChangedTrigger: TriggerConfig = {
       password: true,
       required: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'monday_column_changed',
+      },
     },
     {
       id: 'boardId',
@@ -33,6 +47,10 @@ export const mondayColumnChangedTrigger: TriggerConfig = {
       required: true,
       dependsOn: ['apiKey'],
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'monday_column_changed',
+      },
     },
     {
       id: 'columnId',
@@ -44,6 +62,10 @@ export const mondayColumnChangedTrigger: TriggerConfig = {
       required: true,
       dependsOn: ['apiKey', 'boardId'],
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'monday_column_changed',
+      },
     },
     {
       id: 'specificValue',
@@ -53,6 +75,10 @@ export const mondayColumnChangedTrigger: TriggerConfig = {
       description: 'Only trigger when column changes to this specific value (optional)',
       required: false,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'monday_column_changed',
+      },
     },
     {
       id: 'pollingInterval',
@@ -68,6 +94,10 @@ export const mondayColumnChangedTrigger: TriggerConfig = {
       description: 'How often to check for column changes',
       required: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'monday_column_changed',
+      },
     },
     {
       id: 'triggerInstructions',
@@ -84,6 +114,10 @@ export const mondayColumnChangedTrigger: TriggerConfig = {
         .map((instruction, index) => `${index + 1}. ${instruction}`)
         .join('\n'),
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'monday_column_changed',
+      },
     },
     {
       id: 'triggerSave',
@@ -92,6 +126,10 @@ export const mondayColumnChangedTrigger: TriggerConfig = {
       hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'monday_column_changed',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'monday_column_changed',
+      },
     },
   ],
 

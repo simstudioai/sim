@@ -1,6 +1,7 @@
 import { MondayIcon } from '@/components/icons'
 import { createLogger } from '@sim/logger'
 import type { TriggerConfig } from '@/triggers/types'
+import { mondayTriggerOptions } from './utils'
 
 const logger = createLogger('MondayNewItemTrigger')
 
@@ -14,6 +15,15 @@ export const mondayNewItemTrigger: TriggerConfig = {
 
   subBlocks: [
     {
+      id: 'selectedTriggerId',
+      title: 'Trigger Type',
+      type: 'dropdown',
+      mode: 'trigger',
+      options: mondayTriggerOptions,
+      value: () => 'monday_new_item',
+      required: true,
+    },
+    {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
@@ -22,6 +32,10 @@ export const mondayNewItemTrigger: TriggerConfig = {
       password: true,
       required: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'monday_new_item',
+      },
     },
     {
       id: 'boardId',
@@ -33,6 +47,10 @@ export const mondayNewItemTrigger: TriggerConfig = {
       required: true,
       dependsOn: ['apiKey'],
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'monday_new_item',
+      },
     },
     {
       id: 'groupId',
@@ -44,6 +62,10 @@ export const mondayNewItemTrigger: TriggerConfig = {
       required: false,
       dependsOn: ['apiKey', 'boardId'],
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'monday_new_item',
+      },
     },
     {
       id: 'pollingInterval',
@@ -59,6 +81,10 @@ export const mondayNewItemTrigger: TriggerConfig = {
       description: 'How often to check for new items',
       required: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'monday_new_item',
+      },
     },
     {
       id: 'triggerInstructions',
@@ -75,6 +101,10 @@ export const mondayNewItemTrigger: TriggerConfig = {
         .map((instruction, index) => `${index + 1}. ${instruction}`)
         .join('\n'),
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'monday_new_item',
+      },
     },
     {
       id: 'triggerSave',
@@ -83,6 +113,10 @@ export const mondayNewItemTrigger: TriggerConfig = {
       hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'monday_new_item',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'monday_new_item',
+      },
     },
   ],
 
