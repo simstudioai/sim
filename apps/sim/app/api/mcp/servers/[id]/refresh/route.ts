@@ -6,7 +6,11 @@ import type { NextRequest } from 'next/server'
 import { withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpServerStatusConfig, McpTool, McpToolSchema } from '@/lib/mcp/types'
-import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
+import {
+  createMcpErrorResponse,
+  createMcpSuccessResponse,
+  MCP_TOOL_CORE_PARAMS,
+} from '@/lib/mcp/utils'
 
 const logger = createLogger('McpServerRefreshAPI')
 
@@ -28,9 +32,6 @@ interface StoredTool {
   schema?: StoredToolSchema
   [key: string]: unknown
 }
-
-/** Core param keys that are metadata, not user-entered test values */
-const MCP_TOOL_CORE_PARAMS = new Set(['serverId', 'serverUrl', 'toolName', 'serverName'])
 
 interface SyncResult {
   updatedCount: number

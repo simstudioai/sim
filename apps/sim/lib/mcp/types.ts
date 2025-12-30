@@ -143,3 +143,23 @@ export interface McpToolDiscoveryResponse {
   totalCount: number
   byServer: Record<string, number>
 }
+
+/**
+ * MCP tool reference stored in workflow blocks (for validation).
+ * Minimal version used for comparing against discovered tools.
+ */
+export interface StoredMcpToolReference {
+  serverId: string
+  serverUrl?: string
+  toolName: string
+  schema?: McpToolSchema
+}
+
+/**
+ * Full stored MCP tool with workflow context (for API responses).
+ * Extended version that includes which workflow the tool is used in.
+ */
+export interface StoredMcpTool extends StoredMcpToolReference {
+  workflowId: string
+  workflowName: string
+}

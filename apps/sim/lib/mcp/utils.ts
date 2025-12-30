@@ -15,6 +15,37 @@ export const MCP_CONSTANTS = {
 } as const
 
 /**
+ * Core MCP tool parameter keys that are metadata, not user-entered test values.
+ * These should be preserved when cleaning up params during schema updates.
+ */
+export const MCP_TOOL_CORE_PARAMS = new Set(['serverId', 'serverUrl', 'toolName', 'serverName'])
+
+/**
+ * Sanitizes a string by removing invisible Unicode characters that cause HTTP header errors.
+ * Handles characters like U+2028 (Line Separator) that can be introduced via copy-paste.
+ */
+export function sanitizeForHttp(value: string): string {
+  return value
+    .replace(/[\u2028\u2029\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[\x00-\x1F\x7F]/g, '')
+    .trim()
+}
+
+/**
+ * Sanitizes all header key-value pairs for HTTP usage.
+ */
+export function sanitizeHeaders(
+  headers: Record<string, string> | undefined
+): Record<string, string> | undefined {
+  if (!headers) return headers
+  return Object.fromEntries(
+    Object.entries(headers)
+      .map(([key, value]) => [sanitizeForHttp(key), sanitizeForHttp(value)])
+      .filter(([key, value]) => key !== '' && value !== '')
+  )
+}
+
+/**
  * Client-safe MCP constants
  */
 export const MCP_CLIENT_CONSTANTS = {

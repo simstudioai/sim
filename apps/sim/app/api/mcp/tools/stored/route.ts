@@ -4,21 +4,12 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { withMcpAuth } from '@/lib/mcp/middleware'
-import type { McpToolSchema } from '@/lib/mcp/types'
+import type { McpToolSchema, StoredMcpTool } from '@/lib/mcp/types'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpStoredToolsAPI')
 
 export const dynamic = 'force-dynamic'
-
-interface StoredMcpTool {
-  workflowId: string
-  workflowName: string
-  serverId: string
-  serverUrl?: string
-  toolName: string
-  schema?: McpToolSchema
-}
 
 export const GET = withMcpAuth('read')(
   async (request: NextRequest, { userId, workspaceId, requestId }) => {

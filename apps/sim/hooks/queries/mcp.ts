@@ -1,31 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { McpServerStatusConfig, McpTool, McpToolSchema } from '@/lib/mcp/types'
+import type { McpServerStatusConfig, McpTool, StoredMcpTool } from '@/lib/mcp/types'
+import { sanitizeForHttp, sanitizeHeaders } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpQueries')
 
-/**
- * Sanitizes a string by removing invisible Unicode characters that cause HTTP header errors.
- */
-function sanitizeString(value: string): string {
-  return value
-    .replace(/[\u2028\u2029\u200B-\u200D\uFEFF]/g, '')
-    .replace(/[\x00-\x1F\x7F]/g, '')
-    .trim()
-}
-
-function sanitizeHeaders(
-  headers: Record<string, string> | undefined
-): Record<string, string> | undefined {
-  if (!headers) return headers
-  return Object.fromEntries(
-    Object.entries(headers)
-      .map(([key, value]) => [sanitizeString(key), sanitizeString(value)])
-      .filter(([key, value]) => key !== '' && value !== '')
-  )
-}
-
-export type { McpServerStatusConfig, McpTool }
+export type { McpServerStatusConfig, McpTool, StoredMcpTool }
 
 export const mcpKeys = {
   all: ['mcp'] as const,
@@ -54,7 +34,10 @@ export interface McpServer {
   deletedAt?: string
 }
 
-export interface McpServerConfig {
+/**
+ * Input for creating/updating an MCP server (distinct from McpServerConfig in types.ts)
+ */
+export interface McpServerInput {
   name: string
   transport: 'streamable-http' | 'stdio'
   url?: string
@@ -134,7 +117,7 @@ export function useForceRefreshMcpTools() {
 
 interface CreateMcpServerParams {
   workspaceId: string
-  config: McpServerConfig
+  config: McpServerInput
 }
 
 export function useCreateMcpServer() {
@@ -144,7 +127,7 @@ export function useCreateMcpServer() {
     mutationFn: async ({ workspaceId, config }: CreateMcpServerParams) => {
       const serverData = {
         ...config,
-        url: config.url ? sanitizeString(config.url) : config.url,
+        url: config.url ? sanitizeForHttp(config.url) : config.url,
         headers: sanitizeHeaders(config.headers),
         workspaceId,
       }
@@ -250,7 +233,7 @@ export function useDeleteMcpServer() {
 interface UpdateMcpServerParams {
   workspaceId: string
   serverId: string
-  updates: Partial<McpServerConfig & { enabled?: boolean }>
+  updates: Partial<McpServerInput>
 }
 
 export function useUpdateMcpServer() {
@@ -260,7 +243,7 @@ export function useUpdateMcpServer() {
     mutationFn: async ({ workspaceId, serverId, updates }: UpdateMcpServerParams) => {
       const sanitizedUpdates = {
         ...updates,
-        url: updates.url ? sanitizeString(updates.url) : updates.url,
+        url: updates.url ? sanitizeForHttp(updates.url) : updates.url,
         headers: updates.headers ? sanitizeHeaders(updates.headers) : updates.headers,
       }
 
@@ -354,63 +337,6 @@ export function useRefreshMcpServer() {
       await queryClient.refetchQueries({ queryKey: mcpKeys.storedTools(variables.workspaceId) })
     },
   })
-}
-
-export interface McpServerTestParams {
-  name: string
-  transport: 'streamable-http' | 'stdio'
-  url?: string
-  headers?: Record<string, string>
-  timeout: number
-  workspaceId: string
-}
-
-export interface McpServerTestResult {
-  success: boolean
-  error?: string
-  tools?: Array<{ name: string; description?: string }>
-}
-
-export function useTestMcpServer() {
-  return useMutation({
-    mutationFn: async (params: McpServerTestParams): Promise<McpServerTestResult> => {
-      try {
-        const response = await fetch('/api/mcp/test', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(params),
-        })
-
-        const data = await response.json()
-
-        if (!response.ok) {
-          return {
-            success: false,
-            error: data.error || 'Failed to test connection',
-          }
-        }
-
-        return {
-          success: true,
-          tools: data.tools || [],
-        }
-      } catch (error) {
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : 'Connection test failed',
-        }
-      }
-    },
-  })
-}
-
-export interface StoredMcpTool {
-  workflowId: string
-  workflowName: string
-  serverId: string
-  serverUrl?: string
-  toolName: string
-  schema?: McpToolSchema
 }
 
 async function fetchStoredMcpTools(workspaceId: string): Promise<StoredMcpTool[]> {

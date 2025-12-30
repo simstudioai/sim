@@ -2,21 +2,25 @@ import { z } from 'zod'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
 import { isValidStartBlockType } from '@/lib/workflows/triggers/trigger-utils'
 import type { InputFormatField } from '@/lib/workflows/types'
+import type { McpToolSchema } from './types'
 
 /**
- * MCP Tool Schema following the JSON Schema specification
+ * Extended property definition for workflow tool schemas.
+ * More specific than the generic McpToolSchema properties.
  */
-export interface McpToolInputSchema {
-  type: 'object'
-  properties: Record<string, McpToolProperty>
-  required?: string[]
-}
-
 export interface McpToolProperty {
   type: string
   description?: string
   items?: McpToolProperty
   properties?: Record<string, McpToolProperty>
+}
+
+/**
+ * Extended MCP tool schema with typed properties (for workflow tool generation).
+ * Extends the base McpToolSchema with more specific property types.
+ */
+export interface McpToolInputSchema extends McpToolSchema {
+  properties: Record<string, McpToolProperty>
 }
 
 export interface McpToolDefinition {

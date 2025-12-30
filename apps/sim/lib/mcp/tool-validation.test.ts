@@ -7,8 +7,8 @@ import {
   isToolUnavailable,
   type McpToolIssue,
   type ServerState,
-  type StoredMcpTool,
 } from './tool-validation'
+import type { StoredMcpToolReference } from './types'
 
 describe('hasSchemaChanged', () => {
   it.concurrent('returns false when both schemas are undefined', () => {
@@ -93,7 +93,9 @@ describe('hasSchemaChanged', () => {
 })
 
 describe('getMcpToolIssue', () => {
-  const createStoredTool = (overrides?: Partial<StoredMcpTool>): StoredMcpTool => ({
+  const createStoredTool = (
+    overrides?: Partial<StoredMcpToolReference>
+  ): StoredMcpToolReference => ({
     serverId: 'server-1',
     serverUrl: 'https://api.example.com/mcp',
     toolName: 'test-tool',
