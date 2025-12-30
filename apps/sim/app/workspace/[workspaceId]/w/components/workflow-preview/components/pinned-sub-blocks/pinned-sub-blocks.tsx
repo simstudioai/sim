@@ -8,10 +8,6 @@ import { getBlock } from '@/blocks'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
-/**
- * Expandable section for displaying large subblock values.
- * Supports inline expansion and fullscreen modal view.
- */
 function ExpandableValue({ title, value }: { title: string; value: unknown }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -90,10 +86,6 @@ function ExpandableValue({ title, value }: { title: string; value: unknown }) {
   )
 }
 
-/**
- * Format a subblock value for display.
- * Handles various types including objects, arrays, booleans, etc.
- */
 function formatSubBlockValue(value: unknown): string {
   if (value === null || value === undefined || value === '') {
     return '—'
@@ -190,16 +182,10 @@ function SubBlockRow({
 }
 
 interface PinnedSubBlocksProps {
-  /** The block state containing subblock values */
   block: BlockState
-  /** Callback when closing the panel */
   onClose: () => void
 }
 
-/**
- * Pinned panel displaying all subblock values for a selected block.
- * Overlays the workflow preview canvas in the top-right corner.
- */
 export function PinnedSubBlocks({ block, onClose }: PinnedSubBlocksProps) {
   const blockConfig = getBlock(block.type) as BlockConfig | undefined
 

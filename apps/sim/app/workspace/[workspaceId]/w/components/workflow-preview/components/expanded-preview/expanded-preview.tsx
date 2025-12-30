@@ -7,21 +7,12 @@ import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/work
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 interface ExpandedWorkflowPreviewProps {
-  /** Whether the modal is open */
   isOpen: boolean
-  /** Callback when closing the modal */
   onClose: () => void
-  /** The workflow state to display */
   workflowState: WorkflowState
-  /** Title for the modal header */
   title?: string
 }
 
-/**
- * Expanded workflow preview modal with clickable blocks.
- * Shows the workflow preview at full size with a pinned panel
- * displaying subblock values when a block is clicked.
- */
 export function ExpandedWorkflowPreview({
   isOpen,
   onClose,
@@ -33,7 +24,6 @@ export function ExpandedWorkflowPreview({
   const selectedBlock = selectedBlockId ? workflowState.blocks?.[selectedBlockId] : null
 
   const handleNodeClick = (blockId: string) => {
-    // Toggle selection if clicking the same block
     if (selectedBlockId === blockId) {
       setSelectedBlockId(null)
     } else {
