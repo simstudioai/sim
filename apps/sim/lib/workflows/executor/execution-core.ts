@@ -28,6 +28,11 @@ const logger = createLogger('ExecutionCore')
 
 const EnvVarsSchema = z.record(z.string())
 
+interface SubBlockState {
+  value: unknown
+  [key: string]: unknown
+}
+
 export interface ExecuteWorkflowCoreOptions {
   snapshot: ExecutionSnapshot
   callbacks: ExecutionCallbacks
@@ -155,9 +160,9 @@ export async function executeWorkflowCore(
             blockId,
             subBlockKeys: Object.keys(block.subBlocks || {}),
             subBlockValues: Object.entries(block.subBlocks || {}).reduce((acc, [key, sb]) => {
-              acc[key] = (sb as any).value
+              acc[key] = (sb as SubBlockState).value
               return acc
-            }, {} as Record<string, any>),
+            }, {} as Record<string, unknown>),
           })
         }
       })

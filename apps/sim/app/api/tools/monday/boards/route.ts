@@ -15,6 +15,13 @@ interface MondayBoard {
   state: string
 }
 
+/**
+ * POST /api/tools/monday/boards
+ * Fetches active boards from a Monday.com account
+ *
+ * @param request - Request containing the Monday.com API key
+ * @returns JSON response with list of active boards
+ */
 export async function POST(request: Request) {
   try {
     const requestId = generateRequestId()
@@ -45,9 +52,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ items: boards })
   } catch (error) {
     logger.error('Error fetching Monday.com boards:', error)
-    return NextResponse.json(
-      { error: 'Failed to retrieve Monday.com boards', details: (error as Error).message },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to retrieve Monday.com boards' }, { status: 500 })
   }
 }

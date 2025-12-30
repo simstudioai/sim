@@ -30,13 +30,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Board ID is required' }, { status: 400 })
     }
 
-    logger.info('Fetching Monday.com columns', { requestId, boardId })
+    const parsedBoardId = parseInt(boardId, 10)
+    if (isNaN(parsedBoardId)) {
+      logger.error('Invalid board ID format', { boardId })
+      return NextResponse.json({ error: 'Board ID must be a valid number' }, { status: 400 })
+    }
+
+    logger.info('Fetching Monday.com columns', { requestId, boardId: parsedBoardId })
 
     const data = await executeMondayQuery<{ boards: Array<{ columns: MondayColumn[] }> }>(
       apiKey,
       {
         query: QUERIES.GET_BOARD_COLUMNS,
-        variables: { boardId: [parseInt(boardId, 10)] },
+        variables: { boardId: [parsedBoardId] },
       }
     )
 
@@ -51,9 +57,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ items: formattedColumns })
   } catch (error) {
     logger.error('Error fetching Monday.com columns:', error)
-    return NextResponse.json(
-      { error: 'Failed to retrieve columns', details: (error as Error).message },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to retrieve columns' }, { status: 500 })
   }
 }

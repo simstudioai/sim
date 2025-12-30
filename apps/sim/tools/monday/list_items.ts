@@ -1,4 +1,4 @@
-import type { ListItemsParams, ListItemsResponse } from '@/tools/monday/types'
+import type { ListItemsParams, ListItemsResponse, MondayItem } from '@/tools/monday/types'
 import type { ToolConfig } from '@/tools/types'
 import { createLogger } from '@sim/logger'
 import { QUERIES } from './graphql'
@@ -15,7 +15,7 @@ export const listItemsTool: ToolConfig<ListItemsParams, ListItemsResponse> = {
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Monday.com API key',
     },
     board_id: {
@@ -86,7 +86,7 @@ export const listItemsTool: ToolConfig<ListItemsParams, ListItemsResponse> = {
 
     // Filter by group if group_id is provided
     if (params.group_id) {
-      items = items.filter((item: any) => item.group?.id === params.group_id)
+      items = items.filter((item: MondayItem) => item.group?.id === params.group_id)
     }
 
     logger.info('Monday items listed successfully', { count: items.length, filtered: !!params.group_id })

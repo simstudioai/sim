@@ -15,7 +15,7 @@ export const createItemTool: ToolConfig<CreateItemParams, CreateItemResponse> = 
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Monday.com API key',
     },
     board_id: {

@@ -1,9 +1,6 @@
 import { MondayIcon } from '@/components/icons'
-import { createLogger } from '@sim/logger'
 import type { TriggerConfig } from '@/triggers/types'
 import { mondayTriggerOptions } from './utils'
-
-const logger = createLogger('MondayNewItemTrigger')
 
 export const mondayNewItemTrigger: TriggerConfig = {
   id: 'monday_new_item',

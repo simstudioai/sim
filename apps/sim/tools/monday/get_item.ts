@@ -15,7 +15,7 @@ export const getItemTool: ToolConfig<GetItemParams, GetItemResponse> = {
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Monday.com API key',
     },
     item_id: {

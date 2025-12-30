@@ -1,5 +1,6 @@
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Combobox as EditableCombobox } from '@/components/emcn/components'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -10,6 +11,8 @@ import {
   useSelectorOptionMap,
   useSelectorOptions,
 } from '@/hooks/selectors/use-selector-query'
+
+const logger = createLogger('SelectorCombobox')
 
 interface SelectorComboboxProps {
   blockId: string
@@ -46,12 +49,26 @@ export function SelectorCombobox({
   const [columnIdCamelFromBlock] = useSubBlockValue<string>(blockId, 'columnId')
 
   // Merge Monday.com specific values into context if they're missing
-  const enrichedContext = selectorKey.startsWith('monday.') ? {
-    ...selectorContext,
-    apiKey: selectorContext.apiKey || apiKeyFromBlock,
-    boardId: selectorContext.boardId || boardIdFromBlock || boardIdCamelFromBlock,
-    columnId: selectorContext.columnId || columnIdFromBlock || columnIdCamelFromBlock,
-  } : selectorContext
+  const enrichedContext = useMemo(
+    () =>
+      selectorKey.startsWith('monday.')
+        ? {
+            ...selectorContext,
+            apiKey: selectorContext.apiKey || apiKeyFromBlock,
+            boardId: selectorContext.boardId || boardIdFromBlock || boardIdCamelFromBlock,
+            columnId: selectorContext.columnId || columnIdFromBlock || columnIdCamelFromBlock,
+          }
+        : selectorContext,
+    [
+      selectorKey,
+      selectorContext,
+      apiKeyFromBlock,
+      boardIdFromBlock,
+      boardIdCamelFromBlock,
+      columnIdFromBlock,
+      columnIdCamelFromBlock,
+    ]
+  )
 
   // For Monday selectors, override disabled if we have apiKey and required dependencies
   let actualDisabled = disabled
@@ -68,14 +85,14 @@ export function SelectorCombobox({
     }
   }
 
-  console.log('[SelectorCombobox RENDER]', {
+  logger.info('SelectorCombobox render', {
     subBlockId: subBlock.id,
     selectorKey,
     disabled,
     actualDisabled,
     hasApiKey: !!enrichedContext.apiKey,
     apiKeyFromBlock,
-    enrichedContext
+    enrichedContext,
   })
 
   const [storeValueRaw, setStoreValue] = useSubBlockValue<string | null | undefined>(

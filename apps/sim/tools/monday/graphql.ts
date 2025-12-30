@@ -172,29 +172,6 @@ export const QUERIES = {
     }
   `,
 
-  LIST_ITEMS_NO_FILTER: `
-    query ($boardId: [ID!]!, $limit: Int) {
-      boards(ids: $boardId) {
-        items_page(limit: $limit) {
-          items {
-            id
-            name
-            created_at
-            updated_at
-            board { id }
-            group { id }
-            column_values {
-              id
-              type
-              text
-              value
-            }
-          }
-        }
-      }
-    }
-  `,
-
   GET_COLUMN_SETTINGS: `
     query ($boardId: [ID!]!, $columnId: String!) {
       boards(ids: $boardId) {

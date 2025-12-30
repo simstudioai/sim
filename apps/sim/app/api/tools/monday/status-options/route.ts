@@ -20,6 +20,11 @@ interface StatusLabel {
   color: string
 }
 
+interface StatusLabelSettings {
+  label: string
+  color?: string
+}
+
 export async function POST(request: Request) {
   try {
     const requestId = generateRequestId()
@@ -66,11 +71,16 @@ export async function POST(request: Request) {
         const settings = JSON.parse(column.settings_str)
         const labels = settings.labels || {}
 
-        statusOptions = Object.entries(labels).map(([id, label]: [string, any]) => ({
-          id,
-          label: label.label || label,
-          color: label.color || '#000000',
-        }))
+        statusOptions = Object.entries(labels).map(([id, label]: [string, StatusLabelSettings | string]) => {
+          if (typeof label === 'string') {
+            return { id, label, color: '#000000' }
+          }
+          return {
+            id,
+            label: label.label,
+            color: label.color || '#000000',
+          }
+        })
       } catch (parseError) {
         logger.error('Failed to parse column settings', {
           error: parseError,
@@ -89,9 +99,6 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     logger.error('Error fetching Monday.com status options:', error)
-    return NextResponse.json(
-      { error: 'Failed to retrieve status options', details: (error as Error).message },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to retrieve status options' }, { status: 500 })
   }
 }

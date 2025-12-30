@@ -4,6 +4,11 @@ import { QUERIES } from '@/tools/monday/graphql'
 
 const logger = createLogger('MondaySubitemsAPI')
 
+interface MondaySubitem {
+  id: string
+  name: string
+}
+
 /**
  * POST /api/tools/monday/subitems
  * Fetches subitems from a Monday.com item for selector dropdown
@@ -67,7 +72,7 @@ export async function POST(request: Request) {
     logger.info('Successfully fetched Monday.com subitems', { count: subitems.length })
 
     return NextResponse.json({
-      items: subitems.map((subitem: any) => ({
+      items: subitems.map((subitem: MondaySubitem) => ({
         id: subitem.id,
         name: subitem.name,
       })),

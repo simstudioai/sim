@@ -1,9 +1,12 @@
 'use client'
 
 import { useMemo } from 'react'
+import { createLogger } from '@sim/logger'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+
+const logger = createLogger('useDependsOnGate')
 
 type DependsOnConfig = string[] | { all?: string[]; any?: string[] }
 
@@ -146,7 +149,7 @@ export function useDependsOnGate(
 
   // Debug logging for dependency issues
   if (typeof window !== 'undefined' && allDependsOnFields.includes('apiKey')) {
-    console.log('[useDependsOnGate Debug]', {
+    logger.info('Dependency gate debug', {
       subBlockId: subBlock.id,
       allDependsOnFields,
       dependencyValuesMap,
