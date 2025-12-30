@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { ChevronDown, Database, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -29,7 +30,9 @@ import {
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
-import type { KnowledgeBaseData } from '@/stores/knowledge/store'
+import { type KnowledgeBaseData, useKnowledgeStore } from '@/stores/knowledge/store'
+
+const logger = createLogger('Knowledge')
 
 /**
  * Extended knowledge base data with document count
@@ -46,7 +49,7 @@ export function Knowledge() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
-  const { knowledgeBases, isLoading, error, addKnowledgeBase, refreshList } =
+  const { knowledgeBases, isLoading, error, addKnowledgeBase, removeKnowledgeBase, refreshList } =
     useKnowledgeBasesList(workspaceId)
   const userPermissions = useUserPermissionsContext()
 
@@ -84,6 +87,65 @@ export function Knowledge() {
   const handleRetry = () => {
     refreshList()
   }
+
+  const { updateKnowledgeBase: updateKnowledgeBaseInStore } = useKnowledgeStore()
+
+  /**
+   * Updates a knowledge base name and description
+   */
+  const handleUpdateKnowledgeBase = useCallback(
+    async (id: string, name: string, description: string) => {
+      const response = await fetch(`/api/knowledge/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, description }),
+      })
+
+      if (!response.ok) {
+        const result = await response.json()
+        throw new Error(result.error || 'Failed to update knowledge base')
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        logger.info(`Knowledge base updated: ${id}`)
+        updateKnowledgeBaseInStore(id, { name, description })
+        await refreshList()
+      } else {
+        throw new Error(result.error || 'Failed to update knowledge base')
+      }
+    },
+    [refreshList, updateKnowledgeBaseInStore]
+  )
+
+  /**
+   * Deletes a knowledge base
+   */
+  const handleDeleteKnowledgeBase = useCallback(
+    async (id: string) => {
+      const response = await fetch(`/api/knowledge/${id}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        const result = await response.json()
+        throw new Error(result.error || 'Failed to delete knowledge base')
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        logger.info(`Knowledge base deleted: ${id}`)
+        removeKnowledgeBase(id)
+      } else {
+        throw new Error(result.error || 'Failed to delete knowledge base')
+      }
+    },
+    [removeKnowledgeBase]
+  )
 
   /**
    * Filter and sort knowledge bases based on search query and sort options
@@ -234,6 +296,8 @@ export function Knowledge() {
                       description={displayData.description}
                       createdAt={displayData.createdAt}
                       updatedAt={displayData.updatedAt}
+                      onUpdate={handleUpdateKnowledgeBase}
+                      onDelete={handleDeleteKnowledgeBase}
                     />
                   )
                 })
