@@ -209,6 +209,7 @@ export interface SubBlockConfig {
   max?: number
   columns?: string[]
   placeholder?: string
+  note?: string
   password?: boolean
   readOnly?: boolean
   showCopyButton?: boolean

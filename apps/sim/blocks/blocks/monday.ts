@@ -35,6 +35,7 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
       placeholder: 'Enter your Monday.com API key',
       password: true,
       required: true,
+      note: 'The API key can be found by logging into Monday.com, clicking on your profile picture, opening the Developers section. Then, click on Developers in the header menu and select My Access Tokens to get your personal API token.',
     },
     // CREATE ITEM fields
     {

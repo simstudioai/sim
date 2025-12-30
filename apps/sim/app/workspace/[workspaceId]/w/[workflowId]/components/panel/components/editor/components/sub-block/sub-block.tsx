@@ -906,6 +906,9 @@ function SubBlockComponent({
         subBlockValues
       )}
       {renderInput()}
+      {config.note && (
+        <p className='mt-[-6px] text-muted-foreground text-xs leading-relaxed'>{config.note}</p>
+      )}
     </div>
   )
 }
