@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useQueryClient } from '@tanstack/react-query'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { knowledgeKeys } from '@/hooks/queries/knowledge'
 
 const logger = createLogger('KnowledgeUpload')
 
@@ -51,7 +53,6 @@ export interface ProcessingOptions {
 }
 
 export interface UseKnowledgeUploadOptions {
-  onUploadComplete?: (uploadedFiles: UploadedFile[]) => void
   onError?: (error: UploadError) => void
   workspaceId?: string
 }
@@ -337,6 +338,7 @@ const getPresignedData = async (
  * Hook for managing file uploads to knowledge bases
  */
 export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
+  const queryClient = useQueryClient()
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<UploadProgress>({
     stage: 'idle',
@@ -1071,7 +1073,9 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
       logger.info(`Successfully started processing ${uploadedFiles.length} documents`)
 
-      options.onUploadComplete?.(uploadedFiles)
+      await queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+      })
 
       return uploadedFiles
     } catch (err) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { format } from 'date-fns'
 import {
@@ -41,6 +41,7 @@ import { SearchHighlight } from '@/components/ui/search-highlight'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/core/utils/cn'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import type { DocumentData } from '@/lib/knowledge/types'
 import {
   ActionBar,
   AddDocumentsModal,
@@ -57,7 +58,6 @@ import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
 } from '@/hooks/use-knowledge-base-tag-definitions'
-import type { DocumentData } from '@/stores/knowledge/store'
 
 const logger = createLogger('KnowledgeBase')
 
@@ -440,6 +440,8 @@ export function KnowledgeBase({
     documents,
     pagination,
     isLoading: isLoadingDocuments,
+    isFetching: isFetchingDocuments,
+    isPlaceholderData: isPlaceholderDocuments,
     error: documentsError,
     updateDocument,
     refreshDocuments,
@@ -958,7 +960,24 @@ export function KnowledgeBase({
   const enabledCount = selectedDocumentsList.filter((doc) => doc.enabled).length
   const disabledCount = selectedDocumentsList.filter((doc) => !doc.enabled).length
 
-  if ((isLoadingKnowledgeBase || isLoadingDocuments) && !knowledgeBase && documents.length === 0) {
+  // Track previous KB id to detect navigation between different knowledge bases
+  const prevKnowledgeBaseIdRef = useRef<string>(id)
+  const isNavigatingToNewKB = prevKnowledgeBaseIdRef.current !== id
+
+  // Update ref when KB data loads successfully
+  useEffect(() => {
+    if (knowledgeBase && knowledgeBase.id === id) {
+      prevKnowledgeBaseIdRef.current = id
+    }
+  }, [knowledgeBase, id])
+
+  // Show full page skeleton when:
+  // 1. Initial load (no KB data yet), OR
+  // 2. Navigating to a different KB (showing placeholder data from previous KB)
+  const isInitialLoad = isLoadingKnowledgeBase && !knowledgeBase
+  const isFetchingNewKB = isNavigatingToNewKB && isFetchingDocuments
+
+  if (isInitialLoad || isFetchingNewKB) {
     return <KnowledgeBaseLoading knowledgeBaseName={knowledgeBaseName} />
   }
 
@@ -1505,7 +1524,6 @@ export function KnowledgeBase({
         onOpenChange={setShowAddDocumentsModal}
         knowledgeBaseId={id}
         chunkingConfig={knowledgeBase?.chunkingConfig}
-        onUploadComplete={refreshDocuments}
       />
 
       <ActionBar

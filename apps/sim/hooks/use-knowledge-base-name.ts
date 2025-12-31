@@ -1,22 +1,13 @@
-import { useEffect, useState } from 'react'
-import { useKnowledgeStore } from '@/stores/knowledge/store'
+import { useKnowledgeBase } from '@/hooks/use-knowledge'
 
+/**
+ * Hook to get a knowledge base name by ID
+ * Uses React Query under the hood for caching and fetching
+ */
 export function useKnowledgeBaseName(knowledgeBaseId?: string | null) {
-  const getCachedKnowledgeBase = useKnowledgeStore((state) => state.getCachedKnowledgeBase)
-  const getKnowledgeBase = useKnowledgeStore((state) => state.getKnowledgeBase)
-  const [isLoading, setIsLoading] = useState(false)
+  const { knowledgeBase, isLoading } = useKnowledgeBase(knowledgeBaseId ?? '')
 
-  const cached = knowledgeBaseId ? getCachedKnowledgeBase(knowledgeBaseId) : null
+  if (!knowledgeBaseId) return null
 
-  useEffect(() => {
-    if (!knowledgeBaseId || cached || isLoading) return
-    setIsLoading(true)
-    getKnowledgeBase(knowledgeBaseId)
-      .catch(() => {
-        // ignore
-      })
-      .finally(() => setIsLoading(false))
-  }, [knowledgeBaseId, cached, isLoading, getKnowledgeBase])
-
-  return cached?.name ?? null
+  return knowledgeBase?.name ?? null
 }

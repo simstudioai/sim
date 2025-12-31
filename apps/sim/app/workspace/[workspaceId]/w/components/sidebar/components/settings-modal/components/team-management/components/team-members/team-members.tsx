@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Badge, Button } from '@/components/emcn'
-import { UserAvatar } from '@/components/user-avatar/user-avatar'
+import { Avatar, AvatarFallback, AvatarImage, Badge, Button } from '@/components/emcn'
 import type { Invitation, Member, Organization } from '@/lib/workspaces/organization'
+import { getUserColor } from '@/app/workspace/[workspaceId]/w/utils/get-user-color'
 import { useCancelInvitation, useOrganizationMembers } from '@/hooks/queries/organization'
 
 const logger = createLogger('TeamMembers')
@@ -45,17 +45,14 @@ export function TeamMembers({
   isAdminOrOwner,
   onRemoveMember,
 }: TeamMembersProps) {
-  // Track which invitations are being cancelled for individual loading states
   const [cancellingInvitations, setCancellingInvitations] = useState<Set<string>>(new Set())
 
-  // Fetch member usage data using React Query
   const { data: memberUsageResponse, isLoading: isLoadingUsage } = useOrganizationMembers(
     organization?.id || ''
   )
 
   const cancelInvitationMutation = useCancelInvitation()
 
-  // Build usage data map from response
   const memberUsageData: Record<string, number> = {}
   if (memberUsageResponse?.data) {
     memberUsageResponse.data.forEach(
@@ -67,10 +64,8 @@ export function TeamMembers({
     )
   }
 
-  // Combine members and pending invitations into a single list
   const teamItems: TeamMemberItem[] = []
 
-  // Add existing members
   if (organization.members) {
     organization.members.forEach((member: Member) => {
       const userId = member.user?.id
@@ -94,7 +89,6 @@ export function TeamMembers({
     })
   }
 
-  // Add pending invitations
   const pendingInvitations = organization.invitations?.filter(
     (invitation) => invitation.status === 'pending'
   )
@@ -109,7 +103,7 @@ export function TeamMembers({
         email: invitation.email,
         avatarInitial: emailPrefix.charAt(0).toUpperCase(),
         avatarUrl: null,
-        userId: invitation.email, // Use email as fallback for color generation
+        userId: invitation.email,
         usage: '-',
         invitation,
       }
@@ -122,7 +116,6 @@ export function TeamMembers({
     return <div className='text-center text-[var(--text-muted)] text-sm'>No team members yet.</div>
   }
 
-  // Check if current user can leave (is a member but not owner)
   const currentUserMember = organization.members?.find((m) => m.user?.email === currentUserEmail)
   const canLeaveOrganization =
     currentUserMember && currentUserMember.role !== 'owner' && currentUserMember.user?.id
@@ -149,24 +142,27 @@ export function TeamMembers({
 
   return (
     <div className='flex flex-col gap-[16px]'>
-      {/* Header - simple like account page */}
+      {/* Header */}
       <div>
         <h4 className='font-medium text-[14px] text-[var(--text-primary)]'>Team Members</h4>
       </div>
 
-      {/* Members list - clean like account page */}
+      {/* Members list */}
       <div className='flex flex-col gap-[16px]'>
         {teamItems.map((item) => (
           <div key={item.id} className='flex items-center justify-between'>
             {/* Left section: Avatar + Name/Role + Action buttons */}
             <div className='flex flex-1 items-center gap-[12px]'>
               {/* Avatar */}
-              <UserAvatar
-                userId={item.userId || item.email}
-                userName={item.name}
-                avatarUrl={item.avatarUrl}
-                size={32}
-              />
+              <Avatar size='sm'>
+                {item.avatarUrl && <AvatarImage src={item.avatarUrl} alt={item.name} />}
+                <AvatarFallback
+                  style={{ background: getUserColor(item.userId || item.email) }}
+                  className='border-0 text-white'
+                >
+                  {item.avatarInitial}
+                </AvatarFallback>
+              </Avatar>
 
               {/* Name and email */}
               <div className='min-w-0'>

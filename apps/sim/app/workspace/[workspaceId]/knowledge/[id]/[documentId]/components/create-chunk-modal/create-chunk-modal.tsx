@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useQueryClient } from '@tanstack/react-query'
 import { AlertCircle } from 'lucide-react'
 import {
   Button,
@@ -13,7 +14,8 @@ import {
   ModalHeader,
   Textarea,
 } from '@/components/emcn'
-import type { ChunkData, DocumentData } from '@/stores/knowledge/store'
+import type { DocumentData } from '@/lib/knowledge/types'
+import { knowledgeKeys } from '@/hooks/queries/knowledge'
 
 const logger = createLogger('CreateChunkModal')
 
@@ -22,7 +24,6 @@ interface CreateChunkModalProps {
   onOpenChange: (open: boolean) => void
   document: DocumentData | null
   knowledgeBaseId: string
-  onChunkCreated?: (chunk: ChunkData) => void
 }
 
 export function CreateChunkModal({
@@ -30,8 +31,8 @@ export function CreateChunkModal({
   onOpenChange,
   document,
   knowledgeBaseId,
-  onChunkCreated,
 }: CreateChunkModalProps) {
+  const queryClient = useQueryClient()
   const [content, setContent] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -77,9 +78,9 @@ export function CreateChunkModal({
       if (result.success && result.data) {
         logger.info('Chunk created successfully:', result.data.id)
 
-        if (onChunkCreated) {
-          onChunkCreated(result.data)
-        }
+        await queryClient.invalidateQueries({
+          queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        })
 
         onClose()
       } else {
@@ -96,7 +97,6 @@ export function CreateChunkModal({
 
   const onClose = () => {
     onOpenChange(false)
-    // Reset form state when modal closes
     setContent('')
     setError(null)
     setShowUnsavedChangesAlert(false)

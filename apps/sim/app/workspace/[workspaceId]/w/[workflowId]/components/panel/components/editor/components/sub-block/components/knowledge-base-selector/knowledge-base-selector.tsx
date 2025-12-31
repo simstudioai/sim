@@ -6,11 +6,11 @@ import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Combobox, type ComboboxOption } from '@/components/emcn'
 import { PackageSearchIcon } from '@/components/icons'
+import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { fetchKnowledgeBase, knowledgeKeys } from '@/hooks/queries/knowledge'
 import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
-import type { KnowledgeBaseData } from '@/stores/knowledge/store'
 
 interface KnowledgeBaseSelectorProps {
   blockId: string
@@ -38,10 +38,8 @@ export function KnowledgeBaseSelector({
     error,
   } = useKnowledgeBasesList(workspaceId)
 
-  // Use the proper hook to get the current value and setter - this prevents infinite loops
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
 
-  // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
 
   const isMultiSelect = subBlock.multiSelect === true

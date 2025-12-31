@@ -33,7 +33,6 @@ interface AddDocumentsModalProps {
     minSize: number
     overlap: number
   }
-  onUploadComplete?: () => void
 }
 
 export function AddDocumentsModal({
@@ -41,7 +40,6 @@ export function AddDocumentsModal({
   onOpenChange,
   knowledgeBaseId,
   chunkingConfig,
-  onUploadComplete,
 }: AddDocumentsModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -54,11 +52,6 @@ export function AddDocumentsModal({
 
   const { isUploading, uploadProgress, uploadFiles, uploadError, clearError } = useKnowledgeUpload({
     workspaceId,
-    onUploadComplete: () => {
-      logger.info(`Successfully uploaded ${files.length} files`)
-      onUploadComplete?.()
-      handleClose()
-    },
   })
 
   useEffect(() => {
@@ -219,6 +212,8 @@ export function AddDocumentsModal({
         chunkOverlap: chunkingConfig?.overlap || 200,
         recipe: 'default',
       })
+      logger.info(`Successfully uploaded ${files.length} files`)
+      handleClose()
     } catch (error) {
       logger.error('Error uploading files:', error)
     }

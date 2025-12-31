@@ -1,6 +1,6 @@
 'use client'
 
-import { startTransition, useCallback, useEffect, useState } from 'react'
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -35,6 +35,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { Skeleton } from '@/components/ui/skeleton'
+import type { ChunkData, DocumentData } from '@/lib/knowledge/types'
 import {
   CreateChunkModal,
   DeleteChunkModal,
@@ -44,8 +45,11 @@ import {
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { knowledgeKeys } from '@/hooks/queries/knowledge'
-import { useDocumentChunks } from '@/hooks/use-knowledge'
-import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
+import {
+  useCachedDocuments,
+  useCachedKnowledgeBase,
+  useDocumentChunks,
+} from '@/hooks/use-knowledge'
 
 const logger = createLogger('Document')
 
@@ -260,12 +264,6 @@ export function Document({
   knowledgeBaseName,
   documentName,
 }: DocumentProps) {
-  const {
-    getCachedKnowledgeBase,
-    getCachedDocuments,
-    updateDocument: updateDocumentInStore,
-    removeDocument,
-  } = useKnowledgeStore()
   const queryClient = useQueryClient()
   const { workspaceId } = useParams()
   const router = useRouter()
@@ -273,22 +271,22 @@ export function Document({
   const currentPageFromURL = Number.parseInt(searchParams.get('page') || '1', 10)
   const userPermissions = useUserPermissionsContext()
 
+  const cachedKnowledgeBase = useCachedKnowledgeBase(knowledgeBaseId)
+  const cachedDocumentsData = useCachedDocuments(knowledgeBaseId)
+
   /**
    * Get cached document synchronously for immediate render
    */
   const getInitialCachedDocument = useCallback(() => {
-    const cachedDocuments = getCachedDocuments(knowledgeBaseId)
-    return cachedDocuments?.documents?.find((d) => d.id === documentId) || null
-  }, [getCachedDocuments, knowledgeBaseId, documentId])
+    return cachedDocumentsData?.documents?.find((d: DocumentData) => d.id === documentId) || null
+  }, [cachedDocumentsData, documentId])
 
   const [showTagsModal, setShowTagsModal] = useState(false)
 
-  // Search state management
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   const [isSearching, setIsSearching] = useState(false)
 
-  // Load initial chunks (no search) for immediate display
   const {
     chunks: initialChunks,
     currentPage: initialPage,
@@ -299,16 +297,15 @@ export function Document({
     error: initialError,
     refreshChunks: initialRefreshChunks,
     updateChunk: initialUpdateChunk,
+    isFetching: isFetchingChunks,
   } = useDocumentChunks(knowledgeBaseId, documentId, currentPageFromURL, '', {
     enableClientSearch: false,
   })
 
-  // Search results state
   const [searchResults, setSearchResults] = useState<ChunkData[]>([])
   const [isLoadingSearch, setIsLoadingSearch] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
 
-  // Load all search results when query changes
   useEffect(() => {
     if (!debouncedSearchQuery.trim()) {
       setSearchResults([])
@@ -326,7 +323,7 @@ export function Document({
         const allResults: ChunkData[] = []
         let hasMore = true
         let offset = 0
-        const limit = 100 // Larger batches for search
+        const limit = 100
 
         while (hasMore && isMounted) {
           const response = await fetch(
@@ -373,7 +370,6 @@ export function Document({
   const [selectedChunk, setSelectedChunk] = useState<ChunkData | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Debounce search query with 200ms delay for optimal UX
   useEffect(() => {
     const handler = setTimeout(() => {
       startTransition(() => {
@@ -387,12 +383,7 @@ export function Document({
     }
   }, [searchQuery])
 
-  // Determine which data to show
   const showingSearch = isSearching && searchQuery.trim().length > 0 && searchResults.length > 0
-
-  // Removed unused allDisplayChunks variable
-
-  // Client-side pagination for search results
   const SEARCH_PAGE_SIZE = 50
   const maxSearchPages = Math.ceil(searchResults.length / SEARCH_PAGE_SIZE)
   const searchCurrentPage =
@@ -414,7 +405,6 @@ export function Document({
 
   const goToPage = useCallback(
     async (page: number) => {
-      // Update URL first for both modes
       const params = new URLSearchParams(window.location.search)
       if (page > 1) {
         params.set('page', page.toString())
@@ -424,10 +414,8 @@ export function Document({
       window.history.replaceState(null, '', `?${params.toString()}`)
 
       if (showingSearch) {
-        // For search, URL update is sufficient (client-side pagination)
         return
       }
-      // For normal view, also trigger server-side pagination
       return await initialGoToPage(page)
     },
     [showingSearch, initialGoToPage]
@@ -462,13 +450,11 @@ export function Document({
 
   const combinedError = error || searchError || initialError
 
-  // URL updates are handled directly in goToPage function to prevent pagination conflicts
-
   useEffect(() => {
     const fetchDocument = async () => {
-      // Check for cached data first
-      const cachedDocuments = getCachedDocuments(knowledgeBaseId)
-      const cachedDoc = cachedDocuments?.documents?.find((d) => d.id === documentId)
+      const cachedDoc = cachedDocumentsData?.documents?.find(
+        (d: DocumentData) => d.id === documentId
+      )
 
       if (cachedDoc) {
         setDocumentData(cachedDoc)
@@ -476,7 +462,6 @@ export function Document({
         return
       }
 
-      // Only show loading and fetch if we don't have cached data
       setIsLoadingDocument(true)
       setError(null)
 
@@ -508,10 +493,10 @@ export function Document({
     if (knowledgeBaseId && documentId) {
       fetchDocument()
     }
-  }, [knowledgeBaseId, documentId, getCachedDocuments])
+  }, [knowledgeBaseId, documentId, cachedDocumentsData])
 
-  const knowledgeBase = getCachedKnowledgeBase(knowledgeBaseId)
-  const effectiveKnowledgeBaseName = knowledgeBase?.name || knowledgeBaseName || 'Knowledge Base'
+  const effectiveKnowledgeBaseName =
+    cachedKnowledgeBase?.name || knowledgeBaseName || 'Knowledge Base'
   const effectiveDocumentName = documentData?.filename || documentName || 'Document'
 
   const breadcrumbItems = [
@@ -573,8 +558,7 @@ export function Document({
     }
   }
 
-  const handleChunkDeleted = async () => {
-    await refreshChunks()
+  const handleCloseDeleteModal = () => {
     if (chunkToDelete) {
       setSelectedChunks((prev) => {
         const newSet = new Set(prev)
@@ -582,9 +566,6 @@ export function Document({
         return newSet
       })
     }
-  }
-
-  const handleCloseDeleteModal = () => {
     setIsDeleteModalOpen(false)
     setChunkToDelete(null)
   }
@@ -609,11 +590,6 @@ export function Document({
     }
   }
 
-  const handleChunkCreated = async () => {
-    // Refresh the chunks list to include the new chunk
-    await refreshChunks()
-  }
-
   /**
    * Handles deleting the document
    */
@@ -634,9 +610,6 @@ export function Document({
       const result = await response.json()
 
       if (result.success) {
-        removeDocument(knowledgeBaseId, documentId)
-
-        // Invalidate React Query cache to ensure fresh data on KB page
         await queryClient.invalidateQueries({
           queryKey: knowledgeKeys.detail(knowledgeBaseId),
         })
@@ -651,7 +624,6 @@ export function Document({
     }
   }
 
-  // Shared utility function for bulk chunk operations
   const performBulkChunkOperation = async (
     operation: 'enable' | 'disable' | 'delete',
     chunks: ChunkData[]
@@ -683,10 +655,8 @@ export function Document({
 
       if (result.success) {
         if (operation === 'delete') {
-          // Refresh chunks list to reflect deletions
           await refreshChunks()
         } else {
-          // Update successful chunks in the store for enable/disable operations
           result.data.results.forEach((opResult: any) => {
             if (opResult.operation === operation) {
               opResult.chunkIds.forEach((chunkId: string) => {
@@ -699,7 +669,6 @@ export function Document({
         logger.info(`Successfully ${operation}d ${result.data.successCount} chunks`)
       }
 
-      // Clear selection after successful operation
       setSelectedChunks(new Set())
     } catch (err) {
       logger.error(`Error ${operation}ing chunks:`, err)
@@ -727,7 +696,6 @@ export function Document({
     await performBulkChunkOperation('delete', chunksToDelete)
   }
 
-  // Calculate bulk operation counts
   const selectedChunksList = displayChunks.filter((chunk) => selectedChunks.has(chunk.id))
   const enabledCount = selectedChunksList.filter((chunk) => chunk.enabled).length
   const disabledCount = selectedChunksList.filter((chunk) => !chunk.enabled).length
@@ -736,13 +704,26 @@ export function Document({
 
   const handleDocumentTagsUpdate = useCallback(
     (tagData: Record<string, string>) => {
-      updateDocumentInStore(knowledgeBaseId, documentId, tagData)
       setDocumentData((prev) => (prev ? { ...prev, ...tagData } : null))
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+      })
     },
-    [knowledgeBaseId, documentId, updateDocumentInStore]
+    [knowledgeBaseId, queryClient]
   )
 
-  if (isLoadingDocument) {
+  const prevDocumentIdRef = useRef<string>(documentId)
+  const isNavigatingToNewDoc = prevDocumentIdRef.current !== documentId
+
+  useEffect(() => {
+    if (documentData && documentData.id === documentId) {
+      prevDocumentIdRef.current = documentId
+    }
+  }, [documentData, documentId])
+
+  const isFetchingNewDoc = isNavigatingToNewDoc && isFetchingChunks
+
+  if (isLoadingDocument || isFetchingNewDoc) {
     return (
       <DocumentLoading
         knowledgeBaseId={knowledgeBaseId}
@@ -1152,16 +1133,13 @@ export function Document({
         knowledgeBaseId={knowledgeBaseId}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
-        onChunkUpdate={(updatedChunk: ChunkData) => {
-          updateChunk(updatedChunk.id, updatedChunk)
-          setSelectedChunk(updatedChunk)
-        }}
         allChunks={displayChunks}
         currentPage={currentPage}
         totalPages={totalPages}
         onNavigateToChunk={(chunk: ChunkData) => {
           setSelectedChunk(chunk)
         }}
+        maxChunkSize={cachedKnowledgeBase?.chunkingConfig?.maxSize}
         onNavigateToPage={async (page: number, selectChunk: 'first' | 'last') => {
           await goToPage(page)
 
@@ -1173,7 +1151,6 @@ export function Document({
                 setSelectedChunk(displayChunks[displayChunks.length - 1])
               }
             } else {
-              // Retry after a short delay if chunks aren't loaded yet
               setTimeout(checkAndSelectChunk, 100)
             }
           }
@@ -1188,7 +1165,6 @@ export function Document({
         onOpenChange={setIsCreateChunkModalOpen}
         document={documentData}
         knowledgeBaseId={knowledgeBaseId}
-        onChunkCreated={handleChunkCreated}
       />
 
       {/* Delete Chunk Modal */}
@@ -1198,7 +1174,6 @@ export function Document({
         documentId={documentId}
         isOpen={isDeleteModalOpen}
         onClose={handleCloseDeleteModal}
-        onChunkDeleted={handleChunkDeleted}
       />
 
       {/* Bulk Action Bar */}

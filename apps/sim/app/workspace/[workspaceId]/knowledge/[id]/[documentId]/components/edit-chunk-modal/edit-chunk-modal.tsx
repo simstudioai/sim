@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import * as DialogPrimitive from '@radix-ui/react-dialog'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { AlertCircle, ChevronDown, ChevronUp, X } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import {
   Button,
   Label,
@@ -12,11 +12,14 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Switch,
   Textarea,
   Tooltip,
 } from '@/components/emcn'
+import type { ChunkData, DocumentData } from '@/lib/knowledge/types'
+import { getAccurateTokenCount, getTokenStrings } from '@/lib/tokenization/estimators'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import type { ChunkData, DocumentData } from '@/stores/knowledge/store'
+import { knowledgeKeys } from '@/hooks/queries/knowledge'
 
 const logger = createLogger('EditChunkModal')
 
@@ -26,13 +29,14 @@ interface EditChunkModalProps {
   knowledgeBaseId: string
   isOpen: boolean
   onClose: () => void
-  onChunkUpdate?: (updatedChunk: ChunkData) => void
-  // New props for navigation
+  // Props for navigation
   allChunks?: ChunkData[]
   currentPage?: number
   totalPages?: number
   onNavigateToChunk?: (chunk: ChunkData) => void
   onNavigateToPage?: (page: number, selectChunk: 'first' | 'last') => Promise<void>
+  /** Max chunk size in tokens from knowledge base config */
+  maxChunkSize?: number
 }
 
 export function EditChunkModal({
@@ -41,13 +45,14 @@ export function EditChunkModal({
   knowledgeBaseId,
   isOpen,
   onClose,
-  onChunkUpdate,
   allChunks = [],
   currentPage = 1,
   totalPages = 1,
   onNavigateToChunk,
   onNavigateToPage,
+  maxChunkSize = 1024,
 }: EditChunkModalProps) {
+  const queryClient = useQueryClient()
   const userPermissions = useUserPermissionsContext()
   const [editedContent, setEditedContent] = useState(chunk?.content || '')
   const [isSaving, setIsSaving] = useState(false)
@@ -55,8 +60,55 @@ export function EditChunkModal({
   const [error, setError] = useState<string | null>(null)
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null)
+  const [tokenizerOn, setTokenizerOn] = useState(false)
+  const [scrollTop, setScrollTop] = useState(0)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const hasUnsavedChanges = editedContent !== (chunk?.content || '')
+
+  const tokenStrings = useMemo(() => {
+    if (!tokenizerOn || !editedContent) return []
+    return getTokenStrings(editedContent)
+  }, [editedContent, tokenizerOn])
+
+  const tokenCount = useMemo(() => {
+    if (!editedContent) return 0
+    if (tokenizerOn) return tokenStrings.length
+    return getAccurateTokenCount(editedContent)
+  }, [editedContent, tokenizerOn, tokenStrings])
+
+  const TOKEN_BG_COLORS = [
+    'rgba(185, 28, 28, 0.5)', // Red
+    'rgba(194, 65, 12, 0.5)', // Orange
+    'rgba(161, 98, 7, 0.5)', // Amber
+    'rgba(77, 124, 15, 0.5)', // Lime
+    'rgba(21, 128, 61, 0.5)', // Green
+    'rgba(15, 118, 110, 0.5)', // Teal
+    'rgba(3, 105, 161, 0.5)', // Sky
+    'rgba(29, 78, 216, 0.5)', // Blue
+    'rgba(109, 40, 217, 0.5)', // Violet
+    'rgba(162, 28, 175, 0.5)', // Fuchsia
+  ]
+
+  const getTokenBgColor = (index: number): string => {
+    return TOKEN_BG_COLORS[index % TOKEN_BG_COLORS.length]
+  }
+
+  const handleScroll = () => {
+    if (textareaRef.current) {
+      setScrollTop(textareaRef.current.scrollTop)
+    }
+  }
+
+  useEffect(() => {
+    if (tokenizerOn && textareaRef.current) {
+      requestAnimationFrame(() => {
+        if (textareaRef.current) {
+          setScrollTop(textareaRef.current.scrollTop)
+        }
+      })
+    }
+  }, [editedContent, tokenizerOn])
 
   useEffect(() => {
     if (chunk?.content) {
@@ -96,8 +148,10 @@ export function EditChunkModal({
 
       const result = await response.json()
 
-      if (result.success && onChunkUpdate) {
-        onChunkUpdate(result.data)
+      if (result.success) {
+        await queryClient.invalidateQueries({
+          queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        })
       }
     } catch (err) {
       logger.error('Error updating chunk:', err)
@@ -125,7 +179,6 @@ export function EditChunkModal({
           const nextChunk = allChunks[currentChunkIndex + 1]
           onNavigateToChunk?.(nextChunk)
         } else if (currentPage < totalPages) {
-          // Load next page and navigate to first chunk
           await onNavigateToPage?.(currentPage + 1, 'first')
         }
       }
@@ -173,12 +226,9 @@ export function EditChunkModal({
     <>
       <Modal open={isOpen} onOpenChange={handleCloseAttempt}>
         <ModalContent size='lg'>
-          <div className='flex items-center justify-between px-[16px] py-[10px]'>
-            <DialogPrimitive.Title className='font-medium text-[16px] text-[var(--text-primary)]'>
-              Edit Chunk #{chunk.chunkIndex}
-            </DialogPrimitive.Title>
-
-            <div className='flex flex-shrink-0 items-center gap-[8px]'>
+          <ModalHeader>
+            <div className='flex items-center gap-[8px]'>
+              <span>Edit Chunk #{chunk.chunkIndex}</span>
               {/* Navigation Controls */}
               <div className='flex items-center gap-[6px]'>
                 <Tooltip.Root>
@@ -225,17 +275,8 @@ export function EditChunkModal({
                   </Tooltip.Content>
                 </Tooltip.Root>
               </div>
-
-              <Button
-                variant='ghost'
-                className='h-[16px] w-[16px] p-0'
-                onClick={handleCloseAttempt}
-              >
-                <X className='h-[16px] w-[16px]' />
-                <span className='sr-only'>Close</span>
-              </Button>
             </div>
-          </div>
+          </ModalHeader>
 
           <form>
             <ModalBody className='!pb-[16px]'>
@@ -250,17 +291,56 @@ export function EditChunkModal({
 
                 {/* Content Input Section */}
                 <Label htmlFor='content'>Chunk</Label>
-                <Textarea
-                  id='content'
-                  value={editedContent}
-                  onChange={(e) => setEditedContent(e.target.value)}
-                  placeholder={
-                    userPermissions.canEdit ? 'Enter chunk content...' : 'Read-only view'
-                  }
-                  rows={20}
-                  disabled={isSaving || isNavigating || !userPermissions.canEdit}
-                  readOnly={!userPermissions.canEdit}
-                />
+                <div className='relative'>
+                  {/* Token highlight overlay - behind textarea */}
+                  {tokenizerOn && (
+                    <div
+                      className='pointer-events-none absolute inset-0 overflow-hidden rounded-[4px] border border-transparent'
+                      aria-hidden='true'
+                    >
+                      <div
+                        className='whitespace-pre-wrap break-words px-[8px] py-[8px] font-medium font-sans text-sm'
+                        style={{ color: 'transparent', transform: `translateY(-${scrollTop}px)` }}
+                      >
+                        {tokenStrings.map((token, index) => (
+                          <span
+                            key={index}
+                            style={{
+                              backgroundColor: getTokenBgColor(index),
+                            }}
+                          >
+                            {token}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <Textarea
+                    ref={textareaRef}
+                    id='content'
+                    value={editedContent}
+                    onChange={(e) => setEditedContent(e.target.value)}
+                    onScroll={handleScroll}
+                    placeholder={
+                      userPermissions.canEdit ? 'Enter chunk content...' : 'Read-only view'
+                    }
+                    rows={20}
+                    disabled={isSaving || isNavigating || !userPermissions.canEdit}
+                    readOnly={!userPermissions.canEdit}
+                    className={tokenizerOn ? 'relative z-10 bg-transparent' : ''}
+                  />
+                </div>
+              </div>
+
+              {/* Tokenizer Section */}
+              <div className='flex items-center justify-between pt-[12px]'>
+                <div className='flex items-center gap-[8px]'>
+                  <span className='text-[12px] text-[var(--text-secondary)]'>Tokenizer</span>
+                  <Switch checked={tokenizerOn} onCheckedChange={setTokenizerOn} />
+                </div>
+                <span className='text-[12px] text-[var(--text-secondary)]'>
+                  {tokenCount.toLocaleString()}/{maxChunkSize.toLocaleString()}
+                </span>
               </div>
             </ModalBody>
 

@@ -6,7 +6,7 @@ import type {
   DocumentData,
   DocumentsPagination,
   KnowledgeBaseData,
-} from '@/stores/knowledge/store'
+} from '@/lib/knowledge/types'
 
 const logger = createLogger('KnowledgeQueries')
 
@@ -212,6 +212,7 @@ export function useKnowledgeDocumentsQuery(
     queryKey: knowledgeKeys.documents(params.knowledgeBaseId, paramsKey),
     queryFn: () => fetchKnowledgeDocuments(params),
     enabled: (options?.enabled ?? true) && Boolean(params.knowledgeBaseId),
+    staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
   })
 }
@@ -234,6 +235,7 @@ export function useKnowledgeChunksQuery(
     queryKey: knowledgeKeys.chunks(params.knowledgeBaseId, params.documentId, paramsKey),
     queryFn: () => fetchKnowledgeChunks(params),
     enabled: (options?.enabled ?? true) && Boolean(params.knowledgeBaseId && params.documentId),
+    staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
   })
 }

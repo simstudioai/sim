@@ -13,6 +13,7 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { Input } from '@/components/ui/input'
+import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import {
   BaseCard,
   BaseCardSkeletonGrid,
@@ -30,7 +31,6 @@ import {
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
-import { type KnowledgeBaseData, useKnowledgeStore } from '@/stores/knowledge/store'
 
 const logger = createLogger('Knowledge')
 
@@ -49,8 +49,14 @@ export function Knowledge() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
-  const { knowledgeBases, isLoading, error, addKnowledgeBase, removeKnowledgeBase, refreshList } =
-    useKnowledgeBasesList(workspaceId)
+  const {
+    knowledgeBases,
+    isLoading,
+    error,
+    removeKnowledgeBase,
+    updateKnowledgeBase,
+    refreshList,
+  } = useKnowledgeBasesList(workspaceId)
   const userPermissions = useUserPermissionsContext()
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -75,20 +81,11 @@ export function Knowledge() {
   }
 
   /**
-   * Callback when a new knowledge base is created
-   */
-  const handleKnowledgeBaseCreated = (newKnowledgeBase: KnowledgeBaseData) => {
-    addKnowledgeBase(newKnowledgeBase)
-  }
-
-  /**
    * Retry loading knowledge bases after an error
    */
   const handleRetry = () => {
     refreshList()
   }
-
-  const { updateKnowledgeBase: updateKnowledgeBaseInStore } = useKnowledgeStore()
 
   /**
    * Updates a knowledge base name and description
@@ -112,13 +109,12 @@ export function Knowledge() {
 
       if (result.success) {
         logger.info(`Knowledge base updated: ${id}`)
-        updateKnowledgeBaseInStore(id, { name, description })
-        await refreshList()
+        updateKnowledgeBase(id, { name, description })
       } else {
         throw new Error(result.error || 'Failed to update knowledge base')
       }
     },
-    [refreshList, updateKnowledgeBaseInStore]
+    [updateKnowledgeBase]
   )
 
   /**
@@ -307,11 +303,7 @@ export function Knowledge() {
         </div>
       </div>
 
-      <CreateBaseModal
-        open={isCreateModalOpen}
-        onOpenChange={setIsCreateModalOpen}
-        onKnowledgeBaseCreated={handleKnowledgeBaseCreated}
-      />
+      <CreateBaseModal open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen} />
     </>
   )
 }
