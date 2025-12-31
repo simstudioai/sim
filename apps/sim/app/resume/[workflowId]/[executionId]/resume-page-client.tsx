@@ -1134,9 +1134,9 @@ export default function ResumeExecutionPage({
                               )}
                             </div>
                             {entry.failureReason && (
-                              <div className='mt-[8px] rounded-[4px] border border-[var(--text-error)]/20 bg-[var(--text-error)]/10 p-[8px] text-[11px] text-[var(--text-error)]'>
+                              <p className='mt-[8px] text-[11px] text-[var(--text-error)]'>
                                 {entry.failureReason}
-                              </div>
+                              </p>
                             )}
                           </div>
                         )
@@ -1229,9 +1229,9 @@ export default function ResumeExecutionPage({
                         </p>
                       )}
                       {selectedDetail.activeResumeEntry.failureReason && (
-                        <div className='mt-[8px] rounded-[4px] border border-[var(--text-error)]/30 bg-[var(--text-error)]/10 p-[12px] text-[13px] text-[var(--text-error)]'>
+                        <p className='mt-[8px] text-[12px] text-[var(--text-error)]'>
                           {selectedDetail.activeResumeEntry.failureReason}
-                        </div>
+                        </p>
                       )}
                     </div>
                   </div>
@@ -1363,11 +1363,7 @@ export default function ResumeExecutionPage({
                 )}
 
                 {/* Error/Success Messages */}
-                {error && (
-                  <div className='rounded-[6px] border border-[var(--text-error)]/30 bg-[var(--text-error)]/10 p-[16px]'>
-                    <p className='text-[13px] text-[var(--text-error)]'>{error}</p>
-                  </div>
-                )}
+                {error && <p className='text-[12px] text-[var(--text-error)]'>{error}</p>}
 
                 {message && (
                   <div className='rounded-[6px] border border-[var(--text-success)]/30 bg-[var(--text-success)]/10 p-[16px]'>

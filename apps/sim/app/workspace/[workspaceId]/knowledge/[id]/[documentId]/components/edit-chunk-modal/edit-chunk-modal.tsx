@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
-import { AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import {
   Button,
   Label,
@@ -29,13 +29,11 @@ interface EditChunkModalProps {
   knowledgeBaseId: string
   isOpen: boolean
   onClose: () => void
-  // Props for navigation
   allChunks?: ChunkData[]
   currentPage?: number
   totalPages?: number
   onNavigateToChunk?: (chunk: ChunkData) => void
   onNavigateToPage?: (page: number, selectChunk: 'first' | 'last') => Promise<void>
-  /** Max chunk size in tokens from knowledge base config */
   maxChunkSize?: number
 }
 
@@ -281,13 +279,7 @@ export function EditChunkModal({
           <form>
             <ModalBody className='!pb-[16px]'>
               <div className='flex flex-col gap-[8px]'>
-                {/* Error Display */}
-                {error && (
-                  <div className='flex items-center gap-2 rounded-md border border-[var(--text-error)]/50 bg-[var(--text-error)]/10 p-3'>
-                    <AlertCircle className='h-4 w-4 text-[var(--text-error)]' />
-                    <p className='text-[var(--text-error)] text-sm'>{error}</p>
-                  </div>
-                )}
+                {error && <p className='text-[12px] text-[var(--text-error)]'>{error}</p>}
 
                 {/* Content Input Section */}
                 <Label htmlFor='content'>Chunk</Label>
