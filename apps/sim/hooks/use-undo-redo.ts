@@ -5,11 +5,11 @@ import { useSession } from '@/lib/auth/auth-client'
 import { enqueueReplaceWorkflowState } from '@/lib/workflows/operations/socket-operations'
 import { useOperationQueue } from '@/stores/operation-queue/store'
 import {
+  type BatchAddBlocksOperation,
+  type BatchRemoveBlocksOperation,
   createOperationEntry,
-  type DuplicateBlockOperation,
   type MoveBlockOperation,
   type Operation,
-  type RemoveBlockOperation,
   type RemoveEdgeOperation,
   runWithUndoRedoRecordingSuspended,
   type UpdateParentOperation,
@@ -17,7 +17,7 @@ import {
 } from '@/stores/undo-redo'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { getUniqueBlockName, mergeSubblockState } from '@/stores/workflows/utils'
+import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -32,89 +32,94 @@ export function useUndoRedo() {
 
   const userId = session?.user?.id || 'unknown'
 
-  const recordAddBlock = useCallback(
-    (blockId: string, autoConnectEdge?: Edge) => {
-      if (!activeWorkflowId) return
+  const recordBatchAddBlocks = useCallback(
+    (
+      blockSnapshots: BlockState[],
+      edgeSnapshots: Edge[] = [],
+      subBlockValues: Record<string, Record<string, unknown>> = {}
+    ) => {
+      if (!activeWorkflowId || blockSnapshots.length === 0) return
 
-      const operation: Operation = {
+      const operation: BatchAddBlocksOperation = {
         id: crypto.randomUUID(),
-        type: 'add-block',
-        timestamp: Date.now(),
-        workflowId: activeWorkflowId,
-        userId,
-        data: { blockId },
-      }
-
-      // Get fresh state from store
-      const currentBlocks = useWorkflowStore.getState().blocks
-      const merged = mergeSubblockState(currentBlocks, activeWorkflowId, blockId)
-      const blockSnapshot = merged[blockId] || currentBlocks[blockId]
-
-      const edgesToRemove = autoConnectEdge ? [autoConnectEdge] : []
-
-      const inverse: RemoveBlockOperation = {
-        id: crypto.randomUUID(),
-        type: 'remove-block',
+        type: 'batch-add-blocks',
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
         userId,
         data: {
-          blockId,
-          blockSnapshot,
-          edgeSnapshots: edgesToRemove,
+          blockSnapshots,
+          edgeSnapshots,
+          subBlockValues,
+        },
+      }
+
+      const inverse: BatchRemoveBlocksOperation = {
+        id: crypto.randomUUID(),
+        type: 'batch-remove-blocks',
+        timestamp: Date.now(),
+        workflowId: activeWorkflowId,
+        userId,
+        data: {
+          blockSnapshots,
+          edgeSnapshots,
+          subBlockValues,
         },
       }
 
       const entry = createOperationEntry(operation, inverse)
       undoRedoStore.push(activeWorkflowId, userId, entry)
 
-      logger.debug('Recorded add block', {
-        blockId,
-        hasAutoConnect: !!autoConnectEdge,
-        edgeCount: edgesToRemove.length,
+      logger.debug('Recorded batch add blocks', {
+        blockCount: blockSnapshots.length,
+        edgeCount: edgeSnapshots.length,
         workflowId: activeWorkflowId,
-        hasSnapshot: !!blockSnapshot,
       })
     },
     [activeWorkflowId, userId, undoRedoStore]
   )
 
-  const recordRemoveBlock = useCallback(
+  const recordBatchRemoveBlocks = useCallback(
     (
-      blockId: string,
-      blockSnapshot: BlockState,
-      edgeSnapshots: Edge[],
-      allBlockSnapshots?: Record<string, BlockState>
+      blockSnapshots: BlockState[],
+      edgeSnapshots: Edge[] = [],
+      subBlockValues: Record<string, Record<string, unknown>> = {}
     ) => {
-      if (!activeWorkflowId) return
+      if (!activeWorkflowId || blockSnapshots.length === 0) return
 
-      const operation: RemoveBlockOperation = {
+      const operation: BatchRemoveBlocksOperation = {
         id: crypto.randomUUID(),
-        type: 'remove-block',
+        type: 'batch-remove-blocks',
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
         userId,
         data: {
-          blockId,
-          blockSnapshot,
+          blockSnapshots,
           edgeSnapshots,
-          allBlockSnapshots,
+          subBlockValues,
         },
       }
 
-      const inverse: Operation = {
+      const inverse: BatchAddBlocksOperation = {
         id: crypto.randomUUID(),
-        type: 'add-block',
+        type: 'batch-add-blocks',
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
         userId,
-        data: { blockId },
+        data: {
+          blockSnapshots,
+          edgeSnapshots,
+          subBlockValues,
+        },
       }
 
       const entry = createOperationEntry(operation, inverse)
       undoRedoStore.push(activeWorkflowId, userId, entry)
 
-      logger.debug('Recorded remove block', { blockId, workflowId: activeWorkflowId })
+      logger.debug('Recorded batch remove blocks', {
+        blockCount: blockSnapshots.length,
+        edgeCount: edgeSnapshots.length,
+        workflowId: activeWorkflowId,
+      })
     },
     [activeWorkflowId, userId, undoRedoStore]
   )
@@ -227,51 +232,6 @@ export function useUndoRedo() {
     [activeWorkflowId, userId, undoRedoStore]
   )
 
-  const recordDuplicateBlock = useCallback(
-    (
-      sourceBlockId: string,
-      duplicatedBlockId: string,
-      duplicatedBlockSnapshot: BlockState,
-      autoConnectEdge?: Edge
-    ) => {
-      if (!activeWorkflowId) return
-
-      const operation: DuplicateBlockOperation = {
-        id: crypto.randomUUID(),
-        type: 'duplicate-block',
-        timestamp: Date.now(),
-        workflowId: activeWorkflowId,
-        userId,
-        data: {
-          sourceBlockId,
-          duplicatedBlockId,
-          duplicatedBlockSnapshot,
-          autoConnectEdge,
-        },
-      }
-
-      // Inverse is to remove the duplicated block
-      const inverse: RemoveBlockOperation = {
-        id: crypto.randomUUID(),
-        type: 'remove-block',
-        timestamp: Date.now(),
-        workflowId: activeWorkflowId,
-        userId,
-        data: {
-          blockId: duplicatedBlockId,
-          blockSnapshot: duplicatedBlockSnapshot,
-          edgeSnapshots: autoConnectEdge ? [autoConnectEdge] : [],
-        },
-      }
-
-      const entry = createOperationEntry(operation, inverse)
-      undoRedoStore.push(activeWorkflowId, userId, entry)
-
-      logger.debug('Recorded duplicate block', { sourceBlockId, duplicatedBlockId })
-    },
-    [activeWorkflowId, userId, undoRedoStore]
-  )
-
   const recordUpdateParent = useCallback(
     (
       blockId: string,
@@ -347,204 +307,117 @@ export function useUndoRedo() {
       const opId = crypto.randomUUID()
 
       switch (entry.inverse.type) {
-        case 'remove-block': {
-          const removeInverse = entry.inverse as RemoveBlockOperation
-          const blockId = removeInverse.data.blockId
+        case 'batch-remove-blocks': {
+          const batchRemoveOp = entry.inverse as BatchRemoveBlocksOperation
+          const { blockSnapshots } = batchRemoveOp.data
+          const blockIds = blockSnapshots.map((b) => b.id)
 
-          if (workflowStore.blocks[blockId]) {
-            // Refresh inverse snapshot to capture the latest subblock values and edges at undo time
-            const mergedNow = mergeSubblockState(workflowStore.blocks, activeWorkflowId, blockId)
-            const latestBlockSnapshot = mergedNow[blockId] || workflowStore.blocks[blockId]
-            const latestEdgeSnapshots = workflowStore.edges.filter(
-              (e) => e.source === blockId || e.target === blockId
-            )
-            removeInverse.data.blockSnapshot = latestBlockSnapshot
-            removeInverse.data.edgeSnapshots = latestEdgeSnapshots
-            // First remove the edges that were added with the block (autoConnect edge)
-            const edgesToRemove = removeInverse.data.edgeSnapshots || []
-            edgesToRemove.forEach((edge) => {
-              if (workflowStore.edges.find((e) => e.id === edge.id)) {
-                workflowStore.removeEdge(edge.id)
-                // Send edge removal to server
-                addToQueue({
-                  id: crypto.randomUUID(),
-                  operation: {
-                    operation: 'remove',
-                    target: 'edge',
-                    payload: { id: edge.id },
-                  },
-                  workflowId: activeWorkflowId,
-                  userId,
-                })
-              }
-            })
-
-            // Then remove the block
-            addToQueue({
-              id: opId,
-              operation: {
-                operation: 'remove',
-                target: 'block',
-                payload: { id: blockId, isUndo: true, originalOpId: entry.id },
-              },
-              workflowId: activeWorkflowId,
-              userId,
-            })
-            workflowStore.removeBlock(blockId)
-          } else {
-            logger.debug('Undo remove-block skipped; block missing', {
-              blockId,
-            })
-          }
-          break
-        }
-        case 'add-block': {
-          const originalOp = entry.operation as RemoveBlockOperation
-          const { blockSnapshot, edgeSnapshots, allBlockSnapshots } = originalOp.data
-          if (!blockSnapshot || workflowStore.blocks[blockSnapshot.id]) {
-            logger.debug('Undo add-block skipped', {
-              hasSnapshot: Boolean(blockSnapshot),
-              exists: Boolean(blockSnapshot && workflowStore.blocks[blockSnapshot.id]),
-            })
+          const existingBlockIds = blockIds.filter((id) => workflowStore.blocks[id])
+          if (existingBlockIds.length === 0) {
+            logger.debug('Undo batch-remove-blocks skipped; no blocks exist')
             break
           }
 
-          // Preserve the original name from the snapshot on undo
-          const restoredName = blockSnapshot.name
+          const latestEdges = workflowStore.edges.filter(
+            (e) => existingBlockIds.includes(e.source) || existingBlockIds.includes(e.target)
+          )
+          batchRemoveOp.data.edgeSnapshots = latestEdges
 
-          // FIRST: Add the main block (parent subflow) with subBlocks in payload
+          const latestSubBlockValues: Record<string, Record<string, unknown>> = {}
+          existingBlockIds.forEach((blockId) => {
+            const merged = mergeSubblockState(workflowStore.blocks, activeWorkflowId, blockId)
+            const block = merged[blockId]
+            if (block?.subBlocks) {
+              const values: Record<string, unknown> = {}
+              Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]) => {
+                if (subBlock.value !== null && subBlock.value !== undefined) {
+                  values[subBlockId] = subBlock.value
+                }
+              })
+              if (Object.keys(values).length > 0) {
+                latestSubBlockValues[blockId] = values
+              }
+            }
+          })
+          batchRemoveOp.data.subBlockValues = latestSubBlockValues
+
           addToQueue({
             id: opId,
             operation: {
-              operation: 'add',
-              target: 'block',
+              operation: 'batch-remove-blocks',
+              target: 'blocks',
+              payload: { ids: existingBlockIds },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
+          existingBlockIds.forEach((id) => workflowStore.removeBlock(id))
+          break
+        }
+        case 'batch-add-blocks': {
+          const batchAddOp = entry.operation as BatchAddBlocksOperation
+          const { blockSnapshots, edgeSnapshots, subBlockValues } = batchAddOp.data
+
+          const blocksToAdd = blockSnapshots.filter((b) => !workflowStore.blocks[b.id])
+          if (blocksToAdd.length === 0) {
+            logger.debug('Undo batch-add-blocks skipped; all blocks exist')
+            break
+          }
+
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: 'batch-add-blocks',
+              target: 'blocks',
               payload: {
-                ...blockSnapshot,
-                name: restoredName,
-                subBlocks: blockSnapshot.subBlocks || {},
-                autoConnectEdge: undefined,
-                isUndo: true,
-                originalOpId: entry.id,
+                blocks: blocksToAdd,
+                edges: edgeSnapshots || [],
+                loops: {},
+                parallels: {},
+                subBlockValues: subBlockValues || {},
               },
             },
             workflowId: activeWorkflowId,
             userId,
           })
 
-          workflowStore.addBlock(
-            blockSnapshot.id,
-            blockSnapshot.type,
-            restoredName,
-            blockSnapshot.position,
-            blockSnapshot.data,
-            blockSnapshot.data?.parentId,
-            blockSnapshot.data?.extent,
-            {
-              enabled: blockSnapshot.enabled,
-              horizontalHandles: blockSnapshot.horizontalHandles,
-              advancedMode: blockSnapshot.advancedMode,
-              triggerMode: blockSnapshot.triggerMode,
-              height: blockSnapshot.height,
-            }
-          )
-
-          // Set subblock values for the main block locally
-          if (blockSnapshot.subBlocks && activeWorkflowId) {
-            const subblockValues: Record<string, any> = {}
-            Object.entries(blockSnapshot.subBlocks).forEach(
-              ([subBlockId, subBlock]: [string, any]) => {
-                if (subBlock.value !== null && subBlock.value !== undefined) {
-                  subblockValues[subBlockId] = subBlock.value
-                }
+          blocksToAdd.forEach((block) => {
+            workflowStore.addBlock(
+              block.id,
+              block.type,
+              block.name,
+              block.position,
+              block.data,
+              block.data?.parentId,
+              block.data?.extent,
+              {
+                enabled: block.enabled,
+                horizontalHandles: block.horizontalHandles,
+                advancedMode: block.advancedMode,
+                triggerMode: block.triggerMode,
+                height: block.height,
               }
             )
+          })
 
-            if (Object.keys(subblockValues).length > 0) {
-              useSubBlockStore.setState((state) => ({
-                workflowValues: {
-                  ...state.workflowValues,
-                  [activeWorkflowId]: {
-                    ...state.workflowValues[activeWorkflowId],
-                    [blockSnapshot.id]: subblockValues,
-                  },
+          if (subBlockValues && Object.keys(subBlockValues).length > 0) {
+            useSubBlockStore.setState((state) => ({
+              workflowValues: {
+                ...state.workflowValues,
+                [activeWorkflowId]: {
+                  ...state.workflowValues[activeWorkflowId],
+                  ...subBlockValues,
                 },
-              }))
-            }
+              },
+            }))
           }
 
-          // SECOND: If this is a subflow with nested blocks, restore them AFTER the parent exists
-          if (allBlockSnapshots) {
-            Object.entries(allBlockSnapshots).forEach(([id, snap]: [string, any]) => {
-              if (id !== blockSnapshot.id && !workflowStore.blocks[id]) {
-                // Preserve original nested block name from snapshot on undo
-                const restoredNestedName = snap.name
-
-                // Add nested block locally
-                workflowStore.addBlock(
-                  snap.id,
-                  snap.type,
-                  restoredNestedName,
-                  snap.position,
-                  snap.data,
-                  snap.data?.parentId,
-                  snap.data?.extent,
-                  {
-                    enabled: snap.enabled,
-                    horizontalHandles: snap.horizontalHandles,
-                    advancedMode: snap.advancedMode,
-                    triggerMode: snap.triggerMode,
-                    height: snap.height,
-                  }
-                )
-
-                // Send to server with subBlocks included in payload
-                addToQueue({
-                  id: crypto.randomUUID(),
-                  operation: {
-                    operation: 'add',
-                    target: 'block',
-                    payload: {
-                      ...snap,
-                      name: restoredNestedName,
-                      subBlocks: snap.subBlocks || {},
-                      autoConnectEdge: undefined,
-                      isUndo: true,
-                      originalOpId: entry.id,
-                    },
-                  },
-                  workflowId: activeWorkflowId,
-                  userId,
-                })
-
-                // Restore subblock values for nested blocks locally
-                if (snap.subBlocks && activeWorkflowId) {
-                  const subBlockStore = useSubBlockStore.getState()
-                  Object.entries(snap.subBlocks).forEach(
-                    ([subBlockId, subBlock]: [string, any]) => {
-                      if (subBlock.value !== null && subBlock.value !== undefined) {
-                        subBlockStore.setValue(snap.id, subBlockId, subBlock.value)
-                      }
-                    }
-                  )
-                }
-              }
-            })
-          }
-
-          // THIRD: Finally restore edges after all blocks exist
           if (edgeSnapshots && edgeSnapshots.length > 0) {
             edgeSnapshots.forEach((edge) => {
-              workflowStore.addEdge(edge)
-              addToQueue({
-                id: crypto.randomUUID(),
-                operation: {
-                  operation: 'add',
-                  target: 'edge',
-                  payload: edge,
-                },
-                workflowId: activeWorkflowId,
-                userId,
-              })
+              if (!workflowStore.edges.find((e) => e.id === edge.id)) {
+                workflowStore.addEdge(edge)
+              }
             })
           }
           break
@@ -635,49 +508,6 @@ export function useUndoRedo() {
           } else {
             logger.debug('Undo move-block skipped; block missing', {
               blockId: moveOp.data.blockId,
-            })
-          }
-          break
-        }
-        case 'duplicate-block': {
-          // Undo duplicate means removing the duplicated block
-          const dupOp = entry.operation as DuplicateBlockOperation
-          const duplicatedId = dupOp.data.duplicatedBlockId
-
-          if (workflowStore.blocks[duplicatedId]) {
-            // Remove any edges connected to the duplicated block
-            const edges = workflowStore.edges.filter(
-              (edge) => edge.source === duplicatedId || edge.target === duplicatedId
-            )
-            edges.forEach((edge) => {
-              workflowStore.removeEdge(edge.id)
-              addToQueue({
-                id: crypto.randomUUID(),
-                operation: {
-                  operation: 'remove',
-                  target: 'edge',
-                  payload: { id: edge.id },
-                },
-                workflowId: activeWorkflowId,
-                userId,
-              })
-            })
-
-            // Remove the duplicated block
-            addToQueue({
-              id: opId,
-              operation: {
-                operation: 'remove',
-                target: 'block',
-                payload: { id: duplicatedId, isUndo: true, originalOpId: entry.id },
-              },
-              workflowId: activeWorkflowId,
-              userId,
-            })
-            workflowStore.removeBlock(duplicatedId)
-          } else {
-            logger.debug('Undo duplicate-block skipped; duplicated block missing', {
-              duplicatedId,
             })
           }
           break
@@ -963,189 +793,96 @@ export function useUndoRedo() {
       const opId = crypto.randomUUID()
 
       switch (entry.operation.type) {
-        case 'add-block': {
-          // Redo should re-apply the original add: add the block first, then edges
-          const inv = entry.inverse as RemoveBlockOperation
-          const snap = inv.data.blockSnapshot
-          const edgeSnapshots = inv.data.edgeSnapshots || []
-          const allBlockSnapshots = inv.data.allBlockSnapshots
+        case 'batch-add-blocks': {
+          const batchOp = entry.operation as BatchAddBlocksOperation
+          const { blockSnapshots, edgeSnapshots, subBlockValues } = batchOp.data
 
-          if (!snap || workflowStore.blocks[snap.id]) {
+          const blocksToAdd = blockSnapshots.filter((b) => !workflowStore.blocks[b.id])
+          if (blocksToAdd.length === 0) {
+            logger.debug('Redo batch-add-blocks skipped; all blocks exist')
             break
           }
 
-          // Preserve the original name from the snapshot on redo
-          const restoredName = snap.name
-
-          // FIRST: Add the main block (parent subflow) with subBlocks included
           addToQueue({
             id: opId,
             operation: {
-              operation: 'add',
-              target: 'block',
+              operation: 'batch-add-blocks',
+              target: 'blocks',
               payload: {
-                ...snap,
-                name: restoredName,
-                subBlocks: snap.subBlocks || {},
-                isRedo: true,
-                originalOpId: entry.id,
+                blocks: blocksToAdd,
+                edges: edgeSnapshots || [],
+                loops: {},
+                parallels: {},
+                subBlockValues: subBlockValues || {},
               },
             },
             workflowId: activeWorkflowId,
             userId,
           })
 
-          workflowStore.addBlock(
-            snap.id,
-            snap.type,
-            restoredName,
-            snap.position,
-            snap.data,
-            snap.data?.parentId,
-            snap.data?.extent,
-            {
-              enabled: snap.enabled,
-              horizontalHandles: snap.horizontalHandles,
-              advancedMode: snap.advancedMode,
-              triggerMode: snap.triggerMode,
-              height: snap.height,
-            }
-          )
-
-          // Set subblock values for the main block locally
-          if (snap.subBlocks && activeWorkflowId) {
-            const subblockValues: Record<string, any> = {}
-            Object.entries(snap.subBlocks).forEach(([subBlockId, subBlock]: [string, any]) => {
-              if (subBlock.value !== null && subBlock.value !== undefined) {
-                subblockValues[subBlockId] = subBlock.value
+          blocksToAdd.forEach((block) => {
+            workflowStore.addBlock(
+              block.id,
+              block.type,
+              block.name,
+              block.position,
+              block.data,
+              block.data?.parentId,
+              block.data?.extent,
+              {
+                enabled: block.enabled,
+                horizontalHandles: block.horizontalHandles,
+                advancedMode: block.advancedMode,
+                triggerMode: block.triggerMode,
+                height: block.height,
               }
-            })
-
-            if (Object.keys(subblockValues).length > 0) {
-              useSubBlockStore.setState((state) => ({
-                workflowValues: {
-                  ...state.workflowValues,
-                  [activeWorkflowId]: {
-                    ...state.workflowValues[activeWorkflowId],
-                    [snap.id]: subblockValues,
-                  },
-                },
-              }))
-            }
-          }
-
-          // SECOND: If this is a subflow with nested blocks, restore them AFTER the parent exists
-          if (allBlockSnapshots) {
-            Object.entries(allBlockSnapshots).forEach(([id, snapNested]: [string, any]) => {
-              if (id !== snap.id && !workflowStore.blocks[id]) {
-                // Preserve original nested block name from snapshot on redo
-                const restoredNestedName = snapNested.name
-
-                // Add nested block locally
-                workflowStore.addBlock(
-                  snapNested.id,
-                  snapNested.type,
-                  restoredNestedName,
-                  snapNested.position,
-                  snapNested.data,
-                  snapNested.data?.parentId,
-                  snapNested.data?.extent,
-                  {
-                    enabled: snapNested.enabled,
-                    horizontalHandles: snapNested.horizontalHandles,
-                    advancedMode: snapNested.advancedMode,
-                    triggerMode: snapNested.triggerMode,
-                    height: snapNested.height,
-                  }
-                )
-
-                // Send to server with subBlocks included
-                addToQueue({
-                  id: crypto.randomUUID(),
-                  operation: {
-                    operation: 'add',
-                    target: 'block',
-                    payload: {
-                      ...snapNested,
-                      name: restoredNestedName,
-                      subBlocks: snapNested.subBlocks || {},
-                      autoConnectEdge: undefined,
-                      isRedo: true,
-                      originalOpId: entry.id,
-                    },
-                  },
-                  workflowId: activeWorkflowId,
-                  userId,
-                })
-
-                // Restore subblock values for nested blocks locally
-                if (snapNested.subBlocks && activeWorkflowId) {
-                  const subBlockStore = useSubBlockStore.getState()
-                  Object.entries(snapNested.subBlocks).forEach(
-                    ([subBlockId, subBlock]: [string, any]) => {
-                      if (subBlock.value !== null && subBlock.value !== undefined) {
-                        subBlockStore.setValue(snapNested.id, subBlockId, subBlock.value)
-                      }
-                    }
-                  )
-                }
-              }
-            })
-          }
-
-          // THIRD: Finally restore edges after all blocks exist
-          edgeSnapshots.forEach((edge) => {
-            if (!workflowStore.edges.find((e) => e.id === edge.id)) {
-              workflowStore.addEdge(edge)
-              addToQueue({
-                id: crypto.randomUUID(),
-                operation: {
-                  operation: 'add',
-                  target: 'edge',
-                  payload: { ...edge, isRedo: true, originalOpId: entry.id },
-                },
-                workflowId: activeWorkflowId,
-                userId,
-              })
-            }
+            )
           })
+
+          if (subBlockValues && Object.keys(subBlockValues).length > 0) {
+            useSubBlockStore.setState((state) => ({
+              workflowValues: {
+                ...state.workflowValues,
+                [activeWorkflowId]: {
+                  ...state.workflowValues[activeWorkflowId],
+                  ...subBlockValues,
+                },
+              },
+            }))
+          }
+
+          if (edgeSnapshots && edgeSnapshots.length > 0) {
+            edgeSnapshots.forEach((edge) => {
+              if (!workflowStore.edges.find((e) => e.id === edge.id)) {
+                workflowStore.addEdge(edge)
+              }
+            })
+          }
           break
         }
-        case 'remove-block': {
-          // Redo should re-apply the original remove: remove edges first, then block
-          const blockId = entry.operation.data.blockId
-          const edgesToRemove = (entry.operation as RemoveBlockOperation).data.edgeSnapshots || []
-          edgesToRemove.forEach((edge) => {
-            if (workflowStore.edges.find((e) => e.id === edge.id)) {
-              workflowStore.removeEdge(edge.id)
-              addToQueue({
-                id: crypto.randomUUID(),
-                operation: {
-                  operation: 'remove',
-                  target: 'edge',
-                  payload: { id: edge.id, isRedo: true, originalOpId: entry.id },
-                },
-                workflowId: activeWorkflowId,
-                userId,
-              })
-            }
+        case 'batch-remove-blocks': {
+          const batchOp = entry.operation as BatchRemoveBlocksOperation
+          const { blockSnapshots } = batchOp.data
+          const blockIds = blockSnapshots.map((b) => b.id)
+
+          const existingBlockIds = blockIds.filter((id) => workflowStore.blocks[id])
+          if (existingBlockIds.length === 0) {
+            logger.debug('Redo batch-remove-blocks skipped; no blocks exist')
+            break
+          }
+
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: 'batch-remove-blocks',
+              target: 'blocks',
+              payload: { ids: existingBlockIds },
+            },
+            workflowId: activeWorkflowId,
+            userId,
           })
 
-          if (workflowStore.blocks[blockId]) {
-            addToQueue({
-              id: opId,
-              operation: {
-                operation: 'remove',
-                target: 'block',
-                payload: { id: blockId, isRedo: true, originalOpId: entry.id },
-              },
-              workflowId: activeWorkflowId,
-              userId,
-            })
-            workflowStore.removeBlock(blockId)
-          } else {
-            logger.debug('Redo remove-block skipped; block missing', { blockId })
-          }
+          existingBlockIds.forEach((id) => workflowStore.removeBlock(id))
           break
         }
         case 'add-edge': {
@@ -1226,100 +963,6 @@ export function useUndoRedo() {
           } else {
             logger.debug('Redo move-block skipped; block missing', {
               blockId: moveOp.data.blockId,
-            })
-          }
-          break
-        }
-        case 'duplicate-block': {
-          // Redo duplicate means re-adding the duplicated block
-          const dupOp = entry.operation as DuplicateBlockOperation
-          const { duplicatedBlockSnapshot, autoConnectEdge } = dupOp.data
-
-          if (!duplicatedBlockSnapshot || workflowStore.blocks[duplicatedBlockSnapshot.id]) {
-            logger.debug('Redo duplicate-block skipped', {
-              hasSnapshot: Boolean(duplicatedBlockSnapshot),
-              exists: Boolean(
-                duplicatedBlockSnapshot && workflowStore.blocks[duplicatedBlockSnapshot.id]
-              ),
-            })
-            break
-          }
-
-          const currentBlocks = useWorkflowStore.getState().blocks
-          const uniqueName = getUniqueBlockName(duplicatedBlockSnapshot.name, currentBlocks)
-
-          // Add the duplicated block
-          addToQueue({
-            id: opId,
-            operation: {
-              operation: 'duplicate',
-              target: 'block',
-              payload: {
-                ...duplicatedBlockSnapshot,
-                name: uniqueName,
-                subBlocks: duplicatedBlockSnapshot.subBlocks || {},
-                autoConnectEdge,
-                isRedo: true,
-                originalOpId: entry.id,
-              },
-            },
-            workflowId: activeWorkflowId,
-            userId,
-          })
-
-          workflowStore.addBlock(
-            duplicatedBlockSnapshot.id,
-            duplicatedBlockSnapshot.type,
-            uniqueName,
-            duplicatedBlockSnapshot.position,
-            duplicatedBlockSnapshot.data,
-            duplicatedBlockSnapshot.data?.parentId,
-            duplicatedBlockSnapshot.data?.extent,
-            {
-              enabled: duplicatedBlockSnapshot.enabled,
-              horizontalHandles: duplicatedBlockSnapshot.horizontalHandles,
-              advancedMode: duplicatedBlockSnapshot.advancedMode,
-              triggerMode: duplicatedBlockSnapshot.triggerMode,
-              height: duplicatedBlockSnapshot.height,
-            }
-          )
-
-          // Restore subblock values
-          if (duplicatedBlockSnapshot.subBlocks && activeWorkflowId) {
-            const subblockValues: Record<string, any> = {}
-            Object.entries(duplicatedBlockSnapshot.subBlocks).forEach(
-              ([subBlockId, subBlock]: [string, any]) => {
-                if (subBlock.value !== null && subBlock.value !== undefined) {
-                  subblockValues[subBlockId] = subBlock.value
-                }
-              }
-            )
-
-            if (Object.keys(subblockValues).length > 0) {
-              useSubBlockStore.setState((state) => ({
-                workflowValues: {
-                  ...state.workflowValues,
-                  [activeWorkflowId]: {
-                    ...state.workflowValues[activeWorkflowId],
-                    [duplicatedBlockSnapshot.id]: subblockValues,
-                  },
-                },
-              }))
-            }
-          }
-
-          // Add auto-connect edge if present
-          if (autoConnectEdge && !workflowStore.edges.find((e) => e.id === autoConnectEdge.id)) {
-            workflowStore.addEdge(autoConnectEdge)
-            addToQueue({
-              id: crypto.randomUUID(),
-              operation: {
-                operation: 'add',
-                target: 'edge',
-                payload: { ...autoConnectEdge, isRedo: true, originalOpId: entry.id },
-              },
-              workflowId: activeWorkflowId,
-              userId,
             })
           }
           break
@@ -1726,12 +1369,11 @@ export function useUndoRedo() {
   )
 
   return {
-    recordAddBlock,
-    recordRemoveBlock,
+    recordBatchAddBlocks,
+    recordBatchRemoveBlocks,
     recordAddEdge,
     recordRemoveEdge,
     recordMove,
-    recordDuplicateBlock,
     recordUpdateParent,
     recordApplyDiff,
     recordAcceptDiff,

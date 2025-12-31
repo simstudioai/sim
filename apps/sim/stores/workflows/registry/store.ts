@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { withOptimisticUpdate } from '@/lib/core/utils/optimistic-update'
+import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type {
@@ -12,7 +13,9 @@ import type {
 } from '@/stores/workflows/registry/types'
 import { getNextWorkflowColor } from '@/stores/workflows/registry/utils'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { getUniqueBlockName, regenerateBlockIds } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowRegistry')
 const initialHydration: HydrationState = {
@@ -70,12 +73,12 @@ function setWorkspaceTransitioning(isTransitioning: boolean): void {
 export const useWorkflowRegistry = create<WorkflowRegistry>()(
   devtools(
     (set, get) => ({
-      // Store state
       workflows: {},
       activeWorkflowId: null,
       error: null,
       deploymentStatuses: {},
       hydration: initialHydration,
+      clipboard: null,
 
       beginMetadataLoad: (workspaceId: string) => {
         set((state) => ({
@@ -772,9 +775,103 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           deploymentStatuses: {},
           error: null,
           hydration: initialHydration,
+          clipboard: null,
         })
 
         logger.info('Logout complete - all workflow data cleared')
+      },
+
+      copyBlocks: (blockIds: string[]) => {
+        if (blockIds.length === 0) return
+
+        const workflowStore = useWorkflowStore.getState()
+        const activeWorkflowId = get().activeWorkflowId
+        const subBlockStore = useSubBlockStore.getState()
+
+        const copiedBlocks: Record<string, BlockState> = {}
+        const copiedSubBlockValues: Record<string, Record<string, unknown>> = {}
+        const blockIdSet = new Set(blockIds)
+
+        // Auto-include nested nodes from selected subflows
+        blockIds.forEach((blockId) => {
+          const loop = workflowStore.loops[blockId]
+          if (loop?.nodes) loop.nodes.forEach((n) => blockIdSet.add(n))
+          const parallel = workflowStore.parallels[blockId]
+          if (parallel?.nodes) parallel.nodes.forEach((n) => blockIdSet.add(n))
+        })
+
+        blockIdSet.forEach((blockId) => {
+          const block = workflowStore.blocks[blockId]
+          if (block) {
+            copiedBlocks[blockId] = JSON.parse(JSON.stringify(block))
+            if (activeWorkflowId) {
+              const blockValues = subBlockStore.workflowValues[activeWorkflowId]?.[blockId]
+              if (blockValues) {
+                copiedSubBlockValues[blockId] = JSON.parse(JSON.stringify(blockValues))
+              }
+            }
+          }
+        })
+
+        const copiedEdges = workflowStore.edges.filter(
+          (edge) => blockIdSet.has(edge.source) && blockIdSet.has(edge.target)
+        )
+
+        const copiedLoops: Record<string, Loop> = {}
+        Object.entries(workflowStore.loops).forEach(([loopId, loop]) => {
+          if (blockIdSet.has(loopId)) {
+            copiedLoops[loopId] = JSON.parse(JSON.stringify(loop))
+          }
+        })
+
+        const copiedParallels: Record<string, Parallel> = {}
+        Object.entries(workflowStore.parallels).forEach(([parallelId, parallel]) => {
+          if (blockIdSet.has(parallelId)) {
+            copiedParallels[parallelId] = JSON.parse(JSON.stringify(parallel))
+          }
+        })
+
+        set({
+          clipboard: {
+            blocks: copiedBlocks,
+            edges: copiedEdges,
+            subBlockValues: copiedSubBlockValues,
+            loops: copiedLoops,
+            parallels: copiedParallels,
+            timestamp: Date.now(),
+          },
+        })
+
+        logger.info('Copied blocks to clipboard', { count: Object.keys(copiedBlocks).length })
+      },
+
+      preparePasteData: (positionOffset = DEFAULT_DUPLICATE_OFFSET) => {
+        const { clipboard, activeWorkflowId } = get()
+        if (!clipboard || Object.keys(clipboard.blocks).length === 0) return null
+        if (!activeWorkflowId) return null
+
+        const workflowStore = useWorkflowStore.getState()
+        const { blocks, edges, loops, parallels, subBlockValues } = regenerateBlockIds(
+          clipboard.blocks,
+          clipboard.edges,
+          clipboard.loops,
+          clipboard.parallels,
+          clipboard.subBlockValues,
+          positionOffset,
+          workflowStore.blocks,
+          getUniqueBlockName
+        )
+
+        return { blocks, edges, loops, parallels, subBlockValues }
+      },
+
+      hasClipboard: () => {
+        const { clipboard } = get()
+        return clipboard !== null && Object.keys(clipboard.blocks).length > 0
+      },
+
+      clearClipboard: () => {
+        set({ clipboard: null })
       },
     }),
     { name: 'workflow-registry' }

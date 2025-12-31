@@ -257,6 +257,8 @@ export function createWorkflowAccessContext(options: {
 export const SOCKET_OPERATIONS = [
   'add',
   'remove',
+  'batch-add-blocks',
+  'batch-remove-blocks',
   'update',
   'update-position',
   'update-name',
@@ -266,7 +268,7 @@ export const SOCKET_OPERATIONS = [
   'update-advanced-mode',
   'update-trigger-mode',
   'toggle-handles',
-  'duplicate',
+  'batch-update-positions',
   'replace-state',
 ] as const
 
@@ -278,7 +280,7 @@ export type SocketOperation = (typeof SOCKET_OPERATIONS)[number]
 export const ROLE_ALLOWED_OPERATIONS: Record<PermissionType, SocketOperation[]> = {
   admin: [...SOCKET_OPERATIONS],
   write: [...SOCKET_OPERATIONS],
-  read: ['update-position'],
+  read: ['update-position', 'batch-update-positions'],
 }
 
 /**

@@ -2,15 +2,14 @@ import type { Edge } from 'reactflow'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 export type OperationType =
-  | 'add-block'
-  | 'remove-block'
+  | 'batch-add-blocks'
+  | 'batch-remove-blocks'
   | 'add-edge'
   | 'remove-edge'
   | 'add-subflow'
   | 'remove-subflow'
   | 'move-block'
   | 'move-subflow'
-  | 'duplicate-block'
   | 'update-parent'
   | 'apply-diff'
   | 'accept-diff'
@@ -24,20 +23,21 @@ export interface BaseOperation {
   userId: string
 }
 
-export interface AddBlockOperation extends BaseOperation {
-  type: 'add-block'
+export interface BatchAddBlocksOperation extends BaseOperation {
+  type: 'batch-add-blocks'
   data: {
-    blockId: string
+    blockSnapshots: BlockState[]
+    edgeSnapshots: Edge[]
+    subBlockValues: Record<string, Record<string, unknown>>
   }
 }
 
-export interface RemoveBlockOperation extends BaseOperation {
-  type: 'remove-block'
+export interface BatchRemoveBlocksOperation extends BaseOperation {
+  type: 'batch-remove-blocks'
   data: {
-    blockId: string
-    blockSnapshot: BlockState | null
-    edgeSnapshots?: Edge[]
-    allBlockSnapshots?: Record<string, BlockState>
+    blockSnapshots: BlockState[]
+    edgeSnapshots: Edge[]
+    subBlockValues: Record<string, Record<string, unknown>>
   }
 }
 
@@ -103,16 +103,6 @@ export interface MoveSubflowOperation extends BaseOperation {
   }
 }
 
-export interface DuplicateBlockOperation extends BaseOperation {
-  type: 'duplicate-block'
-  data: {
-    sourceBlockId: string
-    duplicatedBlockId: string
-    duplicatedBlockSnapshot: BlockState
-    autoConnectEdge?: Edge
-  }
-}
-
 export interface UpdateParentOperation extends BaseOperation {
   type: 'update-parent'
   data: {
@@ -155,15 +145,14 @@ export interface RejectDiffOperation extends BaseOperation {
 }
 
 export type Operation =
-  | AddBlockOperation
-  | RemoveBlockOperation
+  | BatchAddBlocksOperation
+  | BatchRemoveBlocksOperation
   | AddEdgeOperation
   | RemoveEdgeOperation
   | AddSubflowOperation
   | RemoveSubflowOperation
   | MoveBlockOperation
   | MoveSubflowOperation
-  | DuplicateBlockOperation
   | UpdateParentOperation
   | ApplyDiffOperation
   | AcceptDiffOperation
