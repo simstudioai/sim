@@ -42,7 +42,13 @@ const IconComponent = ({ icon: Icon, className }: { icon: any; className?: strin
  * @returns Editor panel content
  */
 export function Editor() {
-  const { currentBlockId, connectionsHeight, toggleConnectionsCollapsed } = usePanelEditorStore()
+  const {
+    currentBlockId,
+    connectionsHeight,
+    toggleConnectionsCollapsed,
+    shouldFocusRename,
+    setShouldFocusRename,
+  } = usePanelEditorStore()
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
@@ -157,6 +163,14 @@ export function Editor() {
       nameInputRef.current.select()
     }
   }, [isRenaming])
+
+  // Trigger rename mode when signaled from context menu
+  useEffect(() => {
+    if (shouldFocusRename && currentBlock && !isSubflow) {
+      handleStartRename()
+      setShouldFocusRename(false)
+    }
+  }, [shouldFocusRename, currentBlock, isSubflow, handleStartRename, setShouldFocusRename])
 
   /**
    * Handles opening documentation link in a new secure tab.
