@@ -60,7 +60,7 @@ import { usePanelEditorStore } from '@/stores/panel/editor/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { getUniqueBlockName } from '@/stores/workflows/utils'
+import { getUniqueBlockName, prepareBlockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /** Lazy-loaded components for non-critical UI that can load after initial render */
@@ -343,13 +343,12 @@ const WorkflowContent = React.memo(() => {
   }, [userPermissions, currentWorkflow.isSnapshotView])
 
   const {
-    collaborativeAddBlock: addBlock,
     collaborativeAddEdge: addEdge,
-    collaborativeRemoveBlock: removeBlock,
     collaborativeRemoveEdge: removeEdge,
     collaborativeBatchUpdatePositions,
     collaborativeUpdateParentId: updateParentId,
-    collaborativePasteBlocks,
+    collaborativeBatchAddBlocks,
+    collaborativeBatchRemoveBlocks,
     undo,
     redo,
   } = useCollaborativeWorkflow()
@@ -359,6 +358,39 @@ const WorkflowContent = React.memo(() => {
       collaborativeBatchUpdatePositions([{ id, position }])
     },
     [collaborativeBatchUpdatePositions]
+  )
+
+  const addBlock = useCallback(
+    (
+      id: string,
+      type: string,
+      name: string,
+      position: { x: number; y: number },
+      data?: Record<string, unknown>,
+      parentId?: string,
+      extent?: 'parent',
+      autoConnectEdge?: Edge,
+      triggerMode?: boolean
+    ) => {
+      const blockData: Record<string, unknown> = { ...(data || {}) }
+      if (parentId) blockData.parentId = parentId
+      if (extent) blockData.extent = extent
+
+      const block = prepareBlockState({
+        id,
+        type,
+        name,
+        position,
+        data: blockData,
+        parentId,
+        extent,
+        triggerMode,
+      })
+
+      collaborativeBatchAddBlocks([block], autoConnectEdge ? [autoConnectEdge] : [], {}, {}, {})
+      usePanelEditorStore.getState().setCurrentBlockId(id)
+    },
+    [collaborativeBatchAddBlocks]
   )
 
   const { activeBlockIds, pendingBlocks, isDebugging } = useExecutionStore(
@@ -515,13 +547,43 @@ const WorkflowContent = React.memo(() => {
         if (selectedNodes.length > 0) {
           event.preventDefault()
           copyBlocks(selectedNodes.map((node) => node.id))
+        } else {
+          const currentBlockId = usePanelEditorStore.getState().currentBlockId
+          if (currentBlockId && blocks[currentBlockId]) {
+            event.preventDefault()
+            copyBlocks([currentBlockId])
+          }
         }
       } else if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
         if (effectivePermissions.canEdit && hasClipboard()) {
           event.preventDefault()
           const pasteData = preparePasteData()
           if (pasteData) {
-            collaborativePasteBlocks(pasteData)
+            const pastedBlocks = Object.values(pasteData.blocks)
+            const hasTriggerInPaste = pastedBlocks.some((block) =>
+              TriggerUtils.isAnyTriggerType(block.type)
+            )
+            if (hasTriggerInPaste) {
+              const existingTrigger = Object.values(blocks).find((block) =>
+                TriggerUtils.isAnyTriggerType(block.type)
+              )
+              if (existingTrigger) {
+                addNotification({
+                  level: 'error',
+                  message:
+                    'A workflow can only have one trigger block. Please remove the existing one before pasting.',
+                  workflowId: activeWorkflowId || undefined,
+                })
+                return
+              }
+            }
+            collaborativeBatchAddBlocks(
+              pastedBlocks,
+              pasteData.edges,
+              pasteData.loops,
+              pasteData.parallels,
+              pasteData.subBlockValues
+            )
           }
         }
       }
@@ -540,9 +602,12 @@ const WorkflowContent = React.memo(() => {
     getNodes,
     copyBlocks,
     preparePasteData,
-    collaborativePasteBlocks,
+    collaborativeBatchAddBlocks,
     hasClipboard,
     effectivePermissions.canEdit,
+    blocks,
+    addNotification,
+    activeWorkflowId,
   ])
 
   /**
@@ -2399,13 +2464,19 @@ const WorkflowContent = React.memo(() => {
       }
 
       event.preventDefault()
-      const primaryNode = selectedNodes[0]
-      removeBlock(primaryNode.id)
+      const selectedIds = selectedNodes.map((node) => node.id)
+      collaborativeBatchRemoveBlocks(selectedIds)
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedEdgeInfo, removeEdge, getNodes, removeBlock, effectivePermissions.canEdit])
+  }, [
+    selectedEdgeInfo,
+    removeEdge,
+    getNodes,
+    collaborativeBatchRemoveBlocks,
+    effectivePermissions.canEdit,
+  ])
 
   return (
     <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--bg)]'>

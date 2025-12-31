@@ -259,7 +259,36 @@ export function setupOperationsHandlers(
         return
       }
 
-      if (target === 'workflow' && operation === 'paste-blocks') {
+      if (target === 'blocks' && operation === 'batch-add-blocks') {
+        await persistWorkflowOperation(workflowId, {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          userId: session.userId,
+        })
+
+        room.lastModified = Date.now()
+
+        socket.to(workflowId).emit('workflow-operation', {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          senderId: socket.id,
+          userId: session.userId,
+          userName: session.userName,
+          metadata: { workflowId, operationId: crypto.randomUUID() },
+        })
+
+        if (operationId) {
+          socket.emit('operation-confirmed', { operationId, serverTimestamp: Date.now() })
+        }
+
+        return
+      }
+
+      if (target === 'blocks' && operation === 'batch-remove-blocks') {
         await persistWorkflowOperation(workflowId, {
           operation,
           target,

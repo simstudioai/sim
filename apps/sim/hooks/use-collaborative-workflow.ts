@@ -2,8 +2,6 @@ import { useCallback, useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
 import { useSession } from '@/lib/auth/auth-client'
-import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
-import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
@@ -16,9 +14,9 @@ import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { getUniqueBlockName, mergeSubblockState, normalizeName } from '@/stores/workflows/utils'
+import { mergeSubblockState, normalizeName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import type { BlockState, Position } from '@/stores/workflows/workflow/types'
+import type { BlockState, Loop, Parallel, Position } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('CollaborativeWorkflow')
 
@@ -489,21 +487,26 @@ export function useCollaborativeWorkflow() {
                 logger.info('Successfully applied remote workflow state replacement')
               }
               break
-            case 'paste-blocks': {
+          }
+        }
+
+        if (target === 'blocks') {
+          switch (operation) {
+            case 'batch-add-blocks': {
               const {
                 blocks,
                 edges,
                 loops,
                 parallels,
-                subBlockValues: pastedSubBlockValues,
+                subBlockValues: addedSubBlockValues,
               } = payload
-              logger.info('Received paste-blocks from remote user', {
+              logger.info('Received batch-add-blocks from remote user', {
                 userId,
-                blockCount: Object.keys(blocks || {}).length,
+                blockCount: (blocks || []).length,
                 edgeCount: (edges || []).length,
               })
 
-              Object.values(blocks || {}).forEach((block: any) => {
+              ;(blocks || []).forEach((block: BlockState) => {
                 workflowStore.addBlock(
                   block.id,
                   block.type,
@@ -527,7 +530,7 @@ export function useCollaborativeWorkflow() {
               })
 
               if (loops) {
-                Object.entries(loops).forEach(([loopId, loopConfig]: [string, any]) => {
+                Object.entries(loops as Record<string, Loop>).forEach(([loopId, loopConfig]) => {
                   useWorkflowStore.setState((state) => ({
                     loops: { ...state.loops, [loopId]: loopConfig },
                   }))
@@ -535,24 +538,40 @@ export function useCollaborativeWorkflow() {
               }
 
               if (parallels) {
-                Object.entries(parallels).forEach(([parallelId, parallelConfig]: [string, any]) => {
-                  useWorkflowStore.setState((state) => ({
-                    parallels: { ...state.parallels, [parallelId]: parallelConfig },
-                  }))
-                })
-              }
-
-              if (pastedSubBlockValues && activeWorkflowId) {
-                Object.entries(pastedSubBlockValues).forEach(
-                  ([blockId, subBlocks]: [string, any]) => {
-                    Object.entries(subBlocks).forEach(([subBlockId, value]) => {
-                      subBlockStore.setValue(blockId, subBlockId, value)
-                    })
+                Object.entries(parallels as Record<string, Parallel>).forEach(
+                  ([parallelId, parallelConfig]) => {
+                    useWorkflowStore.setState((state) => ({
+                      parallels: { ...state.parallels, [parallelId]: parallelConfig },
+                    }))
                   }
                 )
               }
 
-              logger.info('Successfully applied pasted blocks from remote user')
+              if (addedSubBlockValues && activeWorkflowId) {
+                Object.entries(
+                  addedSubBlockValues as Record<string, Record<string, unknown>>
+                ).forEach(([blockId, subBlocks]) => {
+                  Object.entries(subBlocks).forEach(([subBlockId, value]) => {
+                    subBlockStore.setValue(blockId, subBlockId, value)
+                  })
+                })
+              }
+
+              logger.info('Successfully applied batch-add-blocks from remote user')
+              break
+            }
+            case 'batch-remove-blocks': {
+              const { ids } = payload
+              logger.info('Received batch-remove-blocks from remote user', {
+                userId,
+                count: (ids || []).length,
+              })
+
+              ;(ids || []).forEach((id: string) => {
+                workflowStore.removeBlock(id)
+              })
+
+              logger.info('Successfully applied batch-remove-blocks from remote user')
               break
             }
           }
@@ -804,254 +823,6 @@ export function useCollaborativeWorkflow() {
       isInActiveRoom,
       currentWorkflowId,
     ]
-  )
-
-  const collaborativeAddBlock = useCallback(
-    (
-      id: string,
-      type: string,
-      name: string,
-      position: Position,
-      data?: Record<string, any>,
-      parentId?: string,
-      extent?: 'parent',
-      autoConnectEdge?: Edge,
-      triggerMode?: boolean
-    ) => {
-      // Skip socket operations when viewing baseline diff
-      if (isBaselineDiffView) {
-        logger.debug('Skipping collaborative add block while viewing baseline diff')
-        return
-      }
-
-      if (!isInActiveRoom()) {
-        logger.debug('Skipping collaborative add block - not in active workflow', {
-          currentWorkflowId,
-          activeWorkflowId,
-        })
-        return
-      }
-
-      const blockConfig = getBlock(type)
-
-      // Handle loop/parallel blocks that don't use BlockConfig
-      if (!blockConfig && (type === 'loop' || type === 'parallel')) {
-        // For loop/parallel blocks, use empty subBlocks and outputs
-        const completeBlockData = {
-          id,
-          type,
-          name,
-          position,
-          data: data || {},
-          subBlocks: {},
-          outputs: {},
-          enabled: true,
-          horizontalHandles: true,
-          advancedMode: false,
-          triggerMode: triggerMode || false,
-          height: 0,
-          parentId,
-          extent,
-          autoConnectEdge, // Include edge data for atomic operation
-        }
-
-        // Skip if applying remote changes (don't auto-select blocks added by other users)
-        if (isApplyingRemoteChange.current) {
-          workflowStore.addBlock(id, type, name, position, data, parentId, extent, {
-            triggerMode: triggerMode || false,
-          })
-          if (autoConnectEdge) {
-            workflowStore.addEdge(autoConnectEdge)
-          }
-          return
-        }
-
-        // Generate operation ID for queue tracking
-        const operationId = crypto.randomUUID()
-
-        // Add to queue for retry mechanism
-        addToQueue({
-          id: operationId,
-          operation: {
-            operation: 'add',
-            target: 'block',
-            payload: completeBlockData,
-          },
-          workflowId: activeWorkflowId || '',
-          userId: session?.user?.id || 'unknown',
-        })
-
-        // Apply locally first (immediate UI feedback)
-        workflowStore.addBlock(id, type, name, position, data, parentId, extent, {
-          triggerMode: triggerMode || false,
-        })
-        if (autoConnectEdge) {
-          workflowStore.addEdge(autoConnectEdge)
-        }
-
-        // Record for undo AFTER adding (pass the autoConnectEdge explicitly)
-        undoRedo.recordAddBlock(id, autoConnectEdge)
-
-        // Automatically select the newly added block (opens editor tab)
-        usePanelEditorStore.getState().setCurrentBlockId(id)
-
-        return
-      }
-
-      if (!blockConfig) {
-        logger.error(`Block type ${type} not found`)
-        return
-      }
-
-      // Generate subBlocks and outputs from the block configuration
-      const subBlocks: Record<string, any> = {}
-
-      if (blockConfig.subBlocks) {
-        blockConfig.subBlocks.forEach((subBlock) => {
-          let initialValue: unknown = null
-
-          if (typeof subBlock.value === 'function') {
-            try {
-              initialValue = subBlock.value({})
-            } catch (error) {
-              logger.warn('Failed to resolve dynamic sub-block default value', {
-                subBlockId: subBlock.id,
-                error: error instanceof Error ? error.message : String(error),
-              })
-            }
-          } else if (subBlock.defaultValue !== undefined) {
-            initialValue = subBlock.defaultValue
-          } else if (subBlock.type === 'input-format') {
-            initialValue = [
-              {
-                id: crypto.randomUUID(),
-                name: '',
-                type: 'string',
-                value: '',
-                collapsed: false,
-              },
-            ]
-          } else if (subBlock.type === 'table') {
-            initialValue = []
-          }
-
-          subBlocks[subBlock.id] = {
-            id: subBlock.id,
-            type: subBlock.type,
-            value: initialValue,
-          }
-        })
-      }
-
-      // Get outputs based on trigger mode
-      const isTriggerMode = triggerMode || false
-      const outputs = getBlockOutputs(type, subBlocks, isTriggerMode)
-
-      const completeBlockData = {
-        id,
-        type,
-        name,
-        position,
-        data: data || {},
-        subBlocks,
-        outputs,
-        enabled: true,
-        horizontalHandles: true,
-        advancedMode: false,
-        triggerMode: isTriggerMode,
-        height: 0, // Default height, will be set by the UI
-        parentId,
-        extent,
-        autoConnectEdge, // Include edge data for atomic operation
-      }
-
-      // Skip if applying remote changes (don't auto-select blocks added by other users)
-      if (isApplyingRemoteChange.current) return
-
-      // Generate operation ID
-      const operationId = crypto.randomUUID()
-
-      // Add to queue
-      addToQueue({
-        id: operationId,
-        operation: {
-          operation: 'add',
-          target: 'block',
-          payload: completeBlockData,
-        },
-        workflowId: activeWorkflowId || '',
-        userId: session?.user?.id || 'unknown',
-      })
-
-      // Apply locally
-      workflowStore.addBlock(id, type, name, position, data, parentId, extent, {
-        triggerMode: triggerMode || false,
-      })
-      if (autoConnectEdge) {
-        workflowStore.addEdge(autoConnectEdge)
-      }
-
-      // Record for undo AFTER adding (pass the autoConnectEdge explicitly)
-      undoRedo.recordAddBlock(id, autoConnectEdge)
-
-      // Automatically select the newly added block (opens editor tab)
-      usePanelEditorStore.getState().setCurrentBlockId(id)
-    },
-    [
-      workflowStore,
-      activeWorkflowId,
-      addToQueue,
-      session?.user?.id,
-      isBaselineDiffView,
-      isInActiveRoom,
-      currentWorkflowId,
-      undoRedo,
-    ]
-  )
-
-  const collaborativeRemoveBlock = useCallback(
-    (id: string) => {
-      cancelOperationsForBlock(id)
-
-      // Get all blocks that will be removed (including nested blocks in subflows)
-      const blocksToRemove = new Set<string>([id])
-      const findAllDescendants = (parentId: string) => {
-        Object.entries(workflowStore.blocks).forEach(([blockId, block]) => {
-          if (block.data?.parentId === parentId) {
-            blocksToRemove.add(blockId)
-            findAllDescendants(blockId)
-          }
-        })
-      }
-      findAllDescendants(id)
-
-      // If the currently edited block is among the blocks being removed, clear selection to reset the panel
-      const currentEditedBlockId = usePanelEditorStore.getState().currentBlockId
-      if (currentEditedBlockId && blocksToRemove.has(currentEditedBlockId)) {
-        usePanelEditorStore.getState().clearCurrentBlock()
-      }
-
-      // Capture state before removal, including all nested blocks with subblock values
-      const allBlocks = mergeSubblockState(workflowStore.blocks, activeWorkflowId || undefined)
-      const capturedBlocks: Record<string, BlockState> = {}
-      blocksToRemove.forEach((blockId) => {
-        if (allBlocks[blockId]) {
-          capturedBlocks[blockId] = allBlocks[blockId]
-        }
-      })
-
-      // Capture all edges connected to any of the blocks being removed
-      const edges = workflowStore.edges.filter(
-        (edge) => blocksToRemove.has(edge.source) || blocksToRemove.has(edge.target)
-      )
-
-      if (Object.keys(capturedBlocks).length > 0) {
-        undoRedo.recordRemoveBlock(id, capturedBlocks[id], edges, capturedBlocks)
-      }
-
-      executeQueuedOperation('remove', 'block', { id }, () => workflowStore.removeBlock(id))
-    },
-    [executeQueuedOperation, workflowStore, cancelOperationsForBlock, undoRedo, activeWorkflowId]
   )
 
   const collaborativeBatchUpdatePositions = useCallback(
@@ -1400,148 +1171,6 @@ export function useCollaborativeWorkflow() {
     ]
   )
 
-  const collaborativeDuplicateBlock = useCallback(
-    (sourceId: string) => {
-      if (!isInActiveRoom()) {
-        logger.debug('Skipping duplicate block - not in active workflow', {
-          currentWorkflowId,
-          activeWorkflowId,
-          sourceId,
-        })
-        return
-      }
-
-      const sourceBlock = workflowStore.blocks[sourceId]
-      if (!sourceBlock) return
-
-      // Prevent duplication of start blocks (both legacy starter and unified start_trigger)
-      if (sourceBlock.type === 'starter' || sourceBlock.type === 'start_trigger') {
-        logger.warn('Cannot duplicate start block - only one start block allowed per workflow', {
-          blockId: sourceId,
-          blockType: sourceBlock.type,
-        })
-        return
-      }
-
-      // Generate new ID and calculate position
-      const newId = crypto.randomUUID()
-      const offsetPosition = {
-        x: sourceBlock.position.x + DEFAULT_DUPLICATE_OFFSET.x,
-        y: sourceBlock.position.y + DEFAULT_DUPLICATE_OFFSET.y,
-      }
-
-      const newName = getUniqueBlockName(sourceBlock.name, workflowStore.blocks)
-
-      // Get subblock values from the store, excluding webhook-specific fields
-      const allSubBlockValues =
-        subBlockStore.workflowValues[activeWorkflowId || '']?.[sourceId] || {}
-      const subBlockValues = Object.fromEntries(
-        Object.entries(allSubBlockValues).filter(([key]) => !WEBHOOK_SUBBLOCK_FIELDS.includes(key))
-      )
-
-      // Merge subblock structure with actual values
-      const mergedSubBlocks = sourceBlock.subBlocks
-        ? JSON.parse(JSON.stringify(sourceBlock.subBlocks))
-        : {}
-
-      WEBHOOK_SUBBLOCK_FIELDS.forEach((field) => {
-        if (field in mergedSubBlocks) {
-          delete mergedSubBlocks[field]
-        }
-      })
-      Object.entries(subBlockValues).forEach(([subblockId, value]) => {
-        if (mergedSubBlocks[subblockId]) {
-          mergedSubBlocks[subblockId].value = value
-        } else {
-          // Create subblock if it doesn't exist in structure
-          mergedSubBlocks[subblockId] = {
-            id: subblockId,
-            type: 'unknown',
-            value: value,
-          }
-        }
-      })
-
-      // Create the complete block data for the socket operation
-      const duplicatedBlockData = {
-        sourceId,
-        id: newId,
-        type: sourceBlock.type,
-        name: newName,
-        position: offsetPosition,
-        data: sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {},
-        subBlocks: mergedSubBlocks,
-        outputs: sourceBlock.outputs ? JSON.parse(JSON.stringify(sourceBlock.outputs)) : {},
-        parentId: sourceBlock.data?.parentId || null,
-        extent: sourceBlock.data?.extent || null,
-        enabled: sourceBlock.enabled ?? true,
-        horizontalHandles: sourceBlock.horizontalHandles ?? true,
-        advancedMode: sourceBlock.advancedMode ?? false,
-        triggerMode: sourceBlock.triggerMode ?? false,
-        height: sourceBlock.height || 0,
-      }
-
-      workflowStore.addBlock(
-        newId,
-        sourceBlock.type,
-        newName,
-        offsetPosition,
-        sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {},
-        sourceBlock.data?.parentId,
-        sourceBlock.data?.extent,
-        {
-          enabled: sourceBlock.enabled,
-          horizontalHandles: sourceBlock.horizontalHandles,
-          advancedMode: sourceBlock.advancedMode,
-          triggerMode: sourceBlock.triggerMode ?? false,
-          height: sourceBlock.height,
-        }
-      )
-
-      // Focus the newly duplicated block in the editor
-      usePanelEditorStore.getState().setCurrentBlockId(newId)
-
-      executeQueuedOperation('duplicate', 'block', duplicatedBlockData, () => {
-        workflowStore.addBlock(
-          newId,
-          sourceBlock.type,
-          newName,
-          offsetPosition,
-          sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {},
-          sourceBlock.data?.parentId,
-          sourceBlock.data?.extent,
-          {
-            enabled: sourceBlock.enabled,
-            horizontalHandles: sourceBlock.horizontalHandles,
-            advancedMode: sourceBlock.advancedMode,
-            triggerMode: sourceBlock.triggerMode ?? false,
-            height: sourceBlock.height,
-          }
-        )
-
-        // Apply subblock values locally for immediate UI feedback
-        // The server will persist these values as part of the block creation
-        if (activeWorkflowId && Object.keys(subBlockValues).length > 0) {
-          Object.entries(subBlockValues).forEach(([subblockId, value]) => {
-            subBlockStore.setValue(newId, subblockId, value)
-          })
-        }
-
-        // Record for undo after the block is added
-        undoRedo.recordDuplicateBlock(sourceId, newId, duplicatedBlockData, undefined)
-      })
-    },
-    [
-      executeQueuedOperation,
-      workflowStore,
-      subBlockStore,
-      activeWorkflowId,
-      isInActiveRoom,
-      currentWorkflowId,
-      undoRedo,
-    ]
-  )
-
   const collaborativeUpdateLoopType = useCallback(
     (loopId: string, loopType: 'for' | 'forEach' | 'while' | 'doWhile') => {
       const currentBlock = workflowStore.blocks[loopId]
@@ -1800,31 +1429,29 @@ export function useCollaborativeWorkflow() {
     [executeQueuedOperation, variablesStore]
   )
 
-  const collaborativePasteBlocks = useCallback(
-    (pasteData: {
-      blocks: Record<string, BlockState>
-      edges: Edge[]
-      loops: Record<string, any>
-      parallels: Record<string, any>
-      subBlockValues: Record<string, Record<string, unknown>>
-    }) => {
+  const collaborativeBatchAddBlocks = useCallback(
+    (
+      blocks: BlockState[],
+      edges: Edge[] = [],
+      loops: Record<string, Loop> = {},
+      parallels: Record<string, Parallel> = {},
+      subBlockValues: Record<string, Record<string, unknown>> = {},
+      options?: { skipUndoRedo?: boolean }
+    ) => {
       if (!isInActiveRoom()) {
-        logger.debug('Skipping paste blocks - not in active workflow', {
-          currentWorkflowId,
-          activeWorkflowId,
-        })
+        logger.debug('Skipping batch add blocks - not in active workflow')
         return false
       }
 
       if (isBaselineDiffView) {
-        logger.debug('Skipping paste blocks while viewing baseline diff')
+        logger.debug('Skipping batch add blocks while viewing baseline diff')
         return false
       }
 
-      const { blocks, edges, loops, parallels, subBlockValues } = pasteData
+      if (blocks.length === 0) return false
 
-      logger.info('Pasting blocks collaboratively', {
-        blockCount: Object.keys(blocks).length,
+      logger.info('Batch adding blocks collaboratively', {
+        blockCount: blocks.length,
         edgeCount: edges.length,
       })
 
@@ -1833,15 +1460,15 @@ export function useCollaborativeWorkflow() {
       addToQueue({
         id: operationId,
         operation: {
-          operation: 'paste-blocks',
-          target: 'workflow',
+          operation: 'batch-add-blocks',
+          target: 'blocks',
           payload: { blocks, edges, loops, parallels, subBlockValues },
         },
         workflowId: activeWorkflowId || '',
         userId: session?.user?.id || 'unknown',
       })
 
-      Object.values(blocks).forEach((block) => {
+      blocks.forEach((block) => {
         workflowStore.addBlock(
           block.id,
           block.type,
@@ -1884,6 +1511,10 @@ export function useCollaborativeWorkflow() {
         })
       }
 
+      if (!options?.skipUndoRedo) {
+        undoRedo.recordBatchAddBlocks(blocks, edges, subBlockValues)
+      }
+
       return true
     },
     [
@@ -1892,9 +1523,101 @@ export function useCollaborativeWorkflow() {
       session?.user?.id,
       isBaselineDiffView,
       isInActiveRoom,
-      currentWorkflowId,
       workflowStore,
       subBlockStore,
+      undoRedo,
+    ]
+  )
+
+  const collaborativeBatchRemoveBlocks = useCallback(
+    (blockIds: string[], options?: { skipUndoRedo?: boolean }) => {
+      if (!isInActiveRoom()) {
+        logger.debug('Skipping batch remove blocks - not in active workflow')
+        return false
+      }
+
+      if (blockIds.length === 0) return false
+
+      blockIds.forEach((id) => cancelOperationsForBlock(id))
+
+      const allBlocksToRemove = new Set<string>(blockIds)
+      const findAllDescendants = (parentId: string) => {
+        Object.entries(workflowStore.blocks).forEach(([blockId, block]) => {
+          if (block.data?.parentId === parentId) {
+            allBlocksToRemove.add(blockId)
+            findAllDescendants(blockId)
+          }
+        })
+      }
+      blockIds.forEach((id) => findAllDescendants(id))
+
+      const currentEditedBlockId = usePanelEditorStore.getState().currentBlockId
+      if (currentEditedBlockId && allBlocksToRemove.has(currentEditedBlockId)) {
+        usePanelEditorStore.getState().clearCurrentBlock()
+      }
+
+      const mergedBlocks = mergeSubblockState(workflowStore.blocks, activeWorkflowId || undefined)
+      const blockSnapshots: BlockState[] = []
+      const subBlockValues: Record<string, Record<string, unknown>> = {}
+
+      allBlocksToRemove.forEach((blockId) => {
+        const block = mergedBlocks[blockId]
+        if (block) {
+          blockSnapshots.push(block)
+          if (block.subBlocks) {
+            const values: Record<string, unknown> = {}
+            Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]) => {
+              if (subBlock.value !== null && subBlock.value !== undefined) {
+                values[subBlockId] = subBlock.value
+              }
+            })
+            if (Object.keys(values).length > 0) {
+              subBlockValues[blockId] = values
+            }
+          }
+        }
+      })
+
+      const edgeSnapshots = workflowStore.edges.filter(
+        (e) => allBlocksToRemove.has(e.source) || allBlocksToRemove.has(e.target)
+      )
+
+      logger.info('Batch removing blocks collaboratively', {
+        requestedCount: blockIds.length,
+        totalCount: allBlocksToRemove.size,
+      })
+
+      const operationId = crypto.randomUUID()
+
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation: 'batch-remove-blocks',
+          target: 'blocks',
+          payload: { ids: Array.from(allBlocksToRemove) },
+        },
+        workflowId: activeWorkflowId || '',
+        userId: session?.user?.id || 'unknown',
+      })
+
+      blockIds.forEach((id) => {
+        workflowStore.removeBlock(id)
+      })
+
+      if (!options?.skipUndoRedo && blockSnapshots.length > 0) {
+        undoRedo.recordBatchRemoveBlocks(blockSnapshots, edgeSnapshots, subBlockValues)
+      }
+
+      return true
+    },
+    [
+      addToQueue,
+      activeWorkflowId,
+      session?.user?.id,
+      isInActiveRoom,
+      workflowStore,
+      cancelOperationsForBlock,
+      undoRedo,
     ]
   )
 
@@ -1910,17 +1633,15 @@ export function useCollaborativeWorkflow() {
     leaveWorkflow,
 
     // Collaborative operations
-    collaborativeAddBlock,
     collaborativeBatchUpdatePositions,
     collaborativeUpdateBlockName,
-    collaborativeRemoveBlock,
     collaborativeToggleBlockEnabled,
     collaborativeUpdateParentId,
     collaborativeToggleBlockAdvancedMode,
     collaborativeToggleBlockTriggerMode,
     collaborativeToggleBlockHandles,
-    collaborativeDuplicateBlock,
-    collaborativePasteBlocks,
+    collaborativeBatchAddBlocks,
+    collaborativeBatchRemoveBlocks,
     collaborativeAddEdge,
     collaborativeRemoveEdge,
     collaborativeSetSubblockValue,

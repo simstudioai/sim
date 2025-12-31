@@ -61,7 +61,7 @@ export interface SubflowNodeData {
  */
 export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeData>) => {
   const { getNodes } = useReactFlow()
-  const { collaborativeRemoveBlock } = useCollaborativeWorkflow()
+  const { collaborativeBatchRemoveBlocks } = useCollaborativeWorkflow()
   const blockRef = useRef<HTMLDivElement>(null)
 
   const currentWorkflow = useCurrentWorkflow()
@@ -184,7 +184,7 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
                 variant='ghost'
                 onClick={(e) => {
                   e.stopPropagation()
-                  collaborativeRemoveBlock(id)
+                  collaborativeBatchRemoveBlocks([id])
                 }}
                 className='h-[14px] w-[14px] p-0 opacity-0 transition-opacity duration-100 group-hover:opacity-100'
               >

@@ -9,11 +9,11 @@ const logger = createLogger('SocketPermissions')
 // Define operation permissions based on role
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   admin: [
-    'add',
-    'remove',
     'update',
     'update-position',
     'batch-update-positions',
+    'batch-add-blocks',
+    'batch-remove-blocks',
     'update-name',
     'toggle-enabled',
     'update-parent',
@@ -21,16 +21,14 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'update-advanced-mode',
     'update-trigger-mode',
     'toggle-handles',
-    'duplicate',
     'replace-state',
-    'paste-blocks',
   ],
   write: [
-    'add',
-    'remove',
     'update',
     'update-position',
     'batch-update-positions',
+    'batch-add-blocks',
+    'batch-remove-blocks',
     'update-name',
     'toggle-enabled',
     'update-parent',
@@ -38,9 +36,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'update-advanced-mode',
     'update-trigger-mode',
     'toggle-handles',
-    'duplicate',
     'replace-state',
-    'paste-blocks',
   ],
   read: ['update-position', 'batch-update-positions'],
 }
