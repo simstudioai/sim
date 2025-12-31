@@ -81,12 +81,10 @@ export function useExecutionStream() {
   const execute = useCallback(async (options: ExecuteStreamOptions) => {
     const { workflowId, callbacks = {}, ...payload } = options
 
-    // Cancel any existing execution
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
     }
 
-    // Create new abort controller
     const abortController = new AbortController()
     abortControllerRef.current = abortController
     currentExecutionRef.current = null
@@ -115,7 +113,6 @@ export function useExecutionStream() {
         currentExecutionRef.current = { workflowId, executionId }
       }
 
-      // Read SSE stream
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
@@ -128,13 +125,10 @@ export function useExecutionStream() {
             break
           }
 
-          // Decode chunk and add to buffer
           buffer += decoder.decode(value, { stream: true })
 
-          // Process complete SSE messages
           const lines = buffer.split('\n\n')
 
-          // Keep the last incomplete message in the buffer
           buffer = lines.pop() || ''
 
           for (const line of lines) {
@@ -144,7 +138,6 @@ export function useExecutionStream() {
 
             const data = line.substring(6).trim()
 
-            // Check for [DONE] marker
             if (data === '[DONE]') {
               logger.info('Stream completed')
               continue
@@ -153,14 +146,12 @@ export function useExecutionStream() {
             try {
               const event = JSON.parse(data) as ExecutionEvent
 
-              // Log all SSE events for debugging
               logger.info('📡 SSE Event received:', {
                 type: event.type,
                 executionId: event.executionId,
                 data: event.data,
               })
 
-              // Dispatch event to appropriate callback
               switch (event.type) {
                 case 'execution:started':
                   logger.info('🚀 Execution started')
