@@ -622,23 +622,24 @@ const WorkflowContent = React.memo(() => {
           const pasteData = preparePasteData(pasteOffset)
           if (pasteData) {
             const pastedBlocks = Object.values(pasteData.blocks)
-            const hasTriggerInPaste = pastedBlocks.some((block) =>
-              TriggerUtils.isAnyTriggerType(block.type)
-            )
-            if (hasTriggerInPaste) {
-              const existingTrigger = Object.values(blocks).find((block) =>
-                TriggerUtils.isAnyTriggerType(block.type)
-              )
-              if (existingTrigger) {
-                addNotification({
-                  level: 'error',
-                  message:
-                    'A workflow can only have one trigger block. Please remove the existing one before pasting.',
-                  workflowId: activeWorkflowId || undefined,
-                })
-                return
+            for (const block of pastedBlocks) {
+              if (TriggerUtils.isAnyTriggerType(block.type)) {
+                const issue = TriggerUtils.getTriggerAdditionIssue(blocks, block.type)
+                if (issue) {
+                  const message =
+                    issue.issue === 'legacy'
+                      ? 'Cannot paste trigger blocks when a legacy Start block exists.'
+                      : `A workflow can only have one ${issue.triggerName} trigger block. Please remove the existing one before pasting.`
+                  addNotification({
+                    level: 'error',
+                    message,
+                    workflowId: activeWorkflowId || undefined,
+                  })
+                  return
+                }
               }
             }
+
             collaborativeBatchAddBlocks(
               pastedBlocks,
               pasteData.edges,
