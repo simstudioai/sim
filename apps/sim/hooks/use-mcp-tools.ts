@@ -32,7 +32,6 @@ export interface UseMcpToolsResult {
   isLoading: boolean
   error: string | null
   refreshTools: (forceRefresh?: boolean) => Promise<void>
-  getToolById: (toolId: string) => McpToolForUI | undefined
   getToolsByServer: (serverId: string) => McpToolForUI[]
 }
 
@@ -72,13 +71,6 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
     [workspaceId, queryClient]
   )
 
-  const getToolById = useCallback(
-    (toolId: string): McpToolForUI | undefined => {
-      return mcpTools.find((tool) => tool.id === toolId)
-    },
-    [mcpTools]
-  )
-
   const getToolsByServer = useCallback(
     (serverId: string): McpToolForUI[] => {
       return mcpTools.filter((tool) => tool.serverId === serverId)
@@ -91,7 +83,6 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
     isLoading,
     error: queryError instanceof Error ? queryError.message : null,
     refreshTools,
-    getToolById,
     getToolsByServer,
   }
 }

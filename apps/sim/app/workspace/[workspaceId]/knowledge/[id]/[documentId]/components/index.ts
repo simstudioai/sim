@@ -1,3 +1,4 @@
+export { ChunkContextMenu } from './chunk-context-menu'
 export { CreateChunkModal } from './create-chunk-modal/create-chunk-modal'
 export { DeleteChunkModal } from './delete-chunk-modal/delete-chunk-modal'
 export { DocumentTagsModal } from './document-tags-modal/document-tags-modal'

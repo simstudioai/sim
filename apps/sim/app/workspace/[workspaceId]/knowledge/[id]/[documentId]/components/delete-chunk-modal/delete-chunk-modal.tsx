@@ -2,8 +2,10 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
-import type { ChunkData } from '@/stores/knowledge/store'
+import type { ChunkData } from '@/lib/knowledge/types'
+import { knowledgeKeys } from '@/hooks/queries/knowledge'
 
 const logger = createLogger('DeleteChunkModal')
 
@@ -13,7 +15,6 @@ interface DeleteChunkModalProps {
   documentId: string
   isOpen: boolean
   onClose: () => void
-  onChunkDeleted?: () => void
 }
 
 export function DeleteChunkModal({
@@ -22,8 +23,8 @@ export function DeleteChunkModal({
   documentId,
   isOpen,
   onClose,
-  onChunkDeleted,
 }: DeleteChunkModalProps) {
+  const queryClient = useQueryClient()
   const [isDeleting, setIsDeleting] = useState(false)
 
   const handleDeleteChunk = async () => {
@@ -47,16 +48,17 @@ export function DeleteChunkModal({
 
       if (result.success) {
         logger.info('Chunk deleted successfully:', chunk.id)
-        if (onChunkDeleted) {
-          onChunkDeleted()
-        }
+
+        await queryClient.invalidateQueries({
+          queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        })
+
         onClose()
       } else {
         throw new Error(result.error || 'Failed to delete chunk')
       }
     } catch (err) {
       logger.error('Error deleting chunk:', err)
-      // You might want to show an error state here
     } finally {
       setIsDeleting(false)
     }

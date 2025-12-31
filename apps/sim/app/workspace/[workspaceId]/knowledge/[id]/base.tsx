@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { format } from 'date-fns'
 import {
@@ -41,13 +41,16 @@ import { SearchHighlight } from '@/components/ui/search-highlight'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/core/utils/cn'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import type { DocumentData } from '@/lib/knowledge/types'
 import {
   ActionBar,
   AddDocumentsModal,
   BaseTagsModal,
+  DocumentContextMenu,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
   useKnowledgeBase,
   useKnowledgeBaseDocuments,
@@ -57,7 +60,6 @@ import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
 } from '@/hooks/use-knowledge-base-tag-definitions'
-import type { DocumentData } from '@/stores/knowledge/store'
 
 const logger = createLogger('KnowledgeBase')
 
@@ -429,6 +431,15 @@ export function KnowledgeBase({
   const [currentPage, setCurrentPage] = useState(1)
   const [sortBy, setSortBy] = useState<DocumentSortField>('uploadedAt')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+  const [contextMenuDocument, setContextMenuDocument] = useState<DocumentData | null>(null)
+
+  const {
+    isOpen: isContextMenuOpen,
+    position: contextMenuPosition,
+    menuRef,
+    handleContextMenu: baseHandleContextMenu,
+    closeMenu: closeContextMenu,
+  } = useContextMenu()
 
   const {
     knowledgeBase,
@@ -440,6 +451,8 @@ export function KnowledgeBase({
     documents,
     pagination,
     isLoading: isLoadingDocuments,
+    isFetching: isFetchingDocuments,
+    isPlaceholderData: isPlaceholderDocuments,
     error: documentsError,
     updateDocument,
     refreshDocuments,
@@ -591,7 +604,6 @@ export function KnowledgeBase({
 
     const newEnabled = !document.enabled
 
-    // Optimistic update - immediately update the UI
     updateDocument(docId, { enabled: newEnabled })
 
     try {
@@ -612,11 +624,9 @@ export function KnowledgeBase({
       const result = await response.json()
 
       if (!result.success) {
-        // Revert on failure
         updateDocument(docId, { enabled: !newEnabled })
       }
     } catch (err) {
-      // Revert on error
       updateDocument(docId, { enabled: !newEnabled })
       logger.error('Error updating document:', err)
     }
@@ -840,7 +850,6 @@ export function KnowledgeBase({
       const result = await response.json()
 
       if (result.success) {
-        // Update successful documents in the store
         result.data.updatedDocuments.forEach((updatedDoc: { id: string; enabled: boolean }) => {
           updateDocument(updatedDoc.id, { enabled: updatedDoc.enabled })
         })
@@ -848,7 +857,6 @@ export function KnowledgeBase({
         logger.info(`Successfully enabled ${result.data.successCount} documents`)
       }
 
-      // Clear selection after successful operation
       setSelectedDocuments(new Set())
     } catch (err) {
       logger.error('Error enabling documents:', err)
@@ -958,7 +966,49 @@ export function KnowledgeBase({
   const enabledCount = selectedDocumentsList.filter((doc) => doc.enabled).length
   const disabledCount = selectedDocumentsList.filter((doc) => !doc.enabled).length
 
-  if ((isLoadingKnowledgeBase || isLoadingDocuments) && !knowledgeBase && documents.length === 0) {
+  /**
+   * Handle right-click on a document row
+   */
+  const handleDocumentContextMenu = useCallback(
+    (e: React.MouseEvent, doc: DocumentData) => {
+      setContextMenuDocument(doc)
+      baseHandleContextMenu(e)
+    },
+    [baseHandleContextMenu]
+  )
+
+  /**
+   * Handle right-click on empty space (table container)
+   */
+  const handleEmptyContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      setContextMenuDocument(null)
+      baseHandleContextMenu(e)
+    },
+    [baseHandleContextMenu]
+  )
+
+  /**
+   * Handle context menu close
+   */
+  const handleContextMenuClose = useCallback(() => {
+    closeContextMenu()
+    setContextMenuDocument(null)
+  }, [closeContextMenu])
+
+  const prevKnowledgeBaseIdRef = useRef<string>(id)
+  const isNavigatingToNewKB = prevKnowledgeBaseIdRef.current !== id
+
+  useEffect(() => {
+    if (knowledgeBase && knowledgeBase.id === id) {
+      prevKnowledgeBaseIdRef.current = id
+    }
+  }, [knowledgeBase, id])
+
+  const isInitialLoad = isLoadingKnowledgeBase && !knowledgeBase
+  const isFetchingNewKB = isNavigatingToNewKB && isFetchingDocuments
+
+  if (isInitialLoad || isFetchingNewKB) {
     return <KnowledgeBaseLoading knowledgeBaseName={knowledgeBaseName} />
   }
 
@@ -1106,7 +1156,7 @@ export function KnowledgeBase({
             </div>
           )}
 
-          <div className='mt-[12px] flex flex-1 flex-col'>
+          <div className='mt-[12px] flex flex-1 flex-col' onContextMenu={handleEmptyContextMenu}>
             {isLoadingDocuments && documents.length === 0 ? (
               <DocumentTableSkeleton rowCount={5} />
             ) : documents.length === 0 ? (
@@ -1168,6 +1218,7 @@ export function KnowledgeBase({
                             handleDocumentClick(doc.id)
                           }
                         }}
+                        onContextMenu={(e) => handleDocumentContextMenu(e, doc)}
                       >
                         <TableCell className='w-[28px] py-[8px] pr-0 pl-0'>
                           <div className='flex items-center justify-center'>
@@ -1505,7 +1556,6 @@ export function KnowledgeBase({
         onOpenChange={setShowAddDocumentsModal}
         knowledgeBaseId={id}
         chunkingConfig={knowledgeBase?.chunkingConfig}
-        onUploadComplete={refreshDocuments}
       />
 
       <ActionBar
@@ -1516,6 +1566,67 @@ export function KnowledgeBase({
         enabledCount={enabledCount}
         disabledCount={disabledCount}
         isLoading={isBulkOperating}
+      />
+
+      <DocumentContextMenu
+        isOpen={isContextMenuOpen}
+        position={contextMenuPosition}
+        menuRef={menuRef}
+        onClose={handleContextMenuClose}
+        hasDocument={contextMenuDocument !== null}
+        isDocumentEnabled={contextMenuDocument?.enabled ?? true}
+        hasTags={
+          contextMenuDocument
+            ? getDocumentTags(contextMenuDocument, tagDefinitions).length > 0
+            : false
+        }
+        onOpenInNewTab={
+          contextMenuDocument
+            ? () => {
+                const urlParams = new URLSearchParams({
+                  kbName: knowledgeBaseName,
+                  docName: contextMenuDocument.filename || 'Document',
+                })
+                window.open(
+                  `/workspace/${workspaceId}/knowledge/${id}/${contextMenuDocument.id}?${urlParams.toString()}`,
+                  '_blank'
+                )
+              }
+            : undefined
+        }
+        onToggleEnabled={
+          contextMenuDocument && userPermissions.canEdit
+            ? () => handleToggleEnabled(contextMenuDocument.id)
+            : undefined
+        }
+        onViewTags={
+          contextMenuDocument
+            ? () => {
+                const urlParams = new URLSearchParams({
+                  kbName: knowledgeBaseName,
+                  docName: contextMenuDocument.filename || 'Document',
+                })
+                router.push(
+                  `/workspace/${workspaceId}/knowledge/${id}/${contextMenuDocument.id}?${urlParams.toString()}`
+                )
+              }
+            : undefined
+        }
+        onDelete={
+          contextMenuDocument && userPermissions.canEdit
+            ? () => handleDeleteDocument(contextMenuDocument.id)
+            : undefined
+        }
+        onAddDocument={userPermissions.canEdit ? handleAddDocuments : undefined}
+        disableToggleEnabled={
+          !userPermissions.canEdit ||
+          contextMenuDocument?.processingStatus === 'processing' ||
+          contextMenuDocument?.processingStatus === 'pending'
+        }
+        disableDelete={
+          !userPermissions.canEdit || contextMenuDocument?.processingStatus === 'processing'
+        }
+        disableAddDocument={!userPermissions.canEdit}
       />
     </div>
   )

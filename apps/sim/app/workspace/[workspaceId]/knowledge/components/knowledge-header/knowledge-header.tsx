@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, ChevronDown, LibraryBig, MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -14,7 +15,7 @@ import {
 } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { filterButtonClass } from '@/app/workspace/[workspaceId]/knowledge/components/constants'
-import { useKnowledgeStore } from '@/stores/knowledge/store'
+import { knowledgeKeys } from '@/hooks/queries/knowledge'
 
 const logger = createLogger('KnowledgeHeader')
 
@@ -53,7 +54,7 @@ interface Workspace {
 }
 
 export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) {
-  const { updateKnowledgeBase } = useKnowledgeStore()
+  const queryClient = useQueryClient()
   const [isActionsPopoverOpen, setIsActionsPopoverOpen] = useState(false)
   const [isWorkspacePopoverOpen, setIsWorkspacePopoverOpen] = useState(false)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -124,11 +125,11 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
           `Knowledge base workspace updated: ${options.knowledgeBaseId} -> ${workspaceId}`
         )
 
-        // Notify parent component of the change to refresh data
-        await options.onWorkspaceChange?.(workspaceId)
+        await queryClient.invalidateQueries({
+          queryKey: knowledgeKeys.detail(options.knowledgeBaseId),
+        })
 
-        // Update the store after refresh to ensure consistency
-        updateKnowledgeBase(options.knowledgeBaseId, { workspaceId: workspaceId || undefined })
+        await options.onWorkspaceChange?.(workspaceId)
       } else {
         throw new Error(result.error || 'Failed to update workspace')
       }

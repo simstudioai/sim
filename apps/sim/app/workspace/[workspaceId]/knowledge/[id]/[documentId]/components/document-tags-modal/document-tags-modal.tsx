@@ -18,13 +18,13 @@ import {
 import { cn } from '@/lib/core/utils/cn'
 import { ALL_TAG_SLOTS, type AllTagSlot, MAX_TAG_SLOTS } from '@/lib/knowledge/constants'
 import type { DocumentTag } from '@/lib/knowledge/tags/types'
+import type { DocumentData } from '@/lib/knowledge/types'
 import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
 } from '@/hooks/use-knowledge-base-tag-definitions'
 import { useNextAvailableSlot } from '@/hooks/use-next-available-slot'
 import { type TagDefinitionInput, useTagDefinitions } from '@/hooks/use-tag-definitions'
-import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 
 const logger = createLogger('DocumentTagsModal')
 
@@ -93,8 +93,6 @@ export function DocumentTagsModal({
   documentData,
   onDocumentUpdate,
 }: DocumentTagsModalProps) {
-  const { updateDocument: updateDocumentInStore } = useKnowledgeStore()
-
   const documentTagHook = useTagDefinitions(knowledgeBaseId, documentId)
   const kbTagHook = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
   const { getNextAvailableSlot: getServerNextSlot } = useNextAvailableSlot(knowledgeBaseId)
@@ -171,23 +169,14 @@ export function DocumentTagsModal({
           throw new Error('Failed to update document tags')
         }
 
-        updateDocumentInStore(knowledgeBaseId, documentId, tagData as Record<string, string>)
         onDocumentUpdate?.(tagData as Record<string, string>)
-
         await fetchTagDefinitions()
       } catch (error) {
         logger.error('Error updating document tags:', error)
         throw error
       }
     },
-    [
-      documentData,
-      knowledgeBaseId,
-      documentId,
-      updateDocumentInStore,
-      fetchTagDefinitions,
-      onDocumentUpdate,
-    ]
+    [documentData, knowledgeBaseId, documentId, fetchTagDefinitions, onDocumentUpdate]
   )
 
   const handleRemoveTag = async (index: number) => {

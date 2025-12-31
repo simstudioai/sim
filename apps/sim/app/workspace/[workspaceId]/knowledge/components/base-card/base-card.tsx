@@ -216,6 +216,7 @@ export function BaseCard({
         onClick={handleClick}
         onKeyDown={handleKeyDown}
         onContextMenu={handleContextMenu}
+        data-kb-card
       >
         <div className='group flex h-full flex-col gap-[12px] rounded-[4px] bg-[var(--surface-3)] px-[8px] py-[6px] transition-colors hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover:bg-[var(--surface-5)]'>
           <div className='flex items-center justify-between gap-[8px]'>
@@ -261,6 +262,7 @@ export function BaseCard({
         onClose={closeContextMenu}
         onOpenInNewTab={handleOpenInNewTab}
         onViewTags={handleViewTags}
+        onCopyId={id ? () => navigator.clipboard.writeText(id) : undefined}
         onEdit={handleEdit}
         onDelete={handleDelete}
         showOpenInNewTab={true}

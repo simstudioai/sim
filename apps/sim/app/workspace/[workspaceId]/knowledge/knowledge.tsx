@@ -13,10 +13,12 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { Input } from '@/components/ui/input'
+import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import {
   BaseCard,
   BaseCardSkeletonGrid,
   CreateBaseModal,
+  KnowledgeListContextMenu,
 } from '@/app/workspace/[workspaceId]/knowledge/components'
 import {
   SORT_OPTIONS,
@@ -28,9 +30,9 @@ import {
   sortKnowledgeBases,
 } from '@/app/workspace/[workspaceId]/knowledge/utils/sort'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
-import { type KnowledgeBaseData, useKnowledgeStore } from '@/stores/knowledge/store'
 
 const logger = createLogger('Knowledge')
 
@@ -49,7 +51,7 @@ export function Knowledge() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
-  const { knowledgeBases, isLoading, error, addKnowledgeBase, removeKnowledgeBase, refreshList } =
+  const { knowledgeBases, isLoading, error, removeKnowledgeBase, updateKnowledgeBase } =
     useKnowledgeBasesList(workspaceId)
   const userPermissions = useUserPermissionsContext()
 
@@ -59,6 +61,37 @@ export function Knowledge() {
   const [isSortPopoverOpen, setIsSortPopoverOpen] = useState(false)
   const [sortBy, setSortBy] = useState<SortOption>('updatedAt')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+
+  const {
+    isOpen: isListContextMenuOpen,
+    position: listContextMenuPosition,
+    menuRef: listMenuRef,
+    handleContextMenu: handleListContextMenu,
+    closeMenu: closeListContextMenu,
+  } = useContextMenu()
+
+  /**
+   * Handle context menu on the content area - only show menu when clicking on empty space
+   */
+  const handleContentContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      const target = e.target as HTMLElement
+      const isOnCard = target.closest('[data-kb-card]')
+      const isOnInteractive = target.closest('button, input, a, [role="button"]')
+
+      if (!isOnCard && !isOnInteractive) {
+        handleListContextMenu(e)
+      }
+    },
+    [handleListContextMenu]
+  )
+
+  /**
+   * Handle add knowledge base from context menu
+   */
+  const handleAddKnowledgeBase = useCallback(() => {
+    setIsCreateModalOpen(true)
+  }, [])
 
   const currentSortValue = `${sortBy}-${sortOrder}`
   const currentSortLabel =
@@ -73,22 +106,6 @@ export function Knowledge() {
     setSortOrder(order)
     setIsSortPopoverOpen(false)
   }
-
-  /**
-   * Callback when a new knowledge base is created
-   */
-  const handleKnowledgeBaseCreated = (newKnowledgeBase: KnowledgeBaseData) => {
-    addKnowledgeBase(newKnowledgeBase)
-  }
-
-  /**
-   * Retry loading knowledge bases after an error
-   */
-  const handleRetry = () => {
-    refreshList()
-  }
-
-  const { updateKnowledgeBase: updateKnowledgeBaseInStore } = useKnowledgeStore()
 
   /**
    * Updates a knowledge base name and description
@@ -112,13 +129,12 @@ export function Knowledge() {
 
       if (result.success) {
         logger.info(`Knowledge base updated: ${id}`)
-        updateKnowledgeBaseInStore(id, { name, description })
-        await refreshList()
+        updateKnowledgeBase(id, { name, description })
       } else {
         throw new Error(result.error || 'Failed to update knowledge base')
       }
     },
-    [refreshList, updateKnowledgeBaseInStore]
+    [updateKnowledgeBase]
   )
 
   /**
@@ -149,7 +165,6 @@ export function Knowledge() {
 
   /**
    * Filter and sort knowledge bases based on search query and sort options
-   * Memoized to prevent unnecessary recalculations on render
    */
   const filteredAndSortedKnowledgeBases = useMemo(() => {
     const filtered = filterKnowledgeBases(knowledgeBases, debouncedSearchQuery)
@@ -170,7 +185,6 @@ export function Knowledge() {
 
   /**
    * Get empty state content based on current filters
-   * Memoized to prevent unnecessary recalculations on render
    */
   const emptyState = useMemo(() => {
     if (debouncedSearchQuery) {
@@ -193,7 +207,10 @@ export function Knowledge() {
     <>
       <div className='flex h-full flex-1 flex-col'>
         <div className='flex flex-1 overflow-hidden'>
-          <div className='flex flex-1 flex-col overflow-auto bg-white px-[24px] pt-[28px] pb-[24px] dark:bg-[var(--bg)]'>
+          <div
+            className='flex flex-1 flex-col overflow-auto bg-white px-[24px] pt-[28px] pb-[24px] dark:bg-[var(--bg)]'
+            onContextMenu={handleContentContextMenu}
+          >
             <div>
               <div className='flex items-start gap-[12px]'>
                 <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#5BB377] bg-[#E8F7EE] dark:border-[#1E5A3E] dark:bg-[#0F3D2C]'>
@@ -307,11 +324,16 @@ export function Knowledge() {
         </div>
       </div>
 
-      <CreateBaseModal
-        open={isCreateModalOpen}
-        onOpenChange={setIsCreateModalOpen}
-        onKnowledgeBaseCreated={handleKnowledgeBaseCreated}
+      <KnowledgeListContextMenu
+        isOpen={isListContextMenuOpen}
+        position={listContextMenuPosition}
+        menuRef={listMenuRef}
+        onClose={closeListContextMenu}
+        onAddKnowledgeBase={handleAddKnowledgeBase}
+        disableAdd={userPermissions.canEdit !== true}
       />
+
+      <CreateBaseModal open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen} />
     </>
   )
 }
