@@ -26,11 +26,12 @@ COPY packages/logger/package.json ./packages/logger/package.json
 COPY packages/tsconfig/package.json ./packages/tsconfig/package.json
 
 # Install turbo globally, then dependencies, then rebuild isolated-vm for Node.js
+# Use --linker=hoisted for flat node_modules layout (required for Docker multi-stage builds)
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
     --mount=type=cache,id=npm-cache,target=/root/.npm \
     bun install -g turbo && \
-    HUSKY=0 bun install --omit=dev --ignore-scripts && \
-    cd node_modules/.bun/isolated-vm@*/node_modules/isolated-vm && npx node-gyp rebuild --release && cd /app
+    HUSKY=0 bun install --omit=dev --ignore-scripts --linker=hoisted && \
+    cd node_modules/isolated-vm && npx node-gyp rebuild --release
 
 # ========================================
 # Builder Stage: Build the Application
@@ -65,7 +66,7 @@ COPY packages ./packages
 # Required for standalone nextjs build
 WORKDIR /app/apps/sim
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
-    HUSKY=0 bun install sharp
+    HUSKY=0 bun install sharp --linker=hoisted
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     VERCEL_TELEMETRY_DISABLED=1 \
@@ -105,7 +106,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/static ./apps/sim/.next/static
 
 # Copy isolated-vm native module (compiled for Node.js in deps stage)
-COPY --from=deps --chown=nextjs:nodejs /app/node_modules/.bun/isolated-vm@6.0.2/node_modules/isolated-vm ./node_modules/isolated-vm
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/isolated-vm ./node_modules/isolated-vm
 
 # Copy the isolated-vm worker script
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs
