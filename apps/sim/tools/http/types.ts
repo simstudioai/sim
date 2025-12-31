@@ -22,5 +22,5 @@ export interface WebhookRequestParams {
   url: string
   body?: any
   secret?: string
-  headers?: TableRow[]
+  headers?: Record<string, string>
 }

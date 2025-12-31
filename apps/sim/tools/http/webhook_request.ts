@@ -2,7 +2,6 @@ import { createHmac } from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
 import type { ToolConfig } from '@/tools/types'
 import type { RequestResponse, WebhookRequestParams } from './types'
-import { transformTable } from './utils'
 
 /**
  * Generates HMAC-SHA256 signature for webhook payload
@@ -64,18 +63,7 @@ export const webhookRequestTool: ToolConfig<WebhookRequestParams, RequestRespons
       }
 
       // Merge with user-provided headers (user headers take precedence)
-      // Handle different header formats:
-      // - Array of TableRow objects (from block usage): [{ cells: { Key, Value } }]
-      // - Plain object (from direct tool usage): { key: value }
-      // - undefined/null
-      let userHeaders: Record<string, string> = {}
-      if (params.headers) {
-        if (Array.isArray(params.headers)) {
-          userHeaders = transformTable(params.headers)
-        } else if (typeof params.headers === 'object') {
-          userHeaders = params.headers as Record<string, string>
-        }
-      }
+      const userHeaders = params.headers || {}
 
       return { ...webhookHeaders, ...userHeaders }
     },
