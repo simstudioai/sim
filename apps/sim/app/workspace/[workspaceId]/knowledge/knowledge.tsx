@@ -82,11 +82,9 @@ export function Knowledge() {
   const handleContentContextMenu = useCallback(
     (e: React.MouseEvent) => {
       const target = e.target as HTMLElement
-      // Check if the click is on an interactive element or KB card
       const isOnCard = target.closest('[data-kb-card]')
       const isOnInteractive = target.closest('button, input, a, [role="button"]')
 
-      // Only show context menu if clicking on empty space
       if (!isOnCard && !isOnInteractive) {
         handleListContextMenu(e)
       }
