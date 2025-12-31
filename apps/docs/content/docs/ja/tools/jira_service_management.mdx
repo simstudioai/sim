@@ -1,0 +1,486 @@
+---
+title: Jira Service Management
+description: Jira Service Managementと連携する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="jira_service_management"
+  color="#E0E0E0"
+/>
+
+## 使用方法
+
+ITサービス管理のためにJira Service Managementと統合します。サービスリクエストの作成と管理、顧客と組織の処理、SLAの追跡、キューの管理を行います。
+
+## ツール
+
+### `jsm_get_service_desks`
+
+Jira Service Managementからすべてのサービスデスクを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン（例：yourcompany.atlassian.net） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `start` | number | いいえ | ページネーションの開始インデックス（デフォルト：0） |
+| `limit` | number | いいえ | 返す最大結果数（デフォルト：50） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `serviceDesks` | json | サービスデスクの配列 |
+| `total` | number | サービスデスクの総数 |
+| `isLastPage` | boolean | これが最後のページかどうか |
+
+### `jsm_get_request_types`
+
+Jira Service Managementのサービスデスクのリクエストタイプを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン（例：yourcompany.atlassian.net） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `serviceDeskId` | string | はい | リクエストタイプを取得するサービスデスクID |
+| `start` | number | いいえ | ページネーションの開始インデックス（デフォルト：0） |
+| `limit` | number | いいえ | 返す最大結果数（デフォルト：50） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `requestTypes` | json | リクエストタイプの配列 |
+| `total` | number | リクエストタイプの総数 |
+| `isLastPage` | boolean | これが最後のページかどうか |
+
+### `jsm_create_request`
+
+Jira Service Managementで新しいサービスリクエストを作成
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン（例：yourcompany.atlassian.net） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `serviceDeskId` | string | はい | リクエストを作成するサービスデスクID |
+| `requestTypeId` | string | はい | 新しいリクエストのリクエストタイプID |
+| `summary` | string | はい | サービスリクエストの概要/タイトル |
+| `description` | string | いいえ | サービスリクエストの説明 |
+| `raiseOnBehalfOf` | string | いいえ | 代理でリクエストを作成する顧客のアカウントID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueId` | string | 作成されたリクエストの課題ID |
+| `issueKey` | string | 作成されたリクエストの課題キー（例：SD-123） |
+| `requestTypeId` | string | リクエストタイプID |
+| `serviceDeskId` | string | サービスデスクID |
+| `success` | boolean | リクエストが正常に作成されたかどうか |
+| `url` | string | 作成されたリクエストのURL |
+
+### `jsm_get_request`
+
+Jira Service Managementから単一のサービスリクエストを取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン（例：yourcompany.atlassian.net） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `issueIdOrKey` | string | はい | 課題IDまたはキー（例：SD-123） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+
+### `jsm_get_requests`
+
+Jira Service Managementから複数のサービスリクエストを取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン（例：yourcompany.atlassian.net） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `serviceDeskId` | string | いいえ | サービスデスクIDでフィルタ |
+| `requestOwnership` | string | いいえ | 所有権でフィルタ：OWNED_REQUESTS、PARTICIPATED_REQUESTS、ORGANIZATION、ALL_REQUESTS |
+| `requestStatus` | string | いいえ | ステータスでフィルタ：OPEN、CLOSED、ALL |
+| `searchTerm` | string | いいえ | リクエストをフィルタする検索語 |
+| `start` | number | いいえ | ページネーションの開始インデックス（デフォルト：0） |
+| `limit` | number | いいえ | 返す最大結果数（デフォルト：50） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `requests` | json | サービスリクエストの配列 |
+| `total` | number | リクエストの総数 |
+| `isLastPage` | boolean | これが最後のページかどうか |
+
+### `jsm_add_comment`
+
+Jira Service Managementのサービスリクエストにコメント（公開または内部）を追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン（例：yourcompany.atlassian.net） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `issueIdOrKey` | string | はい | 課題IDまたはキー（例：SD-123） |
+| `body` | string | はい | コメント本文 |
+| `isPublic` | boolean | はい | コメントが公開（顧客に表示）か内部かを指定 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueIdOrKey` | string | 課題IDまたはキー |
+| `commentId` | string | 作成されたコメントID |
+| `body` | string | コメント本文 |
+| `isPublic` | boolean | コメントが公開かどうか |
+| `success` | boolean | コメントが正常に追加されたかどうか |
+
+### `jsm_get_comments`
+
+Jira Service Managementのサービスリクエストのコメントを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン（例：yourcompany.atlassian.net） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `issueIdOrKey` | string | はい | 課題IDまたはキー（例：SD-123） |
+| `isPublic` | boolean | いいえ | 公開コメントのみにフィルタ |
+| `internal` | boolean | いいえ | 内部コメントのみにフィルタ |
+| `start` | number | いいえ | ページネーションの開始インデックス（デフォルト：0） |
+| `limit` | number | いいえ | 返す最大結果数（デフォルト：50） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueIdOrKey` | string | 課題IDまたはキー |
+| `comments` | json | コメントの配列 |
+| `total` | number | コメントの総数 |
+| `isLastPage` | boolean | 最後のページかどうか |
+
+### `jsm_get_customers`
+
+Jira Service Managementのサービスデスクの顧客を取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン（例: yourcompany.atlassian.net） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `serviceDeskId` | string | はい | 顧客を取得するサービスデスクID |
+| `query` | string | いいえ | 顧客をフィルタリングする検索クエリ |
+| `start` | number | いいえ | ページネーションの開始インデックス（デフォルト: 0） |
+| `limit` | number | いいえ | 返す最大結果数（デフォルト: 50） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `customers` | json | 顧客の配列 |
+| `total` | number | 顧客の総数 |
+| `isLastPage` | boolean | 最後のページかどうか |
+
+### `jsm_add_customer`
+
+Jira Service Managementのサービスデスクに顧客を追加
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン（例：yourcompany.atlassian.net） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `serviceDeskId` | string | はい | 顧客を追加するサービスデスクID |
+| `emails` | string | はい | 顧客として追加するメールアドレス（カンマ区切り） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `serviceDeskId` | string | サービスデスクID |
+| `success` | boolean | 顧客が正常に追加されたかどうか |
+
+### `jsm_get_organizations`
+
+Jira Service Managementのサービスデスクの組織を取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン（例：yourcompany.atlassian.net） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `serviceDeskId` | string | はい | 組織を取得するサービスデスクID |
+| `start` | number | いいえ | ページネーションの開始インデックス（デフォルト：0） |
+| `limit` | number | いいえ | 返す最大結果数（デフォルト：50） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `organizations` | json | 組織の配列 |
+| `total` | number | 組織の総数 |
+| `isLastPage` | boolean | これが最後のページかどうか |
+
+### `jsm_create_organization`
+
+Jira Service Managementで新しい組織を作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン（例: yourcompany.atlassian.net） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `name` | string | はい | 作成する組織の名前 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `organizationId` | string | 作成された組織のID |
+| `name` | string | 作成された組織の名前 |
+| `success` | boolean | 操作が成功したかどうか |
+
+### `jsm_add_organization_to_service_desk`
+
+Jira Service Managementのサービスデスクに組織を追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン（例: yourcompany.atlassian.net） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `serviceDeskId` | string | はい | 組織を追加するサービスデスクID |
+| `organizationId` | string | はい | サービスデスクに追加する組織ID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `serviceDeskId` | string | サービスデスクID |
+| `organizationId` | string | 追加された組織ID |
+| `success` | boolean | 操作が成功したかどうか |
+
+### `jsm_get_queues`
+
+Jira Service Managementでサービスデスクのキューを取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン（例：yourcompany.atlassian.net） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `serviceDeskId` | string | はい | キューを取得するサービスデスクID |
+| `includeCount` | boolean | いいえ | 各キューの課題数を含める |
+| `start` | number | いいえ | ページネーションの開始インデックス（デフォルト：0） |
+| `limit` | number | いいえ | 返す最大結果数（デフォルト：50） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `queues` | json | キューの配列 |
+| `total` | number | キューの総数 |
+| `isLastPage` | boolean | これが最後のページかどうか |
+
+### `jsm_get_sla`
+
+Jira Service ManagementでサービスリクエストのSLA情報を取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン（例：yourcompany.atlassian.net） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `issueIdOrKey` | string | はい | 課題IDまたはキー（例：SD-123） |
+| `start` | number | いいえ | ページネーションの開始インデックス（デフォルト：0） |
+| `limit` | number | いいえ | 返す最大結果数（デフォルト：50） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueIdOrKey` | string | 課題IDまたはキー |
+| `slas` | json | SLA情報の配列 |
+| `total` | number | SLAの総数 |
+| `isLastPage` | boolean | 最後のページかどうか |
+
+### `jsm_get_transitions`
+
+Jira Service Managementのサービスリクエストで利用可能なトランジションを取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン(例: yourcompany.atlassian.net) |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `issueIdOrKey` | string | はい | 課題IDまたはキー(例: SD-123) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueIdOrKey` | string | 課題IDまたはキー |
+| `transitions` | json | 利用可能なトランジションの配列 |
+
+### `jsm_transition_request`
+
+Jira Service Managementでサービスリクエストを新しいステータスにトランジション
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン(例: yourcompany.atlassian.net) |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `issueIdOrKey` | string | はい | 課題IDまたはキー(例: SD-123) |
+| `transitionId` | string | はい | 適用するトランジションID |
+| `comment` | string | いいえ | トランジション時に追加するオプションのコメント |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueIdOrKey` | string | 課題IDまたはキー |
+| `transitionId` | string | 適用されたトランジションID |
+| `success` | boolean | トランジションが成功したかどうか |
+
+### `jsm_get_participants`
+
+Jira Service Managementのリクエストの参加者を取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン(例: yourcompany.atlassian.net) |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `issueIdOrKey` | string | はい | 課題IDまたはキー(例: SD-123) |
+| `start` | number | いいえ | ページネーションの開始インデックス(デフォルト: 0) |
+| `limit` | number | いいえ | 返す最大結果数(デフォルト: 50) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueIdOrKey` | string | 課題IDまたはキー |
+| `participants` | json | 参加者の配列 |
+| `total` | number | 参加者の総数 |
+| `isLastPage` | boolean | これが最後のページかどうか |
+
+### `jsm_add_participants`
+
+Jira Service Managementのリクエストに参加者を追加
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン(例: yourcompany.atlassian.net) |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `issueIdOrKey` | string | はい | 課題IDまたはキー(例: SD-123) |
+| `accountIds` | string | はい | 参加者として追加するアカウントIDのカンマ区切りリスト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueIdOrKey` | string | 課題IDまたはキー |
+| `participants` | json | 追加された参加者の配列 |
+| `success` | boolean | 操作が成功したかどうか |
+
+### `jsm_get_approvals`
+
+Jira Service Managementでリクエストの承認を取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン（例：yourcompany.atlassian.net） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `issueIdOrKey` | string | はい | 課題IDまたはキー（例：SD-123） |
+| `start` | number | いいえ | ページネーションの開始インデックス（デフォルト：0） |
+| `limit` | number | いいえ | 返す最大結果数（デフォルト：50） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueIdOrKey` | string | 課題IDまたはキー |
+| `approvals` | json | 承認の配列 |
+| `total` | number | 承認の総数 |
+| `isLastPage` | boolean | これが最後のページかどうか |
+
+### `jsm_answer_approval`
+
+Jira Service Managementで承認リクエストを承認または却下
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン（例：yourcompany.atlassian.net） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `issueIdOrKey` | string | はい | 課題IDまたはキー（例：SD-123） |
+| `approvalId` | string | はい | 回答する承認ID |
+| `decision` | string | はい | 決定：「approve」または「decline」 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueIdOrKey` | string | 課題IDまたはキー |
+| `approvalId` | string | 承認ID |
+| `decision` | string | 決定内容（承認/却下） |
+| `success` | boolean | 操作が成功したかどうか |
+
+## 注意事項
+
+- カテゴリ: `tools`
+- タイプ: `jira_service_management`
