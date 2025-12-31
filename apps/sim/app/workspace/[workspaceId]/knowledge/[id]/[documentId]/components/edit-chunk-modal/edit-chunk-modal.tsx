@@ -91,61 +91,6 @@ export function EditChunkModal({
     return TOKEN_BG_COLORS[index % TOKEN_BG_COLORS.length]
   }
 
-  // #region agent log - style comparison
-  const tokenizerDivRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const logStyles = () => {
-      const ta = textareaRef.current
-      const tv = tokenizerDivRef.current
-      if (ta && !tokenizerOn) {
-        const s = window.getComputedStyle(ta)
-        const rect = ta.getBoundingClientRect()
-        fetch('http://127.0.0.1:7243/ingest/77a2b2bc-808d-4bfd-a366-739b0b04635d', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            location: 'edit-chunk-modal.tsx:TEXTAREA',
-            message: 'Textarea position',
-            data: {
-              top: rect.top,
-              marginTop: s.marginTop,
-              paddingTop: s.paddingTop,
-              borderTopWidth: s.borderTopWidth,
-              height: rect.height,
-            },
-            timestamp: Date.now(),
-            sessionId: 'debug-session',
-            hypothesisId: 'vertical',
-          }),
-        }).catch(() => {})
-      }
-      if (tv && tokenizerOn) {
-        const s = window.getComputedStyle(tv)
-        const rect = tv.getBoundingClientRect()
-        fetch('http://127.0.0.1:7243/ingest/77a2b2bc-808d-4bfd-a366-739b0b04635d', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            location: 'edit-chunk-modal.tsx:TOKENIZER',
-            message: 'Tokenizer position',
-            data: {
-              top: rect.top,
-              marginTop: s.marginTop,
-              paddingTop: s.paddingTop,
-              borderTopWidth: s.borderTopWidth,
-              height: rect.height,
-            },
-            timestamp: Date.now(),
-            sessionId: 'debug-session',
-            hypothesisId: 'vertical',
-          }),
-        }).catch(() => {})
-      }
-    }
-    setTimeout(logStyles, 100)
-  }, [tokenizerOn])
-  // #endregion
-
   useEffect(() => {
     if (chunk?.content) {
       setEditedContent(chunk.content)
@@ -324,7 +269,6 @@ export function EditChunkModal({
                 {tokenizerOn ? (
                   /* Tokenizer view - matches Textarea styling exactly (transparent border for spacing) */
                   <div
-                    ref={tokenizerDivRef}
                     className='h-[418px] overflow-y-auto whitespace-pre-wrap break-words rounded-[4px] border border-transparent bg-[var(--surface-5)] px-[8px] py-[8px] font-medium font-sans text-[var(--text-primary)] text-sm'
                     style={{ minHeight: '418px' }}
                   >
