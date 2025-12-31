@@ -792,7 +792,15 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         const copiedSubBlockValues: Record<string, Record<string, unknown>> = {}
         const blockIdSet = new Set(blockIds)
 
+        // Auto-include nested nodes from selected subflows
         blockIds.forEach((blockId) => {
+          const loop = workflowStore.loops[blockId]
+          if (loop?.nodes) loop.nodes.forEach((n) => blockIdSet.add(n))
+          const parallel = workflowStore.parallels[blockId]
+          if (parallel?.nodes) parallel.nodes.forEach((n) => blockIdSet.add(n))
+        })
+
+        blockIdSet.forEach((blockId) => {
           const block = workflowStore.blocks[blockId]
           if (block) {
             copiedBlocks[blockId] = JSON.parse(JSON.stringify(block))

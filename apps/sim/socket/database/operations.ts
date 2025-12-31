@@ -493,16 +493,28 @@ async function handleBlocksOperationTx(
 
         await tx.insert(workflowBlocks).values(blockValues)
 
-        // Create subflow entries for loop/parallel blocks
+        // Create subflow entries for loop/parallel blocks (skip if already in payload)
+        const loopIds = new Set(loops ? Object.keys(loops) : [])
+        const parallelIds = new Set(parallels ? Object.keys(parallels) : [])
         for (const block of blocks) {
-          if (block.type === 'loop' || block.type === 'parallel') {
+          const blockId = block.id as string
+          if (block.type === 'loop' && !loopIds.has(blockId)) {
             await tx.insert(workflowSubflows).values({
-              id: block.id as string,
+              id: blockId,
               workflowId,
-              type: block.type as string,
+              type: 'loop',
               config: {
                 loopType: 'for',
                 iterations: DEFAULT_LOOP_ITERATIONS,
+                nodes: [],
+              },
+            })
+          } else if (block.type === 'parallel' && !parallelIds.has(blockId)) {
+            await tx.insert(workflowSubflows).values({
+              id: blockId,
+              workflowId,
+              type: 'parallel',
+              config: {
                 parallelType: 'fixed',
                 count: DEFAULT_PARALLEL_COUNT,
                 nodes: [],
