@@ -593,7 +593,6 @@ export function KnowledgeBase({
 
     const newEnabled = !document.enabled
 
-    // Optimistic update - immediately update the UI
     updateDocument(docId, { enabled: newEnabled })
 
     try {
@@ -614,11 +613,9 @@ export function KnowledgeBase({
       const result = await response.json()
 
       if (!result.success) {
-        // Revert on failure
         updateDocument(docId, { enabled: !newEnabled })
       }
     } catch (err) {
-      // Revert on error
       updateDocument(docId, { enabled: !newEnabled })
       logger.error('Error updating document:', err)
     }
@@ -842,7 +839,6 @@ export function KnowledgeBase({
       const result = await response.json()
 
       if (result.success) {
-        // Update successful documents in the store
         result.data.updatedDocuments.forEach((updatedDoc: { id: string; enabled: boolean }) => {
           updateDocument(updatedDoc.id, { enabled: updatedDoc.enabled })
         })
@@ -850,7 +846,6 @@ export function KnowledgeBase({
         logger.info(`Successfully enabled ${result.data.successCount} documents`)
       }
 
-      // Clear selection after successful operation
       setSelectedDocuments(new Set())
     } catch (err) {
       logger.error('Error enabling documents:', err)
@@ -960,20 +955,15 @@ export function KnowledgeBase({
   const enabledCount = selectedDocumentsList.filter((doc) => doc.enabled).length
   const disabledCount = selectedDocumentsList.filter((doc) => !doc.enabled).length
 
-  // Track previous KB id to detect navigation between different knowledge bases
   const prevKnowledgeBaseIdRef = useRef<string>(id)
   const isNavigatingToNewKB = prevKnowledgeBaseIdRef.current !== id
 
-  // Update ref when KB data loads successfully
   useEffect(() => {
     if (knowledgeBase && knowledgeBase.id === id) {
       prevKnowledgeBaseIdRef.current = id
     }
   }, [knowledgeBase, id])
 
-  // Show full page skeleton when:
-  // 1. Initial load (no KB data yet), OR
-  // 2. Navigating to a different KB (showing placeholder data from previous KB)
   const isInitialLoad = isLoadingKnowledgeBase && !knowledgeBase
   const isFetchingNewKB = isNavigatingToNewKB && isFetchingDocuments
 

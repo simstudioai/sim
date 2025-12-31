@@ -35,7 +35,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { ChunkData, DocumentData } from '@/lib/knowledge/types'
+import type { ChunkData } from '@/lib/knowledge/types'
 import {
   CreateChunkModal,
   DeleteChunkModal,
@@ -45,11 +45,7 @@ import {
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { knowledgeKeys } from '@/hooks/queries/knowledge'
-import {
-  useCachedDocuments,
-  useCachedKnowledgeBase,
-  useDocumentChunks,
-} from '@/hooks/use-knowledge'
+import { useDocument, useDocumentChunks, useKnowledgeBase } from '@/hooks/use-knowledge'
 
 const logger = createLogger('Document')
 
@@ -271,15 +267,12 @@ export function Document({
   const currentPageFromURL = Number.parseInt(searchParams.get('page') || '1', 10)
   const userPermissions = useUserPermissionsContext()
 
-  const cachedKnowledgeBase = useCachedKnowledgeBase(knowledgeBaseId)
-  const cachedDocumentsData = useCachedDocuments(knowledgeBaseId)
-
-  /**
-   * Get cached document synchronously for immediate render
-   */
-  const getInitialCachedDocument = useCallback(() => {
-    return cachedDocumentsData?.documents?.find((d: DocumentData) => d.id === documentId) || null
-  }, [cachedDocumentsData, documentId])
+  const { knowledgeBase } = useKnowledgeBase(knowledgeBaseId)
+  const {
+    document: documentData,
+    isLoading: isLoadingDocument,
+    error: documentError,
+  } = useDocument(knowledgeBaseId, documentId)
 
   const [showTagsModal, setShowTagsModal] = useState(false)
 
@@ -298,9 +291,7 @@ export function Document({
     refreshChunks: initialRefreshChunks,
     updateChunk: initialUpdateChunk,
     isFetching: isFetchingChunks,
-  } = useDocumentChunks(knowledgeBaseId, documentId, currentPageFromURL, '', {
-    enableClientSearch: false,
-  })
+  } = useDocumentChunks(knowledgeBaseId, documentId, currentPageFromURL)
 
   const [searchResults, setSearchResults] = useState<ChunkData[]>([])
   const [isLoadingSearch, setIsLoadingSearch] = useState(false)
@@ -436,11 +427,6 @@ export function Document({
   const refreshChunks = showingSearch ? async () => {} : initialRefreshChunks
   const updateChunk = showingSearch ? (id: string, updates: any) => {} : initialUpdateChunk
 
-  const initialCachedDoc = getInitialCachedDocument()
-  const [documentData, setDocumentData] = useState<DocumentData | null>(initialCachedDoc)
-  const [isLoadingDocument, setIsLoadingDocument] = useState(!initialCachedDoc)
-  const [error, setError] = useState<string | null>(null)
-
   const [isCreateChunkModalOpen, setIsCreateChunkModalOpen] = useState(false)
   const [chunkToDelete, setChunkToDelete] = useState<ChunkData | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -448,55 +434,9 @@ export function Document({
   const [showDeleteDocumentDialog, setShowDeleteDocumentDialog] = useState(false)
   const [isDeletingDocument, setIsDeletingDocument] = useState(false)
 
-  const combinedError = error || searchError || initialError
+  const combinedError = documentError || searchError || initialError
 
-  useEffect(() => {
-    const fetchDocument = async () => {
-      const cachedDoc = cachedDocumentsData?.documents?.find(
-        (d: DocumentData) => d.id === documentId
-      )
-
-      if (cachedDoc) {
-        setDocumentData(cachedDoc)
-        setIsLoadingDocument(false)
-        return
-      }
-
-      setIsLoadingDocument(true)
-      setError(null)
-
-      try {
-        const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`)
-
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error('Document not found')
-          }
-          throw new Error(`Failed to fetch document: ${response.statusText}`)
-        }
-
-        const result = await response.json()
-
-        if (result.success) {
-          setDocumentData(result.data)
-        } else {
-          throw new Error(result.error || 'Failed to fetch document')
-        }
-      } catch (err) {
-        logger.error('Error fetching document:', err)
-        setError(err instanceof Error ? err.message : 'An error occurred')
-      } finally {
-        setIsLoadingDocument(false)
-      }
-    }
-
-    if (knowledgeBaseId && documentId) {
-      fetchDocument()
-    }
-  }, [knowledgeBaseId, documentId, cachedDocumentsData])
-
-  const effectiveKnowledgeBaseName =
-    cachedKnowledgeBase?.name || knowledgeBaseName || 'Knowledge Base'
+  const effectiveKnowledgeBaseName = knowledgeBase?.name || knowledgeBaseName || 'Knowledge Base'
   const effectiveDocumentName = documentData?.filename || documentName || 'Document'
 
   const breadcrumbItems = [
@@ -702,15 +642,11 @@ export function Document({
 
   const isAllSelected = displayChunks.length > 0 && selectedChunks.size === displayChunks.length
 
-  const handleDocumentTagsUpdate = useCallback(
-    (tagData: Record<string, string>) => {
-      setDocumentData((prev) => (prev ? { ...prev, ...tagData } : null))
-      queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
-      })
-    },
-    [knowledgeBaseId, queryClient]
-  )
+  const handleDocumentTagsUpdate = useCallback(() => {
+    queryClient.invalidateQueries({
+      queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+    })
+  }, [knowledgeBaseId, documentId, queryClient])
 
   const prevDocumentIdRef = useRef<string>(documentId)
   const isNavigatingToNewDoc = prevDocumentIdRef.current !== documentId
@@ -1139,7 +1075,7 @@ export function Document({
         onNavigateToChunk={(chunk: ChunkData) => {
           setSelectedChunk(chunk)
         }}
-        maxChunkSize={cachedKnowledgeBase?.chunkingConfig?.maxSize}
+        maxChunkSize={knowledgeBase?.chunkingConfig?.maxSize}
         onNavigateToPage={async (page: number, selectChunk: 'first' | 'last') => {
           await goToPage(page)
 

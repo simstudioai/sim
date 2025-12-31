@@ -125,12 +125,10 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
           `Knowledge base workspace updated: ${options.knowledgeBaseId} -> ${workspaceId}`
         )
 
-        // Invalidate React Query cache
         await queryClient.invalidateQueries({
           queryKey: knowledgeKeys.detail(options.knowledgeBaseId),
         })
 
-        // Notify parent component of the change to refresh data
         await options.onWorkspaceChange?.(workspaceId)
       } else {
         throw new Error(result.error || 'Failed to update workspace')

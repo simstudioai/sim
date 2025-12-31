@@ -50,7 +50,7 @@ export function EditChunkModal({
   totalPages = 1,
   onNavigateToChunk,
   onNavigateToPage,
-  maxChunkSize = 1024,
+  maxChunkSize,
 }: EditChunkModalProps) {
   const queryClient = useQueryClient()
   const userPermissions = useUserPermissionsContext()
@@ -339,7 +339,8 @@ export function EditChunkModal({
                   <Switch checked={tokenizerOn} onCheckedChange={setTokenizerOn} />
                 </div>
                 <span className='text-[12px] text-[var(--text-secondary)]'>
-                  {tokenCount.toLocaleString()}/{maxChunkSize.toLocaleString()}
+                  {tokenCount.toLocaleString()}
+                  {maxChunkSize !== undefined && `/${maxChunkSize.toLocaleString()}`} tokens
                 </span>
               </div>
             </ModalBody>
