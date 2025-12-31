@@ -763,17 +763,13 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             const allTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
             // For self-reference, only show url and resumeEndpoint (not response format fields)
             blockTags = isSelfReference
-              ? allTags.filter(
-                  (tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint')
-                )
+              ? allTags.filter((tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint'))
               : allTags
           } else {
             const outputPaths = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
             const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
             blockTags = isSelfReference
-              ? allTags.filter(
-                  (tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint')
-                )
+              ? allTags.filter((tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint'))
               : allTags
           }
         } else {
@@ -1103,15 +1099,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             const allTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
             // For self-reference, only show url and resumeEndpoint (not response format fields)
             blockTags = isSelfReference
-              ? allTags.filter(
-                  (tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint')
-                )
+              ? allTags.filter((tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint'))
               : allTags
           } else {
-            blockTags = [
-              `${normalizedBlockName}.url`,
-              `${normalizedBlockName}.resumeEndpoint`,
-            ]
+            blockTags = [`${normalizedBlockName}.url`, `${normalizedBlockName}.resumeEndpoint`]
           }
         } else {
           const operationValue =

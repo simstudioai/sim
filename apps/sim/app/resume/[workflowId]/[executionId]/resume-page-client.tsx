@@ -186,13 +186,18 @@ export default function ResumeExecutionPage({
     )
   }, [initialContextId, pausePoints])
 
-  const [selectedContextId, setSelectedContextId] = useState<string | null>(defaultContextId ?? null)
+  const [selectedContextId, setSelectedContextId] = useState<string | null>(
+    defaultContextId ?? null
+  )
   const [selectedDetail, setSelectedDetail] = useState<PauseContextDetail | null>(null)
-  const [selectedStatus, setSelectedStatus] = useState<PausePointWithQueue['resumeStatus']>('paused')
+  const [selectedStatus, setSelectedStatus] =
+    useState<PausePointWithQueue['resumeStatus']>('paused')
   const [queuePosition, setQueuePosition] = useState<number | null | undefined>(undefined)
   const [resumeInputs, setResumeInputs] = useState<Record<string, string>>({})
   const [resumeInput, setResumeInput] = useState('')
-  const [formValuesByContext, setFormValuesByContext] = useState<Record<string, Record<string, string>>>({})
+  const [formValuesByContext, setFormValuesByContext] = useState<
+    Record<string, Record<string, string>>
+  >({})
   const [formValues, setFormValues] = useState<Record<string, string>>({})
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [loadingDetail, setLoadingDetail] = useState(false)
@@ -211,10 +216,20 @@ export default function ResumeExecutionPage({
         return {
           id: typeof field.id === 'string' && field.id.length > 0 ? field.id : `field_${index}`,
           name,
-          label: typeof field.label === 'string' && field.label.trim().length > 0 ? field.label.trim() : name,
-          type: typeof field.type === 'string' && field.type.trim().length > 0 ? field.type : 'string',
-          description: typeof field.description === 'string' && field.description.trim().length > 0 ? field.description.trim() : undefined,
-          placeholder: typeof field.placeholder === 'string' && field.placeholder.trim().length > 0 ? field.placeholder.trim() : undefined,
+          label:
+            typeof field.label === 'string' && field.label.trim().length > 0
+              ? field.label.trim()
+              : name,
+          type:
+            typeof field.type === 'string' && field.type.trim().length > 0 ? field.type : 'string',
+          description:
+            typeof field.description === 'string' && field.description.trim().length > 0
+              ? field.description.trim()
+              : undefined,
+          placeholder:
+            typeof field.placeholder === 'string' && field.placeholder.trim().length > 0
+              ? field.placeholder.trim()
+              : undefined,
           value: field.value,
           required: field.required === true,
           options: Array.isArray(field.options) ? field.options : undefined,
@@ -224,39 +239,43 @@ export default function ResumeExecutionPage({
       .filter((field): field is NormalizedInputField => field !== null)
   }, [])
 
-  const formatValueForInputField = useCallback((field: NormalizedInputField, value: any): string => {
-    if (value === undefined || value === null) return ''
-    switch (field.type) {
-      case 'boolean':
-        if (typeof value === 'boolean') return value ? 'true' : 'false'
-        if (typeof value === 'string') {
-          const normalized = value.trim().toLowerCase()
-          if (normalized === 'true' || normalized === 'false') return normalized
-        }
-        return ''
-      case 'number':
-        if (typeof value === 'number') return Number.isFinite(value) ? String(value) : ''
-        if (typeof value === 'string') return value
-        return ''
-      case 'array':
-      case 'object':
-      case 'files':
-        if (typeof value === 'string') return value
-        try {
-          return JSON.stringify(value, null, 2)
-        } catch {
+  const formatValueForInputField = useCallback(
+    (field: NormalizedInputField, value: any): string => {
+      if (value === undefined || value === null) return ''
+      switch (field.type) {
+        case 'boolean':
+          if (typeof value === 'boolean') return value ? 'true' : 'false'
+          if (typeof value === 'string') {
+            const normalized = value.trim().toLowerCase()
+            if (normalized === 'true' || normalized === 'false') return normalized
+          }
           return ''
-        }
-      default:
-        return typeof value === 'string' ? value : JSON.stringify(value)
-    }
-  }, [])
+        case 'number':
+          if (typeof value === 'number') return Number.isFinite(value) ? String(value) : ''
+          if (typeof value === 'string') return value
+          return ''
+        case 'array':
+        case 'object':
+        case 'files':
+          if (typeof value === 'string') return value
+          try {
+            return JSON.stringify(value, null, 2)
+          } catch {
+            return ''
+          }
+        default:
+          return typeof value === 'string' ? value : JSON.stringify(value)
+      }
+    },
+    []
+  )
 
   const buildInitialFormValues = useCallback(
     (fields: NormalizedInputField[], submission?: Record<string, any>) => {
       const initial: Record<string, string> = {}
       for (const field of fields) {
-        const candidate = submission && Object.hasOwn(submission, field.name) ? submission[field.name] : field.value
+        const candidate =
+          submission && Object.hasOwn(submission, field.name) ? submission[field.name] : field.value
         initial[field.name] = formatValueForInputField(field, candidate)
       }
       return initial
@@ -275,137 +294,160 @@ export default function ResumeExecutionPage({
     }
   }, [])
 
-  const parseFormValue = useCallback((field: NormalizedInputField, rawValue: string): { value: any; error?: string } => {
-    const value = rawValue ?? ''
-    switch (field.type) {
-      case 'number': {
-        if (!value.trim()) return { value: null }
-        const numericValue = Number(value)
-        if (Number.isNaN(numericValue)) return { value: null, error: 'Enter a valid number.' }
-        return { value: numericValue }
-      }
-      case 'boolean': {
-        if (value === 'true') return { value: true }
-        if (value === 'false') return { value: false }
-        if (!value) return { value: null }
-        return { value: null, error: 'Select true or false.' }
-      }
-      case 'array':
-      case 'object':
-      case 'files': {
-        if (!value.trim()) {
-          if (field.type === 'array') return { value: [] }
-          return { value: {} }
+  const parseFormValue = useCallback(
+    (field: NormalizedInputField, rawValue: string): { value: any; error?: string } => {
+      const value = rawValue ?? ''
+      switch (field.type) {
+        case 'number': {
+          if (!value.trim()) return { value: null }
+          const numericValue = Number(value)
+          if (Number.isNaN(numericValue)) return { value: null, error: 'Enter a valid number.' }
+          return { value: numericValue }
         }
-        try {
-          return { value: JSON.parse(value) }
-        } catch {
-          return { value: null, error: 'Enter valid JSON.' }
+        case 'boolean': {
+          if (value === 'true') return { value: true }
+          if (value === 'false') return { value: false }
+          if (!value) return { value: null }
+          return { value: null, error: 'Select true or false.' }
         }
+        case 'array':
+        case 'object':
+        case 'files': {
+          if (!value.trim()) {
+            if (field.type === 'array') return { value: [] }
+            return { value: {} }
+          }
+          try {
+            return { value: JSON.parse(value) }
+          } catch {
+            return { value: null, error: 'Enter valid JSON.' }
+          }
+        }
+        default:
+          return { value }
       }
-      default:
-        return { value }
-    }
-  }, [])
+    },
+    []
+  )
 
-  const handleFormFieldChange = useCallback((fieldName: string, newValue: string) => {
-    if (!selectedContextId) return
-    setFormValues((prev) => {
-      const updated = { ...prev, [fieldName]: newValue }
-      setFormValuesByContext((map) => ({ ...map, [selectedContextId]: updated }))
-      return updated
-    })
-    setFormErrors((prev) => {
-      if (!prev[fieldName]) return prev
-      const { [fieldName]: _, ...rest } = prev
-      return rest
-    })
-  }, [selectedContextId])
+  const handleFormFieldChange = useCallback(
+    (fieldName: string, newValue: string) => {
+      if (!selectedContextId) return
+      setFormValues((prev) => {
+        const updated = { ...prev, [fieldName]: newValue }
+        setFormValuesByContext((map) => ({ ...map, [selectedContextId]: updated }))
+        return updated
+      })
+      setFormErrors((prev) => {
+        if (!prev[fieldName]) return prev
+        const { [fieldName]: _, ...rest } = prev
+        return rest
+      })
+    },
+    [selectedContextId]
+  )
 
-  const renderFieldInput = useCallback((field: NormalizedInputField) => {
-    const value = formValues[field.name] ?? ''
-    switch (field.type) {
-      case 'boolean': {
-        const selectValue = value === 'true' || value === 'false' ? value : '__unset__'
-        return (
-          <Select value={selectValue} onValueChange={(val) => handleFormFieldChange(field.name, val)}>
-            <SelectTrigger>
-              <SelectValue placeholder={field.required ? 'Select true or false' : 'Select...'} />
-            </SelectTrigger>
-            <SelectContent>
-              {!field.required && <SelectItem value='__unset__'>Not set</SelectItem>}
-              <SelectItem value='true'>True</SelectItem>
-              <SelectItem value='false'>False</SelectItem>
-            </SelectContent>
-          </Select>
-        )
-      }
-      case 'number':
-        return (
-          <Input
-            type='number'
-            value={value}
-            onChange={(e) => handleFormFieldChange(field.name, e.target.value)}
-            placeholder={field.placeholder ?? 'Enter a number...'}
-          />
-        )
-      case 'array':
-      case 'object':
-      case 'files':
-        return (
-          <Textarea
-            value={value}
-            onChange={(e) => handleFormFieldChange(field.name, e.target.value)}
-            placeholder={field.placeholder ?? (field.type === 'array' ? '[...]' : '{...}')}
-            rows={5}
-          />
-        )
-      default: {
-        if (field.rows !== undefined && field.rows > 3) {
+  const renderFieldInput = useCallback(
+    (field: NormalizedInputField) => {
+      const value = formValues[field.name] ?? ''
+      switch (field.type) {
+        case 'boolean': {
+          const selectValue = value === 'true' || value === 'false' ? value : '__unset__'
+          return (
+            <Select
+              value={selectValue}
+              onValueChange={(val) => handleFormFieldChange(field.name, val)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={field.required ? 'Select true or false' : 'Select...'} />
+              </SelectTrigger>
+              <SelectContent>
+                {!field.required && <SelectItem value='__unset__'>Not set</SelectItem>}
+                <SelectItem value='true'>True</SelectItem>
+                <SelectItem value='false'>False</SelectItem>
+              </SelectContent>
+            </Select>
+          )
+        }
+        case 'number':
+          return (
+            <Input
+              type='number'
+              value={value}
+              onChange={(e) => handleFormFieldChange(field.name, e.target.value)}
+              placeholder={field.placeholder ?? 'Enter a number...'}
+            />
+          )
+        case 'array':
+        case 'object':
+        case 'files':
           return (
             <Textarea
               value={value}
               onChange={(e) => handleFormFieldChange(field.name, e.target.value)}
-              placeholder={field.placeholder ?? 'Enter value...'}
+              placeholder={field.placeholder ?? (field.type === 'array' ? '[...]' : '{...}')}
               rows={5}
             />
           )
+        default: {
+          if (field.rows !== undefined && field.rows > 3) {
+            return (
+              <Textarea
+                value={value}
+                onChange={(e) => handleFormFieldChange(field.name, e.target.value)}
+                placeholder={field.placeholder ?? 'Enter value...'}
+                rows={5}
+              />
+            )
+          }
+          return (
+            <Input
+              value={value}
+              onChange={(e) => handleFormFieldChange(field.name, e.target.value)}
+              placeholder={field.placeholder ?? 'Enter value...'}
+            />
+          )
         }
-        return (
-          <Input
-            value={value}
-            onChange={(e) => handleFormFieldChange(field.name, e.target.value)}
-            placeholder={field.placeholder ?? 'Enter value...'}
-          />
-        )
       }
-    }
-  }, [formValues, handleFormFieldChange])
+    },
+    [formValues, handleFormFieldChange]
+  )
 
-  const renderDisabledFieldInput = useCallback((field: NormalizedInputField, resumedValues: Record<string, any>) => {
-    const rawValue = resumedValues[field.name]
-    const value = rawValue !== undefined ? (typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue)) : ''
-    switch (field.type) {
-      case 'boolean': {
-        const displayValue = rawValue === true ? 'True' : rawValue === false ? 'False' : 'Not set'
-        return <Input value={displayValue} disabled />
-      }
-      case 'number':
-        return <Input type='number' value={value} disabled />
-      case 'array':
-      case 'object':
-      case 'files':
-        return <Textarea value={value} disabled rows={5} />
-      default: {
-        if (field.rows !== undefined && field.rows > 3) {
+  const renderDisabledFieldInput = useCallback(
+    (field: NormalizedInputField, resumedValues: Record<string, any>) => {
+      const rawValue = resumedValues[field.name]
+      const value =
+        rawValue !== undefined
+          ? typeof rawValue === 'object'
+            ? JSON.stringify(rawValue)
+            : String(rawValue)
+          : ''
+      switch (field.type) {
+        case 'boolean': {
+          const displayValue = rawValue === true ? 'True' : rawValue === false ? 'False' : 'Not set'
+          return <Input value={displayValue} disabled />
+        }
+        case 'number':
+          return <Input type='number' value={value} disabled />
+        case 'array':
+        case 'object':
+        case 'files':
           return <Textarea value={value} disabled rows={5} />
+        default: {
+          if (field.rows !== undefined && field.rows > 3) {
+            return <Textarea value={value} disabled rows={5} />
+          }
+          return <Input value={value} disabled />
         }
-        return <Input value={value} disabled />
       }
-    }
-  }, [])
+    },
+    []
+  )
 
-  const selectedOperation = useMemo(() => selectedDetail?.pausePoint.response?.data?.operation || 'human', [selectedDetail])
+  const selectedOperation = useMemo(
+    () => selectedDetail?.pausePoint.response?.data?.operation || 'human',
+    [selectedDetail]
+  )
   const isHumanMode = selectedOperation === 'human'
 
   const inputFormatFields = useMemo(
@@ -420,11 +462,20 @@ export default function ResumeExecutionPage({
     return raw
       .map((entry: any, index: number) => {
         if (!entry || typeof entry !== 'object') return null
-        const name = typeof entry.name === 'string' && entry.name.length > 0 ? entry.name : `field_${index}`
-        const type = typeof entry.type === 'string' && entry.type.length > 0
-          ? entry.type
-          : Array.isArray(entry.value) ? 'array' : typeof entry.value
-        return { id: entry.id ?? `${name}_${index}`, name, type, value: entry.value } as ResponseStructureRow
+        const name =
+          typeof entry.name === 'string' && entry.name.length > 0 ? entry.name : `field_${index}`
+        const type =
+          typeof entry.type === 'string' && entry.type.length > 0
+            ? entry.type
+            : Array.isArray(entry.value)
+              ? 'array'
+              : typeof entry.value
+        return {
+          id: entry.id ?? `${name}_${index}`,
+          name,
+          type,
+          value: entry.value,
+        } as ResponseStructureRow
       })
       .filter((row): row is ResponseStructureRow => row !== null)
   }, [selectedDetail])
@@ -438,12 +489,15 @@ export default function ResumeExecutionPage({
     const loadDetail = async () => {
       setLoadingDetail(true)
       try {
-        const response = await fetch(`/api/resume/${workflowId}/${executionId}/${selectedContextId}`, {
-          method: 'GET',
-          credentials: 'include',
-          cache: 'no-store',
-          signal: controller.signal,
-        })
+        const response = await fetch(
+          `/api/resume/${workflowId}/${executionId}/${selectedContextId}`,
+          {
+            method: 'GET',
+            credentials: 'include',
+            cache: 'no-store',
+            signal: controller.signal,
+          }
+        )
         if (!response.ok) {
           setSelectedDetail(null)
           return
@@ -455,9 +509,12 @@ export default function ResumeExecutionPage({
         const responseData = data.pausePoint.response?.data ?? {}
         const operation = responseData.operation || 'human'
         const fetchedInputFields = normalizeInputFormatFields(responseData.inputFormat)
-        const submission = responseData && typeof responseData.submission === 'object' && !Array.isArray(responseData.submission)
-          ? (responseData.submission as Record<string, any>)
-          : undefined
+        const submission =
+          responseData &&
+          typeof responseData.submission === 'object' &&
+          !Array.isArray(responseData.submission)
+            ? (responseData.submission as Record<string, any>)
+            : undefined
         if (operation === 'human' && fetchedInputFields.length > 0) {
           const baseValues = buildInitialFormValues(fetchedInputFields, submission)
           let mergedValues = baseValues
@@ -478,7 +535,10 @@ export default function ResumeExecutionPage({
           })
           setResumeInput('')
         } else {
-          const initialValue = typeof responseData === 'string' ? responseData : JSON.stringify(responseData ?? {}, null, 2)
+          const initialValue =
+            typeof responseData === 'string'
+              ? responseData
+              : JSON.stringify(responseData ?? {}, null, 2)
           setResumeInputs((prev) => {
             if (prev[data.pausePoint.contextId] !== undefined) {
               setResumeInput(prev[data.pausePoint.contextId])
@@ -500,7 +560,13 @@ export default function ResumeExecutionPage({
     }
     loadDetail()
     return () => controller.abort()
-  }, [workflowId, executionId, selectedContextId, normalizeInputFormatFields, buildInitialFormValues])
+  }, [
+    workflowId,
+    executionId,
+    selectedContextId,
+    normalizeInputFormatFields,
+    buildInitialFormValues,
+  ])
 
   const refreshExecutionDetail = useCallback(async () => {
     setRefreshingExecution(true)
@@ -514,7 +580,9 @@ export default function ResumeExecutionPage({
       const data: PausedExecutionDetail = await response.json()
       setExecutionDetail(data)
       if (!selectedContextId) {
-        const first = data.pausePoints?.find((point: PausePointWithQueue) => point.resumeStatus === 'paused')?.contextId ?? null
+        const first =
+          data.pausePoints?.find((point: PausePointWithQueue) => point.resumeStatus === 'paused')
+            ?.contextId ?? null
         setSelectedContextId(first)
       }
     } catch (err) {
@@ -524,63 +592,72 @@ export default function ResumeExecutionPage({
     }
   }, [workflowId, executionId, selectedContextId])
 
-  const refreshSelectedDetail = useCallback(async (contextId: string, showLoader = true) => {
-    try {
-      if (showLoader) setLoadingDetail(true)
-      const response = await fetch(`/api/resume/${workflowId}/${executionId}/${contextId}`, {
-        method: 'GET',
-        credentials: 'include',
-        cache: 'no-store',
-      })
-      if (!response.ok) return
-      const data: PauseContextDetail = await response.json()
-      setSelectedDetail(data)
-      setSelectedStatus(data.pausePoint.resumeStatus)
-      setQueuePosition(data.pausePoint.queuePosition)
-      const responseData = data.pausePoint.response?.data ?? {}
-      const operation = responseData.operation || 'human'
-      const fetchedInputFields = normalizeInputFormatFields(responseData.inputFormat)
-      const submission = responseData && typeof responseData.submission === 'object' && !Array.isArray(responseData.submission)
-        ? (responseData.submission as Record<string, any>)
-        : undefined
-      if (operation === 'human' && fetchedInputFields.length > 0) {
-        const baseValues = buildInitialFormValues(fetchedInputFields, submission)
-        let mergedValues = baseValues
-        setFormValuesByContext((prev) => {
-          const existingValues = prev[data.pausePoint.contextId]
-          if (existingValues) mergedValues = { ...baseValues, ...existingValues }
-          return { ...prev, [data.pausePoint.contextId]: mergedValues }
+  const refreshSelectedDetail = useCallback(
+    async (contextId: string, showLoader = true) => {
+      try {
+        if (showLoader) setLoadingDetail(true)
+        const response = await fetch(`/api/resume/${workflowId}/${executionId}/${contextId}`, {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
         })
-        setFormValues(mergedValues)
-        setFormErrors({})
-        setResumeInputs((prev) => {
-          if (prev[data.pausePoint.contextId] !== undefined) {
-            const next = { ...prev }
-            delete next[data.pausePoint.contextId]
-            return next
-          }
-          return prev
-        })
-        setResumeInput('')
-      } else {
-        const initialValue = typeof responseData === 'string' ? responseData : JSON.stringify(responseData ?? {}, null, 2)
-        setResumeInputs((prev) => {
-          if (prev[data.pausePoint.contextId] !== undefined) {
-            setResumeInput(prev[data.pausePoint.contextId])
+        if (!response.ok) return
+        const data: PauseContextDetail = await response.json()
+        setSelectedDetail(data)
+        setSelectedStatus(data.pausePoint.resumeStatus)
+        setQueuePosition(data.pausePoint.queuePosition)
+        const responseData = data.pausePoint.response?.data ?? {}
+        const operation = responseData.operation || 'human'
+        const fetchedInputFields = normalizeInputFormatFields(responseData.inputFormat)
+        const submission =
+          responseData &&
+          typeof responseData.submission === 'object' &&
+          !Array.isArray(responseData.submission)
+            ? (responseData.submission as Record<string, any>)
+            : undefined
+        if (operation === 'human' && fetchedInputFields.length > 0) {
+          const baseValues = buildInitialFormValues(fetchedInputFields, submission)
+          let mergedValues = baseValues
+          setFormValuesByContext((prev) => {
+            const existingValues = prev[data.pausePoint.contextId]
+            if (existingValues) mergedValues = { ...baseValues, ...existingValues }
+            return { ...prev, [data.pausePoint.contextId]: mergedValues }
+          })
+          setFormValues(mergedValues)
+          setFormErrors({})
+          setResumeInputs((prev) => {
+            if (prev[data.pausePoint.contextId] !== undefined) {
+              const next = { ...prev }
+              delete next[data.pausePoint.contextId]
+              return next
+            }
             return prev
-          }
-          setResumeInput(initialValue)
-          return { ...prev, [data.pausePoint.contextId]: initialValue }
-        })
-        setFormValues({})
-        setFormErrors({})
+          })
+          setResumeInput('')
+        } else {
+          const initialValue =
+            typeof responseData === 'string'
+              ? responseData
+              : JSON.stringify(responseData ?? {}, null, 2)
+          setResumeInputs((prev) => {
+            if (prev[data.pausePoint.contextId] !== undefined) {
+              setResumeInput(prev[data.pausePoint.contextId])
+              return prev
+            }
+            setResumeInput(initialValue)
+            return { ...prev, [data.pausePoint.contextId]: initialValue }
+          })
+          setFormValues({})
+          setFormErrors({})
+        }
+      } catch (err) {
+        console.error('Failed to refresh pause context detail', err)
+      } finally {
+        if (showLoader) setLoadingDetail(false)
       }
-    } catch (err) {
-      console.error('Failed to refresh pause context detail', err)
-    } finally {
-      if (showLoader) setLoadingDetail(false)
-    }
-  }, [workflowId, executionId, normalizeInputFormatFields, buildInitialFormValues])
+    },
+    [workflowId, executionId, normalizeInputFormatFields, buildInitialFormValues]
+  )
 
   const handleResume = useCallback(async () => {
     if (!selectedContextId || !selectedDetail) return
@@ -593,9 +670,10 @@ export default function ResumeExecutionPage({
       const submission: Record<string, any> = {}
       for (const field of inputFormatFields) {
         const rawValue = formValues[field.name] ?? ''
-        const hasValue = field.type === 'boolean'
-          ? rawValue === 'true' || rawValue === 'false'
-          : rawValue.trim().length > 0 && rawValue !== '__unset__'
+        const hasValue =
+          field.type === 'boolean'
+            ? rawValue === 'true' || rawValue === 'false'
+            : rawValue.trim().length > 0 && rawValue !== '__unset__'
         if (!hasValue || rawValue === '__unset__') {
           if (field.required) errors[field.name] = 'This field is required.'
           continue
@@ -628,12 +706,15 @@ export default function ResumeExecutionPage({
       resumePayload = parsedInput
     }
     try {
-      const response = await fetch(`/api/resume/${workflowId}/${executionId}/${selectedContextId}`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(resumePayload ? { input: resumePayload } : {}),
-      })
+      const response = await fetch(
+        `/api/resume/${workflowId}/${executionId}/${selectedContextId}`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(resumePayload ? { input: resumePayload } : {}),
+        }
+      )
       const payload = await response.json()
       if (!response.ok) {
         setError(payload.error || 'Failed to resume execution.')
@@ -642,9 +723,10 @@ export default function ResumeExecutionPage({
       }
       const nextStatus = payload.status === 'queued' ? 'queued' : 'resuming'
       const nextQueuePosition = payload.queuePosition ?? null
-      const fallbackContextId = executionDetail?.pausePoints.find(
-        (point) => point.contextId !== selectedContextId && point.resumeStatus === 'paused'
-      )?.contextId ?? null
+      const fallbackContextId =
+        executionDetail?.pausePoints.find(
+          (point) => point.contextId !== selectedContextId && point.resumeStatus === 'paused'
+        )?.contextId ?? null
       setExecutionDetail((prev) => {
         if (!prev) return prev
         return {
@@ -660,20 +742,40 @@ export default function ResumeExecutionPage({
         if (!prev || prev.pausePoint.contextId !== selectedContextId) return prev
         return {
           ...prev,
-          pausePoint: { ...prev.pausePoint, resumeStatus: nextStatus, queuePosition: nextQueuePosition },
+          pausePoint: {
+            ...prev.pausePoint,
+            resumeStatus: nextStatus,
+            queuePosition: nextQueuePosition,
+          },
         }
       })
       setSelectedStatus(nextStatus)
       setQueuePosition(nextQueuePosition)
       setSelectedContextId((prev) => (prev !== selectedContextId ? prev : fallbackContextId))
-      setMessage(payload.status === 'queued' ? 'Resume request queued.' : 'Resume started successfully.')
+      setMessage(
+        payload.status === 'queued' ? 'Resume request queued.' : 'Resume started successfully.'
+      )
       await Promise.all([refreshExecutionDetail(), refreshSelectedDetail(selectedContextId, false)])
     } catch (err: any) {
       setError(err.message || 'Unexpected error while resuming execution.')
     } finally {
       setLoadingAction(false)
     }
-  }, [workflowId, executionId, selectedContextId, isHumanMode, hasInputFormat, inputFormatFields, formValues, parseFormValue, resumeInput, selectedDetail, executionDetail, refreshExecutionDetail, refreshSelectedDetail])
+  }, [
+    workflowId,
+    executionId,
+    selectedContextId,
+    isHumanMode,
+    hasInputFormat,
+    inputFormatFields,
+    formValues,
+    parseFormValue,
+    resumeInput,
+    selectedDetail,
+    executionDetail,
+    refreshExecutionDetail,
+    refreshSelectedDetail,
+  ])
 
   const pauseResponsePreview = useMemo(() => {
     if (!selectedDetail?.pausePoint.response?.data) return '{}'
@@ -697,11 +799,20 @@ export default function ResumeExecutionPage({
     })
   }, [isHumanMode, hasInputFormat, inputFormatFields, formValues])
 
-  const resumeDisabled = loadingAction || selectedStatus === 'resumed' || selectedStatus === 'failed' || selectedStatus === 'resuming' || selectedStatus === 'queued' || (isHumanMode && hasInputFormat && (!isFormComplete || Object.keys(formErrors).length > 0))
+  const resumeDisabled =
+    loadingAction ||
+    selectedStatus === 'resumed' ||
+    selectedStatus === 'failed' ||
+    selectedStatus === 'resuming' ||
+    selectedStatus === 'queued' ||
+    (isHumanMode && hasInputFormat && (!isFormComplete || Object.keys(formErrors).length > 0))
 
   const getBlockName = (pause: PausePointWithQueue) => {
     const pauseBlockId = pause.blockId || pause.triggerBlockId
-    return getBlockNameFromSnapshot(executionDetail?.executionSnapshot, pauseBlockId) || 'Human in the Loop'
+    return (
+      getBlockNameFromSnapshot(executionDetail?.executionSnapshot, pauseBlockId) ||
+      'Human in the Loop'
+    )
   }
 
   // Not found state
@@ -710,11 +821,32 @@ export default function ResumeExecutionPage({
       <Tooltip.Provider>
         <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
           <Nav variant='auth' />
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 80px)', padding: '24px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: 'calc(100vh - 80px)',
+              padding: '24px',
+            }}
+          >
             <div style={{ textAlign: 'center', maxWidth: '400px' }}>
-              <h1 style={{ fontSize: '20px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '8px' }}>Execution Not Found</h1>
-              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '24px' }}>This execution could not be located or has already completed.</p>
-              <Button variant='outline' onClick={() => router.push('/')}>Return Home</Button>
+              <h1
+                style={{
+                  fontSize: '20px',
+                  fontWeight: 500,
+                  color: 'var(--text-primary)',
+                  marginBottom: '8px',
+                }}
+              >
+                Execution Not Found
+              </h1>
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '24px' }}>
+                This execution could not be located or has already completed.
+              </p>
+              <Button variant='outline' onClick={() => router.push('/')}>
+                Return Home
+              </Button>
             </div>
           </div>
         </div>
@@ -728,15 +860,36 @@ export default function ResumeExecutionPage({
         <Nav variant='auth' />
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 24px' }}>
           {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '32px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '32px',
+            }}
+          >
             <div>
-              <h1 style={{ fontSize: '20px', fontWeight: 500, color: 'var(--text-primary)' }}>Paused Execution</h1>
-              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>Select a pause point to review and resume</p>
+              <h1 style={{ fontSize: '20px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                Paused Execution
+              </h1>
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                Select a pause point to review and resume
+              </p>
             </div>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
-                <Button variant='outline' onClick={refreshExecutionDetail} disabled={refreshingExecution}>
-                  <RefreshCw style={{ width: '14px', height: '14px', animation: refreshingExecution ? 'spin 1s linear infinite' : undefined }} />
+                <Button
+                  variant='outline'
+                  onClick={refreshExecutionDetail}
+                  disabled={refreshingExecution}
+                >
+                  <RefreshCw
+                    style={{
+                      width: '14px',
+                      height: '14px',
+                      animation: refreshingExecution ? 'spin 1s linear infinite' : undefined,
+                    }}
+                  />
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content>Refresh</Tooltip.Content>
@@ -746,20 +899,45 @@ export default function ResumeExecutionPage({
           {/* Main Layout */}
           <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '24px' }}>
             {/* Pause Points List */}
-            <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+            <div
+              style={{
+                background: 'var(--surface-1)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                overflow: 'hidden',
+              }}
+            >
               <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
                 <Label>Pause Points</Label>
               </div>
               <div>
                 {pausePoints.length === 0 ? (
-                  <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>No pause points</div>
+                  <div
+                    style={{
+                      padding: '32px 16px',
+                      textAlign: 'center',
+                      color: 'var(--text-secondary)',
+                      fontSize: '13px',
+                    }}
+                  >
+                    No pause points
+                  </div>
                 ) : (
                   pausePoints.map((pause) => (
                     <Button
                       key={pause.contextId}
                       variant={pause.contextId === selectedContextId ? 'active' : 'ghost'}
-                      onClick={() => { setSelectedContextId(pause.contextId); setError(null); setMessage(null) }}
-                      style={{ width: '100%', justifyContent: 'space-between', borderRadius: 0, padding: '12px 16px' }}
+                      onClick={() => {
+                        setSelectedContextId(pause.contextId)
+                        setError(null)
+                        setMessage(null)
+                      }}
+                      style={{
+                        width: '100%',
+                        justifyContent: 'space-between',
+                        borderRadius: 0,
+                        padding: '12px 16px',
+                      }}
                     >
                       <span style={{ fontSize: '13px' }}>{getBlockName(pause)}</span>
                       <StatusBadge status={pause.resumeStatus} />
@@ -772,53 +950,148 @@ export default function ResumeExecutionPage({
             {/* Detail Panel */}
             <div>
               {loadingDetail && !selectedDetail ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '8px' }}>
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Loading...</span>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '200px',
+                    background: 'var(--surface-1)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                  }}
+                >
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
+                    Loading...
+                  </span>
                 </div>
               ) : !selectedContextId ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '8px' }}>
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Select a pause point</span>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '200px',
+                    background: 'var(--surface-1)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                  }}
+                >
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
+                    Select a pause point
+                  </span>
                 </div>
               ) : !selectedDetail ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '8px' }}>
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Could not load details</span>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '200px',
+                    background: 'var(--surface-1)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                  }}
+                >
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
+                    Could not load details
+                  </span>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   {/* Status Header */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 16px' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      background: 'var(--surface-1)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      padding: '12px 16px',
+                    }}
+                  >
                     <div>
                       <Label>{getBlockName(selectedDetail.pausePoint)}</Label>
-                      <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>Paused at {formatDate(selectedDetail.pausePoint.registeredAt)}</p>
+                      <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        Paused at {formatDate(selectedDetail.pausePoint.registeredAt)}
+                      </p>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <StatusBadge status={selectedStatus} />
-                      {queuePosition && queuePosition > 0 && <Badge variant='gray' size='sm'>Queue #{queuePosition}</Badge>}
+                      {queuePosition && queuePosition > 0 && (
+                        <Badge variant='gray' size='sm'>
+                          Queue #{queuePosition}
+                        </Badge>
+                      )}
                     </div>
                   </div>
 
                   {/* Already resolved - show form fields with submitted values */}
-                  {(selectedStatus === 'resumed' || selectedStatus === 'failed') ? (
-                    <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
-                      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                  {selectedStatus === 'resumed' || selectedStatus === 'failed' ? (
+                    <div
+                      style={{
+                        background: 'var(--surface-1)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div
+                        style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}
+                      >
                         <Label>Resume Form</Label>
                       </div>
-                      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        {selectedStatus === 'failed' && selectedDetail.pausePoint.latestResumeEntry?.failureReason && (
-                          <Badge variant='red' size='sm'>{selectedDetail.pausePoint.latestResumeEntry.failureReason}</Badge>
-                        )}
-                        {inputFormatFields.length > 0 && selectedDetail.pausePoint.latestResumeEntry?.resumeInput ? (
+                      <div
+                        style={{
+                          padding: '16px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '16px',
+                        }}
+                      >
+                        {selectedStatus === 'failed' &&
+                          selectedDetail.pausePoint.latestResumeEntry?.failureReason && (
+                            <Badge variant='red' size='sm'>
+                              {selectedDetail.pausePoint.latestResumeEntry.failureReason}
+                            </Badge>
+                          )}
+                        {inputFormatFields.length > 0 &&
+                        selectedDetail.pausePoint.latestResumeEntry?.resumeInput ? (
                           inputFormatFields.map((field) => (
-                            <div key={field.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <div
+                              key={field.id}
+                              style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}
+                            >
                               <Label>{field.label}</Label>
-                              {field.description && <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{field.description}</p>}
-                              {renderDisabledFieldInput(field, selectedDetail.pausePoint.latestResumeEntry?.resumeInput?.submission ?? selectedDetail.pausePoint.latestResumeEntry?.resumeInput ?? {})}
+                              {field.description && (
+                                <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                                  {field.description}
+                                </p>
+                              )}
+                              {renderDisabledFieldInput(
+                                field,
+                                selectedDetail.pausePoint.latestResumeEntry?.resumeInput
+                                  ?.submission ??
+                                  selectedDetail.pausePoint.latestResumeEntry?.resumeInput ??
+                                  {}
+                              )}
                             </div>
                           ))
                         ) : selectedDetail.pausePoint.latestResumeEntry?.resumeInput ? (
-                          <Textarea value={JSON.stringify(selectedDetail.pausePoint.latestResumeEntry.resumeInput, null, 2)} disabled rows={6} />
+                          <Textarea
+                            value={JSON.stringify(
+                              selectedDetail.pausePoint.latestResumeEntry.resumeInput,
+                              null,
+                              2
+                            )}
+                            disabled
+                            rows={6}
+                          />
                         ) : (
-                          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No input data provided</p>
+                          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                            No input data provided
+                          </p>
                         )}
                       </div>
                     </div>
@@ -826,8 +1099,20 @@ export default function ResumeExecutionPage({
                     <>
                       {/* Display Data */}
                       {responseStructureRows.length > 0 ? (
-                        <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
-                          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                        <div
+                          style={{
+                            background: 'var(--surface-1)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '8px',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <div
+                            style={{
+                              padding: '12px 16px',
+                              borderBottom: '1px solid var(--border)',
+                            }}
+                          >
                             <Label>Display Data</Label>
                           </div>
                           <div style={{ padding: '16px' }}>
@@ -844,7 +1129,11 @@ export default function ResumeExecutionPage({
                                   <TableRow key={row.id}>
                                     <TableCell>{row.name}</TableCell>
                                     <TableCell>{row.type}</TableCell>
-                                    <TableCell><code style={{ fontSize: '12px' }}>{formatStructureValue(row.value)}</code></TableCell>
+                                    <TableCell>
+                                      <code style={{ fontSize: '12px' }}>
+                                        {formatStructureValue(row.value)}
+                                      </code>
+                                    </TableCell>
                                   </TableRow>
                                 ))}
                               </TableBody>
@@ -852,8 +1141,20 @@ export default function ResumeExecutionPage({
                           </div>
                         </div>
                       ) : (
-                        <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
-                          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                        <div
+                          style={{
+                            background: 'var(--surface-1)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '8px',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <div
+                            style={{
+                              padding: '12px 16px',
+                              borderBottom: '1px solid var(--border)',
+                            }}
+                          >
                             <Label>Pause Data</Label>
                           </div>
                           <div style={{ padding: '16px' }}>
@@ -864,27 +1165,73 @@ export default function ResumeExecutionPage({
 
                       {/* Resume Form */}
                       {isHumanMode && hasInputFormat ? (
-                        <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
-                          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                        <div
+                          style={{
+                            background: 'var(--surface-1)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '8px',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <div
+                            style={{
+                              padding: '12px 16px',
+                              borderBottom: '1px solid var(--border)',
+                            }}
+                          >
                             <Label>Resume Form</Label>
                           </div>
-                          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                          <div
+                            style={{
+                              padding: '16px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '16px',
+                            }}
+                          >
                             {inputFormatFields.map((field) => (
-                              <div key={field.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              <div
+                                key={field.id}
+                                style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}
+                              >
                                 <Label>
                                   {field.label}
-                                  {field.required && <span style={{ color: 'var(--text-error)', marginLeft: '4px' }}>*</span>}
+                                  {field.required && (
+                                    <span style={{ color: 'var(--text-error)', marginLeft: '4px' }}>
+                                      *
+                                    </span>
+                                  )}
                                 </Label>
-                                {field.description && <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{field.description}</p>}
+                                {field.description && (
+                                  <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                                    {field.description}
+                                  </p>
+                                )}
                                 {renderFieldInput(field)}
-                                {formErrors[field.name] && <Badge variant='red' size='sm'>{formErrors[field.name]}</Badge>}
+                                {formErrors[field.name] && (
+                                  <Badge variant='red' size='sm'>
+                                    {formErrors[field.name]}
+                                  </Badge>
+                                )}
                               </div>
                             ))}
                           </div>
                         </div>
                       ) : (
-                        <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
-                          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                        <div
+                          style={{
+                            background: 'var(--surface-1)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '8px',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <div
+                            style={{
+                              padding: '12px 16px',
+                              borderBottom: '1px solid var(--border)',
+                            }}
+                          >
                             <Label>Resume Input (JSON)</Label>
                           </div>
                           <div style={{ padding: '16px' }}>
@@ -892,7 +1239,11 @@ export default function ResumeExecutionPage({
                               value={resumeInput}
                               onChange={(e) => {
                                 setResumeInput(e.target.value)
-                                if (selectedContextId) setResumeInputs((prev) => ({ ...prev, [selectedContextId]: e.target.value }))
+                                if (selectedContextId)
+                                  setResumeInputs((prev) => ({
+                                    ...prev,
+                                    [selectedContextId]: e.target.value,
+                                  }))
                               }}
                               placeholder='{"example": "value"}'
                               rows={6}
@@ -918,8 +1269,20 @@ export default function ResumeExecutionPage({
         </div>
 
         {/* Footer */}
-        <div style={{ marginTop: '32px', padding: '16px', textAlign: 'center', borderTop: '1px solid var(--border)', fontSize: '13px', color: 'var(--text-muted)' }}>
-          Need help? <a href={`mailto:${brandConfig.supportEmail}`} style={{ color: 'var(--text-secondary)' }}>Contact support</a>
+        <div
+          style={{
+            marginTop: '32px',
+            padding: '16px',
+            textAlign: 'center',
+            borderTop: '1px solid var(--border)',
+            fontSize: '13px',
+            color: 'var(--text-muted)',
+          }}
+        >
+          Need help?{' '}
+          <a href={`mailto:${brandConfig.supportEmail}`} style={{ color: 'var(--text-secondary)' }}>
+            Contact support
+          </a>
         </div>
       </div>
     </Tooltip.Provider>

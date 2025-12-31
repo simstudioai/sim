@@ -228,7 +228,10 @@ export function getBlockOutputs(
   if (blockType === 'human_in_the_loop') {
     const hitlOutputs: Record<string, any> = {
       url: { type: 'string', description: 'Resume UI URL' },
-      resumeEndpoint: { type: 'string', description: 'Resume API endpoint URL for direct curl requests' },
+      resumeEndpoint: {
+        type: 'string',
+        description: 'Resume API endpoint URL for direct curl requests',
+      },
     }
 
     const normalizedInputFormat = normalizeInputFormatValue(subBlocks?.inputFormat?.value)
