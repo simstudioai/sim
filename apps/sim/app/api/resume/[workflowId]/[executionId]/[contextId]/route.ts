@@ -21,8 +21,8 @@ export async function POST(
 ) {
   const { workflowId, executionId, contextId } = await params
 
-  // Require deployed workflow and valid API key (same as webhook triggers)
-  const access = await validateWorkflowAccess(request, workflowId, true)
+  // Allow resume from dashboard without requiring deployment
+  const access = await validateWorkflowAccess(request, workflowId, false)
   if (access.error) {
     return NextResponse.json({ error: access.error.message }, { status: access.error.status })
   }
@@ -149,8 +149,8 @@ export async function GET(
 ) {
   const { workflowId, executionId, contextId } = await params
 
-  // Require deployed workflow and valid API key (same as webhook triggers)
-  const access = await validateWorkflowAccess(request, workflowId, true)
+  // Allow access without API key for browser-based UI (same as parent execution endpoint)
+  const access = await validateWorkflowAccess(request, workflowId, false)
   if (access.error) {
     return NextResponse.json({ error: access.error.message }, { status: access.error.status })
   }
