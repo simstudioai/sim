@@ -30,6 +30,10 @@ import {
   SubflowNodeComponent,
   Terminal,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
+import {
+  BlockContextMenu,
+  PaneContextMenu,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/context-menu'
 import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/cursors/cursors'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
@@ -42,6 +46,7 @@ import {
   useCurrentWorkflow,
   useNodeUtilities,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import { useCanvasContextMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-canvas-context-menu'
 import {
   clampPositionToContainer,
   estimateBlockDimensions,
@@ -52,12 +57,15 @@ import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
+import { useChatStore } from '@/stores/chat/store'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { usePanelEditorStore } from '@/stores/panel/editor/store'
+import { useSearchModalStore } from '@/stores/search-modal/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
+import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { getUniqueBlockName, prepareBlockState } from '@/stores/workflows/utils'
@@ -93,7 +101,6 @@ function calculatePasteOffset(
   const clipboardBlocks = Object.values(clipboard.blocks)
   if (clipboardBlocks.length === 0) return DEFAULT_PASTE_OFFSET
 
-  // Calculate bounding box using proper dimensions
   const minX = Math.min(...clipboardBlocks.map((b) => b.position.x))
   const maxX = Math.max(
     ...clipboardBlocks.map((b) => {
@@ -154,9 +161,7 @@ const reactFlowStyles = [
   '[&_.react-flow__edge-labels]:!z-[60]',
   '[&_.react-flow__pane]:!bg-transparent',
   '[&_.react-flow__renderer]:!bg-transparent',
-  'dark:[&_.react-flow__pane]:!bg-[var(--bg)]',
-  'dark:[&_.react-flow__renderer]:!bg-[var(--bg)]',
-  'dark:[&_.react-flow__background]:hidden',
+  '[&_.react-flow__background]:hidden',
 ].join(' ')
 const reactFlowFitViewOptions = { padding: 0.6 } as const
 const reactFlowProOptions = { hideAttribution: true } as const
@@ -195,7 +200,7 @@ const WorkflowContent = React.memo(() => {
 
   const params = useParams()
   const router = useRouter()
-  const { screenToFlowPosition, getNodes, fitView, getIntersectingNodes } = useReactFlow()
+  const { screenToFlowPosition, getNodes, setNodes, fitView, getIntersectingNodes } = useReactFlow()
   const { emitCursorUpdate } = useSocket()
 
   const workspaceId = params.workspaceId as string
@@ -237,10 +242,8 @@ const WorkflowContent = React.memo(() => {
 
   const copilotCleanup = useCopilotStore((state) => state.cleanup)
 
-  // Training modal state
   const showTrainingModal = useCopilotTrainingStore((state) => state.showModal)
 
-  // Snap to grid settings
   const snapToGridSize = useGeneralStore((state) => state.snapToGridSize)
   const snapToGrid = snapToGridSize > 0
   const snapGrid: [number, number] = useMemo(
@@ -248,7 +251,6 @@ const WorkflowContent = React.memo(() => {
     [snapToGridSize]
   )
 
-  // Handle copilot stream cleanup on page unload and component unmount
   useStreamCleanup(copilotCleanup)
 
   const { blocks, edges, isDiffMode, lastSaved } = currentWorkflow
@@ -273,7 +275,6 @@ const WorkflowContent = React.memo(() => {
     getBlockDimensions,
   } = useNodeUtilities(blocks)
 
-  /** Triggers immediate subflow resize without delays. */
   const resizeLoopNodesWrapper = useCallback(() => {
     return resizeLoopNodes(updateNodeDimensions)
   }, [resizeLoopNodes, updateNodeDimensions])
@@ -407,6 +408,8 @@ const WorkflowContent = React.memo(() => {
     collaborativeUpdateParentId: updateParentId,
     collaborativeBatchAddBlocks,
     collaborativeBatchRemoveBlocks,
+    collaborativeToggleBlockEnabled,
+    collaborativeToggleBlockHandles,
     undo,
     redo,
   } = useCollaborativeWorkflow()
@@ -572,6 +575,175 @@ const WorkflowContent = React.memo(() => {
     return () => clearTimeout(debounceTimer)
   }, [handleAutoLayout])
 
+  const {
+    isBlockMenuOpen,
+    isPaneMenuOpen,
+    position: contextMenuPosition,
+    menuRef: contextMenuRef,
+    selectedBlocks: contextMenuBlocks,
+    handleNodeContextMenu,
+    handlePaneContextMenu,
+    handleSelectionContextMenu,
+    closeMenu: closeContextMenu,
+  } = useCanvasContextMenu({ blocks, getNodes })
+
+  const handleContextCopy = useCallback(() => {
+    const blockIds = contextMenuBlocks.map((b) => b.id)
+    copyBlocks(blockIds)
+  }, [contextMenuBlocks, copyBlocks])
+
+  const handleContextPaste = useCallback(() => {
+    if (!hasClipboard()) return
+
+    const pasteOffset = calculatePasteOffset(clipboard, screenToFlowPosition)
+
+    const pasteData = preparePasteData(pasteOffset)
+    if (!pasteData) return
+
+    const {
+      blocks: pastedBlocks,
+      edges: pastedEdges,
+      loops: pastedLoops,
+      parallels: pastedParallels,
+      subBlockValues: pastedSubBlockValues,
+    } = pasteData
+
+    const pastedBlocksArray = Object.values(pastedBlocks)
+    for (const block of pastedBlocksArray) {
+      if (TriggerUtils.isAnyTriggerType(block.type)) {
+        const issue = TriggerUtils.getTriggerAdditionIssue(blocks, block.type)
+        if (issue) {
+          const message =
+            issue.issue === 'legacy'
+              ? 'Cannot paste trigger blocks when a legacy Start block exists.'
+              : `A workflow can only have one ${issue.triggerName} trigger block. Please remove the existing one before pasting.`
+          addNotification({
+            level: 'error',
+            message,
+            workflowId: activeWorkflowId || undefined,
+          })
+          return
+        }
+      }
+    }
+
+    collaborativeBatchAddBlocks(
+      pastedBlocksArray,
+      pastedEdges,
+      pastedLoops,
+      pastedParallels,
+      pastedSubBlockValues
+    )
+  }, [
+    hasClipboard,
+    clipboard,
+    screenToFlowPosition,
+    preparePasteData,
+    blocks,
+    activeWorkflowId,
+    addNotification,
+    collaborativeBatchAddBlocks,
+  ])
+
+  const handleContextDuplicate = useCallback(() => {
+    const blockIds = contextMenuBlocks.map((b) => b.id)
+    copyBlocks(blockIds)
+    const pasteData = preparePasteData(DEFAULT_PASTE_OFFSET)
+    if (!pasteData) return
+
+    const {
+      blocks: pastedBlocks,
+      edges: pastedEdges,
+      loops: pastedLoops,
+      parallels: pastedParallels,
+      subBlockValues: pastedSubBlockValues,
+    } = pasteData
+
+    const pastedBlocksArray = Object.values(pastedBlocks)
+    for (const block of pastedBlocksArray) {
+      if (TriggerUtils.isAnyTriggerType(block.type)) {
+        const issue = TriggerUtils.getTriggerAdditionIssue(blocks, block.type)
+        if (issue) {
+          const message =
+            issue.issue === 'legacy'
+              ? 'Cannot duplicate trigger blocks when a legacy Start block exists.'
+              : `A workflow can only have one ${issue.triggerName} trigger block. Cannot duplicate.`
+          addNotification({
+            level: 'error',
+            message,
+            workflowId: activeWorkflowId || undefined,
+          })
+          return
+        }
+      }
+    }
+
+    collaborativeBatchAddBlocks(
+      pastedBlocksArray,
+      pastedEdges,
+      pastedLoops,
+      pastedParallels,
+      pastedSubBlockValues
+    )
+  }, [
+    contextMenuBlocks,
+    copyBlocks,
+    preparePasteData,
+    blocks,
+    activeWorkflowId,
+    addNotification,
+    collaborativeBatchAddBlocks,
+  ])
+
+  const handleContextDelete = useCallback(() => {
+    const blockIds = contextMenuBlocks.map((b) => b.id)
+    collaborativeBatchRemoveBlocks(blockIds)
+  }, [contextMenuBlocks, collaborativeBatchRemoveBlocks])
+
+  const handleContextToggleEnabled = useCallback(() => {
+    contextMenuBlocks.forEach((block) => {
+      collaborativeToggleBlockEnabled(block.id)
+    })
+  }, [contextMenuBlocks, collaborativeToggleBlockEnabled])
+
+  const handleContextToggleHandles = useCallback(() => {
+    contextMenuBlocks.forEach((block) => {
+      collaborativeToggleBlockHandles(block.id)
+    })
+  }, [contextMenuBlocks, collaborativeToggleBlockHandles])
+
+  const handleContextRemoveFromSubflow = useCallback(() => {
+    contextMenuBlocks.forEach((block) => {
+      if (block.parentId && (block.parentType === 'loop' || block.parentType === 'parallel')) {
+        window.dispatchEvent(
+          new CustomEvent('remove-from-subflow', { detail: { blockId: block.id } })
+        )
+      }
+    })
+  }, [contextMenuBlocks])
+
+  const handleContextOpenPanel = useCallback(() => {
+    if (contextMenuBlocks.length === 1) {
+      usePanelEditorStore.getState().setCurrentBlockId(contextMenuBlocks[0].id)
+    }
+  }, [contextMenuBlocks])
+
+  const handleContextAddBlock = useCallback(() => {
+    useSearchModalStore.getState().open()
+  }, [])
+
+  const handleContextOpenLogs = useCallback(() => {
+    router.push(`/workspace/${workspaceId}/logs?workflowIds=${workflowIdParam}`)
+  }, [router, workspaceId, workflowIdParam])
+
+  const handleContextOpenVariables = useCallback(() => {
+    useVariablesStore.getState().setIsOpen(true)
+  }, [])
+
+  const handleContextOpenChat = useCallback(() => {
+    useChatStore.getState().setIsChatOpen(true)
+  }, [])
+
   useEffect(() => {
     let cleanup: (() => void) | null = null
 
@@ -616,7 +788,6 @@ const WorkflowContent = React.memo(() => {
         if (effectivePermissions.canEdit && hasClipboard()) {
           event.preventDefault()
 
-          // Calculate offset to paste blocks at viewport center
           const pasteOffset = calculatePasteOffset(clipboard, screenToFlowPosition)
 
           const pasteData = preparePasteData(pasteOffset)
@@ -1755,18 +1926,24 @@ const WorkflowContent = React.memo(() => {
     }
   }, [])
 
-  // Sync derived nodes to display nodes when structure changes
+  useEffect(() => {
+    if (isShiftPressed) {
+      document.body.style.userSelect = 'none'
+    } else {
+      document.body.style.userSelect = ''
+    }
+    return () => {
+      document.body.style.userSelect = ''
+    }
+  }, [isShiftPressed])
+
   useEffect(() => {
     setDisplayNodes(derivedNodes)
   }, [derivedNodes])
 
   /** Handles node position changes - updates local state for smooth drag, syncs to store only on drag end. */
   const onNodesChange = useCallback((changes: NodeChange[]) => {
-    // Apply position changes to local state for smooth rendering
     setDisplayNodes((nds) => applyNodeChanges(changes, nds))
-
-    // Don't sync to store during drag - that's handled in onNodeDragStop
-    // Only sync non-position changes (like selection) to store if needed
   }, [])
 
   /**
@@ -2574,8 +2751,8 @@ const WorkflowContent = React.memo(() => {
   ])
 
   return (
-    <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--bg)]'>
-      <div className='relative h-full w-full flex-1 bg-[var(--bg)]'>
+    <div className='flex h-full w-full flex-col overflow-hidden'>
+      <div className='relative h-full w-full flex-1'>
         {/* Loading spinner - always mounted, animation paused when hidden to avoid overhead */}
         <div
           className={`absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)] transition-opacity duration-150 ${isWorkflowReady ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
@@ -2624,8 +2801,9 @@ const WorkflowContent = React.memo(() => {
               connectionLineType={ConnectionLineType.SmoothStep}
               onPaneClick={onPaneClick}
               onEdgeClick={onEdgeClick}
-              onPaneContextMenu={(e) => e.preventDefault()}
-              onNodeContextMenu={(e) => e.preventDefault()}
+              onPaneContextMenu={handlePaneContextMenu}
+              onNodeContextMenu={handleNodeContextMenu}
+              onSelectionContextMenu={handleSelectionContextMenu}
               onPointerMove={handleCanvasPointerMove}
               onPointerLeave={handleCanvasPointerLeave}
               elementsSelectable={true}
@@ -2640,7 +2818,7 @@ const WorkflowContent = React.memo(() => {
               noWheelClassName='allow-scroll'
               edgesFocusable={true}
               edgesUpdatable={effectivePermissions.canEdit}
-              className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'}`}
+              className={`workflow-container h-full transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'}`}
               onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
               onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
               onSelectionDragStop={effectivePermissions.canEdit ? onSelectionDragStop : undefined}
@@ -2662,6 +2840,46 @@ const WorkflowContent = React.memo(() => {
             </Suspense>
 
             <DiffControls />
+
+            {/* Context Menus */}
+            <BlockContextMenu
+              isOpen={isBlockMenuOpen}
+              position={contextMenuPosition}
+              menuRef={contextMenuRef}
+              onClose={closeContextMenu}
+              selectedBlocks={contextMenuBlocks}
+              onCopy={handleContextCopy}
+              onPaste={handleContextPaste}
+              onDuplicate={handleContextDuplicate}
+              onDelete={handleContextDelete}
+              onToggleEnabled={handleContextToggleEnabled}
+              onToggleHandles={handleContextToggleHandles}
+              onRemoveFromSubflow={handleContextRemoveFromSubflow}
+              onOpenPanel={handleContextOpenPanel}
+              onOpenLogs={handleContextOpenLogs}
+              hasClipboard={hasClipboard()}
+              showRemoveFromSubflow={contextMenuBlocks.some(
+                (b) => b.parentId && (b.parentType === 'loop' || b.parentType === 'parallel')
+              )}
+              disableEdit={!effectivePermissions.canEdit}
+            />
+
+            <PaneContextMenu
+              isOpen={isPaneMenuOpen}
+              position={contextMenuPosition}
+              menuRef={contextMenuRef}
+              onClose={closeContextMenu}
+              onUndo={undo}
+              onRedo={redo}
+              onPaste={handleContextPaste}
+              onAddBlock={handleContextAddBlock}
+              onAutoLayout={handleAutoLayout}
+              onOpenLogs={handleContextOpenLogs}
+              onOpenVariables={handleContextOpenVariables}
+              onOpenChat={handleContextOpenChat}
+              hasClipboard={hasClipboard()}
+              disableEdit={!effectivePermissions.canEdit}
+            />
           </>
         )}
 

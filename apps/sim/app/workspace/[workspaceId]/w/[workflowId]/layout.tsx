@@ -2,7 +2,7 @@ import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/comp
 
 export default function WorkflowLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
+    <main className='flex h-full flex-1 flex-col overflow-hidden'>
       <ErrorBoundary>{children}</ErrorBoundary>
     </main>
   )
