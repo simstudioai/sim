@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -30,6 +31,18 @@ export async function POST(
     }
 
     const now = new Date()
+
+    // Get the state of the version being activated for MCP tool sync
+    const [versionData] = await db
+      .select({ state: workflowDeploymentVersion.state })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, id),
+          eq(workflowDeploymentVersion.version, versionNum)
+        )
+      )
+      .limit(1)
 
     await db.transaction(async (tx) => {
       await tx
@@ -64,6 +77,16 @@ export async function POST(
 
       await tx.update(workflow).set(updateData).where(eq(workflow.id, id))
     })
+
+    // Sync MCP tools with the activated version's parameter schema
+    if (versionData?.state) {
+      await syncMcpToolsForWorkflow({
+        workflowId: id,
+        requestId,
+        state: versionData.state,
+        context: 'activate',
+      })
+    }
 
     return createSuccessResponse({ success: true, deployedAt: now })
   } catch (error: any) {

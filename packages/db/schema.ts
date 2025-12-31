@@ -1688,7 +1688,61 @@ export const ssoProvider = pgTable(
   })
 )
 
-// Usage logging for tracking individual billable operations
+/**
+ * Workflow MCP Servers - User-created MCP servers that expose workflows as tools.
+ * These servers are accessible by external MCP clients via API key authentication.
+ */
+export const workflowMcpServer = pgTable(
+  'workflow_mcp_server',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceIdIdx: index('workflow_mcp_server_workspace_id_idx').on(table.workspaceId),
+    createdByIdx: index('workflow_mcp_server_created_by_idx').on(table.createdBy),
+  })
+)
+
+/**
+ * Workflow MCP Tools - Workflows registered as tools within a Workflow MCP Server.
+ * Each tool maps to a deployed workflow's execute endpoint.
+ */
+export const workflowMcpTool = pgTable(
+  'workflow_mcp_tool',
+  {
+    id: text('id').primaryKey(),
+    serverId: text('server_id')
+      .notNull()
+      .references(() => workflowMcpServer.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    toolName: text('tool_name').notNull(),
+    toolDescription: text('tool_description'),
+    parameterSchema: json('parameter_schema').notNull().default('{}'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    serverIdIdx: index('workflow_mcp_tool_server_id_idx').on(table.serverId),
+    workflowIdIdx: index('workflow_mcp_tool_workflow_id_idx').on(table.workflowId),
+    serverWorkflowUnique: uniqueIndex('workflow_mcp_tool_server_workflow_unique').on(
+      table.serverId,
+      table.workflowId
+    ),
+  })
+)
+
 export const usageLogCategoryEnum = pgEnum('usage_log_category', ['model', 'fixed'])
 export const usageLogSourceEnum = pgEnum('usage_log_source', ['workflow', 'wand', 'copilot'])
 
@@ -1700,38 +1754,26 @@ export const usageLog = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
 
-    // Charge category: 'model' (token-based) or 'fixed' (flat fee)
     category: usageLogCategoryEnum('category').notNull(),
 
-    // What generated this charge: 'workflow', 'wand', 'copilot'
     source: usageLogSourceEnum('source').notNull(),
 
-    // For model charges: model name (e.g., 'gpt-4o', 'claude-4.5-opus')
-    // For fixed charges: charge type (e.g., 'execution_fee', 'search_query')
     description: text('description').notNull(),
 
-    // Category-specific metadata (e.g., tokens for 'model' category)
     metadata: jsonb('metadata'),
 
-    // Cost in USD
     cost: decimal('cost').notNull(),
 
-    // Optional context references
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'set null' }),
     workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
     executionId: text('execution_id'),
 
-    // Timestamp
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
-    // Index for querying user's usage history (most common query)
     userCreatedAtIdx: index('usage_log_user_created_at_idx').on(table.userId, table.createdAt),
-    // Index for filtering by source
     sourceIdx: index('usage_log_source_idx').on(table.source),
-    // Index for workspace-specific queries
     workspaceIdIdx: index('usage_log_workspace_id_idx').on(table.workspaceId),
-    // Index for workflow-specific queries
     workflowIdIdx: index('usage_log_workflow_id_idx').on(table.workflowId),
   })
 )

@@ -4,7 +4,7 @@ import { Badge } from '@/components/emcn'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'
 
-const CORE_TRIGGER_TYPES = ['manual', 'api', 'schedule', 'chat', 'webhook'] as const
+const CORE_TRIGGER_TYPES = ['manual', 'api', 'schedule', 'chat', 'webhook', 'mcp'] as const
 
 /** Possible execution status values for workflow logs */
 export type LogStatus = 'error' | 'pending' | 'running' | 'info' | 'cancelled'

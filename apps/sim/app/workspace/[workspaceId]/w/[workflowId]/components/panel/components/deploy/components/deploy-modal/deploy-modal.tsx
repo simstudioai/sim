@@ -25,6 +25,7 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { ApiDeploy } from './components/api/api'
 import { ChatDeploy, type ExistingChat } from './components/chat/chat'
 import { GeneralDeploy } from './components/general/general'
+import { McpDeploy } from './components/mcp/mcp'
 import { TemplateDeploy } from './components/template/template'
 
 const logger = createLogger('DeployModal')
@@ -49,7 +50,7 @@ interface WorkflowDeploymentInfo {
   needsRedeployment: boolean
 }
 
-type TabView = 'general' | 'api' | 'chat' | 'template'
+type TabView = 'general' | 'api' | 'chat' | 'template' | 'mcp'
 
 export function DeployModal({
   open,
@@ -86,6 +87,8 @@ export function DeployModal({
   const [showUndeployConfirm, setShowUndeployConfirm] = useState(false)
   const [templateFormValid, setTemplateFormValid] = useState(false)
   const [templateSubmitting, setTemplateSubmitting] = useState(false)
+  const [mcpToolSubmitting, setMcpToolSubmitting] = useState(false)
+  const [mcpToolCanSave, setMcpToolCanSave] = useState(false)
   const [hasExistingTemplate, setHasExistingTemplate] = useState(false)
   const [templateStatus, setTemplateStatus] = useState<{
     status: 'pending' | 'approved' | 'rejected' | null
@@ -528,6 +531,11 @@ export function DeployModal({
     form?.requestSubmit()
   }, [])
 
+  const handleMcpToolFormSubmit = useCallback(() => {
+    const form = document.getElementById('mcp-deploy-form') as HTMLFormElement
+    form?.requestSubmit()
+  }, [])
+
   const handleTemplateDelete = useCallback(() => {
     const form = document.getElementById('template-deploy-form')
     const deleteTrigger = form?.querySelector('[data-template-delete-trigger]') as HTMLButtonElement
@@ -548,6 +556,7 @@ export function DeployModal({
             <ModalTabsList activeValue={activeTab}>
               <ModalTabsTrigger value='general'>General</ModalTabsTrigger>
               <ModalTabsTrigger value='api'>API</ModalTabsTrigger>
+              <ModalTabsTrigger value='mcp'>MCP</ModalTabsTrigger>
               <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
               <ModalTabsTrigger value='template'>Template</ModalTabsTrigger>
             </ModalTabsList>
@@ -608,6 +617,19 @@ export function DeployModal({
                   />
                 )}
               </ModalTabsContent>
+
+              <ModalTabsContent value='mcp' className='h-full'>
+                {workflowId && (
+                  <McpDeploy
+                    workflowId={workflowId}
+                    workflowName={workflowMetadata?.name || 'Workflow'}
+                    workflowDescription={workflowMetadata?.description}
+                    isDeployed={isDeployed}
+                    onSubmittingChange={setMcpToolSubmitting}
+                    onCanSaveChange={setMcpToolCanSave}
+                  />
+                )}
+              </ModalTabsContent>
             </ModalBody>
           </ModalTabs>
 
@@ -650,6 +672,18 @@ export function DeployModal({
                       : 'Launch Chat'}
                 </Button>
               </div>
+            </ModalFooter>
+          )}
+          {activeTab === 'mcp' && isDeployed && (
+            <ModalFooter className='items-center'>
+              <Button
+                type='button'
+                variant='tertiary'
+                onClick={handleMcpToolFormSubmit}
+                disabled={mcpToolSubmitting || !mcpToolCanSave}
+              >
+                {mcpToolSubmitting ? 'Saving...' : 'Save Tool Schema'}
+              </Button>
             </ModalFooter>
           )}
           {activeTab === 'template' && (

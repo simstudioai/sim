@@ -32,7 +32,7 @@ const logger = createLogger('McpService')
 
 class McpService {
   private cacheAdapter: McpCacheStorageAdapter
-  private readonly cacheTimeout = MCP_CONSTANTS.CACHE_TIMEOUT // 5 minutes
+  private readonly cacheTimeout = MCP_CONSTANTS.CACHE_TIMEOUT
 
   constructor() {
     this.cacheAdapter = createMcpCacheAdapter()

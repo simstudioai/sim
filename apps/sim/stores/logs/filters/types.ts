@@ -173,7 +173,15 @@ export type TimeRange =
   | 'Custom range'
 
 export type LogLevel = 'error' | 'info' | 'running' | 'pending' | 'all' | (string & {})
-export type TriggerType = 'chat' | 'api' | 'webhook' | 'manual' | 'schedule' | 'all' | string
+export type TriggerType =
+  | 'chat'
+  | 'api'
+  | 'webhook'
+  | 'manual'
+  | 'schedule'
+  | 'mcp'
+  | 'all'
+  | (string & {})
 
 /** Filter state for logs and dashboard views */
 export interface FilterState {

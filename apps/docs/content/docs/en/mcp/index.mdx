@@ -1,8 +1,10 @@
 ---
-title: MCP (Model Context Protocol)
+title: Using MCP Tools
+description: Connect external tools and services using the Model Context Protocol
 ---
 
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 import { Callout } from 'fumadocs-ui/components/callout'
 
 The Model Context Protocol ([MCP](https://modelcontextprotocol.com/)) allows you to connect external tools and services using a standardized protocol, enabling you to integrate APIs and services directly into your workflows. With MCP, you can extend Sim's capabilities by adding custom integrations that work seamlessly with your agents and workflows.
@@ -20,14 +22,8 @@ MCP is an open standard that enables AI assistants to securely connect to extern
 
 MCP servers provide collections of tools that your agents can use. Configure them in workspace settings:
 
-<div className="flex justify-center">
-  <Image
-    src="/static/blocks/mcp-1.png"
-    alt="Configuring MCP Server in Settings"
-    width={700}
-    height={450}
-    className="my-6"
-  />
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp/settings-mcp-tools.mp4" width={700} height={450} />
 </div>
 
 1. Navigate to your workspace settings
@@ -39,6 +35,10 @@ MCP servers provide collections of tools that your agents can use. Configure the
 <Callout type="info">
 You can also configure MCP servers directly from the toolbar in an Agent block for quick setup.
 </Callout>
+
+### Refresh Tools
+
+Click **Refresh** on a server to fetch the latest tool schemas and automatically update any agent blocks using those tools with the new parameter definitions.
 
 ## Using MCP Tools in Agents
 

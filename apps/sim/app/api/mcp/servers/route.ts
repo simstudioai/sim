@@ -5,8 +5,6 @@ import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
-import type { McpTransport } from '@/lib/mcp/types'
-import { validateMcpServerUrl } from '@/lib/mcp/url-validator'
 import {
   createMcpErrorResponse,
   createMcpSuccessResponse,
@@ -16,13 +14,6 @@ import {
 const logger = createLogger('McpServersAPI')
 
 export const dynamic = 'force-dynamic'
-
-/**
- * Check if transport type requires a URL
- */
-function isUrlBasedTransport(transport: McpTransport): boolean {
-  return transport === 'streamable-http'
-}
 
 /**
  * GET - List all registered MCP servers for the workspace
@@ -79,18 +70,6 @@ export const POST = withMcpAuth('write')(
           'Missing required fields',
           400
         )
-      }
-
-      if (isUrlBasedTransport(body.transport) && body.url) {
-        const urlValidation = validateMcpServerUrl(body.url)
-        if (!urlValidation.isValid) {
-          return createMcpErrorResponse(
-            new Error(`Invalid MCP server URL: ${urlValidation.error}`),
-            'Invalid server URL',
-            400
-          )
-        }
-        body.url = urlValidation.normalizedUrl
       }
 
       const serverId = body.url ? generateMcpServerId(workspaceId, body.url) : crypto.randomUUID()

@@ -4,16 +4,18 @@ import { useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ArrowDown, Loader2, Plus, Search, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button, Tooltip, Trash } from '@/components/emcn'
-import { Input, Skeleton } from '@/components/ui'
 import {
+  Button,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+  Tooltip,
+  Trash,
+} from '@/components/emcn'
+import { Input, Skeleton } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'

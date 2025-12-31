@@ -4,7 +4,6 @@ import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { McpClient } from '@/lib/mcp/client'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import type { McpServerConfig, McpTransport } from '@/lib/mcp/types'
-import { validateMcpServerUrl } from '@/lib/mcp/url-validator'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 import { REFERENCE } from '@/executor/constants'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
@@ -89,24 +88,12 @@ export const POST = withMcpAuth('write')(
         )
       }
 
-      if (isUrlBasedTransport(body.transport)) {
-        if (!body.url) {
-          return createMcpErrorResponse(
-            new Error('URL is required for HTTP-based transports'),
-            'Missing required URL',
-            400
-          )
-        }
-
-        const urlValidation = validateMcpServerUrl(body.url)
-        if (!urlValidation.isValid) {
-          return createMcpErrorResponse(
-            new Error(`Invalid MCP server URL: ${urlValidation.error}`),
-            'Invalid server URL',
-            400
-          )
-        }
-        body.url = urlValidation.normalizedUrl
+      if (isUrlBasedTransport(body.transport) && !body.url) {
+        return createMcpErrorResponse(
+          new Error('URL is required for HTTP-based transports'),
+          'Missing required URL',
+          400
+        )
       }
 
       let resolvedUrl = body.url

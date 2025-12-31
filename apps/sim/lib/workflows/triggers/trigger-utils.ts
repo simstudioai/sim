@@ -11,6 +11,43 @@ import { getTrigger } from '@/triggers'
 const logger = createLogger('TriggerUtils')
 
 /**
+ * Valid start block types that can trigger a workflow
+ */
+export const VALID_START_BLOCK_TYPES = [
+  'starter',
+  'start',
+  'start_trigger',
+  'api',
+  'api_trigger',
+  'input_trigger',
+] as const
+
+export type ValidStartBlockType = (typeof VALID_START_BLOCK_TYPES)[number]
+
+/**
+ * Check if a block type is a valid start block type
+ */
+export function isValidStartBlockType(blockType: string): blockType is ValidStartBlockType {
+  return VALID_START_BLOCK_TYPES.includes(blockType as ValidStartBlockType)
+}
+
+/**
+ * Check if a workflow state has a valid start block
+ */
+export function hasValidStartBlockInState(state: any): boolean {
+  if (!state?.blocks) {
+    return false
+  }
+
+  const startBlock = Object.values(state.blocks).find((block: any) => {
+    const blockType = block?.type
+    return isValidStartBlockType(blockType)
+  })
+
+  return !!startBlock
+}
+
+/**
  * Generates mock data based on the output type definition
  */
 function generateMockValue(type: string, description?: string, fieldName?: string): any {
