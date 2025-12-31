@@ -353,6 +353,20 @@ export function useCollaborativeWorkflow() {
               }
               break
           }
+        } else if (target === 'blocks') {
+          switch (operation) {
+            case 'batch-update-positions': {
+              const { updates } = payload
+              if (Array.isArray(updates)) {
+                updates.forEach(({ id, position }: { id: string; position: Position }) => {
+                  if (id && position) {
+                    workflowStore.updateBlockPosition(id, position)
+                  }
+                })
+              }
+              break
+            }
+          }
         } else if (target === 'edge') {
           switch (operation) {
             case 'add':
@@ -475,6 +489,72 @@ export function useCollaborativeWorkflow() {
                 logger.info('Successfully applied remote workflow state replacement')
               }
               break
+            case 'paste-blocks': {
+              const {
+                blocks,
+                edges,
+                loops,
+                parallels,
+                subBlockValues: pastedSubBlockValues,
+              } = payload
+              logger.info('Received paste-blocks from remote user', {
+                userId,
+                blockCount: Object.keys(blocks || {}).length,
+                edgeCount: (edges || []).length,
+              })
+
+              Object.values(blocks || {}).forEach((block: any) => {
+                workflowStore.addBlock(
+                  block.id,
+                  block.type,
+                  block.name,
+                  block.position,
+                  block.data,
+                  block.data?.parentId,
+                  block.data?.extent,
+                  {
+                    enabled: block.enabled,
+                    horizontalHandles: block.horizontalHandles,
+                    advancedMode: block.advancedMode,
+                    triggerMode: block.triggerMode ?? false,
+                    height: block.height,
+                  }
+                )
+              })
+
+              ;(edges || []).forEach((edge: Edge) => {
+                workflowStore.addEdge(edge)
+              })
+
+              if (loops) {
+                Object.entries(loops).forEach(([loopId, loopConfig]: [string, any]) => {
+                  useWorkflowStore.setState((state) => ({
+                    loops: { ...state.loops, [loopId]: loopConfig },
+                  }))
+                })
+              }
+
+              if (parallels) {
+                Object.entries(parallels).forEach(([parallelId, parallelConfig]: [string, any]) => {
+                  useWorkflowStore.setState((state) => ({
+                    parallels: { ...state.parallels, [parallelId]: parallelConfig },
+                  }))
+                })
+              }
+
+              if (pastedSubBlockValues && activeWorkflowId) {
+                Object.entries(pastedSubBlockValues).forEach(
+                  ([blockId, subBlocks]: [string, any]) => {
+                    Object.entries(subBlocks).forEach(([subBlockId, value]) => {
+                      subBlockStore.setValue(blockId, subBlockId, value)
+                    })
+                  }
+                )
+              }
+
+              logger.info('Successfully applied pasted blocks from remote user')
+              break
+            }
           }
         }
       } catch (error) {
@@ -726,32 +806,6 @@ export function useCollaborativeWorkflow() {
     ]
   )
 
-  const executeQueuedDebouncedOperation = useCallback(
-    (operation: string, target: string, payload: any, localAction: () => void) => {
-      if (isApplyingRemoteChange.current) return
-
-      if (isBaselineDiffView) {
-        logger.debug('Skipping debounced socket operation while viewing baseline diff:', operation)
-        return
-      }
-
-      if (!isInActiveRoom()) {
-        logger.debug('Skipping debounced operation - not in active workflow', {
-          currentWorkflowId,
-          activeWorkflowId,
-          operation,
-          target,
-        })
-        return
-      }
-
-      localAction()
-
-      emitWorkflowOperation(operation, target, payload)
-    },
-    [emitWorkflowOperation, isBaselineDiffView, isInActiveRoom, currentWorkflowId, activeWorkflowId]
-  )
-
   const collaborativeAddBlock = useCallback(
     (
       id: string,
@@ -1000,20 +1054,33 @@ export function useCollaborativeWorkflow() {
     [executeQueuedOperation, workflowStore, cancelOperationsForBlock, undoRedo, activeWorkflowId]
   )
 
-  const collaborativeUpdateBlockPosition = useCallback(
-    (id: string, position: Position, commit = true) => {
-      if (commit) {
-        executeQueuedOperation('update-position', 'block', { id, position, commit }, () => {
-          workflowStore.updateBlockPosition(id, position)
-        })
+  const collaborativeBatchUpdatePositions = useCallback(
+    (updates: Array<{ id: string; position: Position }>) => {
+      if (!isInActiveRoom()) {
+        logger.debug('Skipping batch position update - not in active workflow')
         return
       }
 
-      executeQueuedDebouncedOperation('update-position', 'block', { id, position }, () => {
+      if (updates.length === 0) return
+
+      const operationId = crypto.randomUUID()
+
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation: 'batch-update-positions',
+          target: 'blocks',
+          payload: { updates },
+        },
+        workflowId: activeWorkflowId || '',
+        userId: session?.user?.id || 'unknown',
+      })
+
+      updates.forEach(({ id, position }) => {
         workflowStore.updateBlockPosition(id, position)
       })
     },
-    [executeQueuedDebouncedOperation, executeQueuedOperation, workflowStore]
+    [addToQueue, activeWorkflowId, session?.user?.id, isInActiveRoom, workflowStore]
   )
 
   const collaborativeUpdateBlockName = useCallback(
@@ -1733,6 +1800,104 @@ export function useCollaborativeWorkflow() {
     [executeQueuedOperation, variablesStore]
   )
 
+  const collaborativePasteBlocks = useCallback(
+    (pasteData: {
+      blocks: Record<string, BlockState>
+      edges: Edge[]
+      loops: Record<string, any>
+      parallels: Record<string, any>
+      subBlockValues: Record<string, Record<string, unknown>>
+    }) => {
+      if (!isInActiveRoom()) {
+        logger.debug('Skipping paste blocks - not in active workflow', {
+          currentWorkflowId,
+          activeWorkflowId,
+        })
+        return false
+      }
+
+      if (isBaselineDiffView) {
+        logger.debug('Skipping paste blocks while viewing baseline diff')
+        return false
+      }
+
+      const { blocks, edges, loops, parallels, subBlockValues } = pasteData
+
+      logger.info('Pasting blocks collaboratively', {
+        blockCount: Object.keys(blocks).length,
+        edgeCount: edges.length,
+      })
+
+      const operationId = crypto.randomUUID()
+
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation: 'paste-blocks',
+          target: 'workflow',
+          payload: { blocks, edges, loops, parallels, subBlockValues },
+        },
+        workflowId: activeWorkflowId || '',
+        userId: session?.user?.id || 'unknown',
+      })
+
+      Object.values(blocks).forEach((block) => {
+        workflowStore.addBlock(
+          block.id,
+          block.type,
+          block.name,
+          block.position,
+          block.data,
+          block.data?.parentId,
+          block.data?.extent,
+          {
+            enabled: block.enabled,
+            horizontalHandles: block.horizontalHandles,
+            advancedMode: block.advancedMode,
+            triggerMode: block.triggerMode ?? false,
+            height: block.height,
+          }
+        )
+      })
+
+      edges.forEach((edge) => {
+        workflowStore.addEdge(edge)
+      })
+
+      if (Object.keys(loops).length > 0) {
+        useWorkflowStore.setState((state) => ({
+          loops: { ...state.loops, ...loops },
+        }))
+      }
+
+      if (Object.keys(parallels).length > 0) {
+        useWorkflowStore.setState((state) => ({
+          parallels: { ...state.parallels, ...parallels },
+        }))
+      }
+
+      if (activeWorkflowId) {
+        Object.entries(subBlockValues).forEach(([blockId, subBlocks]) => {
+          Object.entries(subBlocks).forEach(([subBlockId, value]) => {
+            subBlockStore.setValue(blockId, subBlockId, value)
+          })
+        })
+      }
+
+      return true
+    },
+    [
+      addToQueue,
+      activeWorkflowId,
+      session?.user?.id,
+      isBaselineDiffView,
+      isInActiveRoom,
+      currentWorkflowId,
+      workflowStore,
+      subBlockStore,
+    ]
+  )
+
   return {
     // Connection status
     isConnected,
@@ -1746,7 +1911,7 @@ export function useCollaborativeWorkflow() {
 
     // Collaborative operations
     collaborativeAddBlock,
-    collaborativeUpdateBlockPosition,
+    collaborativeBatchUpdatePositions,
     collaborativeUpdateBlockName,
     collaborativeRemoveBlock,
     collaborativeToggleBlockEnabled,
@@ -1755,6 +1920,7 @@ export function useCollaborativeWorkflow() {
     collaborativeToggleBlockTriggerMode,
     collaborativeToggleBlockHandles,
     collaborativeDuplicateBlock,
+    collaborativePasteBlocks,
     collaborativeAddEdge,
     collaborativeRemoveEdge,
     collaborativeSetSubblockValue,

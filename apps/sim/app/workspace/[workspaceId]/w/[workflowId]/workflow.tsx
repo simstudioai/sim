@@ -93,17 +93,13 @@ const edgeTypes: EdgeTypes = {
 /** ReactFlow configuration constants. */
 const defaultEdgeOptions = { type: 'custom' }
 
-/** Tailwind classes for ReactFlow internal element styling */
 const reactFlowStyles = [
-  // Z-index layering
   '[&_.react-flow__edges]:!z-0',
   '[&_.react-flow__node]:!z-[21]',
   '[&_.react-flow__handle]:!z-[30]',
   '[&_.react-flow__edge-labels]:!z-[60]',
-  // Light mode: transparent pane to show dots
   '[&_.react-flow__pane]:!bg-transparent',
   '[&_.react-flow__renderer]:!bg-transparent',
-  // Dark mode: solid background, hide dots
   'dark:[&_.react-flow__pane]:!bg-[var(--bg)]',
   'dark:[&_.react-flow__renderer]:!bg-[var(--bg)]',
   'dark:[&_.react-flow__background]:hidden',
@@ -151,12 +147,23 @@ const WorkflowContent = React.memo(() => {
 
   const addNotification = useNotificationStore((state) => state.addNotification)
 
-  const { workflows, activeWorkflowId, hydration, setActiveWorkflow } = useWorkflowRegistry(
+  const {
+    workflows,
+    activeWorkflowId,
+    hydration,
+    setActiveWorkflow,
+    copyBlocks,
+    preparePasteData,
+    hasClipboard,
+  } = useWorkflowRegistry(
     useShallow((state) => ({
       workflows: state.workflows,
       activeWorkflowId: state.activeWorkflowId,
       hydration: state.hydration,
       setActiveWorkflow: state.setActiveWorkflow,
+      copyBlocks: state.copyBlocks,
+      preparePasteData: state.preparePasteData,
+      hasClipboard: state.hasClipboard,
     }))
   )
 
@@ -340,11 +347,19 @@ const WorkflowContent = React.memo(() => {
     collaborativeAddEdge: addEdge,
     collaborativeRemoveBlock: removeBlock,
     collaborativeRemoveEdge: removeEdge,
-    collaborativeUpdateBlockPosition,
+    collaborativeBatchUpdatePositions,
     collaborativeUpdateParentId: updateParentId,
+    collaborativePasteBlocks,
     undo,
     redo,
   } = useCollaborativeWorkflow()
+
+  const updateBlockPosition = useCallback(
+    (id: string, position: { x: number; y: number }) => {
+      collaborativeBatchUpdatePositions([{ id, position }])
+    },
+    [collaborativeBatchUpdatePositions]
+  )
 
   const { activeBlockIds, pendingBlocks, isDebugging } = useExecutionStore(
     useShallow((state) => ({
@@ -419,7 +434,7 @@ const WorkflowContent = React.memo(() => {
       const result = updateNodeParentUtil(
         nodeId,
         newParentId,
-        collaborativeUpdateBlockPosition,
+        updateBlockPosition,
         updateParentId,
         () => resizeLoopNodesWrapper()
       )
@@ -443,7 +458,7 @@ const WorkflowContent = React.memo(() => {
     },
     [
       getNodes,
-      collaborativeUpdateBlockPosition,
+      updateBlockPosition,
       updateParentId,
       blocks,
       edgesForDisplay,
@@ -495,6 +510,20 @@ const WorkflowContent = React.memo(() => {
       ) {
         event.preventDefault()
         redo()
+      } else if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
+        const selectedNodes = getNodes().filter((node) => node.selected)
+        if (selectedNodes.length > 0) {
+          event.preventDefault()
+          copyBlocks(selectedNodes.map((node) => node.id))
+        }
+      } else if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
+        if (effectivePermissions.canEdit && hasClipboard()) {
+          event.preventDefault()
+          const pasteData = preparePasteData()
+          if (pasteData) {
+            collaborativePasteBlocks(pasteData)
+          }
+        }
       }
     }
 
@@ -504,7 +533,17 @@ const WorkflowContent = React.memo(() => {
       window.removeEventListener('keydown', handleKeyDown)
       if (cleanup) cleanup()
     }
-  }, [debouncedAutoLayout, undo, redo])
+  }, [
+    debouncedAutoLayout,
+    undo,
+    redo,
+    getNodes,
+    copyBlocks,
+    preparePasteData,
+    collaborativePasteBlocks,
+    hasClipboard,
+    effectivePermissions.canEdit,
+  ])
 
   /**
    * Removes all edges connected to a block, skipping individual edge recording for undo/redo.
@@ -1673,21 +1712,12 @@ const WorkflowContent = React.memo(() => {
           missingParentId: parentId,
         })
 
-        // Fix the node by removing its parent reference and calculating absolute position
         const absolutePosition = getNodeAbsolutePosition(id)
-
-        // Update the node to remove parent reference and use absolute position
-        collaborativeUpdateBlockPosition(id, absolutePosition)
+        updateBlockPosition(id, absolutePosition)
         updateParentId(id, '', 'parent')
       }
     })
-  }, [
-    blocks,
-    collaborativeUpdateBlockPosition,
-    updateParentId,
-    getNodeAbsolutePosition,
-    isWorkflowReady,
-  ])
+  }, [blocks, updateBlockPosition, updateParentId, getNodeAbsolutePosition, isWorkflowReady])
 
   /** Handles edge removal changes. */
   const onEdgesChange = useCallback(
@@ -2095,9 +2125,7 @@ const WorkflowContent = React.memo(() => {
         }
       }
 
-      // Emit collaborative position update for the final position
-      // This ensures other users see the smooth final position
-      collaborativeUpdateBlockPosition(node.id, finalPosition, true)
+      updateBlockPosition(node.id, finalPosition)
 
       // Record single move entry on drag end to avoid micro-moves
       const start = getDragStartPosition()
@@ -2218,7 +2246,7 @@ const WorkflowContent = React.memo(() => {
       dragStartParentId,
       potentialParentId,
       updateNodeParent,
-      collaborativeUpdateBlockPosition,
+      updateBlockPosition,
       addEdge,
       tryCreateAutoConnectEdge,
       blocks,
@@ -2232,7 +2260,45 @@ const WorkflowContent = React.memo(() => {
     ]
   )
 
-  /** Clears edge selection and panel state when clicking empty canvas. */
+  const onSelectionDragStop = useCallback(
+    (_event: React.MouseEvent, nodes: any[]) => {
+      if (nodes.length === 0) return
+
+      const positionUpdates = nodes.map((node) => {
+        const currentBlock = blocks[node.id]
+        const currentParentId = currentBlock?.data?.parentId
+        let finalPosition = node.position
+
+        if (currentParentId) {
+          const parentNode = getNodes().find((n) => n.id === currentParentId)
+          if (parentNode) {
+            const containerDimensions = {
+              width: parentNode.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+              height: parentNode.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+            }
+            const blockDimensions = {
+              width: BLOCK_DIMENSIONS.FIXED_WIDTH,
+              height: Math.max(
+                currentBlock?.height || BLOCK_DIMENSIONS.MIN_HEIGHT,
+                BLOCK_DIMENSIONS.MIN_HEIGHT
+              ),
+            }
+            finalPosition = clampPositionToContainer(
+              node.position,
+              containerDimensions,
+              blockDimensions
+            )
+          }
+        }
+
+        return { id: node.id, position: finalPosition }
+      })
+
+      collaborativeBatchUpdatePositions(positionUpdates)
+    },
+    [blocks, getNodes, collaborativeBatchUpdatePositions]
+  )
+
   const onPaneClick = useCallback(() => {
     setSelectedEdgeInfo(null)
     usePanelEditorStore.getState().clearCurrentBlock()
@@ -2390,15 +2456,14 @@ const WorkflowContent = React.memo(() => {
               proOptions={reactFlowProOptions}
               connectionLineStyle={connectionLineStyle}
               connectionLineType={ConnectionLineType.SmoothStep}
-              onNodeClick={(e, _node) => {
-                e.stopPropagation()
-              }}
               onPaneClick={onPaneClick}
               onEdgeClick={onEdgeClick}
               onPointerMove={handleCanvasPointerMove}
               onPointerLeave={handleCanvasPointerLeave}
               elementsSelectable={true}
-              selectNodesOnDrag={false}
+              selectionOnDrag={true}
+              panOnDrag={[1, 2]}
+              multiSelectionKeyCode={['Meta', 'Control']}
               nodesConnectable={effectivePermissions.canEdit}
               nodesDraggable={effectivePermissions.canEdit}
               draggable={false}
@@ -2408,6 +2473,7 @@ const WorkflowContent = React.memo(() => {
               className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'}`}
               onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
               onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
+              onSelectionDragStop={effectivePermissions.canEdit ? onSelectionDragStop : undefined}
               onNodeDragStart={effectivePermissions.canEdit ? onNodeDragStart : undefined}
               snapToGrid={snapToGrid}
               snapGrid={snapGrid}

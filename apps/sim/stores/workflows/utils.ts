@@ -1,8 +1,25 @@
+import type { Edge } from 'reactflow'
+import { v4 as uuidv4 } from 'uuid'
 import { normalizeName } from '@/executor/constants'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import type { BlockState, SubBlockState } from '@/stores/workflows/workflow/types'
+import type {
+  BlockState,
+  Loop,
+  Parallel,
+  SubBlockState,
+  WorkflowState,
+} from '@/stores/workflows/workflow/types'
+import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 
 export { normalizeName }
+
+export interface RegeneratedState {
+  blocks: Record<string, BlockState>
+  edges: Edge[]
+  loops: Record<string, Loop>
+  parallels: Record<string, Parallel>
+  idMap: Map<string, string>
+}
 
 /**
  * Generates a unique block name by finding the highest number suffix among existing blocks
@@ -211,6 +228,183 @@ export async function mergeSubblockStateAsync(
     })
   )
 
-  // Convert entries back to an object
   return Object.fromEntries(processedBlockEntries) as Record<string, BlockState>
+}
+
+function updateBlockReferences(
+  blocks: Record<string, BlockState>,
+  idMap: Map<string, string>,
+  clearTriggerRuntimeValues = false
+): void {
+  Object.entries(blocks).forEach(([_, block]) => {
+    if (block.data?.parentId) {
+      const newParentId = idMap.get(block.data.parentId)
+      if (newParentId) {
+        block.data = { ...block.data, parentId: newParentId }
+      } else {
+        block.data = { ...block.data, parentId: undefined, extent: undefined }
+      }
+    }
+
+    if (block.subBlocks) {
+      Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]) => {
+        if (clearTriggerRuntimeValues && TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(subBlockId)) {
+          block.subBlocks[subBlockId] = { ...subBlock, value: null }
+          return
+        }
+
+        if (subBlock.value && typeof subBlock.value === 'string') {
+          let updatedValue = subBlock.value
+          idMap.forEach((newId, oldId) => {
+            const regex = new RegExp(`<${oldId}\\.`, 'g')
+            updatedValue = updatedValue.replace(regex, `<${newId}.`)
+          })
+          block.subBlocks[subBlockId] = { ...subBlock, value: updatedValue }
+        }
+      })
+    }
+  })
+}
+
+export function regenerateWorkflowIds(
+  workflowState: WorkflowState,
+  options: { clearTriggerRuntimeValues?: boolean } = {}
+): WorkflowState & { idMap: Map<string, string> } {
+  const { clearTriggerRuntimeValues = true } = options
+  const blockIdMap = new Map<string, string>()
+  const newBlocks: Record<string, BlockState> = {}
+
+  Object.entries(workflowState.blocks).forEach(([oldId, block]) => {
+    const newId = uuidv4()
+    blockIdMap.set(oldId, newId)
+    newBlocks[newId] = { ...block, id: newId }
+  })
+
+  const newEdges = workflowState.edges.map((edge) => ({
+    ...edge,
+    id: uuidv4(),
+    source: blockIdMap.get(edge.source) || edge.source,
+    target: blockIdMap.get(edge.target) || edge.target,
+  }))
+
+  const newLoops: Record<string, Loop> = {}
+  if (workflowState.loops) {
+    Object.entries(workflowState.loops).forEach(([oldLoopId, loop]) => {
+      const newLoopId = blockIdMap.get(oldLoopId) || oldLoopId
+      newLoops[newLoopId] = {
+        ...loop,
+        id: newLoopId,
+        nodes: loop.nodes.map((nodeId) => blockIdMap.get(nodeId) || nodeId),
+      }
+    })
+  }
+
+  const newParallels: Record<string, Parallel> = {}
+  if (workflowState.parallels) {
+    Object.entries(workflowState.parallels).forEach(([oldParallelId, parallel]) => {
+      const newParallelId = blockIdMap.get(oldParallelId) || oldParallelId
+      newParallels[newParallelId] = {
+        ...parallel,
+        id: newParallelId,
+        nodes: parallel.nodes.map((nodeId) => blockIdMap.get(nodeId) || nodeId),
+      }
+    })
+  }
+
+  updateBlockReferences(newBlocks, blockIdMap, clearTriggerRuntimeValues)
+
+  return {
+    blocks: newBlocks,
+    edges: newEdges,
+    loops: newLoops,
+    parallels: newParallels,
+    metadata: workflowState.metadata,
+    variables: workflowState.variables,
+    idMap: blockIdMap,
+  }
+}
+
+export function regenerateBlockIds(
+  blocks: Record<string, BlockState>,
+  edges: Edge[],
+  loops: Record<string, Loop>,
+  parallels: Record<string, Parallel>,
+  subBlockValues: Record<string, Record<string, unknown>>,
+  positionOffset: { x: number; y: number },
+  existingBlockNames: Record<string, BlockState>,
+  uniqueNameFn: (name: string, blocks: Record<string, BlockState>) => string
+): RegeneratedState & { subBlockValues: Record<string, Record<string, unknown>> } {
+  const blockIdMap = new Map<string, string>()
+  const newBlocks: Record<string, BlockState> = {}
+  const newSubBlockValues: Record<string, Record<string, unknown>> = {}
+
+  Object.entries(blocks).forEach(([oldId, block]) => {
+    const newId = uuidv4()
+    blockIdMap.set(oldId, newId)
+
+    newBlocks[newId] = {
+      ...block,
+      id: newId,
+      name: uniqueNameFn(block.name, existingBlockNames),
+      position: {
+        x: block.position.x + positionOffset.x,
+        y: block.position.y + positionOffset.y,
+      },
+    }
+
+    if (subBlockValues[oldId]) {
+      newSubBlockValues[newId] = JSON.parse(JSON.stringify(subBlockValues[oldId]))
+    }
+  })
+
+  const newEdges = edges.map((edge) => ({
+    ...edge,
+    id: uuidv4(),
+    source: blockIdMap.get(edge.source) || edge.source,
+    target: blockIdMap.get(edge.target) || edge.target,
+  }))
+
+  const newLoops: Record<string, Loop> = {}
+  Object.entries(loops).forEach(([oldLoopId, loop]) => {
+    const newLoopId = blockIdMap.get(oldLoopId) || oldLoopId
+    newLoops[newLoopId] = {
+      ...loop,
+      id: newLoopId,
+      nodes: loop.nodes.map((nodeId) => blockIdMap.get(nodeId) || nodeId),
+    }
+  })
+
+  const newParallels: Record<string, Parallel> = {}
+  Object.entries(parallels).forEach(([oldParallelId, parallel]) => {
+    const newParallelId = blockIdMap.get(oldParallelId) || oldParallelId
+    newParallels[newParallelId] = {
+      ...parallel,
+      id: newParallelId,
+      nodes: parallel.nodes.map((nodeId) => blockIdMap.get(nodeId) || nodeId),
+    }
+  })
+
+  updateBlockReferences(newBlocks, blockIdMap, false)
+
+  Object.entries(newSubBlockValues).forEach(([_, blockValues]) => {
+    Object.entries(blockValues).forEach(([subBlockId, value]) => {
+      if (typeof value === 'string') {
+        let updatedValue = value
+        blockIdMap.forEach((newId, oldId) => {
+          const regex = new RegExp(`<${oldId}\\.`, 'g')
+          updatedValue = updatedValue.replace(regex, `<${newId}.`)
+        })
+        blockValues[subBlockId] = updatedValue
+      }
+    })
+  })
+
+  return {
+    blocks: newBlocks,
+    edges: newEdges,
+    loops: newLoops,
+    parallels: newParallels,
+    subBlockValues: newSubBlockValues,
+    idMap: blockIdMap,
+  }
 }

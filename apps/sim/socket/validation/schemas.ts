@@ -32,7 +32,7 @@ export const BlockOperationSchema = z.object({
   target: z.literal('block'),
   payload: z.object({
     id: z.string(),
-    sourceId: z.string().optional(), // For duplicate operations
+    sourceId: z.string().optional(),
     type: z.string().optional(),
     name: z.string().optional(),
     position: PositionSchema.optional(),
@@ -47,7 +47,22 @@ export const BlockOperationSchema = z.object({
     advancedMode: z.boolean().optional(),
     triggerMode: z.boolean().optional(),
     height: z.number().optional(),
-    autoConnectEdge: AutoConnectEdgeSchema.optional(), // Add support for auto-connect edges
+    autoConnectEdge: AutoConnectEdgeSchema.optional(),
+  }),
+  timestamp: z.number(),
+  operationId: z.string().optional(),
+})
+
+export const BatchPositionUpdateSchema = z.object({
+  operation: z.literal('batch-update-positions'),
+  target: z.literal('blocks'),
+  payload: z.object({
+    updates: z.array(
+      z.object({
+        id: z.string(),
+        position: PositionSchema,
+      })
+    ),
   }),
   timestamp: z.number(),
   operationId: z.string().optional(),
@@ -118,7 +133,21 @@ export const WorkflowStateOperationSchema = z.object({
   operation: z.literal('replace-state'),
   target: z.literal('workflow'),
   payload: z.object({
-    state: z.any(), // Full workflow state
+    state: z.any(),
+  }),
+  timestamp: z.number(),
+  operationId: z.string().optional(),
+})
+
+export const PasteBlocksOperationSchema = z.object({
+  operation: z.literal('paste-blocks'),
+  target: z.literal('workflow'),
+  payload: z.object({
+    blocks: z.record(z.any()),
+    edges: z.array(z.any()),
+    loops: z.record(z.any()),
+    parallels: z.record(z.any()),
+    subBlockValues: z.record(z.record(z.any())),
   }),
   timestamp: z.number(),
   operationId: z.string().optional(),
@@ -126,10 +155,12 @@ export const WorkflowStateOperationSchema = z.object({
 
 export const WorkflowOperationSchema = z.union([
   BlockOperationSchema,
+  BatchPositionUpdateSchema,
   EdgeOperationSchema,
   SubflowOperationSchema,
   VariableOperationSchema,
   WorkflowStateOperationSchema,
+  PasteBlocksOperationSchema,
 ])
 
 export { PositionSchema, AutoConnectEdgeSchema }

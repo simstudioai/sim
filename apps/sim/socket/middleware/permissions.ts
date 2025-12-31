@@ -13,6 +13,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'remove',
     'update',
     'update-position',
+    'batch-update-positions',
     'update-name',
     'toggle-enabled',
     'update-parent',
@@ -22,12 +23,14 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'toggle-handles',
     'duplicate',
     'replace-state',
+    'paste-blocks',
   ],
   write: [
     'add',
     'remove',
     'update',
     'update-position',
+    'batch-update-positions',
     'update-name',
     'toggle-enabled',
     'update-parent',
@@ -37,8 +40,9 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'toggle-handles',
     'duplicate',
     'replace-state',
+    'paste-blocks',
   ],
-  read: ['update-position'],
+  read: ['update-position', 'batch-update-positions'],
 }
 
 // Check if a role allows a specific operation (no DB query, pure logic)

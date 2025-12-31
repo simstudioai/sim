@@ -173,6 +173,9 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
         case 'block':
           await handleBlockOperationTx(tx, workflowId, op, payload)
           break
+        case 'blocks':
+          await handleBlocksOperationTx(tx, workflowId, op, payload)
+          break
         case 'edge':
           await handleEdgeOperationTx(tx, workflowId, op, payload)
           break
@@ -784,7 +787,39 @@ async function handleBlockOperationTx(
   }
 }
 
-// Edge operations
+async function handleBlocksOperationTx(
+  tx: any,
+  workflowId: string,
+  operation: string,
+  payload: any
+) {
+  switch (operation) {
+    case 'batch-update-positions': {
+      const { updates } = payload
+      if (!Array.isArray(updates) || updates.length === 0) {
+        return
+      }
+
+      for (const update of updates) {
+        const { id, position } = update
+        if (!id || !position) continue
+
+        await tx
+          .update(workflowBlocks)
+          .set({
+            positionX: position.x,
+            positionY: position.y,
+          })
+          .where(and(eq(workflowBlocks.id, id), eq(workflowBlocks.workflowId, workflowId)))
+      }
+      break
+    }
+
+    default:
+      throw new Error(`Unsupported blocks operation: ${operation}`)
+  }
+}
+
 async function handleEdgeOperationTx(tx: any, workflowId: string, operation: string, payload: any) {
   switch (operation) {
     case 'add': {
@@ -1155,6 +1190,76 @@ async function handleWorkflowOperationTx(
       }
 
       logger.info(`Successfully replaced workflow state for ${workflowId}`)
+      break
+    }
+
+    case 'paste-blocks': {
+      const { blocks, edges, loops, parallels } = payload
+
+      logger.info(`Pasting blocks into workflow ${workflowId}`, {
+        blockCount: Object.keys(blocks || {}).length,
+        edgeCount: (edges || []).length,
+        loopCount: Object.keys(loops || {}).length,
+        parallelCount: Object.keys(parallels || {}).length,
+      })
+
+      if (blocks && Object.keys(blocks).length > 0) {
+        const blockValues = Object.values(blocks).map((block: any) => ({
+          id: block.id,
+          workflowId,
+          type: block.type,
+          name: block.name,
+          positionX: block.position.x,
+          positionY: block.position.y,
+          data: block.data || {},
+          subBlocks: block.subBlocks || {},
+          outputs: block.outputs || {},
+          enabled: block.enabled ?? true,
+          horizontalHandles: block.horizontalHandles ?? true,
+          advancedMode: block.advancedMode ?? false,
+          triggerMode: block.triggerMode ?? false,
+          height: block.height || 0,
+        }))
+
+        await tx.insert(workflowBlocks).values(blockValues)
+      }
+
+      if (edges && edges.length > 0) {
+        const edgeValues = edges.map((edge: any) => ({
+          id: edge.id,
+          workflowId,
+          sourceBlockId: edge.source,
+          targetBlockId: edge.target,
+          sourceHandle: edge.sourceHandle || null,
+          targetHandle: edge.targetHandle || null,
+        }))
+
+        await tx.insert(workflowEdges).values(edgeValues)
+      }
+
+      if (loops && Object.keys(loops).length > 0) {
+        const loopValues = Object.entries(loops).map(([id, loop]: [string, any]) => ({
+          id,
+          workflowId,
+          type: 'loop',
+          config: loop,
+        }))
+
+        await tx.insert(workflowSubflows).values(loopValues)
+      }
+
+      if (parallels && Object.keys(parallels).length > 0) {
+        const parallelValues = Object.entries(parallels).map(([id, parallel]: [string, any]) => ({
+          id,
+          workflowId,
+          type: 'parallel',
+          config: parallel,
+        }))
+
+        await tx.insert(workflowSubflows).values(parallelValues)
+      }
+
+      logger.info(`Successfully pasted blocks into workflow ${workflowId}`)
       break
     }
 
