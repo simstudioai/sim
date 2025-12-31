@@ -21,12 +21,13 @@ export async function POST(
 ) {
   const { workflowId, executionId, contextId } = await params
 
-  const access = await validateWorkflowAccess(request, workflowId, false)
+  // Require deployed workflow and valid API key (same as webhook triggers)
+  const access = await validateWorkflowAccess(request, workflowId, true)
   if (access.error) {
     return NextResponse.json({ error: access.error.message }, { status: access.error.status })
   }
 
-  const workflow = access.workflow!
+  const workflow = access.workflow
 
   let payload: any = {}
   try {
@@ -148,7 +149,8 @@ export async function GET(
 ) {
   const { workflowId, executionId, contextId } = await params
 
-  const access = await validateWorkflowAccess(request, workflowId, false)
+  // Require deployed workflow and valid API key (same as webhook triggers)
+  const access = await validateWorkflowAccess(request, workflowId, true)
   if (access.error) {
     return NextResponse.json({ error: access.error.message }, { status: access.error.status })
   }
