@@ -121,6 +121,7 @@ function handleBodySizeLimitError(error: unknown, requestId: string, context: st
  */
 const MCP_SYSTEM_PARAMETERS = new Set([
   'serverId',
+  'serverUrl',
   'toolName',
   'serverName',
   '_context',
