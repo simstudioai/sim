@@ -199,39 +199,6 @@ export function useCollaborativeWorkflow() {
       try {
         if (target === 'block') {
           switch (operation) {
-            case 'add':
-              workflowStore.addBlock(
-                payload.id,
-                payload.type,
-                payload.name,
-                payload.position,
-                payload.data,
-                payload.parentId,
-                payload.extent,
-                {
-                  enabled: payload.enabled,
-                  horizontalHandles: payload.horizontalHandles,
-                  advancedMode: payload.advancedMode,
-                  triggerMode: payload.triggerMode ?? false,
-                  height: payload.height,
-                }
-              )
-              if (payload.autoConnectEdge) {
-                workflowStore.addEdge(payload.autoConnectEdge)
-              }
-              // Apply subblock values if present in payload
-              if (payload.subBlocks && typeof payload.subBlocks === 'object') {
-                Object.entries(payload.subBlocks).forEach(([subblockId, subblock]) => {
-                  if (WEBHOOK_SUBBLOCK_FIELDS.includes(subblockId)) {
-                    return
-                  }
-                  const value = (subblock as any)?.value
-                  if (value !== undefined && value !== null) {
-                    subBlockStore.setValue(payload.id, subblockId, value)
-                  }
-                })
-              }
-              break
             case 'update-position': {
               const blockId = payload.id
 
@@ -263,40 +230,6 @@ export function useCollaborativeWorkflow() {
             case 'update-name':
               workflowStore.updateBlockName(payload.id, payload.name)
               break
-            case 'remove': {
-              const blockId = payload.id
-              const blocksToRemove = new Set<string>([blockId])
-
-              const findAllDescendants = (parentId: string) => {
-                Object.entries(workflowStore.blocks).forEach(([id, block]) => {
-                  if (block.data?.parentId === parentId) {
-                    blocksToRemove.add(id)
-                    findAllDescendants(id)
-                  }
-                })
-              }
-              findAllDescendants(blockId)
-
-              workflowStore.removeBlock(blockId)
-              lastPositionTimestamps.current.delete(blockId)
-
-              const updatedBlocks = useWorkflowStore.getState().blocks
-              const updatedEdges = useWorkflowStore.getState().edges
-              const graph = {
-                blocksById: updatedBlocks,
-                edgesById: Object.fromEntries(updatedEdges.map((e) => [e.id, e])),
-              }
-
-              const undoRedoStore = useUndoRedoStore.getState()
-              const stackKeys = Object.keys(undoRedoStore.stacks)
-              stackKeys.forEach((key) => {
-                const [workflowId, userId] = key.split(':')
-                if (workflowId === activeWorkflowId) {
-                  undoRedoStore.pruneInvalidEntries(workflowId, userId, graph)
-                }
-              })
-              break
-            }
             case 'toggle-enabled':
               workflowStore.toggleBlockEnabled(payload.id)
               break
@@ -316,40 +249,6 @@ export function useCollaborativeWorkflow() {
               }
               break
             }
-            case 'duplicate':
-              workflowStore.addBlock(
-                payload.id,
-                payload.type,
-                payload.name,
-                payload.position,
-                payload.data,
-                payload.parentId,
-                payload.extent,
-                {
-                  enabled: payload.enabled,
-                  horizontalHandles: payload.horizontalHandles,
-                  advancedMode: payload.advancedMode,
-                  triggerMode: payload.triggerMode ?? false,
-                  height: payload.height,
-                }
-              )
-              // Handle auto-connect edge if present
-              if (payload.autoConnectEdge) {
-                workflowStore.addEdge(payload.autoConnectEdge)
-              }
-              // Apply subblock values from duplicate payload so collaborators see content immediately
-              if (payload.subBlocks && typeof payload.subBlocks === 'object') {
-                Object.entries(payload.subBlocks).forEach(([subblockId, subblock]) => {
-                  if (WEBHOOK_SUBBLOCK_FIELDS.includes(subblockId)) {
-                    return
-                  }
-                  const value = (subblock as any)?.value
-                  if (value !== undefined) {
-                    subBlockStore.setValue(payload.id, subblockId, value)
-                  }
-                })
-              }
-              break
           }
         } else if (target === 'blocks') {
           switch (operation) {
