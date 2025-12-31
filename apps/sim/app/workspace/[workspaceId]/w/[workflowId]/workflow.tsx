@@ -2458,11 +2458,13 @@ const WorkflowContent = React.memo(() => {
               connectionLineType={ConnectionLineType.SmoothStep}
               onPaneClick={onPaneClick}
               onEdgeClick={onEdgeClick}
+              onPaneContextMenu={(e) => e.preventDefault()}
+              onNodeContextMenu={(e) => e.preventDefault()}
               onPointerMove={handleCanvasPointerMove}
               onPointerLeave={handleCanvasPointerLeave}
               elementsSelectable={true}
               selectionOnDrag={true}
-              panOnDrag={[1, 2]}
+              panOnDrag={[0, 1]}
               multiSelectionKeyCode={['Meta', 'Control']}
               nodesConnectable={effectivePermissions.canEdit}
               nodesDraggable={effectivePermissions.canEdit}
