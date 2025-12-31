@@ -2,8 +2,16 @@
 
 import { useMemo, useRef } from 'react'
 import { Plus } from 'lucide-react'
-import { Button, Combobox, type ComboboxOption, Label, Trash } from '@/components/emcn'
-import { Input } from '@/components/ui/input'
+import {
+  Badge,
+  Button,
+  Combobox,
+  type ComboboxOption,
+  Input,
+  Label,
+  Trash,
+} from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
@@ -14,14 +22,13 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
 import { useTagSelection } from '@/hooks/use-tag-selection'
 
-interface DocumentTagRow {
+interface DocumentTag {
   id: string
-  cells: {
-    tagName: string
-    tagSlot?: string
-    fieldType: string
-    value: string
-  }
+  tagName: string
+  tagSlot?: string
+  fieldType: string
+  value: string
+  collapsed?: boolean
 }
 
 interface DocumentTagEntryProps {
@@ -32,6 +39,17 @@ interface DocumentTagEntryProps {
   previewValue?: any
 }
 
+/**
+ * Creates a new document tag with default values
+ */
+const createDefaultTag = (): DocumentTag => ({
+  id: crypto.randomUUID(),
+  tagName: '',
+  fieldType: 'text',
+  value: '',
+  collapsed: false,
+})
+
 export function DocumentTagEntry({
   blockId,
   subBlock,
@@ -41,9 +59,9 @@ export function DocumentTagEntry({
 }: DocumentTagEntryProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlock.id)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
-  const valueInputRefs = useRef<Record<number, HTMLInputElement>>({})
+  const valueInputRefs = useRef<Record<string, HTMLInputElement>>({})
+  const overlayRefs = useRef<Record<string, HTMLDivElement>>({})
 
-  // Use the extended hook for field-level management
   const inputController = useSubBlockInput({
     blockId,
     subBlockId: subBlock.id,
@@ -56,155 +74,127 @@ export function DocumentTagEntry({
     disabled,
   })
 
-  // Get the knowledge base ID from other sub-blocks
   const [knowledgeBaseIdValue] = useSubBlockValue(blockId, 'knowledgeBaseId')
   const knowledgeBaseId = knowledgeBaseIdValue || null
 
-  // Use KB tag definitions hook to get available tags
   const { tagDefinitions, isLoading } = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
-
   const emitTagSelection = useTagSelection(blockId, subBlock.id)
 
-  // Use preview value when in preview mode, otherwise use store value
   const currentValue = isPreview ? previewValue : storeValue
 
-  // Transform stored JSON string to table format for display
-  const rows = useMemo(() => {
-    if (currentValue) {
-      try {
-        const tagData = JSON.parse(currentValue)
-        if (Array.isArray(tagData) && tagData.length > 0) {
-          return tagData.map((tag: any, index: number) => ({
-            id: tag.id || `tag-${index}`,
-            cells: {
-              tagName: tag.tagName || '',
-              tagSlot: tag.tagSlot,
-              fieldType: tag.fieldType || 'text',
-              value: tag.value || '',
-            },
-          }))
-        }
-      } catch {
-        // If parsing fails, fall through to default
-      }
+  const parseTags = (tagValue: string | null): DocumentTag[] => {
+    if (!tagValue) return []
+    try {
+      const parsed = JSON.parse(tagValue)
+      if (!Array.isArray(parsed)) return []
+      return parsed.map((t: DocumentTag) => ({
+        ...t,
+        fieldType: t.fieldType || 'text',
+        collapsed: t.collapsed ?? false,
+      }))
+    } catch {
+      return []
     }
+  }
 
-    // Default: just one empty row
-    return [
-      {
-        id: 'empty-row-0',
-        cells: { tagName: '', tagSlot: undefined, fieldType: 'text', value: '' },
-      },
-    ]
-  }, [currentValue])
+  const parsedTags = parseTags(currentValue || null)
+  const tags: DocumentTag[] = parsedTags.length > 0 ? parsedTags : [createDefaultTag()]
+  const isReadOnly = isPreview || disabled
 
-  // Get tag names already used in rows (case-insensitive)
+  // Get tag names already used (case-insensitive)
   const usedTagNames = useMemo(() => {
-    return new Set(
-      rows.map((row) => row.cells.tagName?.toLowerCase()).filter((name) => name?.trim())
-    )
-  }, [rows])
+    return new Set(tags.map((t) => t.tagName?.toLowerCase()).filter((name) => name?.trim()))
+  }, [tags])
 
   // Filter available tags (exclude already used ones)
   const availableTagDefinitions = useMemo(() => {
     return tagDefinitions.filter((def) => !usedTagNames.has(def.displayName.toLowerCase()))
   }, [tagDefinitions, usedTagNames])
 
-  // Can add more tags if there are available tag definitions
   const canAddMoreTags = availableTagDefinitions.length > 0
 
-  // Shared helper function for updating rows and generating JSON
-  const updateRowsAndGenerateJson = (
-    rowIndex: number,
-    column: string,
-    value: string,
-    tagDef?: { tagSlot: string; fieldType: string }
-  ) => {
-    const updatedRows = [...rows].map((row, idx) => {
-      if (idx === rowIndex) {
-        const newCells = { ...row.cells, [column]: value }
+  /**
+   * Updates the store with new tags
+   */
+  const updateTags = (newTags: DocumentTag[]) => {
+    if (isReadOnly) return
+    const value = newTags.length > 0 ? JSON.stringify(newTags) : ''
+    setStoreValue(value)
+  }
 
-        // When selecting a tag, also set the tagSlot and fieldType
-        if (column === 'tagName' && tagDef) {
-          newCells.tagSlot = tagDef.tagSlot
-          newCells.fieldType = tagDef.fieldType
-          // Clear value when tag changes
-          if (row.cells.tagName !== value) {
-            newCells.value = ''
+  /**
+   * Adds a new tag
+   */
+  const addTag = () => {
+    if (isReadOnly || !canAddMoreTags) return
+    updateTags([...tags, createDefaultTag()])
+  }
+
+  /**
+   * Removes a tag by ID (prevents removing the last tag)
+   */
+  const removeTag = (id: string) => {
+    if (isReadOnly || tags.length === 1) return
+    updateTags(tags.filter((t) => t.id !== id))
+  }
+
+  /**
+   * Updates a specific tag property
+   */
+  const updateTag = (id: string, field: keyof DocumentTag, value: any) => {
+    if (isReadOnly) return
+
+    const updatedTags = tags.map((t) => {
+      if (t.id === id) {
+        const updated = { ...t, [field]: value }
+
+        // When tag name changes, update tagSlot and fieldType, clear value
+        if (field === 'tagName') {
+          const tagDef = tagDefinitions.find((def) => def.displayName === value)
+          updated.tagSlot = tagDef?.tagSlot
+          updated.fieldType = tagDef?.fieldType || 'text'
+          if (t.tagName !== value) {
+            updated.value = ''
           }
         }
 
-        return { ...row, cells: newCells }
+        return updated
       }
-      return row
+      return t
     })
 
-    const dataToStore = updatedRows.map((row) => ({
-      id: row.id,
-      tagName: row.cells.tagName || '',
-      tagSlot: row.cells.tagSlot,
-      fieldType: row.cells.fieldType || 'text',
-      value: row.cells.value || '',
-    }))
-
-    return dataToStore.length > 0 ? JSON.stringify(dataToStore) : ''
+    updateTags(updatedTags)
   }
 
-  const handleTagSelection = (rowIndex: number, tagName: string) => {
-    if (isPreview || disabled) return
+  /**
+   * Handles tag dropdown selection for value field
+   */
+  const handleTagDropdownSelection = (id: string, value: string) => {
+    if (isReadOnly) return
 
-    const tagDef = tagDefinitions.find((def) => def.displayName === tagName)
-    const jsonString = updateRowsAndGenerateJson(rowIndex, 'tagName', tagName, tagDef)
-    setStoreValue(jsonString)
+    const updatedTags = tags.map((t) => (t.id === id ? { ...t, value } : t))
+    const jsonValue = updatedTags.length > 0 ? JSON.stringify(updatedTags) : ''
+    emitTagSelection(jsonValue)
   }
 
-  const handleValueChange = (rowIndex: number, value: string) => {
-    if (isPreview || disabled) return
-
-    const jsonString = updateRowsAndGenerateJson(rowIndex, 'value', value)
-    setStoreValue(jsonString)
+  /**
+   * Toggles the collapsed state of a tag
+   */
+  const toggleCollapse = (id: string) => {
+    if (isReadOnly) return
+    updateTags(tags.map((t) => (t.id === id ? { ...t, collapsed: !t.collapsed } : t)))
   }
 
-  const handleTagDropdownSelection = (rowIndex: number, value: string) => {
-    if (isPreview || disabled) return
-
-    const jsonString = updateRowsAndGenerateJson(rowIndex, 'value', value)
-    emitTagSelection(jsonString)
-  }
-
-  const handleAddRow = () => {
-    if (isPreview || disabled || !canAddMoreTags) return
-
-    const currentData = currentValue ? JSON.parse(currentValue) : []
-    const newRowId = `tag-${currentData.length}-${Math.random().toString(36).slice(2, 11)}`
-    const newData = [...currentData, { id: newRowId, tagName: '', fieldType: 'text', value: '' }]
-    setStoreValue(JSON.stringify(newData))
-  }
-
-  const handleDeleteRow = (rowIndex: number) => {
-    if (isPreview || disabled) return
-
-    if (rows.length <= 1) {
-      // Clear the single row instead of deleting
-      setStoreValue('')
-      return
-    }
-
-    const updatedRows = rows.filter((_, idx) => idx !== rowIndex)
-    const tableDataForStorage = updatedRows.map((row) => ({
-      id: row.id,
-      tagName: row.cells.tagName || '',
-      tagSlot: row.cells.tagSlot,
-      fieldType: row.cells.fieldType || 'text',
-      value: row.cells.value || '',
-    }))
-
-    const jsonString = tableDataForStorage.length > 0 ? JSON.stringify(tableDataForStorage) : ''
-    setStoreValue(jsonString)
+  /**
+   * Syncs scroll position between input and overlay
+   */
+  const syncOverlayScroll = (tagId: string, scrollLeft: number) => {
+    const overlay = overlayRefs.current[tagId]
+    if (overlay) overlay.scrollLeft = scrollLeft
   }
 
   if (isPreview) {
-    const tagCount = rows.filter((r) => r.cells.tagName?.trim()).length
+    const tagCount = tags.filter((t) => t.tagName?.trim()).length
     return (
       <div className='space-y-1'>
         <Label className='font-medium text-muted-foreground text-xs'>Document Tags</Label>
@@ -215,13 +205,9 @@ export function DocumentTagEntry({
     )
   }
 
-  if (isLoading) {
-    return <div className='p-4 text-muted-foreground text-sm'>Loading tag definitions...</div>
-  }
-
-  if (tagDefinitions.length === 0) {
+  if (!isLoading && tagDefinitions.length === 0 && knowledgeBaseId) {
     return (
-      <div className='flex h-32 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
+      <div className='flex h-32 items-center justify-center rounded-[4px] border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] dark:bg-[#1F1F1F]'>
         <div className='text-center'>
           <p className='font-medium text-[var(--text-secondary)] text-sm'>
             No tags defined for this knowledge base
@@ -234,156 +220,165 @@ export function DocumentTagEntry({
     )
   }
 
-  const renderHeader = () => (
-    <thead className='bg-transparent'>
-      <tr className='border-[var(--border-strong)] border-b bg-transparent'>
-        <th className='w-[50%] min-w-0 border-[var(--border-strong)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
-          Tag
-        </th>
-        <th className='w-[50%] min-w-0 bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
-          Value
-        </th>
-      </tr>
-    </thead>
+  /**
+   * Renders the tag header with name, badge, and action buttons
+   */
+  const renderTagHeader = (tag: DocumentTag, index: number) => (
+    <div
+      className='flex cursor-pointer items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'
+      onClick={() => toggleCollapse(tag.id)}
+    >
+      <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+        <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
+          {tag.tagName || `Tag ${index + 1}`}
+        </span>
+        {tag.tagName && <Badge size='sm'>{FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}</Badge>}
+      </div>
+      <div className='flex items-center gap-[8px] pl-[8px]' onClick={(e) => e.stopPropagation()}>
+        <Button
+          variant='ghost'
+          onClick={addTag}
+          disabled={isReadOnly || !canAddMoreTags}
+          className='h-auto p-0'
+        >
+          <Plus className='h-[14px] w-[14px]' />
+          <span className='sr-only'>Add Tag</span>
+        </Button>
+        <Button
+          variant='ghost'
+          onClick={() => removeTag(tag.id)}
+          disabled={isReadOnly || tags.length === 1}
+          className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
+        >
+          <Trash className='h-[14px] w-[14px]' />
+          <span className='sr-only'>Delete Tag</span>
+        </Button>
+      </div>
+    </div>
   )
 
-  const renderTagNameCell = (row: DocumentTagRow, rowIndex: number) => {
-    const cellValue = row.cells.tagName || ''
-
-    // Show tags that are either available OR currently selected for this row
-    const selectableTags = tagDefinitions.filter(
-      (def) => def.displayName === cellValue || !usedTagNames.has(def.displayName.toLowerCase())
-    )
-
-    const tagOptions: ComboboxOption[] = selectableTags.map((tag) => ({
-      value: tag.displayName,
-      label: `${tag.displayName} (${FIELD_TYPE_LABELS[tag.fieldType] || 'Text'})`,
-    }))
-
-    return (
-      <td className='relative min-w-0 overflow-hidden border-[var(--border-strong)] border-r bg-transparent p-0'>
-        <Combobox
-          options={tagOptions}
-          value={cellValue}
-          onChange={(value) => handleTagSelection(rowIndex, value)}
-          disabled={disabled || isLoading}
-          placeholder='Select tag'
-          className='!border-0 !bg-transparent hover:!bg-transparent px-[10px] py-[8px] font-medium text-sm leading-[21px] focus-visible:ring-0 focus-visible:ring-offset-0 [&>span]:truncate'
-        />
-      </td>
-    )
-  }
-
-  const renderValueCell = (row: DocumentTagRow, rowIndex: number) => {
-    const cellValue = row.cells.value || ''
-    const fieldType = row.cells.fieldType || 'text'
-    const cellKey = `value-${rowIndex}`
-    const placeholder = getPlaceholderForFieldType(fieldType)
-    const isTagSelected = !!row.cells.tagName?.trim()
+  /**
+   * Renders the value input with tag dropdown support
+   */
+  const renderValueInput = (tag: DocumentTag) => {
+    const fieldValue = tag.value || ''
+    const cellKey = `${tag.id}-value`
+    const placeholder = getPlaceholderForFieldType(tag.fieldType)
 
     const fieldState = inputController.fieldHelpers.getFieldState(cellKey)
     const handlers = inputController.fieldHelpers.createFieldHandlers(
       cellKey,
-      cellValue,
-      (newValue) => handleValueChange(rowIndex, newValue)
+      fieldValue,
+      (newValue) => updateTag(tag.id, 'value', newValue)
     )
     const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
       cellKey,
-      cellValue,
-      (newValue) => handleTagDropdownSelection(rowIndex, newValue)
+      fieldValue,
+      (newValue) => handleTagDropdownSelection(tag.id, newValue)
     )
 
     return (
-      <td className='relative min-w-0 overflow-hidden bg-transparent p-0'>
-        <div className='relative w-full'>
-          <Input
-            ref={(el) => {
-              if (el) valueInputRefs.current[rowIndex] = el
-            }}
-            value={cellValue}
-            onChange={handlers.onChange}
-            onKeyDown={handlers.onKeyDown}
-            onDrop={handlers.onDrop}
-            onDragOver={handlers.onDragOver}
-            disabled={disabled || !isTagSelected}
-            autoComplete='off'
-            placeholder={isTagSelected ? placeholder : 'Select a tag first'}
-            className='w-full border-0 bg-transparent px-[10px] py-[8px] font-medium text-sm text-transparent leading-[21px] caret-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
-          />
-          <div className='scrollbar-hide pointer-events-none absolute top-0 right-[10px] bottom-0 left-[10px] overflow-x-auto overflow-y-hidden bg-transparent'>
-            <div className='whitespace-pre py-[8px] font-medium text-[var(--text-primary)] text-sm leading-[21px]'>
-              {formatDisplayText(cellValue, {
-                accessiblePrefixes,
-                highlightAll: !accessiblePrefixes,
-              })}
-            </div>
+      <div className='relative'>
+        <Input
+          ref={(el) => {
+            if (el) valueInputRefs.current[cellKey] = el
+          }}
+          value={fieldValue}
+          onChange={handlers.onChange}
+          onKeyDown={handlers.onKeyDown}
+          onDrop={handlers.onDrop}
+          onDragOver={handlers.onDragOver}
+          onScroll={(e) => syncOverlayScroll(cellKey, e.currentTarget.scrollLeft)}
+          onPaste={() =>
+            setTimeout(() => {
+              const input = valueInputRefs.current[cellKey]
+              input && syncOverlayScroll(cellKey, input.scrollLeft)
+            }, 0)
+          }
+          disabled={isReadOnly}
+          autoComplete='off'
+          placeholder={placeholder}
+          className='allow-scroll w-full overflow-auto text-transparent caret-foreground'
+        />
+        <div
+          ref={(el) => {
+            if (el) overlayRefs.current[cellKey] = el
+          }}
+          className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'
+        >
+          <div className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
+            {formatDisplayText(
+              fieldValue,
+              accessiblePrefixes ? { accessiblePrefixes } : { highlightAll: true }
+            )}
           </div>
-          {fieldState.showTags && (
-            <TagDropdown
-              visible={fieldState.showTags}
-              onSelect={tagSelectHandler}
-              blockId={blockId}
-              activeSourceBlockId={fieldState.activeSourceBlockId}
-              inputValue={cellValue}
-              cursorPosition={fieldState.cursorPosition}
-              onClose={() => inputController.fieldHelpers.hideFieldDropdowns(cellKey)}
-              inputRef={
-                {
-                  current: valueInputRefs.current[rowIndex] || null,
-                } as React.RefObject<HTMLInputElement>
-              }
-            />
-          )}
         </div>
-      </td>
+        {fieldState.showTags && (
+          <TagDropdown
+            visible={fieldState.showTags}
+            onSelect={tagSelectHandler}
+            blockId={blockId}
+            activeSourceBlockId={fieldState.activeSourceBlockId}
+            inputValue={fieldValue}
+            cursorPosition={fieldState.cursorPosition}
+            onClose={() => inputController.fieldHelpers.hideFieldDropdowns(cellKey)}
+            inputRef={{ current: valueInputRefs.current[cellKey] || null }}
+          />
+        )}
+      </div>
     )
   }
 
-  const renderDeleteButton = (rowIndex: number) => {
-    if (isPreview || disabled) return null
+  /**
+   * Renders the tag content (tag selector and value input)
+   */
+  const renderTagContent = (tag: DocumentTag) => {
+    // Show tags that are either available OR currently selected for this tag
+    const selectableTags = tagDefinitions.filter(
+      (def) => def.displayName === tag.tagName || !usedTagNames.has(def.displayName.toLowerCase())
+    )
+
+    const tagOptions: ComboboxOption[] = selectableTags.map((t) => ({
+      value: t.displayName,
+      label: `${t.displayName} (${FIELD_TYPE_LABELS[t.fieldType] || 'Text'})`,
+    }))
 
     return (
-      <td className='w-0 p-0'>
-        <Button
-          variant='ghost'
-          className='-translate-y-1/2 absolute top-1/2 right-[8px] transition-opacity'
-          onClick={() => handleDeleteRow(rowIndex)}
-        >
-          <Trash className='h-[14px] w-[14px]' />
-        </Button>
-      </td>
+      <div className='flex flex-col gap-[8px] border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>
+        <div className='flex flex-col gap-[6px]'>
+          <Label className='text-[13px]'>Tag</Label>
+          <Combobox
+            options={tagOptions}
+            value={tag.tagName}
+            onChange={(value) => updateTag(tag.id, 'tagName', value)}
+            disabled={isReadOnly || isLoading}
+            placeholder='Select tag'
+          />
+        </div>
+
+        <div className='flex flex-col gap-[6px]'>
+          <Label className='text-[13px]'>Value</Label>
+          {renderValueInput(tag)}
+        </div>
+      </div>
     )
   }
 
   return (
-    <div className='relative w-full'>
-      <div className='overflow-hidden rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-2)] dark:bg-[#1F1F1F]'>
-        <table className='w-full table-fixed bg-transparent'>
-          {renderHeader()}
-          <tbody className='bg-transparent'>
-            {rows.map((row, rowIndex) => (
-              <tr
-                key={row.id}
-                className='group relative border-[var(--border-strong)] border-t bg-transparent'
-              >
-                {renderTagNameCell(row, rowIndex)}
-                {renderValueCell(row, rowIndex)}
-                {renderDeleteButton(rowIndex)}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Add Tag Button */}
-      {!isPreview && !disabled && (
-        <div className='mt-3'>
-          <Button onClick={handleAddRow} disabled={!canAddMoreTags} className='h-7 px-2 text-xs'>
-            <Plus className='mr-1 h-2.5 w-2.5' />
-            Add Tag
-          </Button>
+    <div className='space-y-[8px]'>
+      {tags.map((tag, index) => (
+        <div
+          key={tag.id}
+          data-tag-id={tag.id}
+          className={cn(
+            'rounded-[4px] border border-[var(--border-1)]',
+            tag.collapsed ? 'overflow-hidden' : 'overflow-visible'
+          )}
+        >
+          {renderTagHeader(tag, index)}
+          {!tag.collapsed && renderTagContent(tag)}
         </div>
-      )}
+      ))}
     </div>
   )
 }

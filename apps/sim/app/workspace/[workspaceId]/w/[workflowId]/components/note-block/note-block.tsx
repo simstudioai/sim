@@ -51,37 +51,37 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
       remarkPlugins={[remarkGfm]}
       components={{
         p: ({ children }: any) => (
-          <p className='mb-1 break-words text-[#E5E5E5] text-sm leading-[1.25rem] last:mb-0'>
+          <p className='mb-1 break-words text-[var(--text-primary)] text-sm leading-[1.25rem] last:mb-0'>
             {children}
           </p>
         ),
         h1: ({ children }: any) => (
-          <h1 className='mt-3 mb-3 break-words font-semibold text-[#E5E5E5] text-lg first:mt-0'>
+          <h1 className='mt-3 mb-3 break-words font-semibold text-[var(--text-primary)] text-lg first:mt-0'>
             {children}
           </h1>
         ),
         h2: ({ children }: any) => (
-          <h2 className='mt-2.5 mb-2.5 break-words font-semibold text-[#E5E5E5] text-base first:mt-0'>
+          <h2 className='mt-2.5 mb-2.5 break-words font-semibold text-[var(--text-primary)] text-base first:mt-0'>
             {children}
           </h2>
         ),
         h3: ({ children }: any) => (
-          <h3 className='mt-2 mb-2 break-words font-semibold text-[#E5E5E5] text-sm first:mt-0'>
+          <h3 className='mt-2 mb-2 break-words font-semibold text-[var(--text-primary)] text-sm first:mt-0'>
             {children}
           </h3>
         ),
         h4: ({ children }: any) => (
-          <h4 className='mt-2 mb-2 break-words font-semibold text-[#E5E5E5] text-xs first:mt-0'>
+          <h4 className='mt-2 mb-2 break-words font-semibold text-[var(--text-primary)] text-xs first:mt-0'>
             {children}
           </h4>
         ),
         ul: ({ children }: any) => (
-          <ul className='mt-1 mb-1 list-disc space-y-1 break-words pl-6 text-[#E5E5E5] text-sm'>
+          <ul className='mt-1 mb-1 list-disc space-y-1 break-words pl-6 text-[var(--text-primary)] text-sm'>
             {children}
           </ul>
         ),
         ol: ({ children }: any) => (
-          <ol className='mt-1 mb-1 list-decimal space-y-1 break-words pl-6 text-[#E5E5E5] text-sm'>
+          <ol className='mt-1 mb-1 list-decimal space-y-1 break-words pl-6 text-[var(--text-primary)] text-sm'>
             {children}
           </ol>
         ),
@@ -93,7 +93,7 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
             return (
               <code
                 {...props}
-                className='whitespace-normal rounded bg-gray-200 px-1 py-0.5 font-mono text-[#F59E0B] text-xs dark:bg-[var(--border-1)]'
+                className='whitespace-normal rounded bg-[var(--surface-5)] px-1 py-0.5 font-mono text-[#F59E0B] text-xs'
               >
                 {children}
               </code>
@@ -103,7 +103,7 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
           return (
             <code
               {...props}
-              className='block whitespace-pre-wrap break-words rounded bg-[#1A1A1A] p-2 text-[#E5E5E5] text-xs'
+              className='block whitespace-pre-wrap break-words rounded bg-[var(--surface-5)] p-2 text-[var(--text-primary)] text-xs'
             >
               {children}
             </code>
@@ -149,11 +149,15 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
           )
         },
         strong: ({ children }: any) => (
-          <strong className='break-words font-semibold text-white'>{children}</strong>
+          <strong className='break-words font-semibold text-[var(--text-primary)]'>
+            {children}
+          </strong>
         ),
-        em: ({ children }: any) => <em className='break-words text-[#B8B8B8]'>{children}</em>,
+        em: ({ children }: any) => (
+          <em className='break-words text-[var(--text-tertiary)]'>{children}</em>
+        ),
         blockquote: ({ children }: any) => (
-          <blockquote className='my-4 break-words border-[var(--border-1)] border-l-4 py-1 pl-4 text-[#B8B8B8] italic'>
+          <blockquote className='my-4 break-words border-[var(--border-1)] border-l-4 py-1 pl-4 text-[var(--text-tertiary)] italic'>
             {children}
           </blockquote>
         ),

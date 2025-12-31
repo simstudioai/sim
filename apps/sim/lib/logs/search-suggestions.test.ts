@@ -1,4 +1,9 @@
-import { describe, expect, test } from 'vitest'
+/**
+ * Tests for search suggestions functionality in logs search
+ *
+ * @vitest-environment node
+ */
+import { describe, expect, it } from 'vitest'
 import {
   FILTER_DEFINITIONS,
   type FolderData,
@@ -8,7 +13,7 @@ import {
 } from '@/lib/logs/search-suggestions'
 
 describe('FILTER_DEFINITIONS', () => {
-  test('should have level filter definition', () => {
+  it.concurrent('should have level filter definition', () => {
     const levelFilter = FILTER_DEFINITIONS.find((f) => f.key === 'level')
 
     expect(levelFilter).toBeDefined()
@@ -18,7 +23,7 @@ describe('FILTER_DEFINITIONS', () => {
     expect(levelFilter?.options.map((o) => o.value)).toContain('info')
   })
 
-  test('should have cost filter definition with multiple options', () => {
+  it.concurrent('should have cost filter definition with multiple options', () => {
     const costFilter = FILTER_DEFINITIONS.find((f) => f.key === 'cost')
 
     expect(costFilter).toBeDefined()
@@ -28,7 +33,7 @@ describe('FILTER_DEFINITIONS', () => {
     expect(costFilter?.options.map((o) => o.value)).toContain('<0.005')
   })
 
-  test('should have date filter definition', () => {
+  it.concurrent('should have date filter definition', () => {
     const dateFilter = FILTER_DEFINITIONS.find((f) => f.key === 'date')
 
     expect(dateFilter).toBeDefined()
@@ -37,7 +42,39 @@ describe('FILTER_DEFINITIONS', () => {
     expect(dateFilter?.options.map((o) => o.value)).toContain('yesterday')
   })
 
-  test('should have duration filter definition', () => {
+  it.concurrent('should have date filter with all keyword options', () => {
+    const dateFilter = FILTER_DEFINITIONS.find((f) => f.key === 'date')
+    const values = dateFilter?.options.map((o) => o.value) || []
+
+    expect(values).toContain('today')
+    expect(values).toContain('yesterday')
+    expect(values).toContain('this-week')
+    expect(values).toContain('last-week')
+    expect(values).toContain('this-month')
+  })
+
+  it.concurrent('should have dynamic date examples in date filter', () => {
+    const dateFilter = FILTER_DEFINITIONS.find((f) => f.key === 'date')
+    const options = dateFilter?.options || []
+
+    const specificDate = options.find((o) => o.label === 'Specific date')
+    expect(specificDate).toBeDefined()
+    expect(specificDate?.value).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+
+    const specificMonth = options.find((o) => o.label === 'Specific month')
+    expect(specificMonth).toBeDefined()
+    expect(specificMonth?.value).toMatch(/^\d{4}-\d{2}$/)
+
+    const specificYear = options.find((o) => o.label === 'Specific year')
+    expect(specificYear).toBeDefined()
+    expect(specificYear?.value).toMatch(/^\d{4}$/)
+
+    const dateRange = options.find((o) => o.label === 'Date range')
+    expect(dateRange).toBeDefined()
+    expect(dateRange?.value).toMatch(/^\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}$/)
+  })
+
+  it.concurrent('should have duration filter definition', () => {
     const durationFilter = FILTER_DEFINITIONS.find((f) => f.key === 'duration')
 
     expect(durationFilter).toBeDefined()
@@ -69,19 +106,19 @@ describe('SearchSuggestions', () => {
   ]
 
   describe('constructor', () => {
-    test('should create instance with empty data', () => {
+    it.concurrent('should create instance with empty data', () => {
       const suggestions = new SearchSuggestions()
       expect(suggestions).toBeDefined()
     })
 
-    test('should create instance with provided data', () => {
+    it.concurrent('should create instance with provided data', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       expect(suggestions).toBeDefined()
     })
   })
 
   describe('updateData', () => {
-    test('should update internal data', () => {
+    it.concurrent('should update internal data', () => {
       const suggestions = new SearchSuggestions()
       suggestions.updateData(mockWorkflows, mockFolders, mockTriggers)
 
@@ -92,7 +129,7 @@ describe('SearchSuggestions', () => {
   })
 
   describe('getSuggestions - empty input', () => {
-    test('should return filter keys list for empty input', () => {
+    it.concurrent('should return filter keys list for empty input', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('')
 
@@ -101,7 +138,7 @@ describe('SearchSuggestions', () => {
       expect(result?.suggestions.length).toBeGreaterThan(0)
     })
 
-    test('should include core filter keys', () => {
+    it.concurrent('should include core filter keys', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('')
 
@@ -113,7 +150,7 @@ describe('SearchSuggestions', () => {
       expect(filterValues).toContain('trigger:')
     })
 
-    test('should include workflow filter when workflows exist', () => {
+    it.concurrent('should include workflow filter when workflows exist', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('')
 
@@ -121,7 +158,7 @@ describe('SearchSuggestions', () => {
       expect(filterValues).toContain('workflow:')
     })
 
-    test('should include folder filter when folders exist', () => {
+    it.concurrent('should include folder filter when folders exist', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('')
 
@@ -129,7 +166,7 @@ describe('SearchSuggestions', () => {
       expect(filterValues).toContain('folder:')
     })
 
-    test('should not include workflow filter when no workflows', () => {
+    it.concurrent('should not include workflow filter when no workflows', () => {
       const suggestions = new SearchSuggestions([], mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('')
 
@@ -139,7 +176,7 @@ describe('SearchSuggestions', () => {
   })
 
   describe('getSuggestions - filter values (ending with colon)', () => {
-    test('should return level filter values', () => {
+    it.concurrent('should return level filter values', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('level:')
 
@@ -149,7 +186,7 @@ describe('SearchSuggestions', () => {
       expect(result?.suggestions.some((s) => s.value === 'level:info')).toBe(true)
     })
 
-    test('should return cost filter values', () => {
+    it.concurrent('should return cost filter values', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('cost:')
 
@@ -158,7 +195,7 @@ describe('SearchSuggestions', () => {
       expect(result?.suggestions.some((s) => s.value === 'cost:>0.01')).toBe(true)
     })
 
-    test('should return trigger filter values', () => {
+    it.concurrent('should return trigger filter values', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('trigger:')
 
@@ -168,7 +205,7 @@ describe('SearchSuggestions', () => {
       expect(result?.suggestions.some((s) => s.value === 'trigger:manual')).toBe(true)
     })
 
-    test('should return workflow filter values', () => {
+    it.concurrent('should return workflow filter values', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('workflow:')
 
@@ -177,7 +214,7 @@ describe('SearchSuggestions', () => {
       expect(result?.suggestions.some((s) => s.label === 'Test Workflow')).toBe(true)
     })
 
-    test('should return folder filter values', () => {
+    it.concurrent('should return folder filter values', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('folder:')
 
@@ -186,7 +223,7 @@ describe('SearchSuggestions', () => {
       expect(result?.suggestions.some((s) => s.label === 'Development')).toBe(true)
     })
 
-    test('should return null for unknown filter key', () => {
+    it.concurrent('should return null for unknown filter key', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('unknown:')
 
@@ -195,7 +232,7 @@ describe('SearchSuggestions', () => {
   })
 
   describe('getSuggestions - partial filter values', () => {
-    test('should filter level values by partial input', () => {
+    it.concurrent('should filter level values by partial input', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('level:err')
 
@@ -204,7 +241,7 @@ describe('SearchSuggestions', () => {
       expect(result?.suggestions.some((s) => s.value === 'level:info')).toBe(false)
     })
 
-    test('should filter workflow values by partial input', () => {
+    it.concurrent('should filter workflow values by partial input', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('workflow:test')
 
@@ -213,7 +250,7 @@ describe('SearchSuggestions', () => {
       expect(result?.suggestions.some((s) => s.label === 'Production Pipeline')).toBe(false)
     })
 
-    test('should filter trigger values by partial input', () => {
+    it.concurrent('should filter trigger values by partial input', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('trigger:sch')
 
@@ -221,7 +258,7 @@ describe('SearchSuggestions', () => {
       expect(result?.suggestions.some((s) => s.value === 'trigger:schedule')).toBe(true)
     })
 
-    test('should return null when no matches found', () => {
+    it.concurrent('should return null when no matches found', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('level:xyz')
 
@@ -230,7 +267,7 @@ describe('SearchSuggestions', () => {
   })
 
   describe('getSuggestions - plain text search (multi-section)', () => {
-    test('should return multi-section results for plain text', () => {
+    it.concurrent('should return multi-section results for plain text', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('test')
 
@@ -238,49 +275,49 @@ describe('SearchSuggestions', () => {
       expect(result?.type).toBe('multi-section')
     })
 
-    test('should include show-all suggestion', () => {
+    it.concurrent('should include show-all suggestion', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('test')
 
       expect(result?.suggestions.some((s) => s.category === 'show-all')).toBe(true)
     })
 
-    test('should match workflows by name', () => {
+    it.concurrent('should match workflows by name', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('production')
 
       expect(result?.suggestions.some((s) => s.label === 'Production Pipeline')).toBe(true)
     })
 
-    test('should match workflows by description', () => {
+    it.concurrent('should match workflows by description', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('API requests')
 
       expect(result?.suggestions.some((s) => s.label === 'API Handler')).toBe(true)
     })
 
-    test('should match folders by name', () => {
+    it.concurrent('should match folders by name', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('development')
 
       expect(result?.suggestions.some((s) => s.label === 'Development')).toBe(true)
     })
 
-    test('should match triggers by label', () => {
+    it.concurrent('should match triggers by label', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('slack')
 
       expect(result?.suggestions.some((s) => s.value === 'trigger:slack')).toBe(true)
     })
 
-    test('should match filter values', () => {
+    it.concurrent('should match filter values', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('error')
 
       expect(result?.suggestions.some((s) => s.value === 'level:error')).toBe(true)
     })
 
-    test('should show suggested filters when no matches found', () => {
+    it.concurrent('should show suggested filters when no matches found', () => {
       const suggestions = new SearchSuggestions([], [], [])
       const result = suggestions.getSuggestions('xyz123')
 
@@ -290,7 +327,7 @@ describe('SearchSuggestions', () => {
   })
 
   describe('getSuggestions - case insensitivity', () => {
-    test('should match regardless of case', () => {
+    it.concurrent('should match regardless of case', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
 
       const lowerResult = suggestions.getSuggestions('test')
@@ -304,7 +341,7 @@ describe('SearchSuggestions', () => {
   })
 
   describe('getSuggestions - sorting', () => {
-    test('should sort exact matches first', () => {
+    it.concurrent('should sort exact matches first', () => {
       const workflows: WorkflowData[] = [
         { id: '1', name: 'API Handler' },
         { id: '2', name: 'API' },
@@ -317,7 +354,7 @@ describe('SearchSuggestions', () => {
       expect(workflowSuggestions?.[0]?.label).toBe('API')
     })
 
-    test('should sort prefix matches before substring matches', () => {
+    it.concurrent('should sort prefix matches before substring matches', () => {
       const workflows: WorkflowData[] = [
         { id: '1', name: 'Contains Test Inside' },
         { id: '2', name: 'Test First' },
@@ -331,7 +368,7 @@ describe('SearchSuggestions', () => {
   })
 
   describe('getSuggestions - result limits', () => {
-    test('should limit workflow results to 8', () => {
+    it.concurrent('should limit workflow results to 8', () => {
       const manyWorkflows = Array.from({ length: 20 }, (_, i) => ({
         id: `wf-${i}`,
         name: `Test Workflow ${i}`,
@@ -343,9 +380,9 @@ describe('SearchSuggestions', () => {
       expect(workflowSuggestions?.length).toBeLessThanOrEqual(8)
     })
 
-    test('should limit filter value results to 5', () => {
+    it.concurrent('should limit filter value results to 5', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
-      const result = suggestions.getSuggestions('o') // Matches multiple filter values
+      const result = suggestions.getSuggestions('o')
 
       const filterSuggestions = result?.suggestions.filter(
         (s) =>
@@ -359,7 +396,7 @@ describe('SearchSuggestions', () => {
   })
 
   describe('getSuggestions - suggestion structure', () => {
-    test('should include correct properties for filter key suggestions', () => {
+    it.concurrent('should include correct properties for filter key suggestions', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('')
 
@@ -370,7 +407,7 @@ describe('SearchSuggestions', () => {
       expect(suggestion).toHaveProperty('category')
     })
 
-    test('should include color for trigger suggestions', () => {
+    it.concurrent('should include color for trigger suggestions', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('trigger:')
 
@@ -378,12 +415,81 @@ describe('SearchSuggestions', () => {
       expect(triggerSuggestion?.color).toBeDefined()
     })
 
-    test('should quote workflow names in value', () => {
+    it.concurrent('should quote workflow names in value', () => {
       const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
       const result = suggestions.getSuggestions('workflow:')
 
       const workflowSuggestion = result?.suggestions.find((s) => s.label === 'Test Workflow')
       expect(workflowSuggestion?.value).toBe('workflow:"Test Workflow"')
+    })
+  })
+
+  describe('getSuggestions - date filter values', () => {
+    it.concurrent('should return date filter keyword options', () => {
+      const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
+      const result = suggestions.getSuggestions('date:')
+
+      expect(result).not.toBeNull()
+      expect(result?.type).toBe('filter-values')
+      expect(result?.suggestions.some((s) => s.value === 'date:today')).toBe(true)
+      expect(result?.suggestions.some((s) => s.value === 'date:yesterday')).toBe(true)
+      expect(result?.suggestions.some((s) => s.value === 'date:this-week')).toBe(true)
+      expect(result?.suggestions.some((s) => s.value === 'date:last-week')).toBe(true)
+      expect(result?.suggestions.some((s) => s.value === 'date:this-month')).toBe(true)
+    })
+
+    it.concurrent('should suggest year format when typing a year', () => {
+      const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
+      const result = suggestions.getSuggestions('date:2024')
+
+      expect(result).not.toBeNull()
+      expect(result?.suggestions.some((s) => s.value === 'date:2024')).toBe(true)
+      expect(result?.suggestions.some((s) => s.label === 'Year 2024')).toBe(true)
+    })
+
+    it.concurrent('should suggest month format when typing YYYY-MM', () => {
+      const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
+      const result = suggestions.getSuggestions('date:2024-12')
+
+      expect(result).not.toBeNull()
+      expect(result?.suggestions.some((s) => s.value === 'date:2024-12')).toBe(true)
+      expect(result?.suggestions.some((s) => s.label === 'Dec 2024')).toBe(true)
+    })
+
+    it.concurrent('should suggest single date and range start when typing full date', () => {
+      const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
+      const result = suggestions.getSuggestions('date:2024-12-25')
+
+      expect(result).not.toBeNull()
+      expect(result?.suggestions.some((s) => s.value === 'date:2024-12-25')).toBe(true)
+      expect(result?.suggestions.some((s) => s.value === 'date:2024-12-25..')).toBe(true)
+    })
+
+    it.concurrent('should suggest completing range when typing date..', () => {
+      const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
+      const result = suggestions.getSuggestions('date:2024-01-01..')
+
+      expect(result).not.toBeNull()
+      expect(result?.suggestions.some((s) => s.description?.includes('Type end date'))).toBe(true)
+    })
+
+    it.concurrent('should suggest complete range when both dates provided', () => {
+      const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
+      const result = suggestions.getSuggestions('date:2024-01-01..2024-01-15')
+
+      expect(result).not.toBeNull()
+      expect(result?.suggestions.some((s) => s.value === 'date:2024-01-01..2024-01-15')).toBe(true)
+      expect(result?.suggestions.some((s) => s.description === 'Custom date range')).toBe(true)
+    })
+
+    it.concurrent('should filter date options by partial keyword match', () => {
+      const suggestions = new SearchSuggestions(mockWorkflows, mockFolders, mockTriggers)
+      const result = suggestions.getSuggestions('date:this')
+
+      expect(result).not.toBeNull()
+      expect(result?.suggestions.some((s) => s.value === 'date:this-week')).toBe(true)
+      expect(result?.suggestions.some((s) => s.value === 'date:this-month')).toBe(true)
+      expect(result?.suggestions.some((s) => s.value === 'date:yesterday')).toBe(false)
     })
   })
 })

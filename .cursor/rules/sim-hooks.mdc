@@ -6,21 +6,13 @@ globs: ["apps/sim/**/use-*.ts", "apps/sim/**/hooks/**/*.ts"]
 # Hook Patterns
 
 ## Structure
+
 ```typescript
-import { createLogger } from '@/lib/logs/console/logger'
-
-const logger = createLogger('useFeatureName')
-
 interface UseFeatureProps {
   id: string
   onSuccess?: (result: Result) => void
 }
 
-/**
- * Hook description.
- * @param props - Configuration
- * @returns State and operations
- */
 export function useFeature({ id, onSuccess }: UseFeatureProps) {
   // 1. Refs for stable dependencies
   const idRef = useRef(id)
@@ -29,7 +21,6 @@ export function useFeature({ id, onSuccess }: UseFeatureProps) {
   // 2. State
   const [data, setData] = useState<Data | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
 
   // 3. Sync refs
   useEffect(() => {
@@ -37,32 +28,27 @@ export function useFeature({ id, onSuccess }: UseFeatureProps) {
     onSuccessRef.current = onSuccess
   }, [id, onSuccess])
 
-  // 4. Operations with useCallback
+  // 4. Operations (useCallback with empty deps when using refs)
   const fetchData = useCallback(async () => {
     setIsLoading(true)
     try {
       const result = await fetch(`/api/${idRef.current}`).then(r => r.json())
       setData(result)
       onSuccessRef.current?.(result)
-    } catch (err) {
-      setError(err as Error)
-      logger.error('Failed', { error: err })
     } finally {
       setIsLoading(false)
     }
-  }, []) // Empty deps - using refs
+  }, [])
 
-  // 5. Return grouped by state/operations
-  return { data, isLoading, error, fetchData }
+  return { data, isLoading, fetchData }
 }
 ```
 
 ## Rules
+
 1. Single responsibility per hook
 2. Props interface required
-3. TSDoc required
-4. Use logger, not console.log
-5. Refs for stable callback dependencies
-6. Wrap returned functions in useCallback
-7. Always try/catch async operations
-8. Track loading/error states
+3. Refs for stable callback dependencies
+4. Wrap returned functions in useCallback
+5. Always try/catch async operations
+6. Track loading/error states

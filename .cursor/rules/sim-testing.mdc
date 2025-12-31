@@ -1,0 +1,60 @@
+---
+description: Testing patterns with Vitest
+globs: ["apps/sim/**/*.test.ts", "apps/sim/**/*.test.tsx"]
+---
+
+# Testing Patterns
+
+Use Vitest. Test files live next to source: `feature.ts` → `feature.test.ts`
+
+## Structure
+
+```typescript
+/**
+ * Tests for [feature name]
+ *
+ * @vitest-environment node
+ */
+
+// 1. Mocks BEFORE imports
+vi.mock('@sim/db', () => ({ db: { select: vi.fn() } }))
+vi.mock('@sim/logger', () => loggerMock)
+
+// 2. Imports AFTER mocks
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { createSession, loggerMock } from '@sim/testing'
+import { myFunction } from '@/lib/feature'
+
+describe('myFunction', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('should do something', () => {
+    expect(myFunction()).toBe(expected)
+  })
+
+  it.concurrent('runs in parallel', () => { ... })
+})
+```
+
+## @sim/testing Package
+
+```typescript
+// Factories - create test data
+import { createBlock, createWorkflow, createSession } from '@sim/testing'
+
+// Mocks - pre-configured mocks
+import { loggerMock, databaseMock, fetchMock } from '@sim/testing'
+
+// Builders - fluent API for complex objects
+import { ExecutionBuilder, WorkflowBuilder } from '@sim/testing'
+```
+
+## Rules
+
+1. `@vitest-environment node` directive at file top
+2. **Mocks before imports** - `vi.mock()` calls must come first
+3. Use `@sim/testing` factories over manual test data
+4. `it.concurrent` for independent tests (faster)
+5. `beforeEach(() => vi.clearAllMocks())` to reset state
+6. Group related tests with nested `describe` blocks
+7. Test file naming: `*.test.ts` (not `*.spec.ts`)

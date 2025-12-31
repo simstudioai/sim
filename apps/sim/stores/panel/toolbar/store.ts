@@ -1,13 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-
-/**
- * Toolbar triggers height constraints
- * Minimum is set low to allow collapsing to just the header height (~30-40px)
- */
-const DEFAULT_TOOLBAR_TRIGGERS_HEIGHT = 300
-const MIN_TOOLBAR_HEIGHT = 30
-const MAX_TOOLBAR_HEIGHT = 800
+import { TOOLBAR_TRIGGERS_HEIGHT } from '@/stores/constants'
 
 /**
  * Toolbar state interface
@@ -22,9 +15,12 @@ interface ToolbarState {
 export const useToolbarStore = create<ToolbarState>()(
   persist(
     (set) => ({
-      toolbarTriggersHeight: DEFAULT_TOOLBAR_TRIGGERS_HEIGHT,
+      toolbarTriggersHeight: TOOLBAR_TRIGGERS_HEIGHT.DEFAULT,
       setToolbarTriggersHeight: (height) => {
-        const clampedHeight = Math.max(MIN_TOOLBAR_HEIGHT, Math.min(MAX_TOOLBAR_HEIGHT, height))
+        const clampedHeight = Math.max(
+          TOOLBAR_TRIGGERS_HEIGHT.MIN,
+          Math.min(TOOLBAR_TRIGGERS_HEIGHT.MAX, height)
+        )
         set({ toolbarTriggersHeight: clampedHeight })
         // Update CSS variable for immediate visual feedback
         if (typeof window !== 'undefined') {
@@ -44,7 +40,7 @@ export const useToolbarStore = create<ToolbarState>()(
         if (state && typeof window !== 'undefined') {
           document.documentElement.style.setProperty(
             '--toolbar-triggers-height',
-            `${state.toolbarTriggersHeight || DEFAULT_TOOLBAR_TRIGGERS_HEIGHT}px`
+            `${state.toolbarTriggersHeight || TOOLBAR_TRIGGERS_HEIGHT.DEFAULT}px`
           )
         }
       },

@@ -8,7 +8,7 @@ alwaysApply: true
 You are a professional software engineer. All code must follow best practices: accurate, readable, clean, and efficient.
 
 ## Logging
-Use `logger.info`, `logger.warn`, `logger.error` instead of `console.log`.
+Import `createLogger` from `sim/logger`. Use `logger.info`, `logger.warn`, `logger.error` instead of `console.log`.
 
 ## Comments
 Use TSDoc for documentation. No `====` separators. No non-TSDoc comments.

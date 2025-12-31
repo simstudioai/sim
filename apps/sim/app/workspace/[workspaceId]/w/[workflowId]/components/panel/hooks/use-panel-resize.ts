@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
+import { PANEL_WIDTH } from '@/stores/constants'
 import { usePanelStore } from '@/stores/panel/store'
-
-/**
- * Constants for panel sizing
- */
-const MIN_WIDTH = 244
-const MAX_WIDTH_PERCENTAGE = 0.4 // 40% of viewport width
 
 /**
  * Custom hook to handle panel resize functionality.
@@ -35,9 +30,9 @@ export function usePanelResize() {
     const handleMouseMove = (e: MouseEvent) => {
       // Calculate width from the right edge of the viewport
       const newWidth = window.innerWidth - e.clientX
-      const maxWidth = window.innerWidth * MAX_WIDTH_PERCENTAGE
+      const maxWidth = window.innerWidth * PANEL_WIDTH.MAX_PERCENTAGE
 
-      if (newWidth >= MIN_WIDTH && newWidth <= maxWidth) {
+      if (newWidth >= PANEL_WIDTH.MIN && newWidth <= maxWidth) {
         setPanelWidth(newWidth)
       }
     }
