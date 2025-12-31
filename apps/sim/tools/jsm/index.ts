@@ -1,6 +1,6 @@
 import { jsmAddCommentTool } from '@/tools/jsm/add_comment'
 import { jsmAddCustomerTool } from '@/tools/jsm/add_customer'
-import { jsmAddOrganizationToServiceDeskTool } from '@/tools/jsm/add_organization_to_service_desk'
+import { jsmAddOrganizationTool } from '@/tools/jsm/add_organization'
 import { jsmAddParticipantsTool } from '@/tools/jsm/add_participants'
 import { jsmAnswerApprovalTool } from '@/tools/jsm/answer_approval'
 import { jsmCreateOrganizationTool } from '@/tools/jsm/create_organization'
@@ -22,7 +22,7 @@ import { jsmTransitionRequestTool } from '@/tools/jsm/transition_request'
 export {
   jsmAddCommentTool,
   jsmAddCustomerTool,
-  jsmAddOrganizationToServiceDeskTool,
+  jsmAddOrganizationTool,
   jsmAddParticipantsTool,
   jsmAnswerApprovalTool,
   jsmCreateOrganizationTool,

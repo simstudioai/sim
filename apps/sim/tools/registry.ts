@@ -494,7 +494,7 @@ import {
 import {
   jsmAddCommentTool,
   jsmAddCustomerTool,
-  jsmAddOrganizationToServiceDeskTool,
+  jsmAddOrganizationTool,
   jsmAddParticipantsTool,
   jsmAnswerApprovalTool,
   jsmCreateOrganizationTool,
@@ -1531,7 +1531,7 @@ export const tools: Record<string, ToolConfig> = {
   jsm_add_customer: jsmAddCustomerTool,
   jsm_get_organizations: jsmGetOrganizationsTool,
   jsm_create_organization: jsmCreateOrganizationTool,
-  jsm_add_organization_to_service_desk: jsmAddOrganizationToServiceDeskTool,
+  jsm_add_organization: jsmAddOrganizationTool,
   jsm_get_queues: jsmGetQueuesTool,
   jsm_get_sla: jsmGetSlaTool,
   jsm_get_transitions: jsmGetTransitionsTool,
