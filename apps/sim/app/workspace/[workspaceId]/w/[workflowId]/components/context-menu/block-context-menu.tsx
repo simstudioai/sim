@@ -39,12 +39,7 @@ export function BlockContextMenu({
   const isSubflow =
     isSingleBlock && (selectedBlocks[0]?.type === 'loop' || selectedBlocks[0]?.type === 'parallel')
 
-  const canRemoveFromSubflow =
-    showRemoveFromSubflow &&
-    !hasStarterBlock &&
-    selectedBlocks.some(
-      (b) => b.parentId && (b.parentType === 'loop' || b.parentType === 'parallel')
-    )
+  const canRemoveFromSubflow = showRemoveFromSubflow && !hasStarterBlock
 
   const getToggleEnabledLabel = () => {
     if (allEnabled) return 'Disable'

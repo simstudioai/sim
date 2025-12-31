@@ -28,26 +28,13 @@ export function useCanvasContextMenu({ blocks, getNodes }: UseCanvasContextMenuP
 
   const menuRef = useRef<HTMLDivElement>(null)
 
-  /**
-   * Handle right-click on a node (block)
-   */
-  const handleNodeContextMenu = useCallback(
-    (event: React.MouseEvent, node: Node) => {
-      event.preventDefault()
-      event.stopPropagation()
-
-      const x = event.clientX
-      const y = event.clientY
-
-      const selectedNodes = getNodes().filter((n) => n.selected)
-
-      const nodesToUse = selectedNodes.some((n) => n.id === node.id) ? selectedNodes : [node]
-
-      const blockInfos: ContextMenuBlockInfo[] = nodesToUse.map((n) => {
+  /** Converts nodes to block info for context menu */
+  const nodesToBlockInfos = useCallback(
+    (nodes: Node[]): ContextMenuBlockInfo[] =>
+      nodes.map((n) => {
         const block = blocks[n.id]
         const parentId = block?.data?.parentId
         const parentType = parentId ? blocks[parentId]?.type : undefined
-
         return {
           id: n.id,
           type: block?.type || '',
@@ -56,13 +43,26 @@ export function useCanvasContextMenu({ blocks, getNodes }: UseCanvasContextMenuP
           parentId,
           parentType,
         }
-      })
+      }),
+    [blocks]
+  )
 
-      setPosition({ x, y })
-      setSelectedBlocks(blockInfos)
+  /**
+   * Handle right-click on a node (block)
+   */
+  const handleNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      event.preventDefault()
+      event.stopPropagation()
+
+      const selectedNodes = getNodes().filter((n) => n.selected)
+      const nodesToUse = selectedNodes.some((n) => n.id === node.id) ? selectedNodes : [node]
+
+      setPosition({ x: event.clientX, y: event.clientY })
+      setSelectedBlocks(nodesToBlockInfos(nodesToUse))
       setActiveMenu('block')
     },
-    [blocks, getNodes]
+    [getNodes, nodesToBlockInfos]
   )
 
   /**
@@ -72,10 +72,7 @@ export function useCanvasContextMenu({ blocks, getNodes }: UseCanvasContextMenuP
     event.preventDefault()
     event.stopPropagation()
 
-    const x = event.clientX
-    const y = event.clientY
-
-    setPosition({ x, y })
+    setPosition({ x: event.clientX, y: event.clientY })
     setSelectedBlocks([])
     setActiveMenu('pane')
   }, [])
@@ -88,31 +85,13 @@ export function useCanvasContextMenu({ blocks, getNodes }: UseCanvasContextMenuP
       event.preventDefault()
       event.stopPropagation()
 
-      const x = event.clientX
-      const y = event.clientY
-
       const selectedNodes = getNodes().filter((n) => n.selected)
 
-      const blockInfos: ContextMenuBlockInfo[] = selectedNodes.map((n) => {
-        const block = blocks[n.id]
-        const parentId = block?.data?.parentId
-        const parentType = parentId ? blocks[parentId]?.type : undefined
-
-        return {
-          id: n.id,
-          type: block?.type || '',
-          enabled: block?.enabled ?? true,
-          horizontalHandles: block?.horizontalHandles ?? false,
-          parentId,
-          parentType,
-        }
-      })
-
-      setPosition({ x, y })
-      setSelectedBlocks(blockInfos)
+      setPosition({ x: event.clientX, y: event.clientY })
+      setSelectedBlocks(nodesToBlockInfos(selectedNodes))
       setActiveMenu('block')
     },
-    [blocks, getNodes]
+    [getNodes, nodesToBlockInfos]
   )
 
   /**
