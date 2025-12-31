@@ -112,16 +112,6 @@ export const VariableOperationSchema = z.union([
     timestamp: z.number(),
     operationId: z.string().optional(),
   }),
-  z.object({
-    operation: z.literal('duplicate'),
-    target: z.literal('variable'),
-    payload: z.object({
-      sourceVariableId: z.string(),
-      id: z.string(),
-    }),
-    timestamp: z.number(),
-    operationId: z.string().optional(),
-  }),
 ])
 
 export const WorkflowStateOperationSchema = z.object({

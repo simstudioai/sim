@@ -184,7 +184,7 @@ export function setupOperationsHandlers(
         return
       }
 
-      if (target === 'variable' && ['add', 'remove', 'duplicate'].includes(operation)) {
+      if (target === 'variable' && ['add', 'remove'].includes(operation)) {
         // Persist first, then broadcast
         await persistWorkflowOperation(workflowId, {
           operation,

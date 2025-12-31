@@ -598,6 +598,20 @@ async function handleBlocksOperationTx(
 
       const blockIdsArray = Array.from(allBlocksToDelete)
 
+      // Collect parent IDs BEFORE deleting blocks
+      const parentIds = new Set<string>()
+      for (const id of ids) {
+        const parentInfo = await tx
+          .select({ parentId: sql<string | null>`${workflowBlocks.data}->>'parentId'` })
+          .from(workflowBlocks)
+          .where(and(eq(workflowBlocks.id, id), eq(workflowBlocks.workflowId, workflowId)))
+          .limit(1)
+
+        if (parentInfo.length > 0 && parentInfo[0].parentId) {
+          parentIds.add(parentInfo[0].parentId)
+        }
+      }
+
       // Clean up external webhooks
       const webhooksToCleanup = await tx
         .select({
@@ -653,17 +667,9 @@ async function handleBlocksOperationTx(
           and(eq(workflowBlocks.workflowId, workflowId), inArray(workflowBlocks.id, blockIdsArray))
         )
 
-      // Update parent subflow node lists
-      for (const id of ids) {
-        const parentInfo = await tx
-          .select({ parentId: sql<string | null>`${workflowBlocks.data}->>'parentId'` })
-          .from(workflowBlocks)
-          .where(and(eq(workflowBlocks.id, id), eq(workflowBlocks.workflowId, workflowId)))
-          .limit(1)
-
-        if (parentInfo.length > 0 && parentInfo[0].parentId) {
-          await updateSubflowNodeList(tx, workflowId, parentInfo[0].parentId)
-        }
+      // Update parent subflow node lists using pre-collected parent IDs
+      for (const parentId of parentIds) {
+        await updateSubflowNodeList(tx, workflowId, parentId)
       }
 
       logger.info(
@@ -902,53 +908,6 @@ async function handleVariableOperationTx(
         .where(eq(workflow.id, workflowId))
 
       logger.debug(`Removed variable ${payload.variableId} from workflow ${workflowId}`)
-      break
-    }
-
-    case 'duplicate': {
-      if (!payload.sourceVariableId || !payload.id) {
-        throw new Error('Missing required fields for duplicate variable operation')
-      }
-
-      const sourceVariable = currentVariables[payload.sourceVariableId]
-      if (!sourceVariable) {
-        throw new Error(`Source variable ${payload.sourceVariableId} not found`)
-      }
-
-      // Create duplicated variable with unique name
-      const baseName = `${sourceVariable.name} (copy)`
-      let uniqueName = baseName
-      let nameIndex = 1
-
-      // Ensure name uniqueness
-      const existingNames = Object.values(currentVariables).map((v: any) => v.name)
-      while (existingNames.includes(uniqueName)) {
-        uniqueName = `${baseName} (${nameIndex})`
-        nameIndex++
-      }
-
-      const duplicatedVariable = {
-        ...sourceVariable,
-        id: payload.id,
-        name: uniqueName,
-      }
-
-      const updatedVariables = {
-        ...currentVariables,
-        [payload.id]: duplicatedVariable,
-      }
-
-      await tx
-        .update(workflow)
-        .set({
-          variables: updatedVariables,
-          updatedAt: new Date(),
-        })
-        .where(eq(workflow.id, workflowId))
-
-      logger.debug(
-        `Duplicated variable ${payload.sourceVariableId} -> ${payload.id} (${uniqueName}) in workflow ${workflowId}`
-      )
       break
     }
 

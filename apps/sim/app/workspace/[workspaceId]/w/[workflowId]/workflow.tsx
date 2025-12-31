@@ -721,14 +721,17 @@ const WorkflowContent = React.memo(() => {
 
   /** Creates a standardized edge object for workflow connections. */
   const createEdgeObject = useCallback(
-    (sourceId: string, targetId: string, sourceHandle: string): Edge => ({
-      id: crypto.randomUUID(),
-      source: sourceId,
-      target: targetId,
-      sourceHandle,
-      targetHandle: 'target',
-      type: 'workflowEdge',
-    }),
+    (sourceId: string, targetId: string, sourceHandle: string): Edge => {
+      const edge = {
+        id: crypto.randomUUID(),
+        source: sourceId,
+        target: targetId,
+        sourceHandle,
+        targetHandle: 'target',
+        type: 'workflowEdge',
+      }
+      return edge
+    },
     []
   )
 

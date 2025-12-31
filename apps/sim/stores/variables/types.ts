@@ -57,6 +57,5 @@ export interface VariablesStore {
   addVariable: (variable: Omit<Variable, 'id'>, providedId?: string) => string
   updateVariable: (id: string, update: Partial<Omit<Variable, 'id' | 'workflowId'>>) => void
   deleteVariable: (id: string) => void
-  duplicateVariable: (id: string, providedId?: string) => string
   getVariablesByWorkflowId: (workflowId: string) => Variable[]
 }

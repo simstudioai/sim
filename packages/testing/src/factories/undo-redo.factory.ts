@@ -42,12 +42,9 @@ export interface MoveBlockOperation extends BaseOperation {
 export interface BatchAddBlocksOperation extends BaseOperation {
   type: 'batch-add-blocks'
   data: {
-    blockIds: string[]
-    blocks?: any[]
-    edges?: any[]
-    loops?: Record<string, any>
-    parallels?: Record<string, any>
-    subBlockValues?: Record<string, Record<string, any>>
+    blockSnapshots: any[]
+    edgeSnapshots: any[]
+    subBlockValues: Record<string, Record<string, any>>
   }
 }
 
@@ -57,10 +54,9 @@ export interface BatchAddBlocksOperation extends BaseOperation {
 export interface BatchRemoveBlocksOperation extends BaseOperation {
   type: 'batch-remove-blocks'
   data: {
-    blockIds: string[]
-    blockSnapshots?: Record<string, any>
-    edgeSnapshots?: any[]
-    subBlockValues?: Record<string, Record<string, any>>
+    blockSnapshots: any[]
+    edgeSnapshots: any[]
+    subBlockValues: Record<string, Record<string, any>>
   }
 }
 

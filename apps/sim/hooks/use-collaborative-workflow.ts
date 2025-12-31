@@ -350,9 +350,6 @@ export function useCollaborativeWorkflow() {
             case 'remove':
               variablesStore.deleteVariable(payload.variableId)
               break
-            case 'duplicate':
-              variablesStore.duplicateVariable(payload.sourceVariableId, payload.id)
-              break
           }
         } else if (target === 'workflow') {
           switch (operation) {
@@ -1309,25 +1306,6 @@ export function useCollaborativeWorkflow() {
     [executeQueuedOperation, variablesStore, cancelOperationsForVariable]
   )
 
-  const collaborativeDuplicateVariable = useCallback(
-    (variableId: string) => {
-      const newId = crypto.randomUUID()
-      const sourceVariable = useVariablesStore.getState().variables[variableId]
-      if (!sourceVariable) return null
-
-      executeQueuedOperation(
-        'duplicate',
-        'variable',
-        { sourceVariableId: variableId, id: newId },
-        () => {
-          variablesStore.duplicateVariable(variableId, newId)
-        }
-      )
-      return newId
-    },
-    [executeQueuedOperation, variablesStore]
-  )
-
   const collaborativeBatchAddBlocks = useCallback(
     (
       blocks: BlockState[],
@@ -1550,7 +1528,6 @@ export function useCollaborativeWorkflow() {
     collaborativeUpdateVariable,
     collaborativeAddVariable,
     collaborativeDeleteVariable,
-    collaborativeDuplicateVariable,
 
     // Collaborative loop/parallel operations
     collaborativeUpdateLoopType,

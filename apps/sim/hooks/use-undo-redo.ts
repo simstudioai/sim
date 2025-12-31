@@ -356,7 +356,7 @@ export function useUndoRedo() {
           break
         }
         case 'batch-add-blocks': {
-          const batchAddOp = entry.operation as BatchRemoveBlocksOperation
+          const batchAddOp = entry.operation as BatchAddBlocksOperation
           const { blockSnapshots, edgeSnapshots, subBlockValues } = batchAddOp.data
 
           const blocksToAdd = blockSnapshots.filter((b) => !workflowStore.blocks[b.id])

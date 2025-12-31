@@ -255,6 +255,8 @@ export function createWorkflowAccessContext(options: {
  * All socket operations that can be performed.
  */
 export const SOCKET_OPERATIONS = [
+  'add',
+  'remove',
   'batch-add-blocks',
   'batch-remove-blocks',
   'update',
