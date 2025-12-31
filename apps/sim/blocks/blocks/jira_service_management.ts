@@ -31,7 +31,7 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
         { label: 'Add Customer', id: 'add_customer' },
         { label: 'Get Organizations', id: 'get_organizations' },
         { label: 'Create Organization', id: 'create_organization' },
-        { label: 'Add Organization to Service Desk', id: 'add_organization_to_service_desk' },
+        { label: 'Add Organization', id: 'add_organization' },
         { label: 'Get Queues', id: 'get_queues' },
         { label: 'Get SLA', id: 'get_sla' },
         { label: 'Get Transitions', id: 'get_transitions' },
@@ -107,7 +107,7 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
           'get_customers',
           'add_customer',
           'get_organizations',
-          'add_organization_to_service_desk',
+          'add_organization',
           'get_queues',
         ],
       },
@@ -270,7 +270,7 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       type: 'short-input',
       required: true,
       placeholder: 'Enter organization ID',
-      condition: { field: 'operation', value: 'add_organization_to_service_desk' },
+      condition: { field: 'operation', value: 'add_organization' },
     },
     {
       id: 'participantAccountIds',
@@ -332,7 +332,7 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       'jsm_add_customer',
       'jsm_get_organizations',
       'jsm_create_organization',
-      'jsm_add_organization_to_service_desk',
+      'jsm_add_organization',
       'jsm_get_queues',
       'jsm_get_sla',
       'jsm_get_transitions',
@@ -367,8 +367,8 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
             return 'jsm_get_organizations'
           case 'create_organization':
             return 'jsm_create_organization'
-          case 'add_organization_to_service_desk':
-            return 'jsm_add_organization_to_service_desk'
+          case 'add_organization':
+            return 'jsm_add_organization'
           case 'get_queues':
             return 'jsm_get_queues'
           case 'get_sla':
@@ -560,7 +560,7 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
               ...baseParams,
               name: params.organizationName,
             }
-          case 'add_organization_to_service_desk':
+          case 'add_organization':
             if (!params.serviceDeskId) {
               throw new Error('Service Desk ID is required')
             }

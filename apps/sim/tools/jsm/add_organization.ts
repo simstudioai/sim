@@ -1,15 +1,12 @@
-import type {
-  JsmAddOrganizationToServiceDeskParams,
-  JsmAddOrganizationToServiceDeskResponse,
-} from '@/tools/jsm/types'
+import type { JsmAddOrganizationParams, JsmAddOrganizationResponse } from '@/tools/jsm/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const jsmAddOrganizationToServiceDeskTool: ToolConfig<
-  JsmAddOrganizationToServiceDeskParams,
-  JsmAddOrganizationToServiceDeskResponse
+export const jsmAddOrganizationTool: ToolConfig<
+  JsmAddOrganizationParams,
+  JsmAddOrganizationResponse
 > = {
-  id: 'jsm_add_organization_to_service_desk',
-  name: 'JSM Add Organization to Service Desk',
+  id: 'jsm_add_organization',
+  name: 'JSM Add Organization',
   description: 'Add an organization to a service desk in Jira Service Management',
   version: '1.0.0',
 
