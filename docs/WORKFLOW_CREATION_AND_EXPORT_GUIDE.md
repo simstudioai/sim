@@ -996,6 +996,126 @@ curl -s "http://localhost:3000/api/workflows/{workflow_id}/export-service" -H "X
 **Current Setup (as of this documentation):**
 - **User ID:** `pKdo3Px3zwXt47LqfUkf0hpHALHtreWh`
 - **Workspace ID:** `c777afd2-f9c0-4514-aa23-04cbd24b6da6`
-- **Database:** `localhost:5435` (user: postgres, pass: postgres, db: simstudio)
+- **Sim Studio Database:** `localhost:5435` (user: postgres, pass: postgres, db: simstudio)
 - **Sim Studio:** `http://localhost:3000`
 - **API Key:** Check `api_key` table for valid keys
+
+---
+
+## Working Example: Web Scraper Service
+
+A complete working example exists at `/tmp/web-scraper/`:
+
+### Workflow Details
+
+| Property | Value |
+|----------|-------|
+| Workflow ID | `f5580b4d-d8e1-441b-9e2b-4ce5fbaf780c` |
+| Name | Web Scraper |
+| URL | http://localhost:3000/workspace/c777afd2-f9c0-4514-aa23-04cbd24b6da6/w/f5580b4d-d8e1-441b-9e2b-4ce5fbaf780c |
+
+### Workflow Structure
+
+```
+Start (URL) → API (Fetch Page) → Agent (Parser) → Response
+```
+
+**Blocks:**
+1. **Start** (`scraper-start-001`): Takes URL input (default: https://quotes.toscrape.com)
+2. **Fetch Page** (`scraper-api-001`): GET request to fetch HTML
+3. **Parser** (`scraper-agent-001`): Claude agent with file + database tools
+4. **Response** (`scraper-response-001`): Returns agent summary
+
+### Deployed Service
+
+**Location:** `/tmp/web-scraper/`
+
+**Start the service:**
+```bash
+cd /tmp/web-scraper
+WORKSPACE_DIR=./workspace \
+DB_HOST=localhost \
+DB_PORT=5432 \
+DB_NAME=postgres \
+DB_USER=postgres \
+DB_PASSWORD=postgres \
+.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8091
+```
+
+**Test the service:**
+```bash
+# Health check
+curl -s http://localhost:8091/health
+
+# Execute workflow
+curl -X POST http://localhost:8091/execute \
+  -H "Content-Type: application/json" \
+  -d '{"input": "https://quotes.toscrape.com"}'
+
+# Verify files
+ls -la /tmp/web-scraper/workspace/
+cat /tmp/web-scraper/workspace/scraped_quotes.json
+
+# Verify database
+PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres \
+  -c "SELECT * FROM scraped_quotes;"
+```
+
+### Tools Configured
+
+The Parser agent has these tools:
+1. `local_write_file` - Write files to workspace
+2. `local_list_directory` - List workspace contents
+3. `db_insert_quotes_batch` - Batch insert to PostgreSQL
+
+### Database Table
+
+```sql
+-- On PostgreSQL port 5432 (not 5435)
+CREATE TABLE scraped_quotes (
+  id SERIAL PRIMARY KEY,
+  quote TEXT,
+  author TEXT,
+  source_url TEXT,
+  scraped_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### Output Locations
+
+| Output | Location |
+|--------|----------|
+| JSON file | `/tmp/web-scraper/workspace/scraped_quotes.json` |
+| Text file | `/tmp/web-scraper/workspace/scraped_quotes.txt` |
+| Database | PostgreSQL `localhost:5432`, table `scraped_quotes` |
+
+---
+
+## Key Learnings
+
+### Variable Reference Gotchas
+
+1. **Start block** outputs to `input`, not `response`:
+   - ✓ `<start.input>`
+   - ✗ `<start.response>`
+
+2. **API block** outputs directly, no `response` wrapper:
+   - ✓ `<fetch_page.data>`
+   - ✗ `<fetch_page.response.data>`
+
+3. **Block names** are converted to snake_case:
+   - "Fetch Page" → `fetch_page`
+   - "My Agent" → `my_agent`
+
+### Tool Deduplication
+
+When using `WORKSPACE_DIR` or `DB_HOST` env vars, tools are auto-registered. If the workflow also defines these tools, you get duplicates. The export service template now handles this automatically by deduplicating based on tool name.
+
+### After Merging from Staging
+
+Always run `bun install` after merging from staging - new packages may have been added (e.g., `@sim/tsconfig`).
+
+```bash
+~/.bun/bin/bun install
+~/.bun/bin/bun run dev
+```
