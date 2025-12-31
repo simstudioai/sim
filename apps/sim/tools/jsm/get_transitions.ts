@@ -10,7 +10,7 @@ export const jsmGetTransitionsTool: ToolConfig<JsmGetTransitionsParams, JsmGetTr
 
     oauth: {
       required: true,
-      provider: 'jira-service-management',
+      provider: 'jira',
     },
 
     params: {

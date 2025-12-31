@@ -9,7 +9,7 @@ export const jsmGetApprovalsTool: ToolConfig<JsmGetApprovalsParams, JsmGetApprov
 
   oauth: {
     required: true,
-    provider: 'jira-service-management',
+    provider: 'jira',
   },
 
   params: {

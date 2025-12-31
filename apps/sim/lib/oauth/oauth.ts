@@ -322,7 +322,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     services: {
       jira: {
         name: 'Jira',
-        description: 'Access Jira projects and issues.',
+        description: 'Access Jira projects, issues, and Service Management.',
         providerId: 'jira',
         icon: JiraIcon,
         baseProviderIcon: JiraIcon,
@@ -365,27 +365,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'read:comment.property:jira',
           'read:jql:jira',
           'read:field:jira',
-        ],
-      },
-      'jira-service-management': {
-        name: 'Jira Service Management',
-        description: 'Access Jira Service Management service desks, requests, and customers.',
-        providerId: 'jira-service-management',
-        icon: JiraIcon,
-        baseProviderIcon: JiraIcon,
-        scopes: [
-          'read:jira-user',
-          'read:jira-work',
-          'write:jira-work',
-          'read:project:jira',
-          'read:me',
-          'offline_access',
-          'read:issue:jira',
-          'read:status:jira',
-          'read:user:jira',
-          'read:issue-details:jira',
-          'write:comment:jira',
-          'read:comment:jira',
+          // Jira Service Management scopes
           'read:servicedesk:jira-service-management',
           'read:requesttype:jira-service-management',
           'read:request:jira-service-management',

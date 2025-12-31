@@ -12,7 +12,7 @@ export const jsmGetOrganizationsTool: ToolConfig<
 
   oauth: {
     required: true,
-    provider: 'jira-service-management',
+    provider: 'jira',
   },
 
   params: {
