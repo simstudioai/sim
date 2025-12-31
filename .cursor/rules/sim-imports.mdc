@@ -5,33 +5,45 @@ globs: ["apps/sim/**/*.ts", "apps/sim/**/*.tsx"]
 
 # Import Patterns
 
-## EMCN Components
-Import from `@/components/emcn`, never from subpaths like `@/components/emcn/components/modal/modal`.
+## Absolute Imports
 
-**Exception**: CSS imports use actual file paths: `import '@/components/emcn/components/code/code.css'`
+**Always use absolute imports.** Never use relative imports.
 
-## Feature Components
-Import from central folder indexes, not specific subfolders:
 ```typescript
-// ✅ Correct
-import { Dashboard, Sidebar } from '@/app/workspace/[workspaceId]/logs/components'
+// ✓ Good
+import { useWorkflowStore } from '@/stores/workflows/store'
+import { Button } from '@/components/ui/button'
 
-// ❌ Wrong
-import { Dashboard } from '@/app/workspace/[workspaceId]/logs/components/dashboard'
+// ✗ Bad
+import { useWorkflowStore } from '../../../stores/workflows/store'
 ```
 
-## Internal vs External
-- **Cross-feature**: Absolute paths through central index
-- **Within feature**: Relative paths (`./components/...`, `../utils`)
+## Barrel Exports
+
+Use barrel exports (`index.ts`) when a folder has 3+ exports. Import from barrel, not individual files.
+
+```typescript
+// ✓ Good
+import { Dashboard, Sidebar } from '@/app/workspace/[workspaceId]/logs/components'
+
+// ✗ Bad
+import { Dashboard } from '@/app/workspace/[workspaceId]/logs/components/dashboard/dashboard'
+```
 
 ## Import Order
+
 1. React/core libraries
 2. External libraries
 3. UI components (`@/components/emcn`, `@/components/ui`)
 4. Utilities (`@/lib/...`)
-5. Feature imports from indexes
-6. Relative imports
+5. Stores (`@/stores/...`)
+6. Feature imports
 7. CSS imports
 
-## Types
-Use `type` keyword: `import type { WorkflowLog } from '...'`
+## Type Imports
+
+Use `type` keyword for type-only imports:
+
+```typescript
+import type { WorkflowLog } from '@/stores/logs/types'
+```

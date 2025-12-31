@@ -1,0 +1,486 @@
+---
+title: Jira Service Management
+description: 与 Jira Service Management 互动
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="jira_service_management"
+  color="#E0E0E0"
+/>
+
+## 使用说明
+
+集成 Jira Service Management 以进行 IT 服务管理。可创建和管理服务请求，处理客户和组织，跟踪 SLA，并管理队列。
+
+## 工具
+
+### `jsm_get_service_desks`
+
+获取 Jira Service Management 中的所有服务台
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 你的 Jira 域名（例如：yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `start` | number | 否 | 分页起始索引（默认值：0） |
+| `limit` | number | 否 | 返回的最大结果数（默认值：50） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `serviceDesks` | json | 服务台数组 |
+| `total` | number | 服务台总数 |
+| `isLastPage` | boolean | 是否为最后一页 |
+
+### `jsm_get_request_types`
+
+获取 Jira Service Management 中某个服务台的请求类型
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 你的 Jira 域名（例如：yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `serviceDeskId` | string | 是 | 要获取请求类型的服务台 ID |
+| `start` | number | 否 | 分页起始索引（默认值：0） |
+| `limit` | number | 否 | 返回的最大结果数（默认值：50） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `requestTypes` | json | 请求类型的数组 |
+| `total` | number | 请求类型的总数 |
+| `isLastPage` | boolean | 是否为最后一页 |
+
+### `jsm_create_request`
+
+在 Jira Service Management 中创建新的服务请求
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | ------ | ----------- |
+| `domain` | string | 是 | 你的 Jira 域名（例如 yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `serviceDeskId` | string | 是 | 要创建请求的服务台 ID |
+| `requestTypeId` | string | 是 | 新请求的请求类型 ID |
+| `summary` | string | 是 | 服务请求的摘要/标题 |
+| `description` | string | 否 | 服务请求的描述 |
+| `raiseOnBehalfOf` | string | 否 | 代表客户提交请求的账户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueId` | string | 创建的请求问题 ID |
+| `issueKey` | string | 创建的请求问题键（例如 SD-123） |
+| `requestTypeId` | string | 请求类型 ID |
+| `serviceDeskId` | string | 服务台 ID |
+| `success` | boolean | 请求是否创建成功 |
+| `url` | string | 创建的请求的 URL |
+
+### `jsm_get_request`
+
+从 Jira Service Management 获取单个服务请求
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Jira 域名（例如 yourcompany.atlassian.net ） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `issueIdOrKey` | string | 是 | 问题 ID 或键（例如 SD-123 ） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+
+### `jsm_get_requests`
+
+从 Jira Service Management 获取多个服务请求
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Jira 域名（例如 yourcompany.atlassian.net ） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `serviceDeskId` | string | 否 | 按服务台 ID 过滤 |
+| `requestOwnership` | string | 否 | 按所有权过滤： OWNED_REQUESTS 、 PARTICIPATED_REQUESTS 、 ORGANIZATION 、 ALL_REQUESTS |
+| `requestStatus` | string | 否 | 按状态过滤： OPEN 、 CLOSED 、 ALL |
+| `searchTerm` | string | 否 | 用于筛选请求的搜索词 |
+| `start` | number | 否 | 分页起始索引（默认值： 0 ） |
+| `limit` | number | 否 | 返回的最大结果数（默认值： 50 ） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `requests` | json | 服务请求数组 |
+| `total` | number | 请求总数 |
+| `isLastPage` | boolean | 是否为最后一页 |
+
+### `jsm_add_comment`
+
+在 Jira Service Management 中为服务请求添加评论（公开或内部）
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Jira 域名（例如 yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `issueIdOrKey` | string | 是 | 问题 ID 或关键字（例如 SD-123） |
+| `body` | string | 是 | 评论正文内容 |
+| `isPublic` | boolean | 是 | 评论是公开（对客户可见）还是内部 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueIdOrKey` | string | 问题 ID 或关键字 |
+| `commentId` | string | 创建的评论 ID |
+| `body` | string | 评论正文内容 |
+| `isPublic` | boolean | 评论是否为公开 |
+| `success` | boolean | 评论是否添加成功 |
+
+### `jsm_get_comments`
+
+获取 Jira Service Management 中服务请求的评论
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Jira 域名（例如 yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `issueIdOrKey` | string | 是 | 问题 ID 或关键字（例如 SD-123） |
+| `isPublic` | boolean | 否 | 仅筛选公开评论 |
+| `internal` | boolean | 否 | 仅筛选内部评论 |
+| `start` | number | 否 | 分页起始索引（默认值：0） |
+| `limit` | number | 否 | 返回的最大结果数（默认值：50） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueIdOrKey` | string | 问题 ID 或键值 |
+| `comments` | json | 评论数组 |
+| `total` | number | 评论总数 |
+| `isLastPage` | boolean | 是否为最后一页 |
+
+### `jsm_get_customers`
+
+获取 Jira Service Management 服务台的客户
+
+#### 输入
+
+| 参数 | 类型 | 是否必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 你的 Jira 域名（例如：yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `serviceDeskId` | string | 是 | 要获取客户的服务台 ID |
+| `query` | string | 否 | 用于筛选客户的搜索查询 |
+| `start` | number | 否 | 分页的起始索引（默认值：0） |
+| `limit` | number | 否 | 返回的最大结果数（默认值：50） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `customers` | json | 客户数组 |
+| `total` | number | 客户总数 |
+| `isLastPage` | boolean | 是否为最后一页 |
+
+### `jsm_add_customer`
+
+向 Jira Service Management 服务台添加客户
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Jira 域名（例如 yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `serviceDeskId` | string | 是 | 要添加客户的服务台 ID |
+| `emails` | string | 是 | 以逗号分隔的要添加为客户的邮箱地址 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `serviceDeskId` | string | 服务台 ID |
+| `success` | boolean | 是否成功添加了客户 |
+
+### `jsm_get_organizations`
+
+获取 Jira Service Management 服务台的组织
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Jira 域名（例如 yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `serviceDeskId` | string | 是 | 要获取组织的服务台 ID |
+| `start` | number | 否 | 分页起始索引（默认值：0） |
+| `limit` | number | 否 | 返回的最大结果数（默认值：50） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `organizations` | json | 组织数组 |
+| `total` | number | 组织总数 |
+| `isLastPage` | boolean | 是否为最后一页 |
+
+### `jsm_create_organization`
+
+在 Jira Service Management 中创建一个新组织
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Jira 域名（例如 yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `name` | string | 是 | 要创建的组织名称 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `organizationId` | string | 已创建组织的 ID |
+| `name` | string | 已创建组织的名称 |
+| `success` | boolean | 操作是否成功 |
+
+### `jsm_add_organization_to_service_desk`
+
+在 Jira Service Management 中将组织添加到服务台
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Jira 域名（例如 yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `serviceDeskId` | string | 是 | 要添加组织的服务台 ID |
+| `organizationId` | string | 是 | 要添加到服务台的组织 ID |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `serviceDeskId` | string | 服务台 ID |
+| `organizationId` | string | 已添加的组织 ID |
+| `success` | boolean | 操作是否成功 |
+
+### `jsm_get_queues`
+
+获取 Jira Service Management 中服务台的队列
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Jira 域名（例如：yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `serviceDeskId` | string | 是 | 要获取队列的服务台 ID |
+| `includeCount` | boolean | 否 | 是否包含每个队列的问题数量 |
+| `start` | number | 否 | 分页的起始索引（默认值：0） |
+| `limit` | number | 否 | 返回的最大结果数（默认值：50） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `queues` | json | 队列数组 |
+| `total` | number | 队列总数 |
+| `isLastPage` | boolean | 是否为最后一页 |
+
+### `jsm_get_sla`
+
+获取 Jira Service Management 中服务请求的 SLA 信息
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Jira 域名（例如：yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `issueIdOrKey` | string | 是 | 问题 ID 或关键字（例如：SD-123） |
+| `start` | number | 否 | 分页的起始索引（默认值：0） |
+| `limit` | number | 否 | 返回的最大结果数（默认值：50） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueIdOrKey` | string | 问题 ID 或键值 |
+| `slas` | json | SLA 信息数组 |
+| `total` | number | SLA 总数 |
+| `isLastPage` | boolean | 是否为最后一页 |
+
+### `jsm_get_transitions`
+
+获取 Jira Service Management 中服务请求的可用流转
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Jira 域名（例如：yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `issueIdOrKey` | string | 是 | 问题 ID 或键值（例如：SD-123） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueIdOrKey` | string | 问题 ID 或键值 |
+| `transitions` | json | 可用流转的数组 |
+
+### `jsm_transition_request`
+
+将服务请求流转到 Jira Service Management 中的新状态
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Jira 域名（例如：yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `issueIdOrKey` | string | 是 | 问题 ID 或键值（例如：SD-123） |
+| `transitionId` | string | 是 | 要应用的流转 ID |
+| `comment` | string | 否 | 流转时可选的备注 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueIdOrKey` | string | 问题 ID 或键值 |
+| `transitionId` | string | 已应用的转换 ID |
+| `success` | boolean | 转换是否成功 |
+
+### `jsm_get_participants`
+
+获取 Jira Service Management 请求的参与者
+
+#### 输入
+
+| 参数 | 类型 | 是否必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 你的 Jira 域名（例如 yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `issueIdOrKey` | string | 是 | 问题 ID 或键值（例如 SD-123） |
+| `start` | number | 否 | 分页起始索引（默认值：0） |
+| `limit` | number | 否 | 返回的最大结果数（默认值：50） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueIdOrKey` | string | 问题 ID 或键值 |
+| `participants` | json | 参与者数组 |
+| `total` | number | 参与者总数 |
+| `isLastPage` | boolean | 是否为最后一页 |
+
+### `jsm_add_participants`
+
+为 Jira Service Management 请求添加参与者
+
+#### 输入
+
+| 参数 | 类型 | 是否必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 你的 Jira 域名（例如 yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `issueIdOrKey` | string | 是 | 问题 ID 或键值（例如 SD-123） |
+| `accountIds` | string | 是 | 以逗号分隔的要添加为参与者的账户 ID
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueIdOrKey` | string | 问题 ID 或键值 |
+| `participants` | json | 新增参与者数组 |
+| `success` | boolean | 操作是否成功 |
+
+### `jsm_get_approvals`
+
+在 Jira Service Management 中获取请求的审批信息
+
+#### 输入
+
+| 参数 | 类型 | 是否必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 你的 Jira 域名（例如 yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `issueIdOrKey` | string | 是 | 问题 ID 或键值（例如 SD-123） |
+| `start` | number | 否 | 分页起始索引（默认值：0） |
+| `limit` | number | 否 | 返回的最大结果数（默认值：50） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueIdOrKey` | string | 问题 ID 或键值 |
+| `approvals` | json | 审批数组 |
+| `total` | number | 审批总数 |
+| `isLastPage` | boolean | 是否为最后一页 |
+
+### `jsm_answer_approval`
+
+在 Jira Service Management 中批准或拒绝审批请求
+
+#### 输入
+
+| 参数 | 类型 | 是否必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 你的 Jira 域名（例如 yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `issueIdOrKey` | string | 是 | 问题 ID 或键值（例如 SD-123） |
+| `approvalId` | string | 是 | 需要答复的审批 ID |
+| `decision` | string | 是 | 决策：“approve” 或 “decline” |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueIdOrKey` | string | 问题 ID 或 key |
+| `approvalId` | string | 审批 ID |
+| `decision` | string | 做出的决定（approve/decline） |
+| `success` | boolean | 操作是否成功 |
+
+## 备注
+
+- 分类：`tools`
+- 类型：`jira_service_management`

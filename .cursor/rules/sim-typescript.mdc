@@ -6,19 +6,15 @@ globs: ["apps/sim/**/*.ts", "apps/sim/**/*.tsx"]
 # TypeScript Rules
 
 1. **No `any`** - Use proper types or `unknown` with type guards
-2. **Props interface** - Always define, even for simple components
-3. **Callback types** - Full signature with params and return type
-4. **Generics** - Use for reusable components/hooks
-5. **Const assertions** - `as const` for constant objects/arrays
-6. **Ref types** - Explicit: `useRef<HTMLDivElement>(null)`
+2. **Props interface** - Always define for components
+3. **Const assertions** - `as const` for constant objects/arrays
+4. **Ref types** - Explicit: `useRef<HTMLDivElement>(null)`
+5. **Type imports** - `import type { X }` for type-only imports
 
-## Anti-Patterns
 ```typescript
-// ❌ Bad
+// ✗ Bad
 const handleClick = (e: any) => {}
-useEffect(() => { doSomething(prop) }, []) // Missing dep
 
-// ✅ Good  
+// ✓ Good
 const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {}
-useEffect(() => { doSomething(prop) }, [prop])
 ```

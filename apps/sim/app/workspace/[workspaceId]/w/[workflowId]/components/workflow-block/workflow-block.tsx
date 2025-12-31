@@ -35,7 +35,7 @@ import { getDependsOnFields } from '@/blocks/utils'
 import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 import { useCredentialName } from '@/hooks/queries/oauth-credentials'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useKnowledgeBaseName } from '@/hooks/use-knowledge-base-name'
+import { useKnowledgeBase } from '@/hooks/use-knowledge'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -409,11 +409,10 @@ const SubBlockRow = ({
     planId: planIdValue,
   })
 
-  const knowledgeBaseDisplayName = useKnowledgeBaseName(
-    subBlock?.type === 'knowledge-base-selector' && typeof rawValue === 'string'
-      ? rawValue
-      : undefined
+  const { knowledgeBase: kbForDisplayName } = useKnowledgeBase(
+    subBlock?.type === 'knowledge-base-selector' && typeof rawValue === 'string' ? rawValue : ''
   )
+  const knowledgeBaseDisplayName = kbForDisplayName?.name ?? null
 
   const workflowMap = useWorkflowRegistry((state) => state.workflows)
   const workflowSelectionName =

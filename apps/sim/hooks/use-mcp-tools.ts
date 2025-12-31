@@ -32,7 +32,6 @@ export interface UseMcpToolsResult {
   isLoading: boolean
   error: string | null
   refreshTools: (forceRefresh?: boolean) => Promise<void>
-  getToolById: (toolId: string) => McpToolForUI | undefined
   getToolsByServer: (serverId: string) => McpToolForUI[]
 }
 
@@ -72,13 +71,6 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
     [workspaceId, queryClient]
   )
 
-  const getToolById = useCallback(
-    (toolId: string): McpToolForUI | undefined => {
-      return mcpTools.find((tool) => tool.id === toolId)
-    },
-    [mcpTools]
-  )
-
   const getToolsByServer = useCallback(
     (serverId: string): McpToolForUI[] => {
       return mcpTools.filter((tool) => tool.serverId === serverId)
@@ -91,49 +83,6 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
     isLoading,
     error: queryError instanceof Error ? queryError.message : null,
     refreshTools,
-    getToolById,
     getToolsByServer,
   }
-}
-
-export function useMcpToolExecution(workspaceId: string) {
-  const executeTool = useCallback(
-    async (serverId: string, toolName: string, args: Record<string, any>) => {
-      if (!workspaceId) {
-        throw new Error('workspaceId is required for MCP tool execution')
-      }
-
-      logger.info(
-        `Executing MCP tool ${toolName} on server ${serverId} in workspace ${workspaceId}`
-      )
-
-      const response = await fetch('/api/mcp/tools/execute', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          serverId,
-          toolName,
-          arguments: args,
-          workspaceId,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Tool execution failed: ${response.status} ${response.statusText}`)
-      }
-
-      const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || 'Tool execution failed')
-      }
-
-      return result.data
-    },
-    [workspaceId]
-  )
-
-  return { executeTool }
 }

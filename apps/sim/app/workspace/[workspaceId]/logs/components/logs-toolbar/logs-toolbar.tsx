@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { ArrowUp, Bell, Library, MoreHorizontal, RefreshCw } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -9,11 +9,13 @@ import {
   type ComboboxOption,
   Loader,
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverItem,
   PopoverScrollArea,
   PopoverTrigger,
 } from '@/components/emcn'
+import { DatePicker } from '@/components/emcn/components/date-picker/date-picker'
 import { cn } from '@/lib/core/utils/cn'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'
@@ -22,7 +24,7 @@ import { useFilterStore } from '@/stores/logs/filters/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { AutocompleteSearch } from './components/search'
 
-const CORE_TRIGGER_TYPES = ['manual', 'api', 'schedule', 'chat', 'webhook'] as const
+const CORE_TRIGGER_TYPES = ['manual', 'api', 'schedule', 'chat', 'webhook', 'mcp'] as const
 
 const TIME_RANGE_OPTIONS: ComboboxOption[] = [
   { value: 'All time', label: 'All time' },
@@ -35,7 +37,30 @@ const TIME_RANGE_OPTIONS: ComboboxOption[] = [
   { value: 'Past 7 days', label: 'Past 7 days' },
   { value: 'Past 14 days', label: 'Past 14 days' },
   { value: 'Past 30 days', label: 'Past 30 days' },
+  { value: 'Custom range', label: 'Custom range' },
 ] as const
+
+/**
+ * Formats a date string (YYYY-MM-DD) for display.
+ */
+function formatDateShort(dateStr: string): string {
+  const date = new Date(dateStr)
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ]
+  return `${months[date.getMonth()]} ${date.getDate()}`
+}
 
 type ViewMode = 'logs' | 'dashboard'
 
@@ -153,7 +178,14 @@ export function LogsToolbar({
     setTriggers,
     timeRange,
     setTimeRange,
+    startDate,
+    endDate,
+    setDateRange,
+    clearDateRange,
   } = useFilterStore()
+
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const [previousTimeRange, setPreviousTimeRange] = useState(timeRange)
   const folders = useFolderStore((state) => state.folders)
 
   const allWorkflows = useWorkflowRegistry((state) => state.workflows)
@@ -269,8 +301,50 @@ export function LogsToolbar({
 
   const timeDisplayLabel = useMemo(() => {
     if (timeRange === 'All time') return 'Time'
+    if (timeRange === 'Custom range' && startDate && endDate) {
+      return `${formatDateShort(startDate)} - ${formatDateShort(endDate)}`
+    }
+    if (timeRange === 'Custom range') return 'Custom range'
     return timeRange
-  }, [timeRange])
+  }, [timeRange, startDate, endDate])
+
+  /**
+   * Handles time range selection from combobox.
+   * Opens date picker when "Custom range" is selected.
+   */
+  const handleTimeRangeChange = useCallback(
+    (val: string) => {
+      if (val === 'Custom range') {
+        setPreviousTimeRange(timeRange)
+        setDatePickerOpen(true)
+      } else {
+        clearDateRange()
+        setTimeRange(val as typeof timeRange)
+      }
+    },
+    [timeRange, setTimeRange, clearDateRange]
+  )
+
+  /**
+   * Handles date range selection from DatePicker.
+   */
+  const handleDateRangeApply = useCallback(
+    (start: string, end: string) => {
+      setDateRange(start, end)
+      setDatePickerOpen(false)
+    },
+    [setDateRange]
+  )
+
+  /**
+   * Handles date picker cancel.
+   */
+  const handleDatePickerCancel = useCallback(() => {
+    if (timeRange === 'Custom range' && !startDate) {
+      setTimeRange(previousTimeRange)
+    }
+    setDatePickerOpen(false)
+  }, [timeRange, startDate, previousTimeRange, setTimeRange])
 
   const hasActiveFilters = useMemo(() => {
     return (
@@ -287,8 +361,8 @@ export function LogsToolbar({
     setWorkflowIds([])
     setFolderIds([])
     setTriggers([])
-    setTimeRange('All time')
-  }, [setLevel, setWorkflowIds, setFolderIds, setTriggers, setTimeRange])
+    clearDateRange()
+  }, [setLevel, setWorkflowIds, setFolderIds, setTriggers, clearDateRange])
 
   return (
     <div className='flex flex-col gap-[19px]'>
@@ -528,7 +602,7 @@ export function LogsToolbar({
                   <Combobox
                     options={TIME_RANGE_OPTIONS as unknown as ComboboxOption[]}
                     value={timeRange}
-                    onChange={(val) => setTimeRange(val as typeof timeRange)}
+                    onChange={handleTimeRangeChange}
                     placeholder='All time'
                     overlayContent={
                       <span className='truncate text-[var(--text-primary)]'>
@@ -636,18 +710,42 @@ export function LogsToolbar({
             />
 
             {/* Timeline Filter */}
-            <Combobox
-              options={TIME_RANGE_OPTIONS as unknown as ComboboxOption[]}
-              value={timeRange}
-              onChange={(val) => setTimeRange(val as typeof timeRange)}
-              placeholder='Time'
-              overlayContent={
-                <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
-              }
-              size='sm'
-              align='end'
-              className='h-[32px] w-[120px] rounded-[6px]'
-            />
+            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+              <PopoverAnchor asChild>
+                <div>
+                  <Combobox
+                    options={TIME_RANGE_OPTIONS as unknown as ComboboxOption[]}
+                    value={timeRange}
+                    onChange={handleTimeRangeChange}
+                    placeholder='Time'
+                    overlayContent={
+                      <span className='truncate text-[var(--text-primary)]'>
+                        {timeDisplayLabel}
+                      </span>
+                    }
+                    size='sm'
+                    align='end'
+                    className='h-[32px] w-[120px] rounded-[6px]'
+                  />
+                </div>
+              </PopoverAnchor>
+              <PopoverContent
+                side='bottom'
+                align='end'
+                sideOffset={4}
+                collisionPadding={16}
+                className='w-auto p-0'
+              >
+                <DatePicker
+                  mode='range'
+                  startDate={startDate}
+                  endDate={endDate}
+                  onRangeChange={handleDateRangeApply}
+                  onCancel={handleDatePickerCancel}
+                  inline
+                />
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
       </div>

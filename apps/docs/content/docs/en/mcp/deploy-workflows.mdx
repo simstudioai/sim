@@ -1,0 +1,108 @@
+---
+title: Deploy Workflows as MCP
+description: Expose your workflows as MCP tools for external AI assistants and applications
+---
+
+import { Video } from '@/components/ui/video'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Deploy your workflows as MCP tools to make them accessible to external AI assistants like Claude Desktop, Cursor, and other MCP-compatible clients. This turns your workflows into callable tools that can be invoked from anywhere.
+
+## Creating and Managing MCP Servers
+
+MCP servers group your workflow tools together. Create and manage them in workspace settings:
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp/mcp-server.mp4" width={700} height={450} />
+</div>
+
+1. Navigate to **Settings → MCP Servers**
+2. Click **Create Server**
+3. Enter a name and optional description
+4. Copy the server URL for use in your MCP clients
+5. View and manage all tools added to the server
+
+## Adding a Workflow as a Tool
+
+Once your workflow is deployed, you can expose it as an MCP tool:
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp/mcp-deploy-tool.mp4" width={700} height={450} />
+</div>
+
+1. Open your deployed workflow
+2. Click **Deploy** and go to the **MCP** tab
+3. Configure the tool name and description
+4. Add descriptions for each parameter (helps AI understand inputs)
+5. Select which MCP servers to add it to
+
+<Callout type="info">
+The workflow must be deployed before it can be added as an MCP tool.
+</Callout>
+
+## Tool Configuration
+
+### Tool Name
+Use lowercase letters, numbers, and underscores. The name should be descriptive and follow MCP naming conventions (e.g., `search_documents`, `send_email`).
+
+### Description
+Write a clear description of what the tool does. This helps AI assistants understand when to use the tool.
+
+### Parameters
+Your workflow's input format fields become tool parameters. Add descriptions to each parameter to help AI assistants provide correct values.
+
+## Connecting MCP Clients
+
+Use the server URL from settings to connect external applications:
+
+### Claude Desktop
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "my-sim-workflows": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "YOUR_SERVER_URL"]
+    }
+  }
+}
+```
+
+### Cursor
+Add the server URL in Cursor's MCP settings using the same mcp-remote pattern.
+
+<Callout type="warn">
+Include your API key header (`X-API-Key`) for authenticated access when using mcp-remote or other HTTP-based MCP transports.
+</Callout>
+
+## Server Management
+
+From the server detail view in **Settings → MCP Servers**, you can:
+
+- **View tools**: See all workflows added to a server
+- **Copy URL**: Get the server URL for MCP clients
+- **Add workflows**: Add more deployed workflows as tools
+- **Remove tools**: Remove workflows from the server
+- **Delete server**: Remove the entire server and all its tools
+
+## How It Works
+
+When an MCP client calls your tool:
+
+1. The request is received at your MCP server URL
+2. Sim validates the request and maps parameters to workflow inputs
+3. The deployed workflow executes with the provided inputs
+4. Results are returned to the MCP client
+
+Workflows execute using the same deployment version as API calls, ensuring consistent behavior.
+
+## Permission Requirements
+
+| Action | Required Permission |
+|--------|-------------------|
+| Create MCP servers | **Admin** |
+| Add workflows to servers | **Write** or **Admin** |
+| View MCP servers | **Read**, **Write**, or **Admin** |
+| Delete MCP servers | **Admin** |
+

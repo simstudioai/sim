@@ -44,6 +44,7 @@ import {
   useTerminalResize,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/hooks'
 import { getBlock } from '@/blocks'
+import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import type { ConsoleEntry } from '@/stores/terminal'
@@ -53,15 +54,15 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 /**
  * Terminal height configuration constants
  */
-const MIN_HEIGHT = 30
+const MIN_HEIGHT = TERMINAL_HEIGHT.MIN
 const NEAR_MIN_THRESHOLD = 40
-const DEFAULT_EXPANDED_HEIGHT = 196
+const DEFAULT_EXPANDED_HEIGHT = TERMINAL_HEIGHT.DEFAULT
 
 /**
  * Column width constants - numeric values for calculations
  */
 const BLOCK_COLUMN_WIDTH_PX = 240
-const MIN_OUTPUT_PANEL_WIDTH_PX = 440
+const MIN_OUTPUT_PANEL_WIDTH_PX = OUTPUT_PANEL_WIDTH.MIN
 
 /**
  * Column width constants - Tailwind classes for styling

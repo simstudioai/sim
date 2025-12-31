@@ -59,3 +59,58 @@ export const COPILOT_TOOL_ERROR_NAMES: Record<string, string> = {
 } as const
 
 export type CopilotToolId = keyof typeof COPILOT_TOOL_DISPLAY_NAMES
+
+/**
+ * Layout dimension constants.
+ *
+ * These values must stay in sync with:
+ * - `globals.css` (CSS variable defaults)
+ * - `layout.tsx` (blocking script validations)
+ *
+ * @see globals.css for CSS variable definitions
+ * @see layout.tsx for pre-hydration script that reads localStorage
+ */
+
+/** Sidebar width constraints */
+export const SIDEBAR_WIDTH = {
+  DEFAULT: 232,
+  MIN: 232,
+  /** Maximum is 30% of viewport, enforced dynamically */
+  MAX_PERCENTAGE: 0.3,
+} as const
+
+/** Right panel width constraints */
+export const PANEL_WIDTH = {
+  DEFAULT: 290,
+  MIN: 290,
+  /** Maximum is 40% of viewport, enforced dynamically */
+  MAX_PERCENTAGE: 0.4,
+} as const
+
+/** Terminal height constraints */
+export const TERMINAL_HEIGHT = {
+  DEFAULT: 155,
+  MIN: 30,
+  /** Maximum is 70% of viewport, enforced dynamically */
+  MAX_PERCENTAGE: 0.7,
+} as const
+
+/** Toolbar triggers section height constraints */
+export const TOOLBAR_TRIGGERS_HEIGHT = {
+  DEFAULT: 300,
+  MIN: 30,
+  MAX: 800,
+} as const
+
+/** Editor connections section height constraints */
+export const EDITOR_CONNECTIONS_HEIGHT = {
+  DEFAULT: 172,
+  MIN: 30,
+  MAX: 300,
+} as const
+
+/** Output panel (terminal execution results) width constraints */
+export const OUTPUT_PANEL_WIDTH = {
+  DEFAULT: 440,
+  MIN: 440,
+} as const

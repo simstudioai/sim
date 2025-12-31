@@ -107,7 +107,7 @@ export const FileAttachmentDisplay = memo(({ fileAttachments }: FileAttachmentDi
       {fileAttachments.map((file) => (
         <div
           key={file.id}
-          className='group relative h-16 w-16 cursor-pointer overflow-hidden rounded-md border border-border/50 bg-muted/20 transition-all hover:bg-muted/40'
+          className='group relative h-16 w-16 cursor-pointer overflow-hidden rounded-md border border-[var(--border-1)] bg-muted/20 transition-all hover:bg-muted/40'
           onClick={() => handleFileClick(file)}
           title={`${file.filename} (${formatFileSize(file.size)})`}
         >

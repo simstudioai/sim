@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { AlertCircle, Plus, X } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -647,12 +647,7 @@ export function NotificationSettings({
     <div className='flex h-full flex-col gap-[16px]'>
       <div className='min-h-0 flex-1 overflow-y-auto'>
         {formErrors.general && (
-          <div className='mb-[16px] rounded-[6px] border border-[var(--text-error)]/30 bg-[var(--text-error)]/10 p-[10px]'>
-            <div className='flex items-start gap-[8px]'>
-              <AlertCircle className='mt-0.5 h-4 w-4 shrink-0 text-[var(--text-error)]' />
-              <p className='text-[12px] text-[var(--text-error)]'>{formErrors.general}</p>
-            </div>
-          </div>
+          <p className='mb-[16px] text-[12px] text-[var(--text-error)]'>{formErrors.general}</p>
         )}
 
         <div className='flex flex-col gap-[16px]'>

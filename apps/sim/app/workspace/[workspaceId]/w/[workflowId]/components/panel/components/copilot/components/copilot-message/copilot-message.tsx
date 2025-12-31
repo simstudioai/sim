@@ -319,7 +319,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 onClick={handleMessageClick}
                 onMouseEnter={() => setIsHoveringMessage(true)}
                 onMouseLeave={() => setIsHoveringMessage(false)}
-                className='group relative w-full cursor-pointer rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[6px] py-[6px] transition-all duration-200 hover:border-[var(--surface-7)] hover:bg-[var(--surface-5)] dark:bg-[var(--surface-5)] dark:hover:border-[var(--surface-7)] dark:hover:bg-[var(--border-1)]'
+                className='group relative w-full cursor-pointer rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] px-[6px] py-[6px] transition-all duration-200 hover:border-[var(--surface-7)] hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover:border-[var(--surface-7)] dark:hover:bg-[var(--border-1)]'
               >
                 <div
                   ref={messageContentRef}
@@ -350,7 +350,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                       nodes.push(
                         <span
                           key={`mention-${i}-${lastIndex}`}
-                          className='rounded-[6px] bg-[rgba(142,76,251,0.65)]'
+                          className='rounded-[4px] bg-[rgba(50,189,126,0.65)] py-[1px]'
                         >
                           {mention}
                         </span>
@@ -365,7 +365,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
                 {/* Gradient fade when truncated - applies to entire message box */}
                 {!isExpanded && needsExpansion && (
-                  <div className='pointer-events-none absolute right-0 bottom-0 left-0 h-6 bg-gradient-to-t from-0% from-[var(--surface-5)] via-40% via-[var(--surface-5)]/70 to-100% to-transparent group-hover:from-[var(--surface-5)] group-hover:via-[var(--surface-5)]/70 dark:from-[var(--surface-5)] dark:via-[var(--surface-5)]/70 dark:group-hover:from-[var(--border-1)] dark:group-hover:via-[var(--border-1)]/70' />
+                  <div className='pointer-events-none absolute right-0 bottom-0 left-0 h-6 bg-gradient-to-t from-0% from-[var(--surface-4)] via-25% via-[var(--surface-4)] to-100% to-transparent opacity-40 group-hover:opacity-30 dark:from-[var(--surface-4)] dark:via-[var(--surface-4)] dark:group-hover:from-[var(--border-1)] dark:group-hover:via-[var(--border-1)]' />
                 )}
 
                 {/* Abort button when hovering and response is generating (only on last user message) */}
@@ -376,13 +376,12 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                         e.stopPropagation()
                         abortMessage()
                       }}
-                      className='h-[20px] w-[20px] rounded-full bg-[var(--c-C0C0C0)] p-0 transition-colors hover:bg-[var(--c-D0D0D0)]'
+                      className='h-[20px] w-[20px] rounded-full border-0 bg-[var(--c-383838)] p-0 transition-colors hover:bg-[var(--c-575757)] dark:bg-[var(--c-E0E0E0)] dark:hover:bg-[var(--c-CFCFCF)]'
                       title='Stop generation'
                     >
                       <svg
-                        className='block h-[13px] w-[13px]'
+                        className='block h-[13px] w-[13px] fill-white dark:fill-black'
                         viewBox='0 0 24 24'
-                        fill='black'
                         xmlns='http://www.w3.org/2000/svg'
                       >
                         <rect x='4' y='4' width='16' height='16' rx='3' ry='3' />

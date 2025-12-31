@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { removeMcpToolsForWorkflow, syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import { deployWorkflow, loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
   createSchedulesForDeploy,
@@ -160,6 +161,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     logger.info(`[${requestId}] Workflow deployed successfully: ${id}`)
 
+    // Sync MCP tools with the latest parameter schema
+    await syncMcpToolsForWorkflow({ workflowId: id, requestId, context: 'deploy' })
+
     const responseApiKeyInfo = workflowData!.workspaceId
       ? 'Workspace API keys'
       : 'Personal API keys'
@@ -216,6 +220,9 @@ export async function DELETE(
         .set({ isDeployed: false, deployedAt: null })
         .where(eq(workflow.id, id))
     })
+
+    // Remove all MCP tools that reference this workflow
+    await removeMcpToolsForWorkflow(id, requestId)
 
     logger.info(`[${requestId}] Workflow undeployed successfully: ${id}`)
 

@@ -10,7 +10,6 @@ export function useTagSelection(blockId: string, subblockId: string) {
 
   const emitTagSelectionValue = useCallback(
     (value: any) => {
-      // Use the collaborative system with immediate processing (no debouncing)
       collaborativeSetTagSelection(blockId, subblockId, value)
     },
     [blockId, subblockId, collaborativeSetTagSelection]

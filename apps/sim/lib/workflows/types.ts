@@ -1,6 +1,7 @@
 export interface InputFormatField {
   name?: string
   type?: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files' | string
+  description?: string
   value?: unknown
 }
 

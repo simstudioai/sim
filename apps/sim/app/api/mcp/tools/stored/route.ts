@@ -4,39 +4,20 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { withMcpAuth } from '@/lib/mcp/middleware'
+import type { McpToolSchema, StoredMcpTool } from '@/lib/mcp/types'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpStoredToolsAPI')
 
 export const dynamic = 'force-dynamic'
 
-interface StoredMcpTool {
-  workflowId: string
-  workflowName: string
-  serverId: string
-  serverUrl?: string
-  toolName: string
-  schema?: Record<string, unknown>
-}
-
-/**
- * GET - Get all stored MCP tools from workflows in the workspace
- *
- * Scans all workflows in the workspace and extracts MCP tools that have been
- * added to agent blocks. Returns the stored state of each tool for comparison
- * against current server state.
- */
 export const GET = withMcpAuth('read')(
   async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       logger.info(`[${requestId}] Fetching stored MCP tools for workspace ${workspaceId}`)
 
-      // Get all workflows in workspace
       const workflows = await db
-        .select({
-          id: workflow.id,
-          name: workflow.name,
-        })
+        .select({ id: workflow.id, name: workflow.name })
         .from(workflow)
         .where(eq(workflow.workspaceId, workspaceId))
 
@@ -47,12 +28,8 @@ export const GET = withMcpAuth('read')(
         return createMcpSuccessResponse({ tools: [] })
       }
 
-      // Get all agent blocks from these workflows
       const agentBlocks = await db
-        .select({
-          workflowId: workflowBlocks.workflowId,
-          subBlocks: workflowBlocks.subBlocks,
-        })
+        .select({ workflowId: workflowBlocks.workflowId, subBlocks: workflowBlocks.subBlocks })
         .from(workflowBlocks)
         .where(eq(workflowBlocks.type, 'agent'))
 
@@ -81,7 +58,7 @@ export const GET = withMcpAuth('read')(
             serverId: params.serverId as string,
             serverUrl: params.serverUrl as string | undefined,
             toolName: params.toolName as string,
-            schema: tool.schema as Record<string, unknown> | undefined,
+            schema: tool.schema as McpToolSchema | undefined,
           })
         }
       }

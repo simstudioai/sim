@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Badge, Button, Combobox, Input } from '@/components/emcn'
+import { Badge, Button, Combobox, Input, Label, Textarea } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
@@ -294,21 +292,19 @@ export function VariablesInput({
                 key={assignment.id}
                 data-assignment-id={assignment.id}
                 className={cn(
-                  'rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-3)] dark:bg-[#1F1F1F]',
+                  'rounded-[4px] border border-[var(--border-1)]',
                   collapsed ? 'overflow-hidden' : 'overflow-visible'
                 )}
               >
                 <div
-                  className='flex cursor-pointer items-center justify-between bg-transparent px-[10px] py-[5px]'
+                  className='flex cursor-pointer items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'
                   onClick={() => toggleCollapse(assignment.id)}
                 >
                   <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
                     <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
                       {assignment.variableName || `Variable ${index + 1}`}
                     </span>
-                    {assignment.variableName && (
-                      <Badge className='h-[20px] text-[13px]'>{assignment.type}</Badge>
-                    )}
+                    {assignment.variableName && <Badge size='sm'>{assignment.type}</Badge>}
                   </div>
                   <div
                     className='flex items-center gap-[8px] pl-[8px]'
@@ -336,8 +332,8 @@ export function VariablesInput({
                 </div>
 
                 {!collapsed && (
-                  <div className='flex flex-col gap-[6px] border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>
-                    <div className='flex flex-col gap-[4px]'>
+                  <div className='flex flex-col gap-[8px] border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>
+                    <div className='flex flex-col gap-[6px]'>
                       <Label className='text-[13px]'>Variable</Label>
                       <Combobox
                         options={availableVars.map((v) => ({ label: v.name, value: v.id }))}
@@ -348,7 +344,7 @@ export function VariablesInput({
                       />
                     </div>
 
-                    <div className='space-y-[4px]'>
+                    <div className='flex flex-col gap-[6px]'>
                       <Label className='text-[13px]'>Value</Label>
                       {assignment.type === 'object' || assignment.type === 'array' ? (
                         <div className='relative'>

@@ -37,6 +37,8 @@ const parseTimeRangeFromURL = (value: string | null): TimeRange => {
       return 'Past 14 days'
     case 'past-30-days':
       return 'Past 30 days'
+    case 'custom':
+      return 'Custom range'
     default:
       return DEFAULT_TIME_RANGE
   }
@@ -57,7 +59,9 @@ const parseTriggerArrayFromURL = (value: string | null): TriggerType[] => {
   if (!value) return []
   return value
     .split(',')
-    .filter((t): t is TriggerType => ['chat', 'api', 'webhook', 'manual', 'schedule'].includes(t))
+    .filter((t): t is TriggerType =>
+      ['chat', 'api', 'webhook', 'manual', 'schedule', 'mcp'].includes(t)
+    )
 }
 
 const parseStringArrayFromURL = (value: string | null): string[] => {
@@ -85,6 +89,8 @@ const timeRangeToURL = (timeRange: TimeRange): string => {
       return 'past-14-days'
     case 'Past 30 days':
       return 'past-30-days'
+    case 'Custom range':
+      return 'custom'
     default:
       return 'all-time'
   }
@@ -94,6 +100,8 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   workspaceId: '',
   viewMode: 'logs',
   timeRange: DEFAULT_TIME_RANGE,
+  startDate: undefined,
+  endDate: undefined,
   level: 'all',
   workflowIds: [],
   folderIds: [],
@@ -107,6 +115,28 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setTimeRange: (timeRange) => {
     set({ timeRange })
+    if (!get().isInitializing) {
+      get().syncWithURL()
+    }
+  },
+
+  setDateRange: (start, end) => {
+    set({
+      timeRange: 'Custom range',
+      startDate: start,
+      endDate: end,
+    })
+    if (!get().isInitializing) {
+      get().syncWithURL()
+    }
+  },
+
+  clearDateRange: () => {
+    set({
+      timeRange: DEFAULT_TIME_RANGE,
+      startDate: undefined,
+      endDate: undefined,
+    })
     if (!get().isInitializing) {
       get().syncWithURL()
     }
@@ -205,9 +235,13 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     const folderIds = parseStringArrayFromURL(params.get('folderIds'))
     const triggers = parseTriggerArrayFromURL(params.get('triggers'))
     const searchQuery = params.get('search') || ''
+    const startDate = params.get('startDate') || undefined
+    const endDate = params.get('endDate') || undefined
 
     set({
       timeRange,
+      startDate,
+      endDate,
       level,
       workflowIds,
       folderIds,
@@ -218,11 +252,21 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   },
 
   syncWithURL: () => {
-    const { timeRange, level, workflowIds, folderIds, triggers, searchQuery } = get()
+    const { timeRange, startDate, endDate, level, workflowIds, folderIds, triggers, searchQuery } =
+      get()
     const params = new URLSearchParams()
 
     if (timeRange !== DEFAULT_TIME_RANGE) {
       params.set('timeRange', timeRangeToURL(timeRange))
+    }
+
+    if (timeRange === 'Custom range') {
+      if (startDate) {
+        params.set('startDate', startDate)
+      }
+      if (endDate) {
+        params.set('endDate', endDate)
+      }
     }
 
     if (level !== 'all') {

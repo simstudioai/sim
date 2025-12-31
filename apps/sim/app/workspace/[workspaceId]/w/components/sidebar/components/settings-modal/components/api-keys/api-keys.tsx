@@ -12,9 +12,10 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Switch,
   Tooltip,
 } from '@/components/emcn'
-import { Input, Skeleton, Switch } from '@/components/ui'
+import { Input, Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -468,7 +469,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                         if (createError) setCreateError(null)
                       }}
                       disabled={!allowPersonalApiKeys}
-                      className='disabled:cursor-not-allowed disabled:opacity-60'
+                      className={`disabled:cursor-not-allowed disabled:opacity-60 ${keyType === 'personal' ? 'bg-[var(--border-1)] hover:bg-[var(--border-1)] dark:bg-[var(--surface-5)] dark:hover:bg-[var(--border-1)]' : ''}`}
                     >
                       Personal
                     </Button>
@@ -479,6 +480,11 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                         setKeyType('workspace')
                         if (createError) setCreateError(null)
                       }}
+                      className={
+                        keyType === 'workspace'
+                          ? 'bg-[var(--border-1)] hover:bg-[var(--border-1)] dark:bg-[var(--surface-5)] dark:hover:bg-[var(--border-1)]'
+                          : ''
+                      }
                     >
                       Workspace
                     </Button>

@@ -136,7 +136,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // Prepare template update data
       const updateData: any = {
         views: sql`${templates.views} + 1`,
-        updatedAt: now,
       }
 
       // If connecting to template for editing, also update the workflowId

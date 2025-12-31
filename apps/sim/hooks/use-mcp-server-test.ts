@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import type { McpTransport } from '@/lib/mcp/types'
+import { sanitizeForHttp, sanitizeHeaders } from '@/lib/mcp/utils'
 
 const logger = createLogger('useMcpServerTest')
 
@@ -68,13 +69,8 @@ export function useMcpServerTest() {
       try {
         const cleanConfig = {
           ...config,
-          headers: config.headers
-            ? Object.fromEntries(
-                Object.entries(config.headers).filter(
-                  ([key, value]) => key.trim() !== '' && value.trim() !== ''
-                )
-              )
-            : {},
+          url: config.url ? sanitizeForHttp(config.url) : config.url,
+          headers: sanitizeHeaders(config.headers) || {},
         }
 
         const response = await fetch('/api/mcp/servers/test-connection', {

@@ -1,5 +1,5 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { getStartDateFromTimeRange } from '@/lib/logs/filters'
+import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
 import type { LogsResponse, TimeRange, WorkflowLog } from '@/stores/logs/filters/types'
 
@@ -16,6 +16,8 @@ export const logKeys = {
 
 interface LogFilters {
   timeRange: TimeRange
+  startDate?: string
+  endDate?: string
   level: string
   workflowIds: string[]
   folderIds: string[]
@@ -45,9 +47,14 @@ function applyFilterParams(params: URLSearchParams, filters: Omit<LogFilters, 'l
     params.set('folderIds', filters.folderIds.join(','))
   }
 
-  const startDate = getStartDateFromTimeRange(filters.timeRange)
+  const startDate = getStartDateFromTimeRange(filters.timeRange, filters.startDate)
   if (startDate) {
     params.set('startDate', startDate.toISOString())
+  }
+
+  const endDate = getEndDateFromTimeRange(filters.timeRange, filters.endDate)
+  if (endDate) {
+    params.set('endDate', endDate.toISOString())
   }
 
   if (filters.searchQuery.trim()) {

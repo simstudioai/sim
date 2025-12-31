@@ -18,9 +18,10 @@ COPY packages/testing/package.json ./packages/testing/package.json
 COPY packages/logger/package.json ./packages/logger/package.json
 COPY packages/tsconfig/package.json ./packages/tsconfig/package.json
 
-# Install dependencies with cache mount for faster builds
+# Install dependencies with hoisted layout for Docker compatibility
+# Using --linker=hoisted to avoid .bun directory symlinks that don't copy between stages
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
-    bun install --omit=dev --ignore-scripts
+    bun install --omit=dev --ignore-scripts --linker=hoisted
 
 # ========================================
 # Builder Stage: Prepare source code

@@ -200,19 +200,90 @@ export function queryToApiParams(parsedQuery: ParsedQuery): Record<string, strin
         break
 
       case 'date':
-        if (filter.operator === '=' && filter.value === 'today') {
-          const today = new Date()
-          today.setHours(0, 0, 0, 0)
-          params.startDate = today.toISOString()
-        } else if (filter.operator === '=' && filter.value === 'yesterday') {
-          const yesterday = new Date()
-          yesterday.setDate(yesterday.getDate() - 1)
-          yesterday.setHours(0, 0, 0, 0)
-          params.startDate = yesterday.toISOString()
+        if (filter.operator === '=') {
+          const dateValue = String(filter.value)
 
-          const endOfYesterday = new Date(yesterday)
-          endOfYesterday.setHours(23, 59, 59, 999)
-          params.endDate = endOfYesterday.toISOString()
+          // Handle range syntax: date:2024-01-01..2024-01-15
+          if (dateValue.includes('..')) {
+            const [startStr, endStr] = dateValue.split('..')
+            if (startStr && /^\d{4}-\d{2}-\d{2}$/.test(startStr)) {
+              const [year, month, day] = startStr.split('-').map(Number)
+              const startDate = new Date(year, month - 1, day, 0, 0, 0, 0)
+              params.startDate = startDate.toISOString()
+            }
+            if (endStr && /^\d{4}-\d{2}-\d{2}$/.test(endStr)) {
+              const [year, month, day] = endStr.split('-').map(Number)
+              const endDate = new Date(year, month - 1, day, 23, 59, 59, 999)
+              params.endDate = endDate.toISOString()
+            }
+          } else if (dateValue === 'today') {
+            const today = new Date()
+            today.setHours(0, 0, 0, 0)
+            params.startDate = today.toISOString()
+          } else if (dateValue === 'yesterday') {
+            const yesterday = new Date()
+            yesterday.setDate(yesterday.getDate() - 1)
+            yesterday.setHours(0, 0, 0, 0)
+            params.startDate = yesterday.toISOString()
+
+            const endOfYesterday = new Date(yesterday)
+            endOfYesterday.setHours(23, 59, 59, 999)
+            params.endDate = endOfYesterday.toISOString()
+          } else if (dateValue === 'this-week') {
+            const now = new Date()
+            const dayOfWeek = now.getDay()
+            const startOfWeek = new Date(now)
+            startOfWeek.setDate(now.getDate() - dayOfWeek)
+            startOfWeek.setHours(0, 0, 0, 0)
+            params.startDate = startOfWeek.toISOString()
+          } else if (dateValue === 'last-week') {
+            const now = new Date()
+            const dayOfWeek = now.getDay()
+            const startOfThisWeek = new Date(now)
+            startOfThisWeek.setDate(now.getDate() - dayOfWeek)
+            startOfThisWeek.setHours(0, 0, 0, 0)
+
+            const startOfLastWeek = new Date(startOfThisWeek)
+            startOfLastWeek.setDate(startOfLastWeek.getDate() - 7)
+            params.startDate = startOfLastWeek.toISOString()
+
+            const endOfLastWeek = new Date(startOfThisWeek)
+            endOfLastWeek.setMilliseconds(-1)
+            params.endDate = endOfLastWeek.toISOString()
+          } else if (dateValue === 'this-month') {
+            const now = new Date()
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+            startOfMonth.setHours(0, 0, 0, 0)
+            params.startDate = startOfMonth.toISOString()
+          } else if (/^\d{4}$/.test(dateValue)) {
+            // Year only: YYYY (e.g., 2024)
+            const year = Number.parseInt(dateValue, 10)
+            const startOfYear = new Date(year, 0, 1)
+            startOfYear.setHours(0, 0, 0, 0)
+            params.startDate = startOfYear.toISOString()
+
+            const endOfYear = new Date(year, 11, 31)
+            endOfYear.setHours(23, 59, 59, 999)
+            params.endDate = endOfYear.toISOString()
+          } else if (/^\d{4}-\d{2}$/.test(dateValue)) {
+            // Month only: YYYY-MM (e.g., 2024-12)
+            const [year, month] = dateValue.split('-').map(Number)
+            const startOfMonth = new Date(year, month - 1, 1)
+            startOfMonth.setHours(0, 0, 0, 0)
+            params.startDate = startOfMonth.toISOString()
+
+            const endOfMonth = new Date(year, month, 0) // Day 0 of next month = last day of this month
+            endOfMonth.setHours(23, 59, 59, 999)
+            params.endDate = endOfMonth.toISOString()
+          } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+            // Parse as a single date (YYYY-MM-DD) using local timezone
+            const [year, month, day] = dateValue.split('-').map(Number)
+            const startDate = new Date(year, month - 1, day, 0, 0, 0, 0)
+            params.startDate = startDate.toISOString()
+
+            const endDate = new Date(year, month - 1, day, 23, 59, 59, 999)
+            params.endDate = endDate.toISOString()
+          }
         }
         break
 

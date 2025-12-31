@@ -5,13 +5,16 @@
 /**
  * CSS-based sidebar and panel widths to prevent SSR hydration mismatches.
  * Default widths are set here and updated via blocking script before React hydrates.
+ *
+ * @important These values must stay in sync with stores/constants.ts
+ * @see stores/constants.ts for the source of truth
  */
 :root {
-  --sidebar-width: 232px;
-  --panel-width: 260px;
-  --toolbar-triggers-height: 300px;
-  --editor-connections-height: 200px;
-  --terminal-height: 196px;
+  --sidebar-width: 232px; /* SIDEBAR_WIDTH.DEFAULT */
+  --panel-width: 290px; /* PANEL_WIDTH.DEFAULT */
+  --toolbar-triggers-height: 300px; /* TOOLBAR_TRIGGERS_HEIGHT.DEFAULT */
+  --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
+  --terminal-height: 155px; /* TERMINAL_HEIGHT.DEFAULT */
 }
 
 .sidebar-container {

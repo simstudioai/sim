@@ -1,6 +1,6 @@
 'use client'
 
-import { startTransition, useCallback, useEffect, useState } from 'react'
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -17,27 +17,27 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   Breadcrumb,
   Button,
+  Checkbox,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Tooltip,
-  Trash,
-} from '@/components/emcn'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { SearchHighlight } from '@/components/ui/search-highlight'
-import { Skeleton } from '@/components/ui/skeleton'
-import {
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+  Tooltip,
+  Trash,
+} from '@/components/emcn'
+import { Input } from '@/components/ui/input'
+import { SearchHighlight } from '@/components/ui/search-highlight'
+import { Skeleton } from '@/components/ui/skeleton'
+import type { ChunkData } from '@/lib/knowledge/types'
 import {
+  ChunkContextMenu,
   CreateChunkModal,
   DeleteChunkModal,
   DocumentTagsModal,
@@ -45,9 +45,9 @@ import {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { knowledgeKeys } from '@/hooks/queries/knowledge'
-import { useDocumentChunks } from '@/hooks/use-knowledge'
-import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
+import { useDocument, useDocumentChunks, useKnowledgeBase } from '@/hooks/use-knowledge'
 
 const logger = createLogger('Document')
 
@@ -262,12 +262,6 @@ export function Document({
   knowledgeBaseName,
   documentName,
 }: DocumentProps) {
-  const {
-    getCachedKnowledgeBase,
-    getCachedDocuments,
-    updateDocument: updateDocumentInStore,
-    removeDocument,
-  } = useKnowledgeStore()
   const queryClient = useQueryClient()
   const { workspaceId } = useParams()
   const router = useRouter()
@@ -275,22 +269,19 @@ export function Document({
   const currentPageFromURL = Number.parseInt(searchParams.get('page') || '1', 10)
   const userPermissions = useUserPermissionsContext()
 
-  /**
-   * Get cached document synchronously for immediate render
-   */
-  const getInitialCachedDocument = useCallback(() => {
-    const cachedDocuments = getCachedDocuments(knowledgeBaseId)
-    return cachedDocuments?.documents?.find((d) => d.id === documentId) || null
-  }, [getCachedDocuments, knowledgeBaseId, documentId])
+  const { knowledgeBase } = useKnowledgeBase(knowledgeBaseId)
+  const {
+    document: documentData,
+    isLoading: isLoadingDocument,
+    error: documentError,
+  } = useDocument(knowledgeBaseId, documentId)
 
   const [showTagsModal, setShowTagsModal] = useState(false)
 
-  // Search state management
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   const [isSearching, setIsSearching] = useState(false)
 
-  // Load initial chunks (no search) for immediate display
   const {
     chunks: initialChunks,
     currentPage: initialPage,
@@ -301,16 +292,13 @@ export function Document({
     error: initialError,
     refreshChunks: initialRefreshChunks,
     updateChunk: initialUpdateChunk,
-  } = useDocumentChunks(knowledgeBaseId, documentId, currentPageFromURL, '', {
-    enableClientSearch: false,
-  })
+    isFetching: isFetchingChunks,
+  } = useDocumentChunks(knowledgeBaseId, documentId, currentPageFromURL)
 
-  // Search results state
   const [searchResults, setSearchResults] = useState<ChunkData[]>([])
   const [isLoadingSearch, setIsLoadingSearch] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
 
-  // Load all search results when query changes
   useEffect(() => {
     if (!debouncedSearchQuery.trim()) {
       setSearchResults([])
@@ -328,7 +316,7 @@ export function Document({
         const allResults: ChunkData[] = []
         let hasMore = true
         let offset = 0
-        const limit = 100 // Larger batches for search
+        const limit = 100
 
         while (hasMore && isMounted) {
           const response = await fetch(
@@ -375,7 +363,6 @@ export function Document({
   const [selectedChunk, setSelectedChunk] = useState<ChunkData | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Debounce search query with 200ms delay for optimal UX
   useEffect(() => {
     const handler = setTimeout(() => {
       startTransition(() => {
@@ -389,12 +376,7 @@ export function Document({
     }
   }, [searchQuery])
 
-  // Determine which data to show
   const showingSearch = isSearching && searchQuery.trim().length > 0 && searchResults.length > 0
-
-  // Removed unused allDisplayChunks variable
-
-  // Client-side pagination for search results
   const SEARCH_PAGE_SIZE = 50
   const maxSearchPages = Math.ceil(searchResults.length / SEARCH_PAGE_SIZE)
   const searchCurrentPage =
@@ -416,7 +398,6 @@ export function Document({
 
   const goToPage = useCallback(
     async (page: number) => {
-      // Update URL first for both modes
       const params = new URLSearchParams(window.location.search)
       if (page > 1) {
         params.set('page', page.toString())
@@ -426,10 +407,8 @@ export function Document({
       window.history.replaceState(null, '', `?${params.toString()}`)
 
       if (showingSearch) {
-        // For search, URL update is sufficient (client-side pagination)
         return
       }
-      // For normal view, also trigger server-side pagination
       return await initialGoToPage(page)
     },
     [showingSearch, initialGoToPage]
@@ -450,69 +429,24 @@ export function Document({
   const refreshChunks = showingSearch ? async () => {} : initialRefreshChunks
   const updateChunk = showingSearch ? (id: string, updates: any) => {} : initialUpdateChunk
 
-  const initialCachedDoc = getInitialCachedDocument()
-  const [documentData, setDocumentData] = useState<DocumentData | null>(initialCachedDoc)
-  const [isLoadingDocument, setIsLoadingDocument] = useState(!initialCachedDoc)
-  const [error, setError] = useState<string | null>(null)
-
   const [isCreateChunkModalOpen, setIsCreateChunkModalOpen] = useState(false)
   const [chunkToDelete, setChunkToDelete] = useState<ChunkData | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isBulkOperating, setIsBulkOperating] = useState(false)
   const [showDeleteDocumentDialog, setShowDeleteDocumentDialog] = useState(false)
   const [isDeletingDocument, setIsDeletingDocument] = useState(false)
+  const [contextMenuChunk, setContextMenuChunk] = useState<ChunkData | null>(null)
 
-  const combinedError = error || searchError || initialError
+  const {
+    isOpen: isContextMenuOpen,
+    position: contextMenuPosition,
+    menuRef,
+    handleContextMenu: baseHandleContextMenu,
+    closeMenu: closeContextMenu,
+  } = useContextMenu()
 
-  // URL updates are handled directly in goToPage function to prevent pagination conflicts
+  const combinedError = documentError || searchError || initialError
 
-  useEffect(() => {
-    const fetchDocument = async () => {
-      // Check for cached data first
-      const cachedDocuments = getCachedDocuments(knowledgeBaseId)
-      const cachedDoc = cachedDocuments?.documents?.find((d) => d.id === documentId)
-
-      if (cachedDoc) {
-        setDocumentData(cachedDoc)
-        setIsLoadingDocument(false)
-        return
-      }
-
-      // Only show loading and fetch if we don't have cached data
-      setIsLoadingDocument(true)
-      setError(null)
-
-      try {
-        const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`)
-
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error('Document not found')
-          }
-          throw new Error(`Failed to fetch document: ${response.statusText}`)
-        }
-
-        const result = await response.json()
-
-        if (result.success) {
-          setDocumentData(result.data)
-        } else {
-          throw new Error(result.error || 'Failed to fetch document')
-        }
-      } catch (err) {
-        logger.error('Error fetching document:', err)
-        setError(err instanceof Error ? err.message : 'An error occurred')
-      } finally {
-        setIsLoadingDocument(false)
-      }
-    }
-
-    if (knowledgeBaseId && documentId) {
-      fetchDocument()
-    }
-  }, [knowledgeBaseId, documentId, getCachedDocuments])
-
-  const knowledgeBase = getCachedKnowledgeBase(knowledgeBaseId)
   const effectiveKnowledgeBaseName = knowledgeBase?.name || knowledgeBaseName || 'Knowledge Base'
   const effectiveDocumentName = documentData?.filename || documentName || 'Document'
 
@@ -575,8 +509,7 @@ export function Document({
     }
   }
 
-  const handleChunkDeleted = async () => {
-    await refreshChunks()
+  const handleCloseDeleteModal = () => {
     if (chunkToDelete) {
       setSelectedChunks((prev) => {
         const newSet = new Set(prev)
@@ -584,9 +517,6 @@ export function Document({
         return newSet
       })
     }
-  }
-
-  const handleCloseDeleteModal = () => {
     setIsDeleteModalOpen(false)
     setChunkToDelete(null)
   }
@@ -611,11 +541,6 @@ export function Document({
     }
   }
 
-  const handleChunkCreated = async () => {
-    // Refresh the chunks list to include the new chunk
-    await refreshChunks()
-  }
-
   /**
    * Handles deleting the document
    */
@@ -636,9 +561,6 @@ export function Document({
       const result = await response.json()
 
       if (result.success) {
-        removeDocument(knowledgeBaseId, documentId)
-
-        // Invalidate React Query cache to ensure fresh data on KB page
         await queryClient.invalidateQueries({
           queryKey: knowledgeKeys.detail(knowledgeBaseId),
         })
@@ -653,7 +575,6 @@ export function Document({
     }
   }
 
-  // Shared utility function for bulk chunk operations
   const performBulkChunkOperation = async (
     operation: 'enable' | 'disable' | 'delete',
     chunks: ChunkData[]
@@ -685,10 +606,8 @@ export function Document({
 
       if (result.success) {
         if (operation === 'delete') {
-          // Refresh chunks list to reflect deletions
           await refreshChunks()
         } else {
-          // Update successful chunks in the store for enable/disable operations
           result.data.results.forEach((opResult: any) => {
             if (opResult.operation === operation) {
               opResult.chunkIds.forEach((chunkId: string) => {
@@ -701,7 +620,6 @@ export function Document({
         logger.info(`Successfully ${operation}d ${result.data.successCount} chunks`)
       }
 
-      // Clear selection after successful operation
       setSelectedChunks(new Set())
     } catch (err) {
       logger.error(`Error ${operation}ing chunks:`, err)
@@ -729,22 +647,60 @@ export function Document({
     await performBulkChunkOperation('delete', chunksToDelete)
   }
 
-  // Calculate bulk operation counts
   const selectedChunksList = displayChunks.filter((chunk) => selectedChunks.has(chunk.id))
   const enabledCount = selectedChunksList.filter((chunk) => chunk.enabled).length
   const disabledCount = selectedChunksList.filter((chunk) => !chunk.enabled).length
 
   const isAllSelected = displayChunks.length > 0 && selectedChunks.size === displayChunks.length
 
-  const handleDocumentTagsUpdate = useCallback(
-    (tagData: Record<string, string>) => {
-      updateDocumentInStore(knowledgeBaseId, documentId, tagData)
-      setDocumentData((prev) => (prev ? { ...prev, ...tagData } : null))
+  /**
+   * Handle right-click on a chunk row
+   */
+  const handleChunkContextMenu = useCallback(
+    (e: React.MouseEvent, chunk: ChunkData) => {
+      setContextMenuChunk(chunk)
+      baseHandleContextMenu(e)
     },
-    [knowledgeBaseId, documentId, updateDocumentInStore]
+    [baseHandleContextMenu]
   )
 
-  if (isLoadingDocument) {
+  /**
+   * Handle right-click on empty space (table container)
+   */
+  const handleEmptyContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      setContextMenuChunk(null)
+      baseHandleContextMenu(e)
+    },
+    [baseHandleContextMenu]
+  )
+
+  /**
+   * Handle context menu close
+   */
+  const handleContextMenuClose = useCallback(() => {
+    closeContextMenu()
+    setContextMenuChunk(null)
+  }, [closeContextMenu])
+
+  const handleDocumentTagsUpdate = useCallback(() => {
+    queryClient.invalidateQueries({
+      queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+    })
+  }, [knowledgeBaseId, documentId, queryClient])
+
+  const prevDocumentIdRef = useRef<string>(documentId)
+  const isNavigatingToNewDoc = prevDocumentIdRef.current !== documentId
+
+  useEffect(() => {
+    if (documentData && documentData.id === documentId) {
+      prevDocumentIdRef.current = documentId
+    }
+  }, [documentData, documentId])
+
+  const isFetchingNewDoc = isNavigatingToNewDoc && isFetchingChunks
+
+  if (isLoadingDocument || isFetchingNewDoc) {
     return (
       <DocumentLoading
         knowledgeBaseId={knowledgeBaseId}
@@ -894,7 +850,10 @@ export function Document({
             </Tooltip.Root>
           </div>
 
-          <div className='mt-[12px] flex flex-1 flex-col overflow-hidden'>
+          <div
+            className='mt-[12px] flex flex-1 flex-col overflow-hidden'
+            onContextMenu={handleEmptyContextMenu}
+          >
             {displayChunks.length === 0 && documentData?.processingStatus === 'completed' ? (
               <div className='mt-[10px] flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
                 <div className='text-center'>
@@ -920,6 +879,7 @@ export function Document({
                     >
                       <div className='flex items-center'>
                         <Checkbox
+                          size='sm'
                           checked={isAllSelected}
                           onCheckedChange={handleSelectAll}
                           disabled={
@@ -927,7 +887,6 @@ export function Document({
                             !userPermissions.canEdit
                           }
                           aria-label='Select all chunks'
-                          className='h-[14px] w-[14px] border-[var(--border-2)] focus-visible:ring-[var(--brand-primary-hex)]/20 data-[state=checked]:border-[var(--brand-primary-hex)] data-[state=checked]:bg-[var(--brand-primary-hex)] [&>*]:h-[12px] [&>*]:w-[12px]'
                         />
                       </div>
                     </TableHead>
@@ -992,6 +951,7 @@ export function Document({
                         key={chunk.id}
                         className='cursor-pointer hover:bg-[var(--surface-2)]'
                         onClick={() => handleChunkClick(chunk)}
+                        onContextMenu={(e) => handleChunkContextMenu(e, chunk)}
                       >
                         <TableCell
                           className='w-[52px] py-[8px]'
@@ -999,13 +959,13 @@ export function Document({
                         >
                           <div className='flex items-center'>
                             <Checkbox
+                              size='sm'
                               checked={selectedChunks.has(chunk.id)}
                               onCheckedChange={(checked) =>
                                 handleSelectChunk(chunk.id, checked as boolean)
                               }
                               disabled={!userPermissions.canEdit}
                               aria-label={`Select chunk ${chunk.chunkIndex}`}
-                              className='h-[14px] w-[14px] border-[var(--border-2)] focus-visible:ring-[var(--brand-primary-hex)]/20 data-[state=checked]:border-[var(--brand-primary-hex)] data-[state=checked]:bg-[var(--brand-primary-hex)] [&>*]:h-[12px] [&>*]:w-[12px]'
                               onClick={(e) => e.stopPropagation()}
                             />
                           </div>
@@ -1154,16 +1114,13 @@ export function Document({
         knowledgeBaseId={knowledgeBaseId}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
-        onChunkUpdate={(updatedChunk: ChunkData) => {
-          updateChunk(updatedChunk.id, updatedChunk)
-          setSelectedChunk(updatedChunk)
-        }}
         allChunks={displayChunks}
         currentPage={currentPage}
         totalPages={totalPages}
         onNavigateToChunk={(chunk: ChunkData) => {
           setSelectedChunk(chunk)
         }}
+        maxChunkSize={knowledgeBase?.chunkingConfig?.maxSize}
         onNavigateToPage={async (page: number, selectChunk: 'first' | 'last') => {
           await goToPage(page)
 
@@ -1175,7 +1132,6 @@ export function Document({
                 setSelectedChunk(displayChunks[displayChunks.length - 1])
               }
             } else {
-              // Retry after a short delay if chunks aren't loaded yet
               setTimeout(checkAndSelectChunk, 100)
             }
           }
@@ -1190,7 +1146,6 @@ export function Document({
         onOpenChange={setIsCreateChunkModalOpen}
         document={documentData}
         knowledgeBaseId={knowledgeBaseId}
-        onChunkCreated={handleChunkCreated}
       />
 
       {/* Delete Chunk Modal */}
@@ -1200,7 +1155,6 @@ export function Document({
         documentId={documentId}
         isOpen={isDeleteModalOpen}
         onClose={handleCloseDeleteModal}
-        onChunkDeleted={handleChunkDeleted}
       />
 
       {/* Bulk Action Bar */}
@@ -1244,6 +1198,56 @@ export function Document({
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      <ChunkContextMenu
+        isOpen={isContextMenuOpen}
+        position={contextMenuPosition}
+        menuRef={menuRef}
+        onClose={handleContextMenuClose}
+        hasChunk={contextMenuChunk !== null}
+        isChunkEnabled={contextMenuChunk?.enabled ?? true}
+        onOpenInNewTab={
+          contextMenuChunk
+            ? () => {
+                const url = `/workspace/${workspaceId}/knowledge/${knowledgeBaseId}/${documentId}?chunk=${contextMenuChunk.id}`
+                window.open(url, '_blank')
+              }
+            : undefined
+        }
+        onEdit={
+          contextMenuChunk
+            ? () => {
+                setSelectedChunk(contextMenuChunk)
+                setIsModalOpen(true)
+              }
+            : undefined
+        }
+        onCopyContent={
+          contextMenuChunk
+            ? () => {
+                navigator.clipboard.writeText(contextMenuChunk.content)
+              }
+            : undefined
+        }
+        onToggleEnabled={
+          contextMenuChunk && userPermissions.canEdit
+            ? () => handleToggleEnabled(contextMenuChunk.id)
+            : undefined
+        }
+        onDelete={
+          contextMenuChunk && userPermissions.canEdit
+            ? () => handleDeleteChunk(contextMenuChunk.id)
+            : undefined
+        }
+        onAddChunk={
+          userPermissions.canEdit && documentData?.processingStatus !== 'failed'
+            ? () => setIsCreateChunkModalOpen(true)
+            : undefined
+        }
+        disableToggleEnabled={!userPermissions.canEdit}
+        disableDelete={!userPermissions.canEdit}
+        disableAddChunk={!userPermissions.canEdit || documentData?.processingStatus === 'failed'}
+      />
     </div>
   )
 }

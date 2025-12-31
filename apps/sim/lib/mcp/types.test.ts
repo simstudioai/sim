@@ -81,7 +81,7 @@ describe('McpError', () => {
     const error = new McpError('Multiple validation errors', 400, complexData)
 
     expect(error.data).toEqual(complexData)
-    expect(error.data.errors).toHaveLength(2)
+    expect((error.data as typeof complexData).errors).toHaveLength(2)
   })
 
   it.concurrent('handles array as data', () => {

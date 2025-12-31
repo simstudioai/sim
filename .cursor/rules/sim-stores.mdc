@@ -5,53 +5,66 @@ globs: ["apps/sim/**/store.ts", "apps/sim/**/stores/**/*.ts"]
 
 # Zustand Store Patterns
 
-## Structure
+Stores live in `stores/`. Complex stores split into `store.ts` + `types.ts`.
+
+## Basic Store
+
+```typescript
+import { create } from 'zustand'
+import { devtools } from 'zustand/middleware'
+import type { FeatureState } from '@/stores/feature/types'
+
+const initialState = { items: [] as Item[], activeId: null as string | null }
+
+export const useFeatureStore = create<FeatureState>()(
+  devtools(
+    (set, get) => ({
+      ...initialState,
+      setItems: (items) => set({ items }),
+      addItem: (item) => set((state) => ({ items: [...state.items, item] })),
+      reset: () => set(initialState),
+    }),
+    { name: 'feature-store' }
+  )
+)
+```
+
+## Persisted Store
+
 ```typescript
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-interface FeatureState {
-  // State
-  items: Item[]
-  activeId: string | null
-  
-  // Actions
-  setItems: (items: Item[]) => void
-  addItem: (item: Item) => void
-  clearState: () => void
-}
-
-const createInitialState = () => ({
-  items: [],
-  activeId: null,
-})
-
 export const useFeatureStore = create<FeatureState>()(
   persist(
     (set) => ({
-      ...createInitialState(),
-
-      setItems: (items) => set({ items }),
-
-      addItem: (item) => set((state) => ({
-        items: [...state.items, item],
-      })),
-
-      clearState: () => set(createInitialState()),
+      width: 300,
+      setWidth: (width) => set({ width }),
+      _hasHydrated: false,
+      setHasHydrated: (v) => set({ _hasHydrated: v }),
     }),
     {
       name: 'feature-state',
-      partialize: (state) => ({ items: state.items }),
+      partialize: (state) => ({ width: state.width }),
+      onRehydrateStorage: () => (state) => state?.setHasHydrated(true),
     }
   )
 )
 ```
 
 ## Rules
-1. Interface includes state and actions
-2. Extract config to module constants
-3. TSDoc on store
-4. Only persist what's needed
-5. Immutable updates only - never mutate
-6. Use `set((state) => ...)` when depending on previous state
-7. Provide clear/reset actions
+
+1. Use `devtools` middleware (named stores)
+2. Use `persist` only when data should survive reload
+3. `partialize` to persist only necessary state
+4. `_hasHydrated` pattern for persisted stores needing hydration tracking
+5. Immutable updates only
+6. `set((state) => ...)` when depending on previous state
+7. Provide `reset()` action
+
+## Outside React
+
+```typescript
+const items = useFeatureStore.getState().items
+useFeatureStore.setState({ items: newItems })
+```

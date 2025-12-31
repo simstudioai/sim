@@ -14,7 +14,6 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Slider,
   Switch,
 } from '@/components/emcn'
 import { Input, Skeleton } from '@/components/ui'
@@ -70,7 +69,7 @@ function GeneralSkeleton() {
       </div>
 
       {/* Auto-connect row */}
-      <div className='flex items-center justify-between pt-[12px]'>
+      <div className='flex items-center justify-between'>
         <Skeleton className='h-4 w-36' />
         <Skeleton className='h-[17px] w-[30px] rounded-full' />
       </div>
@@ -82,7 +81,7 @@ function GeneralSkeleton() {
       </div>
 
       {/* Telemetry row */}
-      <div className='flex items-center justify-between border-t pt-[12px]'>
+      <div className='flex items-center justify-between border-t pt-[16px]'>
         <Skeleton className='h-4 w-44' />
         <Skeleton className='h-[17px] w-[30px] rounded-full' />
       </div>
@@ -134,8 +133,7 @@ export function General({ onOpenChange }: GeneralProps) {
 
   const [uploadError, setUploadError] = useState<string | null>(null)
 
-  const [localSnapValue, setLocalSnapValue] = useState<number | null>(null)
-  const snapToGridValue = localSnapValue ?? settings?.snapToGridSize ?? 0
+  const snapToGridValue = settings?.snapToGridSize ?? 0
 
   useEffect(() => {
     if (profile?.name) {
@@ -295,16 +293,11 @@ export function General({ onOpenChange }: GeneralProps) {
     }
   }
 
-  const handleSnapToGridChange = (value: number[]) => {
-    setLocalSnapValue(value[0])
-  }
-
-  const handleSnapToGridCommit = async (value: number[]) => {
-    const newValue = value[0]
+  const handleSnapToGridChange = async (value: string) => {
+    const newValue = Number.parseInt(value, 10)
     if (newValue !== settings?.snapToGridSize && !updateSetting.isPending) {
       await updateSetting.mutateAsync({ key: 'snapToGridSize', value: newValue })
     }
-    setLocalSnapValue(null)
   }
 
   const handleTrainingControlsChange = async (checked: boolean) => {
@@ -476,7 +469,7 @@ export function General({ onOpenChange }: GeneralProps) {
         </div>
       </div>
 
-      <div className='flex items-center justify-between pt-[12px]'>
+      <div className='flex items-center justify-between'>
         <Label htmlFor='auto-connect'>Auto-connect on drop</Label>
         <Switch
           id='auto-connect'
@@ -486,26 +479,7 @@ export function General({ onOpenChange }: GeneralProps) {
       </div>
 
       <div className='flex items-center justify-between'>
-        <Label htmlFor='snap-to-grid'>Snap to grid</Label>
-        <div className='flex items-center gap-[12px]'>
-          <span className='w-[32px] text-right text-[12px] text-[var(--text-tertiary)]'>
-            {snapToGridValue === 0 ? 'Off' : `${snapToGridValue}px`}
-          </span>
-          <Slider
-            id='snap-to-grid'
-            value={[snapToGridValue]}
-            onValueChange={handleSnapToGridChange}
-            onValueCommit={handleSnapToGridCommit}
-            min={0}
-            max={50}
-            step={1}
-            className='w-[100px]'
-          />
-        </div>
-      </div>
-
-      <div className='flex items-center justify-between'>
-        <Label htmlFor='error-notifications'>Run error notifications</Label>
+        <Label htmlFor='error-notifications'>Workflow error notifications</Label>
         <Switch
           id='error-notifications'
           checked={settings?.errorNotificationsEnabled ?? true}
@@ -513,7 +487,29 @@ export function General({ onOpenChange }: GeneralProps) {
         />
       </div>
 
-      <div className='flex items-center justify-between border-t pt-[12px]'>
+      <div className='flex items-center justify-between'>
+        <Label htmlFor='snap-to-grid'>Snap to grid</Label>
+        <div className='w-[100px]'>
+          <Combobox
+            size='sm'
+            align='end'
+            dropdownWidth={140}
+            value={String(snapToGridValue)}
+            onChange={handleSnapToGridChange}
+            placeholder='Select size'
+            options={[
+              { label: 'Off', value: '0' },
+              { label: '10px', value: '10' },
+              { label: '20px', value: '20' },
+              { label: '30px', value: '30' },
+              { label: '40px', value: '40' },
+              { label: '50px', value: '50' },
+            ]}
+          />
+        </div>
+      </div>
+
+      <div className='flex items-center justify-between border-t pt-[16px]'>
         <Label htmlFor='telemetry'>Allow anonymous telemetry</Label>
         <Switch
           id='telemetry'
@@ -522,9 +518,9 @@ export function General({ onOpenChange }: GeneralProps) {
         />
       </div>
 
-      <p className='text-[12px] text-[var(--text-muted)]'>
-        We use OpenTelemetry to collect anonymous usage data to improve Sim. All data is collected
-        in accordance with our privacy policy, and you can opt-out at any time.
+      <p className='-mt-[8px] text-[12px] text-[var(--text-muted)]'>
+        We use OpenTelemetry to collect anonymous usage data to improve Sim. You can opt-out at any
+        time.
       </p>
 
       {isTrainingEnabled && (
@@ -549,16 +545,25 @@ export function General({ onOpenChange }: GeneralProps) {
         </div>
       )}
 
-      {!isAuthDisabled && (
-        <div className='mt-auto flex items-center gap-[8px]'>
-          <Button onClick={handleSignOut} variant='active'>
-            Sign out
-          </Button>
-          <Button onClick={() => setShowResetPasswordModal(true)} variant='active'>
-            Reset password
-          </Button>
-        </div>
-      )}
+      <div className='mt-auto flex items-center gap-[8px]'>
+        {!isAuthDisabled && (
+          <>
+            <Button onClick={handleSignOut} variant='active'>
+              Sign out
+            </Button>
+            <Button onClick={() => setShowResetPasswordModal(true)} variant='active'>
+              Reset password
+            </Button>
+          </>
+        )}
+        <Button
+          onClick={() => window.open('/?from=settings', '_blank', 'noopener,noreferrer')}
+          variant='active'
+          className='ml-auto'
+        >
+          Home Page
+        </Button>
+      </div>
 
       {/* Password Reset Confirmation Modal */}
       <Modal open={showResetPasswordModal} onOpenChange={setShowResetPasswordModal}>

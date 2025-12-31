@@ -1,20 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import {
-  AlertCircle,
-  Calendar,
-  CheckCircle2,
-  Clock,
-  FileText,
-  Play,
-  RefreshCw,
-  XCircle,
-} from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge, Button, Textarea } from '@/components/emcn'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -25,10 +13,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { Textarea } from '@/components/ui/textarea'
 import { useBrandConfig } from '@/lib/branding/branding'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
+import { cn } from '@/lib/core/utils/cn'
 import Nav from '@/app/(landing)/components/nav/nav'
 import type { ResumeStatus } from '@/executor/types'
 
@@ -119,27 +105,14 @@ interface ResumeExecutionPageProps {
   initialContextId?: string | null
 }
 
-const RESUME_STATUS_STYLES: Record<string, { style: string; icon: React.ReactNode }> = {
-  paused: {
-    style: 'border-amber-200 bg-amber-50 text-amber-700',
-    icon: <Clock className='h-3 w-3' />,
-  },
-  queued: {
-    style: 'border-blue-200 bg-blue-50 text-blue-700',
-    icon: <Clock className='h-3 w-3' />,
-  },
-  resuming: {
-    style: 'border-indigo-200 bg-indigo-50 text-indigo-700',
-    icon: <Play className='h-3 w-3' />,
-  },
-  resumed: {
-    style: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    icon: <CheckCircle2 className='h-3 w-3' />,
-  },
-  failed: {
-    style: 'border-red-200 bg-red-50 text-red-700',
-    icon: <XCircle className='h-3 w-3' />,
-  },
+const RESUME_STATUS_STYLES: Record<string, string> = {
+  paused: 'border-[var(--c-F59E0B)]/30 bg-[var(--c-F59E0B)]/10 text-[var(--c-F59E0B)]',
+  queued:
+    'border-[var(--brand-tertiary)]/30 bg-[var(--brand-tertiary)]/10 text-[var(--brand-tertiary)]',
+  resuming:
+    'border-[var(--brand-primary)]/30 bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]',
+  resumed: 'border-[var(--text-success)]/30 bg-[var(--text-success)]/10 text-[var(--text-success)]',
+  failed: 'border-[var(--text-error)]/30 bg-[var(--text-error)]/10 text-[var(--text-error)]',
 }
 
 function formatDate(value: string | null): string {
@@ -157,13 +130,11 @@ function getStatusLabel(status: string): string {
 }
 
 function ResumeStatusBadge({ status }: { status: string }) {
-  const config = RESUME_STATUS_STYLES[status] ?? {
-    style: 'border-slate-200 bg-slate-100 text-slate-700',
-    icon: <AlertCircle className='h-3 w-3' />,
-  }
+  const style =
+    RESUME_STATUS_STYLES[status] ??
+    'border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-secondary)]'
   return (
-    <Badge variant='outline' className={`${config.style} flex items-center gap-1.5`}>
-      {config.icon}
+    <Badge variant='outline' className={cn(style)}>
       {getStatusLabel(status)}
     </Badge>
   )
@@ -418,7 +389,7 @@ export default function ResumeExecutionPage({
               value={selectValue}
               onValueChange={(val) => handleFormFieldChange(field.name, val)}
             >
-              <SelectTrigger className='w-full rounded-[12px] border-slate-200'>
+              <SelectTrigger className='w-full rounded-[6px] border-[var(--border)] bg-[var(--surface-1)]'>
                 <SelectValue
                   placeholder={
                     field.required ? 'Select true or false' : 'Select true, false, or leave blank'
@@ -440,7 +411,6 @@ export default function ResumeExecutionPage({
               value={value}
               onChange={(event) => handleFormFieldChange(field.name, event.target.value)}
               placeholder={field.placeholder ?? 'Enter a number...'}
-              className='rounded-[12px] border-slate-200'
             />
           )
         case 'array':
@@ -451,7 +421,7 @@ export default function ResumeExecutionPage({
               value={value}
               onChange={(event) => handleFormFieldChange(field.name, event.target.value)}
               placeholder={field.placeholder ?? (field.type === 'array' ? '[...]' : '{...}')}
-              className='min-h-[120px] rounded-[12px] border-slate-200 font-mono text-sm'
+              className='min-h-[120px] font-mono text-[13px]'
             />
           )
         default: {
@@ -462,7 +432,7 @@ export default function ResumeExecutionPage({
                 value={value}
                 onChange={(event) => handleFormFieldChange(field.name, event.target.value)}
                 placeholder={field.placeholder ?? 'Enter value...'}
-                className='min-h-[120px] rounded-[12px] border-slate-200'
+                className='min-h-[120px]'
               />
             )
           }
@@ -471,7 +441,6 @@ export default function ResumeExecutionPage({
               value={value}
               onChange={(event) => handleFormFieldChange(field.name, event.target.value)}
               placeholder={field.placeholder ?? 'Enter value...'}
-              className='rounded-[12px] border-slate-200'
             />
           )
         }
@@ -517,18 +486,6 @@ export default function ResumeExecutionPage({
       })
       .filter((row): row is ResponseStructureRow => row !== null)
   }, [selectedDetail])
-
-  useEffect(() => {
-    const root = document.documentElement
-    const hadDark = root.classList.contains('dark')
-    const hadLight = root.classList.contains('light')
-    root.classList.add('light')
-    root.classList.remove('dark')
-    return () => {
-      if (!hadLight) root.classList.remove('light')
-      if (hadDark) root.classList.add('dark')
-    }
-  }, [])
 
   useEffect(() => {
     if (!selectedContextId) {
@@ -907,10 +864,10 @@ export default function ResumeExecutionPage({
 
   const statusDetailNode = useMemo(() => {
     return (
-      <div className='flex flex-wrap items-center gap-2'>
+      <div className='flex flex-wrap items-center gap-[8px]'>
         <ResumeStatusBadge status={selectedStatus} />
         {queuePosition && queuePosition > 0 ? (
-          <span className={`${inter.className} text-slate-500 text-xs`}>
+          <span className='text-[12px] text-[var(--text-muted)]'>
             Queue position {queuePosition}
           </span>
         ) : null}
@@ -931,33 +888,23 @@ export default function ResumeExecutionPage({
             setError(null)
             setMessage(null)
           }}
-          className={`group w-full rounded-lg border p-3 text-left transition-all duration-150 hover:border-slate-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 ${
-            isSelected
-              ? 'border-blue-500 bg-blue-50/50 shadow-sm'
-              : subdued
-                ? 'border-slate-200 bg-slate-50 opacity-75'
-                : 'border-slate-200 bg-white'
-          }`}
+          className={cn(
+            'w-full rounded-[6px] border border-[var(--border)] bg-[var(--surface-1)] p-[12px] text-left',
+            'hover:bg-[var(--surface-3)] focus:outline-none',
+            isSelected && 'bg-[var(--surface-3)]'
+          )}
         >
-          <div className='flex items-start justify-between gap-2'>
-            <div className='min-w-0 flex-1'>
-              <div className='flex items-center gap-2'>
-                <p className='truncate font-medium text-slate-900 text-sm'>{pause.contextId}</p>
-              </div>
-              <div className='mt-1.5 flex items-center gap-1 text-slate-500 text-xs'>
-                <Calendar className='h-3 w-3' />
-                <span>{formatDate(pause.registeredAt)}</span>
-              </div>
-              {pause.queuePosition != null && pause.queuePosition > 0 && (
-                <div className='mt-1 flex items-center gap-1 text-amber-600 text-xs'>
-                  <Clock className='h-3 w-3' />
-                  <span>Position {pause.queuePosition}</span>
-                </div>
-              )}
-            </div>
-            <div className='flex-shrink-0'>
-              <ResumeStatusBadge status={pause.resumeStatus} />
-            </div>
+          <div className='mb-[8px] flex items-center justify-between'>
+            <ResumeStatusBadge status={pause.resumeStatus} />
+            <span className='truncate font-medium text-[11px] text-[var(--text-primary)]'>
+              {pause.contextId}
+            </span>
+          </div>
+          <div className='space-y-[4px] text-[11px] text-[var(--text-secondary)]'>
+            <p>Registered: {formatDate(pause.registeredAt)}</p>
+            {pause.queuePosition != null && pause.queuePosition > 0 && (
+              <p className='text-[var(--c-F59E0B)]'>Queue Position: {pause.queuePosition}</p>
+            )}
           </div>
         </button>
       )
@@ -996,41 +943,37 @@ export default function ResumeExecutionPage({
 
   if (!executionDetail) {
     return (
-      <div className='relative min-h-screen'>
-        <div className='-z-50 pointer-events-none fixed inset-0 bg-white' />
+      <div className='relative min-h-screen bg-[var(--bg)]'>
         <Nav variant='auth' />
-        <div className='flex min-h-[calc(100vh-120px)] items-center justify-center px-4'>
+        <div className='flex min-h-[calc(100vh-120px)] items-center justify-center px-[16px]'>
           <div className='w-full max-w-[410px]'>
             <div className='flex flex-col items-center justify-center'>
-              <div className='space-y-1 text-center'>
-                <h1
-                  className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}
-                >
+              <div className='space-y-[4px] text-center'>
+                <h1 className='font-medium text-[24px] text-[var(--text-primary)] tracking-tight'>
                   Execution Not Found
                 </h1>
-                <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+                <p className='text-[14px] text-[var(--text-secondary)]'>
                   The execution you are trying to resume could not be located or has already
                   completed.
                 </p>
               </div>
 
-              <div className='mt-8 w-full space-y-3'>
+              <div className='mt-[24px] w-full space-y-[12px]'>
                 <Button
                   type='button'
                   onClick={() => router.push('/')}
-                  className='auth-button-gradient flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200'
+                  variant='tertiary'
+                  className='w-full'
                 >
                   Return Home
                 </Button>
               </div>
 
-              <div
-                className={`${inter.className} auth-text-muted fixed right-0 bottom-0 left-0 z-50 pb-8 text-center font-[340] text-[13px] leading-relaxed`}
-              >
+              <div className='fixed right-0 bottom-0 left-0 z-50 pb-[32px] text-center text-[13px] text-[var(--text-muted)]'>
                 Need help?{' '}
                 <a
                   href={`mailto:${brandConfig.supportEmail}`}
-                  className='auth-link underline-offset-4 transition hover:underline'
+                  className='text-[var(--text-secondary)] underline-offset-4 transition hover:underline'
                 >
                   Contact support
                 </a>
@@ -1043,106 +986,90 @@ export default function ResumeExecutionPage({
   }
 
   return (
-    <div className='relative min-h-screen bg-gradient-to-b from-slate-50 to-white'>
-      <div className='-z-50 pointer-events-none fixed inset-0 bg-white' />
+    <div className='relative min-h-screen bg-[var(--bg)]'>
       <Nav variant='auth' />
-      <div className='mx-auto min-h-[calc(100vh-120px)] max-w-7xl px-4 py-6 sm:py-8'>
+      <div className='mx-auto min-h-[calc(100vh-120px)] max-w-7xl px-[24px] py-[24px]'>
         {/* Header Section */}
-        <div className='mb-6'>
+        <div className='mb-[24px]'>
           <div className='flex items-center justify-between'>
             <div>
-              <h1
-                className={`${soehne.className} font-semibold text-3xl text-slate-900 tracking-tight`}
-              >
+              <h1 className='font-medium text-[18px] text-[var(--text-primary)] tracking-tight'>
                 Paused Execution
               </h1>
-              <p className={`${inter.className} mt-1 text-slate-600 text-sm`}>
+              <p className='mt-[4px] text-[13px] text-[var(--text-secondary)]'>
                 Review and manage execution pause points
               </p>
             </div>
             <Button
               variant='outline'
-              size='sm'
               onClick={refreshExecutionDetail}
               disabled={refreshingExecution}
-              className='gap-2'
             >
-              <RefreshCw className={`h-4 w-4 ${refreshingExecution ? 'animate-spin' : ''}`} />
-              {refreshingExecution ? 'Refreshing' : 'Refresh'}
+              {refreshingExecution ? 'Refreshing...' : 'Refresh'}
             </Button>
           </div>
         </div>
 
         {/* Stats Cards */}
-        <div className='mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3'>
-          <Card>
-            <CardContent className='p-6'>
-              <div className='flex items-center justify-between'>
-                <div>
-                  <p className='font-medium text-slate-600 text-sm'>Total Pauses</p>
-                  <p className='mt-2 font-semibold text-3xl text-slate-900'>{totalPauses}</p>
-                </div>
-                <div className='rounded-full bg-blue-100 p-3'>
-                  <Clock className='h-6 w-6 text-blue-600' />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className='mb-[24px] grid grid-cols-1 gap-[16px] sm:grid-cols-3'>
+          <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
+            <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-[16px] py-[10px]'>
+              <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                Total Pauses
+              </span>
+            </div>
+            <div className='px-[16px] py-[16px]'>
+              <p className='font-semibold text-[28px] text-[var(--text-primary)]'>{totalPauses}</p>
+            </div>
+          </div>
 
-          <Card>
-            <CardContent className='p-6'>
-              <div className='flex items-center justify-between'>
-                <div>
-                  <p className='font-medium text-slate-600 text-sm'>Resumed</p>
-                  <p className='mt-2 font-semibold text-3xl text-emerald-600'>{resumedCount}</p>
-                </div>
-                <div className='rounded-full bg-emerald-100 p-3'>
-                  <CheckCircle2 className='h-6 w-6 text-emerald-600' />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
+            <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-[16px] py-[10px]'>
+              <span className='font-medium text-[13px] text-[var(--text-secondary)]'>Resumed</span>
+            </div>
+            <div className='px-[16px] py-[16px]'>
+              <p className='font-semibold text-[28px] text-[var(--text-success)]'>{resumedCount}</p>
+            </div>
+          </div>
 
-          <Card>
-            <CardContent className='p-6'>
-              <div className='flex items-center justify-between'>
-                <div>
-                  <p className='font-medium text-slate-600 text-sm'>Pending</p>
-                  <p className='mt-2 font-semibold text-3xl text-amber-600'>{pendingCount}</p>
-                </div>
-                <div className='rounded-full bg-amber-100 p-3'>
-                  <AlertCircle className='h-6 w-6 text-amber-600' />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
+            <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-[16px] py-[10px]'>
+              <span className='font-medium text-[13px] text-[var(--text-secondary)]'>Pending</span>
+            </div>
+            <div className='px-[16px] py-[16px]'>
+              <p className='font-semibold text-[28px] text-[var(--c-F59E0B)]'>{pendingCount}</p>
+            </div>
+          </div>
         </div>
 
         {/* Main Content */}
-        <div className='grid grid-cols-1 gap-6 lg:grid-cols-3'>
+        <div className='grid grid-cols-1 gap-[24px] lg:grid-cols-3'>
           {/* Left Column: Pause Points + History */}
-          <div className='space-y-6 lg:col-span-1'>
+          <div className='space-y-[24px] lg:col-span-1'>
             {/* Pause Points List */}
-            <Card className='h-fit'>
-              <CardHeader>
-                <CardTitle className='text-lg'>Pause Points</CardTitle>
-                <CardDescription>Select a pause point to view details</CardDescription>
-              </CardHeader>
-              <CardContent className='space-y-4'>
+            <div className='flex h-fit flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
+              <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-[16px] py-[12px]'>
+                <h2 className='font-medium text-[14px] text-[var(--text-primary)]'>Pause Points</h2>
+                <p className='mt-[2px] text-[12px] text-[var(--text-muted)]'>
+                  Select a pause point to view details
+                </p>
+              </div>
+              <div className='space-y-[12px] p-[16px]'>
                 {groupedPausePoints.active.length === 0 &&
                 groupedPausePoints.resolved.length === 0 ? (
-                  <div className='flex flex-col items-center justify-center py-8 text-center'>
-                    <Clock className='mb-3 h-12 w-12 text-slate-300' />
-                    <p className='text-slate-500 text-sm'>No pause points found</p>
+                  <div className='flex flex-col items-center justify-center py-[32px] text-center'>
+                    <p className='text-[13px] text-[var(--text-secondary)]'>
+                      No pause points found
+                    </p>
                   </div>
                 ) : (
                   <>
                     {groupedPausePoints.active.length > 0 && (
-                      <div className='space-y-3'>
-                        <h3 className='font-semibold text-slate-500 text-xs uppercase tracking-wider'>
+                      <div className='space-y-[12px]'>
+                        <h3 className='font-medium text-[11px] text-[var(--text-muted)] uppercase tracking-wider'>
                           Active
                         </h3>
-                        <div className='space-y-2'>
+                        <div className='space-y-[8px]'>
                           {groupedPausePoints.active.map((pause) => renderPausePointCard(pause))}
                         </div>
                       </div>
@@ -1150,12 +1077,14 @@ export default function ResumeExecutionPage({
 
                     {groupedPausePoints.resolved.length > 0 && (
                       <>
-                        {groupedPausePoints.active.length > 0 && <Separator className='my-4' />}
-                        <div className='space-y-3'>
-                          <h3 className='font-semibold text-slate-500 text-xs uppercase tracking-wider'>
+                        {groupedPausePoints.active.length > 0 && (
+                          <Separator className='my-[16px]' />
+                        )}
+                        <div className='space-y-[12px]'>
+                          <h3 className='font-medium text-[11px] text-[var(--text-muted)] uppercase tracking-wider'>
                             Completed
                           </h3>
-                          <div className='space-y-2'>
+                          <div className='space-y-[8px]'>
                             {groupedPausePoints.resolved.map((pause) =>
                               renderPausePointCard(pause, true)
                             )}
@@ -1165,99 +1094,101 @@ export default function ResumeExecutionPage({
                     )}
                   </>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
             {/* History */}
             {selectedDetail && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className='text-lg'>Resume History</CardTitle>
-                  <CardDescription>Previous resume attempts for this pause</CardDescription>
-                </CardHeader>
-                <CardContent>
+              <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
+                <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-[16px] py-[12px]'>
+                  <h2 className='font-medium text-[14px] text-[var(--text-primary)]'>
+                    Resume History
+                  </h2>
+                  <p className='mt-[2px] text-[12px] text-[var(--text-muted)]'>
+                    Previous resume attempts for this pause
+                  </p>
+                </div>
+                <div className='p-[16px]'>
                   {selectedDetail.queue.length > 0 ? (
-                    <div className='space-y-3'>
+                    <div className='space-y-[12px]'>
                       {selectedDetail.queue.map((entry) => {
                         const normalizedStatus = entry.status?.toLowerCase?.() ?? entry.status
                         return (
-                          <div key={entry.id} className='rounded-lg border bg-white p-3'>
-                            <div className='flex items-start justify-between gap-2'>
-                              <div className='space-y-2'>
-                                <ResumeStatusBadge status={normalizedStatus} />
-                                <div className='space-y-1 text-slate-600 text-xs'>
-                                  <p>
-                                    ID:{' '}
-                                    <span className='font-medium text-slate-900'>
-                                      {entry.newExecutionId}
-                                    </span>
-                                  </p>
-                                  {entry.claimedAt && <p>Started: {formatDate(entry.claimedAt)}</p>}
-                                  {entry.completedAt && (
-                                    <p>Completed: {formatDate(entry.completedAt)}</p>
-                                  )}
-                                </div>
-                                {entry.failureReason && (
-                                  <div className='mt-2 rounded border border-red-200 bg-red-50 p-2 text-red-700 text-xs'>
-                                    {entry.failureReason}
-                                  </div>
-                                )}
-                              </div>
-                              <span className='text-slate-400 text-xs'>
-                                {formatDate(entry.queuedAt)}
+                          <div
+                            key={entry.id}
+                            className='rounded-[6px] border border-[var(--border)] bg-[var(--surface-1)] p-[12px]'
+                          >
+                            <div className='mb-[8px] flex items-center justify-between'>
+                              <ResumeStatusBadge status={normalizedStatus} />
+                              <span className='font-medium text-[11px] text-[var(--text-primary)]'>
+                                {entry.newExecutionId}
                               </span>
                             </div>
+                            <div className='space-y-[4px] text-[11px] text-[var(--text-secondary)]'>
+                              <p>Queued: {formatDate(entry.queuedAt)}</p>
+                              {entry.claimedAt && (
+                                <p>Execution Started: {formatDate(entry.claimedAt)}</p>
+                              )}
+                              {entry.completedAt && (
+                                <p>Execution Completed: {formatDate(entry.completedAt)}</p>
+                              )}
+                            </div>
+                            {entry.failureReason && (
+                              <p className='mt-[8px] text-[11px] text-[var(--text-error)]'>
+                                {entry.failureReason}
+                              </p>
+                            )}
                           </div>
                         )
                       })}
                     </div>
                   ) : (
-                    <div className='flex flex-col items-center justify-center py-8 text-center'>
-                      <Clock className='mb-3 h-8 w-8 text-slate-300' />
-                      <p className='text-slate-500 text-sm'>No resume attempts yet</p>
+                    <div className='flex flex-col items-center justify-center py-[32px] text-center'>
+                      <p className='text-[13px] text-[var(--text-secondary)]'>
+                        No resume attempts yet
+                      </p>
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             )}
           </div>
 
           {/* Right Column: Content + Input */}
-          <div className='space-y-6 lg:col-span-2'>
+          <div className='space-y-[24px] lg:col-span-2'>
             {loadingDetail && !selectedDetail ? (
-              <Card>
-                <CardContent className='flex h-64 items-center justify-center p-6'>
-                  <div className='text-center'>
-                    <RefreshCw className='mx-auto mb-3 h-8 w-8 animate-spin text-slate-400' />
-                    <p className='text-slate-500 text-sm'>Loading pause details...</p>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
+                <div className='flex h-[256px] items-center justify-center p-[24px]'>
+                  <p className='text-[13px] text-[var(--text-secondary)]'>
+                    Loading pause details...
+                  </p>
+                </div>
+              </div>
             ) : !selectedContextId ? (
-              <Card>
-                <CardContent className='flex h-64 items-center justify-center p-6'>
-                  <div className='text-center'>
-                    <FileText className='mx-auto mb-3 h-12 w-12 text-slate-300' />
-                    <p className='text-slate-500 text-sm'>Select a pause point to view details</p>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
+                <div className='flex h-[256px] items-center justify-center p-[24px]'>
+                  <p className='text-[13px] text-[var(--text-secondary)]'>
+                    Select a pause point to view details
+                  </p>
+                </div>
+              </div>
             ) : !selectedDetail ? (
-              <Card>
-                <CardContent className='flex h-64 items-center justify-center p-6'>
-                  <div className='text-center'>
-                    <XCircle className='mx-auto mb-3 h-12 w-12 text-red-300' />
-                    <p className='text-slate-500 text-sm'>Pause details could not be loaded</p>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
+                <div className='flex h-[256px] items-center justify-center p-[24px]'>
+                  <p className='text-[13px] text-[var(--text-secondary)]'>
+                    Pause details could not be loaded
+                  </p>
+                </div>
+              </div>
             ) : (
               <>
                 {/* Header with Status */}
                 <div className='flex items-center justify-between'>
                   <div>
-                    <h2 className='font-semibold text-2xl text-slate-900'>Pause Details</h2>
-                    <p className='mt-1 text-slate-600 text-sm'>
+                    <h2 className='font-medium text-[16px] text-[var(--text-primary)]'>
+                      Pause Details
+                    </h2>
+                    <p className='mt-[4px] text-[13px] text-[var(--text-secondary)]'>
                       Review content and provide input to resume
                     </p>
                   </div>
@@ -1266,75 +1197,81 @@ export default function ResumeExecutionPage({
 
                 {/* Active Resume Entry Alert */}
                 {selectedDetail.activeResumeEntry && (
-                  <Card className='border-blue-200 bg-blue-50/50'>
-                    <CardHeader>
-                      <div className='flex items-center justify-between'>
-                        <CardTitle className='text-blue-900 text-sm'>
-                          Current Resume Attempt
-                        </CardTitle>
-                        <ResumeStatusBadge
-                          status={
-                            selectedDetail.activeResumeEntry.status?.toLowerCase?.() ??
-                            selectedDetail.activeResumeEntry.status
-                          }
-                        />
-                      </div>
-                    </CardHeader>
-                    <CardContent className='space-y-2 text-blue-800 text-sm'>
+                  <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--brand-tertiary)]/30 bg-[var(--brand-tertiary)]/5'>
+                    <div className='flex items-center justify-between bg-[var(--brand-tertiary)]/10 px-[16px] py-[10px]'>
+                      <h3 className='font-medium text-[13px] text-[var(--brand-tertiary)]'>
+                        Current Resume Attempt
+                      </h3>
+                      <ResumeStatusBadge
+                        status={
+                          selectedDetail.activeResumeEntry.status?.toLowerCase?.() ??
+                          selectedDetail.activeResumeEntry.status
+                        }
+                      />
+                    </div>
+                    <div className='space-y-[4px] p-[16px] text-[13px] text-[var(--text-secondary)]'>
                       <p>
-                        Resume execution ID:{' '}
-                        <span className='font-medium'>
+                        Execution ID:{' '}
+                        <span className='font-medium text-[var(--text-primary)]'>
                           {selectedDetail.activeResumeEntry.newExecutionId}
                         </span>
                       </p>
                       {selectedDetail.activeResumeEntry.claimedAt && (
-                        <p>Started at {formatDate(selectedDetail.activeResumeEntry.claimedAt)}</p>
+                        <p>
+                          Execution Started:{' '}
+                          {formatDate(selectedDetail.activeResumeEntry.claimedAt)}
+                        </p>
                       )}
                       {selectedDetail.activeResumeEntry.completedAt && (
                         <p>
-                          Completed at {formatDate(selectedDetail.activeResumeEntry.completedAt)}
+                          Execution Completed:{' '}
+                          {formatDate(selectedDetail.activeResumeEntry.completedAt)}
                         </p>
                       )}
                       {selectedDetail.activeResumeEntry.failureReason && (
-                        <div className='mt-2 rounded border border-red-300 bg-red-100 p-3 text-red-800 text-sm'>
+                        <p className='mt-[8px] text-[12px] text-[var(--text-error)]'>
                           {selectedDetail.activeResumeEntry.failureReason}
-                        </div>
+                        </p>
                       )}
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 )}
 
                 {/* Content Section */}
                 {responseStructureRows.length > 0 ? (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className='text-sm'>Content</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className='overflow-hidden rounded-lg border'>
-                        <table className='min-w-full divide-y divide-slate-200'>
-                          <thead className='bg-slate-50'>
-                            <tr>
-                              <th className='px-4 py-2 text-left font-medium text-slate-600 text-xs'>
+                  <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
+                    <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-[16px] py-[10px]'>
+                      <h3 className='font-medium text-[13px] text-[var(--text-primary)]'>
+                        Content
+                      </h3>
+                    </div>
+                    <div className='p-[16px]'>
+                      <div className='overflow-hidden rounded-[6px] border border-[var(--border)]'>
+                        <table className='min-w-full divide-y divide-[var(--border)]'>
+                          <thead>
+                            <tr className='border-[var(--border)] border-b bg-[var(--surface-3)]'>
+                              <th className='px-[16px] py-[8px] text-left font-medium text-[11px] text-[var(--text-secondary)]'>
                                 Field
                               </th>
-                              <th className='px-4 py-2 text-left font-medium text-slate-600 text-xs'>
+                              <th className='px-[16px] py-[8px] text-left font-medium text-[11px] text-[var(--text-secondary)]'>
                                 Type
                               </th>
-                              <th className='px-4 py-2 text-left font-medium text-slate-600 text-xs'>
+                              <th className='px-[16px] py-[8px] text-left font-medium text-[11px] text-[var(--text-secondary)]'>
                                 Value
                               </th>
                             </tr>
                           </thead>
-                          <tbody className='divide-y divide-slate-200 bg-white'>
+                          <tbody className='divide-y divide-[var(--border)]'>
                             {responseStructureRows.map((row) => (
                               <tr key={row.id}>
-                                <td className='px-4 py-2 font-medium text-slate-800 text-sm'>
+                                <td className='px-[16px] py-[8px] font-medium text-[13px] text-[var(--text-primary)]'>
                                   {row.name}
                                 </td>
-                                <td className='px-4 py-2 text-slate-500 text-sm'>{row.type}</td>
-                                <td className='px-4 py-2'>
-                                  <pre className='max-h-32 overflow-auto whitespace-pre-wrap break-words font-mono text-slate-700 text-xs'>
+                                <td className='px-[16px] py-[8px] text-[13px] text-[var(--text-secondary)]'>
+                                  {row.type}
+                                </td>
+                                <td className='px-[16px] py-[8px]'>
+                                  <pre className='max-h-[128px] overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] text-[var(--text-secondary)]'>
                                     {formatStructureValue(row.value)}
                                   </pre>
                                 </td>
@@ -1343,57 +1280,69 @@ export default function ResumeExecutionPage({
                           </tbody>
                         </table>
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 ) : (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className='text-sm'>Pause Response Data</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <pre className='max-h-60 overflow-auto rounded-lg bg-slate-900 p-4 font-mono text-slate-100 text-xs'>
+                  <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
+                    <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-[16px] py-[10px]'>
+                      <h3 className='font-medium text-[13px] text-[var(--text-primary)]'>
+                        Pause Response Data
+                      </h3>
+                    </div>
+                    <div className='p-[16px]'>
+                      <pre className='max-h-[240px] overflow-auto rounded-[6px] bg-[#1e1e1e] p-[16px] font-mono text-[#d4d4d4] text-[12px]'>
                         {pauseResponsePreview}
                       </pre>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 )}
 
                 {/* Input Section */}
                 {isHumanMode && hasInputFormat ? (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className='text-sm'>Resume Form</CardTitle>
-                      <CardDescription>
+                  <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
+                    <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-[16px] py-[10px]'>
+                      <h3 className='font-medium text-[13px] text-[var(--text-primary)]'>
+                        Resume Form
+                      </h3>
+                      <p className='mt-[2px] text-[12px] text-[var(--text-muted)]'>
                         Fill out the required fields to resume execution
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className='space-y-4'>
+                      </p>
+                    </div>
+                    <div className='space-y-[16px] p-[16px]'>
                       {inputFormatFields.map((field) => (
-                        <div key={field.id} className='space-y-2'>
-                          <Label className='font-medium text-slate-700 text-sm'>
+                        <div key={field.id} className='space-y-[6px]'>
+                          <Label className='font-medium text-[13px] text-[var(--text-primary)]'>
                             {field.label}
-                            {field.required && <span className='ml-1 text-red-500'>*</span>}
+                            {field.required && (
+                              <span className='ml-[4px] text-[var(--text-error)]'>*</span>
+                            )}
                           </Label>
                           {field.description && (
-                            <p className='text-slate-500 text-xs'>{field.description}</p>
+                            <p className='text-[12px] text-[var(--text-muted)]'>
+                              {field.description}
+                            </p>
                           )}
                           {renderFieldInput(field)}
                           {formErrors[field.name] && (
-                            <p className='text-red-600 text-xs'>{formErrors[field.name]}</p>
+                            <p className='text-[12px] text-[var(--text-error)]'>
+                              {formErrors[field.name]}
+                            </p>
                           )}
                         </div>
                       ))}
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 ) : (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className='text-sm'>Resume Input (JSON)</CardTitle>
-                      <CardDescription>
+                  <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
+                    <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-[16px] py-[10px]'>
+                      <h3 className='font-medium text-[13px] text-[var(--text-primary)]'>
+                        Resume Input (JSON)
+                      </h3>
+                      <p className='mt-[2px] text-[12px] text-[var(--text-muted)]'>
                         Provide optional JSON input to pass to the resumed execution
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
+                      </p>
+                    </div>
+                    <div className='p-[16px]'>
                       <Textarea
                         id='resume-input-textarea'
                         value={resumeInput}
@@ -1407,29 +1356,19 @@ export default function ResumeExecutionPage({
                           }
                         }}
                         placeholder='{&#10;  "example": "value"&#10;}'
-                        className='min-h-[200px] font-mono text-sm'
+                        className='min-h-[200px] font-mono text-[13px]'
                       />
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 )}
 
                 {/* Error/Success Messages */}
-                {error && (
-                  <Card className='border-red-200 bg-red-50'>
-                    <CardContent className='flex items-start gap-3 p-4'>
-                      <XCircle className='mt-0.5 h-5 w-5 flex-shrink-0 text-red-600' />
-                      <div className='text-red-700 text-sm'>{error}</div>
-                    </CardContent>
-                  </Card>
-                )}
+                {error && <p className='text-[12px] text-[var(--text-error)]'>{error}</p>}
 
                 {message && (
-                  <Card className='border-emerald-200 bg-emerald-50'>
-                    <CardContent className='flex items-start gap-3 p-4'>
-                      <CheckCircle2 className='mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-600' />
-                      <div className='text-emerald-700 text-sm'>{message}</div>
-                    </CardContent>
-                  </Card>
+                  <div className='rounded-[6px] border border-[var(--text-success)]/30 bg-[var(--text-success)]/10 p-[16px]'>
+                    <p className='text-[13px] text-[var(--text-success)]'>{message}</p>
+                  </div>
                 )}
 
                 {/* Action Buttons */}
@@ -1438,10 +1377,8 @@ export default function ResumeExecutionPage({
                     type='button'
                     onClick={handleResume}
                     disabled={resumeDisabled}
-                    className='gap-2'
-                    size='lg'
+                    variant='tertiary'
                   >
-                    <Play className='h-4 w-4' />
                     {loadingAction ? 'Resuming...' : 'Resume Execution'}
                   </Button>
                 </div>
@@ -1451,11 +1388,11 @@ export default function ResumeExecutionPage({
         </div>
       </div>
 
-      <div className='border-t bg-white py-4 text-center text-slate-600 text-sm'>
+      <div className='border-[var(--border)] border-t bg-[var(--surface-1)] py-[16px] text-center text-[13px] text-[var(--text-secondary)]'>
         Need help?{' '}
         <a
           href={`mailto:${brandConfig.supportEmail}`}
-          className='text-blue-600 underline-offset-4 transition hover:underline'
+          className='text-[var(--brand-primary)] underline-offset-4 transition hover:underline'
         >
           Contact support
         </a>
