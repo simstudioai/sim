@@ -210,7 +210,7 @@ function GenericSyncWrapper<T = unknown>({
   const [storeValue] = useSubBlockValue(blockId, paramId)
 
   useEffect(() => {
-    if (storeValue) {
+    if (storeValue != null) {
       const transformedValue = transformer ? transformer(storeValue) : String(storeValue)
       if (transformedValue !== value) {
         onChange(transformedValue)
