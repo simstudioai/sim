@@ -226,9 +226,10 @@ export function getBlockOutputs(
   }
 
   if (blockType === 'human_in_the_loop') {
-    // For human_in_the_loop, only expose url (inputFormat fields are only available after resume)
+    // For human_in_the_loop, only expose url and resumeEndpoint (inputFormat fields are only available after resume)
     return {
       url: { type: 'string', description: 'Resume UI URL' },
+      resumeEndpoint: { type: 'string', description: 'Resume API endpoint URL for direct curl requests' },
     }
   }
 

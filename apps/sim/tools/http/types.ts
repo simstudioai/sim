@@ -17,3 +17,10 @@ export interface RequestResponse extends ToolResponse {
     headers: Record<string, string>
   }
 }
+
+export interface WebhookRequestParams {
+  url: string
+  body?: any
+  secret?: string
+  headers?: TableRow[]
+}

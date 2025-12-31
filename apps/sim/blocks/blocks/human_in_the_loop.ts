@@ -157,6 +157,6 @@ export const HumanInTheLoopBlock: BlockConfig<ResponseBlockOutput> = {
   },
   outputs: {
     url: { type: 'string', description: 'Resume UI URL' },
-    // apiUrl: { type: 'string', description: 'Resume API URL' }, // Commented out - not accessible as output
+    resumeEndpoint: { type: 'string', description: 'Resume API endpoint URL for direct curl requests' },
   },
 }

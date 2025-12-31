@@ -1,0 +1,142 @@
+import { createHmac } from 'crypto'
+import { v4 as uuidv4 } from 'uuid'
+import type { ToolConfig } from '@/tools/types'
+import type { RequestResponse, WebhookRequestParams } from './types'
+import { transformTable } from './utils'
+
+/**
+ * Generates HMAC-SHA256 signature for webhook payload
+ */
+function generateSignature(secret: string, timestamp: number, body: string): string {
+  const signatureBase = `${timestamp}.${body}`
+  return createHmac('sha256', secret).update(signatureBase).digest('hex')
+}
+
+export const webhookRequestTool: ToolConfig<WebhookRequestParams, RequestResponse> = {
+  id: 'webhook_request',
+  name: 'Webhook Request',
+  description: 'Send a webhook request with automatic headers and optional HMAC signing',
+  version: '1.0.0',
+
+  params: {
+    url: {
+      type: 'string',
+      required: true,
+      description: 'The webhook URL to send the request to',
+    },
+    body: {
+      type: 'object',
+      description: 'JSON payload to send',
+    },
+    secret: {
+      type: 'string',
+      description: 'Optional secret for HMAC-SHA256 signature',
+    },
+    headers: {
+      type: 'object',
+      description: 'Additional headers to include',
+    },
+  },
+
+  request: {
+    url: (params: WebhookRequestParams) => params.url,
+
+    method: () => 'POST',
+
+    headers: (params: WebhookRequestParams) => {
+      const timestamp = Date.now()
+      const deliveryId = uuidv4()
+
+      // Start with webhook-specific headers
+      const webhookHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Webhook-Timestamp': timestamp.toString(),
+        'X-Delivery-ID': deliveryId,
+        'Idempotency-Key': deliveryId,
+      }
+
+      // Add signature if secret is provided
+      if (params.secret) {
+        const bodyString =
+          typeof params.body === 'string' ? params.body : JSON.stringify(params.body || {})
+        const signature = generateSignature(params.secret, timestamp, bodyString)
+        webhookHeaders['X-Webhook-Signature'] = `t=${timestamp},v1=${signature}`
+      }
+
+      // Merge with user-provided headers (user headers take precedence)
+      // Handle different header formats:
+      // - Array of TableRow objects (from block usage): [{ cells: { Key, Value } }]
+      // - Plain object (from direct tool usage): { key: value }
+      // - undefined/null
+      let userHeaders: Record<string, string> = {}
+      if (params.headers) {
+        if (Array.isArray(params.headers)) {
+          userHeaders = transformTable(params.headers)
+        } else if (typeof params.headers === 'object') {
+          userHeaders = params.headers as Record<string, string>
+        }
+      }
+
+      return { ...webhookHeaders, ...userHeaders }
+    },
+
+    body: (params: WebhookRequestParams) => params.body,
+  },
+
+  transformResponse: async (response: Response) => {
+    const contentType = response.headers.get('content-type') || ''
+
+    const headers: Record<string, string> = {}
+    response.headers.forEach((value, key) => {
+      headers[key] = value
+    })
+
+    const data = await (contentType.includes('application/json')
+      ? response.json()
+      : response.text())
+
+    // Check if this is a proxy response
+    if (
+      contentType.includes('application/json') &&
+      typeof data === 'object' &&
+      data !== null &&
+      data.data !== undefined &&
+      data.status !== undefined
+    ) {
+      return {
+        success: data.success,
+        output: {
+          data: data.data,
+          status: data.status,
+          headers: data.headers || {},
+        },
+        error: data.success ? undefined : data.error,
+      }
+    }
+
+    return {
+      success: response.ok,
+      output: {
+        data,
+        status: response.status,
+        headers,
+      },
+      error: undefined,
+    }
+  },
+
+  outputs: {
+    data: {
+      type: 'json',
+      description: 'Response data from the webhook endpoint',
+    },
+    status: {
+      type: 'number',
+      description: 'HTTP status code',
+    },
+    headers: {
+      type: 'object',
+      description: 'Response headers',
+    },
+  },
+}
