@@ -86,11 +86,11 @@ function isOperationApplicable(
   switch (operation.type) {
     case 'batch-remove-blocks': {
       const op = operation as BatchRemoveBlocksOperation
-      return op.data.blockSnapshots.some((block) => Boolean(graph.blocksById[block.id]))
+      return op.data.blockSnapshots.every((block) => Boolean(graph.blocksById[block.id]))
     }
     case 'batch-add-blocks': {
       const op = operation as BatchAddBlocksOperation
-      return op.data.blockSnapshots.some((block) => !graph.blocksById[block.id])
+      return op.data.blockSnapshots.every((block) => !graph.blocksById[block.id])
     }
     case 'move-block': {
       const op = operation as MoveBlockOperation
