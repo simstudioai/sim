@@ -182,6 +182,8 @@ const WorkflowContent = React.memo(() => {
   const [isCanvasReady, setIsCanvasReady] = useState(false)
   const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
   const [selectedEdgeInfo, setSelectedEdgeInfo] = useState<SelectedEdgeInfo | null>(null)
+  const [isShiftPressed, setIsShiftPressed] = useState(false)
+  const [isSelectionDragActive, setIsSelectionDragActive] = useState(false)
   const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
   const [oauthModal, setOauthModal] = useState<{
     provider: OAuthProvider
@@ -1737,6 +1739,21 @@ const WorkflowContent = React.memo(() => {
   // Local state for nodes - allows smooth drag without store updates on every frame
   const [displayNodes, setDisplayNodes] = useState<Node[]>([])
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') setIsShiftPressed(true)
+    }
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') setIsShiftPressed(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [])
+
   // Sync derived nodes to display nodes when structure changes
   useEffect(() => {
     setDisplayNodes(derivedNodes)
@@ -2390,8 +2407,20 @@ const WorkflowContent = React.memo(() => {
     ]
   )
 
+  // Lock selection mode when selection drag starts (captures Shift state at drag start)
+  const onSelectionStart = useCallback(() => {
+    if (isShiftPressed) {
+      setIsSelectionDragActive(true)
+    }
+  }, [isShiftPressed])
+
+  const onSelectionEnd = useCallback(() => {
+    requestAnimationFrame(() => setIsSelectionDragActive(false))
+  }, [])
+
   const onSelectionDragStop = useCallback(
     (_event: React.MouseEvent, nodes: any[]) => {
+      requestAnimationFrame(() => setIsSelectionDragActive(false))
       if (nodes.length === 0) return
 
       const positionUpdates = nodes.map((node) => {
@@ -2599,8 +2628,10 @@ const WorkflowContent = React.memo(() => {
               onPointerMove={handleCanvasPointerMove}
               onPointerLeave={handleCanvasPointerLeave}
               elementsSelectable={true}
-              selectionOnDrag={true}
-              panOnDrag={[0, 1]}
+              selectionOnDrag={isShiftPressed || isSelectionDragActive}
+              panOnDrag={isShiftPressed || isSelectionDragActive ? false : [0, 1]}
+              onSelectionStart={onSelectionStart}
+              onSelectionEnd={onSelectionEnd}
               multiSelectionKeyCode={['Meta', 'Control']}
               nodesConnectable={effectivePermissions.canEdit}
               nodesDraggable={effectivePermissions.canEdit}
