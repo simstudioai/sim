@@ -541,14 +541,17 @@ export function regenerateBlockIds(
     const newNormalizedName = normalizeName(newName)
     nameMap.set(oldNormalizedName, newNormalizedName)
 
+    const isNested = !!block.data?.parentId
     const newBlock: BlockState = {
       ...block,
       id: newId,
       name: newName,
-      position: {
-        x: block.position.x + positionOffset.x,
-        y: block.position.y + positionOffset.y,
-      },
+      position: isNested
+        ? block.position
+        : {
+            x: block.position.x + positionOffset.x,
+            y: block.position.y + positionOffset.y,
+          },
     }
 
     newBlocks[newId] = newBlock

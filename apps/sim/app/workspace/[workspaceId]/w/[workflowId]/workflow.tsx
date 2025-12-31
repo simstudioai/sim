@@ -77,6 +77,60 @@ const LazyOAuthRequiredModal = lazy(() =>
 
 const logger = createLogger('Workflow')
 
+const DEFAULT_PASTE_OFFSET = { x: 50, y: 50 }
+
+/**
+ * Calculates the offset to paste blocks at viewport center
+ */
+function calculatePasteOffset(
+  clipboard: {
+    blocks: Record<string, { position: { x: number; y: number }; type: string; height?: number }>
+  } | null,
+  screenToFlowPosition: (pos: { x: number; y: number }) => { x: number; y: number }
+): { x: number; y: number } {
+  if (!clipboard) return DEFAULT_PASTE_OFFSET
+
+  const clipboardBlocks = Object.values(clipboard.blocks)
+  if (clipboardBlocks.length === 0) return DEFAULT_PASTE_OFFSET
+
+  // Calculate bounding box using proper dimensions
+  const minX = Math.min(...clipboardBlocks.map((b) => b.position.x))
+  const maxX = Math.max(
+    ...clipboardBlocks.map((b) => {
+      const width =
+        b.type === 'loop' || b.type === 'parallel'
+          ? CONTAINER_DIMENSIONS.DEFAULT_WIDTH
+          : BLOCK_DIMENSIONS.FIXED_WIDTH
+      return b.position.x + width
+    })
+  )
+  const minY = Math.min(...clipboardBlocks.map((b) => b.position.y))
+  const maxY = Math.max(
+    ...clipboardBlocks.map((b) => {
+      const height =
+        b.type === 'loop' || b.type === 'parallel'
+          ? CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
+          : Math.max(b.height || BLOCK_DIMENSIONS.MIN_HEIGHT, BLOCK_DIMENSIONS.MIN_HEIGHT)
+      return b.position.y + height
+    })
+  )
+  const clipboardCenter = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 }
+
+  const flowContainer = document.querySelector('.react-flow')
+  if (!flowContainer) return DEFAULT_PASTE_OFFSET
+
+  const rect = flowContainer.getBoundingClientRect()
+  const viewportCenter = screenToFlowPosition({
+    x: rect.width / 2,
+    y: rect.height / 2,
+  })
+
+  return {
+    x: viewportCenter.x - clipboardCenter.x,
+    y: viewportCenter.y - clipboardCenter.y,
+  }
+}
+
 /** Custom node types for ReactFlow. */
 const nodeTypes: NodeTypes = {
   workflowBlock: WorkflowBlock,
@@ -155,6 +209,7 @@ const WorkflowContent = React.memo(() => {
     copyBlocks,
     preparePasteData,
     hasClipboard,
+    clipboard,
   } = useWorkflowRegistry(
     useShallow((state) => ({
       workflows: state.workflows,
@@ -164,6 +219,7 @@ const WorkflowContent = React.memo(() => {
       copyBlocks: state.copyBlocks,
       preparePasteData: state.preparePasteData,
       hasClipboard: state.hasClipboard,
+      clipboard: state.clipboard,
     }))
   )
 
@@ -557,7 +613,11 @@ const WorkflowContent = React.memo(() => {
       } else if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
         if (effectivePermissions.canEdit && hasClipboard()) {
           event.preventDefault()
-          const pasteData = preparePasteData()
+
+          // Calculate offset to paste blocks at viewport center
+          const pasteOffset = calculatePasteOffset(clipboard, screenToFlowPosition)
+
+          const pasteData = preparePasteData(pasteOffset)
           if (pasteData) {
             const pastedBlocks = Object.values(pasteData.blocks)
             const hasTriggerInPaste = pastedBlocks.some((block) =>
@@ -608,6 +668,8 @@ const WorkflowContent = React.memo(() => {
     blocks,
     addNotification,
     activeWorkflowId,
+    clipboard,
+    screenToFlowPosition,
   ])
 
   /**
