@@ -21,8 +21,8 @@ export function BlockContextMenu({
   onToggleEnabled,
   onToggleHandles,
   onRemoveFromSubflow,
-  onOpenPanel,
-  onOpenLogs,
+  onOpenEditor,
+  onRename,
   hasClipboard = false,
   showRemoveFromSubflow = false,
   disableEdit = false,
@@ -36,6 +36,8 @@ export function BlockContextMenu({
     (b) => b.type === 'starter' || b.type === 'start_trigger'
   )
   const allNoteBlocks = selectedBlocks.every((b) => b.type === 'note')
+  const isSubflow =
+    isSingleBlock && (selectedBlocks[0]?.type === 'loop' || selectedBlocks[0]?.type === 'parallel')
 
   const canRemoveFromSubflow =
     showRemoveFromSubflow &&
@@ -152,29 +154,30 @@ export function BlockContextMenu({
           </PopoverItem>
         )}
 
-        {/* Open Panel - only for single block */}
-        {isSingleBlock && (
+        {/* Rename - only for single block, not subflows */}
+        {isSingleBlock && !isSubflow && (
           <PopoverItem
+            disabled={disableEdit}
             onClick={() => {
-              onOpenPanel()
+              onRename()
               onClose()
             }}
           >
-            Open Panel
+            Rename
           </PopoverItem>
         )}
 
-        {/* Open Logs */}
-        <PopoverItem
-          className='group'
-          onClick={() => {
-            onOpenLogs()
-            onClose()
-          }}
-        >
-          <span>Open Logs</span>
-          <span className='ml-auto text-[var(--text-tertiary)] group-hover:text-inherit'>⌘L</span>
-        </PopoverItem>
+        {/* Open Editor - only for single block */}
+        {isSingleBlock && (
+          <PopoverItem
+            onClick={() => {
+              onOpenEditor()
+              onClose()
+            }}
+          >
+            Open Editor
+          </PopoverItem>
+        )}
       </PopoverContent>
     </Popover>
   )

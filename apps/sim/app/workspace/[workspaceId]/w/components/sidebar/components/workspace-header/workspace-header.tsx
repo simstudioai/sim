@@ -151,6 +151,13 @@ export function WorkspaceHeader({
     setIsMounted(true)
   }, [])
 
+  // Listen for open-invite-modal event from context menu
+  useEffect(() => {
+    const handleOpenInvite = () => setIsInviteModalOpen(true)
+    window.addEventListener('open-invite-modal', handleOpenInvite)
+    return () => window.removeEventListener('open-invite-modal', handleOpenInvite)
+  }, [])
+
   /**
    * Focus the inline list rename input when it becomes active
    */

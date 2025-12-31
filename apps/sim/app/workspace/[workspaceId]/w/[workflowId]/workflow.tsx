@@ -722,9 +722,16 @@ const WorkflowContent = React.memo(() => {
     })
   }, [contextMenuBlocks])
 
-  const handleContextOpenPanel = useCallback(() => {
+  const handleContextOpenEditor = useCallback(() => {
     if (contextMenuBlocks.length === 1) {
       usePanelEditorStore.getState().setCurrentBlockId(contextMenuBlocks[0].id)
+    }
+  }, [contextMenuBlocks])
+
+  const handleContextRename = useCallback(() => {
+    if (contextMenuBlocks.length === 1) {
+      usePanelEditorStore.getState().setCurrentBlockId(contextMenuBlocks[0].id)
+      usePanelEditorStore.getState().setShouldFocusRename(true)
     }
   }, [contextMenuBlocks])
 
@@ -742,6 +749,10 @@ const WorkflowContent = React.memo(() => {
 
   const handleContextOpenChat = useCallback(() => {
     useChatStore.getState().setIsChatOpen(true)
+  }, [])
+
+  const handleContextInvite = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('open-invite-modal'))
   }, [])
 
   useEffect(() => {
@@ -2855,8 +2866,8 @@ const WorkflowContent = React.memo(() => {
               onToggleEnabled={handleContextToggleEnabled}
               onToggleHandles={handleContextToggleHandles}
               onRemoveFromSubflow={handleContextRemoveFromSubflow}
-              onOpenPanel={handleContextOpenPanel}
-              onOpenLogs={handleContextOpenLogs}
+              onOpenEditor={handleContextOpenEditor}
+              onRename={handleContextRename}
               hasClipboard={hasClipboard()}
               showRemoveFromSubflow={contextMenuBlocks.some(
                 (b) => b.parentId && (b.parentType === 'loop' || b.parentType === 'parallel')
@@ -2877,8 +2888,10 @@ const WorkflowContent = React.memo(() => {
               onOpenLogs={handleContextOpenLogs}
               onOpenVariables={handleContextOpenVariables}
               onOpenChat={handleContextOpenChat}
+              onInvite={handleContextInvite}
               hasClipboard={hasClipboard()}
               disableEdit={!effectivePermissions.canEdit}
+              disableAdmin={!effectivePermissions.canAdmin}
             />
           </>
         )}

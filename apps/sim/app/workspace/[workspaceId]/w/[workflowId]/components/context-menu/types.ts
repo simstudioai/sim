@@ -48,8 +48,8 @@ export interface BlockContextMenuProps {
   onToggleEnabled: () => void
   onToggleHandles: () => void
   onRemoveFromSubflow: () => void
-  onOpenPanel: () => void
-  onOpenLogs: () => void
+  onOpenEditor: () => void
+  onRename: () => void
   /** Whether clipboard has content for pasting */
   hasClipboard?: boolean
   /** Whether remove from subflow option should be shown */
@@ -79,8 +79,11 @@ export interface PaneContextMenuProps {
   onOpenLogs: () => void
   onOpenVariables: () => void
   onOpenChat: () => void
+  onInvite: () => void
   /** Whether clipboard has content for pasting */
   hasClipboard?: boolean
   /** Whether edit actions are disabled (no permission) */
   disableEdit?: boolean
+  /** Whether admin actions are disabled (no admin permission) */
+  disableAdmin?: boolean
 }

@@ -22,6 +22,10 @@ interface PanelEditorState {
   setConnectionsHeight: (height: number) => void
   /** Toggle connections between collapsed (min height) and expanded (default height) */
   toggleConnectionsCollapsed: () => void
+  /** Flag to signal the editor to focus the rename input */
+  shouldFocusRename: boolean
+  /** Sets the shouldFocusRename flag */
+  setShouldFocusRename: (value: boolean) => void
 }
 
 /**
@@ -33,6 +37,8 @@ export const usePanelEditorStore = create<PanelEditorState>()(
     (set, get) => ({
       currentBlockId: null,
       connectionsHeight: EDITOR_CONNECTIONS_HEIGHT.DEFAULT,
+      shouldFocusRename: false,
+      setShouldFocusRename: (value) => set({ shouldFocusRename: value }),
       setCurrentBlockId: (blockId) => {
         set({ currentBlockId: blockId })
 
@@ -79,6 +85,10 @@ export const usePanelEditorStore = create<PanelEditorState>()(
     }),
     {
       name: 'panel-editor-state',
+      partialize: (state) => ({
+        currentBlockId: state.currentBlockId,
+        connectionsHeight: state.connectionsHeight,
+      }),
       onRehydrateStorage: () => (state) => {
         // Sync CSS variables with stored state after rehydration
         if (state && typeof window !== 'undefined') {

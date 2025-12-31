@@ -20,8 +20,10 @@ export function PaneContextMenu({
   onOpenLogs,
   onOpenVariables,
   onOpenChat,
+  onInvite,
   hasClipboard = false,
   disableEdit = false,
+  disableAdmin = false,
 }: PaneContextMenuProps) {
   return (
     <Popover open={isOpen} onOpenChange={onClose} variant='secondary' size='sm'>
@@ -130,6 +132,17 @@ export function PaneContextMenu({
           }}
         >
           Open Chat
+        </PopoverItem>
+
+        {/* Invite to Workspace - admin only */}
+        <PopoverItem
+          disabled={disableAdmin}
+          onClick={() => {
+            onInvite()
+            onClose()
+          }}
+        >
+          Invite to Workspace
         </PopoverItem>
       </PopoverContent>
     </Popover>

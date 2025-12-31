@@ -1049,7 +1049,7 @@ export function Chat() {
                   onClick={() => document.getElementById('floating-chat-file-input')?.click()}
                   title='Attach file'
                   className={cn(
-                    '!bg-transparent cursor-pointer rounded-[6px] p-[0px]',
+                    '!bg-transparent !border-0 cursor-pointer rounded-[6px] p-[0px]',
                     (!activeWorkflowId || isExecuting || chatFiles.length >= 15) &&
                       'cursor-not-allowed opacity-50'
                   )}
