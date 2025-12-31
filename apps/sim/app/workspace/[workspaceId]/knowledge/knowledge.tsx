@@ -51,14 +51,8 @@ export function Knowledge() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
-  const {
-    knowledgeBases,
-    isLoading,
-    error,
-    removeKnowledgeBase,
-    updateKnowledgeBase,
-    refreshList,
-  } = useKnowledgeBasesList(workspaceId)
+  const { knowledgeBases, isLoading, error, removeKnowledgeBase, updateKnowledgeBase } =
+    useKnowledgeBasesList(workspaceId)
   const userPermissions = useUserPermissionsContext()
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -111,13 +105,6 @@ export function Knowledge() {
     setSortBy(field)
     setSortOrder(order)
     setIsSortPopoverOpen(false)
-  }
-
-  /**
-   * Retry loading knowledge bases after an error
-   */
-  const handleRetry = () => {
-    refreshList()
   }
 
   /**
@@ -178,7 +165,6 @@ export function Knowledge() {
 
   /**
    * Filter and sort knowledge bases based on search query and sort options
-   * Memoized to prevent unnecessary recalculations on render
    */
   const filteredAndSortedKnowledgeBases = useMemo(() => {
     const filtered = filterKnowledgeBases(knowledgeBases, debouncedSearchQuery)
@@ -199,7 +185,6 @@ export function Knowledge() {
 
   /**
    * Get empty state content based on current filters
-   * Memoized to prevent unnecessary recalculations on render
    */
   const emptyState = useMemo(() => {
     if (debouncedSearchQuery) {
