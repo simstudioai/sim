@@ -27,7 +27,7 @@ export const HumanInTheLoopBlock: BlockConfig<ResponseBlockOutput> = {
     // },
     {
       id: 'builderData',
-      title: 'Paused Output',
+      title: 'Display Data',
       type: 'response-format',
       // condition: { field: 'operation', value: 'human' }, // Always shown since we only support human mode
       description:
@@ -35,7 +35,7 @@ export const HumanInTheLoopBlock: BlockConfig<ResponseBlockOutput> = {
     },
     {
       id: 'notification',
-      title: 'Notification',
+      title: 'Notification (Send URL)',
       type: 'tool-input',
       // condition: { field: 'operation', value: 'human' }, // Always shown since we only support human mode
       description: 'Configure notification tools to alert approvers (e.g., Slack, Email)',
@@ -57,7 +57,7 @@ export const HumanInTheLoopBlock: BlockConfig<ResponseBlockOutput> = {
     // },
     {
       id: 'inputFormat',
-      title: 'Resume Input',
+      title: 'Resume Form',
       type: 'input-format',
       // condition: { field: 'operation', value: 'human' }, // Always shown since we only support human mode
       description: 'Define the fields the approver can fill in when resuming',
