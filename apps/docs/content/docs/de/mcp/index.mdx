@@ -1,8 +1,10 @@
 ---
-title: MCP (Model Context Protocol)
+title: MCP-Tools verwenden
+description: Externe Tools und Dienste über das Model Context Protocol verbinden
 ---
 
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 import { Callout } from 'fumadocs-ui/components/callout'
 
 Das Model Context Protocol ([MCP](https://modelcontextprotocol.com/)) ermöglicht es Ihnen, externe Tools und Dienste über ein standardisiertes Protokoll zu verbinden, wodurch Sie APIs und Dienste direkt in Ihre Workflows integrieren können. Mit MCP können Sie die Fähigkeiten von Sim erweitern, indem Sie benutzerdefinierte Integrationen hinzufügen, die nahtlos mit Ihren Agenten und Workflows zusammenarbeiten.
@@ -20,14 +22,8 @@ MCP ist ein offener Standard, der es KI-Assistenten ermöglicht, sich sicher mit
 
 MCP-Server stellen Sammlungen von Tools bereit, die Ihre Agenten nutzen können. Konfigurieren Sie diese in den Workspace-Einstellungen:
 
-<div className="flex justify-center">
-  <Image
-    src="/static/blocks/mcp-1.png"
-    alt="Konfiguration eines MCP-Servers in den Einstellungen"
-    width={700}
-    height={450}
-    className="my-6"
-  />
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp/settings-mcp-tools.mp4" width={700} height={450} />
 </div>
 
 1. Navigieren Sie zu Ihren Workspace-Einstellungen
@@ -40,14 +36,18 @@ MCP-Server stellen Sammlungen von Tools bereit, die Ihre Agenten nutzen können.
 Sie können MCP-Server auch direkt über die Symbolleiste in einem Agent-Block für eine schnelle Einrichtung konfigurieren.
 </Callout>
 
-## Verwendung von MCP-Tools in Agenten
+### Tools aktualisieren
 
-Sobald MCP-Server konfiguriert sind, werden ihre Tools innerhalb Ihrer Agent-Blöcke verfügbar:
+Klicken Sie bei einem Server auf **Aktualisieren**, um die neuesten Tool-Schemas abzurufen und alle Agent-Blöcke, die diese Tools verwenden, automatisch mit den neuen Parameterdefinitionen zu aktualisieren.
+
+## MCP-Tools in Agents verwenden
+
+Sobald MCP-Server konfiguriert sind, werden ihre Tools in Ihren Agent-Blöcken verfügbar:
 
 <div className="flex justify-center">
   <Image
     src="/static/blocks/mcp-2.png"
-    alt="Verwendung eines MCP-Tools im Agent-Block"
+    alt="Using MCP Tool in Agent Block"
     width={700}
     height={450}
     className="my-6"
@@ -55,25 +55,25 @@ Sobald MCP-Server konfiguriert sind, werden ihre Tools innerhalb Ihrer Agent-Bl�
 </div>
 
 1. Öffnen Sie einen **Agent**-Block
-2. Im Abschnitt **Tools** sehen Sie die verfügbaren MCP-Tools
+2. Im Bereich **Tools** sehen Sie die verfügbaren MCP-Tools
 3. Wählen Sie die Tools aus, die der Agent verwenden soll
 4. Der Agent kann nun während der Ausführung auf diese Tools zugreifen
 
 ## Eigenständiger MCP-Tool-Block
 
-Für eine genauere Kontrolle können Sie den dedizierten MCP-Tool-Block verwenden, um bestimmte MCP-Tools auszuführen:
+Für eine präzisere Steuerung können Sie den dedizierten MCP-Tool-Block verwenden, um bestimmte MCP-Tools auszuführen:
 
 <div className="flex justify-center">
   <Image
     src="/static/blocks/mcp-3.png"
-    alt="Eigenständiger MCP-Tool-Block"
+    alt="Standalone MCP Tool Block"
     width={700}
     height={450}
     className="my-6"
   />
 </div>
 
-Der MCP-Tool-Block ermöglicht es Ihnen:
+Der MCP-Tool-Block ermöglicht Ihnen:
 - Jedes konfigurierte MCP-Tool direkt auszuführen
 - Spezifische Parameter an das Tool zu übergeben
 - Die Ausgabe des Tools in nachfolgenden Workflow-Schritten zu verwenden
@@ -81,9 +81,9 @@ Der MCP-Tool-Block ermöglicht es Ihnen:
 
 ### Wann MCP-Tool vs. Agent verwenden
 
-**Verwenden Sie einen Agenten mit MCP-Tools, wenn:**
-- Sie möchten, dass die KI entscheidet, welche Tools zu verwenden sind
-- Sie komplexe Überlegungen benötigen, wann und wie Tools eingesetzt werden sollen
+**Verwenden Sie Agent mit MCP-Tools, wenn:**
+- Sie möchten, dass die KI entscheidet, welche Tools verwendet werden
+- Sie komplexes Reasoning darüber benötigen, wann und wie Tools verwendet werden
 - Sie eine natürlichsprachliche Interaktion mit den Tools wünschen
 
 **Verwenden Sie den MCP-Tool-Block, wenn:**
@@ -93,7 +93,7 @@ Der MCP-Tool-Block ermöglicht es Ihnen:
 
 ## Berechtigungsanforderungen
 
-MCP-Funktionalität erfordert spezifische Workspace-Berechtigungen:
+Die MCP-Funktionalität erfordert spezifische Workspace-Berechtigungen:
 
 | Aktion | Erforderliche Berechtigung |
 |--------|-------------------|
@@ -105,7 +105,7 @@ MCP-Funktionalität erfordert spezifische Workspace-Berechtigungen:
 ## Häufige Anwendungsfälle
 
 ### Datenbankintegration
-Verbinden Sie sich mit Datenbanken, um Daten innerhalb Ihrer Workflows abzufragen, einzufügen oder zu aktualisieren.
+Verbinden Sie sich mit Datenbanken, um Daten in Ihren Workflows abzufragen, einzufügen oder zu aktualisieren.
 
 ### API-Integrationen
 Greifen Sie auf externe APIs und Webdienste zu, die keine integrierten Sim-Integrationen haben.
@@ -113,8 +113,8 @@ Greifen Sie auf externe APIs und Webdienste zu, die keine integrierten Sim-Integ
 ### Dateisystemzugriff
 Lesen, schreiben und bearbeiten Sie Dateien auf lokalen oder entfernten Dateisystemen.
 
-### Benutzerdefinierte Geschäftslogik
-Führen Sie benutzerdefinierte Skripte oder Tools aus, die auf die Bedürfnisse Ihrer Organisation zugeschnitten sind.
+### Individuelle Geschäftslogik
+Führen Sie benutzerdefinierte Skripte oder Tools aus, die spezifisch für die Anforderungen Ihrer Organisation sind.
 
 ### Echtzeit-Datenzugriff
 Rufen Sie Live-Daten von externen Systemen während der Workflow-Ausführung ab.
@@ -128,12 +128,12 @@ Rufen Sie Live-Daten von externen Systemen während der Workflow-Ausführung ab.
 
 ## Fehlerbehebung
 
-### MCP-Server erscheint nicht
+### MCP-Server wird nicht angezeigt
 - Überprüfen Sie, ob die Serverkonfiguration korrekt ist
-- Prüfen Sie, ob Sie die erforderlichen Berechtigungen haben
-- Stellen Sie sicher, dass der MCP-Server läuft und zugänglich ist
+- Prüfen Sie, ob Sie über die erforderlichen Berechtigungen verfügen
+- Stellen Sie sicher, dass der MCP-Server läuft und erreichbar ist
 
-### Fehler bei der Tool-Ausführung
+### Tool-Ausführungsfehler
 - Überprüfen Sie, ob die Tool-Parameter korrekt formatiert sind
 - Prüfen Sie die MCP-Server-Logs auf Fehlermeldungen
 - Stellen Sie sicher, dass die erforderliche Authentifizierung konfiguriert ist
@@ -141,4 +141,4 @@ Rufen Sie Live-Daten von externen Systemen während der Workflow-Ausführung ab.
 ### Berechtigungsfehler
 - Bestätigen Sie Ihre Workspace-Berechtigungsstufe
 - Prüfen Sie, ob der MCP-Server zusätzliche Authentifizierung erfordert
-- Stellen Sie sicher, dass der Server für Ihren Workspace richtig konfiguriert ist
+- Überprüfen Sie, ob der Server ordnungsgemäß für Ihren Workspace konfiguriert ist
