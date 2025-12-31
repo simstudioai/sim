@@ -46,9 +46,11 @@ import {
   ActionBar,
   AddDocumentsModal,
   BaseTagsModal,
+  DocumentContextMenu,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
   useKnowledgeBase,
   useKnowledgeBaseDocuments,
@@ -429,6 +431,15 @@ export function KnowledgeBase({
   const [currentPage, setCurrentPage] = useState(1)
   const [sortBy, setSortBy] = useState<DocumentSortField>('uploadedAt')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+  const [contextMenuDocument, setContextMenuDocument] = useState<DocumentData | null>(null)
+
+  const {
+    isOpen: isContextMenuOpen,
+    position: contextMenuPosition,
+    menuRef,
+    handleContextMenu: baseHandleContextMenu,
+    closeMenu: closeContextMenu,
+  } = useContextMenu()
 
   const {
     knowledgeBase,
@@ -955,6 +966,36 @@ export function KnowledgeBase({
   const enabledCount = selectedDocumentsList.filter((doc) => doc.enabled).length
   const disabledCount = selectedDocumentsList.filter((doc) => !doc.enabled).length
 
+  /**
+   * Handle right-click on a document row
+   */
+  const handleDocumentContextMenu = useCallback(
+    (e: React.MouseEvent, doc: DocumentData) => {
+      setContextMenuDocument(doc)
+      baseHandleContextMenu(e)
+    },
+    [baseHandleContextMenu]
+  )
+
+  /**
+   * Handle right-click on empty space (table container)
+   */
+  const handleEmptyContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      setContextMenuDocument(null)
+      baseHandleContextMenu(e)
+    },
+    [baseHandleContextMenu]
+  )
+
+  /**
+   * Handle context menu close
+   */
+  const handleContextMenuClose = useCallback(() => {
+    closeContextMenu()
+    setContextMenuDocument(null)
+  }, [closeContextMenu])
+
   const prevKnowledgeBaseIdRef = useRef<string>(id)
   const isNavigatingToNewKB = prevKnowledgeBaseIdRef.current !== id
 
@@ -1115,7 +1156,7 @@ export function KnowledgeBase({
             </div>
           )}
 
-          <div className='mt-[12px] flex flex-1 flex-col'>
+          <div className='mt-[12px] flex flex-1 flex-col' onContextMenu={handleEmptyContextMenu}>
             {isLoadingDocuments && documents.length === 0 ? (
               <DocumentTableSkeleton rowCount={5} />
             ) : documents.length === 0 ? (
@@ -1177,6 +1218,7 @@ export function KnowledgeBase({
                             handleDocumentClick(doc.id)
                           }
                         }}
+                        onContextMenu={(e) => handleDocumentContextMenu(e, doc)}
                       >
                         <TableCell className='w-[28px] py-[8px] pr-0 pl-0'>
                           <div className='flex items-center justify-center'>
@@ -1524,6 +1566,67 @@ export function KnowledgeBase({
         enabledCount={enabledCount}
         disabledCount={disabledCount}
         isLoading={isBulkOperating}
+      />
+
+      <DocumentContextMenu
+        isOpen={isContextMenuOpen}
+        position={contextMenuPosition}
+        menuRef={menuRef}
+        onClose={handleContextMenuClose}
+        hasDocument={contextMenuDocument !== null}
+        isDocumentEnabled={contextMenuDocument?.enabled ?? true}
+        hasTags={
+          contextMenuDocument
+            ? getDocumentTags(contextMenuDocument, tagDefinitions).length > 0
+            : false
+        }
+        onOpenInNewTab={
+          contextMenuDocument
+            ? () => {
+                const urlParams = new URLSearchParams({
+                  kbName: knowledgeBaseName,
+                  docName: contextMenuDocument.filename || 'Document',
+                })
+                window.open(
+                  `/workspace/${workspaceId}/knowledge/${id}/${contextMenuDocument.id}?${urlParams.toString()}`,
+                  '_blank'
+                )
+              }
+            : undefined
+        }
+        onToggleEnabled={
+          contextMenuDocument && userPermissions.canEdit
+            ? () => handleToggleEnabled(contextMenuDocument.id)
+            : undefined
+        }
+        onViewTags={
+          contextMenuDocument
+            ? () => {
+                const urlParams = new URLSearchParams({
+                  kbName: knowledgeBaseName,
+                  docName: contextMenuDocument.filename || 'Document',
+                })
+                router.push(
+                  `/workspace/${workspaceId}/knowledge/${id}/${contextMenuDocument.id}?${urlParams.toString()}`
+                )
+              }
+            : undefined
+        }
+        onDelete={
+          contextMenuDocument && userPermissions.canEdit
+            ? () => handleDeleteDocument(contextMenuDocument.id)
+            : undefined
+        }
+        onAddDocument={userPermissions.canEdit ? handleAddDocuments : undefined}
+        disableToggleEnabled={
+          !userPermissions.canEdit ||
+          contextMenuDocument?.processingStatus === 'processing' ||
+          contextMenuDocument?.processingStatus === 'pending'
+        }
+        disableDelete={
+          !userPermissions.canEdit || contextMenuDocument?.processingStatus === 'processing'
+        }
+        disableAddDocument={!userPermissions.canEdit}
       />
     </div>
   )

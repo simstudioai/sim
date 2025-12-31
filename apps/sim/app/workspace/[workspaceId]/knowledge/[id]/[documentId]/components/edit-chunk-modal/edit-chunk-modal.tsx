@@ -59,7 +59,6 @@ export function EditChunkModal({
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null)
   const [tokenizerOn, setTokenizerOn] = useState(false)
-  const [scrollTop, setScrollTop] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const hasUnsavedChanges = editedContent !== (chunk?.content || '')
@@ -76,37 +75,76 @@ export function EditChunkModal({
   }, [editedContent, tokenizerOn, tokenStrings])
 
   const TOKEN_BG_COLORS = [
-    'rgba(185, 28, 28, 0.5)', // Red
-    'rgba(194, 65, 12, 0.5)', // Orange
-    'rgba(161, 98, 7, 0.5)', // Amber
-    'rgba(77, 124, 15, 0.5)', // Lime
-    'rgba(21, 128, 61, 0.5)', // Green
-    'rgba(15, 118, 110, 0.5)', // Teal
-    'rgba(3, 105, 161, 0.5)', // Sky
-    'rgba(29, 78, 216, 0.5)', // Blue
-    'rgba(109, 40, 217, 0.5)', // Violet
-    'rgba(162, 28, 175, 0.5)', // Fuchsia
+    'rgba(239, 68, 68, 0.55)', // Red
+    'rgba(249, 115, 22, 0.55)', // Orange
+    'rgba(234, 179, 8, 0.55)', // Yellow
+    'rgba(132, 204, 22, 0.55)', // Lime
+    'rgba(34, 197, 94, 0.55)', // Green
+    'rgba(20, 184, 166, 0.55)', // Teal
+    'rgba(6, 182, 212, 0.55)', // Cyan
+    'rgba(59, 130, 246, 0.55)', // Blue
+    'rgba(139, 92, 246, 0.55)', // Violet
+    'rgba(217, 70, 239, 0.55)', // Fuchsia
   ]
 
   const getTokenBgColor = (index: number): string => {
     return TOKEN_BG_COLORS[index % TOKEN_BG_COLORS.length]
   }
 
-  const handleScroll = () => {
-    if (textareaRef.current) {
-      setScrollTop(textareaRef.current.scrollTop)
-    }
-  }
-
+  // #region agent log - style comparison
+  const tokenizerDivRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (tokenizerOn && textareaRef.current) {
-      requestAnimationFrame(() => {
-        if (textareaRef.current) {
-          setScrollTop(textareaRef.current.scrollTop)
-        }
-      })
+    const logStyles = () => {
+      const ta = textareaRef.current
+      const tv = tokenizerDivRef.current
+      if (ta && !tokenizerOn) {
+        const s = window.getComputedStyle(ta)
+        const rect = ta.getBoundingClientRect()
+        fetch('http://127.0.0.1:7243/ingest/77a2b2bc-808d-4bfd-a366-739b0b04635d', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            location: 'edit-chunk-modal.tsx:TEXTAREA',
+            message: 'Textarea position',
+            data: {
+              top: rect.top,
+              marginTop: s.marginTop,
+              paddingTop: s.paddingTop,
+              borderTopWidth: s.borderTopWidth,
+              height: rect.height,
+            },
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            hypothesisId: 'vertical',
+          }),
+        }).catch(() => {})
+      }
+      if (tv && tokenizerOn) {
+        const s = window.getComputedStyle(tv)
+        const rect = tv.getBoundingClientRect()
+        fetch('http://127.0.0.1:7243/ingest/77a2b2bc-808d-4bfd-a366-739b0b04635d', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            location: 'edit-chunk-modal.tsx:TOKENIZER',
+            message: 'Tokenizer position',
+            data: {
+              top: rect.top,
+              marginTop: s.marginTop,
+              paddingTop: s.paddingTop,
+              borderTopWidth: s.borderTopWidth,
+              height: rect.height,
+            },
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            hypothesisId: 'vertical',
+          }),
+        }).catch(() => {})
+      }
     }
-  }, [editedContent, tokenizerOn])
+    setTimeout(logStyles, 100)
+  }, [tokenizerOn])
+  // #endregion
 
   useEffect(() => {
     if (chunk?.content) {
@@ -283,45 +321,39 @@ export function EditChunkModal({
 
                 {/* Content Input Section */}
                 <Label htmlFor='content'>Chunk</Label>
-                <div className='relative'>
-                  {/* Token highlight overlay - behind textarea */}
-                  {tokenizerOn && (
-                    <div
-                      className='pointer-events-none absolute inset-0 overflow-hidden rounded-[4px] border border-transparent'
-                      aria-hidden='true'
-                    >
-                      <div
-                        className='whitespace-pre-wrap break-words px-[8px] py-[8px] font-medium font-sans text-sm'
-                        style={{ color: 'transparent', transform: `translateY(-${scrollTop}px)` }}
+                {tokenizerOn ? (
+                  /* Tokenizer view - matches Textarea styling exactly (transparent border for spacing) */
+                  <div
+                    ref={tokenizerDivRef}
+                    className='h-[418px] overflow-y-auto whitespace-pre-wrap break-words rounded-[4px] border border-transparent bg-[var(--surface-5)] px-[8px] py-[8px] font-medium font-sans text-[var(--text-primary)] text-sm'
+                    style={{ minHeight: '418px' }}
+                  >
+                    {tokenStrings.map((token, index) => (
+                      <span
+                        key={index}
+                        style={{
+                          backgroundColor: getTokenBgColor(index),
+                        }}
                       >
-                        {tokenStrings.map((token, index) => (
-                          <span
-                            key={index}
-                            style={{
-                              backgroundColor: getTokenBgColor(index),
-                            }}
-                          >
-                            {token}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                        {token}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  /* Edit view - regular textarea */
                   <Textarea
                     ref={textareaRef}
                     id='content'
                     value={editedContent}
                     onChange={(e) => setEditedContent(e.target.value)}
-                    onScroll={handleScroll}
                     placeholder={
                       userPermissions.canEdit ? 'Enter chunk content...' : 'Read-only view'
                     }
                     rows={20}
                     disabled={isSaving || isNavigating || !userPermissions.canEdit}
                     readOnly={!userPermissions.canEdit}
-                    className={tokenizerOn ? 'relative z-10 bg-transparent' : ''}
                   />
-                </div>
+                )}
               </div>
 
               {/* Tokenizer Section */}

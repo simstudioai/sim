@@ -5,3 +5,4 @@ export { EditKnowledgeBaseModal } from './edit-knowledge-base-modal/edit-knowled
 export { getDocumentIcon } from './icons/document-icons'
 export { KnowledgeBaseContextMenu } from './knowledge-base-context-menu/knowledge-base-context-menu'
 export { KnowledgeHeader } from './knowledge-header/knowledge-header'
+export { KnowledgeListContextMenu } from './knowledge-list-context-menu/knowledge-list-context-menu'

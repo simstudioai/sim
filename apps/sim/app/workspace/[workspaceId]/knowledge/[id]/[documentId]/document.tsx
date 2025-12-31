@@ -37,6 +37,7 @@ import { SearchHighlight } from '@/components/ui/search-highlight'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ChunkData } from '@/lib/knowledge/types'
 import {
+  ChunkContextMenu,
   CreateChunkModal,
   DeleteChunkModal,
   DocumentTagsModal,
@@ -44,6 +45,7 @@ import {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { knowledgeKeys } from '@/hooks/queries/knowledge'
 import { useDocument, useDocumentChunks, useKnowledgeBase } from '@/hooks/use-knowledge'
 
@@ -433,6 +435,15 @@ export function Document({
   const [isBulkOperating, setIsBulkOperating] = useState(false)
   const [showDeleteDocumentDialog, setShowDeleteDocumentDialog] = useState(false)
   const [isDeletingDocument, setIsDeletingDocument] = useState(false)
+  const [contextMenuChunk, setContextMenuChunk] = useState<ChunkData | null>(null)
+
+  const {
+    isOpen: isContextMenuOpen,
+    position: contextMenuPosition,
+    menuRef,
+    handleContextMenu: baseHandleContextMenu,
+    closeMenu: closeContextMenu,
+  } = useContextMenu()
 
   const combinedError = documentError || searchError || initialError
 
@@ -642,6 +653,36 @@ export function Document({
 
   const isAllSelected = displayChunks.length > 0 && selectedChunks.size === displayChunks.length
 
+  /**
+   * Handle right-click on a chunk row
+   */
+  const handleChunkContextMenu = useCallback(
+    (e: React.MouseEvent, chunk: ChunkData) => {
+      setContextMenuChunk(chunk)
+      baseHandleContextMenu(e)
+    },
+    [baseHandleContextMenu]
+  )
+
+  /**
+   * Handle right-click on empty space (table container)
+   */
+  const handleEmptyContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      setContextMenuChunk(null)
+      baseHandleContextMenu(e)
+    },
+    [baseHandleContextMenu]
+  )
+
+  /**
+   * Handle context menu close
+   */
+  const handleContextMenuClose = useCallback(() => {
+    closeContextMenu()
+    setContextMenuChunk(null)
+  }, [closeContextMenu])
+
   const handleDocumentTagsUpdate = useCallback(() => {
     queryClient.invalidateQueries({
       queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
@@ -809,7 +850,10 @@ export function Document({
             </Tooltip.Root>
           </div>
 
-          <div className='mt-[12px] flex flex-1 flex-col overflow-hidden'>
+          <div
+            className='mt-[12px] flex flex-1 flex-col overflow-hidden'
+            onContextMenu={handleEmptyContextMenu}
+          >
             {displayChunks.length === 0 && documentData?.processingStatus === 'completed' ? (
               <div className='mt-[10px] flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
                 <div className='text-center'>
@@ -907,6 +951,7 @@ export function Document({
                         key={chunk.id}
                         className='cursor-pointer hover:bg-[var(--surface-2)]'
                         onClick={() => handleChunkClick(chunk)}
+                        onContextMenu={(e) => handleChunkContextMenu(e, chunk)}
                       >
                         <TableCell
                           className='w-[52px] py-[8px]'
@@ -1153,6 +1198,56 @@ export function Document({
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      <ChunkContextMenu
+        isOpen={isContextMenuOpen}
+        position={contextMenuPosition}
+        menuRef={menuRef}
+        onClose={handleContextMenuClose}
+        hasChunk={contextMenuChunk !== null}
+        isChunkEnabled={contextMenuChunk?.enabled ?? true}
+        onOpenInNewTab={
+          contextMenuChunk
+            ? () => {
+                const url = `/workspace/${workspaceId}/knowledge/${knowledgeBaseId}/${documentId}?chunk=${contextMenuChunk.id}`
+                window.open(url, '_blank')
+              }
+            : undefined
+        }
+        onEdit={
+          contextMenuChunk
+            ? () => {
+                setSelectedChunk(contextMenuChunk)
+                setIsModalOpen(true)
+              }
+            : undefined
+        }
+        onCopyContent={
+          contextMenuChunk
+            ? () => {
+                navigator.clipboard.writeText(contextMenuChunk.content)
+              }
+            : undefined
+        }
+        onToggleEnabled={
+          contextMenuChunk && userPermissions.canEdit
+            ? () => handleToggleEnabled(contextMenuChunk.id)
+            : undefined
+        }
+        onDelete={
+          contextMenuChunk && userPermissions.canEdit
+            ? () => handleDeleteChunk(contextMenuChunk.id)
+            : undefined
+        }
+        onAddChunk={
+          userPermissions.canEdit && documentData?.processingStatus !== 'failed'
+            ? () => setIsCreateChunkModalOpen(true)
+            : undefined
+        }
+        disableToggleEnabled={!userPermissions.canEdit}
+        disableDelete={!userPermissions.canEdit}
+        disableAddChunk={!userPermissions.canEdit || documentData?.processingStatus === 'failed'}
+      />
     </div>
   )
 }

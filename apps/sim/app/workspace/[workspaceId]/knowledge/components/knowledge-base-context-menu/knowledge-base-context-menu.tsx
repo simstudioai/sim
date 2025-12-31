@@ -28,6 +28,10 @@ interface KnowledgeBaseContextMenuProps {
    */
   onViewTags?: () => void
   /**
+   * Callback when copy ID is clicked
+   */
+  onCopyId?: () => void
+  /**
    * Callback when edit is clicked
    */
   onEdit?: () => void
@@ -78,6 +82,7 @@ export function KnowledgeBaseContextMenu({
   onClose,
   onOpenInNewTab,
   onViewTags,
+  onCopyId,
   onEdit,
   onDelete,
   showOpenInNewTab = true,
@@ -117,6 +122,16 @@ export function KnowledgeBaseContextMenu({
             }}
           >
             View tags
+          </PopoverItem>
+        )}
+        {onCopyId && (
+          <PopoverItem
+            onClick={() => {
+              onCopyId()
+              onClose()
+            }}
+          >
+            Copy ID
           </PopoverItem>
         )}
         {showEdit && onEdit && (
