@@ -21,6 +21,7 @@ import {
   Badge,
   Breadcrumb,
   Button,
+  Checkbox,
   Modal,
   ModalBody,
   ModalContent,
@@ -35,7 +36,6 @@ import {
   Tooltip,
   Trash,
 } from '@/components/emcn'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -589,6 +589,11 @@ export function KnowledgeBase({
     const document = documents.find((doc) => doc.id === docId)
     if (!document) return
 
+    const newEnabled = !document.enabled
+
+    // Optimistic update - immediately update the UI
+    updateDocument(docId, { enabled: newEnabled })
+
     try {
       const response = await fetch(`/api/knowledge/${id}/documents/${docId}`, {
         method: 'PUT',
@@ -596,7 +601,7 @@ export function KnowledgeBase({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          enabled: !document.enabled,
+          enabled: newEnabled,
         }),
       })
 
@@ -606,10 +611,13 @@ export function KnowledgeBase({
 
       const result = await response.json()
 
-      if (result.success) {
-        updateDocument(docId, { enabled: !document.enabled })
+      if (!result.success) {
+        // Revert on failure
+        updateDocument(docId, { enabled: !newEnabled })
       }
     } catch (err) {
+      // Revert on error
+      updateDocument(docId, { enabled: !newEnabled })
       logger.error('Error updating document:', err)
     }
   }
@@ -1123,11 +1131,11 @@ export function KnowledgeBase({
                     <TableHead className='w-[28px] py-[8px] pr-0 pl-0'>
                       <div className='flex items-center justify-center'>
                         <Checkbox
+                          size='sm'
                           checked={isAllSelected}
                           onCheckedChange={handleSelectAll}
                           disabled={!userPermissions.canEdit}
                           aria-label='Select all documents'
-                          className='h-[14px] w-[14px] border-[var(--border-2)] focus-visible:ring-[var(--brand-primary-hex)]/20 data-[state=checked]:border-[var(--brand-primary-hex)] data-[state=checked]:bg-[var(--brand-primary-hex)] [&>*]:h-[12px] [&>*]:w-[12px]'
                         />
                       </div>
                     </TableHead>
@@ -1168,10 +1176,10 @@ export function KnowledgeBase({
                               onCheckedChange={(checked) =>
                                 handleSelectDocument(doc.id, checked as boolean)
                               }
+                              size='sm'
                               disabled={!userPermissions.canEdit}
                               onClick={(e) => e.stopPropagation()}
                               aria-label={`Select ${doc.filename}`}
-                              className='h-[14px] w-[14px] border-[var(--border-2)] focus-visible:ring-[var(--brand-primary-hex)]/20 data-[state=checked]:border-[var(--brand-primary-hex)] data-[state=checked]:bg-[var(--brand-primary-hex)] [&>*]:h-[12px] [&>*]:w-[12px]'
                             />
                           </div>
                         </TableCell>

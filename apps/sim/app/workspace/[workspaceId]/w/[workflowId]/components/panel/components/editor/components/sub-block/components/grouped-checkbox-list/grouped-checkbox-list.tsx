@@ -2,8 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { Settings2 } from 'lucide-react'
-import { Button } from '@/components/emcn/components'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Button, Checkbox } from '@/components/emcn/components'
 import {
   Dialog,
   DialogContent,

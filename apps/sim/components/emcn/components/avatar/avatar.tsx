@@ -25,37 +25,41 @@ const avatarVariants = cva('relative flex shrink-0 overflow-hidden rounded-full'
 })
 
 /**
- * Variant styles for the AvatarStatus indicator.
- * Shows online/offline/busy/away status.
+ * Variant styles for the status indicator.
  */
 const avatarStatusVariants = cva(
-  'flex items-center rounded-full border-2 border-[var(--surface-1)] transition-colors',
+  'absolute bottom-0 right-0 rounded-full border-2 border-[var(--bg)]',
   {
     variants: {
-      variant: {
+      status: {
         online: 'bg-[#16a34a]',
         offline: 'bg-[var(--text-muted)]',
-        busy: 'bg-[#ca8a04]',
-        away: 'bg-[#2563eb]',
+        busy: 'bg-[#dc2626]',
+        away: 'bg-[#f59e0b]',
       },
       size: {
-        xs: 'h-1.5 w-1.5',
-        sm: 'h-2 w-2',
-        md: 'h-2.5 w-2.5',
-        lg: 'h-3 w-3',
+        xs: 'h-2 w-2',
+        sm: 'h-2.5 w-2.5',
+        md: 'h-3 w-3',
+        lg: 'h-3.5 w-3.5',
         xl: 'h-4 w-4',
       },
     },
     defaultVariants: {
-      variant: 'online',
+      status: 'online',
       size: 'md',
     },
   }
 )
 
+type AvatarStatus = 'online' | 'offline' | 'busy' | 'away'
+
 export interface AvatarProps
   extends React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>,
-    VariantProps<typeof avatarVariants> {}
+    VariantProps<typeof avatarVariants> {
+  /** Shows a status indicator badge on the avatar */
+  status?: AvatarStatus
+}
 
 /**
  * Avatar component for displaying user profile images with fallback support.
@@ -77,22 +81,36 @@ export interface AvatarProps
  * </Avatar>
  *
  * // With status indicator
- * <Avatar>
+ * <Avatar status="online">
  *   <AvatarImage src="/avatar.jpg" alt="User" />
  *   <AvatarFallback>JD</AvatarFallback>
- *   <AvatarIndicator className="bottom-0 right-0">
- *     <AvatarStatus variant="online" />
- *   </AvatarIndicator>
  * </Avatar>
+ *
+ * // All status types
+ * <Avatar status="online" />   // Green
+ * <Avatar status="offline" />  // Gray
+ * <Avatar status="busy" />     // Red
+ * <Avatar status="away" />     // Yellow/Amber
  * ```
  */
 const Avatar = React.forwardRef<React.ElementRef<typeof AvatarPrimitive.Root>, AvatarProps>(
-  ({ className, size, ...props }, ref) => (
-    <AvatarPrimitive.Root
-      ref={ref}
-      className={cn(avatarVariants({ size }), className)}
-      {...props}
-    />
+  ({ className, size, status, children, ...props }, ref) => (
+    <div className='relative inline-flex'>
+      <AvatarPrimitive.Root
+        ref={ref}
+        className={cn(avatarVariants({ size }), className)}
+        {...props}
+      >
+        {children}
+      </AvatarPrimitive.Root>
+      {status && (
+        <span
+          data-slot='avatar-status'
+          className={cn(avatarStatusVariants({ status, size }))}
+          aria-label={`Status: ${status}`}
+        />
+      )}
+    </div>
   )
 )
 Avatar.displayName = 'Avatar'
@@ -130,45 +148,4 @@ const AvatarFallback = React.forwardRef<
 ))
 AvatarFallback.displayName = 'AvatarFallback'
 
-/**
- * Container for positioning status indicators on the Avatar.
- */
-function AvatarIndicator({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      data-slot='avatar-indicator'
-      className={cn('absolute flex items-center justify-center', className)}
-      {...props}
-    />
-  )
-}
-AvatarIndicator.displayName = 'AvatarIndicator'
-
-export interface AvatarStatusProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof avatarStatusVariants> {}
-
-/**
- * Status indicator component for Avatar.
- * Shows user's availability status (online, offline, busy, away).
- */
-function AvatarStatus({ className, variant, size, ...props }: AvatarStatusProps) {
-  return (
-    <div
-      data-slot='avatar-status'
-      className={cn(avatarStatusVariants({ variant, size }), className)}
-      {...props}
-    />
-  )
-}
-AvatarStatus.displayName = 'AvatarStatus'
-
-export {
-  Avatar,
-  AvatarImage,
-  AvatarFallback,
-  AvatarIndicator,
-  AvatarStatus,
-  avatarVariants,
-  avatarStatusVariants,
-}
+export { Avatar, AvatarImage, AvatarFallback, avatarVariants, avatarStatusVariants }

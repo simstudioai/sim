@@ -1,105 +1,22 @@
 'use client'
 
 import * as React from 'react'
-import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/core/utils/cn'
 
 /**
- * Variant styles for the Table component.
- * Controls layout, sizing, and density.
+ * A simple Table component for displaying data.
  *
  * @example
  * ```tsx
- * // Default table
- * <Table>...</Table>
- *
- * // Fixed layout with small text
- * <Table layout="fixed" size="sm">...</Table>
- *
- * // Compact density
- * <Table density="compact">...</Table>
- * ```
- */
-const tableVariants = cva('w-full caption-bottom', {
-  variants: {
-    layout: {
-      auto: '',
-      fixed: 'table-fixed',
-    },
-    size: {
-      sm: 'text-[12px]',
-      md: 'text-[13px]',
-      lg: 'text-[14px]',
-    },
-  },
-  defaultVariants: {
-    layout: 'auto',
-    size: 'md',
-  },
-})
-
-/**
- * Variant styles for TableRow component.
- * Controls hover behavior and interactive states.
- */
-const tableRowVariants = cva('border-b border-[var(--border)] transition-colors', {
-  variants: {
-    hover: {
-      default: 'hover:bg-[var(--surface-2)]/50',
-      surface: 'hover:bg-[var(--surface-2)]',
-      none: 'hover:bg-transparent',
-    },
-    interactive: {
-      true: 'cursor-pointer',
-      false: '',
-    },
-    selected: {
-      true: 'bg-[var(--surface-2)]',
-      false: '',
-    },
-  },
-  defaultVariants: {
-    hover: 'default',
-    interactive: false,
-    selected: false,
-  },
-})
-
-/**
- * Variant styles for TableCell and TableHead components.
- * Controls padding density.
- */
-const tableCellVariants = cva('align-middle', {
-  variants: {
-    density: {
-      compact: 'px-[8px] py-[4px]',
-      default: 'px-[12px] py-[8px]',
-      relaxed: 'px-[16px] py-[12px]',
-    },
-  },
-  defaultVariants: {
-    density: 'default',
-  },
-})
-
-export interface TableProps
-  extends React.HTMLAttributes<HTMLTableElement>,
-    VariantProps<typeof tableVariants> {}
-
-/**
- * A flexible Table component with variant support.
- *
- * @example
- * ```tsx
- * <Table layout="fixed" size="sm">
+ * <Table>
  *   <TableHeader>
- *     <TableRow hover="none">
+ *     <TableRow>
  *       <TableHead>Name</TableHead>
  *       <TableHead>Status</TableHead>
  *     </TableRow>
  *   </TableHeader>
  *   <TableBody>
- *     <TableRow hover="surface" interactive>
+ *     <TableRow>
  *       <TableCell>Document.pdf</TableCell>
  *       <TableCell>Active</TableCell>
  *     </TableRow>
@@ -107,10 +24,10 @@ export interface TableProps
  * </Table>
  * ```
  */
-const Table = React.forwardRef<HTMLTableElement, TableProps>(
-  ({ className, layout, size, ...props }, ref) => (
+const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
+  ({ className, ...props }, ref) => (
     <div className='relative w-full overflow-auto'>
-      <table ref={ref} className={cn(tableVariants({ layout, size }), className)} {...props} />
+      <table ref={ref} className={cn('w-full caption-bottom text-[13px]', className)} {...props} />
     </div>
   )
 )
@@ -139,7 +56,7 @@ const TableFooter = React.forwardRef<
   <tfoot
     ref={ref}
     className={cn(
-      'border-t bg-[var(--surface-2)]/50 font-medium [&>tr]:last:border-b-0',
+      'border-t bg-[var(--surface-3)]/50 font-medium [&>tr]:last:border-b-0',
       className
     )}
     {...props}
@@ -147,58 +64,45 @@ const TableFooter = React.forwardRef<
 ))
 TableFooter.displayName = 'TableFooter'
 
-export interface TableRowProps
-  extends React.HTMLAttributes<HTMLTableRowElement>,
-    VariantProps<typeof tableRowVariants> {}
-
-const TableRow = React.forwardRef<HTMLTableRowElement, TableRowProps>(
-  ({ className, hover, interactive, selected, ...props }, ref) => (
+const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTMLTableRowElement>>(
+  ({ className, ...props }, ref) => (
     <tr
       ref={ref}
-      className={cn(tableRowVariants({ hover, interactive, selected }), className)}
-      data-state={selected ? 'selected' : undefined}
+      className={cn('border-[var(--border)] border-b transition-colors', className)}
       {...props}
     />
   )
 )
 TableRow.displayName = 'TableRow'
 
-export interface TableHeadProps
-  extends React.ThHTMLAttributes<HTMLTableCellElement>,
-    VariantProps<typeof tableCellVariants> {}
-
-const TableHead = React.forwardRef<HTMLTableCellElement, TableHeadProps>(
-  ({ className, density, ...props }, ref) => (
-    <th
-      ref={ref}
-      className={cn(
-        tableCellVariants({ density }),
-        'h-10 text-left font-medium text-[var(--text-secondary)] [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
-        className
-      )}
-      {...props}
-    />
-  )
-)
+const TableHead = React.forwardRef<
+  HTMLTableCellElement,
+  React.ThHTMLAttributes<HTMLTableCellElement>
+>(({ className, ...props }, ref) => (
+  <th
+    ref={ref}
+    className={cn(
+      'h-10 px-[12px] py-[8px] text-left align-middle font-medium text-[var(--text-secondary)] [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
+      className
+    )}
+    {...props}
+  />
+))
 TableHead.displayName = 'TableHead'
 
-export interface TableCellProps
-  extends React.TdHTMLAttributes<HTMLTableCellElement>,
-    VariantProps<typeof tableCellVariants> {}
-
-const TableCell = React.forwardRef<HTMLTableCellElement, TableCellProps>(
-  ({ className, density, ...props }, ref) => (
-    <td
-      ref={ref}
-      className={cn(
-        tableCellVariants({ density }),
-        '[&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
-        className
-      )}
-      {...props}
-    />
-  )
-)
+const TableCell = React.forwardRef<
+  HTMLTableCellElement,
+  React.TdHTMLAttributes<HTMLTableCellElement>
+>(({ className, ...props }, ref) => (
+  <td
+    ref={ref}
+    className={cn(
+      'px-[12px] py-[8px] align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
+      className
+    )}
+    {...props}
+  />
+))
 TableCell.displayName = 'TableCell'
 
 const TableCaption = React.forwardRef<
@@ -213,16 +117,4 @@ const TableCaption = React.forwardRef<
 ))
 TableCaption.displayName = 'TableCaption'
 
-export {
-  Table,
-  TableHeader,
-  TableBody,
-  TableFooter,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableCaption,
-  tableVariants,
-  tableRowVariants,
-  tableCellVariants,
-}
+export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption }

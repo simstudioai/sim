@@ -2,16 +2,19 @@ export {
   Avatar,
   AvatarFallback,
   AvatarImage,
-  AvatarIndicator,
   type AvatarProps,
-  AvatarStatus,
-  type AvatarStatusProps,
   avatarStatusVariants,
   avatarVariants,
 } from './avatar/avatar'
 export { Badge } from './badge/badge'
 export { Breadcrumb, type BreadcrumbItem, type BreadcrumbProps } from './breadcrumb/breadcrumb'
 export { Button, buttonVariants } from './button/button'
+export {
+  Checkbox,
+  type CheckboxProps,
+  checkboxIconVariants,
+  checkboxVariants,
+} from './checkbox/checkbox'
 export {
   CODE_LINE_HEIGHT_PX,
   Code,
@@ -89,17 +92,10 @@ export {
   TableBody,
   TableCaption,
   TableCell,
-  type TableCellProps,
   TableFooter,
   TableHead,
   TableHeader,
-  type TableHeadProps,
-  type TableProps,
   TableRow,
-  type TableRowProps,
-  tableCellVariants,
-  tableRowVariants,
-  tableVariants,
 } from './table/table'
 export { Textarea } from './textarea/textarea'
 export { Tooltip } from './tooltip/tooltip'

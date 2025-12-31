@@ -1,5 +1,12 @@
-import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
-import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Button,
+  Checkbox,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+} from '@/components/emcn'
 
 interface RemoveMemberDialogProps {
   open: boolean

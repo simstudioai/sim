@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import {
   Button,
+  Checkbox,
   Input,
   Label,
   Modal,
@@ -28,7 +29,6 @@ import {
   ModalTabsTrigger,
   Textarea,
 } from '@/components/emcn'
-import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/core/utils/cn'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { formatEditSequence } from '@/lib/workflows/training/compute-edit-sequence'

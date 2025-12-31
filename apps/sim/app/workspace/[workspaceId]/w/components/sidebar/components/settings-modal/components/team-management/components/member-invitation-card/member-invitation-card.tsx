@@ -4,13 +4,13 @@ import React, { useMemo, useState } from 'react'
 import { CheckCircle, ChevronDown } from 'lucide-react'
 import {
   Button,
+  Checkbox,
   Input,
   Popover,
   PopoverContent,
   PopoverItem,
   PopoverTrigger,
 } from '@/components/emcn'
-import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import type { AdminWorkspace } from '@/hooks/queries/workspace'

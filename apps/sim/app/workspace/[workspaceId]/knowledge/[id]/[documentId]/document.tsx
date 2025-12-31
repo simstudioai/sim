@@ -17,6 +17,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   Breadcrumb,
   Button,
+  Checkbox,
   Modal,
   ModalBody,
   ModalContent,
@@ -31,7 +32,6 @@ import {
   Tooltip,
   Trash,
 } from '@/components/emcn'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -918,6 +918,7 @@ export function Document({
                     >
                       <div className='flex items-center'>
                         <Checkbox
+                          size='sm'
                           checked={isAllSelected}
                           onCheckedChange={handleSelectAll}
                           disabled={
@@ -925,7 +926,6 @@ export function Document({
                             !userPermissions.canEdit
                           }
                           aria-label='Select all chunks'
-                          className='h-[14px] w-[14px] border-[var(--border-2)] focus-visible:ring-[var(--brand-primary-hex)]/20 data-[state=checked]:border-[var(--brand-primary-hex)] data-[state=checked]:bg-[var(--brand-primary-hex)] [&>*]:h-[12px] [&>*]:w-[12px]'
                         />
                       </div>
                     </TableHead>
@@ -997,13 +997,13 @@ export function Document({
                         >
                           <div className='flex items-center'>
                             <Checkbox
+                              size='sm'
                               checked={selectedChunks.has(chunk.id)}
                               onCheckedChange={(checked) =>
                                 handleSelectChunk(chunk.id, checked as boolean)
                               }
                               disabled={!userPermissions.canEdit}
                               aria-label={`Select chunk ${chunk.chunkIndex}`}
-                              className='h-[14px] w-[14px] border-[var(--border-2)] focus-visible:ring-[var(--brand-primary-hex)]/20 data-[state=checked]:border-[var(--brand-primary-hex)] data-[state=checked]:bg-[var(--brand-primary-hex)] [&>*]:h-[12px] [&>*]:w-[12px]'
                               onClick={(e) => e.stopPropagation()}
                             />
                           </div>
