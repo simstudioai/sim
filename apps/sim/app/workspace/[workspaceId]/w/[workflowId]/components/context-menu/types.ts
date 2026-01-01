@@ -86,4 +86,8 @@ export interface PaneContextMenuProps {
   disableEdit?: boolean
   /** Whether admin actions are disabled (no admin permission) */
   disableAdmin?: boolean
+  /** Whether undo is available */
+  canUndo?: boolean
+  /** Whether redo is available */
+  canRedo?: boolean
 }
