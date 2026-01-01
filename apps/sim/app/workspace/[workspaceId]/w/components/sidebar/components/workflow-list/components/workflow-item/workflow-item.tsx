@@ -19,6 +19,7 @@ import {
   useDuplicateWorkflow,
   useExportWorkflow,
 } from '@/app/workspace/[workspaceId]/w/hooks'
+import { useExportService } from '@/app/workspace/[workspaceId]/w/hooks/use-export-service'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -98,6 +99,15 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
     getWorkflowIds: () => {
       // Use the selection captured at right-click time
       return capturedSelectionRef.current?.workflowIds || []
+    },
+  })
+
+  // Export as service hook (single workflow only)
+  const { handleExportService } = useExportService({
+    getWorkflowId: () => {
+      // Only export as service for single workflow selection
+      const ids = capturedSelectionRef.current?.workflowIds || []
+      return ids.length === 1 ? ids[0] : undefined
     },
   })
 
@@ -323,14 +333,17 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
         onRename={handleStartEdit}
         onDuplicate={handleDuplicateWorkflow}
         onExport={handleExportWorkflow}
+        onExportService={handleExportService}
         onDelete={handleOpenDeleteModal}
         showOpenInNewTab={selectedWorkflows.size <= 1}
         showRename={selectedWorkflows.size <= 1}
         showDuplicate={true}
         showExport={true}
+        showExportService={selectedWorkflows.size <= 1}
         disableRename={!userPermissions.canEdit}
         disableDuplicate={!userPermissions.canEdit}
         disableExport={!userPermissions.canEdit}
+        disableExportService={!userPermissions.canEdit}
         disableDelete={!userPermissions.canEdit || !canDeleteCaptured}
       />
 
