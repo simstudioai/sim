@@ -14,7 +14,8 @@
     "execution",
     "permissions",
     "sdks",
-    "self-hosting"
+    "self-hosting",
+    "./keyboard-shortcuts/index"
   ],
   "defaultOpen": false
 }

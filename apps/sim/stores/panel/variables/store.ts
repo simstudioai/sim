@@ -283,39 +283,6 @@ export const useVariablesStore = create<VariablesStore>()(
       })
     },
 
-    duplicateVariable: (id, providedId?: string) => {
-      const state = get()
-      if (!state.variables[id]) return ''
-
-      const variable = state.variables[id]
-      const newId = providedId || crypto.randomUUID()
-
-      const workflowVariables = get().getVariablesByWorkflowId(variable.workflowId)
-      const baseName = `${variable.name} (copy)`
-      let uniqueName = baseName
-      let nameIndex = 1
-
-      while (workflowVariables.some((v) => v.name === uniqueName)) {
-        uniqueName = `${baseName} (${nameIndex})`
-        nameIndex++
-      }
-
-      set((state) => ({
-        variables: {
-          ...state.variables,
-          [newId]: {
-            id: newId,
-            workflowId: variable.workflowId,
-            name: uniqueName,
-            type: variable.type,
-            value: variable.value,
-          },
-        },
-      }))
-
-      return newId
-    },
-
     getVariablesByWorkflowId: (workflowId) => {
       return Object.values(get().variables).filter((variable) => variable.workflowId === workflowId)
     },

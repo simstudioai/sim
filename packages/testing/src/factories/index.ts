@@ -120,22 +120,20 @@ export {
 } from './serialized-block.factory'
 // Undo/redo operation factories
 export {
-  type AddBlockOperation,
   type AddEdgeOperation,
   type BaseOperation,
+  type BatchAddBlocksOperation,
+  type BatchRemoveBlocksOperation,
   createAddBlockEntry,
   createAddEdgeEntry,
-  createDuplicateBlockEntry,
   createMoveBlockEntry,
   createRemoveBlockEntry,
   createRemoveEdgeEntry,
   createUpdateParentEntry,
-  type DuplicateBlockOperation,
   type MoveBlockOperation,
   type Operation,
   type OperationEntry,
   type OperationType,
-  type RemoveBlockOperation,
   type RemoveEdgeOperation,
   type UpdateParentOperation,
 } from './undo-redo.factory'

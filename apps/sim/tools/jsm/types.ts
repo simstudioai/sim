@@ -345,12 +345,12 @@ export interface JsmCreateOrganizationResponse extends ToolResponse {
   }
 }
 
-export interface JsmAddOrganizationToServiceDeskParams extends JsmBaseParams {
+export interface JsmAddOrganizationParams extends JsmBaseParams {
   serviceDeskId: string
   organizationId: string
 }
 
-export interface JsmAddOrganizationToServiceDeskResponse extends ToolResponse {
+export interface JsmAddOrganizationResponse extends ToolResponse {
   output: {
     ts: string
     serviceDeskId: string
@@ -462,7 +462,7 @@ export type JsmResponse =
   | JsmTransitionRequestResponse
   | JsmGetTransitionsResponse
   | JsmCreateOrganizationResponse
-  | JsmAddOrganizationToServiceDeskResponse
+  | JsmAddOrganizationResponse
   | JsmGetParticipantsResponse
   | JsmAddParticipantsResponse
   | JsmGetApprovalsResponse

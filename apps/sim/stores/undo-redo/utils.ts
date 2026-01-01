@@ -1,4 +1,9 @@
-import type { Operation, OperationEntry } from '@/stores/undo-redo/types'
+import type {
+  BatchAddBlocksOperation,
+  BatchRemoveBlocksOperation,
+  Operation,
+  OperationEntry,
+} from '@/stores/undo-redo/types'
 
 export function createOperationEntry(operation: Operation, inverse: Operation): OperationEntry {
   return {
@@ -11,25 +16,31 @@ export function createOperationEntry(operation: Operation, inverse: Operation): 
 
 export function createInverseOperation(operation: Operation): Operation {
   switch (operation.type) {
-    case 'add-block':
+    case 'batch-add-blocks': {
+      const op = operation as BatchAddBlocksOperation
       return {
         ...operation,
-        type: 'remove-block',
+        type: 'batch-remove-blocks',
         data: {
-          blockId: operation.data.blockId,
-          blockSnapshot: null,
-          edgeSnapshots: [],
+          blockSnapshots: op.data.blockSnapshots,
+          edgeSnapshots: op.data.edgeSnapshots,
+          subBlockValues: op.data.subBlockValues,
         },
-      }
+      } as BatchRemoveBlocksOperation
+    }
 
-    case 'remove-block':
+    case 'batch-remove-blocks': {
+      const op = operation as BatchRemoveBlocksOperation
       return {
         ...operation,
-        type: 'add-block',
+        type: 'batch-add-blocks',
         data: {
-          blockId: operation.data.blockId,
+          blockSnapshots: op.data.blockSnapshots,
+          edgeSnapshots: op.data.edgeSnapshots,
+          subBlockValues: op.data.subBlockValues,
         },
-      }
+      } as BatchAddBlocksOperation
+    }
 
     case 'add-edge':
       return {
@@ -89,17 +100,6 @@ export function createInverseOperation(operation: Operation): Operation {
         },
       }
 
-    case 'duplicate-block':
-      return {
-        ...operation,
-        type: 'remove-block',
-        data: {
-          blockId: operation.data.duplicatedBlockId,
-          blockSnapshot: operation.data.duplicatedBlockSnapshot,
-          edgeSnapshots: [],
-        },
-      }
-
     case 'update-parent':
       return {
         ...operation,
@@ -147,7 +147,7 @@ export function createInverseOperation(operation: Operation): Operation {
 
     default: {
       const exhaustiveCheck: never = operation
-      throw new Error(`Unhandled operation type: ${(exhaustiveCheck as any).type}`)
+      throw new Error(`Unhandled operation type: ${(exhaustiveCheck as Operation).type}`)
     }
   }
 }
@@ -155,22 +155,32 @@ export function createInverseOperation(operation: Operation): Operation {
 export function operationToCollaborativePayload(operation: Operation): {
   operation: string
   target: string
-  payload: any
+  payload: Record<string, unknown>
 } {
   switch (operation.type) {
-    case 'add-block':
+    case 'batch-add-blocks': {
+      const op = operation as BatchAddBlocksOperation
       return {
-        operation: 'add',
-        target: 'block',
-        payload: { id: operation.data.blockId },
+        operation: 'batch-add-blocks',
+        target: 'blocks',
+        payload: {
+          blocks: op.data.blockSnapshots,
+          edges: op.data.edgeSnapshots,
+          loops: {},
+          parallels: {},
+          subBlockValues: op.data.subBlockValues,
+        },
       }
+    }
 
-    case 'remove-block':
+    case 'batch-remove-blocks': {
+      const op = operation as BatchRemoveBlocksOperation
       return {
-        operation: 'remove',
-        target: 'block',
-        payload: { id: operation.data.blockId },
+        operation: 'batch-remove-blocks',
+        target: 'blocks',
+        payload: { ids: op.data.blockSnapshots.map((b) => b.id) },
       }
+    }
 
     case 'add-edge':
       return {
@@ -223,16 +233,6 @@ export function operationToCollaborativePayload(operation: Operation): {
         },
       }
 
-    case 'duplicate-block':
-      return {
-        operation: 'duplicate',
-        target: 'block',
-        payload: {
-          sourceId: operation.data.sourceBlockId,
-          duplicatedId: operation.data.duplicatedBlockId,
-        },
-      }
-
     case 'update-parent':
       return {
         operation: 'update-parent',
@@ -274,7 +274,7 @@ export function operationToCollaborativePayload(operation: Operation): {
 
     default: {
       const exhaustiveCheck: never = operation
-      throw new Error(`Unhandled operation type: ${(exhaustiveCheck as any).type}`)
+      throw new Error(`Unhandled operation type: ${(exhaustiveCheck as Operation).type}`)
     }
   }
 }

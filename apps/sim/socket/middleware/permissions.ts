@@ -13,6 +13,9 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'remove',
     'update',
     'update-position',
+    'batch-update-positions',
+    'batch-add-blocks',
+    'batch-remove-blocks',
     'update-name',
     'toggle-enabled',
     'update-parent',
@@ -20,7 +23,6 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'update-advanced-mode',
     'update-trigger-mode',
     'toggle-handles',
-    'duplicate',
     'replace-state',
   ],
   write: [
@@ -28,6 +30,9 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'remove',
     'update',
     'update-position',
+    'batch-update-positions',
+    'batch-add-blocks',
+    'batch-remove-blocks',
     'update-name',
     'toggle-enabled',
     'update-parent',
@@ -35,10 +40,9 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'update-advanced-mode',
     'update-trigger-mode',
     'toggle-handles',
-    'duplicate',
     'replace-state',
   ],
-  read: ['update-position'],
+  read: ['update-position', 'batch-update-positions'],
 }
 
 // Check if a role allows a specific operation (no DB query, pure logic)

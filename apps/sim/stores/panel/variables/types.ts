@@ -44,12 +44,6 @@ export interface VariablesStore {
   deleteVariable: (id: string) => void
 
   /**
-   * Duplicates a variable with a "(copy)" suffix, ensuring name uniqueness
-   * Optionally accepts a predetermined ID for collaborative operations
-   */
-  duplicateVariable: (id: string, providedId?: string) => string
-
-  /**
    * Returns all variables for a specific workflow
    */
   getVariablesByWorkflowId: (workflowId: string) => Variable[]

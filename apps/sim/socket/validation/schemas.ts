@@ -17,8 +17,6 @@ const AutoConnectEdgeSchema = z.object({
 
 export const BlockOperationSchema = z.object({
   operation: z.enum([
-    'add',
-    'remove',
     'update-position',
     'update-name',
     'toggle-enabled',
@@ -27,12 +25,10 @@ export const BlockOperationSchema = z.object({
     'update-advanced-mode',
     'update-trigger-mode',
     'toggle-handles',
-    'duplicate',
   ]),
   target: z.literal('block'),
   payload: z.object({
     id: z.string(),
-    sourceId: z.string().optional(), // For duplicate operations
     type: z.string().optional(),
     name: z.string().optional(),
     position: PositionSchema.optional(),
@@ -47,7 +43,21 @@ export const BlockOperationSchema = z.object({
     advancedMode: z.boolean().optional(),
     triggerMode: z.boolean().optional(),
     height: z.number().optional(),
-    autoConnectEdge: AutoConnectEdgeSchema.optional(), // Add support for auto-connect edges
+  }),
+  timestamp: z.number(),
+  operationId: z.string().optional(),
+})
+
+export const BatchPositionUpdateSchema = z.object({
+  operation: z.literal('batch-update-positions'),
+  target: z.literal('blocks'),
+  payload: z.object({
+    updates: z.array(
+      z.object({
+        id: z.string(),
+        position: PositionSchema,
+      })
+    ),
   }),
   timestamp: z.number(),
   operationId: z.string().optional(),
@@ -102,23 +112,37 @@ export const VariableOperationSchema = z.union([
     timestamp: z.number(),
     operationId: z.string().optional(),
   }),
-  z.object({
-    operation: z.literal('duplicate'),
-    target: z.literal('variable'),
-    payload: z.object({
-      sourceVariableId: z.string(),
-      id: z.string(),
-    }),
-    timestamp: z.number(),
-    operationId: z.string().optional(),
-  }),
 ])
 
 export const WorkflowStateOperationSchema = z.object({
   operation: z.literal('replace-state'),
   target: z.literal('workflow'),
   payload: z.object({
-    state: z.any(), // Full workflow state
+    state: z.any(),
+  }),
+  timestamp: z.number(),
+  operationId: z.string().optional(),
+})
+
+export const BatchAddBlocksSchema = z.object({
+  operation: z.literal('batch-add-blocks'),
+  target: z.literal('blocks'),
+  payload: z.object({
+    blocks: z.array(z.record(z.any())),
+    edges: z.array(AutoConnectEdgeSchema).optional(),
+    loops: z.record(z.any()).optional(),
+    parallels: z.record(z.any()).optional(),
+    subBlockValues: z.record(z.record(z.any())).optional(),
+  }),
+  timestamp: z.number(),
+  operationId: z.string().optional(),
+})
+
+export const BatchRemoveBlocksSchema = z.object({
+  operation: z.literal('batch-remove-blocks'),
+  target: z.literal('blocks'),
+  payload: z.object({
+    ids: z.array(z.string()),
   }),
   timestamp: z.number(),
   operationId: z.string().optional(),
@@ -126,6 +150,9 @@ export const WorkflowStateOperationSchema = z.object({
 
 export const WorkflowOperationSchema = z.union([
   BlockOperationSchema,
+  BatchPositionUpdateSchema,
+  BatchAddBlocksSchema,
+  BatchRemoveBlocksSchema,
   EdgeOperationSchema,
   SubflowOperationSchema,
   VariableOperationSchema,

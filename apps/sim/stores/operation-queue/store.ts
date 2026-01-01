@@ -375,15 +375,31 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
   cancelOperationsForBlock: (blockId: string) => {
     logger.debug('Canceling all operations for block', { blockId })
 
-    // No debounced timeouts to cancel (moved to server-side)
-
-    // Find and cancel operation timeouts for operations related to this block
     const state = get()
-    const operationsToCancel = state.operations.filter(
-      (op) =>
-        (op.operation.target === 'block' && op.operation.payload?.id === blockId) ||
-        (op.operation.target === 'subblock' && op.operation.payload?.blockId === blockId)
-    )
+    const operationsToCancel = state.operations.filter((op) => {
+      const { target, payload, operation } = op.operation
+
+      // Single block property updates (update-position, toggle-enabled, update-name, etc.)
+      if (target === 'block' && payload?.id === blockId) return true
+
+      // Subblock updates for this block
+      if (target === 'subblock' && payload?.blockId === blockId) return true
+
+      // Batch block operations
+      if (target === 'blocks') {
+        if (operation === 'batch-add-blocks' && Array.isArray(payload?.blocks)) {
+          return payload.blocks.some((b: { id: string }) => b.id === blockId)
+        }
+        if (operation === 'batch-remove-blocks' && Array.isArray(payload?.ids)) {
+          return payload.ids.includes(blockId)
+        }
+        if (operation === 'batch-update-positions' && Array.isArray(payload?.updates)) {
+          return payload.updates.some((u: { id: string }) => u.id === blockId)
+        }
+      }
+
+      return false
+    })
 
     // Cancel timeouts for these operations
     operationsToCancel.forEach((op) => {
@@ -401,13 +417,30 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     })
 
     // Remove all operations for this block (both pending and processing)
-    const newOperations = state.operations.filter(
-      (op) =>
-        !(
-          (op.operation.target === 'block' && op.operation.payload?.id === blockId) ||
-          (op.operation.target === 'subblock' && op.operation.payload?.blockId === blockId)
-        )
-    )
+    const newOperations = state.operations.filter((op) => {
+      const { target, payload, operation } = op.operation
+
+      // Single block property updates (update-position, toggle-enabled, update-name, etc.)
+      if (target === 'block' && payload?.id === blockId) return false
+
+      // Subblock updates for this block
+      if (target === 'subblock' && payload?.blockId === blockId) return false
+
+      // Batch block operations
+      if (target === 'blocks') {
+        if (operation === 'batch-add-blocks' && Array.isArray(payload?.blocks)) {
+          if (payload.blocks.some((b: { id: string }) => b.id === blockId)) return false
+        }
+        if (operation === 'batch-remove-blocks' && Array.isArray(payload?.ids)) {
+          if (payload.ids.includes(blockId)) return false
+        }
+        if (operation === 'batch-update-positions' && Array.isArray(payload?.updates)) {
+          if (payload.updates.some((u: { id: string }) => u.id === blockId)) return false
+        }
+      }
+
+      return true
+    })
 
     set({
       operations: newOperations,
