@@ -22,7 +22,6 @@ export function useFloatDrag({ position, width, height, onPositionChange }: UseF
    */
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      // Only left click
       if (e.button !== 0) return
 
       e.preventDefault()
@@ -32,7 +31,6 @@ export function useFloatDrag({ position, width, height, onPositionChange }: UseF
       dragStartRef.current = { x: e.clientX, y: e.clientY }
       initialPositionRef.current = { ...position }
 
-      // Add dragging cursor to body
       document.body.style.cursor = 'grabbing'
       document.body.style.userSelect = 'none'
     },
@@ -54,7 +52,6 @@ export function useFloatDrag({ position, width, height, onPositionChange }: UseF
         y: initialPositionRef.current.y + deltaY,
       }
 
-      // Constrain to bounds
       const constrainedPosition = constrainChatPosition(newPosition, width, height)
       onPositionChange(constrainedPosition)
     },
@@ -69,7 +66,6 @@ export function useFloatDrag({ position, width, height, onPositionChange }: UseF
 
     isDraggingRef.current = false
 
-    // Remove dragging cursor
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
   }, [])

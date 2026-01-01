@@ -84,13 +84,11 @@ export function useFloatResize({
       const isNearLeft = x <= EDGE_THRESHOLD
       const isNearRight = x >= rect.width - EDGE_THRESHOLD
 
-      // Check corners first (they take priority over edges)
       if (isNearTop && isNearLeft) return 'top-left'
       if (isNearTop && isNearRight) return 'top-right'
       if (isNearBottom && isNearLeft) return 'bottom-left'
       if (isNearBottom && isNearRight) return 'bottom-right'
 
-      // Check edges
       if (isNearTop) return 'top'
       if (isNearBottom) return 'bottom'
       if (isNearLeft) return 'left'
@@ -155,7 +153,6 @@ export function useFloatResize({
    */
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      // Only left click
       if (e.button !== 0) return
 
       const chatElement = e.currentTarget as HTMLElement
@@ -176,7 +173,6 @@ export function useFloatResize({
         height,
       }
 
-      // Set cursor on body
       document.body.style.cursor = getCursorForDirection(direction)
       document.body.style.userSelect = 'none'
     },
@@ -195,7 +191,6 @@ export function useFloatResize({
       const initial = initialStateRef.current
       const direction = activeDirectionRef.current
 
-      // Get layout bounds
       const sidebarWidth = Number.parseInt(
         getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
       )
@@ -206,18 +201,13 @@ export function useFloatResize({
         getComputedStyle(document.documentElement).getPropertyValue('--terminal-height') || '0'
       )
 
-      // Clamp vertical drag when resizing from the top so the chat does not grow downward
-      // after its top edge hits the top of the viewport.
       if (direction === 'top' || direction === 'top-left' || direction === 'top-right') {
-        // newY = initial.y + deltaY should never be less than 0
         const maxUpwardDelta = initial.y
         if (deltaY < -maxUpwardDelta) {
           deltaY = -maxUpwardDelta
         }
       }
 
-      // Clamp vertical drag when resizing from the bottom so the chat does not grow upward
-      // after its bottom edge hits the top of the terminal.
       if (direction === 'bottom' || direction === 'bottom-left' || direction === 'bottom-right') {
         const maxBottom = window.innerHeight - terminalHeight
         const initialBottom = initial.y + initial.height
@@ -228,8 +218,6 @@ export function useFloatResize({
         }
       }
 
-      // Clamp horizontal drag when resizing from the left so the chat does not grow to the right
-      // after its left edge hits the sidebar.
       if (direction === 'left' || direction === 'top-left' || direction === 'bottom-left') {
         const minLeft = sidebarWidth
         const minDeltaX = minLeft - initial.x
@@ -239,8 +227,6 @@ export function useFloatResize({
         }
       }
 
-      // Clamp horizontal drag when resizing from the right so the chat does not grow to the left
-      // after its right edge hits the panel.
       if (direction === 'right' || direction === 'top-right' || direction === 'bottom-right') {
         const maxRight = window.innerWidth - panelWidth
         const initialRight = initial.x + initial.width
@@ -256,9 +242,7 @@ export function useFloatResize({
       let newWidth = initial.width
       let newHeight = initial.height
 
-      // Calculate new dimensions based on resize direction
       switch (direction) {
-        // Corners
         case 'top-left':
           newWidth = initial.width - deltaX
           newHeight = initial.height - deltaY
@@ -280,7 +264,6 @@ export function useFloatResize({
           newHeight = initial.height + deltaY
           break
 
-        // Edges
         case 'top':
           newHeight = initial.height - deltaY
           newY = initial.y + deltaY
@@ -297,8 +280,6 @@ export function useFloatResize({
           break
       }
 
-      // Constrain dimensions to min/max. If explicit constraints are not provided,
-      // fall back to the chat defaults for backward compatibility.
       const effectiveMinWidth = typeof minWidth === 'number' ? minWidth : MIN_CHAT_WIDTH
       const effectiveMaxWidth = typeof maxWidth === 'number' ? maxWidth : MAX_CHAT_WIDTH
       const effectiveMinHeight = typeof minHeight === 'number' ? minHeight : MIN_CHAT_HEIGHT
@@ -310,7 +291,6 @@ export function useFloatResize({
         Math.min(effectiveMaxHeight, newHeight)
       )
 
-      // Adjust position if dimensions were constrained on left/top edges
       if (direction === 'top-left' || direction === 'bottom-left' || direction === 'left') {
         if (constrainedWidth !== newWidth) {
           newX = initial.x + initial.width - constrainedWidth
@@ -322,7 +302,6 @@ export function useFloatResize({
         }
       }
 
-      // Constrain position to bounds
       const minX = sidebarWidth
       const maxX = window.innerWidth - panelWidth - constrainedWidth
       const minY = 0
@@ -331,7 +310,6 @@ export function useFloatResize({
       const finalX = Math.max(minX, Math.min(maxX, newX))
       const finalY = Math.max(minY, Math.min(maxY, newY))
 
-      // Update state
       onDimensionsChange({
         width: constrainedWidth,
         height: constrainedHeight,
@@ -353,7 +331,6 @@ export function useFloatResize({
     isResizingRef.current = false
     activeDirectionRef.current = null
 
-    // Remove cursor from body
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
     setCursor('')

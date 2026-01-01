@@ -10,6 +10,7 @@ import {
   formatDate,
   formatDuration,
   getDisplayStatus,
+  LOG_COLUMNS,
   StatusBadge,
   TriggerBadge,
 } from '@/app/workspace/[workspaceId]/logs/utils'
@@ -21,6 +22,7 @@ interface LogRowProps {
   log: WorkflowLog
   isSelected: boolean
   onClick: (log: WorkflowLog) => void
+  onContextMenu?: (e: React.MouseEvent, log: WorkflowLog) => void
   selectedRowRef: React.RefObject<HTMLTableRowElement | null> | null
 }
 
@@ -29,10 +31,20 @@ interface LogRowProps {
  * Uses shallow comparison for the log object.
  */
 const LogRow = memo(
-  function LogRow({ log, isSelected, onClick, selectedRowRef }: LogRowProps) {
+  function LogRow({ log, isSelected, onClick, onContextMenu, selectedRowRef }: LogRowProps) {
     const formattedDate = useMemo(() => formatDate(log.createdAt), [log.createdAt])
 
     const handleClick = useCallback(() => onClick(log), [onClick, log])
+
+    const handleContextMenu = useCallback(
+      (e: React.MouseEvent) => {
+        if (onContextMenu) {
+          e.preventDefault()
+          onContextMenu(e, log)
+        }
+      },
+      [onContextMenu, log]
+    )
 
     return (
       <div
@@ -42,25 +54,28 @@ const LogRow = memo(
           isSelected && 'bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'
         )}
         onClick={handleClick}
+        onContextMenu={handleContextMenu}
       >
         <div className='flex flex-1 items-center'>
-          {/* Date */}
-          <span className='w-[8%] min-w-[70px] font-medium text-[12px] text-[var(--text-primary)]'>
+          <span
+            className={`${LOG_COLUMNS.date.width} ${LOG_COLUMNS.date.minWidth} font-medium text-[12px] text-[var(--text-primary)]`}
+          >
             {formattedDate.compactDate}
           </span>
 
-          {/* Time */}
-          <span className='w-[12%] min-w-[90px] font-medium text-[12px] text-[var(--text-primary)]'>
+          <span
+            className={`${LOG_COLUMNS.time.width} ${LOG_COLUMNS.time.minWidth} font-medium text-[12px] text-[var(--text-primary)]`}
+          >
             {formattedDate.compactTime}
           </span>
 
-          {/* Status */}
-          <div className='w-[12%] min-w-[100px]'>
+          <div className={`${LOG_COLUMNS.status.width} ${LOG_COLUMNS.status.minWidth}`}>
             <StatusBadge status={getDisplayStatus(log.status)} />
           </div>
 
-          {/* Workflow */}
-          <div className='flex w-[22%] min-w-[140px] items-center gap-[8px] pr-[8px]'>
+          <div
+            className={`flex ${LOG_COLUMNS.workflow.width} ${LOG_COLUMNS.workflow.minWidth} items-center gap-[8px] pr-[8px]`}
+          >
             <div
               className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px]'
               style={{ backgroundColor: log.workflow?.color }}
@@ -70,13 +85,13 @@ const LogRow = memo(
             </span>
           </div>
 
-          {/* Cost */}
-          <span className='w-[12%] min-w-[90px] font-medium text-[12px] text-[var(--text-primary)]'>
+          <span
+            className={`${LOG_COLUMNS.cost.width} ${LOG_COLUMNS.cost.minWidth} font-medium text-[12px] text-[var(--text-primary)]`}
+          >
             {typeof log.cost?.total === 'number' ? `$${log.cost.total.toFixed(4)}` : '—'}
           </span>
 
-          {/* Trigger */}
-          <div className='w-[14%] min-w-[110px]'>
+          <div className={`${LOG_COLUMNS.trigger.width} ${LOG_COLUMNS.trigger.minWidth}`}>
             {log.trigger ? (
               <TriggerBadge trigger={log.trigger} />
             ) : (
@@ -84,8 +99,7 @@ const LogRow = memo(
             )}
           </div>
 
-          {/* Duration */}
-          <div className='w-[20%] min-w-[100px]'>
+          <div className={`${LOG_COLUMNS.duration.width} ${LOG_COLUMNS.duration.minWidth}`}>
             <Badge variant='default' className='rounded-[6px] px-[9px] py-[2px] text-[12px]'>
               {formatDuration(log.duration) || '—'}
             </Badge>
@@ -125,6 +139,7 @@ interface RowProps {
   logs: WorkflowLog[]
   selectedLogId: string | null
   onLogClick: (log: WorkflowLog) => void
+  onLogContextMenu?: (e: React.MouseEvent, log: WorkflowLog) => void
   selectedRowRef: React.RefObject<HTMLTableRowElement | null>
   isFetchingNextPage: boolean
   loaderRef: React.RefObject<HTMLDivElement | null>
@@ -140,11 +155,11 @@ function Row({
   logs,
   selectedLogId,
   onLogClick,
+  onLogContextMenu,
   selectedRowRef,
   isFetchingNextPage,
   loaderRef,
 }: RowComponentProps<RowProps>) {
-  // Show loader for the last item if loading more
   if (index >= logs.length) {
     return (
       <div style={style} className='flex items-center justify-center'>
@@ -171,6 +186,7 @@ function Row({
         log={log}
         isSelected={isSelected}
         onClick={onLogClick}
+        onContextMenu={onLogContextMenu}
         selectedRowRef={isSelected ? selectedRowRef : null}
       />
     </div>
@@ -181,6 +197,7 @@ export interface LogsListProps {
   logs: WorkflowLog[]
   selectedLogId: string | null
   onLogClick: (log: WorkflowLog) => void
+  onLogContextMenu?: (e: React.MouseEvent, log: WorkflowLog) => void
   selectedRowRef: React.RefObject<HTMLTableRowElement | null>
   hasNextPage: boolean
   isFetchingNextPage: boolean
@@ -198,6 +215,7 @@ export function LogsList({
   logs,
   selectedLogId,
   onLogClick,
+  onLogContextMenu,
   selectedRowRef,
   hasNextPage,
   isFetchingNextPage,
@@ -208,7 +226,6 @@ export function LogsList({
   const containerRef = useRef<HTMLDivElement>(null)
   const [listHeight, setListHeight] = useState(400)
 
-  // Measure container height for virtualization
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
@@ -226,7 +243,6 @@ export function LogsList({
     return () => ro.disconnect()
   }, [])
 
-  // Handle infinite scroll when nearing the end of the list
   const handleRowsRendered = useCallback(
     ({ stopIndex }: { startIndex: number; stopIndex: number }) => {
       const threshold = logs.length - 10
@@ -237,20 +253,27 @@ export function LogsList({
     [logs.length, hasNextPage, isFetchingNextPage, onLoadMore]
   )
 
-  // Calculate total item count including loader row
   const itemCount = hasNextPage ? logs.length + 1 : logs.length
 
-  // Row props passed to each row component
   const rowProps = useMemo<RowProps>(
     () => ({
       logs,
       selectedLogId,
       onLogClick,
+      onLogContextMenu,
       selectedRowRef,
       isFetchingNextPage,
       loaderRef,
     }),
-    [logs, selectedLogId, onLogClick, selectedRowRef, isFetchingNextPage, loaderRef]
+    [
+      logs,
+      selectedLogId,
+      onLogClick,
+      onLogContextMenu,
+      selectedRowRef,
+      isFetchingNextPage,
+      loaderRef,
+    ]
   )
 
   return (

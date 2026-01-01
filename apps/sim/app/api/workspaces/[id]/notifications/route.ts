@@ -7,15 +7,15 @@ import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
-import { ALL_TRIGGER_TYPES } from '@/lib/logs/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 import { MAX_EMAIL_RECIPIENTS, MAX_NOTIFICATIONS_PER_TYPE, MAX_WORKFLOW_IDS } from './constants'
 
 const logger = createLogger('WorkspaceNotificationsAPI')
 
 const notificationTypeSchema = z.enum(['webhook', 'email', 'slack'])
 const levelFilterSchema = z.array(z.enum(['info', 'error']))
-const triggerFilterSchema = z.array(z.enum(ALL_TRIGGER_TYPES))
+const triggerFilterSchema = z.array(z.enum(CORE_TRIGGER_TYPES))
 
 const alertRuleSchema = z.enum([
   'consecutive_failures',
@@ -81,7 +81,7 @@ const createNotificationSchema = z
     workflowIds: z.array(z.string()).max(MAX_WORKFLOW_IDS).default([]),
     allWorkflows: z.boolean().default(false),
     levelFilter: levelFilterSchema.default(['info', 'error']),
-    triggerFilter: triggerFilterSchema.default([...ALL_TRIGGER_TYPES]),
+    triggerFilter: triggerFilterSchema.default([...CORE_TRIGGER_TYPES]),
     includeFinalOutput: z.boolean().default(false),
     includeTraceSpans: z.boolean().default(false),
     includeRateLimits: z.boolean().default(false),

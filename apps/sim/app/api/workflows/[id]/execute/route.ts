@@ -12,7 +12,6 @@ import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { processInputFileFields } from '@/lib/execution/files'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
-import { ALL_TRIGGER_TYPES } from '@/lib/logs/types'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
@@ -27,13 +26,14 @@ import { normalizeName } from '@/executor/constants'
 import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { StreamingExecution } from '@/executor/types'
 import { Serializer } from '@/serializer'
+import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowExecuteAPI')
 
 const ExecuteWorkflowSchema = z.object({
   selectedOutputs: z.array(z.string()).optional().default([]),
-  triggerType: z.enum(ALL_TRIGGER_TYPES).optional(),
+  triggerType: z.enum(CORE_TRIGGER_TYPES).optional(),
   stream: z.boolean().optional(),
   useDraftState: z.boolean().optional(),
   input: z.any().optional(),
