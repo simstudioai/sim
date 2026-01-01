@@ -16,6 +16,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { createLogger } from '@sim/logger'
 import { useShallow } from 'zustand/react/shallow'
+import { useSession } from '@/lib/auth/auth-client'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/other/oauth-request-access'
 import type { OAuthProvider } from '@/lib/oauth'
 import { DEFAULT_HORIZONTAL_SPACING } from '@/lib/workflows/autolayout/constants'
@@ -65,6 +66,7 @@ import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { usePanelEditorStore } from '@/stores/panel/editor/store'
 import { useSearchModalStore } from '@/stores/search-modal/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
+import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -231,6 +233,15 @@ const WorkflowContent = React.memo(() => {
   )
 
   const currentWorkflow = useCurrentWorkflow()
+
+  // Undo/redo availability for context menu
+  const { data: session } = useSession()
+  const userId = session?.user?.id || 'unknown'
+  const undoRedoStacks = useUndoRedoStore((s) => s.stacks)
+  const undoRedoKey = activeWorkflowId && userId ? `${activeWorkflowId}:${userId}` : ''
+  const undoRedoStack = (undoRedoKey && undoRedoStacks[undoRedoKey]) || { undo: [], redo: [] }
+  const canUndo = undoRedoStack.undo.length > 0
+  const canRedo = undoRedoStack.redo.length > 0
 
   const { updateNodeDimensions, setDragStartPosition, getDragStartPosition } = useWorkflowStore(
     useShallow((state) => ({
@@ -2892,6 +2903,8 @@ const WorkflowContent = React.memo(() => {
               hasClipboard={hasClipboard()}
               disableEdit={!effectivePermissions.canEdit}
               disableAdmin={!effectivePermissions.canAdmin}
+              canUndo={canUndo}
+              canRedo={canRedo}
             />
           </>
         )}

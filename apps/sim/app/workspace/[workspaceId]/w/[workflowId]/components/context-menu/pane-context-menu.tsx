@@ -24,6 +24,8 @@ export function PaneContextMenu({
   hasClipboard = false,
   disableEdit = false,
   disableAdmin = false,
+  canUndo = false,
+  canRedo = false,
 }: PaneContextMenuProps) {
   return (
     <Popover open={isOpen} onOpenChange={onClose} variant='secondary' size='sm'>
@@ -40,7 +42,7 @@ export function PaneContextMenu({
         {/* Undo */}
         <PopoverItem
           className='group'
-          disabled={disableEdit}
+          disabled={disableEdit || !canUndo}
           onClick={() => {
             onUndo()
             onClose()
@@ -53,7 +55,7 @@ export function PaneContextMenu({
         {/* Redo */}
         <PopoverItem
           className='group'
-          disabled={disableEdit}
+          disabled={disableEdit || !canRedo}
           onClick={() => {
             onRedo()
             onClose()
