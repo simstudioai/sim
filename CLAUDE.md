@@ -52,7 +52,7 @@ import { useWorkflowStore } from '@/stores/workflows/store'
 import { useWorkflowStore } from '../../../stores/workflows/store'
 ```
 
-Use barrel exports (`index.ts`) when a folder has 3+ exports.
+Use barrel exports (`index.ts`) when a folder has 3+ exports. Do not re-export from non-barrel files; import directly from the source.
 
 ### Import Order
 1. React/core libraries

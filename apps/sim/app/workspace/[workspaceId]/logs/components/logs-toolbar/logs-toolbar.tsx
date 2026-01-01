@@ -17,14 +17,14 @@ import {
 } from '@/components/emcn'
 import { DatePicker } from '@/components/emcn/components/date-picker/date-picker'
 import { cn } from '@/lib/core/utils/cn'
+import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'
 import { useFolderStore } from '@/stores/folders/store'
 import { useFilterStore } from '@/stores/logs/filters/store'
+import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { AutocompleteSearch } from './components/search'
-
-const CORE_TRIGGER_TYPES = ['manual', 'api', 'schedule', 'chat', 'webhook', 'mcp'] as const
 
 const TIME_RANGE_OPTIONS: ComboboxOption[] = [
   { value: 'All time', label: 'All time' },
@@ -182,6 +182,7 @@ export function LogsToolbar({
     endDate,
     setDateRange,
     clearDateRange,
+    resetFilters,
   } = useFilterStore()
 
   const [datePickerOpen, setDatePickerOpen] = useState(false)
@@ -346,23 +347,23 @@ export function LogsToolbar({
     setDatePickerOpen(false)
   }, [timeRange, startDate, previousTimeRange, setTimeRange])
 
-  const hasActiveFilters = useMemo(() => {
-    return (
-      level !== 'all' ||
-      workflowIds.length > 0 ||
-      folderIds.length > 0 ||
-      triggers.length > 0 ||
-      timeRange !== 'All time'
-    )
-  }, [level, workflowIds, folderIds, triggers, timeRange])
+  const filtersActive = useMemo(
+    () =>
+      hasActiveFilters({
+        timeRange,
+        level,
+        workflowIds,
+        folderIds,
+        triggers,
+        searchQuery,
+      }),
+    [timeRange, level, workflowIds, folderIds, triggers, searchQuery]
+  )
 
   const handleClearFilters = useCallback(() => {
-    setLevel('all')
-    setWorkflowIds([])
-    setFolderIds([])
-    setTriggers([])
-    clearDateRange()
-  }, [setLevel, setWorkflowIds, setFolderIds, setTriggers, clearDateRange])
+    resetFilters()
+    onSearchQueryChange('')
+  }, [resetFilters, onSearchQueryChange])
 
   return (
     <div className='flex flex-col gap-[19px]'>
@@ -462,7 +463,7 @@ export function LogsToolbar({
         </div>
         <div className='ml-auto flex items-center gap-[8px]'>
           {/* Clear Filters Button */}
-          {hasActiveFilters && (
+          {filtersActive && (
             <Button
               variant='active'
               onClick={handleClearFilters}

@@ -51,11 +51,10 @@ export interface ExecutionEnvironment {
   workspaceId: string
 }
 
-export const ALL_TRIGGER_TYPES = ['api', 'webhook', 'schedule', 'manual', 'chat', 'mcp'] as const
-export type TriggerType = (typeof ALL_TRIGGER_TYPES)[number]
+import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
 export interface ExecutionTrigger {
-  type: TriggerType | string
+  type: CoreTriggerType | string
   source: string
   data?: Record<string, unknown>
   timestamp: string
