@@ -1,17 +1,6 @@
-import {
-  Body,
-  Column,
-  Container,
-  Head,
-  Html,
-  Img,
-  Preview,
-  Row,
-  Section,
-  Text,
-} from '@react-email/components'
+import { Body, Container, Head, Html, Img, Preview, Section, Text } from '@react-email/components'
 import { format } from 'date-fns'
-import { baseStyles } from '@/components/emails/base-styles'
+import { baseStyles, colors } from '@/components/emails/base-styles'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
@@ -59,32 +48,29 @@ export const CareersSubmissionEmail = ({
       <Head />
       <Body style={baseStyles.main}>
         <Preview>New Career Application from {name}</Preview>
+
+        {/* Main card container */}
         <Container style={baseStyles.container}>
-          <Section style={{ padding: '30px 0', textAlign: 'center' }}>
-            <Row>
-              <Column style={{ textAlign: 'center' }}>
-                <Img
-                  src={brand.logoUrl || `${baseUrl}/logo/reverse/text/medium.png`}
-                  width='114'
-                  alt={brand.name}
-                  style={{
-                    margin: '0 auto',
-                  }}
-                />
-              </Column>
-            </Row>
+          {/* Header with logo */}
+          <Section style={baseStyles.header}>
+            <Img
+              src={brand.logoUrl || `${baseUrl}/brand/color/email/type.png`}
+              width='70'
+              alt={brand.name}
+              style={{ display: 'block' }}
+            />
           </Section>
 
-          <Section style={baseStyles.sectionsBorders}>
-            <Row>
-              <Column style={baseStyles.sectionBorder} />
-              <Column style={baseStyles.sectionCenter} />
-              <Column style={baseStyles.sectionBorder} />
-            </Row>
-          </Section>
-
+          {/* Content */}
           <Section style={baseStyles.content}>
-            <Text style={{ ...baseStyles.paragraph, fontSize: '18px', fontWeight: 'bold' }}>
+            <Text
+              style={{
+                ...baseStyles.paragraph,
+                fontSize: '18px',
+                fontWeight: 'bold',
+                color: colors.textPrimary,
+              }}
+            >
               New Career Application
             </Text>
 
@@ -99,9 +85,9 @@ export const CareersSubmissionEmail = ({
                 marginTop: '24px',
                 marginBottom: '24px',
                 padding: '20px',
-                backgroundColor: '#f9f9f9',
+                backgroundColor: colors.bgOuter,
                 borderRadius: '8px',
-                border: '1px solid #e5e5e5',
+                border: `1px solid ${colors.divider}`,
               }}
             >
               <Text
@@ -109,159 +95,225 @@ export const CareersSubmissionEmail = ({
                   margin: '0 0 16px 0',
                   fontSize: '16px',
                   fontWeight: 'bold',
-                  color: '#333333',
+                  color: colors.textPrimary,
+                  fontFamily: baseStyles.fontFamily,
                 }}
               >
                 Applicant Information
               </Text>
 
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <tr>
-                  <td
-                    style={{
-                      padding: '8px 0',
-                      fontSize: '14px',
-                      fontWeight: 'bold',
-                      color: '#666666',
-                      width: '40%',
-                    }}
-                  >
-                    Name:
-                  </td>
-                  <td style={{ padding: '8px 0', fontSize: '14px', color: '#333333' }}>{name}</td>
-                </tr>
-                <tr>
-                  <td
-                    style={{
-                      padding: '8px 0',
-                      fontSize: '14px',
-                      fontWeight: 'bold',
-                      color: '#666666',
-                    }}
-                  >
-                    Email:
-                  </td>
-                  <td style={{ padding: '8px 0', fontSize: '14px', color: '#333333' }}>
-                    <a
-                      href={`mailto:${email}`}
-                      style={{ color: '#6F3DFA', textDecoration: 'none' }}
-                    >
-                      {email}
-                    </a>
-                  </td>
-                </tr>
-                {phone && (
+                <tbody>
                   <tr>
                     <td
                       style={{
                         padding: '8px 0',
                         fontSize: '14px',
                         fontWeight: 'bold',
-                        color: '#666666',
+                        color: colors.textMuted,
+                        width: '40%',
+                        fontFamily: baseStyles.fontFamily,
                       }}
                     >
-                      Phone:
+                      Name:
                     </td>
-                    <td style={{ padding: '8px 0', fontSize: '14px', color: '#333333' }}>
-                      <a href={`tel:${phone}`} style={{ color: '#6F3DFA', textDecoration: 'none' }}>
-                        {phone}
+                    <td
+                      style={{
+                        padding: '8px 0',
+                        fontSize: '14px',
+                        color: colors.textPrimary,
+                        fontFamily: baseStyles.fontFamily,
+                      }}
+                    >
+                      {name}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td
+                      style={{
+                        padding: '8px 0',
+                        fontSize: '14px',
+                        fontWeight: 'bold',
+                        color: colors.textMuted,
+                        fontFamily: baseStyles.fontFamily,
+                      }}
+                    >
+                      Email:
+                    </td>
+                    <td
+                      style={{
+                        padding: '8px 0',
+                        fontSize: '14px',
+                        color: colors.textPrimary,
+                        fontFamily: baseStyles.fontFamily,
+                      }}
+                    >
+                      <a href={`mailto:${email}`} style={baseStyles.link}>
+                        {email}
                       </a>
                     </td>
                   </tr>
-                )}
-                <tr>
-                  <td
-                    style={{
-                      padding: '8px 0',
-                      fontSize: '14px',
-                      fontWeight: 'bold',
-                      color: '#666666',
-                    }}
-                  >
-                    Position:
-                  </td>
-                  <td style={{ padding: '8px 0', fontSize: '14px', color: '#333333' }}>
-                    {position}
-                  </td>
-                </tr>
-                <tr>
-                  <td
-                    style={{
-                      padding: '8px 0',
-                      fontSize: '14px',
-                      fontWeight: 'bold',
-                      color: '#666666',
-                    }}
-                  >
-                    Experience:
-                  </td>
-                  <td style={{ padding: '8px 0', fontSize: '14px', color: '#333333' }}>
-                    {getExperienceLabel(experience)}
-                  </td>
-                </tr>
-                <tr>
-                  <td
-                    style={{
-                      padding: '8px 0',
-                      fontSize: '14px',
-                      fontWeight: 'bold',
-                      color: '#666666',
-                    }}
-                  >
-                    Location:
-                  </td>
-                  <td style={{ padding: '8px 0', fontSize: '14px', color: '#333333' }}>
-                    {location}
-                  </td>
-                </tr>
-                {linkedin && (
-                  <tr>
-                    <td
-                      style={{
-                        padding: '8px 0',
-                        fontSize: '14px',
-                        fontWeight: 'bold',
-                        color: '#666666',
-                      }}
-                    >
-                      LinkedIn:
-                    </td>
-                    <td style={{ padding: '8px 0', fontSize: '14px', color: '#333333' }}>
-                      <a
-                        href={linkedin}
-                        target='_blank'
-                        rel='noopener noreferrer'
-                        style={{ color: '#6F3DFA', textDecoration: 'none' }}
+                  {phone && (
+                    <tr>
+                      <td
+                        style={{
+                          padding: '8px 0',
+                          fontSize: '14px',
+                          fontWeight: 'bold',
+                          color: colors.textMuted,
+                          fontFamily: baseStyles.fontFamily,
+                        }}
                       >
-                        View Profile
-                      </a>
-                    </td>
-                  </tr>
-                )}
-                {portfolio && (
+                        Phone:
+                      </td>
+                      <td
+                        style={{
+                          padding: '8px 0',
+                          fontSize: '14px',
+                          color: colors.textPrimary,
+                          fontFamily: baseStyles.fontFamily,
+                        }}
+                      >
+                        <a href={`tel:${phone}`} style={baseStyles.link}>
+                          {phone}
+                        </a>
+                      </td>
+                    </tr>
+                  )}
                   <tr>
                     <td
                       style={{
                         padding: '8px 0',
                         fontSize: '14px',
                         fontWeight: 'bold',
-                        color: '#666666',
+                        color: colors.textMuted,
+                        fontFamily: baseStyles.fontFamily,
                       }}
                     >
-                      Portfolio:
+                      Position:
                     </td>
-                    <td style={{ padding: '8px 0', fontSize: '14px', color: '#333333' }}>
-                      <a
-                        href={portfolio}
-                        target='_blank'
-                        rel='noopener noreferrer'
-                        style={{ color: '#6F3DFA', textDecoration: 'none' }}
-                      >
-                        View Portfolio
-                      </a>
+                    <td
+                      style={{
+                        padding: '8px 0',
+                        fontSize: '14px',
+                        color: colors.textPrimary,
+                        fontFamily: baseStyles.fontFamily,
+                      }}
+                    >
+                      {position}
                     </td>
                   </tr>
-                )}
+                  <tr>
+                    <td
+                      style={{
+                        padding: '8px 0',
+                        fontSize: '14px',
+                        fontWeight: 'bold',
+                        color: colors.textMuted,
+                        fontFamily: baseStyles.fontFamily,
+                      }}
+                    >
+                      Experience:
+                    </td>
+                    <td
+                      style={{
+                        padding: '8px 0',
+                        fontSize: '14px',
+                        color: colors.textPrimary,
+                        fontFamily: baseStyles.fontFamily,
+                      }}
+                    >
+                      {getExperienceLabel(experience)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td
+                      style={{
+                        padding: '8px 0',
+                        fontSize: '14px',
+                        fontWeight: 'bold',
+                        color: colors.textMuted,
+                        fontFamily: baseStyles.fontFamily,
+                      }}
+                    >
+                      Location:
+                    </td>
+                    <td
+                      style={{
+                        padding: '8px 0',
+                        fontSize: '14px',
+                        color: colors.textPrimary,
+                        fontFamily: baseStyles.fontFamily,
+                      }}
+                    >
+                      {location}
+                    </td>
+                  </tr>
+                  {linkedin && (
+                    <tr>
+                      <td
+                        style={{
+                          padding: '8px 0',
+                          fontSize: '14px',
+                          fontWeight: 'bold',
+                          color: colors.textMuted,
+                          fontFamily: baseStyles.fontFamily,
+                        }}
+                      >
+                        LinkedIn:
+                      </td>
+                      <td
+                        style={{
+                          padding: '8px 0',
+                          fontSize: '14px',
+                          color: colors.textPrimary,
+                          fontFamily: baseStyles.fontFamily,
+                        }}
+                      >
+                        <a
+                          href={linkedin}
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          style={baseStyles.link}
+                        >
+                          View Profile
+                        </a>
+                      </td>
+                    </tr>
+                  )}
+                  {portfolio && (
+                    <tr>
+                      <td
+                        style={{
+                          padding: '8px 0',
+                          fontSize: '14px',
+                          fontWeight: 'bold',
+                          color: colors.textMuted,
+                          fontFamily: baseStyles.fontFamily,
+                        }}
+                      >
+                        Portfolio:
+                      </td>
+                      <td
+                        style={{
+                          padding: '8px 0',
+                          fontSize: '14px',
+                          color: colors.textPrimary,
+                          fontFamily: baseStyles.fontFamily,
+                        }}
+                      >
+                        <a
+                          href={portfolio}
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          style={baseStyles.link}
+                        >
+                          View Portfolio
+                        </a>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
               </table>
             </Section>
 
@@ -271,9 +323,9 @@ export const CareersSubmissionEmail = ({
                 marginTop: '24px',
                 marginBottom: '24px',
                 padding: '20px',
-                backgroundColor: '#f9f9f9',
+                backgroundColor: colors.bgOuter,
                 borderRadius: '8px',
-                border: '1px solid #e5e5e5',
+                border: `1px solid ${colors.divider}`,
               }}
             >
               <Text
@@ -281,7 +333,8 @@ export const CareersSubmissionEmail = ({
                   margin: '0 0 12px 0',
                   fontSize: '16px',
                   fontWeight: 'bold',
-                  color: '#333333',
+                  color: colors.textPrimary,
+                  fontFamily: baseStyles.fontFamily,
                 }}
               >
                 About Themselves
@@ -290,19 +343,15 @@ export const CareersSubmissionEmail = ({
                 style={{
                   margin: '0',
                   fontSize: '14px',
-                  color: '#333333',
+                  color: colors.textPrimary,
                   lineHeight: '1.6',
                   whiteSpace: 'pre-wrap',
+                  fontFamily: baseStyles.fontFamily,
                 }}
               >
                 {message}
               </Text>
             </Section>
-
-            <Text style={baseStyles.paragraph}>
-              Please review this application and reach out to the candidate at your earliest
-              convenience.
-            </Text>
           </Section>
         </Container>
       </Body>

@@ -1,15 +1,4 @@
-import {
-  Body,
-  Column,
-  Container,
-  Head,
-  Html,
-  Img,
-  Preview,
-  Row,
-  Section,
-  Text,
-} from '@react-email/components'
+import { Body, Container, Head, Html, Img, Preview, Section, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/base-styles'
 import EmailFooter from '@/components/emails/footer'
 import { getBrandConfig } from '@/lib/branding/branding'
@@ -46,65 +35,45 @@ export const OTPVerificationEmail = ({
   const brand = getBrandConfig()
   const baseUrl = getBaseUrl()
 
-  // Get a message based on the type
-  const getMessage = () => {
-    switch (type) {
-      case 'sign-in':
-        return `Sign in to ${brand.name}`
-      case 'forget-password':
-        return `Reset your password for ${brand.name}`
-      case 'chat-access':
-        return `Access ${chatTitle || 'the chat'}`
-      default:
-        return `Welcome to ${brand.name}`
-    }
-  }
-
   return (
     <Html>
       <Head />
       <Body style={baseStyles.main}>
         <Preview>{getSubjectByType(type, brand.name, chatTitle)}</Preview>
+
+        {/* Main card container */}
         <Container style={baseStyles.container}>
-          <Section style={{ padding: '30px 0', textAlign: 'center' }}>
-            <Row>
-              <Column style={{ textAlign: 'center' }}>
-                <Img
-                  src={brand.logoUrl || `${baseUrl}/logo/reverse/text/medium.png`}
-                  width='114'
-                  alt={brand.name}
-                  style={{
-                    margin: '0 auto',
-                  }}
-                />
-              </Column>
-            </Row>
+          {/* Header with logo */}
+          <Section style={baseStyles.header}>
+            <Img
+              src={brand.logoUrl || `${baseUrl}/brand/color/email/type.png`}
+              width='70'
+              alt={brand.name}
+              style={{ display: 'block' }}
+            />
           </Section>
-          <Section style={baseStyles.sectionsBorders}>
-            <Row>
-              <Column style={baseStyles.sectionBorder} />
-              <Column style={baseStyles.sectionCenter} />
-              <Column style={baseStyles.sectionBorder} />
-            </Row>
-          </Section>
+
+          {/* Content */}
           <Section style={baseStyles.content}>
-            <Text style={baseStyles.paragraph}>{getMessage()}</Text>
-            <Text style={baseStyles.paragraph}>Your verification code is:</Text>
+            <Text style={baseStyles.paragraph}>Your verification code:</Text>
+
             <Section style={baseStyles.codeContainer}>
               <Text style={baseStyles.code}>{otp}</Text>
             </Section>
+
             <Text style={baseStyles.paragraph}>This code will expire in 15 minutes.</Text>
-            <Text style={baseStyles.paragraph}>
-              If you didn't request this code, you can safely ignore this email.
-            </Text>
-            <Text style={baseStyles.paragraph}>
-              Best regards,
-              <br />
-              The Sim Team
+
+            {/* Divider */}
+            <div style={baseStyles.divider} />
+
+            <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+              Do not share this code with anyone. If you didn't request this code, you can safely
+              ignore this email.
             </Text>
           </Section>
         </Container>
 
+        {/* Footer in gray section */}
         <EmailFooter baseUrl={baseUrl} />
       </Body>
     </Html>

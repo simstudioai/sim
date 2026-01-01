@@ -1,17 +1,14 @@
 import {
   Body,
-  Column,
   Container,
   Head,
   Html,
   Img,
   Link,
   Preview,
-  Row,
   Section,
   Text,
 } from '@react-email/components'
-import { format } from 'date-fns'
 import { baseStyles } from '@/components/emails/base-styles'
 import EmailFooter from '@/components/emails/footer'
 import { getBrandConfig } from '@/lib/branding/branding'
@@ -20,14 +17,9 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 interface ResetPasswordEmailProps {
   username?: string
   resetLink?: string
-  updatedDate?: Date
 }
 
-export const ResetPasswordEmail = ({
-  username = '',
-  resetLink = '',
-  updatedDate = new Date(),
-}: ResetPasswordEmailProps) => {
+export const ResetPasswordEmail = ({ username = '', resetLink = '' }: ResetPasswordEmailProps) => {
   const brand = getBrandConfig()
   const baseUrl = getBaseUrl()
 
@@ -36,62 +28,41 @@ export const ResetPasswordEmail = ({
       <Head />
       <Body style={baseStyles.main}>
         <Preview>Reset your {brand.name} password</Preview>
+
+        {/* Main card container */}
         <Container style={baseStyles.container}>
-          <Section style={{ padding: '30px 0', textAlign: 'center' }}>
-            <Row>
-              <Column style={{ textAlign: 'center' }}>
-                <Img
-                  src={brand.logoUrl || `${baseUrl}/logo/reverse/text/medium.png`}
-                  width='114'
-                  alt={brand.name}
-                  style={{
-                    margin: '0 auto',
-                  }}
-                />
-              </Column>
-            </Row>
+          {/* Header with logo */}
+          <Section style={baseStyles.header}>
+            <Img
+              src={brand.logoUrl || `${baseUrl}/brand/color/email/type.png`}
+              width='70'
+              alt={brand.name}
+              style={{ display: 'block' }}
+            />
           </Section>
 
-          <Section style={baseStyles.sectionsBorders}>
-            <Row>
-              <Column style={baseStyles.sectionBorder} />
-              <Column style={baseStyles.sectionCenter} />
-              <Column style={baseStyles.sectionBorder} />
-            </Row>
-          </Section>
-
+          {/* Content */}
           <Section style={baseStyles.content}>
             <Text style={baseStyles.paragraph}>Hello {username},</Text>
             <Text style={baseStyles.paragraph}>
-              You recently requested to reset your password for your {brand.name} account. Use the
-              button below to reset it. This password reset is only valid for the next 24 hours.
+              A password reset was requested for your {brand.name} account. Click below to set a new
+              password.
             </Text>
+
             <Link href={resetLink} style={{ textDecoration: 'none' }}>
-              <Text style={baseStyles.button}>Reset Your Password</Text>
+              <Text style={baseStyles.button}>Reset Password</Text>
             </Link>
-            <Text style={baseStyles.paragraph}>
-              If you did not request a password reset, please ignore this email or contact support
-              if you have concerns.
-            </Text>
-            <Text style={baseStyles.paragraph}>
-              Best regards,
-              <br />
-              The {brand.name} Team
-            </Text>
-            <Text
-              style={{
-                ...baseStyles.footerText,
-                marginTop: '40px',
-                textAlign: 'left',
-                color: '#666666',
-              }}
-            >
-              This email was sent on {format(updatedDate, 'MMMM do, yyyy')} because a password reset
-              was requested for your account.
+
+            {/* Divider */}
+            <div style={baseStyles.divider} />
+
+            <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+              If you didn't request this, you can ignore this email. Link expires in 24 hours.
             </Text>
           </Section>
         </Container>
 
+        {/* Footer in gray section */}
         <EmailFooter baseUrl={baseUrl} />
       </Body>
     </Html>

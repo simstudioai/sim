@@ -1,13 +1,11 @@
 import {
   Body,
-  Column,
   Container,
   Head,
   Html,
   Img,
   Link,
   Preview,
-  Row,
   Section,
   Text,
 } from '@react-email/components'
@@ -33,11 +31,9 @@ export const WorkspaceInvitationEmail = ({
   const brand = getBrandConfig()
   const baseUrl = getBaseUrl()
 
-  // Extract token from the link to ensure we're using the correct format
   let enhancedLink = invitationLink
 
   try {
-    // If the link is pointing to any API endpoint directly, update it to use the client route
     if (
       invitationLink.includes('/api/workspaces/invitations/accept') ||
       invitationLink.match(/\/api\/workspaces\/invitations\/[^?]+\?token=/)
@@ -56,55 +52,44 @@ export const WorkspaceInvitationEmail = ({
     <Html>
       <Head />
       <Body style={baseStyles.main}>
-        <Preview>You've been invited to join the "{workspaceName}" workspace on Sim!</Preview>
+        <Preview>
+          You've been invited to join the "{workspaceName}" workspace on {brand.name}!
+        </Preview>
+
+        {/* Main card container */}
         <Container style={baseStyles.container}>
-          <Section style={{ padding: '30px 0', textAlign: 'center' }}>
-            <Row>
-              <Column style={{ textAlign: 'center' }}>
-                <Img
-                  src={brand.logoUrl || `${baseUrl}/logo/reverse/text/medium.png`}
-                  width='114'
-                  alt={brand.name}
-                  style={{
-                    margin: '0 auto',
-                  }}
-                />
-              </Column>
-            </Row>
+          {/* Header with logo */}
+          <Section style={baseStyles.header}>
+            <Img
+              src={brand.logoUrl || `${baseUrl}/brand/color/email/type.png`}
+              width='70'
+              alt={brand.name}
+              style={{ display: 'block' }}
+            />
           </Section>
 
-          <Section style={baseStyles.sectionsBorders}>
-            <Row>
-              <Column style={baseStyles.sectionBorder} />
-              <Column style={baseStyles.sectionCenter} />
-              <Column style={baseStyles.sectionBorder} />
-            </Row>
-          </Section>
-
+          {/* Content */}
           <Section style={baseStyles.content}>
             <Text style={baseStyles.paragraph}>Hello,</Text>
             <Text style={baseStyles.paragraph}>
-              {inviterName} has invited you to join the "{workspaceName}" workspace on Sim!
+              <strong>{inviterName}</strong> invited you to join the{' '}
+              <strong>{workspaceName}</strong> workspace on {brand.name}.
             </Text>
-            <Text style={baseStyles.paragraph}>
-              Sim is a powerful platform for building, testing, and optimizing AI workflows. Join
-              this workspace to collaborate with your team.
-            </Text>
+
             <Link href={enhancedLink} style={{ textDecoration: 'none' }}>
               <Text style={baseStyles.button}>Accept Invitation</Text>
             </Link>
-            <Text style={baseStyles.paragraph}>
-              This invitation link will expire in 7 days. If you have any questions or need
-              assistance, feel free to reach out to our support team.
-            </Text>
-            <Text style={baseStyles.paragraph}>
-              Best regards,
-              <br />
-              The Sim Team
+
+            {/* Divider */}
+            <div style={baseStyles.divider} />
+
+            <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+              Invitation expires in 7 days. If unexpected, you can ignore this email.
             </Text>
           </Section>
         </Container>
 
+        {/* Footer in gray section */}
         <EmailFooter baseUrl={baseUrl} />
       </Body>
     </Html>

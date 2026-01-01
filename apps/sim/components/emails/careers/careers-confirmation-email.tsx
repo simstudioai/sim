@@ -1,15 +1,4 @@
-import {
-  Body,
-  Column,
-  Container,
-  Head,
-  Html,
-  Img,
-  Preview,
-  Row,
-  Section,
-  Text,
-} from '@react-email/components'
+import { Body, Container, Head, Html, Img, Preview, Section, Text } from '@react-email/components'
 import { format } from 'date-fns'
 import { baseStyles } from '@/components/emails/base-styles'
 import EmailFooter from '@/components/emails/footer'
@@ -35,80 +24,54 @@ export const CareersConfirmationEmail = ({
       <Head />
       <Body style={baseStyles.main}>
         <Preview>Your application to {brand.name} has been received</Preview>
+
+        {/* Main card container */}
         <Container style={baseStyles.container}>
-          <Section style={{ padding: '30px 0', textAlign: 'center' }}>
-            <Row>
-              <Column style={{ textAlign: 'center' }}>
-                <Img
-                  src={brand.logoUrl || `${baseUrl}/logo/reverse/text/medium.png`}
-                  width='114'
-                  alt={brand.name}
-                  style={{
-                    margin: '0 auto',
-                  }}
-                />
-              </Column>
-            </Row>
+          {/* Header with logo */}
+          <Section style={baseStyles.header}>
+            <Img
+              src={brand.logoUrl || `${baseUrl}/brand/color/email/type.png`}
+              width='70'
+              alt={brand.name}
+              style={{ display: 'block' }}
+            />
           </Section>
 
-          <Section style={baseStyles.sectionsBorders}>
-            <Row>
-              <Column style={baseStyles.sectionBorder} />
-              <Column style={baseStyles.sectionCenter} />
-              <Column style={baseStyles.sectionBorder} />
-            </Row>
-          </Section>
-
+          {/* Content */}
           <Section style={baseStyles.content}>
             <Text style={baseStyles.paragraph}>Hello {name},</Text>
             <Text style={baseStyles.paragraph}>
-              Thank you for your interest in joining the {brand.name} team! We've received your
-              application for the <strong>{position}</strong> position.
+              We've received your application for <strong>{position}</strong>. Our team reviews
+              every application and will reach out if there's a match.
             </Text>
 
             <Text style={baseStyles.paragraph}>
-              Our team carefully reviews every application and will get back to you within the next
-              few weeks. If your qualifications match what we're looking for, we'll reach out to
-              schedule an initial conversation.
-            </Text>
-
-            <Text style={baseStyles.paragraph}>
-              In the meantime, feel free to explore our{' '}
+              In the meantime, explore our{' '}
               <a
                 href='https://docs.sim.ai'
                 target='_blank'
                 rel='noopener noreferrer'
-                style={{ color: '#6F3DFA', textDecoration: 'none' }}
+                style={baseStyles.link}
               >
-                documentation
+                docs
               </a>{' '}
-              to learn more about what we're building, or check out our{' '}
-              <a href={`${baseUrl}/studio`} style={{ color: '#6F3DFA', textDecoration: 'none' }}>
+              or{' '}
+              <a href={`${baseUrl}/studio`} style={baseStyles.link}>
                 blog
               </a>{' '}
-              for the latest updates.
+              to learn more about what we're building.
             </Text>
 
-            <Text style={baseStyles.paragraph}>
-              Best regards,
-              <br />
-              The {brand.name} Team
-            </Text>
+            {/* Divider */}
+            <div style={baseStyles.divider} />
 
-            <Text
-              style={{
-                ...baseStyles.footerText,
-                marginTop: '40px',
-                textAlign: 'left',
-                color: '#666666',
-              }}
-            >
-              This confirmation was sent on {format(submittedDate, 'MMMM do, yyyy')} at{' '}
-              {format(submittedDate, 'h:mm a')}.
+            <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+              Submitted on {format(submittedDate, 'MMMM do, yyyy')}.
             </Text>
           </Section>
         </Container>
 
+        {/* Footer in gray section */}
         <EmailFooter baseUrl={baseUrl} />
       </Body>
     </Html>

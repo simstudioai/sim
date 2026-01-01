@@ -118,7 +118,6 @@ ${message}
     // Send confirmation email to the user
     try {
       const confirmationHtml = await renderHelpConfirmationEmail(
-        email,
         type as 'bug' | 'feedback' | 'feature_request' | 'other',
         images.length
       )

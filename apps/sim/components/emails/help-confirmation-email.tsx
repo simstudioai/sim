@@ -1,15 +1,4 @@
-import {
-  Body,
-  Column,
-  Container,
-  Head,
-  Html,
-  Img,
-  Preview,
-  Row,
-  Section,
-  Text,
-} from '@react-email/components'
+import { Body, Container, Head, Html, Img, Preview, Section, Text } from '@react-email/components'
 import { format } from 'date-fns'
 import { baseStyles } from '@/components/emails/base-styles'
 import EmailFooter from '@/components/emails/footer'
@@ -17,7 +6,6 @@ import { getBrandConfig } from '@/lib/branding/branding'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
 interface HelpConfirmationEmailProps {
-  userEmail?: string
   type?: 'bug' | 'feedback' | 'feature_request' | 'other'
   attachmentCount?: number
   submittedDate?: Date
@@ -39,7 +27,6 @@ const getTypeLabel = (type: string) => {
 }
 
 export const HelpConfirmationEmail = ({
-  userEmail = '',
   type = 'other',
   attachmentCount = 0,
   submittedDate = new Date(),
@@ -53,78 +40,43 @@ export const HelpConfirmationEmail = ({
       <Head />
       <Body style={baseStyles.main}>
         <Preview>Your {typeLabel.toLowerCase()} has been received</Preview>
+
+        {/* Main card container */}
         <Container style={baseStyles.container}>
-          <Section style={{ padding: '30px 0', textAlign: 'center' }}>
-            <Row>
-              <Column style={{ textAlign: 'center' }}>
-                <Img
-                  src={brand.logoUrl || `${baseUrl}/logo/reverse/text/medium.png`}
-                  width='114'
-                  alt={brand.name}
-                  style={{
-                    margin: '0 auto',
-                  }}
-                />
-              </Column>
-            </Row>
+          {/* Header with logo */}
+          <Section style={baseStyles.header}>
+            <Img
+              src={brand.logoUrl || `${baseUrl}/brand/color/email/type.png`}
+              width='70'
+              alt={brand.name}
+              style={{ display: 'block' }}
+            />
           </Section>
 
-          <Section style={baseStyles.sectionsBorders}>
-            <Row>
-              <Column style={baseStyles.sectionBorder} />
-              <Column style={baseStyles.sectionCenter} />
-              <Column style={baseStyles.sectionBorder} />
-            </Row>
-          </Section>
-
+          {/* Content */}
           <Section style={baseStyles.content}>
             <Text style={baseStyles.paragraph}>Hello,</Text>
             <Text style={baseStyles.paragraph}>
-              Thank you for your <strong>{typeLabel.toLowerCase()}</strong> submission. We've
-              received your request and will get back to you as soon as possible.
+              We've received your <strong>{typeLabel.toLowerCase()}</strong> and will get back to
+              you shortly.
             </Text>
 
             {attachmentCount > 0 && (
               <Text style={baseStyles.paragraph}>
-                You attached{' '}
-                <strong>
-                  {attachmentCount} image{attachmentCount > 1 ? 's' : ''}
-                </strong>{' '}
-                with your request.
+                {attachmentCount} image{attachmentCount > 1 ? 's' : ''} attached.
               </Text>
             )}
 
-            <Text style={baseStyles.paragraph}>
-              We typically respond to{' '}
-              {type === 'bug'
-                ? 'bug reports'
-                : type === 'feature_request'
-                  ? 'feature requests'
-                  : 'inquiries'}{' '}
-              within a few hours. If you need immediate assistance, please don't hesitate to reach
-              out to us directly.
-            </Text>
+            {/* Divider */}
+            <div style={baseStyles.divider} />
 
-            <Text style={baseStyles.paragraph}>
-              Best regards,
-              <br />
-              The {brand.name} Team
-            </Text>
-
-            <Text
-              style={{
-                ...baseStyles.footerText,
-                marginTop: '40px',
-                textAlign: 'left',
-                color: '#666666',
-              }}
-            >
-              This confirmation was sent on {format(submittedDate, 'MMMM do, yyyy')} for your{' '}
-              {typeLabel.toLowerCase()} submission from {userEmail}.
+            <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+              Submitted on {format(submittedDate, 'MMMM do, yyyy')}.
             </Text>
           </Section>
         </Container>
 
+        {/* Footer in gray section */}
         <EmailFooter baseUrl={baseUrl} />
       </Body>
     </Html>

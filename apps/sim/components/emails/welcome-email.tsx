@@ -14,32 +14,18 @@ import EmailFooter from '@/components/emails/footer'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
-interface UsageThresholdEmailProps {
+interface WelcomeEmailProps {
   userName?: string
-  planName: string
-  percentUsed: number
-  currentUsage: number
-  limit: number
-  ctaLink: string
 }
 
-export function UsageThresholdEmail({
-  userName,
-  planName,
-  percentUsed,
-  currentUsage,
-  limit,
-  ctaLink,
-}: UsageThresholdEmailProps) {
+export function WelcomeEmail({ userName }: WelcomeEmailProps) {
   const brand = getBrandConfig()
   const baseUrl = getBaseUrl()
-
-  const previewText = `${brand.name}: You're at ${percentUsed}% of your ${planName} monthly budget`
 
   return (
     <Html>
       <Head />
-      <Preview>{previewText}</Preview>
+      <Preview>Welcome to {brand.name}</Preview>
       <Body style={baseStyles.main}>
         {/* Main card container */}
         <Container style={baseStyles.container}>
@@ -56,36 +42,29 @@ export function UsageThresholdEmail({
           {/* Content */}
           <Section style={baseStyles.content}>
             <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
-              {userName ? `Hi ${userName},` : 'Hi,'}
+              {userName ? `Hey ${userName},` : 'Hey,'}
             </Text>
-
             <Text style={baseStyles.paragraph}>
-              You're approaching your monthly budget on the {planName} plan.
+              Welcome to {brand.name}! Your account is ready. Start building, testing, and deploying
+              AI workflows in minutes.
             </Text>
 
-            <Section style={baseStyles.infoBox}>
-              <Text style={baseStyles.infoBoxTitle}>Usage</Text>
-              <Text style={baseStyles.infoBoxList}>
-                ${currentUsage.toFixed(2)} of ${limit.toFixed(2)} used ({percentUsed}%)
-              </Text>
-            </Section>
-
-            {/* Divider */}
-            <div style={baseStyles.divider} />
-
-            <Text style={baseStyles.paragraph}>
-              To avoid interruptions, consider increasing your monthly limit.
-            </Text>
-
-            <Link href={ctaLink} style={{ textDecoration: 'none' }}>
-              <Text style={baseStyles.button}>Review Limits</Text>
+            <Link href={`${baseUrl}/w`} style={{ textDecoration: 'none' }}>
+              <Text style={baseStyles.button}>Get Started</Text>
             </Link>
+
+            <Text style={baseStyles.paragraph}>
+              If you have any questions or feedback, just reply to this email — I read every
+              message.
+            </Text>
+
+            <Text style={baseStyles.paragraph}>– Emir, Co-founder & CEO of {brand.name}</Text>
 
             {/* Divider */}
             <div style={baseStyles.divider} />
 
             <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
-              One-time notification at 80% usage.
+              You're on the free plan with $10 in credits to get started.
             </Text>
           </Section>
         </Container>
@@ -97,4 +76,4 @@ export function UsageThresholdEmail({
   )
 }
 
-export default UsageThresholdEmail
+export default WelcomeEmail

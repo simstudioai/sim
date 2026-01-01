@@ -1,18 +1,15 @@
 import {
   Body,
-  Column,
   Container,
   Head,
   Html,
   Img,
   Link,
   Preview,
-  Row,
   Section,
   Text,
 } from '@react-email/components'
 import { createLogger } from '@sim/logger'
-import { format } from 'date-fns'
 import { baseStyles } from '@/components/emails/base-styles'
 import EmailFooter from '@/components/emails/footer'
 import { getBrandConfig } from '@/lib/branding/branding'
@@ -22,8 +19,6 @@ interface InvitationEmailProps {
   inviterName?: string
   organizationName?: string
   inviteLink?: string
-  invitedEmail?: string
-  updatedDate?: Date
 }
 
 const logger = createLogger('InvitationEmail')
@@ -32,16 +27,12 @@ export const InvitationEmail = ({
   inviterName = 'A team member',
   organizationName = 'an organization',
   inviteLink = '',
-  invitedEmail = '',
-  updatedDate = new Date(),
 }: InvitationEmailProps) => {
   const brand = getBrandConfig()
   const baseUrl = getBaseUrl()
 
-  // Extract invitation ID or token from inviteLink if present
   let enhancedLink = inviteLink
 
-  // Check if link contains an ID (old format) and append token parameter if needed
   if (inviteLink && !inviteLink.includes('token=')) {
     try {
       const url = new URL(inviteLink)
@@ -58,64 +49,44 @@ export const InvitationEmail = ({
     <Html>
       <Head />
       <Body style={baseStyles.main}>
-        <Preview>You've been invited to join {organizationName} on Sim</Preview>
+        <Preview>
+          You've been invited to join {organizationName} on {brand.name}
+        </Preview>
+
+        {/* Main card container */}
         <Container style={baseStyles.container}>
-          <Section style={{ padding: '30px 0', textAlign: 'center' }}>
-            <Row>
-              <Column style={{ textAlign: 'center' }}>
-                <Img
-                  src={brand.logoUrl || `${baseUrl}/logo/reverse/text/medium.png`}
-                  width='114'
-                  alt={brand.name}
-                  style={{
-                    margin: '0 auto',
-                  }}
-                />
-              </Column>
-            </Row>
+          {/* Header with logo */}
+          <Section style={baseStyles.header}>
+            <Img
+              src={brand.logoUrl || `${baseUrl}/brand/color/email/type.png`}
+              width='70'
+              alt={brand.name}
+              style={{ display: 'block' }}
+            />
           </Section>
 
-          <Section style={baseStyles.sectionsBorders}>
-            <Row>
-              <Column style={baseStyles.sectionBorder} />
-              <Column style={baseStyles.sectionCenter} />
-              <Column style={baseStyles.sectionBorder} />
-            </Row>
-          </Section>
-
+          {/* Content */}
           <Section style={baseStyles.content}>
             <Text style={baseStyles.paragraph}>Hello,</Text>
             <Text style={baseStyles.paragraph}>
-              <strong>{inviterName}</strong> has invited you to join{' '}
-              <strong>{organizationName}</strong> on Sim. Sim is a powerful, user-friendly platform
-              for building, testing, and optimizing agentic workflows.
+              <strong>{inviterName}</strong> invited you to join <strong>{organizationName}</strong>{' '}
+              on {brand.name}.
             </Text>
+
             <Link href={enhancedLink} style={{ textDecoration: 'none' }}>
               <Text style={baseStyles.button}>Accept Invitation</Text>
             </Link>
-            <Text style={baseStyles.paragraph}>
-              This invitation will expire in 48 hours. If you believe this invitation was sent in
-              error, please ignore this email.
-            </Text>
-            <Text style={baseStyles.paragraph}>
-              Best regards,
-              <br />
-              The Sim Team
-            </Text>
-            <Text
-              style={{
-                ...baseStyles.footerText,
-                marginTop: '40px',
-                textAlign: 'left',
-                color: '#666666',
-              }}
-            >
-              This email was sent on {format(updatedDate, 'MMMM do, yyyy')} to {invitedEmail} with
-              an invitation to join {organizationName} on Sim.
+
+            {/* Divider */}
+            <div style={baseStyles.divider} />
+
+            <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+              Invitation expires in 48 hours. If unexpected, you can ignore this email.
             </Text>
           </Section>
         </Container>
 
+        {/* Footer in gray section */}
         <EmailFooter baseUrl={baseUrl} />
       </Body>
     </Html>

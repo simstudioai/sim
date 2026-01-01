@@ -1,18 +1,15 @@
 import {
   Body,
-  Column,
   Container,
   Head,
-  Hr,
   Html,
   Img,
   Link,
   Preview,
-  Row,
   Section,
   Text,
 } from '@react-email/components'
-import { baseStyles } from '@/components/emails/base-styles'
+import { baseStyles, colors } from '@/components/emails/base-styles'
 import EmailFooter from '@/components/emails/footer'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -40,30 +37,19 @@ export function CreditPurchaseEmail({
       <Head />
       <Preview>{previewText}</Preview>
       <Body style={baseStyles.main}>
+        {/* Main card container */}
         <Container style={baseStyles.container}>
-          <Section style={{ padding: '30px 0', textAlign: 'center' }}>
-            <Row>
-              <Column style={{ textAlign: 'center' }}>
-                <Img
-                  src={brand.logoUrl || `${baseUrl}/logo/reverse/text/medium.png`}
-                  width='114'
-                  alt={brand.name}
-                  style={{
-                    margin: '0 auto',
-                  }}
-                />
-              </Column>
-            </Row>
+          {/* Header with logo */}
+          <Section style={baseStyles.header}>
+            <Img
+              src={brand.logoUrl || `${baseUrl}/brand/color/email/type.png`}
+              width='70'
+              alt={brand.name}
+              style={{ display: 'block' }}
+            />
           </Section>
 
-          <Section style={baseStyles.sectionsBorders}>
-            <Row>
-              <Column style={baseStyles.sectionBorder} />
-              <Column style={baseStyles.sectionCenter} />
-              <Column style={baseStyles.sectionBorder} />
-            </Row>
-          </Section>
-
+          {/* Content */}
           <Section style={baseStyles.content}>
             <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
               {userName ? `Hi ${userName},` : 'Hi,'}
@@ -72,50 +58,70 @@ export function CreditPurchaseEmail({
               Your credit purchase of <strong>${amount.toFixed(2)}</strong> has been confirmed.
             </Text>
 
-            <Section
-              style={{
-                background: '#f4f4f5',
-                borderRadius: '8px',
-                padding: '16px',
-                margin: '24px 0',
-              }}
-            >
-              <Text style={{ margin: 0, fontSize: '14px', color: '#71717a' }}>Amount Added</Text>
-              <Text style={{ margin: '4px 0 16px', fontSize: '24px', fontWeight: 'bold' }}>
+            <Section style={baseStyles.infoBox}>
+              <Text
+                style={{
+                  margin: 0,
+                  fontSize: '14px',
+                  color: colors.textMuted,
+                  fontFamily: baseStyles.fontFamily,
+                }}
+              >
+                Amount Added
+              </Text>
+              <Text
+                style={{
+                  margin: '4px 0 16px',
+                  fontSize: '24px',
+                  fontWeight: 'bold',
+                  color: colors.textPrimary,
+                  fontFamily: baseStyles.fontFamily,
+                }}
+              >
                 ${amount.toFixed(2)}
               </Text>
-              <Text style={{ margin: 0, fontSize: '14px', color: '#71717a' }}>New Balance</Text>
-              <Text style={{ margin: '4px 0 0', fontSize: '24px', fontWeight: 'bold' }}>
+              <Text
+                style={{
+                  margin: 0,
+                  fontSize: '14px',
+                  color: colors.textMuted,
+                  fontFamily: baseStyles.fontFamily,
+                }}
+              >
+                New Balance
+              </Text>
+              <Text
+                style={{
+                  margin: '4px 0 0',
+                  fontSize: '24px',
+                  fontWeight: 'bold',
+                  color: colors.textPrimary,
+                  fontFamily: baseStyles.fontFamily,
+                }}
+              >
                 ${newBalance.toFixed(2)}
               </Text>
             </Section>
 
             <Text style={baseStyles.paragraph}>
-              These credits will be applied automatically to your workflow executions. Credits are
-              consumed before any overage charges apply.
+              Credits are applied automatically to your workflow executions.
             </Text>
 
             <Link href={`${baseUrl}/workspace`} style={{ textDecoration: 'none' }}>
               <Text style={baseStyles.button}>View Dashboard</Text>
             </Link>
 
-            <Hr />
+            {/* Divider */}
+            <div style={baseStyles.divider} />
 
-            <Text style={baseStyles.paragraph}>
-              You can view your credit balance and purchase history in Settings → Subscription.
-            </Text>
-
-            <Text style={baseStyles.paragraph}>
-              Best regards,
-              <br />
-              The Sim Team
-            </Text>
-
-            <Text style={{ ...baseStyles.paragraph, fontSize: '12px', color: '#666' }}>
-              Purchased on {purchaseDate.toLocaleDateString()}
+            <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+              Purchased on {purchaseDate.toLocaleDateString()}. View balance in Settings →
+              Subscription.
             </Text>
           </Section>
         </Container>
+
+        {/* Footer in gray section */}
         <EmailFooter baseUrl={baseUrl} />
       </Body>
     </Html>

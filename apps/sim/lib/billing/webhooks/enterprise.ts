@@ -208,7 +208,7 @@ export async function handleManualEnterpriseSubscription(event: Stripe.Event) {
       const user = userDetails[0]
       const org = orgDetails[0]
 
-      const html = await renderEnterpriseSubscriptionEmail(user.name || user.email, user.email)
+      const html = await renderEnterpriseSubscriptionEmail(user.name || user.email)
 
       const emailResult = await sendEmail({
         to: user.email,

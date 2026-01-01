@@ -21,6 +21,7 @@ import {
   getEmailSubject,
   renderOTPEmail,
   renderPasswordResetEmail,
+  renderWelcomeEmail,
 } from '@/components/emails/render-email'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
@@ -103,6 +104,32 @@ export const auth = betterAuth({
               userId: user.id,
               error,
             })
+          }
+
+          // Send welcome email
+          if (user.email) {
+            try {
+              const { sendEmail } = await import('@/lib/messaging/email/mailer')
+              const html = await renderWelcomeEmail(user.name || undefined)
+
+              await sendEmail({
+                to: user.email,
+                subject: getEmailSubject('welcome'),
+                html,
+                from: 'Emir from Sim <emir@sim.ai>',
+                replyTo: 'emir@sim.ai',
+                emailType: 'transactional',
+              })
+
+              logger.info('[databaseHooks.user.create.after] Welcome email sent', {
+                userId: user.id,
+              })
+            } catch (error) {
+              logger.error('[databaseHooks.user.create.after] Failed to send welcome email', {
+                userId: user.id,
+                error,
+              })
+            }
           }
         },
       },

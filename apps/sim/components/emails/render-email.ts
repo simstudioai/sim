@@ -8,6 +8,7 @@ import {
   PlanWelcomeEmail,
   ResetPasswordEmail,
   UsageThresholdEmail,
+  WelcomeEmail,
 } from '@/components/emails'
 import CreditPurchaseEmail from '@/components/emails/billing/credit-purchase-email'
 import FreeTierUpgradeEmail from '@/components/emails/billing/free-tier-upgrade-email'
@@ -27,24 +28,19 @@ export async function renderPasswordResetEmail(
   username: string,
   resetLink: string
 ): Promise<string> {
-  return await render(
-    ResetPasswordEmail({ username, resetLink: resetLink, updatedDate: new Date() })
-  )
+  return await render(ResetPasswordEmail({ username, resetLink }))
 }
 
 export async function renderInvitationEmail(
   inviterName: string,
   organizationName: string,
-  invitationUrl: string,
-  email: string
+  invitationUrl: string
 ): Promise<string> {
   return await render(
     InvitationEmail({
       inviterName,
       organizationName,
       inviteLink: invitationUrl,
-      invitedEmail: email,
-      updatedDate: new Date(),
     })
   )
 }
@@ -74,13 +70,11 @@ export async function renderBatchInvitationEmail(
 }
 
 export async function renderHelpConfirmationEmail(
-  userEmail: string,
   type: 'bug' | 'feedback' | 'feature_request' | 'other',
   attachmentCount = 0
 ): Promise<string> {
   return await render(
     HelpConfirmationEmail({
-      userEmail,
       type,
       attachmentCount,
       submittedDate: new Date(),
@@ -88,19 +82,14 @@ export async function renderHelpConfirmationEmail(
   )
 }
 
-export async function renderEnterpriseSubscriptionEmail(
-  userName: string,
-  userEmail: string
-): Promise<string> {
+export async function renderEnterpriseSubscriptionEmail(userName: string): Promise<string> {
   const baseUrl = getBaseUrl()
   const loginLink = `${baseUrl}/login`
 
   return await render(
     EnterpriseSubscriptionEmail({
       userName,
-      userEmail,
       loginLink,
-      createdDate: new Date(),
     })
   )
 }
@@ -121,7 +110,6 @@ export async function renderUsageThresholdEmail(params: {
       currentUsage: params.currentUsage,
       limit: params.limit,
       ctaLink: params.ctaLink,
-      updatedDate: new Date(),
     })
   )
 }
@@ -140,7 +128,6 @@ export async function renderFreeTierUpgradeEmail(params: {
       currentUsage: params.currentUsage,
       limit: params.limit,
       upgradeLink: params.upgradeLink,
-      updatedDate: new Date(),
     })
   )
 }
@@ -160,6 +147,7 @@ export function getEmailSubject(
     | 'plan-welcome-pro'
     | 'plan-welcome-team'
     | 'credit-purchase'
+    | 'welcome'
 ): string {
   const brandName = getBrandConfig().name
 
@@ -190,6 +178,8 @@ export function getEmailSubject(
       return `Your Team plan is now active on ${brandName}`
     case 'credit-purchase':
       return `Credits added to your ${brandName} account`
+    case 'welcome':
+      return `Welcome to ${brandName}`
     default:
       return brandName
   }
@@ -205,9 +195,12 @@ export async function renderPlanWelcomeEmail(params: {
       planName: params.planName,
       userName: params.userName,
       loginLink: params.loginLink,
-      createdDate: new Date(),
     })
   )
+}
+
+export async function renderWelcomeEmail(userName?: string): Promise<string> {
+  return await render(WelcomeEmail({ userName }))
 }
 
 export async function renderCreditPurchaseEmail(params: {

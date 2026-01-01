@@ -1,13 +1,11 @@
 import {
   Body,
-  Column,
   Container,
   Head,
   Html,
   Img,
   Link,
   Preview,
-  Row,
   Section,
   Text,
 } from '@react-email/components'
@@ -73,35 +71,25 @@ export const BatchInvitationEmail = ({
           You've been invited to join {organizationName}
           {hasWorkspaces ? ` and ${workspaceInvitations.length} workspace(s)` : ''}
         </Preview>
+
+        {/* Main card container */}
         <Container style={baseStyles.container}>
-          <Section style={{ padding: '30px 0', textAlign: 'center' }}>
-            <Row>
-              <Column style={{ textAlign: 'center' }}>
-                <Img
-                  src={brand.logoUrl || `${baseUrl}/logo/reverse/text/medium.png`}
-                  width='114'
-                  alt={brand.name}
-                  style={{
-                    margin: '0 auto',
-                  }}
-                />
-              </Column>
-            </Row>
+          {/* Header with logo */}
+          <Section style={baseStyles.header}>
+            <Img
+              src={brand.logoUrl || `${baseUrl}/brand/color/email/type.png`}
+              width='70'
+              alt={brand.name}
+              style={{ display: 'block' }}
+            />
           </Section>
 
-          <Section style={baseStyles.sectionsBorders}>
-            <Row>
-              <Column style={baseStyles.sectionBorder} />
-              <Column style={baseStyles.sectionCenter} />
-              <Column style={baseStyles.sectionBorder} />
-            </Row>
-          </Section>
-
+          {/* Content */}
           <Section style={baseStyles.content}>
             <Text style={baseStyles.paragraph}>Hello,</Text>
             <Text style={baseStyles.paragraph}>
               <strong>{inviterName}</strong> has invited you to join{' '}
-              <strong>{organizationName}</strong> on Sim.
+              <strong>{organizationName}</strong> on {brand.name}.
             </Text>
 
             {/* Team Role Information */}
@@ -138,27 +126,16 @@ export const BatchInvitationEmail = ({
               <Text style={baseStyles.button}>Accept Invitation</Text>
             </Link>
 
-            <Text style={baseStyles.paragraph}>
-              By accepting this invitation, you'll join {organizationName}
-              {hasWorkspaces
-                ? ` and gain access to ${workspaceInvitations.length} workspace(s)`
-                : ''}
-              .
-            </Text>
+            {/* Divider */}
+            <div style={baseStyles.divider} />
 
-            <Text style={baseStyles.paragraph}>
-              This invitation will expire in 7 days. If you didn't expect this invitation, you can
-              safely ignore this email.
-            </Text>
-
-            <Text style={baseStyles.paragraph}>
-              Best regards,
-              <br />
-              The Sim Team
+            <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+              Invitation expires in 7 days. If unexpected, you can ignore this email.
             </Text>
           </Section>
         </Container>
 
+        {/* Footer in gray section */}
         <EmailFooter baseUrl={baseUrl} />
       </Body>
     </Html>
