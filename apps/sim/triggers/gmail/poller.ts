@@ -85,6 +85,30 @@ export const gmailPollingTrigger: TriggerConfig = {
         'Optional Gmail search query to filter emails. Use the same format as Gmail search box (e.g., "subject:invoice", "from:boss@company.com", "has:attachment"). Leave empty to search all emails.',
       required: false,
       mode: 'trigger',
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert in Gmail search syntax. Generate Gmail search queries based on user descriptions.
+
+Gmail search operators include:
+- from: / to: / cc: / bcc: - Filter by sender/recipient
+- subject: - Search in subject line
+- has:attachment - Emails with attachments
+- filename: - Search attachment filenames
+- is:unread / is:read / is:starred
+- after: / before: / older: / newer: - Date filters (YYYY/MM/DD)
+- label: - Filter by label
+- in:inbox / in:spam / in:trash
+- larger: / smaller: - Size filters (e.g., 10M, 1K)
+- OR / AND / - (NOT) - Boolean operators
+- "exact phrase" - Exact match
+- ( ) - Grouping
+
+Current query: {context}
+
+Return ONLY the Gmail search query, no explanations or markdown.`,
+        placeholder: 'Describe what emails you want to filter...',
+      },
     },
     {
       id: 'markAsRead',

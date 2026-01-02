@@ -113,7 +113,13 @@ export function Dropdown({
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   const singleValue = multiSelect ? null : (value as string | null | undefined)
-  const multiValues = multiSelect ? (value as string[] | null | undefined) || [] : null
+  const multiValues = multiSelect
+    ? Array.isArray(value)
+      ? value
+      : value
+        ? [value as string]
+        : []
+    : null
 
   const fetchOptionsIfNeeded = useCallback(async () => {
     if (!fetchOptions || isPreview || disabled) return
