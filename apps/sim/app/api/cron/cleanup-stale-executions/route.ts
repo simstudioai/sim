@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
             executionData: sql`jsonb_set(
               COALESCE(execution_data, '{}'::jsonb),
               ARRAY['error'],
-              to_jsonb(${'Execution terminated: worker timeout or crash after ' + staleDurationMinutes + ' minutes'}::text)
+              to_jsonb(${`Execution terminated: worker timeout or crash after ${staleDurationMinutes} minutes`}::text)
             )`,
           })
           .where(eq(workflowExecutionLogs.id, execution.id))

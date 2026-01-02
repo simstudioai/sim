@@ -23,11 +23,11 @@ import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import type { WorkflowExecutionPayload } from '@/background/workflow-execution'
 import { normalizeName } from '@/executor/constants'
-import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
+import { ExecutionSnapshot } from '@/executor/execution/snapshot'
+import type { ExecutionMetadata, IterationContext } from '@/executor/execution/types'
 import type { StreamingExecution } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
-import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowExecuteAPI')
 
@@ -541,11 +541,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             blockId: string,
             blockName: string,
             blockType: string,
-            iterationContext?: {
-              iterationCurrent: number
-              iterationTotal: number
-              iterationType: SubflowType
-            }
+            iterationContext?: IterationContext
           ) => {
             logger.info(`[${requestId}] 🔷 onBlockStart called:`, { blockId, blockName, blockType })
             sendEvent({
@@ -571,11 +567,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             blockName: string,
             blockType: string,
             callbackData: any,
-            iterationContext?: {
-              iterationCurrent: number
-              iterationTotal: number
-              iterationType: SubflowType
-            }
+            iterationContext?: IterationContext
           ) => {
             const hasError = callbackData.output?.error
 

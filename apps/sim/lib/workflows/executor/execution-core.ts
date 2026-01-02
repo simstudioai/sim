@@ -18,7 +18,8 @@ import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { Executor } from '@/executor'
 import { REFERENCE } from '@/executor/constants'
-import type { ExecutionCallbacks, ExecutionSnapshot } from '@/executor/execution/snapshot'
+import type { ExecutionSnapshot } from '@/executor/execution/snapshot'
+import type { ExecutionCallbacks, IterationContext } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 import { Serializer } from '@/serializer'
@@ -321,7 +322,7 @@ export async function executeWorkflowCore(
       blockName: string,
       blockType: string,
       output: any,
-      iterationContext?: any
+      iterationContext?: IterationContext
     ) => {
       await loggingSession.onBlockComplete(blockId, blockName, blockType, output)
       if (onBlockComplete) {

@@ -7,7 +7,8 @@ import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { getWorkflowById } from '@/lib/workflows/utils'
-import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
+import { ExecutionSnapshot } from '@/executor/execution/snapshot'
+import type { ExecutionMetadata } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
 
 const logger = createLogger('TriggerWorkflowExecution')
