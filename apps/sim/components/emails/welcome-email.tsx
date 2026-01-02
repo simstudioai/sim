@@ -54,11 +54,10 @@ export function WelcomeEmail({ userName }: WelcomeEmailProps) {
             </Link>
 
             <Text style={baseStyles.paragraph}>
-              If you have any questions or feedback, just reply to this email — I read every
-              message.
+              If you have any questions or feedback, just reply to this email. I read every message!
             </Text>
 
-            <Text style={baseStyles.paragraph}>– Emir, Co-founder & CEO of {brand.name}</Text>
+            <Text style={baseStyles.paragraph}>- Emir, co-founder of {brand.name}</Text>
 
             {/* Divider */}
             <div style={baseStyles.divider} />

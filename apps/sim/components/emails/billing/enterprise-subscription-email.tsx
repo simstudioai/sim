@@ -67,7 +67,10 @@ export const EnterpriseSubscriptionEmail = ({
             <div style={baseStyles.divider} />
 
             <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
-              Questions? Reply to this email or contact support.
+              Questions? Reply to this email or contact us at{' '}
+              <Link href={`mailto:${brand.supportEmail}`} style={baseStyles.link}>
+                {brand.supportEmail}
+              </Link>
             </Text>
           </Section>
         </Container>

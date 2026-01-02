@@ -9,9 +9,13 @@ import {
   ResetPasswordEmail,
   UsageThresholdEmail,
   WelcomeEmail,
+  WorkspaceInvitationEmail,
 } from '@/components/emails'
 import CreditPurchaseEmail from '@/components/emails/billing/credit-purchase-email'
 import FreeTierUpgradeEmail from '@/components/emails/billing/free-tier-upgrade-email'
+import PaymentFailedEmail from '@/components/emails/billing/payment-failed-email'
+import CareersConfirmationEmail from '@/components/emails/careers/careers-confirmation-email'
+import CareersSubmissionEmail from '@/components/emails/careers/careers-submission-email'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
@@ -214,6 +218,76 @@ export async function renderCreditPurchaseEmail(params: {
       amount: params.amount,
       newBalance: params.newBalance,
       purchaseDate: new Date(),
+    })
+  )
+}
+
+export async function renderWorkspaceInvitationEmail(
+  inviterName: string,
+  workspaceName: string,
+  invitationLink: string
+): Promise<string> {
+  return await render(
+    WorkspaceInvitationEmail({
+      inviterName,
+      workspaceName,
+      invitationLink,
+    })
+  )
+}
+
+export async function renderPaymentFailedEmail(params: {
+  userName?: string
+  amountDue: number
+  lastFourDigits?: string
+  billingPortalUrl: string
+  failureReason?: string
+}): Promise<string> {
+  return await render(
+    PaymentFailedEmail({
+      userName: params.userName,
+      amountDue: params.amountDue,
+      lastFourDigits: params.lastFourDigits,
+      billingPortalUrl: params.billingPortalUrl,
+      failureReason: params.failureReason,
+    })
+  )
+}
+
+export async function renderCareersConfirmationEmail(
+  name: string,
+  position: string
+): Promise<string> {
+  return await render(
+    CareersConfirmationEmail({
+      name,
+      position,
+    })
+  )
+}
+
+export async function renderCareersSubmissionEmail(params: {
+  name: string
+  email: string
+  phone?: string
+  position: string
+  linkedin?: string
+  portfolio?: string
+  experience: string
+  location: string
+  message: string
+}): Promise<string> {
+  return await render(
+    CareersSubmissionEmail({
+      name: params.name,
+      email: params.email,
+      phone: params.phone,
+      position: params.position,
+      linkedin: params.linkedin,
+      portfolio: params.portfolio,
+      experience: params.experience,
+      location: params.location,
+      message: params.message,
     })
   )
 }
