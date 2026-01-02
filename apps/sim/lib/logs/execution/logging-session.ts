@@ -1,4 +1,7 @@
+import { db } from '@sim/db'
+import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { eq, sql } from 'drizzle-orm'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { executionLogger } from '@/lib/logs/execution/logger'
 import {
@@ -50,6 +53,29 @@ export interface SessionCancelledParams {
   traceSpans?: TraceSpan[]
 }
 
+export interface SessionPausedParams {
+  endedAt?: string
+  totalDurationMs?: number
+  traceSpans?: TraceSpan[]
+  workflowInput?: any
+}
+
+interface AccumulatedCost {
+  total: number
+  input: number
+  output: number
+  tokens: { input: number; output: number; total: number }
+  models: Record<
+    string,
+    {
+      input: number
+      output: number
+      total: number
+      tokens: { input: number; output: number; total: number }
+    }
+  >
+}
+
 export class LoggingSession {
   private workflowId: string
   private executionId: string
@@ -60,6 +86,14 @@ export class LoggingSession {
   private workflowState?: WorkflowState
   private isResume = false
   private completed = false
+  private accumulatedCost: AccumulatedCost = {
+    total: BASE_EXECUTION_CHARGE,
+    input: 0,
+    output: 0,
+    tokens: { input: 0, output: 0, total: 0 },
+    models: {},
+  }
+  private costFlushed = false
 
   constructor(
     workflowId: string,
@@ -71,6 +105,102 @@ export class LoggingSession {
     this.executionId = executionId
     this.triggerType = triggerType
     this.requestId = requestId
+  }
+
+  async onBlockComplete(
+    blockId: string,
+    blockName: string,
+    blockType: string,
+    output: any
+  ): Promise<void> {
+    if (!output?.cost || typeof output.cost.total !== 'number' || output.cost.total <= 0) {
+      return
+    }
+
+    const { cost, tokens, model } = output
+
+    this.accumulatedCost.total += cost.total || 0
+    this.accumulatedCost.input += cost.input || 0
+    this.accumulatedCost.output += cost.output || 0
+
+    if (tokens) {
+      this.accumulatedCost.tokens.input += tokens.input || 0
+      this.accumulatedCost.tokens.output += tokens.output || 0
+      this.accumulatedCost.tokens.total += tokens.total || 0
+    }
+
+    if (model) {
+      if (!this.accumulatedCost.models[model]) {
+        this.accumulatedCost.models[model] = {
+          input: 0,
+          output: 0,
+          total: 0,
+          tokens: { input: 0, output: 0, total: 0 },
+        }
+      }
+      this.accumulatedCost.models[model].input += cost.input || 0
+      this.accumulatedCost.models[model].output += cost.output || 0
+      this.accumulatedCost.models[model].total += cost.total || 0
+      if (tokens) {
+        this.accumulatedCost.models[model].tokens.input += tokens.input || 0
+        this.accumulatedCost.models[model].tokens.output += tokens.output || 0
+        this.accumulatedCost.models[model].tokens.total += tokens.total || 0
+      }
+    }
+
+    await this.flushAccumulatedCost()
+  }
+
+  private async flushAccumulatedCost(): Promise<void> {
+    try {
+      await db
+        .update(workflowExecutionLogs)
+        .set({
+          cost: {
+            total: this.accumulatedCost.total,
+            input: this.accumulatedCost.input,
+            output: this.accumulatedCost.output,
+            tokens: this.accumulatedCost.tokens,
+            models: this.accumulatedCost.models,
+          },
+        })
+        .where(eq(workflowExecutionLogs.executionId, this.executionId))
+
+      this.costFlushed = true
+    } catch (error) {
+      logger.error(`Failed to flush accumulated cost for execution ${this.executionId}:`, {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  private async loadExistingCost(): Promise<void> {
+    try {
+      const [existing] = await db
+        .select({ cost: workflowExecutionLogs.cost })
+        .from(workflowExecutionLogs)
+        .where(eq(workflowExecutionLogs.executionId, this.executionId))
+        .limit(1)
+
+      if (existing?.cost) {
+        const cost = existing.cost as any
+        this.accumulatedCost = {
+          total: cost.total || BASE_EXECUTION_CHARGE,
+          input: cost.input || 0,
+          output: cost.output || 0,
+          tokens: {
+            input: cost.tokens?.input || 0,
+            output: cost.tokens?.output || 0,
+            total: cost.tokens?.total || 0,
+          },
+          models: cost.models || {},
+        }
+      }
+    } catch (error) {
+      logger.error(`Failed to load existing cost for execution ${this.executionId}:`, {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
   }
 
   async start(params: SessionStartParams): Promise<void> {
@@ -92,7 +222,6 @@ export class LoggingSession {
         ? await loadDeployedWorkflowStateForLogging(this.workflowId)
         : await loadWorkflowStateForExecution(this.workflowId)
 
-      // Only create a new log entry if not resuming
       if (!skipLogCreation) {
         await executionLogger.startWorkflowExecution({
           workflowId: this.workflowId,
@@ -108,7 +237,8 @@ export class LoggingSession {
           logger.debug(`[${this.requestId}] Started logging for execution ${this.executionId}`)
         }
       } else {
-        this.isResume = true // Mark as resume
+        this.isResume = true
+        await this.loadExistingCost()
         if (this.requestId) {
           logger.debug(
             `[${this.requestId}] Resuming logging for existing execution ${this.executionId}`
@@ -364,6 +494,68 @@ export class LoggingSession {
     }
   }
 
+  async completeWithPause(params: SessionPausedParams = {}): Promise<void> {
+    try {
+      const { endedAt, totalDurationMs, traceSpans, workflowInput } = params
+
+      const endTime = endedAt ? new Date(endedAt) : new Date()
+      const durationMs = typeof totalDurationMs === 'number' ? totalDurationMs : 0
+
+      const costSummary = traceSpans?.length
+        ? calculateCostSummary(traceSpans)
+        : {
+            totalCost: BASE_EXECUTION_CHARGE,
+            totalInputCost: 0,
+            totalOutputCost: 0,
+            totalTokens: 0,
+            totalPromptTokens: 0,
+            totalCompletionTokens: 0,
+            baseExecutionCharge: BASE_EXECUTION_CHARGE,
+            modelCost: 0,
+            models: {},
+          }
+
+      await executionLogger.completeWorkflowExecution({
+        executionId: this.executionId,
+        endedAt: endTime.toISOString(),
+        totalDurationMs: Math.max(1, durationMs),
+        costSummary,
+        finalOutput: { paused: true },
+        traceSpans: traceSpans || [],
+        workflowInput,
+        status: 'pending',
+      })
+
+      try {
+        const { trackPlatformEvent } = await import('@/lib/core/telemetry')
+        trackPlatformEvent('platform.workflow.executed', {
+          'workflow.id': this.workflowId,
+          'execution.duration_ms': Math.max(1, durationMs),
+          'execution.status': 'paused',
+          'execution.trigger': this.triggerType,
+          'execution.blocks_executed': traceSpans?.length || 0,
+          'execution.has_errors': false,
+          'execution.total_cost': costSummary.totalCost || 0,
+        })
+      } catch (_e) {}
+
+      if (this.requestId) {
+        logger.debug(
+          `[${this.requestId}] Completed paused logging for execution ${this.executionId}`
+        )
+      }
+    } catch (pauseError) {
+      logger.error(`Failed to complete paused logging for execution ${this.executionId}:`, {
+        requestId: this.requestId,
+        workflowId: this.workflowId,
+        executionId: this.executionId,
+        error: pauseError instanceof Error ? pauseError.message : String(pauseError),
+        stack: pauseError instanceof Error ? pauseError.stack : undefined,
+      })
+      throw pauseError
+    }
+  }
+
   async safeStart(params: SessionStartParams): Promise<boolean> {
     try {
       await this.start(params)
@@ -480,13 +672,64 @@ export class LoggingSession {
     }
   }
 
+  async safeCompleteWithPause(params?: SessionPausedParams): Promise<void> {
+    try {
+      await this.completeWithPause(params)
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      logger.warn(
+        `[${this.requestId || 'unknown'}] CompleteWithPause failed for execution ${this.executionId}, attempting fallback`,
+        { error: errorMsg }
+      )
+      await this.completeWithCostOnlyLog({
+        traceSpans: params?.traceSpans,
+        endedAt: params?.endedAt,
+        totalDurationMs: params?.totalDurationMs,
+        errorMessage: 'Execution paused but failed to store full trace spans',
+        isError: false,
+        status: 'pending',
+      })
+    }
+  }
+
+  async markAsFailed(errorMessage?: string): Promise<void> {
+    await LoggingSession.markExecutionAsFailed(this.executionId, errorMessage, this.requestId)
+  }
+
+  static async markExecutionAsFailed(
+    executionId: string,
+    errorMessage?: string,
+    requestId?: string
+  ): Promise<void> {
+    try {
+      const message = errorMessage || 'Execution failed'
+      await db
+        .update(workflowExecutionLogs)
+        .set({
+          status: 'failed',
+          executionData: sql`jsonb_set(
+            COALESCE(execution_data, '{}'::jsonb),
+            ARRAY['error'],
+            to_jsonb(${message}::text)
+          )`,
+        })
+        .where(eq(workflowExecutionLogs.executionId, executionId))
+
+      logger.info(`[${requestId || 'unknown'}] Marked execution ${executionId} as failed`)
+    } catch (error) {
+      logger.error(`Failed to mark execution ${executionId} as failed:`, {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
   private async completeWithCostOnlyLog(params: {
     traceSpans?: TraceSpan[]
     endedAt?: string
     totalDurationMs?: number
     errorMessage: string
     isError: boolean
-    status?: 'completed' | 'failed' | 'cancelled'
+    status?: 'completed' | 'failed' | 'cancelled' | 'pending'
   }): Promise<void> {
     if (this.completed) {
       return
