@@ -32,7 +32,12 @@ export interface ExecutionCallbacks {
     blockId: string,
     blockName: string,
     blockType: string,
-    output: any
+    output: any,
+    iterationContext?: {
+      iterationCurrent: number
+      iterationTotal: number
+      iterationType: 'loop' | 'parallel'
+    }
   ) => Promise<void>
 }
 

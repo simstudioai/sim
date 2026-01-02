@@ -9,6 +9,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import {
   checkUsageStatus,
@@ -129,6 +130,13 @@ export class ExecutionLogger implements IExecutionLoggerService {
         executionData: {
           environment,
           trigger,
+        },
+        cost: {
+          total: BASE_EXECUTION_CHARGE,
+          input: 0,
+          output: 0,
+          tokens: { input: 0, output: 0, total: 0 },
+          models: {},
         },
       })
       .returning()

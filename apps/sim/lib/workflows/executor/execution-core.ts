@@ -316,6 +316,19 @@ export async function executeWorkflowCore(
       })
     }
 
+    const wrappedOnBlockComplete = async (
+      blockId: string,
+      blockName: string,
+      blockType: string,
+      output: any,
+      iterationContext?: any
+    ) => {
+      await loggingSession.onBlockComplete(blockId, blockName, blockType, output)
+      if (onBlockComplete) {
+        await onBlockComplete(blockId, blockName, blockType, output, iterationContext)
+      }
+    }
+
     const contextExtensions: any = {
       stream: !!onStream,
       selectedOutputs,
@@ -324,7 +337,7 @@ export async function executeWorkflowCore(
       userId,
       isDeployedContext: triggerType !== 'manual',
       onBlockStart,
-      onBlockComplete,
+      onBlockComplete: wrappedOnBlockComplete,
       onStream,
       resumeFromSnapshot,
       resumePendingQueue,

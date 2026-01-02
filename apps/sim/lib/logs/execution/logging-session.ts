@@ -60,6 +60,22 @@ export interface SessionPausedParams {
   workflowInput?: any
 }
 
+interface AccumulatedCost {
+  total: number
+  input: number
+  output: number
+  tokens: { input: number; output: number; total: number }
+  models: Record<
+    string,
+    {
+      input: number
+      output: number
+      total: number
+      tokens: { input: number; output: number; total: number }
+    }
+  >
+}
+
 export class LoggingSession {
   private workflowId: string
   private executionId: string
@@ -70,6 +86,14 @@ export class LoggingSession {
   private workflowState?: WorkflowState
   private isResume = false
   private completed = false
+  private accumulatedCost: AccumulatedCost = {
+    total: BASE_EXECUTION_CHARGE,
+    input: 0,
+    output: 0,
+    tokens: { input: 0, output: 0, total: 0 },
+    models: {},
+  }
+  private costFlushed = false
 
   constructor(
     workflowId: string,
@@ -81,6 +105,102 @@ export class LoggingSession {
     this.executionId = executionId
     this.triggerType = triggerType
     this.requestId = requestId
+  }
+
+  async onBlockComplete(
+    blockId: string,
+    blockName: string,
+    blockType: string,
+    output: any
+  ): Promise<void> {
+    if (!output?.cost || typeof output.cost.total !== 'number' || output.cost.total <= 0) {
+      return
+    }
+
+    const { cost, tokens, model } = output
+
+    this.accumulatedCost.total += cost.total || 0
+    this.accumulatedCost.input += cost.input || 0
+    this.accumulatedCost.output += cost.output || 0
+
+    if (tokens) {
+      this.accumulatedCost.tokens.input += tokens.input || 0
+      this.accumulatedCost.tokens.output += tokens.output || 0
+      this.accumulatedCost.tokens.total += tokens.total || 0
+    }
+
+    if (model) {
+      if (!this.accumulatedCost.models[model]) {
+        this.accumulatedCost.models[model] = {
+          input: 0,
+          output: 0,
+          total: 0,
+          tokens: { input: 0, output: 0, total: 0 },
+        }
+      }
+      this.accumulatedCost.models[model].input += cost.input || 0
+      this.accumulatedCost.models[model].output += cost.output || 0
+      this.accumulatedCost.models[model].total += cost.total || 0
+      if (tokens) {
+        this.accumulatedCost.models[model].tokens.input += tokens.input || 0
+        this.accumulatedCost.models[model].tokens.output += tokens.output || 0
+        this.accumulatedCost.models[model].tokens.total += tokens.total || 0
+      }
+    }
+
+    await this.flushAccumulatedCost()
+  }
+
+  private async flushAccumulatedCost(): Promise<void> {
+    try {
+      await db
+        .update(workflowExecutionLogs)
+        .set({
+          cost: {
+            total: this.accumulatedCost.total,
+            input: this.accumulatedCost.input,
+            output: this.accumulatedCost.output,
+            tokens: this.accumulatedCost.tokens,
+            models: this.accumulatedCost.models,
+          },
+        })
+        .where(eq(workflowExecutionLogs.executionId, this.executionId))
+
+      this.costFlushed = true
+    } catch (error) {
+      logger.error(`Failed to flush accumulated cost for execution ${this.executionId}:`, {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  private async loadExistingCost(): Promise<void> {
+    try {
+      const [existing] = await db
+        .select({ cost: workflowExecutionLogs.cost })
+        .from(workflowExecutionLogs)
+        .where(eq(workflowExecutionLogs.executionId, this.executionId))
+        .limit(1)
+
+      if (existing?.cost) {
+        const cost = existing.cost as any
+        this.accumulatedCost = {
+          total: cost.total || BASE_EXECUTION_CHARGE,
+          input: cost.input || 0,
+          output: cost.output || 0,
+          tokens: {
+            input: cost.tokens?.input || 0,
+            output: cost.tokens?.output || 0,
+            total: cost.tokens?.total || 0,
+          },
+          models: cost.models || {},
+        }
+      }
+    } catch (error) {
+      logger.error(`Failed to load existing cost for execution ${this.executionId}:`, {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
   }
 
   async start(params: SessionStartParams): Promise<void> {
@@ -102,7 +222,6 @@ export class LoggingSession {
         ? await loadDeployedWorkflowStateForLogging(this.workflowId)
         : await loadWorkflowStateForExecution(this.workflowId)
 
-      // Only create a new log entry if not resuming
       if (!skipLogCreation) {
         await executionLogger.startWorkflowExecution({
           workflowId: this.workflowId,
@@ -118,7 +237,8 @@ export class LoggingSession {
           logger.debug(`[${this.requestId}] Started logging for execution ${this.executionId}`)
         }
       } else {
-        this.isResume = true // Mark as resume
+        this.isResume = true
+        await this.loadExistingCost()
         if (this.requestId) {
           logger.debug(
             `[${this.requestId}] Resuming logging for existing execution ${this.executionId}`
