@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { webhook, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
-import type { FetchMessageObject } from 'imapflow'
+import type { FetchMessageObject, MailboxLockObject } from 'imapflow'
 import { ImapFlow } from 'imapflow'
 import { nanoid } from 'nanoid'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
@@ -18,11 +18,13 @@ interface ImapWebhookConfig {
   rejectUnauthorized: boolean
   username: string
   password: string
-  mailbox: string
+  mailbox: string | string[] // Can be single mailbox or array of mailboxes
   searchCriteria: string
   markAsRead: boolean
   includeAttachments: boolean
   lastProcessedUid?: number
+  lastProcessedUidByMailbox?: Record<string, number> // Track UID per mailbox for multi-mailbox
+  lastCheckedTimestamp?: string // ISO timestamp of last successful poll
   maxEmailsPerPoll?: number
 }
 
@@ -121,7 +123,6 @@ export async function pollImapWebhooks() {
 
     logger.info(`Found ${activeWebhooks.length} active IMAP webhooks`)
 
-    // Limit concurrency to avoid overwhelming IMAP servers
     const CONCURRENCY = 5
 
     const running: Promise<void>[] = []
@@ -143,12 +144,11 @@ export async function pollImapWebhooks() {
         }
 
         const fetchResult = await fetchNewEmails(config, requestId)
-        const { emails, latestUid } = fetchResult
+        const { emails, latestUidByMailbox } = fetchResult
+        const pollTimestamp = new Date().toISOString()
 
         if (!emails || !emails.length) {
-          if (latestUid && latestUid !== config.lastProcessedUid) {
-            await updateWebhookLastProcessedUid(webhookId, latestUid)
-          }
+          await updateWebhookLastProcessedUids(webhookId, latestUidByMailbox, pollTimestamp)
           await markWebhookSuccess(webhookId)
           logger.info(`[${requestId}] No new emails found for webhook ${webhookId}`)
           successCount++
@@ -164,9 +164,7 @@ export async function pollImapWebhooks() {
           requestId
         )
 
-        if (latestUid) {
-          await updateWebhookLastProcessedUid(webhookId, latestUid)
-        }
+        await updateWebhookLastProcessedUids(webhookId, latestUidByMailbox, pollTimestamp)
 
         if (emailFailedCount > 0 && processedCount === 0) {
           await markWebhookFailed(webhookId)
@@ -244,79 +242,109 @@ async function fetchNewEmails(config: ImapWebhookConfig, requestId: string) {
 
   const emails: Array<{
     uid: number
+    mailboxPath: string // Track which mailbox this email came from
     envelope: FetchMessageObject['envelope']
     bodyStructure: FetchMessageObject['bodyStructure']
     source?: Buffer
   }> = []
-  let latestUid = config.lastProcessedUid
+
+  const mailboxes = getMailboxesToCheck(config)
+  const latestUidByMailbox: Record<string, number> = { ...(config.lastProcessedUidByMailbox || {}) }
 
   try {
     await client.connect()
     logger.debug(`[${requestId}] Connected to IMAP server ${config.host}`)
 
-    const mailbox = await client.mailboxOpen(config.mailbox || 'INBOX')
-    logger.debug(`[${requestId}] Opened mailbox: ${mailbox.path}, exists: ${mailbox.exists}`)
-
-    // Build search criteria
-    let searchCriteria: any = config.searchCriteria || 'UNSEEN'
-
-    // If we have a last processed UID, add UID filter
-    if (config.lastProcessedUid) {
-      // Search for messages with UID greater than last processed
-      const uidCriteria = { uid: `${config.lastProcessedUid + 1}:*` }
-      if (typeof searchCriteria === 'string') {
-        searchCriteria = { [searchCriteria]: true, ...uidCriteria }
-      } else {
-        searchCriteria = { ...searchCriteria, ...uidCriteria }
-      }
-    }
-
-    // Search for matching messages
-    const messageUids: number[] = []
-    try {
-      for await (const msg of client.fetch(searchCriteria, { uid: true })) {
-        messageUids.push(msg.uid)
-      }
-    } catch (fetchError) {
-      // If search fails (e.g., no messages match), return empty
-      logger.debug(`[${requestId}] Fetch returned no messages or failed: ${fetchError}`)
-      await client.logout()
-      return { emails: [], latestUid }
-    }
-
-    if (messageUids.length === 0) {
-      logger.debug(`[${requestId}] No messages matching criteria`)
-      await client.logout()
-      return { emails: [], latestUid }
-    }
-
-    // Sort UIDs and take the most recent ones
-    messageUids.sort((a, b) => b - a)
     const maxEmails = config.maxEmailsPerPoll || 25
-    const uidsToProcess = messageUids.slice(0, maxEmails)
-    latestUid = Math.max(...uidsToProcess, config.lastProcessedUid || 0)
+    let totalEmailsCollected = 0
 
-    logger.info(`[${requestId}] Processing ${uidsToProcess.length} emails from ${config.mailbox}`)
+    for (const mailboxPath of mailboxes) {
+      if (totalEmailsCollected >= maxEmails) break
 
-    // Fetch full message details
-    for await (const msg of client.fetch(uidsToProcess, {
-      uid: true,
-      envelope: true,
-      bodyStructure: true,
-      source: true,
-    })) {
-      emails.push({
-        uid: msg.uid,
-        envelope: msg.envelope,
-        bodyStructure: msg.bodyStructure,
-        source: msg.source,
-      })
+      try {
+        const mailbox = await client.mailboxOpen(mailboxPath)
+        logger.debug(`[${requestId}] Opened mailbox: ${mailbox.path}, exists: ${mailbox.exists}`)
+
+        const rawCriteria = config.searchCriteria || 'UNSEEN'
+        let searchCriteria: any =
+          typeof rawCriteria === 'string' ? { [rawCriteria.toLowerCase()]: true } : rawCriteria
+
+        const lastUidForMailbox = latestUidByMailbox[mailboxPath] || config.lastProcessedUid
+
+        if (lastUidForMailbox) {
+          searchCriteria = { ...searchCriteria, uid: `${lastUidForMailbox + 1}:*` }
+        }
+
+        // Add time-based filtering similar to Gmail
+        // If lastCheckedTimestamp exists, use it with 1 minute buffer
+        // If first poll (no timestamp), default to last 24 hours to avoid processing ALL unseen emails
+        if (config.lastCheckedTimestamp) {
+          const lastChecked = new Date(config.lastCheckedTimestamp)
+          const bufferTime = new Date(lastChecked.getTime() - 60000)
+          searchCriteria = { ...searchCriteria, since: bufferTime }
+        } else {
+          // First poll: only get emails from last 24 hours to avoid overwhelming first run
+          const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+          searchCriteria = { ...searchCriteria, since: oneDayAgo }
+        }
+
+        let messageUids: number[] = []
+        try {
+          const searchResult = await client.search(searchCriteria, { uid: true })
+          messageUids = searchResult === false ? [] : searchResult
+        } catch (searchError) {
+          logger.debug(
+            `[${requestId}] Search returned no messages for ${mailboxPath}: ${searchError}`
+          )
+          continue
+        }
+
+        if (messageUids.length === 0) {
+          logger.debug(`[${requestId}] No messages matching criteria in ${mailboxPath}`)
+          continue
+        }
+
+        messageUids.sort((a, b) => b - a)
+        const remainingSlots = maxEmails - totalEmailsCollected
+        const uidsToProcess = messageUids.slice(0, remainingSlots)
+
+        if (uidsToProcess.length > 0) {
+          latestUidByMailbox[mailboxPath] = Math.max(
+            ...uidsToProcess,
+            latestUidByMailbox[mailboxPath] || 0
+          )
+        }
+
+        logger.info(`[${requestId}] Processing ${uidsToProcess.length} emails from ${mailboxPath}`)
+
+        for await (const msg of client.fetch(
+          uidsToProcess,
+          {
+            uid: true,
+            envelope: true,
+            bodyStructure: true,
+            source: true,
+          },
+          { uid: true }
+        )) {
+          emails.push({
+            uid: msg.uid,
+            mailboxPath,
+            envelope: msg.envelope,
+            bodyStructure: msg.bodyStructure,
+            source: msg.source,
+          })
+          totalEmailsCollected++
+        }
+      } catch (mailboxError) {
+        logger.warn(`[${requestId}] Error processing mailbox ${mailboxPath}:`, mailboxError)
+      }
     }
 
     await client.logout()
     logger.debug(`[${requestId}] Disconnected from IMAP server`)
 
-    return { emails, latestUid }
+    return { emails, latestUidByMailbox }
   } catch (error) {
     try {
       await client.logout()
@@ -325,6 +353,19 @@ async function fetchNewEmails(config: ImapWebhookConfig, requestId: string) {
     }
     throw error
   }
+}
+
+/**
+ * Get the list of mailboxes to check based on config
+ */
+function getMailboxesToCheck(config: ImapWebhookConfig): string[] {
+  if (!config.mailbox || (Array.isArray(config.mailbox) && config.mailbox.length === 0)) {
+    return ['INBOX']
+  }
+  if (Array.isArray(config.mailbox)) {
+    return config.mailbox
+  }
+  return [config.mailbox]
 }
 
 function parseEmailAddress(
@@ -345,24 +386,20 @@ function extractTextFromSource(source: Buffer): { text: string; html: string } {
   let text = ''
   let html = ''
 
-  // Simple extraction - look for Content-Type boundaries
   const parts = content.split(/--[^\r\n]+/)
 
   for (const part of parts) {
     const lowerPart = part.toLowerCase()
 
     if (lowerPart.includes('content-type: text/plain')) {
-      // Extract text content after headers (double newline)
       const match = part.match(/\r?\n\r?\n([\s\S]*?)(?=\r?\n--|\r?\n\.\r?\n|$)/i)
       if (match) {
         text = match[1].trim()
-        // Handle quoted-printable decoding
         if (lowerPart.includes('quoted-printable')) {
           text = text
             .replace(/=\r?\n/g, '')
             .replace(/=([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
         }
-        // Handle base64 decoding
         if (lowerPart.includes('base64')) {
           try {
             text = Buffer.from(text.replace(/\s/g, ''), 'base64').toString('utf-8')
@@ -391,7 +428,6 @@ function extractTextFromSource(source: Buffer): { text: string; html: string } {
     }
   }
 
-  // If no multipart, try to get the body directly
   if (!text && !html) {
     const bodyMatch = content.match(/\r?\n\r?\n([\s\S]+)$/)
     if (bodyMatch) {
@@ -416,7 +452,6 @@ function extractAttachmentsFromSource(
   for (const part of parts) {
     const lowerPart = part.toLowerCase()
 
-    // Look for attachment dispositions or non-text content types
     const dispositionMatch = part.match(
       /content-disposition:\s*attachment[^;]*;\s*filename="?([^"\r\n]+)"?/i
     )
@@ -430,12 +465,10 @@ function extractAttachmentsFromSource(
       const filename = dispositionMatch?.[1] || filenameMatch?.[1] || 'attachment'
       const mimeType = contentTypeMatch?.[1]?.trim() || 'application/octet-stream'
 
-      // Extract the attachment data
       const dataMatch = part.match(/\r?\n\r?\n([\s\S]*?)$/i)
       if (dataMatch) {
         const data = dataMatch[1].trim()
 
-        // Most attachments are base64 encoded
         if (lowerPart.includes('base64')) {
           try {
             const buffer = Buffer.from(data.replace(/\s/g, ''), 'base64')
@@ -459,6 +492,7 @@ function extractAttachmentsFromSource(
 async function processEmails(
   emails: Array<{
     uid: number
+    mailboxPath: string
     envelope: FetchMessageObject['envelope']
     bodyStructure: FetchMessageObject['bodyStructure']
     source?: Buffer
@@ -470,7 +504,6 @@ async function processEmails(
   let processedCount = 0
   let failedCount = 0
 
-  // Create a new client for marking messages
   const client = new ImapFlow({
     host: config.host,
     port: config.port || 993,
@@ -485,26 +518,26 @@ async function processEmails(
     logger: false,
   })
 
+  let currentOpenMailbox: string | null = null
+  const lockState: { lock: MailboxLockObject | null } = { lock: null }
+
   try {
     if (config.markAsRead) {
       await client.connect()
-      await client.mailboxOpen(config.mailbox || 'INBOX')
     }
 
     for (const email of emails) {
       try {
         await pollingIdempotency.executeWithIdempotency(
           'imap',
-          `${webhookData.id}:${email.uid}`,
+          `${webhookData.id}:${email.mailboxPath}:${email.uid}`,
           async () => {
             const envelope = email.envelope
 
-            // Extract body content
             const { text: bodyText, html: bodyHtml } = email.source
               ? extractTextFromSource(email.source)
               : { text: '', html: '' }
 
-            // Extract attachments if enabled
             let attachments: ImapAttachment[] = []
             const hasAttachments = email.bodyStructure
               ? JSON.stringify(email.bodyStructure).toLowerCase().includes('attachment')
@@ -524,7 +557,7 @@ async function processEmails(
               date: envelope?.date ? new Date(envelope.date).toISOString() : null,
               bodyText,
               bodyHtml,
-              mailbox: config.mailbox || 'INBOX',
+              mailbox: email.mailboxPath,
               hasAttachments,
               attachments,
             }
@@ -556,10 +589,17 @@ async function processEmails(
               throw new Error(`Webhook request failed: ${response.status} - ${errorText}`)
             }
 
-            // Mark as read if configured
             if (config.markAsRead) {
               try {
-                await client.messageFlagsAdd({ uid: email.uid }, ['\\Seen'])
+                if (currentOpenMailbox !== email.mailboxPath) {
+                  if (lockState.lock) {
+                    lockState.lock.release()
+                    lockState.lock = null
+                  }
+                  lockState.lock = await client.getMailboxLock(email.mailboxPath)
+                  currentOpenMailbox = email.mailboxPath
+                }
+                await client.messageFlagsAdd({ uid: email.uid }, ['\\Seen'], { uid: true })
               } catch (flagError) {
                 logger.warn(
                   `[${requestId}] Failed to mark message ${email.uid} as read:`,
@@ -577,7 +617,7 @@ async function processEmails(
         )
 
         logger.info(
-          `[${requestId}] Successfully processed email ${email.uid} for webhook ${webhookData.id}`
+          `[${requestId}] Successfully processed email ${email.uid} from ${email.mailboxPath} for webhook ${webhookData.id}`
         )
         processedCount++
       } catch (error) {
@@ -589,6 +629,9 @@ async function processEmails(
   } finally {
     if (config.markAsRead) {
       try {
+        if (lockState.lock) {
+          lockState.lock.release()
+        }
         await client.logout()
       } catch {
         // Ignore logout errors
@@ -599,15 +642,28 @@ async function processEmails(
   return { processedCount, failedCount }
 }
 
-async function updateWebhookLastProcessedUid(webhookId: string, uid: number) {
+async function updateWebhookLastProcessedUids(
+  webhookId: string,
+  uidByMailbox: Record<string, number>,
+  timestamp: string
+) {
   const result = await db.select().from(webhook).where(eq(webhook.id, webhookId))
   const existingConfig = (result[0]?.providerConfig as Record<string, any>) || {}
+
+  const existingUidByMailbox = existingConfig.lastProcessedUidByMailbox || {}
+  const mergedUidByMailbox = { ...existingUidByMailbox }
+
+  for (const [mailbox, uid] of Object.entries(uidByMailbox)) {
+    mergedUidByMailbox[mailbox] = Math.max(uid, mergedUidByMailbox[mailbox] || 0)
+  }
+
   await db
     .update(webhook)
     .set({
       providerConfig: {
         ...existingConfig,
-        lastProcessedUid: uid,
+        lastProcessedUidByMailbox: mergedUidByMailbox,
+        lastCheckedTimestamp: timestamp,
       } as any,
       updatedAt: new Date(),
     })

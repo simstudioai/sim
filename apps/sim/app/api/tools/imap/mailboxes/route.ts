@@ -42,7 +42,6 @@ export async function POST(request: NextRequest) {
     try {
       await client.connect()
 
-      // List all mailboxes
       const listResult = await client.list()
       const mailboxes = listResult.map((mailbox) => ({
         path: mailbox.path,
@@ -52,7 +51,6 @@ export async function POST(request: NextRequest) {
 
       await client.logout()
 
-      // Sort mailboxes: INBOX first, then alphabetically
       mailboxes.sort((a, b) => {
         if (a.path === 'INBOX') return -1
         if (b.path === 'INBOX') return 1
@@ -64,7 +62,6 @@ export async function POST(request: NextRequest) {
         mailboxes,
       })
     } catch (error) {
-      // Make sure to close connection on error
       try {
         await client.logout()
       } catch {
@@ -76,7 +73,6 @@ export async function POST(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     logger.error('Error fetching IMAP mailboxes:', errorMessage)
 
-    // Provide user-friendly error messages
     let userMessage = 'Failed to connect to IMAP server'
     if (
       errorMessage.includes('AUTHENTICATIONFAILED') ||

@@ -870,9 +870,34 @@ export async function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'imap') {
-    // IMAP email data is already formatted by the polling service
     if (body && typeof body === 'object' && 'email' in body) {
-      return body
+      const email = body.email as Record<string, any>
+      return {
+        messageId: email?.messageId,
+        subject: email?.subject,
+        from: email?.from,
+        to: email?.to,
+        cc: email?.cc,
+        date: email?.date,
+        bodyText: email?.bodyText,
+        bodyHtml: email?.bodyHtml,
+        mailbox: email?.mailbox,
+        hasAttachments: email?.hasAttachments,
+        attachments: email?.attachments,
+        email,
+        timestamp: body.timestamp,
+        webhook: {
+          data: {
+            provider: 'imap',
+            path: foundWebhook.path,
+            providerConfig: foundWebhook.providerConfig,
+            payload: body,
+            headers: Object.fromEntries(request.headers.entries()),
+            method: request.method,
+          },
+        },
+        workflowId: foundWorkflow.id,
+      }
     }
     return body
   }
@@ -2578,7 +2603,6 @@ export async function configureImapPolling(webhookData: any, requestId: string):
     const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
     const now = new Date()
 
-    // Validate required IMAP connection settings
     if (!providerConfig.host || !providerConfig.username || !providerConfig.password) {
       logger.error(
         `[${requestId}] Missing required IMAP connection settings for webhook ${webhookData.id}`
@@ -2591,17 +2615,13 @@ export async function configureImapPolling(webhookData: any, requestId: string):
       .set({
         providerConfig: {
           ...providerConfig,
-          // Connection defaults
           port: providerConfig.port || '993',
           secure: providerConfig.secure !== false,
           rejectUnauthorized: providerConfig.rejectUnauthorized !== false,
-          // Mailbox defaults
           mailbox: providerConfig.mailbox || 'INBOX',
           searchCriteria: providerConfig.searchCriteria || 'UNSEEN',
-          // Processing options
           markAsRead: providerConfig.markAsRead || false,
           includeAttachments: providerConfig.includeAttachments !== false,
-          // Polling state
           lastCheckedTimestamp: now.toISOString(),
           setupCompleted: true,
         },

@@ -35,7 +35,6 @@ export const ImapBlock: BlockConfig = {
   },
   outputs: {
     // Trigger outputs (from email)
-    uid: { type: 'string', description: 'IMAP message UID' },
     messageId: { type: 'string', description: 'RFC Message-ID header' },
     subject: { type: 'string', description: 'Email subject line' },
     from: { type: 'string', description: 'Sender email address' },

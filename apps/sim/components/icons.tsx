@@ -305,7 +305,6 @@ export function MailServerIcon(props: SVGProps<SVGSVGElement>) {
       fill='none'
       xmlns='http://www.w3.org/2000/svg'
     >
-      {/* Server/inbox icon with mail symbol */}
       <rect
         x='3'
         y='4'

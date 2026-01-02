@@ -75,12 +75,14 @@ export const imapPollingTrigger: TriggerConfig = {
     // Mailbox selection
     {
       id: 'mailbox',
-      title: 'Mailbox',
+      title: 'Mailboxes to Monitor',
       type: 'dropdown',
-      placeholder: 'Select mailbox to monitor',
-      description: 'Choose which mailbox/folder to monitor for new emails',
-      required: true,
-      options: [{ id: 'INBOX', label: 'INBOX' }],
+      multiSelect: true,
+      placeholder: 'Select mailboxes to monitor',
+      description:
+        'Choose which mailbox/folder(s) to monitor for new emails. Leave empty to monitor INBOX.',
+      required: false,
+      options: [],
       fetchOptions: async (blockId: string, _subBlockId: string) => {
         const store = useSubBlockStore.getState()
         const host = store.getValue(blockId, 'host') as string | null
@@ -120,7 +122,7 @@ export const imapPollingTrigger: TriggerConfig = {
               label: mailbox.name,
             }))
           }
-          return [{ id: 'INBOX', label: 'INBOX' }]
+          return []
         } catch (error) {
           logger.error('Error fetching IMAP mailboxes:', error)
           throw error
@@ -140,6 +142,40 @@ export const imapPollingTrigger: TriggerConfig = {
       defaultValue: 'UNSEEN',
       required: false,
       mode: 'trigger',
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert in IMAP search syntax (RFC 3501). Generate IMAP search criteria based on user descriptions.
+
+IMAP search keys include:
+- ALL - All messages
+- UNSEEN / SEEN - Unread/read messages
+- FLAGGED / UNFLAGGED - Starred/unstarred
+- FROM "string" - Sender contains string
+- TO "string" - Recipient contains string
+- SUBJECT "string" - Subject contains string
+- BODY "string" - Body contains string
+- TEXT "string" - Headers or body contains string
+- BEFORE date / SINCE date / ON date - Date filters (DD-Mon-YYYY, e.g., 01-Jan-2024)
+- LARGER n / SMALLER n - Size in bytes
+- HEADER field-name "string" - Custom header search
+- NOT criteria - Negate
+- OR criteria1 criteria2 - Either matches
+- (criteria) - Grouping
+
+Multiple criteria are AND'd together by default.
+
+Examples:
+- UNSEEN FROM "boss@company.com"
+- OR FROM "alice" FROM "bob"
+- SINCE 01-Jan-2024 SUBJECT "report"
+- NOT SEEN FLAGGED
+
+Current criteria: {context}
+
+Return ONLY the IMAP search criteria, no explanations or markdown.`,
+        placeholder: 'Describe what emails you want to filter...',
+      },
     },
     // Processing options
     {
@@ -193,10 +229,6 @@ export const imapPollingTrigger: TriggerConfig = {
 
   outputs: {
     email: {
-      uid: {
-        type: 'string',
-        description: 'IMAP message UID',
-      },
       messageId: {
         type: 'string',
         description: 'RFC Message-ID header',
