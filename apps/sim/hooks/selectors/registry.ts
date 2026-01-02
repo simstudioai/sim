@@ -791,6 +791,37 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       }))
     },
   },
+  'pinterest.boards': {
+    key: 'pinterest.boards',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'pinterest.boards',
+      context.credentialId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.credentialId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const body = JSON.stringify({
+        credential: context.credentialId,
+        workflowId: context.workflowId,
+      })
+      const data = await fetchJson<{ items: { id: string; name: string; description?: string; privacy?: string }[] }>(
+        '/api/tools/pinterest/boards',
+        {
+          method: 'POST',
+          body,
+        }
+      )
+      return (data.items || []).map((board) => ({
+        id: board.id,
+        label: board.name,
+        meta: {
+          description: board.description,
+          privacy: board.privacy,
+        },
+      }))
+    },
+  },
 }
 
 export function getSelectorDefinition(key: SelectorKey): SelectorDefinition {
