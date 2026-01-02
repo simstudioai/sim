@@ -869,6 +869,14 @@ export async function formatWebhookInput(
     return body
   }
 
+  if (foundWebhook.provider === 'imap') {
+    // IMAP email data is already formatted by the polling service
+    if (body && typeof body === 'object' && 'email' in body) {
+      return body
+    }
+    return body
+  }
+
   if (foundWebhook.provider === 'hubspot') {
     const events = Array.isArray(body) ? body : [body]
     const event = events[0]
@@ -2552,6 +2560,59 @@ export async function configureRssPolling(webhookData: any, requestId: string): 
     return true
   } catch (error: any) {
     logger.error(`[${requestId}] Failed to configure RSS polling`, {
+      webhookId: webhookData.id,
+      error: error.message,
+    })
+    return false
+  }
+}
+
+/**
+ * Configure IMAP polling for a webhook
+ */
+export async function configureImapPolling(webhookData: any, requestId: string): Promise<boolean> {
+  const logger = createLogger('ImapWebhookSetup')
+  logger.info(`[${requestId}] Setting up IMAP polling for webhook ${webhookData.id}`)
+
+  try {
+    const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
+    const now = new Date()
+
+    // Validate required IMAP connection settings
+    if (!providerConfig.host || !providerConfig.username || !providerConfig.password) {
+      logger.error(
+        `[${requestId}] Missing required IMAP connection settings for webhook ${webhookData.id}`
+      )
+      return false
+    }
+
+    await db
+      .update(webhook)
+      .set({
+        providerConfig: {
+          ...providerConfig,
+          // Connection defaults
+          port: providerConfig.port || '993',
+          secure: providerConfig.secure !== false,
+          rejectUnauthorized: providerConfig.rejectUnauthorized !== false,
+          // Mailbox defaults
+          mailbox: providerConfig.mailbox || 'INBOX',
+          searchCriteria: providerConfig.searchCriteria || 'UNSEEN',
+          // Processing options
+          markAsRead: providerConfig.markAsRead || false,
+          includeAttachments: providerConfig.includeAttachments !== false,
+          // Polling state
+          lastCheckedTimestamp: now.toISOString(),
+          setupCompleted: true,
+        },
+        updatedAt: now,
+      })
+      .where(eq(webhook.id, webhookData.id))
+
+    logger.info(`[${requestId}] Successfully configured IMAP polling for webhook ${webhookData.id}`)
+    return true
+  } catch (error: any) {
+    logger.error(`[${requestId}] Failed to configure IMAP polling`, {
       webhookId: webhookData.id,
       error: error.message,
     })
