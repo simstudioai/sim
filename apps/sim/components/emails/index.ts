@@ -1,18 +1,17 @@
-export * from './base-styles'
-export { BatchInvitationEmail } from './batch-invitation-email'
-export { CreditPurchaseEmail } from './billing/credit-purchase-email'
-export { EnterpriseSubscriptionEmail } from './billing/enterprise-subscription-email'
-export { FreeTierUpgradeEmail } from './billing/free-tier-upgrade-email'
-export { PaymentFailedEmail } from './billing/payment-failed-email'
-export { PlanWelcomeEmail } from './billing/plan-welcome-email'
-export { UsageThresholdEmail } from './billing/usage-threshold-email'
-export { CareersConfirmationEmail } from './careers/careers-confirmation-email'
-export { CareersSubmissionEmail } from './careers/careers-submission-email'
-export { default as EmailFooter } from './footer'
-export { HelpConfirmationEmail } from './help-confirmation-email'
-export { InvitationEmail } from './invitation-email'
-export { OTPVerificationEmail } from './otp-verification-email'
-export * from './render-email'
-export { ResetPasswordEmail } from './reset-password-email'
-export { WelcomeEmail } from './welcome-email'
-export { WorkspaceInvitationEmail } from './workspace-invitation'
+// Styles
+export * from './_styles'
+// Auth emails
+export * from './auth'
+// Billing emails
+export * from './billing'
+// Careers emails
+export * from './careers'
+// Shared components
+export * from './components'
+// Invitation emails
+export * from './invitations'
+// Render functions and subjects
+export * from './render'
+export * from './subjects'
+// Support emails
+export * from './support'

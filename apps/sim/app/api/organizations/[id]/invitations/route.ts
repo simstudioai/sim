@@ -16,7 +16,7 @@ import {
   getEmailSubject,
   renderBatchInvitationEmail,
   renderInvitationEmail,
-} from '@/components/emails/render-email'
+} from '@/components/emails'
 import { getSession } from '@/lib/auth'
 import {
   validateBulkInvitations,

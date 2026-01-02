@@ -1,18 +1,7 @@
-import {
-  Body,
-  Container,
-  Head,
-  Html,
-  Img,
-  Link,
-  Preview,
-  Section,
-  Text,
-} from '@react-email/components'
-import { baseStyles } from '@/components/emails/base-styles'
-import EmailFooter from '@/components/emails/footer'
+import { Link, Section, Text } from '@react-email/components'
+import { baseStyles } from '@/components/emails/_styles'
+import { EmailLayout } from '@/components/emails/components'
 import { getBrandConfig } from '@/lib/branding/branding'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 
 interface UsageThresholdEmailProps {
   userName?: string
@@ -32,68 +21,44 @@ export function UsageThresholdEmail({
   ctaLink,
 }: UsageThresholdEmailProps) {
   const brand = getBrandConfig()
-  const baseUrl = getBaseUrl()
 
   const previewText = `${brand.name}: You're at ${percentUsed}% of your ${planName} monthly budget`
 
   return (
-    <Html>
-      <Head />
-      <Preview>{previewText}</Preview>
-      <Body style={baseStyles.main}>
-        {/* Main card container */}
-        <Container style={baseStyles.container}>
-          {/* Header with logo */}
-          <Section style={baseStyles.header}>
-            <Img
-              src={brand.logoUrl || `${baseUrl}/brand/color/email/type.png`}
-              width='70'
-              alt={brand.name}
-              style={{ display: 'block' }}
-            />
-          </Section>
+    <EmailLayout preview={previewText}>
+      <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
+        {userName ? `Hi ${userName},` : 'Hi,'}
+      </Text>
 
-          {/* Content */}
-          <Section style={baseStyles.content}>
-            <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
-              {userName ? `Hi ${userName},` : 'Hi,'}
-            </Text>
+      <Text style={baseStyles.paragraph}>
+        You're approaching your monthly budget on the {planName} plan.
+      </Text>
 
-            <Text style={baseStyles.paragraph}>
-              You're approaching your monthly budget on the {planName} plan.
-            </Text>
+      <Section style={baseStyles.infoBox}>
+        <Text style={baseStyles.infoBoxTitle}>Usage</Text>
+        <Text style={baseStyles.infoBoxList}>
+          ${currentUsage.toFixed(2)} of ${limit.toFixed(2)} used ({percentUsed}%)
+        </Text>
+      </Section>
 
-            <Section style={baseStyles.infoBox}>
-              <Text style={baseStyles.infoBoxTitle}>Usage</Text>
-              <Text style={baseStyles.infoBoxList}>
-                ${currentUsage.toFixed(2)} of ${limit.toFixed(2)} used ({percentUsed}%)
-              </Text>
-            </Section>
+      {/* Divider */}
+      <div style={baseStyles.divider} />
 
-            {/* Divider */}
-            <div style={baseStyles.divider} />
+      <Text style={baseStyles.paragraph}>
+        To avoid interruptions, consider increasing your monthly limit.
+      </Text>
 
-            <Text style={baseStyles.paragraph}>
-              To avoid interruptions, consider increasing your monthly limit.
-            </Text>
+      <Link href={ctaLink} style={{ textDecoration: 'none' }}>
+        <Text style={baseStyles.button}>Review Limits</Text>
+      </Link>
 
-            <Link href={ctaLink} style={{ textDecoration: 'none' }}>
-              <Text style={baseStyles.button}>Review Limits</Text>
-            </Link>
+      {/* Divider */}
+      <div style={baseStyles.divider} />
 
-            {/* Divider */}
-            <div style={baseStyles.divider} />
-
-            <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
-              One-time notification at 80% usage.
-            </Text>
-          </Section>
-        </Container>
-
-        {/* Footer in gray section */}
-        <EmailFooter baseUrl={baseUrl} />
-      </Body>
-    </Html>
+      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+        One-time notification at 80% usage.
+      </Text>
+    </EmailLayout>
   )
 }
 

@@ -1,5 +1,5 @@
 import { Container, Img, Link, Section } from '@react-email/components'
-import { baseStyles, colors, spacing, typography } from '@/components/emails/base-styles'
+import { baseStyles, colors, spacing, typography } from '@/components/emails/_styles'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -19,11 +19,7 @@ interface EmailFooterProps {
  * Email footer component styled to match Stripe's email design.
  * Sits in the gray area below the main white card.
  */
-export const EmailFooter = ({
-  baseUrl = getBaseUrl(),
-  unsubscribe,
-  messageId,
-}: EmailFooterProps) => {
+export function EmailFooter({ baseUrl = getBaseUrl(), unsubscribe, messageId }: EmailFooterProps) {
   const brand = getBrandConfig()
 
   const footerLinkStyle = {

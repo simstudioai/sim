@@ -3,10 +3,7 @@ import { organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type Stripe from 'stripe'
-import {
-  getEmailSubject,
-  renderEnterpriseSubscriptionEmail,
-} from '@/components/emails/render-email'
+import { getEmailSubject, renderEnterpriseSubscriptionEmail } from '@/components/emails'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import type { EnterpriseSubscriptionMetadata } from '../types'

@@ -16,7 +16,7 @@ import {
   renderUsageThresholdEmail,
   renderWelcomeEmail,
   renderWorkspaceInvitationEmail,
-} from '@/components/emails/render-email'
+} from '@/components/emails'
 
 const emailTemplates = {
   // Auth emails

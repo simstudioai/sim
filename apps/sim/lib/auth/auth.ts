@@ -22,7 +22,7 @@ import {
   renderOTPEmail,
   renderPasswordResetEmail,
   renderWelcomeEmail,
-} from '@/components/emails/render-email'
+} from '@/components/emails'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import { handleNewUser } from '@/lib/billing/core/usage'

@@ -1,23 +1,30 @@
 import { render } from '@react-email/components'
+import { OTPVerificationEmail, ResetPasswordEmail, WelcomeEmail } from '@/components/emails/auth'
+import {
+  CreditPurchaseEmail,
+  EnterpriseSubscriptionEmail,
+  FreeTierUpgradeEmail,
+  PaymentFailedEmail,
+  PlanWelcomeEmail,
+  UsageThresholdEmail,
+} from '@/components/emails/billing'
+import { CareersConfirmationEmail, CareersSubmissionEmail } from '@/components/emails/careers'
 import {
   BatchInvitationEmail,
-  EnterpriseSubscriptionEmail,
-  HelpConfirmationEmail,
   InvitationEmail,
-  OTPVerificationEmail,
-  PlanWelcomeEmail,
-  ResetPasswordEmail,
-  UsageThresholdEmail,
-  WelcomeEmail,
   WorkspaceInvitationEmail,
-} from '@/components/emails'
-import CreditPurchaseEmail from '@/components/emails/billing/credit-purchase-email'
-import FreeTierUpgradeEmail from '@/components/emails/billing/free-tier-upgrade-email'
-import PaymentFailedEmail from '@/components/emails/billing/payment-failed-email'
-import CareersConfirmationEmail from '@/components/emails/careers/careers-confirmation-email'
-import CareersSubmissionEmail from '@/components/emails/careers/careers-submission-email'
-import { getBrandConfig } from '@/lib/branding/branding'
+} from '@/components/emails/invitations'
+import { HelpConfirmationEmail } from '@/components/emails/support'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+
+export type { EmailSubjectType } from './subjects'
+export { getEmailSubject } from './subjects'
+
+interface WorkspaceInvitation {
+  workspaceId: string
+  workspaceName: string
+  permission: 'admin' | 'write' | 'read'
+}
 
 export async function renderOTPEmail(
   otp: string,
@@ -47,12 +54,6 @@ export async function renderInvitationEmail(
       inviteLink: invitationUrl,
     })
   )
-}
-
-interface WorkspaceInvitation {
-  workspaceId: string
-  workspaceName: string
-  permission: 'admin' | 'write' | 'read'
 }
 
 export async function renderBatchInvitationEmail(
@@ -134,59 +135,6 @@ export async function renderFreeTierUpgradeEmail(params: {
       upgradeLink: params.upgradeLink,
     })
   )
-}
-
-export function getEmailSubject(
-  type:
-    | 'sign-in'
-    | 'email-verification'
-    | 'forget-password'
-    | 'reset-password'
-    | 'invitation'
-    | 'batch-invitation'
-    | 'help-confirmation'
-    | 'enterprise-subscription'
-    | 'usage-threshold'
-    | 'free-tier-upgrade'
-    | 'plan-welcome-pro'
-    | 'plan-welcome-team'
-    | 'credit-purchase'
-    | 'welcome'
-): string {
-  const brandName = getBrandConfig().name
-
-  switch (type) {
-    case 'sign-in':
-      return `Sign in to ${brandName}`
-    case 'email-verification':
-      return `Verify your email for ${brandName}`
-    case 'forget-password':
-      return `Reset your ${brandName} password`
-    case 'reset-password':
-      return `Reset your ${brandName} password`
-    case 'invitation':
-      return `You've been invited to join a team on ${brandName}`
-    case 'batch-invitation':
-      return `You've been invited to join a team and workspaces on ${brandName}`
-    case 'help-confirmation':
-      return 'Your request has been received'
-    case 'enterprise-subscription':
-      return `Your Enterprise Plan is now active on ${brandName}`
-    case 'usage-threshold':
-      return `You're nearing your monthly budget on ${brandName}`
-    case 'free-tier-upgrade':
-      return `You're at 90% of your free credits on ${brandName}`
-    case 'plan-welcome-pro':
-      return `Your Pro plan is now active on ${brandName}`
-    case 'plan-welcome-team':
-      return `Your Team plan is now active on ${brandName}`
-    case 'credit-purchase':
-      return `Credits added to your ${brandName} account`
-    case 'welcome':
-      return `Welcome to ${brandName}`
-    default:
-      return brandName
-  }
 }
 
 export async function renderPlanWelcomeEmail(params: {
