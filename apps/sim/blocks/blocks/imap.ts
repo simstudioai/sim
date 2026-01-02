@@ -21,7 +21,6 @@ export const ImapBlock: BlockConfig = {
     },
   },
   inputs: {
-    // Connection settings (stored in providerConfig)
     host: { type: 'string', description: 'IMAP server hostname' },
     port: { type: 'string', description: 'IMAP server port' },
     secure: { type: 'boolean', description: 'Use SSL/TLS encryption' },
@@ -34,7 +33,6 @@ export const ImapBlock: BlockConfig = {
     includeAttachments: { type: 'boolean', description: 'Include email attachments' },
   },
   outputs: {
-    // Trigger outputs (from email)
     messageId: { type: 'string', description: 'RFC Message-ID header' },
     subject: { type: 'string', description: 'Email subject line' },
     from: { type: 'string', description: 'Sender email address' },

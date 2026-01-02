@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { webhook, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import type { InferSelectModel } from 'drizzle-orm'
 import { and, eq, sql } from 'drizzle-orm'
 import type { FetchMessageObject, MailboxLockObject } from 'imapflow'
 import { ImapFlow } from 'imapflow'
@@ -10,6 +11,8 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 const logger = createLogger('ImapPollingService')
+
+type WebhookRecord = InferSelectModel<typeof webhook>
 
 interface ImapWebhookConfig {
   host: string
@@ -489,6 +492,27 @@ function extractAttachmentsFromSource(
   return attachments
 }
 
+/**
+ * Checks if a body structure contains attachments by examining disposition
+ */
+function hasAttachmentsInBodyStructure(structure: FetchMessageObject['bodyStructure']): boolean {
+  if (!structure) return false
+
+  if (structure.disposition === 'attachment') {
+    return true
+  }
+
+  if (structure.disposition === 'inline' && structure.dispositionParameters?.filename) {
+    return true
+  }
+
+  if (structure.childNodes && Array.isArray(structure.childNodes)) {
+    return structure.childNodes.some((child) => hasAttachmentsInBodyStructure(child))
+  }
+
+  return false
+}
+
 async function processEmails(
   emails: Array<{
     uid: number
@@ -497,7 +521,7 @@ async function processEmails(
     bodyStructure: FetchMessageObject['bodyStructure']
     source?: Buffer
   }>,
-  webhookData: any,
+  webhookData: WebhookRecord,
   config: ImapWebhookConfig,
   requestId: string
 ) {
@@ -539,9 +563,7 @@ async function processEmails(
               : { text: '', html: '' }
 
             let attachments: ImapAttachment[] = []
-            const hasAttachments = email.bodyStructure
-              ? JSON.stringify(email.bodyStructure).toLowerCase().includes('attachment')
-              : false
+            const hasAttachments = hasAttachmentsInBodyStructure(email.bodyStructure)
 
             if (config.includeAttachments && hasAttachments && email.source) {
               attachments = extractAttachmentsFromSource(email.source, email.bodyStructure)
@@ -573,7 +595,7 @@ async function processEmails(
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'X-Webhook-Secret': webhookData.secret || '',
+                'X-Webhook-Secret': '',
                 'User-Agent': 'Sim/1.0',
               },
               body: JSON.stringify(payload),
