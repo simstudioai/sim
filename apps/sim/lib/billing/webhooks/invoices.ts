@@ -17,6 +17,7 @@ import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
+import { getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
 const logger = createLogger('StripeInvoiceWebhooks')
@@ -138,6 +139,7 @@ async function getPaymentMethodDetails(
 
 /**
  * Send payment failure notification emails to affected users
+ * Note: This is only called when billing is enabled (Stripe plugin loaded)
  */
 async function sendPaymentFailureEmails(
   sub: { plan: string | null; referenceId: string },
@@ -202,10 +204,13 @@ async function sendPaymentFailureEmails(
           })
         )
 
+        const { from, replyTo } = getPersonalEmailFrom()
         await sendEmail({
           to: userToNotify.email,
           subject: 'Payment Failed - Action Required',
           html: emailHtml,
+          from,
+          replyTo,
           emailType: 'transactional',
         })
 

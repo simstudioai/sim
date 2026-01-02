@@ -48,19 +48,18 @@ import {
   isAuthDisabled,
   isBillingEnabled,
   isEmailVerificationEnabled,
+  isHosted,
   isRegistrationDisabled,
 } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
-import { getFromEmailAddress } from '@/lib/messaging/email/utils'
+import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { createAnonymousSession, ensureAnonymousUserExists } from './anonymous'
 import { SSO_TRUSTED_PROVIDERS } from './sso/constants'
 
 const logger = createLogger('Auth')
 
-// Only initialize Stripe if the key is provided
-// This allows local development without a Stripe account
 const validStripeKey = env.STRIPE_SECRET_KEY
 
 let stripeClient = null
@@ -106,22 +105,21 @@ export const auth = betterAuth({
             })
           }
 
-          // Send welcome email
-          if (user.email) {
+          if (isHosted && user.email && user.emailVerified) {
             try {
-              const { sendEmail } = await import('@/lib/messaging/email/mailer')
               const html = await renderWelcomeEmail(user.name || undefined)
+              const { from, replyTo } = getPersonalEmailFrom()
 
               await sendEmail({
                 to: user.email,
                 subject: getEmailSubject('welcome'),
                 html,
-                from: 'Emir from Sim <emir@sim.ai>',
-                replyTo: 'emir@sim.ai',
+                from,
+                replyTo,
                 emailType: 'transactional',
               })
 
-              logger.info('[databaseHooks.user.create.after] Welcome email sent', {
+              logger.info('[databaseHooks.user.create.after] Welcome email sent to OAuth user', {
                 userId: user.id,
               })
             } catch (error) {
@@ -319,6 +317,35 @@ export const auth = betterAuth({
         'https://www.googleapis.com/auth/userinfo.email',
         'https://www.googleapis.com/auth/userinfo.profile',
       ],
+    },
+  },
+  emailVerification: {
+    autoSignInAfterVerification: true,
+    afterEmailVerification: async (user) => {
+      if (isHosted && user.email) {
+        try {
+          const html = await renderWelcomeEmail(user.name || undefined)
+          const { from, replyTo } = getPersonalEmailFrom()
+
+          await sendEmail({
+            to: user.email,
+            subject: getEmailSubject('welcome'),
+            html,
+            from,
+            replyTo,
+            emailType: 'transactional',
+          })
+
+          logger.info('[emailVerification.afterEmailVerification] Welcome email sent', {
+            userId: user.id,
+          })
+        } catch (error) {
+          logger.error('[emailVerification.afterEmailVerification] Failed to send welcome email', {
+            userId: user.id,
+            error,
+          })
+        }
+      }
     },
   },
   emailAndPassword: {
