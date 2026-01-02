@@ -1,5 +1,6 @@
 import { type JSX, type MouseEvent, memo, useRef, useState } from 'react'
 import { AlertTriangle, Wand2 } from 'lucide-react'
+import { createLogger } from '@sim/logger'
 import { Label, Tooltip } from '@/components/emcn/components'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
@@ -43,6 +44,8 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import type { SubBlockConfig } from '@/blocks/types'
+
+const logger = createLogger('SubBlock')
 
 /**
  * Interface for wand control handlers exposed by sub-block inputs
@@ -392,13 +395,26 @@ function SubBlockComponent({
 
   // Use dependsOn gating to compute final disabled state
   // Only pass previewContextValues when in preview mode to avoid format mismatches
-  const { finalDisabled: gatedDisabled } = useDependsOnGate(blockId, config, {
+  const { finalDisabled: gatedDisabled, dependencyValuesMap, depsSatisfied } = useDependsOnGate(blockId, config, {
     disabled,
     isPreview,
     previewContextValues: isPreview ? subBlockValues : undefined,
   })
 
   const isDisabled = gatedDisabled
+
+  // Debug logging for Monday selector issues
+  if (config.serviceId === 'monday' && typeof window !== 'undefined') {
+    logger.info('Sub-block debug', {
+      subBlockId: config.id,
+      type: config.type,
+      dependsOn: config.dependsOn,
+      dependencyValuesMap,
+      depsSatisfied,
+      gatedDisabled,
+      isDisabled,
+    })
+  }
 
   /**
    * Selects and renders the appropriate input component based on config.type.
@@ -656,6 +672,12 @@ function SubBlockComponent({
         )
 
       case 'file-selector':
+        logger.info('Rendering file-selector', {
+          subBlockId: config.id,
+          serviceId: config.serviceId,
+          isDisabled,
+          dependsOn: config.dependsOn,
+        })
         return (
           <FileSelectorInput
             blockId={blockId}
@@ -887,6 +909,9 @@ function SubBlockComponent({
         subBlockValues
       )}
       {renderInput()}
+      {config.note && (
+        <p className='mt-[-6px] text-muted-foreground text-xs leading-relaxed'>{config.note}</p>
+      )}
     </div>
   )
 }

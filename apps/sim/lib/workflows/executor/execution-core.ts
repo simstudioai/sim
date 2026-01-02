@@ -28,6 +28,11 @@ const logger = createLogger('ExecutionCore')
 
 const EnvVarsSchema = z.record(z.string())
 
+interface SubBlockState {
+  value: unknown
+  [key: string]: unknown
+}
+
 export interface ExecuteWorkflowCoreOptions {
   snapshot: ExecutionSnapshot
   callbacks: ExecutionCallbacks
@@ -147,6 +152,20 @@ export async function executeWorkflowCore(
       edges = draftData.edges
       loops = draftData.loops
       parallels = draftData.parallels
+
+      // Debug: Log Monday blocks loaded from database
+      Object.entries(blocks).forEach(([blockId, block]) => {
+        if (block.type === 'monday') {
+          logger.info(`[${requestId}] Monday block loaded from database`, {
+            blockId,
+            subBlockKeys: Object.keys(block.subBlocks || {}),
+            subBlockValues: Object.entries(block.subBlocks || {}).reduce((acc, [key, sb]) => {
+              acc[key] = (sb as SubBlockState).value
+              return acc
+            }, {} as Record<string, unknown>),
+          })
+        }
+      })
 
       logger.info(
         `[${requestId}] Using draft workflow state from normalized tables (client execution)`

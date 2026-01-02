@@ -449,19 +449,26 @@ export class Serializer {
     })
 
     // Finally, consolidate canonical parameters (e.g., selector and manual ID into a single param)
-    const canonicalGroups: Record<string, { basic?: string; advanced: string[] }> = {}
+    const canonicalGroups: Record<string, { basic: string[]; advanced: string[] }> = {}
     blockConfig.subBlocks.forEach((sb) => {
       if (!sb.canonicalParamId) return
       const key = sb.canonicalParamId
-      if (!canonicalGroups[key]) canonicalGroups[key] = { basic: undefined, advanced: [] }
+      if (!canonicalGroups[key]) canonicalGroups[key] = { basic: [], advanced: [] }
       if (sb.mode === 'advanced') canonicalGroups[key].advanced.push(sb.id)
-      else canonicalGroups[key].basic = sb.id
+      else canonicalGroups[key].basic.push(sb.id)
     })
 
     Object.entries(canonicalGroups).forEach(([canonicalKey, group]) => {
-      const basicId = group.basic
+      const basicIds = group.basic
       const advancedIds = group.advanced
-      const basicVal = basicId ? params[basicId] : undefined
+
+      // Check all basic field IDs for a value (not just the last one)
+      const basicVal = basicIds
+        .map((id) => params[id])
+        .find(
+          (v) => v !== undefined && v !== null && (typeof v !== 'string' || v.trim().length > 0)
+        )
+
       const advancedVal = advancedIds
         .map((id) => params[id])
         .find(
@@ -479,12 +486,26 @@ export class Serializer {
         chosen = undefined
       }
 
-      const sourceIds = [basicId, ...advancedIds].filter(Boolean) as string[]
+      // Preserve existing canonical key value if consolidation produces no better value
+      const existingCanonicalValue = params[canonicalKey]
+      const hasValidExistingValue =
+        existingCanonicalValue !== undefined &&
+        existingCanonicalValue !== null &&
+        (typeof existingCanonicalValue !== 'string' || existingCanonicalValue.trim().length > 0)
+
+      const sourceIds = [...basicIds, ...advancedIds].filter(Boolean) as string[]
       sourceIds.forEach((id) => {
         if (id !== canonicalKey) delete params[id]
       })
-      if (chosen !== undefined) params[canonicalKey] = chosen
-      else delete params[canonicalKey]
+
+      if (chosen !== undefined) {
+        params[canonicalKey] = chosen
+      } else if (hasValidExistingValue) {
+        // Keep existing value if consolidation produces nothing
+        params[canonicalKey] = existingCanonicalValue
+      } else {
+        delete params[canonicalKey]
+      }
     })
 
     return params

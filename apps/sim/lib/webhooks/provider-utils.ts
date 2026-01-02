@@ -63,6 +63,18 @@ function extractAirtableIdentifier(body: any): string | null {
   return null
 }
 
+function extractMondayIdentifier(body: any): string | null {
+  // Monday.com sends a triggerUuid for each webhook event
+  if (body.event?.triggerUuid) {
+    return body.event.triggerUuid
+  }
+  // Fallback to pulseId + triggerTime combination
+  if (body.event?.pulseId && body.event?.triggerTime) {
+    return `${body.event.pulseId}:${body.event.triggerTime}`
+  }
+  return null
+}
+
 const PROVIDER_EXTRACTORS: Record<string, (body: any) => string | null> = {
   slack: extractSlackIdentifier,
   twilio: extractTwilioIdentifier,
@@ -73,6 +85,7 @@ const PROVIDER_EXTRACTORS: Record<string, (body: any) => string | null> = {
   jira: extractJiraIdentifier,
   'microsoft-teams': extractMicrosoftTeamsIdentifier,
   airtable: extractAirtableIdentifier,
+  monday: extractMondayIdentifier,
 }
 
 export function extractProviderIdentifierFromBody(provider: string, body: any): string | null {

@@ -27,6 +27,13 @@ export type SelectorKey =
   | 'webflow.sites'
   | 'webflow.collections'
   | 'webflow.items'
+  | 'monday.boards'
+  | 'monday.columns'
+  | 'monday.groups'
+  | 'monday.status-options'
+  | 'monday.items'
+  | 'monday.subitems'
+
 
 export interface SelectorOption {
   id: string
@@ -49,6 +56,11 @@ export interface SelectorContext {
   fileId?: string
   siteId?: string
   collectionId?: string
+  apiKey?: string
+  boardId?: string
+  groupId?: string
+  columnId?: string
+  itemId?: string
 }
 
 export interface SelectorQueryArgs {

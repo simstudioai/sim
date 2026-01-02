@@ -791,6 +791,154 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       }))
     },
   },
+  'monday.boards': {
+    key: 'monday.boards',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'monday.boards',
+      context.apiKey ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.apiKey),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const body = JSON.stringify({ apiKey: context.apiKey })
+      const data = await fetchJson<{ items: { id: string; name: string }[] }>(
+        '/api/tools/monday/boards',
+        { method: 'POST', body }
+      )
+      return (data.items || []).map((board) => ({
+        id: board.id,
+        label: board.name,
+      }))
+    },
+  },
+  'monday.columns': {
+    key: 'monday.columns',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'monday.columns',
+      context.apiKey ?? 'none',
+      context.boardId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.apiKey && context.boardId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const body = JSON.stringify({
+        apiKey: context.apiKey,
+        boardId: context.boardId,
+      })
+      const data = await fetchJson<{ items: { id: string; name: string; type: string }[] }>(
+        '/api/tools/monday/columns',
+        { method: 'POST', body }
+      )
+      return (data.items || []).map((col) => ({
+        id: col.id,
+        label: `${col.name} (${col.type})`,
+      }))
+    },
+  },
+  'monday.groups': {
+    key: 'monday.groups',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'monday.groups',
+      context.apiKey ?? 'none',
+      context.boardId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.apiKey && context.boardId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const body = JSON.stringify({
+        apiKey: context.apiKey,
+        boardId: context.boardId,
+      })
+      const data = await fetchJson<{ items: { id: string; name: string }[] }>(
+        '/api/tools/monday/groups',
+        { method: 'POST', body }
+      )
+      return (data.items || []).map((group) => ({
+        id: group.id,
+        label: group.name,
+      }))
+    },
+  },
+  'monday.status-options': {
+    key: 'monday.status-options',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'monday.status-options',
+      context.apiKey ?? 'none',
+      context.boardId ?? 'none',
+      context.columnId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.apiKey && context.boardId && context.columnId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const body = JSON.stringify({
+        apiKey: context.apiKey,
+        boardId: context.boardId,
+        columnId: context.columnId,
+      })
+      const data = await fetchJson<{ items: { id: string; name: string }[] }>(
+        '/api/tools/monday/status-options',
+        { method: 'POST', body }
+      )
+      return (data.items || []).map((option) => ({
+        id: option.id,
+        label: option.name,
+      }))
+    },
+  },
+  'monday.items': {
+    key: 'monday.items',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'monday.items',
+      context.apiKey ?? 'none',
+      context.boardId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.apiKey && context.boardId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const body = JSON.stringify({
+        apiKey: context.apiKey,
+        boardId: context.boardId,
+      })
+      const data = await fetchJson<{ items: { id: string; name: string }[] }>(
+        '/api/tools/monday/items',
+        { method: 'POST', body }
+      )
+      return (data.items || []).map((item) => ({
+        id: item.id,
+        label: item.name,
+      }))
+    },
+  },
+  'monday.subitems': {
+    key: 'monday.subitems',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'monday.subitems',
+      context.apiKey ?? 'none',
+      context.itemId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.apiKey && context.itemId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const body = JSON.stringify({
+        apiKey: context.apiKey,
+        itemId: context.itemId,
+      })
+      const data = await fetchJson<{ items: { id: string; name: string }[] }>(
+        '/api/tools/monday/subitems',
+        { method: 'POST', body }
+      )
+      return (data.items || []).map((subitem) => ({
+        id: subitem.id,
+        label: subitem.name,
+      }))
+    },
+  },
 }
 
 export function getSelectorDefinition(key: SelectorKey): SelectorDefinition {
