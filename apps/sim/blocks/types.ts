@@ -251,6 +251,8 @@ export interface SubBlockConfig {
   // OAuth specific properties - serviceId is the canonical identifier for OAuth services
   serviceId?: string
   requiredScopes?: string[]
+  // Whether this credential selector supports credential sets (for trigger blocks)
+  supportsCredentialSets?: boolean
   // File selector specific properties
   mimeType?: string
   // File upload specific properties

@@ -124,6 +124,7 @@ export interface ExecutionMetadata {
   isDebugSession?: boolean
   context?: ExecutionContext
   workflowConnections?: Array<{ source: string; target: string }>
+  credentialAccountUserId?: string
   status?: 'running' | 'paused' | 'completed'
   pausePoints?: string[]
   resumeChain?: {

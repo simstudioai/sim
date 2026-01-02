@@ -4,6 +4,7 @@ import type { ExecutionState, LoopScope } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
 import { createEnvVarPattern, replaceValidReferences } from '@/executor/utils/reference-validation'
 import { BlockResolver } from '@/executor/variables/resolvers/block'
+import { CredentialSetResolver } from '@/executor/variables/resolvers/credential-set'
 import { EnvResolver } from '@/executor/variables/resolvers/env'
 import { LoopResolver } from '@/executor/variables/resolvers/loop'
 import { ParallelResolver } from '@/executor/variables/resolvers/parallel'
@@ -27,6 +28,7 @@ export class VariableResolver {
       new LoopResolver(workflow),
       new ParallelResolver(workflow),
       new WorkflowResolver(workflowVariables),
+      new CredentialSetResolver(),
       new EnvResolver(),
       this.blockResolver,
     ]

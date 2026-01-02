@@ -5,6 +5,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { parseMcpToolId } from '@/lib/mcp/utils'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
 import type { ExecutionContext } from '@/executor/types'
+import { CREDENTIAL_SET_USER_PREFIX } from '@/executor/variables/resolvers/credential-set'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
 import type { OAuthTokenPayload, ToolConfig, ToolResponse } from '@/tools/types'
@@ -254,8 +255,24 @@ export async function executeTool(
         const baseUrl = getBaseUrl()
 
         // Prepare the token payload
-        const tokenPayload: OAuthTokenPayload = {
-          credentialId: contextParams.credential,
+        const tokenPayload: OAuthTokenPayload = {}
+        const credentialValue = contextParams.credential as string
+
+        if (credentialValue.startsWith(CREDENTIAL_SET_USER_PREFIX)) {
+          const credentialAccountUserId = credentialValue.slice(CREDENTIAL_SET_USER_PREFIX.length)
+          const providerId = tool?.oauth?.provider
+          if (!providerId) {
+            throw new Error(
+              `Cannot resolve credential set user without providerId for tool ${toolId}`
+            )
+          }
+          tokenPayload.credentialAccountUserId = credentialAccountUserId
+          tokenPayload.providerId = providerId
+          logger.info(
+            `[${requestId}] Using credential set user: ${credentialAccountUserId}, provider: ${providerId}`
+          )
+        } else {
+          tokenPayload.credentialId = credentialValue
         }
 
         // Add workflowId if it exists in params, context, or executionContext

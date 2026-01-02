@@ -1,6 +1,7 @@
 export { ApiKeys } from './api-keys/api-keys'
 export { BYOK } from './byok/byok'
 export { Copilot } from './copilot/copilot'
+export { CredentialSets } from './credential-sets/credential-sets'
 export { CustomTools } from './custom-tools/custom-tools'
 export { EnvironmentVariables } from './environment/environment'
 export { Files as FileUploads } from './files/files'

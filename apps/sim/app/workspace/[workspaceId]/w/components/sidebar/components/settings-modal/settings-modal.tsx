@@ -32,6 +32,7 @@ import {
   ApiKeys,
   BYOK,
   Copilot,
+  CredentialSets,
   CustomTools,
   EnvironmentVariables,
   FileUploads,
@@ -63,6 +64,7 @@ type SettingsSection =
   | 'environment'
   | 'template-profile'
   | 'integrations'
+  | 'credential-sets'
   | 'apikeys'
   | 'byok'
   | 'files'
@@ -98,6 +100,7 @@ const sectionConfig: { key: NavigationSection; title: string }[] = [
 const allNavigationItems: NavigationItem[] = [
   { id: 'general', label: 'General', icon: Settings, section: 'account' },
   { id: 'template-profile', label: 'Template Profile', icon: User, section: 'account' },
+  { id: 'credential-sets', label: 'Credential Sets', icon: Users, section: 'account' },
   {
     id: 'subscription',
     label: 'Subscription',
@@ -462,6 +465,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 registerCloseHandler={registerIntegrationsCloseHandler}
               />
             )}
+            {activeSection === 'credential-sets' && <CredentialSets />}
             {activeSection === 'apikeys' && <ApiKeys onOpenChange={onOpenChange} />}
             {activeSection === 'files' && <FileUploads />}
             {isBillingEnabled && activeSection === 'subscription' && <Subscription />}

@@ -98,6 +98,7 @@ export const WebhookBlock: BlockConfig = {
       placeholder: 'Select Gmail account',
       condition: { field: 'webhookProvider', value: 'gmail' },
       required: true,
+      supportsCredentialSets: true,
     },
     {
       id: 'outlookCredential',
@@ -114,6 +115,7 @@ export const WebhookBlock: BlockConfig = {
       placeholder: 'Select Microsoft account',
       condition: { field: 'webhookProvider', value: 'outlook' },
       required: true,
+      supportsCredentialSets: true,
     },
     {
       id: 'webhookConfig',

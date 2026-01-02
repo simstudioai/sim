@@ -1777,3 +1777,97 @@ export const usageLog = pgTable(
     workflowIdIdx: index('usage_log_workflow_id_idx').on(table.workflowId),
   })
 )
+
+export const credentialSet = pgTable(
+  'credential_set',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationIdIdx: index('credential_set_organization_id_idx').on(table.organizationId),
+    createdByIdx: index('credential_set_created_by_idx').on(table.createdBy),
+    orgNameUnique: uniqueIndex('credential_set_org_name_unique').on(
+      table.organizationId,
+      table.name
+    ),
+  })
+)
+
+export const credentialSetMemberStatusEnum = pgEnum('credential_set_member_status', [
+  'active',
+  'pending',
+  'revoked',
+  'credentials_missing',
+])
+
+export const credentialSetMember = pgTable(
+  'credential_set_member',
+  {
+    id: text('id').primaryKey(),
+    credentialSetId: text('credential_set_id')
+      .notNull()
+      .references(() => credentialSet.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    status: credentialSetMemberStatusEnum('status').notNull().default('pending'),
+    joinedAt: timestamp('joined_at'),
+    invitedBy: text('invited_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    credentialSetIdIdx: index('credential_set_member_set_id_idx').on(table.credentialSetId),
+    userIdIdx: index('credential_set_member_user_id_idx').on(table.userId),
+    uniqueMembership: uniqueIndex('credential_set_member_unique').on(
+      table.credentialSetId,
+      table.userId
+    ),
+    statusIdx: index('credential_set_member_status_idx').on(table.status),
+  })
+)
+
+export const credentialSetInvitationStatusEnum = pgEnum('credential_set_invitation_status', [
+  'pending',
+  'accepted',
+  'expired',
+  'cancelled',
+])
+
+export const credentialSetInvitation = pgTable(
+  'credential_set_invitation',
+  {
+    id: text('id').primaryKey(),
+    credentialSetId: text('credential_set_id')
+      .notNull()
+      .references(() => credentialSet.id, { onDelete: 'cascade' }),
+    email: text('email'),
+    token: text('token').notNull().unique(),
+    invitedBy: text('invited_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    status: credentialSetInvitationStatusEnum('status').notNull().default('pending'),
+    expiresAt: timestamp('expires_at').notNull(),
+    acceptedAt: timestamp('accepted_at'),
+    acceptedByUserId: text('accepted_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    credentialSetIdIdx: index('credential_set_invitation_set_id_idx').on(table.credentialSetId),
+    tokenIdx: index('credential_set_invitation_token_idx').on(table.token),
+    statusIdx: index('credential_set_invitation_status_idx').on(table.status),
+    expiresAtIdx: index('credential_set_invitation_expires_at_idx').on(table.expiresAt),
+  })
+)

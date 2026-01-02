@@ -13,6 +13,7 @@ import {
   validateMicrosoftTeamsSignature,
   verifyProviderWebhook,
 } from '@/lib/webhooks/utils.server'
+import { getCredentialsForCredentialSet } from '@/app/api/auth/oauth/utils'
 import { executeWebhookJob } from '@/background/webhook-execution'
 import { REFERENCE } from '@/executor/constants'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
@@ -719,11 +720,12 @@ export async function queueWebhookExecution(
       }
     }
 
-    // Extract credentialId from webhook config for credential-based webhooks
+    // Extract credentialId or credentialSetId from webhook config
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
     const credentialId = providerConfig.credentialId as string | undefined
+    const credentialSetId = providerConfig.credentialSetId as string | undefined
 
-    const payload = {
+    const basePayload = {
       webhookId: foundWebhook.id,
       workflowId: foundWorkflow.id,
       userId: foundWorkflow.userId,
@@ -734,25 +736,72 @@ export async function queueWebhookExecution(
       blockId: foundWebhook.blockId,
       testMode: options.testMode,
       executionTarget: options.executionTarget,
-      ...(credentialId ? { credentialId } : {}),
     }
 
-    if (isTriggerDevEnabled) {
-      const handle = await tasks.trigger('webhook-execution', payload)
-      logger.info(
-        `[${options.requestId}] Queued ${options.testMode ? 'TEST ' : ''}webhook execution task ${
-          handle.id
-        } for ${foundWebhook.provider} webhook`
+    if (credentialSetId) {
+      const credentials = await getCredentialsForCredentialSet(
+        credentialSetId,
+        foundWebhook.provider
       )
+
+      if (credentials.length === 0) {
+        logger.warn(
+          `[${options.requestId}] No valid credentials found for credential set ${credentialSetId}, provider ${foundWebhook.provider}`
+        )
+        return NextResponse.json(
+          { error: 'No valid credentials in credential set' },
+          { status: 400 }
+        )
+      }
+
+      logger.info(
+        `[${options.requestId}] Fan-out: Queuing ${credentials.length} executions for credential set ${credentialSetId}`
+      )
+
+      for (const cred of credentials) {
+        const fanOutPayload = {
+          ...basePayload,
+          credentialId: cred.credentialId,
+          credentialAccountUserId: cred.userId,
+        }
+
+        if (isTriggerDevEnabled) {
+          const handle = await tasks.trigger('webhook-execution', fanOutPayload)
+          logger.info(
+            `[${options.requestId}] Queued fan-out execution ${handle.id} for user ${cred.userId}`
+          )
+        } else {
+          void executeWebhookJob(fanOutPayload).catch((error) => {
+            logger.error(
+              `[${options.requestId}] Direct fan-out execution failed for user ${cred.userId}`,
+              error
+            )
+          })
+        }
+      }
     } else {
-      void executeWebhookJob(payload).catch((error) => {
-        logger.error(`[${options.requestId}] Direct webhook execution failed`, error)
-      })
-      logger.info(
-        `[${options.requestId}] Queued direct ${
-          options.testMode ? 'TEST ' : ''
-        }webhook execution for ${foundWebhook.provider} webhook (Trigger.dev disabled)`
-      )
+      const payload = {
+        ...basePayload,
+        ...(credentialId ? { credentialId } : {}),
+      }
+
+      if (isTriggerDevEnabled) {
+        const handle = await tasks.trigger('webhook-execution', payload)
+        logger.info(
+          `[${options.requestId}] Queued ${options.testMode ? 'TEST ' : ''}webhook execution task ${
+            handle.id
+          } for ${foundWebhook.provider} webhook`
+        )
+      } else {
+        void executeWebhookJob(payload).catch((error) => {
+          logger.error(`[${options.requestId}] Direct webhook execution failed`, error)
+        })
+        logger.info(
+          `[${options.requestId}] Queued direct ${
+            options.testMode ? 'TEST ' : ''
+          }webhook execution for ${foundWebhook.provider} webhook (Trigger.dev disabled)`
+        )
+      }
     }
 
     if (foundWebhook.provider === 'microsoft-teams') {

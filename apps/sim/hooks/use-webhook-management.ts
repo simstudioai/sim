@@ -10,6 +10,8 @@ import { getTrigger, isTriggerValid } from '@/triggers'
 
 const logger = createLogger('useWebhookManagement')
 
+const CREDENTIAL_SET_PREFIX = 'credentialSet:'
+
 interface UseWebhookManagementProps {
   blockId: string
   triggerId?: string
@@ -220,9 +222,18 @@ export function useWebhookManagement({
     }
 
     const triggerConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
+
+    const isCredentialSet =
+      selectedCredentialId && selectedCredentialId.startsWith(CREDENTIAL_SET_PREFIX)
+    const credentialSetId = isCredentialSet
+      ? selectedCredentialId.slice(CREDENTIAL_SET_PREFIX.length)
+      : undefined
+    const credentialId = isCredentialSet ? undefined : selectedCredentialId
+
     const webhookConfig = {
       ...(triggerConfig || {}),
-      ...(selectedCredentialId ? { credentialId: selectedCredentialId } : {}),
+      ...(credentialId ? { credentialId } : {}),
+      ...(credentialSetId ? { credentialSetId } : {}),
       triggerId: effectiveTriggerId,
     }
 
@@ -279,13 +290,21 @@ export function useWebhookManagement({
   ): Promise<boolean> => {
     const triggerConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
 
+    const isCredentialSet =
+      selectedCredentialId && selectedCredentialId.startsWith(CREDENTIAL_SET_PREFIX)
+    const credentialSetId = isCredentialSet
+      ? selectedCredentialId.slice(CREDENTIAL_SET_PREFIX.length)
+      : undefined
+    const credentialId = isCredentialSet ? undefined : selectedCredentialId
+
     const response = await fetch(`/api/webhooks/${webhookIdToUpdate}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         providerConfig: {
           ...triggerConfig,
-          ...(selectedCredentialId ? { credentialId: selectedCredentialId } : {}),
+          ...(credentialId ? { credentialId } : {}),
+          ...(credentialSetId ? { credentialSetId } : {}),
           triggerId: effectiveTriggerId,
         },
       }),

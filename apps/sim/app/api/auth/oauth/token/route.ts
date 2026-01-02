@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { getCredential, refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { getCredential, getOAuthToken, refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,12 +12,17 @@ const logger = createLogger('OAuthTokenAPI')
 
 const SALESFORCE_INSTANCE_URL_REGEX = /__sf_instance__:([^\s]+)/
 
-const tokenRequestSchema = z.object({
-  credentialId: z
-    .string({ required_error: 'Credential ID is required' })
-    .min(1, 'Credential ID is required'),
-  workflowId: z.string().min(1, 'Workflow ID is required').nullish(),
-})
+const tokenRequestSchema = z
+  .object({
+    credentialId: z.string().min(1).optional(),
+    credentialAccountUserId: z.string().min(1).optional(),
+    providerId: z.string().min(1).optional(),
+    workflowId: z.string().min(1).nullish(),
+  })
+  .refine(
+    (data) => data.credentialId || (data.credentialAccountUserId && data.providerId),
+    'Either credentialId or (credentialAccountUserId + providerId) is required'
+  )
 
 const tokenQuerySchema = z.object({
   credentialId: z
@@ -58,9 +63,31 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { credentialId, workflowId } = parseResult.data
+    const { credentialId, credentialAccountUserId, providerId, workflowId } = parseResult.data
 
-    // We already have workflowId from the parsed body; avoid forcing hybrid auth to re-read it
+    if (credentialAccountUserId && providerId) {
+      logger.info(`[${requestId}] Fetching token by credentialAccountUserId + providerId`, {
+        credentialAccountUserId,
+        providerId,
+      })
+
+      const accessToken = await getOAuthToken(credentialAccountUserId, providerId)
+      if (!accessToken) {
+        return NextResponse.json(
+          {
+            error: `No credential found for user ${credentialAccountUserId} and provider ${providerId}`,
+          },
+          { status: 404 }
+        )
+      }
+
+      return NextResponse.json({ accessToken }, { status: 200 })
+    }
+
+    if (!credentialId) {
+      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
+    }
+
     const authz = await authorizeCredentialUse(request, {
       credentialId,
       workflowId: workflowId ?? undefined,
@@ -70,7 +97,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
     }
 
-    // Fetch the credential as the owner to enforce ownership scoping
     const credential = await getCredential(requestId, credentialId, authz.credentialOwnerUserId)
 
     if (!credential) {
@@ -78,7 +104,6 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Refresh the token if needed
       const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
 
       let instanceUrl: string | undefined

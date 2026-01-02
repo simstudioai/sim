@@ -16,12 +16,13 @@ export interface ExecutionMetadata {
   isClientSession?: boolean
   pendingBlocks?: string[]
   resumeFromSnapshot?: boolean
+  credentialAccountUserId?: string
   workflowStateOverride?: {
     blocks: Record<string, any>
     edges: Edge[]
     loops?: Record<string, any>
     parallels?: Record<string, any>
-    deploymentVersionId?: string // ID of deployment version if this is deployed state
+    deploymentVersionId?: string
   }
 }
 

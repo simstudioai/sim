@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Users } from 'lucide-react'
 import { Button, Combobox } from '@/components/emcn/components'
+import { getSubscriptionStatus } from '@/lib/billing/client'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
@@ -15,11 +16,16 @@ import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useCredentialSets } from '@/hooks/queries/credential-sets'
 import { useOAuthCredentialDetail, useOAuthCredentials } from '@/hooks/queries/oauth-credentials'
+import { useOrganizations } from '@/hooks/queries/organization'
+import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('CredentialSelector')
+
+const CREDENTIAL_SET_PREFIX = 'credentialSet:'
 
 interface CredentialSelectorProps {
   blockId: string
@@ -45,6 +51,19 @@ export function CredentialSelector({
   const requiredScopes = subBlock.requiredScopes || []
   const label = subBlock.placeholder || 'Select credential'
   const serviceId = subBlock.serviceId || ''
+  const supportsCredentialSets = subBlock.supportsCredentialSets || false
+
+  const { data: organizationsData } = useOrganizations()
+  const { data: subscriptionData } = useSubscriptionData()
+  const activeOrganization = organizationsData?.activeOrganization
+  const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
+  const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
+  const canUseCredentialSets = supportsCredentialSets && hasTeamPlan && !!activeOrganization?.id
+
+  const { data: credentialSets = [] } = useCredentialSets(
+    activeOrganization?.id,
+    canUseCredentialSets
+  )
 
   const { depsSatisfied, dependsOn } = useDependsOnGate(blockId, subBlock, { disabled, isPreview })
   const hasDependencies = dependsOn.length > 0
@@ -52,7 +71,12 @@ export function CredentialSelector({
   const effectiveDisabled = disabled || (hasDependencies && !depsSatisfied)
 
   const effectiveValue = isPreview && previewValue !== undefined ? previewValue : storeValue
-  const selectedId = typeof effectiveValue === 'string' ? effectiveValue : ''
+  const rawSelectedId = typeof effectiveValue === 'string' ? effectiveValue : ''
+  const isCredentialSetSelected = rawSelectedId.startsWith(CREDENTIAL_SET_PREFIX)
+  const selectedId = isCredentialSetSelected ? '' : rawSelectedId
+  const selectedCredentialSetId = isCredentialSetSelected
+    ? rawSelectedId.slice(CREDENTIAL_SET_PREFIX.length)
+    : ''
 
   const effectiveProviderId = useMemo(
     () => getProviderIdFromServiceId(serviceId) as OAuthProvider,
@@ -87,11 +111,17 @@ export function CredentialSelector({
   const hasForeignMeta = foreignCredentials.length > 0
   const isForeign = Boolean(selectedId && !selectedCredential && hasForeignMeta)
 
+  const selectedCredentialSet = useMemo(
+    () => credentialSets.find((cs) => cs.id === selectedCredentialSetId),
+    [credentialSets, selectedCredentialSetId]
+  )
+
   const resolvedLabel = useMemo(() => {
+    if (selectedCredentialSet) return selectedCredentialSet.name
     if (selectedCredential) return selectedCredential.name
     if (isForeign) return 'Saved by collaborator'
     return ''
-  }, [selectedCredential, isForeign])
+  }, [selectedCredentialSet, selectedCredential, isForeign])
 
   useEffect(() => {
     if (!isEditing) {
@@ -148,6 +178,15 @@ export function CredentialSelector({
     [isPreview, setStoreValue]
   )
 
+  const handleCredentialSetSelect = useCallback(
+    (credentialSetId: string) => {
+      if (isPreview) return
+      setStoreValue(`${CREDENTIAL_SET_PREFIX}${credentialSetId}`)
+      setIsEditing(false)
+    },
+    [isPreview, setStoreValue]
+  )
+
   const handleAddCredential = useCallback(() => {
     setShowOAuthModal(true)
   }, [])
@@ -176,7 +215,43 @@ export function CredentialSelector({
       .join(' ')
   }, [])
 
-  const comboboxOptions = useMemo(() => {
+  const { comboboxOptions, comboboxGroups } = useMemo(() => {
+    if (canUseCredentialSets && credentialSets.length > 0) {
+      const groups = []
+
+      groups.push({
+        section: 'Credential Sets',
+        items: credentialSets.map((cs) => ({
+          label: `${cs.name} (${cs.memberCount} members)`,
+          value: `${CREDENTIAL_SET_PREFIX}${cs.id}`,
+        })),
+      })
+
+      const credentialItems = credentials.map((cred) => ({
+        label: cred.name,
+        value: cred.id,
+      }))
+
+      if (credentialItems.length > 0) {
+        groups.push({
+          section: 'My Credentials',
+          items: credentialItems,
+        })
+      } else if (!isCredentialSetSelected) {
+        groups.push({
+          section: 'My Credentials',
+          items: [
+            {
+              label: `Connect ${getProviderName(provider)} account`,
+              value: '__connect_account__',
+            },
+          ],
+        })
+      }
+
+      return { comboboxOptions: [], comboboxGroups: groups }
+    }
+
     const options = credentials.map((cred) => ({
       label: cred.name,
       value: cred.id,
@@ -189,13 +264,31 @@ export function CredentialSelector({
       })
     }
 
-    return options
-  }, [credentials, provider, getProviderName])
+    return { comboboxOptions: options, comboboxGroups: undefined }
+  }, [
+    credentials,
+    provider,
+    getProviderName,
+    canUseCredentialSets,
+    credentialSets,
+    isCredentialSetSelected,
+  ])
 
   const selectedCredentialProvider = selectedCredential?.provider ?? provider
 
   const overlayContent = useMemo(() => {
     if (!inputValue) return null
+
+    if (isCredentialSetSelected && selectedCredentialSet) {
+      return (
+        <div className='flex w-full items-center truncate'>
+          <div className='mr-2 flex-shrink-0 opacity-90'>
+            <Users className='h-3 w-3' />
+          </div>
+          <span className='truncate'>{inputValue}</span>
+        </div>
+      )
+    }
 
     return (
       <div className='flex w-full items-center truncate'>
@@ -205,13 +298,29 @@ export function CredentialSelector({
         <span className='truncate'>{inputValue}</span>
       </div>
     )
-  }, [getProviderIcon, inputValue, selectedCredentialProvider])
+  }, [
+    getProviderIcon,
+    inputValue,
+    selectedCredentialProvider,
+    isCredentialSetSelected,
+    selectedCredentialSet,
+  ])
 
   const handleComboboxChange = useCallback(
     (value: string) => {
       if (value === '__connect_account__') {
         handleAddCredential()
         return
+      }
+
+      if (value.startsWith(CREDENTIAL_SET_PREFIX)) {
+        const credentialSetId = value.slice(CREDENTIAL_SET_PREFIX.length)
+        const matchedSet = credentialSets.find((cs) => cs.id === credentialSetId)
+        if (matchedSet) {
+          setInputValue(matchedSet.name)
+          handleCredentialSetSelect(credentialSetId)
+          return
+        }
       }
 
       const matchedCred = credentials.find((c) => c.id === value)
@@ -224,15 +333,16 @@ export function CredentialSelector({
       setIsEditing(true)
       setInputValue(value)
     },
-    [credentials, handleAddCredential, handleSelect]
+    [credentials, credentialSets, handleAddCredential, handleSelect, handleCredentialSetSelect]
   )
 
   return (
     <div>
       <Combobox
         options={comboboxOptions}
+        groups={comboboxGroups}
         value={inputValue}
-        selectedValue={selectedId}
+        selectedValue={rawSelectedId}
         onChange={handleComboboxChange}
         onOpenChange={handleOpenChange}
         placeholder={

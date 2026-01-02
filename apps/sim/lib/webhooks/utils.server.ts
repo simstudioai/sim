@@ -2373,28 +2373,46 @@ export async function configureGmailPolling(webhookData: any, requestId: string)
   try {
     const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
     const credentialId: string | undefined = providerConfig.credentialId
+    const credentialSetId: string | undefined = providerConfig.credentialSetId
 
-    if (!credentialId) {
-      logger.error(`[${requestId}] Missing credentialId for Gmail webhook ${webhookData.id}`)
-      return false
-    }
-
-    // Get userId from credential
-    const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
-    if (rows.length === 0) {
+    if (!credentialId && !credentialSetId) {
       logger.error(
-        `[${requestId}] Credential ${credentialId} not found for Gmail webhook ${webhookData.id}`
+        `[${requestId}] Missing credentialId or credentialSetId for Gmail webhook ${webhookData.id}`
       )
       return false
     }
 
-    const effectiveUserId = rows[0].userId
-    const accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
-    if (!accessToken) {
-      logger.error(
-        `[${requestId}] Failed to refresh/access Gmail token for credential ${credentialId}`
+    let effectiveUserId: string | undefined
+
+    if (credentialSetId) {
+      const { getCredentialsForCredentialSet } = await import('@/app/api/auth/oauth/utils')
+      const credentials = await getCredentialsForCredentialSet(credentialSetId, 'google-email')
+      if (credentials.length === 0) {
+        logger.error(
+          `[${requestId}] No Gmail credentials found in credential set ${credentialSetId}`
+        )
+        return false
+      }
+      logger.info(
+        `[${requestId}] Credential set ${credentialSetId} has ${credentials.length} Gmail credentials`
       )
-      return false
+    } else {
+      const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+      if (rows.length === 0) {
+        logger.error(
+          `[${requestId}] Credential ${credentialId} not found for Gmail webhook ${webhookData.id}`
+        )
+        return false
+      }
+
+      effectiveUserId = rows[0].userId
+      const accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
+      if (!accessToken) {
+        logger.error(
+          `[${requestId}] Failed to refresh/access Gmail token for credential ${credentialId}`
+        )
+        return false
+      }
     }
 
     const maxEmailsPerPoll =
@@ -2414,8 +2432,9 @@ export async function configureGmailPolling(webhookData: any, requestId: string)
       .set({
         providerConfig: {
           ...providerConfig,
-          userId: effectiveUserId,
+          ...(effectiveUserId ? { userId: effectiveUserId } : {}),
           ...(credentialId ? { credentialId } : {}),
+          ...(credentialSetId ? { credentialSetId } : {}),
           maxEmailsPerPoll,
           pollingInterval,
           markAsRead: providerConfig.markAsRead || false,
@@ -2456,28 +2475,46 @@ export async function configureOutlookPolling(
   try {
     const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
     const credentialId: string | undefined = providerConfig.credentialId
+    const credentialSetId: string | undefined = providerConfig.credentialSetId
 
-    if (!credentialId) {
-      logger.error(`[${requestId}] Missing credentialId for Outlook webhook ${webhookData.id}`)
-      return false
-    }
-
-    // Get userId from credential
-    const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
-    if (rows.length === 0) {
+    if (!credentialId && !credentialSetId) {
       logger.error(
-        `[${requestId}] Credential ${credentialId} not found for Outlook webhook ${webhookData.id}`
+        `[${requestId}] Missing credentialId or credentialSetId for Outlook webhook ${webhookData.id}`
       )
       return false
     }
 
-    const effectiveUserId = rows[0].userId
-    const accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
-    if (!accessToken) {
-      logger.error(
-        `[${requestId}] Failed to refresh/access Outlook token for credential ${credentialId}`
+    let effectiveUserId: string | undefined
+
+    if (credentialSetId) {
+      const { getCredentialsForCredentialSet } = await import('@/app/api/auth/oauth/utils')
+      const credentials = await getCredentialsForCredentialSet(credentialSetId, 'outlook')
+      if (credentials.length === 0) {
+        logger.error(
+          `[${requestId}] No Outlook credentials found in credential set ${credentialSetId}`
+        )
+        return false
+      }
+      logger.info(
+        `[${requestId}] Credential set ${credentialSetId} has ${credentials.length} Outlook credentials`
       )
-      return false
+    } else {
+      const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+      if (rows.length === 0) {
+        logger.error(
+          `[${requestId}] Credential ${credentialId} not found for Outlook webhook ${webhookData.id}`
+        )
+        return false
+      }
+
+      effectiveUserId = rows[0].userId
+      const accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
+      if (!accessToken) {
+        logger.error(
+          `[${requestId}] Failed to refresh/access Outlook token for credential ${credentialId}`
+        )
+        return false
+      }
     }
 
     const providerCfg = (webhookData.providerConfig as Record<string, any>) || {}
@@ -2489,8 +2526,9 @@ export async function configureOutlookPolling(
       .set({
         providerConfig: {
           ...providerCfg,
-          userId: effectiveUserId,
+          ...(effectiveUserId ? { userId: effectiveUserId } : {}),
           ...(credentialId ? { credentialId } : {}),
+          ...(credentialSetId ? { credentialSetId } : {}),
           maxEmailsPerPoll:
             typeof providerCfg.maxEmailsPerPoll === 'string'
               ? Number.parseInt(providerCfg.maxEmailsPerPoll, 10) || 25

@@ -94,6 +94,7 @@ export type WebhookExecutionPayload = {
   testMode?: boolean
   executionTarget?: 'deployed' | 'live'
   credentialId?: string
+  credentialAccountUserId?: string
 }
 
 export async function executeWebhookJob(payload: WebhookExecutionPayload) {
@@ -240,6 +241,7 @@ async function executeWebhookJobInternal(
           useDraftState: false,
           startTime: new Date().toISOString(),
           isClientSession: false,
+          credentialAccountUserId: payload.credentialAccountUserId,
           workflowStateOverride: {
             blocks,
             edges,
@@ -487,6 +489,7 @@ async function executeWebhookJobInternal(
       useDraftState: false,
       startTime: new Date().toISOString(),
       isClientSession: false,
+      credentialAccountUserId: payload.credentialAccountUserId,
       workflowStateOverride: {
         blocks,
         edges,

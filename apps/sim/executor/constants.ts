@@ -112,6 +112,7 @@ export const REFERENCE = {
     LOOP: 'loop',
     PARALLEL: 'parallel',
     VARIABLE: 'variable',
+    CREDENTIAL_SET: 'credentialSet',
   },
 } as const
 
@@ -119,6 +120,7 @@ export const SPECIAL_REFERENCE_PREFIXES = [
   REFERENCE.PREFIX.LOOP,
   REFERENCE.PREFIX.PARALLEL,
   REFERENCE.PREFIX.VARIABLE,
+  REFERENCE.PREFIX.CREDENTIAL_SET,
 ] as const
 
 export const LOOP_REFERENCE = {
