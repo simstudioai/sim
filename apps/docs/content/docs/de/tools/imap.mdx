@@ -1,0 +1,36 @@
+---
+title: IMAP-E-Mail
+description: Workflows auslösen, wenn neue E-Mails über IMAP eintreffen
+  (funktioniert mit jedem E-Mail-Anbieter)
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="imap"
+  color="#6366F1"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Der IMAP-E-Mail-Trigger ermöglicht es Ihren Sim-Workflows, automatisch zu starten, sobald eine neue E-Mail in einem Postfach empfangen wird, das das IMAP-Protokoll unterstützt. Dies funktioniert mit Gmail, Outlook, Yahoo und den meisten anderen E-Mail-Anbietern.
+
+Mit dem IMAP-Trigger können Sie:
+
+- **E-Mail-Verarbeitung automatisieren**: Starten Sie Workflows in Echtzeit, wenn neue Nachrichten in Ihrem Posteingang eintreffen.
+- **Nach Absender, Betreff oder Ordner filtern**: Konfigurieren Sie Ihren Trigger so, dass er nur auf E-Mails reagiert, die bestimmte Bedingungen erfüllen.
+- **Anhänge extrahieren und verarbeiten**: Laden Sie Dateianhänge automatisch herunter und verwenden Sie sie in Ihren automatisierten Abläufen.
+- **E-Mail-Inhalte parsen und verwenden**: Greifen Sie auf Betreff, Absender, Empfänger, vollständigen Text und andere Metadaten in nachfolgenden Workflow-Schritten zu.
+- **Mit jedem E-Mail-Anbieter integrieren**: Funktioniert mit jedem Dienst, der standardmäßigen IMAP-Zugriff bietet, ohne Vendor-Lock-in.
+- **Bei ungelesenen, markierten oder benutzerdefinierten Kriterien auslösen**: Richten Sie erweiterte Filter für die Arten von E-Mails ein, die Ihre Workflows starten.
+
+Mit Sim gibt Ihnen die IMAP-Integration die Möglichkeit, E-Mails in eine handlungsfähige Automatisierungsquelle zu verwandeln. Reagieren Sie auf Kundenanfragen, verarbeiten Sie Benachrichtigungen, starten Sie Daten-Pipelines und mehr – direkt aus Ihrem E-Mail-Posteingang, ohne manuelles Eingreifen.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Verbinden Sie sich über das IMAP-Protokoll mit jedem E-Mail-Server, um Workflows auszulösen, wenn neue E-Mails empfangen werden. Unterstützt Gmail, Outlook, Yahoo und jeden anderen IMAP-kompatiblen E-Mail-Anbieter.
+
+## Hinweise
+
+- Kategorie: `triggers`
+- Typ: `imap`
