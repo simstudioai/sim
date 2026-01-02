@@ -135,45 +135,50 @@ export const imapPollingTrigger: TriggerConfig = {
     {
       id: 'searchCriteria',
       title: 'Search Criteria',
-      type: 'short-input',
-      placeholder: 'UNSEEN',
-      description:
-        'IMAP search criteria (e.g., UNSEEN, FROM "sender@example.com", SUBJECT "report"). Default: UNSEEN',
-      defaultValue: 'UNSEEN',
+      type: 'code',
+      placeholder: '{ "unseen": true }',
+      description: 'ImapFlow search criteria as JSON object. Default: unseen messages only.',
+      defaultValue: '{ "unseen": true }',
       required: false,
       mode: 'trigger',
       wandConfig: {
         enabled: true,
         maintainHistory: true,
-        prompt: `You are an expert in IMAP search syntax (RFC 3501). Generate IMAP search criteria based on user descriptions.
+        generationType: 'json-object',
+        prompt: `Generate ImapFlow search criteria as a JSON object based on the user's description.
 
-IMAP search keys include:
-- ALL - All messages
-- UNSEEN / SEEN - Unread/read messages
-- FLAGGED / UNFLAGGED - Starred/unstarred
-- FROM "string" - Sender contains string
-- TO "string" - Recipient contains string
-- SUBJECT "string" - Subject contains string
-- BODY "string" - Body contains string
-- TEXT "string" - Headers or body contains string
-- BEFORE date / SINCE date / ON date - Date filters (DD-Mon-YYYY, e.g., 01-Jan-2024)
-- LARGER n / SMALLER n - Size in bytes
-- HEADER field-name "string" - Custom header search
-- NOT criteria - Negate
-- OR criteria1 criteria2 - Either matches
-- (criteria) - Grouping
+Available properties (all are optional, combine as needed):
+- "unseen": true - Unread messages
+- "seen": true - Read messages
+- "flagged": true - Starred/flagged messages
+- "answered": true - Replied messages
+- "deleted": true - Deleted messages
+- "draft": true - Draft messages
+- "from": "sender@example.com" - From address contains
+- "to": "recipient@example.com" - To address contains
+- "cc": "cc@example.com" - CC address contains
+- "subject": "keyword" - Subject contains
+- "body": "text" - Body contains
+- "text": "search" - Headers or body contains
+- "since": "2024-01-01" - Emails since date (ISO format)
+- "before": "2024-12-31" - Emails before date
+- "larger": 10240 - Larger than N bytes
+- "smaller": 1048576 - Smaller than N bytes
+- "header": { "X-Priority": "1" } - Custom header search
+- "or": [{ "from": "a@x.com" }, { "from": "b@x.com" }] - OR conditions
+- "not": { "from": "spam@x.com" } - Negate condition
 
-Multiple criteria are AND'd together by default.
+Multiple properties are combined with AND.
 
 Examples:
-- UNSEEN FROM "boss@company.com"
-- OR FROM "alice" FROM "bob"
-- SINCE 01-Jan-2024 SUBJECT "report"
-- NOT SEEN FLAGGED
+- Unread from boss: { "unseen": true, "from": "boss@company.com" }
+- From Alice or Bob: { "or": [{ "from": "alice@x.com" }, { "from": "bob@x.com" }] }
+- Recent with keyword: { "since": "2024-01-01", "subject": "report" }
+- Exclude spam: { "unseen": true, "not": { "from": "newsletter@x.com" } }
 
 Current criteria: {context}
 
-Return ONLY the IMAP search criteria, no explanations or markdown.`,
+Return ONLY valid JSON, no explanations or markdown.`,
         placeholder: 'Describe what emails you want to filter...',
       },
     },

@@ -190,18 +190,21 @@ export async function pollImapWebhooks() {
     }
 
     for (const webhookData of activeWebhooks) {
-      const promise = enqueue(webhookData)
-        .then(() => {})
+      const promise: Promise<void> = enqueue(webhookData)
         .catch((err) => {
           logger.error('Unexpected error in webhook processing:', err)
           failureCount++
+        })
+        .finally(() => {
+          // Self-remove from running array when completed
+          const idx = running.indexOf(promise)
+          if (idx !== -1) running.splice(idx, 1)
         })
 
       running.push(promise)
 
       if (running.length >= CONCURRENCY) {
-        const completedIdx = await Promise.race(running.map((p, i) => p.then(() => i)))
-        running.splice(completedIdx, 1)
+        await Promise.race(running)
       }
     }
 
@@ -268,9 +271,19 @@ async function fetchNewEmails(config: ImapWebhookConfig, requestId: string) {
         const mailbox = await client.mailboxOpen(mailboxPath)
         logger.debug(`[${requestId}] Opened mailbox: ${mailbox.path}, exists: ${mailbox.exists}`)
 
-        const rawCriteria = config.searchCriteria || 'UNSEEN'
-        let searchCriteria: any =
-          typeof rawCriteria === 'string' ? { [rawCriteria.toLowerCase()]: true } : rawCriteria
+        // Parse search criteria - expects JSON object from UI
+        let searchCriteria: any = { unseen: true }
+        if (config.searchCriteria) {
+          if (typeof config.searchCriteria === 'object') {
+            searchCriteria = config.searchCriteria
+          } else if (typeof config.searchCriteria === 'string') {
+            try {
+              searchCriteria = JSON.parse(config.searchCriteria)
+            } catch {
+              logger.warn(`[${requestId}] Invalid search criteria JSON, using default`)
+            }
+          }
+        }
 
         const lastUidForMailbox = latestUidByMailbox[mailboxPath] || config.lastProcessedUid
 
@@ -307,7 +320,7 @@ async function fetchNewEmails(config: ImapWebhookConfig, requestId: string) {
           continue
         }
 
-        messageUids.sort((a, b) => b - a)
+        messageUids.sort((a, b) => a - b) // Sort ascending to process oldest first
         const remainingSlots = maxEmails - totalEmailsCollected
         const uidsToProcess = messageUids.slice(0, remainingSlots)
 

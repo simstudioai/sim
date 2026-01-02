@@ -238,18 +238,20 @@ export async function pollGmailWebhooks() {
     }
 
     for (const webhookData of activeWebhooks) {
-      const promise = enqueue(webhookData)
-        .then(() => {})
+      const promise: Promise<void> = enqueue(webhookData)
         .catch((err) => {
           logger.error('Unexpected error in webhook processing:', err)
           failureCount++
+        })
+        .finally(() => {
+          const idx = running.indexOf(promise)
+          if (idx !== -1) running.splice(idx, 1)
         })
 
       running.push(promise)
 
       if (running.length >= CONCURRENCY) {
-        const completedIdx = await Promise.race(running.map((p, i) => p.then(() => i)))
-        running.splice(completedIdx, 1)
+        await Promise.race(running)
       }
     }
 

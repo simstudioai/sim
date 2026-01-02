@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { ImapFlow } from 'imapflow'
 import { type NextRequest, NextResponse } from 'next/server'
+import { getSession } from '@/lib/auth'
 
 const logger = createLogger('ImapMailboxesAPI')
 
@@ -14,6 +15,11 @@ interface ImapMailboxRequest {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getSession()
+  if (!session?.user?.id) {
+    return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const body = (await request.json()) as ImapMailboxRequest
     const { host, port, secure, rejectUnauthorized, username, password } = body
