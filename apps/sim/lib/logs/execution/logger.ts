@@ -47,34 +47,6 @@ export interface ToolCall {
 const logger = createLogger('ExecutionLogger')
 
 export class ExecutionLogger implements IExecutionLoggerService {
-  private mergeCostModels(
-    existing: Record<string, any>,
-    additional: Record<string, any>
-  ): Record<string, any> {
-    const merged = { ...existing }
-    for (const [model, costs] of Object.entries(additional)) {
-      if (merged[model]) {
-        merged[model] = {
-          input: (merged[model].input || 0) + (costs.input || 0),
-          output: (merged[model].output || 0) + (costs.output || 0),
-          total: (merged[model].total || 0) + (costs.total || 0),
-          tokens: {
-            input:
-              (merged[model].tokens?.input || merged[model].tokens?.prompt || 0) +
-              (costs.tokens?.input || costs.tokens?.prompt || 0),
-            output:
-              (merged[model].tokens?.output || merged[model].tokens?.completion || 0) +
-              (costs.tokens?.output || costs.tokens?.completion || 0),
-            total: (merged[model].tokens?.total || 0) + (costs.tokens?.total || 0),
-          },
-        }
-      } else {
-        merged[model] = costs
-      }
-    }
-    return merged
-  }
-
   async startWorkflowExecution(params: {
     workflowId: string
     workspaceId: string
@@ -209,7 +181,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     workflowInput?: any
     isResume?: boolean
     level?: 'info' | 'error'
-    status?: 'completed' | 'failed' | 'cancelled'
+    status?: 'completed' | 'failed' | 'cancelled' | 'pending'
   }): Promise<WorkflowExecutionLog> {
     const {
       executionId,
@@ -268,43 +240,19 @@ export class ExecutionLogger implements IExecutionLoggerService {
     const redactedTraceSpans = redactApiKeys(filteredTraceSpans)
     const redactedFinalOutput = redactApiKeys(filteredFinalOutput)
 
-    // Merge costs if resuming
-    const existingCost = isResume && existingLog?.cost ? existingLog.cost : null
-    const mergedCost = existingCost
-      ? {
-          // For resume, add only the model costs, NOT the base execution charge again
-          total: (existingCost.total || 0) + costSummary.modelCost,
-          input: (existingCost.input || 0) + costSummary.totalInputCost,
-          output: (existingCost.output || 0) + costSummary.totalOutputCost,
-          tokens: {
-            input:
-              (existingCost.tokens?.input || existingCost.tokens?.prompt || 0) +
-              costSummary.totalPromptTokens,
-            output:
-              (existingCost.tokens?.output || existingCost.tokens?.completion || 0) +
-              costSummary.totalCompletionTokens,
-            total: (existingCost.tokens?.total || 0) + costSummary.totalTokens,
-          },
-          models: this.mergeCostModels(existingCost.models || {}, costSummary.models),
-        }
-      : {
-          total: costSummary.totalCost,
-          input: costSummary.totalInputCost,
-          output: costSummary.totalOutputCost,
-          tokens: {
-            input: costSummary.totalPromptTokens,
-            output: costSummary.totalCompletionTokens,
-            total: costSummary.totalTokens,
-          },
-          models: costSummary.models,
-        }
+    const executionCost = {
+      total: costSummary.totalCost,
+      input: costSummary.totalInputCost,
+      output: costSummary.totalOutputCost,
+      tokens: {
+        input: costSummary.totalPromptTokens,
+        output: costSummary.totalCompletionTokens,
+        total: costSummary.totalTokens,
+      },
+      models: costSummary.models,
+    }
 
-    // Merge files if resuming
-    const existingFiles = isResume && existingLog?.files ? existingLog.files : []
-    const mergedFiles = [...existingFiles, ...executionFiles]
-
-    // Calculate the actual total duration for resume executions
-    const actualTotalDuration =
+    const totalDuration =
       isResume && existingLog?.startedAt
         ? new Date(endedAt).getTime() - new Date(existingLog.startedAt).getTime()
         : totalDurationMs
@@ -315,19 +263,19 @@ export class ExecutionLogger implements IExecutionLoggerService {
         level,
         status,
         endedAt: new Date(endedAt),
-        totalDurationMs: actualTotalDuration,
-        files: mergedFiles.length > 0 ? mergedFiles : null,
+        totalDurationMs: totalDuration,
+        files: executionFiles.length > 0 ? executionFiles : null,
         executionData: {
           traceSpans: redactedTraceSpans,
           finalOutput: redactedFinalOutput,
           tokens: {
-            input: mergedCost.tokens.input,
-            output: mergedCost.tokens.output,
-            total: mergedCost.tokens.total,
+            input: executionCost.tokens.input,
+            output: executionCost.tokens.output,
+            total: executionCost.tokens.total,
           },
-          models: mergedCost.models,
+          models: executionCost.models,
         },
-        cost: mergedCost,
+        cost: executionCost,
       })
       .where(eq(workflowExecutionLogs.executionId, executionId))
       .returning()

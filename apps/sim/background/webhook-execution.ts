@@ -268,14 +268,25 @@ async function executeWebhookJobInternal(
             logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
               executionId,
             })
+            await loggingSession.markAsFailed('Missing snapshot seed for paused execution')
           } else {
-            await PauseResumeManager.persistPauseResult({
-              workflowId: payload.workflowId,
-              executionId,
-              pausePoints: executionResult.pausePoints || [],
-              snapshotSeed: executionResult.snapshotSeed,
-              executorUserId: executionResult.metadata?.userId,
-            })
+            try {
+              await PauseResumeManager.persistPauseResult({
+                workflowId: payload.workflowId,
+                executionId,
+                pausePoints: executionResult.pausePoints || [],
+                snapshotSeed: executionResult.snapshotSeed,
+                executorUserId: executionResult.metadata?.userId,
+              })
+            } catch (pauseError) {
+              logger.error(`[${requestId}] Failed to persist pause result`, {
+                executionId,
+                error: pauseError instanceof Error ? pauseError.message : String(pauseError),
+              })
+              await loggingSession.markAsFailed(
+                `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
+              )
+            }
           }
         } else {
           await PauseResumeManager.processQueuedResumes(executionId)
@@ -509,14 +520,25 @@ async function executeWebhookJobInternal(
         logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
           executionId,
         })
+        await loggingSession.markAsFailed('Missing snapshot seed for paused execution')
       } else {
-        await PauseResumeManager.persistPauseResult({
-          workflowId: payload.workflowId,
-          executionId,
-          pausePoints: executionResult.pausePoints || [],
-          snapshotSeed: executionResult.snapshotSeed,
-          executorUserId: executionResult.metadata?.userId,
-        })
+        try {
+          await PauseResumeManager.persistPauseResult({
+            workflowId: payload.workflowId,
+            executionId,
+            pausePoints: executionResult.pausePoints || [],
+            snapshotSeed: executionResult.snapshotSeed,
+            executorUserId: executionResult.metadata?.userId,
+          })
+        } catch (pauseError) {
+          logger.error(`[${requestId}] Failed to persist pause result`, {
+            executionId,
+            error: pauseError instanceof Error ? pauseError.message : String(pauseError),
+          })
+          await loggingSession.markAsFailed(
+            `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
+          )
+        }
       }
     } else {
       await PauseResumeManager.processQueuedResumes(executionId)

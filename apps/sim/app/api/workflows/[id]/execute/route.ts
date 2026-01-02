@@ -713,14 +713,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
                 executionId,
               })
+              await loggingSession.markAsFailed('Missing snapshot seed for paused execution')
             } else {
-              await PauseResumeManager.persistPauseResult({
-                workflowId,
-                executionId,
-                pausePoints: result.pausePoints || [],
-                snapshotSeed: result.snapshotSeed,
-                executorUserId: result.metadata?.userId,
-              })
+              try {
+                await PauseResumeManager.persistPauseResult({
+                  workflowId,
+                  executionId,
+                  pausePoints: result.pausePoints || [],
+                  snapshotSeed: result.snapshotSeed,
+                  executorUserId: result.metadata?.userId,
+                })
+              } catch (pauseError) {
+                logger.error(`[${requestId}] Failed to persist pause result`, {
+                  executionId,
+                  error: pauseError instanceof Error ? pauseError.message : String(pauseError),
+                })
+                await loggingSession.markAsFailed(
+                  `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
+                )
+              }
             }
           } else {
             await PauseResumeManager.processQueuedResumes(executionId)

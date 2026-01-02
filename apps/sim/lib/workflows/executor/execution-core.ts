@@ -386,6 +386,13 @@ export async function executeWorkflowCore(
     }
 
     if (result.status === 'paused') {
+      await loggingSession.safeCompleteWithPause({
+        endedAt: new Date().toISOString(),
+        totalDurationMs: totalDuration || 0,
+        traceSpans: traceSpans || [],
+        workflowInput: processedInput,
+      })
+
       await clearExecutionCancellation(executionId)
 
       logger.info(`[${requestId}] Workflow execution paused`, {
