@@ -3,10 +3,7 @@ import { organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type Stripe from 'stripe'
-import {
-  getEmailSubject,
-  renderEnterpriseSubscriptionEmail,
-} from '@/components/emails/render-email'
+import { getEmailSubject, renderEnterpriseSubscriptionEmail } from '@/components/emails'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import type { EnterpriseSubscriptionMetadata } from '../types'
@@ -208,7 +205,7 @@ export async function handleManualEnterpriseSubscription(event: Stripe.Event) {
       const user = userDetails[0]
       const org = orgDetails[0]
 
-      const html = await renderEnterpriseSubscriptionEmail(user.name || user.email, user.email)
+      const html = await renderEnterpriseSubscriptionEmail(user.name || user.email)
 
       const emailResult = await sendEmail({
         to: user.email,

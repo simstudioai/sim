@@ -54,15 +54,16 @@ describe('Azure Blob Storage Client', () => {
       toString: () => 'sv=2021-06-08&se=2023-01-01T00%3A00%3A00Z&sr=b&sp=r&sig=test',
     })
 
-    vi.doMock('@/lib/core/config/env', () => ({
-      env: {
+    vi.doMock('@/lib/core/config/env', async () => {
+      const { createEnvMock } = await import('@sim/testing')
+      return createEnvMock({
         AZURE_ACCOUNT_NAME: 'testaccount',
         AZURE_ACCOUNT_KEY: 'testkey',
         AZURE_CONNECTION_STRING:
           'DefaultEndpointsProtocol=https;AccountName=testaccount;AccountKey=testkey;EndpointSuffix=core.windows.net',
         AZURE_STORAGE_CONTAINER_NAME: 'testcontainer',
-      },
-    }))
+      })
+    })
 
     vi.doMock('@sim/logger', () => ({
       createLogger: vi.fn().mockReturnValue({

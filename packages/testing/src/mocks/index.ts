@@ -24,6 +24,8 @@ export {
   databaseMock,
   drizzleOrmMock,
 } from './database.mock'
+// Env mocks
+export { createEnvMock, createMockGetEnv, defaultMockEnv, envMock } from './env.mock'
 // Fetch mocks
 export {
   createMockFetch,

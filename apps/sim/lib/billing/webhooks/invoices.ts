@@ -10,14 +10,14 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import type Stripe from 'stripe'
-import PaymentFailedEmail from '@/components/emails/billing/payment-failed-email'
-import { getEmailSubject, renderCreditPurchaseEmail } from '@/components/emails/render-email'
+import { getEmailSubject, PaymentFailedEmail, renderCreditPurchaseEmail } from '@/components/emails'
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
 import { addCredits, getCreditBalance, removeCredits } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
+import { getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
 const logger = createLogger('StripeInvoiceWebhooks')
@@ -139,6 +139,7 @@ async function getPaymentMethodDetails(
 
 /**
  * Send payment failure notification emails to affected users
+ * Note: This is only called when billing is enabled (Stripe plugin loaded)
  */
 async function sendPaymentFailureEmails(
   sub: { plan: string | null; referenceId: string },
@@ -203,10 +204,13 @@ async function sendPaymentFailureEmails(
           })
         )
 
+        const { from, replyTo } = getPersonalEmailFrom()
         await sendEmail({
           to: userToNotify.email,
           subject: 'Payment Failed - Action Required',
           html: emailHtml,
+          from,
+          replyTo,
           emailType: 'transactional',
         })
 
