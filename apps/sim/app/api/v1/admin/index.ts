@@ -29,6 +29,10 @@
  *   DELETE /api/v1/admin/workflows/:id                      - Delete workflow
  *   GET    /api/v1/admin/workflows/:id/export               - Export workflow (JSON)
  *   POST   /api/v1/admin/workflows/import                   - Import single workflow
+ *   POST   /api/v1/admin/workflows/:id/deploy               - Deploy workflow
+ *   DELETE /api/v1/admin/workflows/:id/deploy               - Undeploy workflow
+ *   GET    /api/v1/admin/workflows/:id/versions             - List deployment versions
+ *   POST   /api/v1/admin/workflows/:id/versions/:vid/activate - Activate specific version
  *
  *   Organizations:
  *   GET    /api/v1/admin/organizations                      - List all organizations
@@ -65,6 +69,8 @@ export {
   unauthorizedResponse,
 } from '@/app/api/v1/admin/responses'
 export type {
+  AdminDeploymentVersion,
+  AdminDeployResult,
   AdminErrorResponse,
   AdminFolder,
   AdminListResponse,
@@ -76,6 +82,7 @@ export type {
   AdminSeatAnalytics,
   AdminSingleResponse,
   AdminSubscription,
+  AdminUndeployResult,
   AdminUser,
   AdminUserBilling,
   AdminUserBillingWithSubscription,

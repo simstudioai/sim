@@ -13,6 +13,7 @@ import type { InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
+import type { DbOrTx } from '@/lib/db/types'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 import { SUBFLOW_TYPES } from '@/stores/workflows/workflow/types'
@@ -730,4 +731,159 @@ export function regenerateWorkflowStateIds(state: any): any {
     ...(state.variables && { variables: state.variables }),
     ...(state.metadata && { metadata: state.metadata }),
   }
+}
+
+/**
+ * Undeploy a workflow by deactivating all versions and clearing deployment state.
+ * Handles schedule deletion and returns the result.
+ */
+export async function undeployWorkflow(params: { workflowId: string; tx?: DbOrTx }): Promise<{
+  success: boolean
+  error?: string
+}> {
+  const { workflowId, tx } = params
+
+  const executeUndeploy = async (dbCtx: DbOrTx) => {
+    const { deleteSchedulesForWorkflow } = await import('@/lib/workflows/schedules/deploy')
+    await deleteSchedulesForWorkflow(workflowId, dbCtx)
+
+    await dbCtx
+      .update(workflowDeploymentVersion)
+      .set({ isActive: false })
+      .where(eq(workflowDeploymentVersion.workflowId, workflowId))
+
+    await dbCtx
+      .update(workflow)
+      .set({ isDeployed: false, deployedAt: null })
+      .where(eq(workflow.id, workflowId))
+  }
+
+  try {
+    if (tx) {
+      await executeUndeploy(tx)
+    } else {
+      await db.transaction(async (txn) => {
+        await executeUndeploy(txn)
+      })
+    }
+
+    logger.info(`Undeployed workflow ${workflowId}`)
+    return { success: true }
+  } catch (error) {
+    logger.error(`Error undeploying workflow ${workflowId}:`, error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to undeploy workflow',
+    }
+  }
+}
+
+/**
+ * Activate a specific deployment version for a workflow.
+ * Deactivates the current active version and activates the specified one.
+ */
+export async function activateWorkflowVersion(params: {
+  workflowId: string
+  version: number
+}): Promise<{
+  success: boolean
+  deployedAt?: Date
+  state?: unknown
+  error?: string
+}> {
+  const { workflowId, version } = params
+
+  try {
+    const [versionData] = await db
+      .select({ id: workflowDeploymentVersion.id, state: workflowDeploymentVersion.state })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflowId),
+          eq(workflowDeploymentVersion.version, version)
+        )
+      )
+      .limit(1)
+
+    if (!versionData) {
+      return { success: false, error: 'Deployment version not found' }
+    }
+
+    const now = new Date()
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(workflowDeploymentVersion)
+        .set({ isActive: false })
+        .where(
+          and(
+            eq(workflowDeploymentVersion.workflowId, workflowId),
+            eq(workflowDeploymentVersion.isActive, true)
+          )
+        )
+
+      await tx
+        .update(workflowDeploymentVersion)
+        .set({ isActive: true })
+        .where(
+          and(
+            eq(workflowDeploymentVersion.workflowId, workflowId),
+            eq(workflowDeploymentVersion.version, version)
+          )
+        )
+
+      await tx
+        .update(workflow)
+        .set({ isDeployed: true, deployedAt: now })
+        .where(eq(workflow.id, workflowId))
+    })
+
+    logger.info(`Activated version ${version} for workflow ${workflowId}`)
+
+    return {
+      success: true,
+      deployedAt: now,
+      state: versionData.state,
+    }
+  } catch (error) {
+    logger.error(`Error activating version ${version} for workflow ${workflowId}:`, error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to activate version',
+    }
+  }
+}
+
+/**
+ * List all deployment versions for a workflow.
+ */
+export async function listWorkflowVersions(workflowId: string): Promise<{
+  versions: Array<{
+    id: string
+    version: number
+    name: string | null
+    isActive: boolean
+    createdAt: Date
+    createdBy: string | null
+    deployedByName: string | null
+  }>
+}> {
+  const { user } = await import('@sim/db')
+
+  const versions = await db
+    .select({
+      id: workflowDeploymentVersion.id,
+      version: workflowDeploymentVersion.version,
+      name: workflowDeploymentVersion.name,
+      isActive: workflowDeploymentVersion.isActive,
+      createdAt: workflowDeploymentVersion.createdAt,
+      createdBy: workflowDeploymentVersion.createdBy,
+      deployedByName: user.name,
+    })
+    .from(workflowDeploymentVersion)
+    .leftJoin(user, eq(workflowDeploymentVersion.createdBy, user.id))
+    .where(eq(workflowDeploymentVersion.workflowId, workflowId))
+    .orderBy(desc(workflowDeploymentVersion.version))
+
+  return { versions }
 }
