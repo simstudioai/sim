@@ -162,6 +162,49 @@ function formatFieldName(fieldName: string): string {
 }
 
 /**
+ * Remove malformed subBlocks from a block that may have been created by bugs.
+ * This includes subBlocks with:
+ * - Key "undefined" (caused by assigning to undefined key)
+ * - Missing required `id` field
+ * - Type "unknown" (indicates malformed data)
+ */
+function removeMalformedSubBlocks(block: any): void {
+  if (!block.subBlocks) return
+
+  const keysToRemove: string[] = []
+
+  Object.entries(block.subBlocks).forEach(([key, subBlock]: [string, any]) => {
+    // Flag subBlocks with invalid keys (literal "undefined" string)
+    if (key === 'undefined') {
+      keysToRemove.push(key)
+      return
+    }
+
+    // Flag subBlocks that are null or not objects
+    if (!subBlock || typeof subBlock !== 'object') {
+      keysToRemove.push(key)
+      return
+    }
+
+    // Flag subBlocks with type "unknown" (malformed data)
+    if (subBlock.type === 'unknown') {
+      keysToRemove.push(key)
+      return
+    }
+
+    // Flag subBlocks missing required id field
+    if (!subBlock.id) {
+      keysToRemove.push(key)
+    }
+  })
+
+  // Remove the flagged keys
+  keysToRemove.forEach((key) => {
+    delete block.subBlocks[key]
+  })
+}
+
+/**
  * Sanitize workflow state by removing all credentials and workspace-specific data
  * This is used for both template creation and workflow export to ensure consistency
  *
@@ -182,6 +225,9 @@ export function sanitizeWorkflowForSharing(
 
   Object.values(sanitized.blocks).forEach((block: any) => {
     if (!block?.type) return
+
+    // First, remove any malformed subBlocks that may have been created by bugs
+    removeMalformedSubBlocks(block)
 
     const blockConfig = getBlock(block.type)
 
