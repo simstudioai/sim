@@ -41,9 +41,7 @@ export const PermissionSelector = React.memo<PermissionSelectorProps>(
               className={cn(
                 'px-[8px] py-[4px] text-[12px]',
                 radiusClasses,
-                disabled && 'cursor-not-allowed',
-                value === option.value &&
-                  'bg-[var(--border-1)] hover:bg-[var(--border-1)] dark:bg-[var(--surface-5)] dark:hover:bg-[var(--border-1)]'
+                disabled && 'cursor-not-allowed'
               )}
             >
               {option.label}

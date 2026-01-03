@@ -195,6 +195,19 @@ export function getWorkflowExecutionCSPPolicy(): string {
 }
 
 /**
+ * CSP for embeddable form pages
+ * Allows embedding in iframes from any origin while maintaining other security policies
+ */
+export function getFormEmbedCSPPolicy(): string {
+  const basePolicy = buildCSPString({
+    ...buildTimeCSPDirectives,
+    // Allow embedding from any origin
+    'frame-ancestors': ['*'],
+  })
+  return basePolicy
+}
+
+/**
  * Add a source to a specific directive (modifies build-time directives)
  */
 export function addCSPSource(directive: keyof CSPDirectives, source: string): void {

@@ -791,6 +791,43 @@ export const chat = pgTable(
   }
 )
 
+export const form = pgTable(
+  'form',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    identifier: text('identifier').notNull(),
+    title: text('title').notNull(),
+    description: text('description'),
+    isActive: boolean('is_active').notNull().default(true),
+
+    // UI/UX Customizations
+    // { primaryColor, welcomeMessage, thankYouTitle, thankYouMessage, logoUrl }
+    customizations: json('customizations').default('{}'),
+
+    // Authentication options (following chat pattern)
+    authType: text('auth_type').notNull().default('public'), // 'public', 'password', 'email'
+    password: text('password'), // Stored encrypted, populated when authType is 'password'
+    allowedEmails: json('allowed_emails').default('[]'), // Array of allowed emails or domains
+
+    // Branding
+    showBranding: boolean('show_branding').notNull().default(true),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    identifierIdx: uniqueIndex('form_identifier_idx').on(table.identifier),
+    workflowIdIdx: index('form_workflow_id_idx').on(table.workflowId),
+    userIdIdx: index('form_user_id_idx').on(table.userId),
+  })
+)
+
 export const organization = pgTable('organization', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
