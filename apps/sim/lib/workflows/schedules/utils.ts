@@ -444,16 +444,47 @@ export function calculateNextRunTime(
  */
 function getTimezoneAbbreviation(timezone: string): string {
   const timezoneMap: Record<string, string> = {
+    // UTC
+    UTC: 'UTC',
+    // Americas
     'America/Los_Angeles': 'PT',
     'America/Denver': 'MT',
     'America/Chicago': 'CT',
     'America/New_York': 'ET',
+    'America/Anchorage': 'AKT',
+    'Pacific/Honolulu': 'HST',
+    'America/Toronto': 'ET',
+    'America/Vancouver': 'PT',
+    'America/Mexico_City': 'CST',
+    'America/Sao_Paulo': 'BRT',
+    'America/Argentina/Buenos_Aires': 'ART',
+    // Europe
     'Europe/London': 'GMT/BST',
     'Europe/Paris': 'CET/CEST',
-    'Asia/Tokyo': 'JST',
+    'Europe/Berlin': 'CET/CEST',
+    'Europe/Amsterdam': 'CET/CEST',
+    'Europe/Madrid': 'CET/CEST',
+    'Europe/Rome': 'CET/CEST',
+    'Europe/Moscow': 'MSK',
+    // Middle East / Africa
+    'Asia/Dubai': 'GST',
+    'Asia/Tel_Aviv': 'IST',
+    'Africa/Cairo': 'EET',
+    'Africa/Johannesburg': 'SAST',
+    // Asia
+    'Asia/Kolkata': 'IST',
+    'Asia/Bangkok': 'ICT',
+    'Asia/Jakarta': 'WIB',
     'Asia/Singapore': 'SGT',
-    'Australia/Sydney': 'AEDT/AEST',
-    UTC: 'UTC',
+    'Asia/Shanghai': 'CST',
+    'Asia/Hong_Kong': 'HKT',
+    'Asia/Seoul': 'KST',
+    'Asia/Tokyo': 'JST',
+    // Australia / Pacific
+    'Australia/Perth': 'AWST',
+    'Australia/Sydney': 'AEST/AEDT',
+    'Australia/Melbourne': 'AEST/AEDT',
+    'Pacific/Auckland': 'NZST/NZDT',
   }
 
   return timezoneMap[timezone] || timezone
