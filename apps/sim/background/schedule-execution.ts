@@ -372,8 +372,7 @@ function calculateNextRunTime(
     return nextDate
   }
 
-  const lastRanAt = schedule.lastRanAt ? new Date(schedule.lastRanAt) : null
-  return calculateNextTime(scheduleType, scheduleValues, lastRanAt)
+  return calculateNextTime(scheduleType, scheduleValues)
 }
 
 export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
