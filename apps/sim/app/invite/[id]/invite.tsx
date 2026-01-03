@@ -31,7 +31,6 @@ interface InviteError {
   code: InviteErrorCode
   message: string
   requiresAuth?: boolean
-  requiresSignup?: boolean
   canRetry?: boolean
 }
 
