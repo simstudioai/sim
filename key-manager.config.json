@@ -96,7 +96,7 @@
       "type": "api",
       "description": "External key finder service for retrieving missing keys",
       "authSecret": "KEYFINDER_SECRET",
-      "endpoint": "https://api.keyfinder.example.com/v1/keys"
+      "endpoint": "https://api.keyfinder.example/v1/keys"
     }
   ],
   "injectionTargets": {

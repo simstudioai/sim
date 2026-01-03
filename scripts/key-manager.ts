@@ -408,6 +408,13 @@ class KeyManager {
   }
 
   /**
+   * Get configuration
+   */
+  getConfig(): Config {
+    return this.config;
+  }
+
+  /**
    * Generate summary report
    */
   generateReport(): void {
@@ -481,7 +488,8 @@ async function main() {
         
         // Read keys from environment
         const envKeys = new Map<string, string>();
-        for (const keyConfig of manager['config'].requiredKeys) {
+        const config = manager.getConfig();
+        for (const keyConfig of config.requiredKeys) {
           const value = process.env[keyConfig.name];
           if (value) {
             envKeys.set(keyConfig.name, value);
@@ -507,8 +515,9 @@ async function main() {
   }
 }
 
-// Run if executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Run if executed directly (ES module check)
+const isMainModule = process.argv[1] && import.meta.url.endsWith(process.argv[1]);
+if (isMainModule || process.argv[1]?.includes('key-manager.ts')) {
   main().catch((error) => {
     console.error('Fatal error:', error);
     exit(1);
