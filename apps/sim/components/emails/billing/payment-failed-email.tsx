@@ -1,21 +1,7 @@
-import {
-  Body,
-  Column,
-  Container,
-  Head,
-  Hr,
-  Html,
-  Img,
-  Link,
-  Preview,
-  Row,
-  Section,
-  Text,
-} from '@react-email/components'
-import { baseStyles } from '@/components/emails/base-styles'
-import EmailFooter from '@/components/emails/footer'
+import { Link, Section, Text } from '@react-email/components'
+import { baseStyles, colors } from '@/components/emails/_styles'
+import { EmailLayout } from '@/components/emails/components'
 import { getBrandConfig } from '@/lib/branding/branding'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 
 interface PaymentFailedEmailProps {
   userName?: string
@@ -35,132 +21,88 @@ export function PaymentFailedEmail({
   sentDate = new Date(),
 }: PaymentFailedEmailProps) {
   const brand = getBrandConfig()
-  const baseUrl = getBaseUrl()
 
   const previewText = `${brand.name}: Payment Failed - Action Required`
 
   return (
-    <Html>
-      <Head />
-      <Preview>{previewText}</Preview>
-      <Body style={baseStyles.main}>
-        <Container style={baseStyles.container}>
-          <Section style={{ padding: '30px 0', textAlign: 'center' }}>
-            <Row>
-              <Column style={{ textAlign: 'center' }}>
-                <Img
-                  src={brand.logoUrl || `${baseUrl}/logo/reverse/text/medium.png`}
-                  width='114'
-                  alt={brand.name}
-                  style={{
-                    margin: '0 auto',
-                  }}
-                />
-              </Column>
-            </Row>
-          </Section>
+    <EmailLayout preview={previewText}>
+      <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
+        {userName ? `Hi ${userName},` : 'Hi,'}
+      </Text>
 
-          <Section style={baseStyles.sectionsBorders}>
-            <Row>
-              <Column style={baseStyles.sectionBorder} />
-              <Column style={baseStyles.sectionCenter} />
-              <Column style={baseStyles.sectionBorder} />
-            </Row>
-          </Section>
+      <Text
+        style={{
+          ...baseStyles.paragraph,
+          fontSize: '16px',
+          fontWeight: 600,
+          color: colors.textPrimary,
+        }}
+      >
+        We were unable to process your payment.
+      </Text>
 
-          <Section style={baseStyles.content}>
-            <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
-              {userName ? `Hi ${userName},` : 'Hi,'}
-            </Text>
+      <Text style={baseStyles.paragraph}>
+        Your {brand.name} account has been temporarily blocked to prevent service interruptions and
+        unexpected charges. To restore access immediately, please update your payment method.
+      </Text>
 
-            <Text style={{ ...baseStyles.paragraph, fontSize: '18px', fontWeight: 'bold' }}>
-              We were unable to process your payment.
-            </Text>
+      <Section
+        style={{
+          backgroundColor: '#fff5f5',
+          border: '1px solid #fed7d7',
+          borderRadius: '6px',
+          padding: '16px 18px',
+          margin: '16px 0',
+        }}
+      >
+        <Text
+          style={{
+            ...baseStyles.paragraph,
+            marginBottom: 8,
+            marginTop: 0,
+            fontWeight: 'bold',
+          }}
+        >
+          Payment Details
+        </Text>
+        <Text style={{ ...baseStyles.paragraph, margin: '4px 0' }}>
+          Amount due: ${amountDue.toFixed(2)}
+        </Text>
+        {lastFourDigits && (
+          <Text style={{ ...baseStyles.paragraph, margin: '4px 0' }}>
+            Payment method: •••• {lastFourDigits}
+          </Text>
+        )}
+        {failureReason && (
+          <Text style={{ ...baseStyles.paragraph, margin: '4px 0' }}>Reason: {failureReason}</Text>
+        )}
+      </Section>
 
-            <Text style={baseStyles.paragraph}>
-              Your {brand.name} account has been temporarily blocked to prevent service
-              interruptions and unexpected charges. To restore access immediately, please update
-              your payment method.
-            </Text>
+      <Link href={billingPortalUrl} style={{ textDecoration: 'none' }}>
+        <Text style={baseStyles.button}>Update Payment Method</Text>
+      </Link>
 
-            <Section
-              style={{
-                backgroundColor: '#fff5f5',
-                border: '1px solid #fed7d7',
-                borderRadius: '5px',
-                padding: '16px',
-                margin: '20px 0',
-              }}
-            >
-              <Row>
-                <Column>
-                  <Text style={{ ...baseStyles.paragraph, marginBottom: 8, marginTop: 0 }}>
-                    <strong>Payment Details</strong>
-                  </Text>
-                  <Text style={{ ...baseStyles.paragraph, margin: '4px 0' }}>
-                    Amount due: ${amountDue.toFixed(2)}
-                  </Text>
-                  {lastFourDigits && (
-                    <Text style={{ ...baseStyles.paragraph, margin: '4px 0' }}>
-                      Payment method: •••• {lastFourDigits}
-                    </Text>
-                  )}
-                  {failureReason && (
-                    <Text style={{ ...baseStyles.paragraph, margin: '4px 0' }}>
-                      Reason: {failureReason}
-                    </Text>
-                  )}
-                </Column>
-              </Row>
-            </Section>
+      {/* Divider */}
+      <div style={baseStyles.divider} />
 
-            <Link href={billingPortalUrl} style={{ textDecoration: 'none' }}>
-              <Text style={baseStyles.button}>Update Payment Method</Text>
-            </Link>
+      <Text style={{ ...baseStyles.paragraph, fontWeight: 'bold' }}>What happens next?</Text>
 
-            <Hr />
+      <Text style={baseStyles.paragraph}>
+        • Your workflows and automations are currently paused
+        <br />• Update your payment method to restore service immediately
+        <br />• Stripe will automatically retry the charge once payment is updated
+      </Text>
 
-            <Text style={baseStyles.paragraph}>
-              <strong>What happens next?</strong>
-            </Text>
+      {/* Divider */}
+      <div style={baseStyles.divider} />
 
-            <Text style={baseStyles.paragraph}>
-              • Your workflows and automations are currently paused
-              <br />• Update your payment method to restore service immediately
-              <br />• Stripe will automatically retry the charge once payment is updated
-            </Text>
-
-            <Hr />
-
-            <Text style={baseStyles.paragraph}>
-              <strong>Need help?</strong>
-            </Text>
-
-            <Text style={baseStyles.paragraph}>
-              Common reasons for payment failures include expired cards, insufficient funds, or
-              incorrect billing information. If you continue to experience issues, please{' '}
-              <Link href={`${baseUrl}/support`} style={baseStyles.link}>
-                contact our support team
-              </Link>
-              .
-            </Text>
-
-            <Text style={baseStyles.paragraph}>
-              Best regards,
-              <br />
-              The Sim Team
-            </Text>
-
-            <Text style={{ ...baseStyles.paragraph, fontSize: '12px', color: '#666' }}>
-              Sent on {sentDate.toLocaleDateString()} • This is a critical transactional
-              notification.
-            </Text>
-          </Section>
-        </Container>
-
-        <EmailFooter baseUrl={baseUrl} />
-      </Body>
-    </Html>
+      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+        Common issues: expired card, insufficient funds, or incorrect billing info. Need help?{' '}
+        <Link href={`mailto:${brand.supportEmail}`} style={baseStyles.link}>
+          {brand.supportEmail}
+        </Link>
+      </Text>
+    </EmailLayout>
   )
 }
 

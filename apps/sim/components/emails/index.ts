@@ -1,12 +1,17 @@
-export * from './base-styles'
-export { BatchInvitationEmail } from './batch-invitation-email'
-export { EnterpriseSubscriptionEmail } from './billing/enterprise-subscription-email'
-export { PlanWelcomeEmail } from './billing/plan-welcome-email'
-export { UsageThresholdEmail } from './billing/usage-threshold-email'
-export { default as EmailFooter } from './footer'
-export { HelpConfirmationEmail } from './help-confirmation-email'
-export { InvitationEmail } from './invitation-email'
-export { OTPVerificationEmail } from './otp-verification-email'
-export * from './render-email'
-export { ResetPasswordEmail } from './reset-password-email'
-export { WorkspaceInvitationEmail } from './workspace-invitation'
+// Styles
+export * from './_styles'
+// Auth emails
+export * from './auth'
+// Billing emails
+export * from './billing'
+// Careers emails
+export * from './careers'
+// Shared components
+export * from './components'
+// Invitation emails
+export * from './invitations'
+// Render functions and subjects
+export * from './render'
+export * from './subjects'
+// Support emails
+export * from './support'

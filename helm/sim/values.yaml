@@ -687,6 +687,15 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    imapWebhookPoll:
+      enabled: true
+      name: imap-webhook-poll
+      schedule: "*/1 * * * *"
+      path: "/api/webhooks/poll/imap"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     renewSubscriptions:
       enabled: true
       name: renew-subscriptions

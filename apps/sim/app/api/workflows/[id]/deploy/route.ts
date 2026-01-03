@@ -4,12 +4,12 @@ import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { removeMcpToolsForWorkflow, syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
-import { deployWorkflow, loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
-  createSchedulesForDeploy,
-  deleteSchedulesForWorkflow,
-  validateWorkflowSchedules,
-} from '@/lib/workflows/schedules'
+  deployWorkflow,
+  loadWorkflowFromNormalizedTables,
+  undeployWorkflow,
+} from '@/lib/workflows/persistence/utils'
+import { createSchedulesForDeploy, validateWorkflowSchedules } from '@/lib/workflows/schedules'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -207,21 +207,11 @@ export async function DELETE(
       return createErrorResponse(error.message, error.status)
     }
 
-    await db.transaction(async (tx) => {
-      await deleteSchedulesForWorkflow(id, tx)
+    const result = await undeployWorkflow({ workflowId: id })
+    if (!result.success) {
+      return createErrorResponse(result.error || 'Failed to undeploy workflow', 500)
+    }
 
-      await tx
-        .update(workflowDeploymentVersion)
-        .set({ isActive: false })
-        .where(eq(workflowDeploymentVersion.workflowId, id))
-
-      await tx
-        .update(workflow)
-        .set({ isDeployed: false, deployedAt: null })
-        .where(eq(workflow.id, id))
-    })
-
-    // Remove all MCP tools that reference this workflow
     await removeMcpToolsForWorkflow(id, requestId)
 
     logger.info(`[${requestId}] Workflow undeployed successfully: ${id}`)

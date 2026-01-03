@@ -98,4 +98,5 @@ export {
   TableRow,
 } from './table/table'
 export { Textarea } from './textarea/textarea'
+export { TimePicker, type TimePickerProps, timePickerVariants } from './time-picker/time-picker'
 export { Tooltip } from './tooltip/tooltip'

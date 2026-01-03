@@ -45,14 +45,18 @@ export * from './assertions'
 export * from './builders'
 export * from './factories'
 export {
+  createEnvMock,
   createMockDb,
   createMockFetch,
+  createMockGetEnv,
   createMockLogger,
   createMockResponse,
   createMockSocket,
   createMockStorage,
   databaseMock,
+  defaultMockEnv,
   drizzleOrmMock,
+  envMock,
   loggerMock,
   type MockFetchResponse,
   setupGlobalFetchMock,

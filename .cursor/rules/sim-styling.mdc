@@ -9,7 +9,7 @@ globs: ["apps/sim/**/*.tsx", "apps/sim/**/*.css"]
 
 1. **No inline styles** - Use Tailwind classes
 2. **No duplicate dark classes** - Skip `dark:` when value matches light mode
-3. **Exact values** - `text-[14px]`, `h-[25px]`
+3. **Exact values** - `text-[14px]`, `h-[26px]`
 4. **Transitions** - `transition-colors` for interactive states
 
 ## Conditional Classes

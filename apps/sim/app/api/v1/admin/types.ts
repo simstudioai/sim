@@ -599,3 +599,23 @@ export interface AdminSeatAnalytics {
     lastActive: string | null
   }>
 }
+
+export interface AdminDeploymentVersion {
+  id: string
+  version: number
+  name: string | null
+  isActive: boolean
+  createdAt: string
+  createdBy: string | null
+  deployedByName: string | null
+}
+
+export interface AdminDeployResult {
+  isDeployed: boolean
+  version: number
+  deployedAt: string
+}
+
+export interface AdminUndeployResult {
+  isDeployed: boolean
+}

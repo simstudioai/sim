@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return createErrorResponse(error.message, error.status)
     }
 
-    const versions = await db
+    const rawVersions = await db
       .select({
         id: workflowDeploymentVersion.id,
         version: workflowDeploymentVersion.version,
@@ -35,6 +35,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .leftJoin(user, eq(workflowDeploymentVersion.createdBy, user.id))
       .where(eq(workflowDeploymentVersion.workflowId, id))
       .orderBy(desc(workflowDeploymentVersion.version))
+
+    const versions = rawVersions.map((v) => ({
+      ...v,
+      deployedBy: v.deployedBy ?? (v.createdBy === 'admin-api' ? 'Admin' : null),
+    }))
 
     return createSuccessResponse({ versions })
   } catch (error: any) {

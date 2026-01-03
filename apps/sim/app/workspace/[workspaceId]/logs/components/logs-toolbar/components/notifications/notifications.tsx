@@ -22,7 +22,6 @@ import {
 import { SlackIcon } from '@/components/icons'
 import { Skeleton } from '@/components/ui'
 import { cn } from '@/lib/core/utils/cn'
-import { ALL_TRIGGER_TYPES, type TriggerType } from '@/lib/logs/types'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import {
   type NotificationSubscription,
@@ -34,6 +33,7 @@ import {
 } from '@/hooks/queries/notifications'
 import { useConnectOAuthService } from '@/hooks/queries/oauth-connections'
 import { useSlackAccounts } from '@/hooks/use-slack-accounts'
+import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
 import { SlackChannelSelector } from './components/slack-channel-selector'
 import { WorkflowSelector } from './components/workflow-selector'
 
@@ -133,7 +133,7 @@ export function NotificationSettings({
     workflowIds: [] as string[],
     allWorkflows: true,
     levelFilter: ['info', 'error'] as LogLevel[],
-    triggerFilter: [...ALL_TRIGGER_TYPES] as TriggerType[],
+    triggerFilter: [...CORE_TRIGGER_TYPES] as CoreTriggerType[],
     includeFinalOutput: false,
     includeTraceSpans: false,
     includeRateLimits: false,
@@ -203,7 +203,7 @@ export function NotificationSettings({
       workflowIds: [],
       allWorkflows: true,
       levelFilter: ['info', 'error'],
-      triggerFilter: [...ALL_TRIGGER_TYPES],
+      triggerFilter: [...CORE_TRIGGER_TYPES],
       includeFinalOutput: false,
       includeTraceSpans: false,
       includeRateLimits: false,
@@ -516,7 +516,7 @@ export function NotificationSettings({
       workflowIds: subscription.workflowIds || [],
       allWorkflows: subscription.allWorkflows,
       levelFilter: subscription.levelFilter as LogLevel[],
-      triggerFilter: subscription.triggerFilter as TriggerType[],
+      triggerFilter: subscription.triggerFilter as CoreTriggerType[],
       includeFinalOutput: subscription.includeFinalOutput,
       includeTraceSpans: subscription.includeTraceSpans,
       includeRateLimits: subscription.includeRateLimits,
@@ -849,14 +849,14 @@ export function NotificationSettings({
           <div className='flex flex-col gap-[8px]'>
             <Label className='text-[var(--text-secondary)]'>Trigger Type Filters</Label>
             <Combobox
-              options={ALL_TRIGGER_TYPES.map((trigger) => ({
+              options={CORE_TRIGGER_TYPES.map((trigger) => ({
                 label: trigger.charAt(0).toUpperCase() + trigger.slice(1),
                 value: trigger,
               }))}
               multiSelect
               multiSelectValues={formData.triggerFilter}
               onMultiSelectChange={(values) => {
-                setFormData({ ...formData, triggerFilter: values as TriggerType[] })
+                setFormData({ ...formData, triggerFilter: values as CoreTriggerType[] })
                 setFormErrors({ ...formErrors, triggerFilter: '' })
               }}
               placeholder='Select trigger types...'

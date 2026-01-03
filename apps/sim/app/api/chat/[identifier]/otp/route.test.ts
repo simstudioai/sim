@@ -156,6 +156,11 @@ describe('Chat OTP API Route', () => {
       }),
     }))
 
+    vi.doMock('@/lib/core/config/env', async () => {
+      const { createEnvMock } = await import('@sim/testing')
+      return createEnvMock()
+    })
+
     vi.doMock('zod', () => ({
       z: {
         object: vi.fn().mockReturnValue({
