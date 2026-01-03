@@ -39,7 +39,7 @@ export const GET = withAdminAuthParams<RouteParams>(async (request, context) => 
       isActive: v.isActive,
       createdAt: v.createdAt.toISOString(),
       createdBy: v.createdBy,
-      deployedByName: v.deployedByName,
+      deployedByName: v.deployedByName ?? (v.createdBy === 'admin-api' ? 'Admin' : null),
     }))
 
     logger.info(`Admin API: Listed ${versions.length} versions for workflow ${workflowId}`)
