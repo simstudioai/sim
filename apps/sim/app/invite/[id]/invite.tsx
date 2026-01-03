@@ -133,27 +133,30 @@ function parseApiError(error: unknown, statusCode?: number): InviteErrorCode {
     return 'network-error'
   }
 
-  // Handle HTTP status codes
-  if (statusCode) {
-    if (statusCode === 401) return 'unauthorized'
-    if (statusCode === 403) return 'forbidden'
-    if (statusCode === 404) return 'invalid-invitation'
-    if (statusCode >= 500) return 'server-error'
-  }
-
-  // Handle error message patterns
+  // Handle error message patterns first (more specific matching)
   const errorMessage =
     typeof error === 'string' ? error.toLowerCase() : (error as Error)?.message?.toLowerCase() || ''
 
+  // Check specific patterns before falling back to status codes
+  // Order matters: more specific patterns must come first
+  if (errorMessage.includes('already a member of an organization')) return 'already-in-organization'
+  if (errorMessage.includes('already a member')) return 'already-member'
+  if (errorMessage.includes('email mismatch') || errorMessage.includes('different email'))
+    return 'email-mismatch'
+  if (errorMessage.includes('already processed')) return 'already-processed'
   if (errorMessage.includes('unauthorized')) return 'unauthorized'
   if (errorMessage.includes('forbidden') || errorMessage.includes('permission')) return 'forbidden'
   if (errorMessage.includes('not found') || errorMessage.includes('expired'))
     return 'invalid-invitation'
-  if (errorMessage.includes('email mismatch') || errorMessage.includes('different email'))
-    return 'email-mismatch'
-  if (errorMessage.includes('already a member')) return 'already-member'
-  if (errorMessage.includes('already a member of an organization')) return 'already-in-organization'
-  if (errorMessage.includes('already processed')) return 'already-processed'
+
+  // Handle HTTP status codes as fallback
+  if (statusCode) {
+    if (statusCode === 401) return 'unauthorized'
+    if (statusCode === 403) return 'forbidden'
+    if (statusCode === 404) return 'invalid-invitation'
+    if (statusCode === 409) return 'already-in-organization'
+    if (statusCode >= 500) return 'server-error'
+  }
 
   return 'unknown'
 }
