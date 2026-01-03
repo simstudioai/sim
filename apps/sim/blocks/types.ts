@@ -217,6 +217,7 @@ export interface SubBlockConfig {
   hideFromPreview?: boolean // Hide this subblock from the workflow block preview
   requiresFeature?: string // Environment variable name that must be truthy for this subblock to be visible
   description?: string
+  tooltip?: string // Tooltip text displayed via info icon next to the title
   value?: (params: Record<string, any>) => string
   grouped?: boolean
   scrollable?: boolean

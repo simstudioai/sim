@@ -1,10 +1,23 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { Badge, Button, Textarea } from '@/components/emcn'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import {
+  Badge,
+  Button,
+  Code,
+  Input,
+  Label,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Textarea,
+  Tooltip,
+} from '@/components/emcn'
 import {
   Select,
   SelectContent,
@@ -12,9 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
 import { useBrandConfig } from '@/lib/branding/branding'
-import { cn } from '@/lib/core/utils/cn'
 import Nav from '@/app/(landing)/components/nav/nav'
 import type { ResumeStatus } from '@/executor/types'
 
@@ -60,7 +71,8 @@ interface ResumeQueueEntrySummary {
 
 interface PausePointWithQueue {
   contextId: string
-  triggerBlockId: string
+  triggerBlockId?: string
+  blockId?: string
   response: any
   registeredAt: string
   resumeStatus: ResumeStatus
@@ -105,14 +117,12 @@ interface ResumeExecutionPageProps {
   initialContextId?: string | null
 }
 
-const RESUME_STATUS_STYLES: Record<string, string> = {
-  paused: 'border-[var(--c-F59E0B)]/30 bg-[var(--c-F59E0B)]/10 text-[var(--c-F59E0B)]',
-  queued:
-    'border-[var(--brand-tertiary)]/30 bg-[var(--brand-tertiary)]/10 text-[var(--brand-tertiary)]',
-  resuming:
-    'border-[var(--brand-primary)]/30 bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]',
-  resumed: 'border-[var(--text-success)]/30 bg-[var(--text-success)]/10 text-[var(--text-success)]',
-  failed: 'border-[var(--text-error)]/30 bg-[var(--text-error)]/10 text-[var(--text-error)]',
+const STATUS_BADGE_VARIANT: Record<string, 'orange' | 'blue' | 'green' | 'red' | 'gray'> = {
+  paused: 'orange',
+  queued: 'blue',
+  resuming: 'blue',
+  resumed: 'green',
+  failed: 'red',
 }
 
 function formatDate(value: string | null): string {
@@ -129,15 +139,29 @@ function getStatusLabel(status: string): string {
   return status.charAt(0).toUpperCase() + status.slice(1)
 }
 
-function ResumeStatusBadge({ status }: { status: string }) {
-  const style =
-    RESUME_STATUS_STYLES[status] ??
-    'border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-secondary)]'
+function StatusBadge({ status }: { status: string }) {
   return (
-    <Badge variant='outline' className={cn(style)}>
+    <Badge variant={STATUS_BADGE_VARIANT[status] ?? 'gray'} size='sm'>
       {getStatusLabel(status)}
     </Badge>
   )
+}
+
+function getBlockNameFromSnapshot(
+  executionSnapshot: { snapshot?: string } | null | undefined,
+  blockId: string | undefined
+): string | null {
+  if (!executionSnapshot?.snapshot || !blockId) return null
+  try {
+    const parsed = JSON.parse(executionSnapshot.snapshot)
+    const workflowState = parsed?.workflow
+    if (!workflowState?.blocks || !Array.isArray(workflowState.blocks)) return null
+    // Blocks are stored as an array of serialized blocks with id and metadata.name
+    const block = workflowState.blocks.find((b: { id: string }) => b.id === blockId)
+    return block?.metadata?.name || null
+  } catch {
+    return null
+  }
 }
 
 export default function ResumeExecutionPage({
@@ -152,9 +176,6 @@ export default function ResumeExecutionPage({
   const [executionDetail, setExecutionDetail] = useState<PausedExecutionDetail | null>(
     initialExecutionDetail
   )
-  const totalPauses = executionDetail?.totalPauseCount ?? 0
-  const resumedCount = executionDetail?.resumedCount ?? 0
-  const pendingCount = Math.max(0, totalPauses - resumedCount)
   const pausePoints = executionDetail?.pausePoints ?? []
 
   const defaultContextId = useMemo(() => {
@@ -164,20 +185,6 @@ export default function ResumeExecutionPage({
       pausePoints[0]?.contextId
     )
   }, [initialContextId, pausePoints])
-  const actionablePausePoints = useMemo(
-    () => pausePoints.filter((point) => point.resumeStatus === 'paused'),
-    [pausePoints]
-  )
-
-  const groupedPausePoints = useMemo(() => {
-    const activeStatuses = new Set(['paused', 'queued', 'resuming'])
-    const resolvedStatuses = new Set(['resumed', 'failed'])
-
-    return {
-      active: pausePoints.filter((point) => activeStatuses.has(point.resumeStatus)),
-      resolved: pausePoints.filter((point) => resolvedStatuses.has(point.resumeStatus)),
-    }
-  }, [pausePoints])
 
   const [selectedContextId, setSelectedContextId] = useState<string | null>(
     defaultContextId ?? null
@@ -201,44 +208,32 @@ export default function ResumeExecutionPage({
 
   const normalizeInputFormatFields = useCallback((raw: any): NormalizedInputField[] => {
     if (!Array.isArray(raw)) return []
-
     return raw
       .map((field: any, index: number) => {
         if (!field || typeof field !== 'object') return null
-
         const name = typeof field.name === 'string' ? field.name.trim() : ''
         if (!name) return null
-
-        const id = typeof field.id === 'string' && field.id.length > 0 ? field.id : `field_${index}`
-        const label =
-          typeof field.label === 'string' && field.label.trim().length > 0
-            ? field.label.trim()
-            : name
-        const type =
-          typeof field.type === 'string' && field.type.trim().length > 0 ? field.type : 'string'
-        const description =
-          typeof field.description === 'string' && field.description.trim().length > 0
-            ? field.description.trim()
-            : undefined
-        const placeholder =
-          typeof field.placeholder === 'string' && field.placeholder.trim().length > 0
-            ? field.placeholder.trim()
-            : undefined
-        const required = field.required === true
-        const options = Array.isArray(field.options) ? field.options : undefined
-        const rows = typeof field.rows === 'number' ? field.rows : undefined
-
         return {
-          id,
+          id: typeof field.id === 'string' && field.id.length > 0 ? field.id : `field_${index}`,
           name,
-          label,
-          type,
-          description,
-          placeholder,
+          label:
+            typeof field.label === 'string' && field.label.trim().length > 0
+              ? field.label.trim()
+              : name,
+          type:
+            typeof field.type === 'string' && field.type.trim().length > 0 ? field.type : 'string',
+          description:
+            typeof field.description === 'string' && field.description.trim().length > 0
+              ? field.description.trim()
+              : undefined,
+          placeholder:
+            typeof field.placeholder === 'string' && field.placeholder.trim().length > 0
+              ? field.placeholder.trim()
+              : undefined,
           value: field.value,
-          required,
-          options,
-          rows,
+          required: field.required === true,
+          options: Array.isArray(field.options) ? field.options : undefined,
+          rows: typeof field.rows === 'number' ? field.rows : undefined,
         } as NormalizedInputField
       })
       .filter((field): field is NormalizedInputField => field !== null)
@@ -246,36 +241,23 @@ export default function ResumeExecutionPage({
 
   const formatValueForInputField = useCallback(
     (field: NormalizedInputField, value: any): string => {
-      if (value === undefined || value === null) {
-        return ''
-      }
-
+      if (value === undefined || value === null) return ''
       switch (field.type) {
         case 'boolean':
-          if (typeof value === 'boolean') {
-            return value ? 'true' : 'false'
-          }
+          if (typeof value === 'boolean') return value ? 'true' : 'false'
           if (typeof value === 'string') {
             const normalized = value.trim().toLowerCase()
-            if (normalized === 'true' || normalized === 'false') {
-              return normalized
-            }
+            if (normalized === 'true' || normalized === 'false') return normalized
           }
           return ''
         case 'number':
-          if (typeof value === 'number') {
-            return Number.isFinite(value) ? String(value) : ''
-          }
-          if (typeof value === 'string') {
-            return value
-          }
+          if (typeof value === 'number') return Number.isFinite(value) ? String(value) : ''
+          if (typeof value === 'string') return value
           return ''
         case 'array':
         case 'object':
         case 'files':
-          if (typeof value === 'string') {
-            return value
-          }
+          if (typeof value === 'string') return value
           try {
             return JSON.stringify(value, null, 2)
           } catch {
@@ -291,14 +273,11 @@ export default function ResumeExecutionPage({
   const buildInitialFormValues = useCallback(
     (fields: NormalizedInputField[], submission?: Record<string, any>) => {
       const initial: Record<string, string> = {}
-
       for (const field of fields) {
         const candidate =
           submission && Object.hasOwn(submission, field.name) ? submission[field.name] : field.value
-
         initial[field.name] = formatValueForInputField(field, candidate)
       }
-
       return initial
     },
     [formatValueForInputField]
@@ -318,16 +297,11 @@ export default function ResumeExecutionPage({
   const parseFormValue = useCallback(
     (field: NormalizedInputField, rawValue: string): { value: any; error?: string } => {
       const value = rawValue ?? ''
-
       switch (field.type) {
         case 'number': {
-          if (!value.trim()) {
-            return { value: null }
-          }
+          if (!value.trim()) return { value: null }
           const numericValue = Number(value)
-          if (Number.isNaN(numericValue)) {
-            return { value: null, error: 'Enter a valid number.' }
-          }
+          if (Number.isNaN(numericValue)) return { value: null, error: 'Enter a valid number.' }
           return { value: numericValue }
         }
         case 'boolean': {
@@ -359,17 +333,13 @@ export default function ResumeExecutionPage({
   const handleFormFieldChange = useCallback(
     (fieldName: string, newValue: string) => {
       if (!selectedContextId) return
-
       setFormValues((prev) => {
         const updated = { ...prev, [fieldName]: newValue }
         setFormValuesByContext((map) => ({ ...map, [selectedContextId]: updated }))
         return updated
       })
-
       setFormErrors((prev) => {
-        if (!prev[fieldName]) {
-          return prev
-        }
+        if (!prev[fieldName]) return prev
         const { [fieldName]: _, ...rest } = prev
         return rest
       })
@@ -380,7 +350,6 @@ export default function ResumeExecutionPage({
   const renderFieldInput = useCallback(
     (field: NormalizedInputField) => {
       const value = formValues[field.name] ?? ''
-
       switch (field.type) {
         case 'boolean': {
           const selectValue = value === 'true' || value === 'false' ? value : '__unset__'
@@ -389,12 +358,8 @@ export default function ResumeExecutionPage({
               value={selectValue}
               onValueChange={(val) => handleFormFieldChange(field.name, val)}
             >
-              <SelectTrigger className='w-full rounded-[6px] border-[var(--border)] bg-[var(--surface-1)]'>
-                <SelectValue
-                  placeholder={
-                    field.required ? 'Select true or false' : 'Select true, false, or leave blank'
-                  }
-                />
+              <SelectTrigger>
+                <SelectValue placeholder={field.required ? 'Select true or false' : 'Select...'} />
               </SelectTrigger>
               <SelectContent>
                 {!field.required && <SelectItem value='__unset__'>Not set</SelectItem>}
@@ -409,7 +374,7 @@ export default function ResumeExecutionPage({
             <Input
               type='number'
               value={value}
-              onChange={(event) => handleFormFieldChange(field.name, event.target.value)}
+              onChange={(e) => handleFormFieldChange(field.name, e.target.value)}
               placeholder={field.placeholder ?? 'Enter a number...'}
             />
           )
@@ -419,27 +384,26 @@ export default function ResumeExecutionPage({
           return (
             <Textarea
               value={value}
-              onChange={(event) => handleFormFieldChange(field.name, event.target.value)}
+              onChange={(e) => handleFormFieldChange(field.name, e.target.value)}
               placeholder={field.placeholder ?? (field.type === 'array' ? '[...]' : '{...}')}
-              className='min-h-[120px] font-mono text-[13px]'
+              rows={5}
             />
           )
         default: {
-          const useTextarea = field.rows !== undefined && field.rows > 3
-          if (useTextarea) {
+          if (field.rows !== undefined && field.rows > 3) {
             return (
               <Textarea
                 value={value}
-                onChange={(event) => handleFormFieldChange(field.name, event.target.value)}
+                onChange={(e) => handleFormFieldChange(field.name, e.target.value)}
                 placeholder={field.placeholder ?? 'Enter value...'}
-                className='min-h-[120px]'
+                rows={5}
               />
             )
           }
           return (
             <Input
               value={value}
-              onChange={(event) => handleFormFieldChange(field.name, event.target.value)}
+              onChange={(e) => handleFormFieldChange(field.name, e.target.value)}
               placeholder={field.placeholder ?? 'Enter value...'}
             />
           )
@@ -447,6 +411,37 @@ export default function ResumeExecutionPage({
       }
     },
     [formValues, handleFormFieldChange]
+  )
+
+  const renderDisabledFieldInput = useCallback(
+    (field: NormalizedInputField, resumedValues: Record<string, any>) => {
+      const rawValue = resumedValues[field.name]
+      const value =
+        rawValue !== undefined
+          ? typeof rawValue === 'object'
+            ? JSON.stringify(rawValue)
+            : String(rawValue)
+          : ''
+      switch (field.type) {
+        case 'boolean': {
+          const displayValue = rawValue === true ? 'True' : rawValue === false ? 'False' : 'Not set'
+          return <Input value={displayValue} disabled />
+        }
+        case 'number':
+          return <Input type='number' value={value} disabled />
+        case 'array':
+        case 'object':
+        case 'files':
+          return <Textarea value={value} disabled rows={5} />
+        default: {
+          if (field.rows !== undefined && field.rows > 3) {
+            return <Textarea value={value} disabled rows={5} />
+          }
+          return <Input value={value} disabled />
+        }
+      }
+    },
+    []
   )
 
   const selectedOperation = useMemo(
@@ -464,7 +459,6 @@ export default function ResumeExecutionPage({
   const responseStructureRows = useMemo<ResponseStructureRow[]>(() => {
     const raw = selectedDetail?.pausePoint.response?.data?.responseStructure
     if (!Array.isArray(raw)) return []
-
     return raw
       .map((entry: any, index: number) => {
         if (!entry || typeof entry !== 'object') return null
@@ -476,7 +470,6 @@ export default function ResumeExecutionPage({
             : Array.isArray(entry.value)
               ? 'array'
               : typeof entry.value
-
         return {
           id: entry.id ?? `${name}_${index}`,
           name,
@@ -492,7 +485,6 @@ export default function ResumeExecutionPage({
       setSelectedDetail(null)
       return
     }
-
     const controller = new AbortController()
     const loadDetail = async () => {
       setLoadingDetail(true)
@@ -506,12 +498,10 @@ export default function ResumeExecutionPage({
             signal: controller.signal,
           }
         )
-
         if (!response.ok) {
           setSelectedDetail(null)
           return
         }
-
         const data: PauseContextDetail = await response.json()
         setSelectedDetail(data)
         setSelectedStatus(data.pausePoint.resumeStatus)
@@ -525,15 +515,12 @@ export default function ResumeExecutionPage({
           !Array.isArray(responseData.submission)
             ? (responseData.submission as Record<string, any>)
             : undefined
-
         if (operation === 'human' && fetchedInputFields.length > 0) {
           const baseValues = buildInitialFormValues(fetchedInputFields, submission)
           let mergedValues = baseValues
           setFormValuesByContext((prev) => {
             const existingValues = prev[data.pausePoint.contextId]
-            if (existingValues) {
-              mergedValues = { ...baseValues, ...existingValues }
-            }
+            if (existingValues) mergedValues = { ...baseValues, ...existingValues }
             return { ...prev, [data.pausePoint.contextId]: mergedValues }
           })
           setFormValues(mergedValues)
@@ -571,7 +558,6 @@ export default function ResumeExecutionPage({
         setLoadingDetail(false)
       }
     }
-
     loadDetail()
     return () => controller.abort()
   }, [
@@ -590,14 +576,9 @@ export default function ResumeExecutionPage({
         credentials: 'include',
         cache: 'no-store',
       })
-
-      if (!response.ok) {
-        return
-      }
-
+      if (!response.ok) return
       const data: PausedExecutionDetail = await response.json()
       setExecutionDetail(data)
-
       if (!selectedContextId) {
         const first =
           data.pausePoints?.find((point: PausePointWithQueue) => point.resumeStatus === 'paused')
@@ -614,24 +595,17 @@ export default function ResumeExecutionPage({
   const refreshSelectedDetail = useCallback(
     async (contextId: string, showLoader = true) => {
       try {
-        if (showLoader) {
-          setLoadingDetail(true)
-        }
+        if (showLoader) setLoadingDetail(true)
         const response = await fetch(`/api/resume/${workflowId}/${executionId}/${contextId}`, {
           method: 'GET',
           credentials: 'include',
           cache: 'no-store',
         })
-
-        if (!response.ok) {
-          return
-        }
-
+        if (!response.ok) return
         const data: PauseContextDetail = await response.json()
         setSelectedDetail(data)
         setSelectedStatus(data.pausePoint.resumeStatus)
         setQueuePosition(data.pausePoint.queuePosition)
-
         const responseData = data.pausePoint.response?.data ?? {}
         const operation = responseData.operation || 'human'
         const fetchedInputFields = normalizeInputFormatFields(responseData.inputFormat)
@@ -641,15 +615,12 @@ export default function ResumeExecutionPage({
           !Array.isArray(responseData.submission)
             ? (responseData.submission as Record<string, any>)
             : undefined
-
         if (operation === 'human' && fetchedInputFields.length > 0) {
           const baseValues = buildInitialFormValues(fetchedInputFields, submission)
           let mergedValues = baseValues
           setFormValuesByContext((prev) => {
             const existingValues = prev[data.pausePoint.contextId]
-            if (existingValues) {
-              mergedValues = { ...baseValues, ...existingValues }
-            }
+            if (existingValues) mergedValues = { ...baseValues, ...existingValues }
             return { ...prev, [data.pausePoint.contextId]: mergedValues }
           })
           setFormValues(mergedValues)
@@ -682,9 +653,7 @@ export default function ResumeExecutionPage({
       } catch (err) {
         console.error('Failed to refresh pause context detail', err)
       } finally {
-        if (showLoader) {
-          setLoadingDetail(false)
-        }
+        if (showLoader) setLoadingDetail(false)
       }
     },
     [workflowId, executionId, normalizeInputFormatFields, buildInitialFormValues]
@@ -692,119 +661,85 @@ export default function ResumeExecutionPage({
 
   const handleResume = useCallback(async () => {
     if (!selectedContextId || !selectedDetail) return
-
     setLoadingAction(true)
     setError(null)
     setMessage(null)
-
     let resumePayload: any
-
     if (isHumanMode && hasInputFormat) {
       const errors: Record<string, string> = {}
       const submission: Record<string, any> = {}
-
       for (const field of inputFormatFields) {
         const rawValue = formValues[field.name] ?? ''
         const hasValue =
           field.type === 'boolean'
             ? rawValue === 'true' || rawValue === 'false'
             : rawValue.trim().length > 0 && rawValue !== '__unset__'
-
         if (!hasValue || rawValue === '__unset__') {
-          if (field.required) {
-            errors[field.name] = 'This field is required.'
-          }
+          if (field.required) errors[field.name] = 'This field is required.'
           continue
         }
-
         const { value, error: parseError } = parseFormValue(field, rawValue)
         if (parseError) {
           errors[field.name] = parseError
           continue
         }
-
-        if (value !== undefined) {
-          submission[field.name] = value
-        }
+        if (value !== undefined) submission[field.name] = value
       }
-
       if (Object.keys(errors).length > 0) {
         setFormErrors(errors)
         setLoadingAction(false)
         return
       }
-
       setFormErrors({})
       resumePayload = { submission }
     } else {
       let parsedInput: any
-
       if (resumeInput && resumeInput.trim().length > 0) {
         try {
           parsedInput = JSON.parse(resumeInput)
-        } catch (err: any) {
+        } catch {
           setError('Resume input must be valid JSON.')
           setLoadingAction(false)
           return
         }
       }
-
       resumePayload = parsedInput
     }
-
     try {
       const response = await fetch(
         `/api/resume/${workflowId}/${executionId}/${selectedContextId}`,
         {
           method: 'POST',
           credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(resumePayload ? { input: resumePayload } : {}),
         }
       )
-
       const payload = await response.json()
-
       if (!response.ok) {
         setError(payload.error || 'Failed to resume execution.')
         setSelectedStatus(selectedDetail.pausePoint.resumeStatus)
         return
       }
-
       const nextStatus = payload.status === 'queued' ? 'queued' : 'resuming'
       const nextQueuePosition = payload.queuePosition ?? null
-
       const fallbackContextId =
         executionDetail?.pausePoints.find(
           (point) => point.contextId !== selectedContextId && point.resumeStatus === 'paused'
         )?.contextId ?? null
-
       setExecutionDetail((prev) => {
-        if (!prev) {
-          return prev
-        }
-
+        if (!prev) return prev
         return {
           ...prev,
           pausePoints: prev.pausePoints.map((point) =>
             point.contextId === selectedContextId
-              ? {
-                  ...point,
-                  resumeStatus: nextStatus,
-                  queuePosition: nextQueuePosition,
-                }
+              ? { ...point, resumeStatus: nextStatus, queuePosition: nextQueuePosition }
               : point
           ),
         }
       })
-
       setSelectedDetail((prev) => {
-        if (!prev || prev.pausePoint.contextId !== selectedContextId) {
-          return prev
-        }
-
+        if (!prev || prev.pausePoint.contextId !== selectedContextId) return prev
         return {
           ...prev,
           pausePoint: {
@@ -814,23 +749,12 @@ export default function ResumeExecutionPage({
           },
         }
       })
-
       setSelectedStatus(nextStatus)
       setQueuePosition(nextQueuePosition)
-
-      setSelectedContextId((prev) => {
-        if (prev !== selectedContextId) {
-          return prev
-        }
-        return fallbackContextId
-      })
-
-      if (payload.status === 'queued') {
-        setMessage('Resume request queued. Use refresh to monitor its progress.')
-      } else {
-        setMessage('Resume execution started. Refresh to check for updates.')
-      }
-
+      setSelectedContextId((prev) => (prev !== selectedContextId ? prev : fallbackContextId))
+      setMessage(
+        payload.status === 'queued' ? 'Resume request queued.' : 'Resume started successfully.'
+      )
       await Promise.all([refreshExecutionDetail(), refreshSelectedDetail(selectedContextId, false)])
     } catch (err: any) {
       setError(err.message || 'Unexpected error while resuming execution.')
@@ -862,73 +786,15 @@ export default function ResumeExecutionPage({
     }
   }, [selectedDetail])
 
-  const statusDetailNode = useMemo(() => {
-    return (
-      <div className='flex flex-wrap items-center gap-[8px]'>
-        <ResumeStatusBadge status={selectedStatus} />
-        {queuePosition && queuePosition > 0 ? (
-          <span className='text-[12px] text-[var(--text-muted)]'>
-            Queue position {queuePosition}
-          </span>
-        ) : null}
-      </div>
-    )
-  }, [selectedStatus, queuePosition])
-
-  const renderPausePointCard = useCallback(
-    (pause: PausePointWithQueue, subdued = false) => {
-      const isSelected = pause.contextId === selectedContextId
-
-      return (
-        <button
-          key={pause.contextId}
-          type='button'
-          onClick={() => {
-            setSelectedContextId(pause.contextId)
-            setError(null)
-            setMessage(null)
-          }}
-          className={cn(
-            'w-full rounded-[6px] border border-[var(--border)] bg-[var(--surface-1)] p-[12px] text-left',
-            'hover:bg-[var(--surface-3)] focus:outline-none',
-            isSelected && 'bg-[var(--surface-3)]'
-          )}
-        >
-          <div className='mb-[8px] flex items-center justify-between'>
-            <ResumeStatusBadge status={pause.resumeStatus} />
-            <span className='truncate font-medium text-[11px] text-[var(--text-primary)]'>
-              {pause.contextId}
-            </span>
-          </div>
-          <div className='space-y-[4px] text-[11px] text-[var(--text-secondary)]'>
-            <p>Registered: {formatDate(pause.registeredAt)}</p>
-            {pause.queuePosition != null && pause.queuePosition > 0 && (
-              <p className='text-[var(--c-F59E0B)]'>Queue Position: {pause.queuePosition}</p>
-            )}
-          </div>
-        </button>
-      )
-    },
-    [selectedContextId]
-  )
-
   const isFormComplete = useMemo(() => {
     if (!isHumanMode || !hasInputFormat) return true
-
     return inputFormatFields.every((field) => {
       const rawValue = formValues[field.name] ?? ''
-
       if (field.type === 'boolean') {
-        if (field.required) {
-          return rawValue === 'true' || rawValue === 'false'
-        }
+        if (field.required) return rawValue === 'true' || rawValue === 'false'
         return rawValue === '' || rawValue === 'true' || rawValue === 'false'
       }
-
-      if (!field.required) {
-        return true
-      }
-
+      if (!field.required) return true
       return rawValue.trim().length > 0
     })
   }, [isHumanMode, hasInputFormat, inputFormatFields, formValues])
@@ -941,462 +807,484 @@ export default function ResumeExecutionPage({
     selectedStatus === 'queued' ||
     (isHumanMode && hasInputFormat && (!isFormComplete || Object.keys(formErrors).length > 0))
 
+  const getBlockName = (pause: PausePointWithQueue) => {
+    const pauseBlockId = pause.blockId || pause.triggerBlockId
+    return (
+      getBlockNameFromSnapshot(executionDetail?.executionSnapshot, pauseBlockId) ||
+      'Human in the Loop'
+    )
+  }
+
+  // Not found state
   if (!executionDetail) {
     return (
-      <div className='relative min-h-screen bg-[var(--bg)]'>
-        <Nav variant='auth' />
-        <div className='flex min-h-[calc(100vh-120px)] items-center justify-center px-[16px]'>
-          <div className='w-full max-w-[410px]'>
-            <div className='flex flex-col items-center justify-center'>
-              <div className='space-y-[4px] text-center'>
-                <h1 className='font-medium text-[24px] text-[var(--text-primary)] tracking-tight'>
-                  Execution Not Found
-                </h1>
-                <p className='text-[14px] text-[var(--text-secondary)]'>
-                  The execution you are trying to resume could not be located or has already
-                  completed.
-                </p>
-              </div>
-
-              <div className='mt-[24px] w-full space-y-[12px]'>
-                <Button
-                  type='button'
-                  onClick={() => router.push('/')}
-                  variant='tertiary'
-                  className='w-full'
-                >
-                  Return Home
-                </Button>
-              </div>
-
-              <div className='fixed right-0 bottom-0 left-0 z-50 pb-[32px] text-center text-[13px] text-[var(--text-muted)]'>
-                Need help?{' '}
-                <a
-                  href={`mailto:${brandConfig.supportEmail}`}
-                  className='text-[var(--text-secondary)] underline-offset-4 transition hover:underline'
-                >
-                  Contact support
-                </a>
-              </div>
+      <Tooltip.Provider>
+        <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+          <Nav variant='auth' />
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: 'calc(100vh - 80px)',
+              padding: '24px',
+            }}
+          >
+            <div style={{ textAlign: 'center', maxWidth: '400px' }}>
+              <h1
+                style={{
+                  fontSize: '20px',
+                  fontWeight: 500,
+                  color: 'var(--text-primary)',
+                  marginBottom: '8px',
+                }}
+              >
+                Execution Not Found
+              </h1>
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '24px' }}>
+                This execution could not be located or has already completed.
+              </p>
+              <Button variant='outline' onClick={() => router.push('/')}>
+                Return Home
+              </Button>
             </div>
           </div>
         </div>
-      </div>
+      </Tooltip.Provider>
     )
   }
 
   return (
-    <div className='relative min-h-screen bg-[var(--bg)]'>
-      <Nav variant='auth' />
-      <div className='mx-auto min-h-[calc(100vh-120px)] max-w-7xl px-[24px] py-[24px]'>
-        {/* Header Section */}
-        <div className='mb-[24px]'>
-          <div className='flex items-center justify-between'>
+    <Tooltip.Provider>
+      <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+        <Nav variant='auth' />
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 24px' }}>
+          {/* Header */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '32px',
+            }}
+          >
             <div>
-              <h1 className='font-medium text-[18px] text-[var(--text-primary)] tracking-tight'>
+              <h1 style={{ fontSize: '20px', fontWeight: 500, color: 'var(--text-primary)' }}>
                 Paused Execution
               </h1>
-              <p className='mt-[4px] text-[13px] text-[var(--text-secondary)]'>
-                Review and manage execution pause points
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                Select a pause point to review and resume
               </p>
             </div>
-            <Button
-              variant='outline'
-              onClick={refreshExecutionDetail}
-              disabled={refreshingExecution}
-            >
-              {refreshingExecution ? 'Refreshing...' : 'Refresh'}
-            </Button>
-          </div>
-        </div>
-
-        {/* Stats Cards */}
-        <div className='mb-[24px] grid grid-cols-1 gap-[16px] sm:grid-cols-3'>
-          <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
-            <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-[16px] py-[10px]'>
-              <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                Total Pauses
-              </span>
-            </div>
-            <div className='px-[16px] py-[16px]'>
-              <p className='font-semibold text-[28px] text-[var(--text-primary)]'>{totalPauses}</p>
-            </div>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  variant='outline'
+                  onClick={refreshExecutionDetail}
+                  disabled={refreshingExecution}
+                >
+                  <RefreshCw
+                    style={{
+                      width: '14px',
+                      height: '14px',
+                      animation: refreshingExecution ? 'spin 1s linear infinite' : undefined,
+                    }}
+                  />
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content>Refresh</Tooltip.Content>
+            </Tooltip.Root>
           </div>
 
-          <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
-            <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-[16px] py-[10px]'>
-              <span className='font-medium text-[13px] text-[var(--text-secondary)]'>Resumed</span>
-            </div>
-            <div className='px-[16px] py-[16px]'>
-              <p className='font-semibold text-[28px] text-[var(--text-success)]'>{resumedCount}</p>
-            </div>
-          </div>
-
-          <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
-            <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-[16px] py-[10px]'>
-              <span className='font-medium text-[13px] text-[var(--text-secondary)]'>Pending</span>
-            </div>
-            <div className='px-[16px] py-[16px]'>
-              <p className='font-semibold text-[28px] text-[var(--c-F59E0B)]'>{pendingCount}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <div className='grid grid-cols-1 gap-[24px] lg:grid-cols-3'>
-          {/* Left Column: Pause Points + History */}
-          <div className='space-y-[24px] lg:col-span-1'>
+          {/* Main Layout */}
+          <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '24px' }}>
             {/* Pause Points List */}
-            <div className='flex h-fit flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
-              <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-[16px] py-[12px]'>
-                <h2 className='font-medium text-[14px] text-[var(--text-primary)]'>Pause Points</h2>
-                <p className='mt-[2px] text-[12px] text-[var(--text-muted)]'>
-                  Select a pause point to view details
-                </p>
+            <div
+              style={{
+                background: 'var(--surface-1)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                overflow: 'hidden',
+              }}
+            >
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                <Label>Pause Points</Label>
               </div>
-              <div className='space-y-[12px] p-[16px]'>
-                {groupedPausePoints.active.length === 0 &&
-                groupedPausePoints.resolved.length === 0 ? (
-                  <div className='flex flex-col items-center justify-center py-[32px] text-center'>
-                    <p className='text-[13px] text-[var(--text-secondary)]'>
-                      No pause points found
-                    </p>
+              <div>
+                {pausePoints.length === 0 ? (
+                  <div
+                    style={{
+                      padding: '32px 16px',
+                      textAlign: 'center',
+                      color: 'var(--text-secondary)',
+                      fontSize: '13px',
+                    }}
+                  >
+                    No pause points
                   </div>
                 ) : (
-                  <>
-                    {groupedPausePoints.active.length > 0 && (
-                      <div className='space-y-[12px]'>
-                        <h3 className='font-medium text-[11px] text-[var(--text-muted)] uppercase tracking-wider'>
-                          Active
-                        </h3>
-                        <div className='space-y-[8px]'>
-                          {groupedPausePoints.active.map((pause) => renderPausePointCard(pause))}
-                        </div>
-                      </div>
-                    )}
-
-                    {groupedPausePoints.resolved.length > 0 && (
-                      <>
-                        {groupedPausePoints.active.length > 0 && (
-                          <Separator className='my-[16px]' />
-                        )}
-                        <div className='space-y-[12px]'>
-                          <h3 className='font-medium text-[11px] text-[var(--text-muted)] uppercase tracking-wider'>
-                            Completed
-                          </h3>
-                          <div className='space-y-[8px]'>
-                            {groupedPausePoints.resolved.map((pause) =>
-                              renderPausePointCard(pause, true)
-                            )}
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </>
+                  pausePoints.map((pause) => (
+                    <Button
+                      key={pause.contextId}
+                      variant={pause.contextId === selectedContextId ? 'active' : 'ghost'}
+                      onClick={() => {
+                        setSelectedContextId(pause.contextId)
+                        setError(null)
+                        setMessage(null)
+                      }}
+                      style={{
+                        width: '100%',
+                        justifyContent: 'space-between',
+                        borderRadius: 0,
+                        padding: '12px 16px',
+                      }}
+                    >
+                      <span style={{ fontSize: '13px' }}>{getBlockName(pause)}</span>
+                      <StatusBadge status={pause.resumeStatus} />
+                    </Button>
+                  ))
                 )}
               </div>
             </div>
 
-            {/* History */}
-            {selectedDetail && (
-              <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
-                <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-[16px] py-[12px]'>
-                  <h2 className='font-medium text-[14px] text-[var(--text-primary)]'>
-                    Resume History
-                  </h2>
-                  <p className='mt-[2px] text-[12px] text-[var(--text-muted)]'>
-                    Previous resume attempts for this pause
-                  </p>
+            {/* Detail Panel */}
+            <div>
+              {loadingDetail && !selectedDetail ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '200px',
+                    background: 'var(--surface-1)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                  }}
+                >
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
+                    Loading...
+                  </span>
                 </div>
-                <div className='p-[16px]'>
-                  {selectedDetail.queue.length > 0 ? (
-                    <div className='space-y-[12px]'>
-                      {selectedDetail.queue.map((entry) => {
-                        const normalizedStatus = entry.status?.toLowerCase?.() ?? entry.status
-                        return (
-                          <div
-                            key={entry.id}
-                            className='rounded-[6px] border border-[var(--border)] bg-[var(--surface-1)] p-[12px]'
-                          >
-                            <div className='mb-[8px] flex items-center justify-between'>
-                              <ResumeStatusBadge status={normalizedStatus} />
-                              <span className='font-medium text-[11px] text-[var(--text-primary)]'>
-                                {entry.newExecutionId}
-                              </span>
-                            </div>
-                            <div className='space-y-[4px] text-[11px] text-[var(--text-secondary)]'>
-                              <p>Queued: {formatDate(entry.queuedAt)}</p>
-                              {entry.claimedAt && (
-                                <p>Execution Started: {formatDate(entry.claimedAt)}</p>
+              ) : !selectedContextId ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '200px',
+                    background: 'var(--surface-1)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                  }}
+                >
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
+                    Select a pause point
+                  </span>
+                </div>
+              ) : !selectedDetail ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '200px',
+                    background: 'var(--surface-1)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                  }}
+                >
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
+                    Could not load details
+                  </span>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {/* Status Header */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      background: 'var(--surface-1)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      padding: '12px 16px',
+                    }}
+                  >
+                    <div>
+                      <Label>{getBlockName(selectedDetail.pausePoint)}</Label>
+                      <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        Paused at {formatDate(selectedDetail.pausePoint.registeredAt)}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <StatusBadge status={selectedStatus} />
+                      {queuePosition && queuePosition > 0 && (
+                        <Badge variant='gray' size='sm'>
+                          Queue #{queuePosition}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Already resolved - show form fields with submitted values */}
+                  {selectedStatus === 'resumed' || selectedStatus === 'failed' ? (
+                    <div
+                      style={{
+                        background: 'var(--surface-1)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div
+                        style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}
+                      >
+                        <Label>Resume Form</Label>
+                      </div>
+                      <div
+                        style={{
+                          padding: '16px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '16px',
+                        }}
+                      >
+                        {selectedStatus === 'failed' &&
+                          selectedDetail.pausePoint.latestResumeEntry?.failureReason && (
+                            <Badge variant='red' size='sm'>
+                              {selectedDetail.pausePoint.latestResumeEntry.failureReason}
+                            </Badge>
+                          )}
+                        {inputFormatFields.length > 0 &&
+                        selectedDetail.pausePoint.latestResumeEntry?.resumeInput ? (
+                          inputFormatFields.map((field) => (
+                            <div
+                              key={field.id}
+                              style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}
+                            >
+                              <Label>{field.label}</Label>
+                              {field.description && (
+                                <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                                  {field.description}
+                                </p>
                               )}
-                              {entry.completedAt && (
-                                <p>Execution Completed: {formatDate(entry.completedAt)}</p>
+                              {renderDisabledFieldInput(
+                                field,
+                                selectedDetail.pausePoint.latestResumeEntry?.resumeInput
+                                  ?.submission ??
+                                  selectedDetail.pausePoint.latestResumeEntry?.resumeInput ??
+                                  {}
                               )}
                             </div>
-                            {entry.failureReason && (
-                              <p className='mt-[8px] text-[11px] text-[var(--text-error)]'>
-                                {entry.failureReason}
-                              </p>
+                          ))
+                        ) : selectedDetail.pausePoint.latestResumeEntry?.resumeInput ? (
+                          <Textarea
+                            value={JSON.stringify(
+                              selectedDetail.pausePoint.latestResumeEntry.resumeInput,
+                              null,
+                              2
                             )}
-                          </div>
-                        )
-                      })}
+                            disabled
+                            rows={6}
+                          />
+                        ) : (
+                          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                            No input data provided
+                          </p>
+                        )}
+                      </div>
                     </div>
                   ) : (
-                    <div className='flex flex-col items-center justify-center py-[32px] text-center'>
-                      <p className='text-[13px] text-[var(--text-secondary)]'>
-                        No resume attempts yet
-                      </p>
-                    </div>
+                    <>
+                      {/* Display Data */}
+                      {responseStructureRows.length > 0 ? (
+                        <div
+                          style={{
+                            background: 'var(--surface-1)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '8px',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <div
+                            style={{
+                              padding: '12px 16px',
+                              borderBottom: '1px solid var(--border)',
+                            }}
+                          >
+                            <Label>Display Data</Label>
+                          </div>
+                          <div style={{ padding: '16px' }}>
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Field</TableHead>
+                                  <TableHead>Type</TableHead>
+                                  <TableHead>Value</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {responseStructureRows.map((row) => (
+                                  <TableRow key={row.id}>
+                                    <TableCell>{row.name}</TableCell>
+                                    <TableCell>{row.type}</TableCell>
+                                    <TableCell>
+                                      <code style={{ fontSize: '12px' }}>
+                                        {formatStructureValue(row.value)}
+                                      </code>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            background: 'var(--surface-1)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '8px',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <div
+                            style={{
+                              padding: '12px 16px',
+                              borderBottom: '1px solid var(--border)',
+                            }}
+                          >
+                            <Label>Pause Data</Label>
+                          </div>
+                          <div style={{ padding: '16px' }}>
+                            <Code.Viewer code={pauseResponsePreview} language='json' />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Resume Form */}
+                      {isHumanMode && hasInputFormat ? (
+                        <div
+                          style={{
+                            background: 'var(--surface-1)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '8px',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <div
+                            style={{
+                              padding: '12px 16px',
+                              borderBottom: '1px solid var(--border)',
+                            }}
+                          >
+                            <Label>Resume Form</Label>
+                          </div>
+                          <div
+                            style={{
+                              padding: '16px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '16px',
+                            }}
+                          >
+                            {inputFormatFields.map((field) => (
+                              <div
+                                key={field.id}
+                                style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}
+                              >
+                                <Label>
+                                  {field.label}
+                                  {field.required && (
+                                    <span style={{ color: 'var(--text-error)', marginLeft: '4px' }}>
+                                      *
+                                    </span>
+                                  )}
+                                </Label>
+                                {field.description && (
+                                  <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                                    {field.description}
+                                  </p>
+                                )}
+                                {renderFieldInput(field)}
+                                {formErrors[field.name] && (
+                                  <Badge variant='red' size='sm'>
+                                    {formErrors[field.name]}
+                                  </Badge>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            background: 'var(--surface-1)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '8px',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <div
+                            style={{
+                              padding: '12px 16px',
+                              borderBottom: '1px solid var(--border)',
+                            }}
+                          >
+                            <Label>Resume Input (JSON)</Label>
+                          </div>
+                          <div style={{ padding: '16px' }}>
+                            <Textarea
+                              value={resumeInput}
+                              onChange={(e) => {
+                                setResumeInput(e.target.value)
+                                if (selectedContextId)
+                                  setResumeInputs((prev) => ({
+                                    ...prev,
+                                    [selectedContextId]: e.target.value,
+                                  }))
+                              }}
+                              placeholder='{"example": "value"}'
+                              rows={6}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Messages */}
+                      {error && <Badge variant='red'>{error}</Badge>}
+                      {message && <Badge variant='green'>{message}</Badge>}
+
+                      {/* Action */}
+                      <Button variant='tertiary' onClick={handleResume} disabled={resumeDisabled}>
+                        {loadingAction ? 'Resuming...' : 'Resume Execution'}
+                      </Button>
+                    </>
                   )}
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Right Column: Content + Input */}
-          <div className='space-y-[24px] lg:col-span-2'>
-            {loadingDetail && !selectedDetail ? (
-              <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
-                <div className='flex h-[256px] items-center justify-center p-[24px]'>
-                  <p className='text-[13px] text-[var(--text-secondary)]'>
-                    Loading pause details...
-                  </p>
-                </div>
-              </div>
-            ) : !selectedContextId ? (
-              <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
-                <div className='flex h-[256px] items-center justify-center p-[24px]'>
-                  <p className='text-[13px] text-[var(--text-secondary)]'>
-                    Select a pause point to view details
-                  </p>
-                </div>
-              </div>
-            ) : !selectedDetail ? (
-              <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
-                <div className='flex h-[256px] items-center justify-center p-[24px]'>
-                  <p className='text-[13px] text-[var(--text-secondary)]'>
-                    Pause details could not be loaded
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <>
-                {/* Header with Status */}
-                <div className='flex items-center justify-between'>
-                  <div>
-                    <h2 className='font-medium text-[16px] text-[var(--text-primary)]'>
-                      Pause Details
-                    </h2>
-                    <p className='mt-[4px] text-[13px] text-[var(--text-secondary)]'>
-                      Review content and provide input to resume
-                    </p>
-                  </div>
-                  {statusDetailNode}
-                </div>
-
-                {/* Active Resume Entry Alert */}
-                {selectedDetail.activeResumeEntry && (
-                  <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--brand-tertiary)]/30 bg-[var(--brand-tertiary)]/5'>
-                    <div className='flex items-center justify-between bg-[var(--brand-tertiary)]/10 px-[16px] py-[10px]'>
-                      <h3 className='font-medium text-[13px] text-[var(--brand-tertiary)]'>
-                        Current Resume Attempt
-                      </h3>
-                      <ResumeStatusBadge
-                        status={
-                          selectedDetail.activeResumeEntry.status?.toLowerCase?.() ??
-                          selectedDetail.activeResumeEntry.status
-                        }
-                      />
-                    </div>
-                    <div className='space-y-[4px] p-[16px] text-[13px] text-[var(--text-secondary)]'>
-                      <p>
-                        Execution ID:{' '}
-                        <span className='font-medium text-[var(--text-primary)]'>
-                          {selectedDetail.activeResumeEntry.newExecutionId}
-                        </span>
-                      </p>
-                      {selectedDetail.activeResumeEntry.claimedAt && (
-                        <p>
-                          Execution Started:{' '}
-                          {formatDate(selectedDetail.activeResumeEntry.claimedAt)}
-                        </p>
-                      )}
-                      {selectedDetail.activeResumeEntry.completedAt && (
-                        <p>
-                          Execution Completed:{' '}
-                          {formatDate(selectedDetail.activeResumeEntry.completedAt)}
-                        </p>
-                      )}
-                      {selectedDetail.activeResumeEntry.failureReason && (
-                        <p className='mt-[8px] text-[12px] text-[var(--text-error)]'>
-                          {selectedDetail.activeResumeEntry.failureReason}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Content Section */}
-                {responseStructureRows.length > 0 ? (
-                  <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
-                    <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-[16px] py-[10px]'>
-                      <h3 className='font-medium text-[13px] text-[var(--text-primary)]'>
-                        Content
-                      </h3>
-                    </div>
-                    <div className='p-[16px]'>
-                      <div className='overflow-hidden rounded-[6px] border border-[var(--border)]'>
-                        <table className='min-w-full divide-y divide-[var(--border)]'>
-                          <thead>
-                            <tr className='border-[var(--border)] border-b bg-[var(--surface-3)]'>
-                              <th className='px-[16px] py-[8px] text-left font-medium text-[11px] text-[var(--text-secondary)]'>
-                                Field
-                              </th>
-                              <th className='px-[16px] py-[8px] text-left font-medium text-[11px] text-[var(--text-secondary)]'>
-                                Type
-                              </th>
-                              <th className='px-[16px] py-[8px] text-left font-medium text-[11px] text-[var(--text-secondary)]'>
-                                Value
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className='divide-y divide-[var(--border)]'>
-                            {responseStructureRows.map((row) => (
-                              <tr key={row.id}>
-                                <td className='px-[16px] py-[8px] font-medium text-[13px] text-[var(--text-primary)]'>
-                                  {row.name}
-                                </td>
-                                <td className='px-[16px] py-[8px] text-[13px] text-[var(--text-secondary)]'>
-                                  {row.type}
-                                </td>
-                                <td className='px-[16px] py-[8px]'>
-                                  <pre className='max-h-[128px] overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] text-[var(--text-secondary)]'>
-                                    {formatStructureValue(row.value)}
-                                  </pre>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
-                    <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-[16px] py-[10px]'>
-                      <h3 className='font-medium text-[13px] text-[var(--text-primary)]'>
-                        Pause Response Data
-                      </h3>
-                    </div>
-                    <div className='p-[16px]'>
-                      <pre className='max-h-[240px] overflow-auto rounded-[6px] bg-[#1e1e1e] p-[16px] font-mono text-[#d4d4d4] text-[12px]'>
-                        {pauseResponsePreview}
-                      </pre>
-                    </div>
-                  </div>
-                )}
-
-                {/* Input Section */}
-                {isHumanMode && hasInputFormat ? (
-                  <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
-                    <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-[16px] py-[10px]'>
-                      <h3 className='font-medium text-[13px] text-[var(--text-primary)]'>
-                        Resume Form
-                      </h3>
-                      <p className='mt-[2px] text-[12px] text-[var(--text-muted)]'>
-                        Fill out the required fields to resume execution
-                      </p>
-                    </div>
-                    <div className='space-y-[16px] p-[16px]'>
-                      {inputFormatFields.map((field) => (
-                        <div key={field.id} className='space-y-[6px]'>
-                          <Label className='font-medium text-[13px] text-[var(--text-primary)]'>
-                            {field.label}
-                            {field.required && (
-                              <span className='ml-[4px] text-[var(--text-error)]'>*</span>
-                            )}
-                          </Label>
-                          {field.description && (
-                            <p className='text-[12px] text-[var(--text-muted)]'>
-                              {field.description}
-                            </p>
-                          )}
-                          {renderFieldInput(field)}
-                          {formErrors[field.name] && (
-                            <p className='text-[12px] text-[var(--text-error)]'>
-                              {formErrors[field.name]}
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className='flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)]'>
-                    <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-[16px] py-[10px]'>
-                      <h3 className='font-medium text-[13px] text-[var(--text-primary)]'>
-                        Resume Input (JSON)
-                      </h3>
-                      <p className='mt-[2px] text-[12px] text-[var(--text-muted)]'>
-                        Provide optional JSON input to pass to the resumed execution
-                      </p>
-                    </div>
-                    <div className='p-[16px]'>
-                      <Textarea
-                        id='resume-input-textarea'
-                        value={resumeInput}
-                        onChange={(event) => {
-                          setResumeInput(event.target.value)
-                          if (selectedContextId) {
-                            setResumeInputs((prev) => ({
-                              ...prev,
-                              [selectedContextId]: event.target.value,
-                            }))
-                          }
-                        }}
-                        placeholder='{&#10;  "example": "value"&#10;}'
-                        className='min-h-[200px] font-mono text-[13px]'
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Error/Success Messages */}
-                {error && <p className='text-[12px] text-[var(--text-error)]'>{error}</p>}
-
-                {message && (
-                  <div className='rounded-[6px] border border-[var(--text-success)]/30 bg-[var(--text-success)]/10 p-[16px]'>
-                    <p className='text-[13px] text-[var(--text-success)]'>{message}</p>
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className='flex justify-start'>
-                  <Button
-                    type='button'
-                    onClick={handleResume}
-                    disabled={resumeDisabled}
-                    variant='tertiary'
-                  >
-                    {loadingAction ? 'Resuming...' : 'Resume Execution'}
-                  </Button>
-                </div>
-              </>
-            )}
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className='border-[var(--border)] border-t bg-[var(--surface-1)] py-[16px] text-center text-[13px] text-[var(--text-secondary)]'>
-        Need help?{' '}
-        <a
-          href={`mailto:${brandConfig.supportEmail}`}
-          className='text-[var(--brand-primary)] underline-offset-4 transition hover:underline'
+        {/* Footer */}
+        <div
+          style={{
+            marginTop: '32px',
+            padding: '16px',
+            textAlign: 'center',
+            borderTop: '1px solid var(--border)',
+            fontSize: '13px',
+            color: 'var(--text-muted)',
+          }}
         >
-          Contact support
-        </a>
+          Need help?{' '}
+          <a href={`mailto:${brandConfig.supportEmail}`} style={{ color: 'var(--text-secondary)' }}>
+            Contact support
+          </a>
+        </div>
       </div>
-    </div>
+    </Tooltip.Provider>
   )
 }

@@ -227,7 +227,7 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
 
       if (resumeLinks) {
         output.url = resumeLinks.uiUrl
-        // output.apiUrl = resumeLinks.apiUrl // Hidden from output
+        output.resumeEndpoint = resumeLinks.apiUrl
       }
 
       return output
@@ -576,9 +576,9 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
       if (context.resumeLinks.uiUrl) {
         pauseOutput.url = context.resumeLinks.uiUrl
       }
-      // if (context.resumeLinks.apiUrl) {
-      //   pauseOutput.apiUrl = context.resumeLinks.apiUrl
-      // } // Hidden from output
+      if (context.resumeLinks.apiUrl) {
+        pauseOutput.resumeEndpoint = context.resumeLinks.apiUrl
+      }
     }
 
     if (Array.isArray(context.inputFormat)) {

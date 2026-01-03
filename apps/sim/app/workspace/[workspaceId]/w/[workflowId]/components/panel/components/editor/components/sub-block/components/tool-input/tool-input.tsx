@@ -760,6 +760,7 @@ function CodeEditorSyncWrapper({
  * in the tool selection dropdown.
  */
 const BUILT_IN_TOOL_TYPES = new Set([
+  'api',
   'file',
   'function',
   'knowledge',
@@ -772,6 +773,7 @@ const BUILT_IN_TOOL_TYPES = new Set([
   'tts',
   'stt',
   'memory',
+  'webhook_request',
   'workflow',
 ])
 
@@ -926,6 +928,8 @@ export function ToolInput({
   const toolBlocks = getAllBlocks().filter(
     (block) =>
       (block.category === 'tools' ||
+        block.type === 'api' ||
+        block.type === 'webhook_request' ||
         block.type === 'workflow' ||
         block.type === 'knowledge' ||
         block.type === 'function') &&
