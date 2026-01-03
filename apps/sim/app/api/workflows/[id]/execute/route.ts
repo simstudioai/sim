@@ -50,6 +50,8 @@ const ExecuteWorkflowSchema = z.object({
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+// Allow up to 10 minutes for workflow execution with long-running API calls
+export const maxDuration = 600
 
 function resolveOutputIds(
   selectedOutputs: string[] | undefined,
