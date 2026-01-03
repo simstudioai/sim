@@ -461,6 +461,7 @@ function SubBlockComponent({
               multiSelect={config.multiSelect}
               fetchOptions={config.fetchOptions}
               dependsOn={config.dependsOn}
+              searchable={config.searchable}
             />
           </div>
         )
