@@ -24,6 +24,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { ApiDeploy } from './components/api/api'
 import { ChatDeploy, type ExistingChat } from './components/chat/chat'
+import { FormDeploy } from './components/form/form'
 import { GeneralDeploy } from './components/general/general'
 import { McpDeploy } from './components/mcp/mcp'
 import { TemplateDeploy } from './components/template/template'
@@ -50,7 +51,7 @@ interface WorkflowDeploymentInfo {
   needsRedeployment: boolean
 }
 
-type TabView = 'general' | 'api' | 'chat' | 'template' | 'mcp'
+type TabView = 'general' | 'api' | 'chat' | 'template' | 'mcp' | 'form'
 
 export function DeployModal({
   open,
@@ -98,6 +99,10 @@ export function DeployModal({
 
   const [existingChat, setExistingChat] = useState<ExistingChat | null>(null)
   const [isLoadingChat, setIsLoadingChat] = useState(false)
+
+  const [formSubmitting, setFormSubmitting] = useState(false)
+  const [formExists, setFormExists] = useState(false)
+  const [isFormValid, setIsFormValid] = useState(false)
 
   const getApiKeyLabel = (value?: string | null) => {
     if (value && value.trim().length > 0) {
@@ -542,6 +547,17 @@ export function DeployModal({
     deleteTrigger?.click()
   }, [])
 
+  const handleFormFormSubmit = useCallback(() => {
+    const form = document.getElementById('form-deploy-form') as HTMLFormElement
+    form?.requestSubmit()
+  }, [])
+
+  const handleFormDelete = useCallback(() => {
+    const form = document.getElementById('form-deploy-form')
+    const deleteTrigger = form?.querySelector('[data-delete-trigger]') as HTMLButtonElement
+    deleteTrigger?.click()
+  }, [])
+
   return (
     <>
       <Modal open={open} onOpenChange={handleCloseModal}>
@@ -558,6 +574,7 @@ export function DeployModal({
               <ModalTabsTrigger value='api'>API</ModalTabsTrigger>
               <ModalTabsTrigger value='mcp'>MCP</ModalTabsTrigger>
               <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
+              <ModalTabsTrigger value='form'>Form</ModalTabsTrigger>
               <ModalTabsTrigger value='template'>Template</ModalTabsTrigger>
             </ModalTabsList>
 
@@ -614,6 +631,21 @@ export function DeployModal({
                     onSubmittingChange={setTemplateSubmitting}
                     onExistingTemplateChange={setHasExistingTemplate}
                     onTemplateStatusChange={setTemplateStatus}
+                  />
+                )}
+              </ModalTabsContent>
+
+              <ModalTabsContent value='form' className='h-full'>
+                {workflowId && (
+                  <FormDeploy
+                    workflowId={workflowId}
+                    onDeploymentComplete={handleCloseModal}
+                    onValidationChange={setIsFormValid}
+                    onSubmittingChange={setFormSubmitting}
+                    onExistingFormChange={setFormExists}
+                    formSubmitting={formSubmitting}
+                    setFormSubmitting={setFormSubmitting}
+                    onDeployed={handlePostDeploymentUpdate}
                   />
                 )}
               </ModalTabsContent>
@@ -721,6 +753,36 @@ export function DeployModal({
                     : hasExistingTemplate
                       ? 'Update Template'
                       : 'Publish Template'}
+                </Button>
+              </div>
+            </ModalFooter>
+          )}
+          {activeTab === 'form' && (
+            <ModalFooter className='items-center'>
+              <div className='flex gap-2'>
+                {formExists && (
+                  <Button
+                    type='button'
+                    variant='destructive'
+                    onClick={handleFormDelete}
+                    disabled={formSubmitting}
+                  >
+                    Delete
+                  </Button>
+                )}
+                <Button
+                  type='button'
+                  variant='tertiary'
+                  onClick={handleFormFormSubmit}
+                  disabled={formSubmitting || !isFormValid}
+                >
+                  {formSubmitting
+                    ? formExists
+                      ? 'Updating...'
+                      : 'Launching...'
+                    : formExists
+                      ? 'Update'
+                      : 'Launch Form'}
                 </Button>
               </div>
             </ModalFooter>
