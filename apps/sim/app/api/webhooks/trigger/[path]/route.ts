@@ -123,6 +123,15 @@ export async function POST(
     return authError
   }
 
+  const isGrainVerificationRequest =
+    foundWebhook.provider === 'grain' && (!body || Object.keys(body).length === 0 || !body.type)
+  if (isGrainVerificationRequest) {
+    logger.info(
+      `[${requestId}] Grain verification request detected - returning 200 for reachability test`
+    )
+    return NextResponse.json({ status: 'ok', message: 'Webhook endpoint verified' })
+  }
+
   let preprocessError: NextResponse | null = null
   try {
     preprocessError = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)
