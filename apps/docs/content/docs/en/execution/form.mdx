@@ -5,90 +5,65 @@ title: Form Deployment
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
-Deploy your workflow as an embeddable form that users can fill out on your website or share via link. Form submissions trigger your workflow with the `form` trigger type, and results appear in your execution logs.
+Deploy your workflow as an embeddable form that users can fill out on your website or share via link. Form submissions trigger your workflow with the `form` trigger type.
 
 ## Overview
 
-Form deployment turns your workflow's Input Format into a beautiful, responsive form that can be:
+Form deployment turns your workflow's Input Format into a responsive form that can be:
 - Shared via a direct link (e.g., `https://sim.ai/form/my-survey`)
 - Embedded in any website using an iframe
-- Customized with your brand colors and messages
 
-When a user submits the form, it triggers your workflow with the form data, executing all downstream blocks automatically.
+When a user submits the form, it triggers your workflow with the form data.
 
 <Callout type="info">
-Forms derive their fields directly from your workflow's Start block Input Format. Each field you define becomes a form input with the appropriate type (text, number, checkbox, etc.).
+Forms derive their fields from your workflow's Start block Input Format. Each field becomes a form input with the appropriate type.
 </Callout>
 
-## Creating a Form Deployment
+## Creating a Form
 
-1. Open your workflow in the editor
-2. Click the **Deploy** button in the top-right corner
-3. Select the **Form** tab
-4. Configure your form settings:
-   - **Identifier**: A unique URL slug (e.g., `contact-form` creates `https://sim.ai/form/contact-form`)
-   - **Title**: The form's heading displayed to users
-   - **Description**: Optional subtitle explaining the form's purpose
-5. Click **Launch** to deploy
+1. Open your workflow and click **Deploy**
+2. Select the **Form** tab
+3. Configure:
+   - **URL**: Unique identifier (e.g., `contact-form` → `sim.ai/form/contact-form`)
+   - **Title**: Form heading
+   - **Description**: Optional subtitle
+   - **Form Fields**: Customize labels and descriptions for each field
+   - **Authentication**: Public, password-protected, or email whitelist
+   - **Thank You Message**: Shown after submission
+4. Click **Launch**
 
-## Input Format Mapping
-
-Your Start block's Input Format fields map to form inputs:
+## Field Type Mapping
 
 | Input Format Type | Form Field |
 |------------------|------------|
-| `string` | Text input (or textarea for fields named "message", "description", etc.) |
-| `number` | Number input with validation |
+| `string` | Text input |
+| `number` | Number input |
 | `boolean` | Toggle switch |
 | `object` | JSON editor |
 | `array` | JSON array editor |
-| `files` | File upload dropzone |
-
-<Callout type="warn">
-Make sure your Start block has at least one Input Format field defined. Forms with no fields will display a message indicating no inputs are configured.
-</Callout>
-
-## Customization Options
-
-### Branding
-
-- **Primary Color**: Hex color for buttons and accents (e.g., `#3972F6`)
-- **Logo URL**: Your logo displayed in the form header
-- **"Powered by Sim" Branding**: Toggle to show/hide the footer branding
-
-### Messages
-
-- **Welcome Message**: Introductory text shown above the form
-- **Thank You Title**: Heading displayed after successful submission
-- **Thank You Message**: Body text shown after submission
+| `files` | File upload |
 
 ## Access Control
-
-Forms support three authentication modes:
 
 | Mode | Description |
 |------|-------------|
 | **Public** | Anyone with the link can submit |
-| **Password** | Users must enter a password to access the form |
-| **Email Whitelist** | Only specified emails or domains can submit |
+| **Password** | Users must enter a password |
+| **Email Whitelist** | Only specified emails/domains can submit |
 
-For email whitelist, you can specify:
-- Exact emails: `user@example.com`
-- Domain wildcards: `@example.com` (allows all emails from that domain)
+For email whitelist:
+- Exact: `user@example.com`
+- Domain: `@example.com` (all emails from domain)
 
-## Embedding Your Form
+## Embedding
 
 ### Direct Link
-
-Share the form URL directly:
 
 ```
 https://sim.ai/form/your-identifier
 ```
 
-### Iframe Embed
-
-Embed the form in any webpage:
+### Iframe
 
 ```html
 <iframe
@@ -96,15 +71,15 @@ Embed the form in any webpage:
   width="100%"
   height="600"
   frameborder="0"
-  style="border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+  title="Form"
 ></iframe>
 ```
 
-## Programmatic Form Submission
+## API Submission
 
-You can also submit forms programmatically without using the UI.
+Submit forms programmatically:
 
-<Tabs items={['cURL', 'Python', 'TypeScript', 'Go']}>
+<Tabs items={['cURL', 'TypeScript']}>
   <Tab value="cURL">
 ```bash
 curl -X POST https://sim.ai/api/form/your-identifier \
@@ -112,246 +87,50 @@ curl -X POST https://sim.ai/api/form/your-identifier \
   -d '{
     "formData": {
       "name": "John Doe",
-      "email": "john@example.com",
-      "message": "Hello from the API!"
+      "email": "john@example.com"
     }
   }'
-```
-  </Tab>
-  <Tab value="Python">
-```python
-import requests
-
-url = "https://sim.ai/api/form/your-identifier"
-payload = {
-    "formData": {
-        "name": "John Doe",
-        "email": "john@example.com",
-        "message": "Hello from the API!"
-    }
-}
-
-response = requests.post(url, json=payload)
-result = response.json()
-
-if result.get("success"):
-    print("Form submitted successfully!")
-    print(f"Execution ID: {result['data']['executionId']}")
-else:
-    print(f"Error: {result.get('error')}")
 ```
   </Tab>
   <Tab value="TypeScript">
 ```typescript
-interface FormSubmissionResult {
-  success: boolean;
-  data?: {
-    executionId: string;
-    thankYouTitle: string;
-    thankYouMessage: string;
-  };
-  error?: string;
-}
-
-async function submitForm(
-  identifier: string,
-  formData: Record<string, unknown>
-): Promise<FormSubmissionResult> {
-  const response = await fetch(
-    `https://sim.ai/api/form/${identifier}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ formData }),
+const response = await fetch('https://sim.ai/api/form/your-identifier', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    formData: {
+      name: 'John Doe',
+      email: 'john@example.com'
     }
-  );
-
-  return response.json();
-}
-
-// Usage
-const result = await submitForm('your-identifier', {
-  name: 'John Doe',
-  email: 'john@example.com',
-  message: 'Hello from TypeScript!',
+  })
 });
 
-if (result.success) {
-  console.log('Submitted! Execution ID:', result.data?.executionId);
-}
-```
-  </Tab>
-  <Tab value="Go">
-```go
-package main
-
-import (
-    "bytes"
-    "encoding/json"
-    "fmt"
-    "net/http"
-)
-
-type FormPayload struct {
-    FormData map[string]interface{} `json:"formData"`
-}
-
-type FormResponse struct {
-    Success bool `json:"success"`
-    Data    struct {
-        ExecutionID     string `json:"executionId"`
-        ThankYouTitle   string `json:"thankYouTitle"`
-        ThankYouMessage string `json:"thankYouMessage"`
-    } `json:"data"`
-    Error string `json:"error"`
-}
-
-func submitForm(identifier string, formData map[string]interface{}) (*FormResponse, error) {
-    payload := FormPayload{FormData: formData}
-    jsonData, err := json.Marshal(payload)
-    if err != nil {
-        return nil, err
-    }
-
-    url := fmt.Sprintf("https://sim.ai/api/form/%s", identifier)
-    resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
-
-    var result FormResponse
-    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-        return nil, err
-    }
-
-    return &result, nil
-}
-
-func main() {
-    result, err := submitForm("your-identifier", map[string]interface{}{
-        "name":    "John Doe",
-        "email":   "john@example.com",
-        "message": "Hello from Go!",
-    })
-    if err != nil {
-        fmt.Printf("Error: %v\n", err)
-        return
-    }
-
-    if result.Success {
-        fmt.Printf("Submitted! Execution ID: %s\n", result.Data.ExecutionID)
-    } else {
-        fmt.Printf("Error: %s\n", result.Error)
-    }
-}
+const result = await response.json();
+// { success: true, data: { executionId: '...' } }
 ```
   </Tab>
 </Tabs>
 
-### Password-Protected Forms
+### Protected Forms
 
-For password-protected forms, include the password in your request:
-
+For password-protected forms:
 ```bash
 curl -X POST https://sim.ai/api/form/your-identifier \
   -H "Content-Type: application/json" \
-  -d '{
-    "password": "your-password",
-    "formData": {
-      "name": "John Doe"
-    }
-  }'
+  -d '{ "password": "secret", "formData": { "name": "John" } }'
 ```
 
-### Email-Protected Forms
-
-For email-protected forms, include the email:
-
+For email-protected forms:
 ```bash
 curl -X POST https://sim.ai/api/form/your-identifier \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "allowed@example.com",
-    "formData": {
-      "name": "John Doe"
-    }
-  }'
+  -d '{ "email": "allowed@example.com", "formData": { "name": "John" } }'
 ```
-
-## Execution Logs
-
-Form submissions appear in your workflow's execution logs with:
-- **Trigger Type**: `form`
-- **Input Data**: The submitted form values
-- **Execution ID**: Unique identifier for tracking
-
-Filter your logs by trigger type `form` to see all form submissions.
-
-## React Component Example
-
-Embed forms in React applications:
-
-```tsx
-import { useEffect, useRef } from 'react';
-
-interface SimFormProps {
-  identifier: string;
-  height?: number;
-  className?: string;
-}
-
-export function SimForm({ identifier, height = 600, className }: SimFormProps) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  return (
-    <iframe
-      ref={iframeRef}
-      src={`https://sim.ai/form/${identifier}`}
-      width="100%"
-      height={height}
-      frameBorder="0"
-      style={{
-        border: 'none',
-        borderRadius: '8px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-      }}
-      className={className}
-      title="Sim Form"
-    />
-  );
-}
-
-// Usage
-function ContactPage() {
-  return (
-    <div className="max-w-2xl mx-auto p-4">
-      <h1>Contact Us</h1>
-      <SimForm identifier="contact-form" height={700} />
-    </div>
-  );
-}
-```
-
-## Best Practices
-
-1. **Keep forms focused** - Include only the fields you need to trigger your workflow
-2. **Use descriptive field names** - Field names are converted to labels (e.g., `customerEmail` becomes "Customer Email")
-3. **Set field types appropriately** - Use `number` for numeric inputs, `boolean` for yes/no questions
-4. **Test before sharing** - Use the preview in the deploy modal to verify your form looks correct
-5. **Monitor submissions** - Check your execution logs regularly to ensure forms are working
 
 ## Troubleshooting
 
-### Form shows "No input fields configured"
-Ensure your Start block has at least one Input Format field defined.
+**"No input fields configured"** - Add Input Format fields to your Start block.
 
-### Form not loading in iframe
-Check that your website's Content Security Policy allows iframes from `sim.ai`.
+**Form not loading in iframe** - Check your site's CSP allows iframes from `sim.ai`.
 
-### Submissions failing
-- Verify the form identifier is correct
-- Check that required fields are filled
-- For protected forms, ensure credentials are correct
+**Submissions failing** - Verify the identifier is correct and required fields are filled.
