@@ -82,7 +82,7 @@ export interface KalshiEvent {
 // Balance type
 export interface KalshiBalance {
   balance: number // In cents
-  portfolio_value?: number // In cents
+  portfolio_value: number // In cents
 }
 
 // Position type
