@@ -121,6 +121,37 @@ export async function handleProviderChallenges(
   return null
 }
 
+/**
+ * Handle provider-specific reachability tests that occur AFTER webhook lookup.
+ *
+ * This function should be called after findWebhookAndWorkflow() but before
+ * checkWebhookPreprocessing() to allow verification requests to bypass deployment checks.
+ *
+ * @param webhook - The webhook record from the database
+ * @param body - The parsed request body
+ * @param requestId - Request ID for logging
+ * @returns NextResponse if this is a verification request, null to continue normal flow
+ */
+export function handleProviderReachabilityTest(
+  webhook: any,
+  body: any,
+  requestId: string
+): NextResponse | null {
+  const provider = webhook?.provider
+
+  if (provider === 'grain') {
+    const isVerificationRequest = !body || Object.keys(body).length === 0 || !body.type
+    if (isVerificationRequest) {
+      logger.info(
+        `[${requestId}] Grain reachability test detected - returning 200 for webhook verification`
+      )
+      return NextResponse.json({ status: 'ok', message: 'Webhook endpoint verified' })
+    }
+  }
+
+  return null
+}
+
 export async function findWebhookAndWorkflow(
   options: WebhookProcessorOptions
 ): Promise<{ webhook: any; workflow: any } | null> {
