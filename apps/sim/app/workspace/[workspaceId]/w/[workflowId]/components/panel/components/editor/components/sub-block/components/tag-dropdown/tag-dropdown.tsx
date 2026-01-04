@@ -8,6 +8,7 @@ import {
   PopoverAnchor,
   PopoverBackButton,
   PopoverContent,
+  PopoverDivider,
   PopoverFolder,
   PopoverItem,
   PopoverScrollArea,
@@ -1426,7 +1427,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   }
 
   return (
-    <Popover open={visible} onOpenChange={(open) => !open && onClose?.()}>
+    <Popover open={visible} onOpenChange={(open) => !open && onClose?.()} colorScheme='inverted'>
       <PopoverAnchor asChild>
         <div
           className={cn('pointer-events-none', className)}
@@ -1502,23 +1503,24 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                           }
                         }}
                       >
-                        <span className='flex-1 truncate text-[var(--text-primary)]'>
+                        <span className='flex-1 truncate'>
                           {tag.startsWith(TAG_PREFIXES.VARIABLE)
                             ? tag.substring(TAG_PREFIXES.VARIABLE.length)
                             : tag}
                         </span>
                         {variableInfo && (
-                          <span className='ml-auto text-[10px] text-[var(--text-secondary)]'>
+                          <span className='ml-auto text-[10px] text-[var(--text-muted-inverse)]'>
                             {variableInfo.type}
                           </span>
                         )}
                       </PopoverItem>
                     )
                   })}
+                  {nestedBlockTagGroups.length > 0 && <PopoverDivider rootOnly />}
                 </>
               )}
 
-              {nestedBlockTagGroups.map((group: NestedBlockTagGroup) => {
+              {nestedBlockTagGroups.map((group: NestedBlockTagGroup, groupIndex: number) => {
                 const blockConfig = getBlock(group.blockType)
                 let blockColor = blockConfig?.bgColor || BLOCK_COLORS.DEFAULT
 
@@ -1565,9 +1567,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                       }}
                     >
                       <TagIcon icon={tagIcon} color={blockColor} />
-                      <span className='flex-1 truncate font-medium text-[var(--text-primary)]'>
-                        {group.blockName}
-                      </span>
+                      <span className='flex-1 truncate font-medium'>{group.blockName}</span>
                     </PopoverItem>
                     {group.nestedTags.map((nestedTag) => {
                       if (nestedTag.fullTag === rootTag) {
@@ -1650,11 +1650,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                                     }
                                   }}
                                 >
-                                  <span className='flex-1 truncate text-[var(--text-primary)]'>
-                                    {child.display}
-                                  </span>
+                                  <span className='flex-1 truncate'>{child.display}</span>
                                   {childType && childType !== 'any' && (
-                                    <span className='ml-auto text-[10px] text-[var(--text-secondary)]'>
+                                    <span className='ml-auto text-[10px] text-[var(--text-muted-inverse)]'>
                                       {childType}
                                     </span>
                                   )}
@@ -1722,17 +1720,16 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                             }
                           }}
                         >
-                          <span className='flex-1 truncate text-[var(--text-primary)]'>
-                            {nestedTag.display}
-                          </span>
+                          <span className='flex-1 truncate'>{nestedTag.display}</span>
                           {tagDescription && tagDescription !== 'any' && (
-                            <span className='ml-auto text-[10px] text-[var(--text-secondary)]'>
+                            <span className='ml-auto text-[10px] text-[var(--text-muted-inverse)]'>
                               {tagDescription}
                             </span>
                           )}
                         </PopoverItem>
                       )
                     })}
+                    {groupIndex < nestedBlockTagGroups.length - 1 && <PopoverDivider rootOnly />}
                   </div>
                 )
               })}

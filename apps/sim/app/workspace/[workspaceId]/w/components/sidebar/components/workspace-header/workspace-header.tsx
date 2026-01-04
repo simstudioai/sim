@@ -341,7 +341,7 @@ export function WorkspaceHeader({
                             <ArrowDown className='h-[14px] w-[14px]' />
                           </Button>
                         </Tooltip.Trigger>
-                        <Tooltip.Content className='py-[2.5px]'>
+                        <Tooltip.Content>
                           <p>
                             {isImportingWorkspace ? 'Importing workspace...' : 'Import workspace'}
                           </p>
@@ -364,7 +364,7 @@ export function WorkspaceHeader({
                             <Plus className='h-[14px] w-[14px]' />
                           </Button>
                         </Tooltip.Trigger>
-                        <Tooltip.Content className='py-[2.5px]'>
+                        <Tooltip.Content>
                           <p>
                             {isCreatingWorkspace ? 'Creating workspace...' : 'Create workspace'}
                           </p>

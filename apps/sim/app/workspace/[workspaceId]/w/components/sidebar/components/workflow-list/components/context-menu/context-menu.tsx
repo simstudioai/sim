@@ -1,6 +1,12 @@
 'use client'
 
-import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverDivider,
+  PopoverItem,
+} from '@/components/emcn'
 
 interface ContextMenuProps {
   /**
@@ -142,7 +148,13 @@ export function ContextMenu({
   disableCreateFolder = false,
 }: ContextMenuProps) {
   return (
-    <Popover open={isOpen} onOpenChange={onClose} variant='secondary' size='sm'>
+    <Popover
+      open={isOpen}
+      onOpenChange={onClose}
+      variant='secondary'
+      size='sm'
+      colorScheme='inverted'
+    >
       <PopoverAnchor
         style={{
           position: 'fixed',
@@ -153,6 +165,7 @@ export function ContextMenu({
         }}
       />
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
+        {/* Navigation actions */}
         {showOpenInNewTab && onOpenInNewTab && (
           <PopoverItem
             onClick={() => {
@@ -163,6 +176,9 @@ export function ContextMenu({
             Open in new tab
           </PopoverItem>
         )}
+        {showOpenInNewTab && onOpenInNewTab && <PopoverDivider />}
+
+        {/* Edit and create actions */}
         {showRename && onRename && (
           <PopoverItem
             disabled={disableRename}
@@ -196,6 +212,9 @@ export function ContextMenu({
             Create folder
           </PopoverItem>
         )}
+
+        {/* Copy and export actions */}
+        {(showDuplicate || showExport) && <PopoverDivider />}
         {showDuplicate && onDuplicate && (
           <PopoverItem
             disabled={disableDuplicate}
@@ -218,6 +237,9 @@ export function ContextMenu({
             Export
           </PopoverItem>
         )}
+
+        {/* Destructive action */}
+        <PopoverDivider />
         <PopoverItem
           disabled={disableDelete}
           onClick={() => {
