@@ -7,8 +7,8 @@ import {
   Badge,
   Popover,
   PopoverContent,
+  PopoverDivider,
   PopoverItem,
-  PopoverSection,
   PopoverTrigger,
 } from '@/components/emcn'
 import {
@@ -468,7 +468,7 @@ export function OutputSelect({
         disablePortal={disablePopoverPortal}
       >
         <div className='space-y-[2px]'>
-          {Object.entries(groupedOutputs).map(([blockName, outputs]) => {
+          {Object.entries(groupedOutputs).map(([blockName, outputs], groupIndex, groupArray) => {
             const startIndex = flattenedOutputs.findIndex((o) => o.blockName === blockName)
 
             const firstOutput = outputs[0]
@@ -489,12 +489,10 @@ export function OutputSelect({
 
             return (
               <div key={blockName}>
-                <PopoverSection>
-                  <div className='flex items-center gap-1.5'>
-                    <TagIcon icon={blockIcon} color={blockColor} />
-                    <span>{blockName}</span>
-                  </div>
-                </PopoverSection>
+                <div className='flex items-center gap-1.5 px-[6px] py-[4px]'>
+                  <TagIcon icon={blockIcon} color={blockColor} />
+                  <span className='font-medium text-[13px]'>{blockName}</span>
+                </div>
 
                 <div className='flex flex-col gap-[2px]'>
                   {outputs.map((output, localIndex) => {
@@ -509,14 +507,13 @@ export function OutputSelect({
                         onClick={() => handleOutputSelection(output.label)}
                         onMouseEnter={() => setHighlightedIndex(globalIndex)}
                       >
-                        <span className='min-w-0 flex-1 truncate text-[var(--text-primary)]'>
-                          {output.path}
-                        </span>
+                        <span className='min-w-0 flex-1 truncate'>{output.path}</span>
                         {isSelectedValue(output) && <Check className='h-3 w-3 flex-shrink-0' />}
                       </PopoverItem>
                     )
                   })}
                 </div>
+                {groupIndex < groupArray.length - 1 && <PopoverDivider />}
               </div>
             )
           })}

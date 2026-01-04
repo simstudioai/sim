@@ -80,6 +80,12 @@ function GeneralSkeleton() {
         <Skeleton className='h-[17px] w-[30px] rounded-full' />
       </div>
 
+      {/* Snap to grid row */}
+      <div className='flex items-center justify-between'>
+        <Skeleton className='h-4 w-20' />
+        <Skeleton className='h-8 w-[100px] rounded-[4px]' />
+      </div>
+
       {/* Telemetry row */}
       <div className='flex items-center justify-between border-t pt-[16px]'>
         <Skeleton className='h-4 w-44' />
@@ -87,13 +93,16 @@ function GeneralSkeleton() {
       </div>
 
       {/* Telemetry description */}
-      <Skeleton className='h-[12px] w-full' />
-      <Skeleton className='-mt-2 h-[12px] w-4/5' />
+      <div className='-mt-[8px] flex flex-col gap-1'>
+        <Skeleton className='h-[12px] w-full' />
+        <Skeleton className='h-[12px] w-4/5' />
+      </div>
 
       {/* Action buttons */}
       <div className='mt-auto flex items-center gap-[8px]'>
         <Skeleton className='h-8 w-20 rounded-[4px]' />
         <Skeleton className='h-8 w-28 rounded-[4px]' />
+        <Skeleton className='ml-auto h-8 w-24 rounded-[4px]' />
       </div>
     </div>
   )

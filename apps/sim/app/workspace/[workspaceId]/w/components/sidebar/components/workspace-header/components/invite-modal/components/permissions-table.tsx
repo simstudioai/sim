@@ -180,10 +180,7 @@ export const PermissionsTable = ({
                         {resendingInvitationIds &&
                         user.invitationId &&
                         resendingInvitationIds[user.invitationId] ? (
-                          <>
-                            <Loader2 className='h-[12px] w-[12px] animate-spin' />
-                            <span>Sending...</span>
-                          </>
+                          <span>Sending...</span>
                         ) : resentInvitationIds &&
                           user.invitationId &&
                           resentInvitationIds[user.invitationId] ? (
