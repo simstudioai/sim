@@ -8,7 +8,7 @@ export {
 } from './avatar/avatar'
 export { Badge } from './badge/badge'
 export { Breadcrumb, type BreadcrumbItem, type BreadcrumbProps } from './breadcrumb/breadcrumb'
-export { Button, buttonVariants } from './button/button'
+export { Button, type ButtonProps, buttonVariants } from './button/button'
 export {
   Checkbox,
   type CheckboxProps,

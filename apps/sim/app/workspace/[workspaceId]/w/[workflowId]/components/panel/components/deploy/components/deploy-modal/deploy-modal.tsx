@@ -104,6 +104,9 @@ export function DeployModal({
   const [formExists, setFormExists] = useState(false)
   const [isFormValid, setIsFormValid] = useState(false)
 
+  const [chatSuccess, setChatSuccess] = useState(false)
+  const [formSuccess, setFormSuccess] = useState(false)
+
   const getApiKeyLabel = (value?: string | null) => {
     if (value && value.trim().length > 0) {
       return value
@@ -481,6 +484,18 @@ export function DeployModal({
     onOpenChange(false)
   }
 
+  const handleChatDeployed = async () => {
+    await handlePostDeploymentUpdate()
+    setChatSuccess(true)
+    setTimeout(() => setChatSuccess(false), 2000)
+  }
+
+  const handleFormDeployed = async () => {
+    await handlePostDeploymentUpdate()
+    setFormSuccess(true)
+    setTimeout(() => setFormSuccess(false), 2000)
+  }
+
   const handlePostDeploymentUpdate = async () => {
     if (!workflowId) return
 
@@ -617,7 +632,7 @@ export function DeployModal({
                   setChatSubmitting={setChatSubmitting}
                   onValidationChange={setIsChatFormValid}
                   onDeploymentComplete={handleCloseModal}
-                  onDeployed={handlePostDeploymentUpdate}
+                  onDeployed={handleChatDeployed}
                   onVersionActivated={() => {}}
                 />
               </ModalTabsContent>
@@ -645,7 +660,7 @@ export function DeployModal({
                     onExistingFormChange={setFormExists}
                     formSubmitting={formSubmitting}
                     setFormSubmitting={setFormSubmitting}
-                    onDeployed={handlePostDeploymentUpdate}
+                    onDeployed={handleFormDeployed}
                   />
                 )}
               </ModalTabsContent>
@@ -695,13 +710,17 @@ export function DeployModal({
                   onClick={handleChatFormSubmit}
                   disabled={chatSubmitting || !isChatFormValid}
                 >
-                  {chatSubmitting
+                  {chatSuccess
                     ? chatExists
-                      ? 'Updating...'
-                      : 'Launching...'
-                    : chatExists
-                      ? 'Update'
-                      : 'Launch Chat'}
+                      ? 'Updated'
+                      : 'Launched'
+                    : chatSubmitting
+                      ? chatExists
+                        ? 'Updating...'
+                        : 'Launching...'
+                      : chatExists
+                        ? 'Update'
+                        : 'Launch Chat'}
                 </Button>
               </div>
             </ModalFooter>
@@ -776,13 +795,17 @@ export function DeployModal({
                   onClick={handleFormFormSubmit}
                   disabled={formSubmitting || !isFormValid}
                 >
-                  {formSubmitting
+                  {formSuccess
                     ? formExists
-                      ? 'Updating...'
-                      : 'Launching...'
-                    : formExists
-                      ? 'Update'
-                      : 'Launch Form'}
+                      ? 'Updated'
+                      : 'Launched'
+                    : formSubmitting
+                      ? formExists
+                        ? 'Updating...'
+                        : 'Launching...'
+                      : formExists
+                        ? 'Update'
+                        : 'Launch Form'}
                 </Button>
               </div>
             </ModalFooter>

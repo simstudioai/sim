@@ -481,6 +481,21 @@ export function FormDeploy({
           )}
         </div>
 
+        {/* Description */}
+        <div>
+          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+            Description
+          </Label>
+          <Input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder='Fill out the form below'
+          />
+          <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
+            Optional text shown below the form title
+          </p>
+        </div>
+
         {/* Form Fields Configuration */}
         <div>
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>

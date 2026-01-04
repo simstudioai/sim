@@ -1,4 +1,4 @@
-import type * as React from 'react'
+import { type ButtonHTMLAttributes, forwardRef } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/core/utils/cn'
 
@@ -21,10 +21,17 @@ const buttonVariants = cva(
           '!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:brightness-110 hover:!text-[var(--text-inverse)] ![transition-property:background-color,border-color,fill,stroke]',
         ghost: '',
         'ghost-secondary': 'text-[var(--text-muted)]',
+        /** CTA button variant - requires cta-button-gradient or cta-button-custom class for colors */
+        cta: 'rounded-[10px] border text-white hover:text-white text-[15px] transition-all duration-200',
+        /** CTA outline button variant - branded outline style */
+        'cta-outline':
+          'rounded-[10px] border border-[var(--brand-primary-hex)] text-[var(--brand-primary-hex)] transition-colors duration-200 hover:bg-[var(--brand-primary-hex)] hover:text-white',
       },
       size: {
         sm: 'px-[6px] py-[4px] text-[11px]',
         md: 'px-[8px] py-[6px] text-[12px]',
+        /** CTA size - matches login form button padding */
+        cta: 'py-[6px] pr-[10px] pl-[12px]',
       },
     },
     defaultVariants: {
@@ -35,11 +42,17 @@ const buttonVariants = cva(
 )
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {}
 
-function Button({ className, variant, size, ...props }: ButtonProps) {
-  return <button className={cn(buttonVariants({ variant, size }), className)} {...props} />
-}
+const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, ...props }, ref) => {
+    return (
+      <button ref={ref} className={cn(buttonVariants({ variant, size }), className)} {...props} />
+    )
+  }
+)
+
+Button.displayName = 'Button'
 
 export { Button, buttonVariants }

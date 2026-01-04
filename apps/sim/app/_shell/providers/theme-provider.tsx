@@ -22,7 +22,8 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
     pathname.startsWith('/changelog') ||
     pathname.startsWith('/chat') ||
     pathname.startsWith('/studio') ||
-    pathname.startsWith('/resume')
+    pathname.startsWith('/resume') ||
+    pathname.startsWith('/form')
 
   return (
     <NextThemesProvider

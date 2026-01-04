@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Button } from '@/components/ui/button'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
+import AuthBackground from '@/app/(auth)/components/auth-background'
+import { CTAButton } from '@/app/(auth)/components/cta-button'
+import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import {
   FormErrorState,
   FormField,
@@ -59,36 +61,8 @@ export default function FormClient({ identifier }: { identifier: string }) {
     title: string
     message: string
   } | null>(null)
-  const [buttonClass, setButtonClass] = useState('auth-button-gradient')
 
   const abortControllerRef = useRef<AbortController | null>(null)
-
-  useEffect(() => {
-    const checkCustomBrand = () => {
-      const computedStyle = getComputedStyle(document.documentElement)
-      const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
-
-      if (brandAccent && brandAccent !== '#6f3dfa') {
-        setButtonClass('auth-button-custom')
-      } else {
-        setButtonClass('auth-button-gradient')
-      }
-    }
-
-    checkCustomBrand()
-
-    window.addEventListener('resize', checkCustomBrand)
-    const observer = new MutationObserver(checkCustomBrand)
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['style', 'class'],
-    })
-
-    return () => {
-      window.removeEventListener('resize', checkCustomBrand)
-      observer.disconnect()
-    }
-  }, [])
 
   const fetchFormConfig = useCallback(
     async (signal?: AbortSignal) => {
@@ -145,6 +119,7 @@ export default function FormClient({ identifier }: { identifier: string }) {
                   initialData[field.name] = ''
                   break
                 case 'array':
+                case 'files':
                   initialData[field.name] = []
                   break
                 case 'object':
@@ -254,28 +229,31 @@ export default function FormClient({ identifier }: { identifier: string }) {
   }
 
   if (error && !authRequired) {
-    return <FormErrorState error={error} onRetry={() => fetchFormConfig()} />
+    return <FormErrorState error={error} />
   }
 
   if (authRequired === 'password') {
-    return (
-      <div className='flex min-h-screen flex-col items-center justify-center bg-white p-4'>
-        <PasswordAuth onSubmit={handlePasswordAuth} error={error} primaryColor={primaryColor} />
-        {formConfig?.showBranding !== false && <PoweredBySim />}
-      </div>
-    )
+    return <PasswordAuth onSubmit={handlePasswordAuth} error={error} />
   }
 
   if (isSubmitted && thankYouData) {
     return (
-      <div className='flex min-h-screen flex-col bg-white'>
-        <ThankYouScreen
-          title={thankYouData.title}
-          message={thankYouData.message}
-          primaryColor={primaryColor}
-        />
-        {formConfig?.showBranding !== false && <PoweredBySim />}
-      </div>
+      <AuthBackground>
+        <main className='relative flex min-h-screen flex-col text-foreground'>
+          <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
+            <ThankYouScreen
+              title={thankYouData.title}
+              message={thankYouData.message}
+              primaryColor={primaryColor}
+            />
+          </div>
+          {formConfig?.showBranding !== false ? (
+            <PoweredBySim />
+          ) : (
+            <SupportFooter position='absolute' />
+          )}
+        </main>
+      </AuthBackground>
     )
   }
 
@@ -292,69 +270,73 @@ export default function FormClient({ identifier }: { identifier: string }) {
   )
 
   return (
-    <div className='flex min-h-screen flex-col bg-white'>
-      <main className='flex flex-1 flex-col items-center px-4 py-12'>
-        <div className='w-full max-w-[410px]'>
-          {/* Form title */}
-          <div className='mb-8 text-center'>
-            <h1
-              className={`${soehne.className} font-medium text-[28px] text-foreground tracking-tight`}
-            >
-              {formConfig.title}
-            </h1>
-            {formConfig.description && (
-              <p className={`${inter.className} mt-2 font-[380] text-[15px] text-muted-foreground`}>
-                {formConfig.description}
-              </p>
-            )}
+    <AuthBackground>
+      <main className='relative flex min-h-screen flex-col text-foreground'>
+        <div className='relative z-30 flex flex-1 justify-center px-4 pt-16 pb-24'>
+          <div className='w-full max-w-[410px]'>
+            {/* Form title */}
+            <div className='mb-8 text-center'>
+              <h1
+                className={`${soehne.className} font-medium text-[28px] text-foreground tracking-tight`}
+              >
+                {formConfig.title}
+              </h1>
+              {formConfig.description && (
+                <p
+                  className={`${inter.className} mt-2 font-[380] text-[15px] text-muted-foreground`}
+                >
+                  {formConfig.description}
+                </p>
+              )}
+            </div>
+
+            <form onSubmit={handleSubmit} className={`${inter.className} space-y-6`}>
+              {fields.length === 0 ? (
+                <div className='rounded-[10px] border border-border bg-muted/50 p-6 text-center text-muted-foreground'>
+                  This form has no fields configured.
+                </div>
+              ) : (
+                fields.map((field) => {
+                  const config = fieldConfigMap.get(field.name)
+                  return (
+                    <FormField
+                      key={field.name}
+                      field={field}
+                      value={formData[field.name]}
+                      onChange={(value) => handleFieldChange(field.name, value)}
+                      primaryColor={primaryColor}
+                      label={config?.label}
+                      description={config?.description}
+                    />
+                  )
+                })
+              )}
+
+              {error && (
+                <div className='rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] p-3 text-red-500 text-sm'>
+                  {error}
+                </div>
+              )}
+
+              {fields.length > 0 && (
+                <CTAButton
+                  type='submit'
+                  loading={isSubmitting}
+                  loadingText='Submitting...'
+                  fullWidth
+                >
+                  Submit
+                </CTAButton>
+              )}
+            </form>
           </div>
-
-          <form onSubmit={handleSubmit} className='space-y-6'>
-            {fields.length === 0 ? (
-              <div
-                className={`${inter.className} rounded-[10px] border border-border bg-muted/50 p-6 text-center text-muted-foreground`}
-              >
-                This form has no fields configured.
-              </div>
-            ) : (
-              fields.map((field) => {
-                const config = fieldConfigMap.get(field.name)
-                return (
-                  <FormField
-                    key={field.name}
-                    field={field}
-                    value={formData[field.name]}
-                    onChange={(value) => handleFieldChange(field.name, value)}
-                    primaryColor={primaryColor}
-                    label={config?.label}
-                    description={config?.description}
-                  />
-                )
-              })
-            )}
-
-            {error && (
-              <div
-                className={`${inter.className} rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] p-3 text-red-500 text-sm`}
-              >
-                {error}
-              </div>
-            )}
-
-            {fields.length > 0 && (
-              <Button
-                type='submit'
-                disabled={isSubmitting}
-                className={`${buttonClass} flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200`}
-              >
-                {isSubmitting ? 'Submitting...' : 'Submit'}
-              </Button>
-            )}
-          </form>
         </div>
+        {formConfig.showBranding !== false ? (
+          <PoweredBySim />
+        ) : (
+          <SupportFooter position='absolute' />
+        )}
       </main>
-
-      {formConfig.showBranding !== false && <PoweredBySim />}
-    </div>
+    </AuthBackground>
   )
 }

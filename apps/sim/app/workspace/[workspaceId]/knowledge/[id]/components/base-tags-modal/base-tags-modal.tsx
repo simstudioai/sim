@@ -21,7 +21,7 @@ import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/compone
 import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
-} from '@/hooks/use-knowledge-base-tag-definitions'
+} from '@/hooks/kb/use-knowledge-base-tag-definitions'
 
 const logger = createLogger('BaseTagsModal')
 

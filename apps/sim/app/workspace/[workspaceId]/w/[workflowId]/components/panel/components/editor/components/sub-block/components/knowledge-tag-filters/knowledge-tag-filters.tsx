@@ -19,8 +19,8 @@ import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/compon
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
-import { useTagSelection } from '@/hooks/use-tag-selection'
+import { useKnowledgeBaseTagDefinitions } from '@/hooks/kb/use-knowledge-base-tag-definitions'
+import { useTagSelection } from '@/hooks/kb/use-tag-selection'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 
 interface TagFilter {

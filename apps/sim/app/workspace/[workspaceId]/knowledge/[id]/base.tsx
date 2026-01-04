@@ -55,11 +55,11 @@ import {
   useKnowledgeBase,
   useKnowledgeBaseDocuments,
   useKnowledgeBasesList,
-} from '@/hooks/use-knowledge'
+} from '@/hooks/kb/use-knowledge'
 import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
-} from '@/hooks/use-knowledge-base-tag-definitions'
+} from '@/hooks/kb/use-knowledge-base-tag-definitions'
 
 const logger = createLogger('KnowledgeBase')
 
