@@ -124,9 +124,6 @@ export async function handleProviderChallenges(
 /**
  * Handle provider-specific reachability tests that occur AFTER webhook lookup.
  *
- * This function should be called after findWebhookAndWorkflow() but before
- * checkWebhookPreprocessing() to allow verification requests to bypass deployment checks.
- *
  * @param webhook - The webhook record from the database
  * @param body - The parsed request body
  * @param requestId - Request ID for logging
